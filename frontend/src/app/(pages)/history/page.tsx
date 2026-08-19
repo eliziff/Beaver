@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import {
@@ -15,7 +13,8 @@ import {
   TableScrollArea,
   TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
+import { downloadBlob } from "@/app/lib/download";
 import {
   exportAuditHistory,
   getAuditHistory,
@@ -41,7 +40,7 @@ const controlClass =
   "h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-gray-400";
 
 export default function HistoryPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -52,8 +51,8 @@ export default function HistoryPage() {
   const [draft, setDraft] = useState<AuditHistoryQuery>({});
 
   useEffect(() => {
-    if (isAnonymousMode) {
-      router.replace("/assistant");
+    if (isLocalMode) {
+      navigate("/assistant", { replace: true });
       return;
     }
     const controller = new AbortController();
@@ -75,21 +74,16 @@ export default function HistoryPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, page, router]);
+  }, [filters, navigate, page]);
 
-  if (isAnonymousMode) return null;
+  if (isLocalMode) return null;
   const pageCount = Math.max(1, Math.ceil(total / 50));
 
   const download = async () => {
     setExporting(true);
     try {
       const { blob, filename } = await exportAuditHistory(filters);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename ?? "beaver-history.csv";
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, filename ?? "beaver-history.csv");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not export history");
     } finally {

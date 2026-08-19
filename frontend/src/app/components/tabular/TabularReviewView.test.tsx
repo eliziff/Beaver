@@ -14,13 +14,13 @@ const mocks = vi.hoisted(() => ({
     getTabularReview: vi.fn(),
     listProjects: vi.fn(),
     streamGeneration: vi.fn(),
+    uploadDocument: vi.fn(),
     commits: 0,
 }));
 function fixture(status: TabularCell["status"]) {
     const document = { id: "document-1", filename: "lease.pdf" } as Document;
     const cell = {
         id: "cell-1",
-        review_id: "review-1",
         document_id: document.id,
         column_index: 0,
         content: null,
@@ -43,13 +43,14 @@ function fixture(status: TabularCell["status"]) {
     };
 }
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: vi.fn() }),
-    useSearchParams: () => new URLSearchParams(),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => vi.fn(),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     clearTabularCells: vi.fn(),
     deleteTabularReview: vi.fn(),
+    directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
     getProject: vi.fn(),
     getTabularReview: mocks.getTabularReview,
     getTabularReviewPeople: vi.fn(),
@@ -57,7 +58,6 @@ vi.mock("@/app/lib/beaverApi", () => ({
     regenerateTabularCell: vi.fn(),
     streamTabularGeneration: mocks.streamGeneration,
     updateTabularReview: vi.fn(),
-    uploadProjectDocument: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({

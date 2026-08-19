@@ -1,7 +1,8 @@
 import path from "node:path";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 
-import { isAnonymousLocalMode } from "./localMode";
+import { isLocalRuntime } from "./localMode";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { createServerSupabase } from "./supabase";
 import {
@@ -10,51 +11,27 @@ import {
   type DraftingStyleSettings,
 } from "./draftingStyle";
 
-const localPath = () => path.join(mikeLocalDataHome(), "drafting-style.json");
+const settingsPath = () => path.join(mikeLocalDataHome(), "drafting-style.json");
 let localMutation: Promise<unknown> = Promise.resolve();
 
 async function readLocalDraftingStyle() {
   try {
-    return normalizeDraftingStyleSettings(
-      JSON.parse(await readFile(localPath(), "utf8")),
-    );
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      return DEFAULT_DRAFTING_STYLE;
-    }
-    return DEFAULT_DRAFTING_STYLE;
-  }
-}
-
-async function writeLocalDraftingStyle(settings: DraftingStyleSettings) {
-  const filename = localPath();
-  await mkdir(path.dirname(filename), { recursive: true });
-  const temporary = `${filename}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-  await rename(temporary, filename);
-}
-
-export const getLocalDraftingStyleSettings = readLocalDraftingStyle;
-
-export async function saveLocalDraftingStyleSettings(value: unknown) {
-  const settings = normalizeDraftingStyleSettings(value);
-  const operation = localMutation.then(() => writeLocalDraftingStyle(settings));
-  localMutation = operation.catch(() => undefined);
-  await operation;
-  return settings;
+    return normalizeDraftingStyleSettings(JSON.parse(await readFile(settingsPath(), "utf8")));
+  } catch { return DEFAULT_DRAFTING_STYLE; }
 }
 
 export async function getDraftingStyleSettings(
   userId: string,
   db?: ReturnType<typeof createServerSupabase>,
 ): Promise<DraftingStyleSettings> {
-  if (isAnonymousLocalMode()) return readLocalDraftingStyle();
+  if (isLocalRuntime()) return readLocalDraftingStyle();
   const client = db ?? createServerSupabase();
-  const { data } = await client
+  const { data, error } = await client
     .from("user_profiles")
     .select("drafting_style")
     .eq("user_id", userId)
     .maybeSingle();
+  if (error) throw error;
   return normalizeDraftingStyleSettings(
     (data as { drafting_style?: unknown } | null)?.drafting_style,
   );
@@ -66,8 +43,18 @@ export async function saveDraftingStyleSettings(
   db?: ReturnType<typeof createServerSupabase>,
 ): Promise<DraftingStyleSettings> {
   const settings = normalizeDraftingStyleSettings(value);
-  if (isAnonymousLocalMode()) {
-    return saveLocalDraftingStyleSettings(settings);
+  if (isLocalRuntime()) {
+    const operation = localMutation.then(async () => {
+      const filename = settingsPath(), temporary = `${filename}.${randomUUID()}.tmp`;
+      await mkdir(path.dirname(filename), { recursive: true });
+      try {
+        await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+        await rename(temporary, filename);
+      } finally { await rm(temporary, { force: true }); }
+      return settings;
+    });
+    localMutation = operation.catch(() => undefined);
+    return operation;
   }
   const client = db ?? createServerSupabase();
   const { error } = await client

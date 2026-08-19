@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { appUrl } from "./appRoutes";
-import { isAnonymousLocalMode } from "./localMode";
+import { isLocalRuntime } from "./localMode";
 
 const DOCX_LIMIT = 64 * 1024 * 1024;
 const PDF_LIMIT = 256 * 1024 * 1024;
@@ -48,7 +48,7 @@ export function tableOfAuthoritiesProjectDirectory() {
 }
 
 export function tableOfAuthoritiesLocalFeatureAvailable() {
-  return isAnonymousLocalMode() && process.env.NODE_ENV !== "production";
+  return isLocalRuntime() && process.env.NODE_ENV !== "production";
 }
 
 export async function tableOfAuthoritiesStatus() {
@@ -81,7 +81,7 @@ async function waitUntilReady() {
 export async function ensureTableOfAuthoritiesRunning() {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     throw new Error(
-      "Table of Authorities is available only in local anonymous development mode.",
+      "Table of Authorities is available only in local mode.",
     );
   }
   if (await tableOfAuthoritiesStatus()) {

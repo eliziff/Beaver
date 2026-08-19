@@ -24,9 +24,9 @@ import {
   getLocalA2AJStructure,
 } from "../../backend/src/lib/a2ajLocalBulk";
 import {
-  getA2AJDocumentSourceDoc,
+  a2ajLegalSourceProvider,
   type A2AJDocument,
-} from "../../backend/src/lib/a2aj";
+} from "../../backend/src/lib/legalSources/a2aj";
 import {
   A2AJ_TOOLS,
   executeA2AJTool,
@@ -1554,7 +1554,7 @@ export async function loadCase(candidate: Candidate): Promise<CaseRecord | null>
 }
 
 function buildCaseRecord(candidate: Candidate, document: A2AJDocument): CaseRecord {
-  const source = getLocalA2AJStructure(document) ?? getA2AJDocumentSourceDoc(document);
+  const source = getLocalA2AJStructure(document) ?? a2ajLegalSourceProvider.source(document);
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   const sourceEvidence = createA2AJDocumentEvidence(document);
   const analysis = analyzeTextOpinionStructure({
@@ -2925,7 +2925,7 @@ function deterministicScreenEvent(item: DeterministicScreenItem): Record<string,
   if (!item.candidate || !item.candidate.citation || !item.document) {
     return { kind: "screen_case", document: item.documentId, status: "load_failed", source_chars: 0, needs_llm: false };
   }
-  const source = getLocalA2AJStructure(item.document) ?? getA2AJDocumentSourceDoc(item.document);
+  const source = getLocalA2AJStructure(item.document) ?? a2ajLegalSourceProvider.source(item.document);
   if (!source.text.length) {
     return {
       kind: "screen_case",

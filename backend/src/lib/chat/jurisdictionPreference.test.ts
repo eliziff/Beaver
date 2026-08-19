@@ -1,27 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   jurisdictionPreferencePrompt,
-  parseJurisdictionPreference,
 } from "./prompts";
 
 describe("standing jurisdiction preference", () => {
-  it("normalizes and bounds browser-supplied jurisdictions", () => {
-    expect(
-      parseJurisdictionPreference({
-        mode: "presume",
-        jurisdictions: [
-          " Alberta, Canada ",
-          "Alberta, Canada",
-          42,
-          "",
-        ],
-      }),
-    ).toEqual({
-      mode: "presume",
-      jurisdictions: ["Alberta, Canada"],
-    });
-  });
-
   it("keeps presumed research within the selected regions", () => {
     const prompt = jurisdictionPreferencePrompt({
       mode: "presume",

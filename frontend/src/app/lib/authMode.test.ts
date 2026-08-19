@@ -11,6 +11,7 @@ describe("requiresAccount", () => {
         ).toBe(false);
         expect(requiresAccount("/account/security")).toBe(true);
         expect(requiresAccount("/account/api-keys")).toBe(false);
+        expect(requiresAccount("/account/features")).toBe(false);
         expect(requiresAccount("/assistant")).toBe(false);
         expect(requiresAccount("/table-of-authorities")).toBe(false);
     });

@@ -1,67 +1,32 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-    useFetchSingleDoc: vi.fn(),
-    workbook: {
-        worksheets: [
-            {
-                id: 1,
-                name: "Sheet 1",
-                dimensions: { bottom: 1, right: 1 },
-                model: { merges: [] },
-                getColumn: () => ({ width: 14 }),
-                getCell: () => ({
-                    address: "A1",
-                    alignment: {},
-                    fill: {},
-                    font: {},
-                    hyperlink: "",
-                    isMerged: false,
-                    text: "Example",
-                }),
-            },
-        ],
-        xlsx: { load: vi.fn() },
-    },
-}));
-
-vi.mock("exceljs", () => ({
-    default: {
-        Workbook: class {
-            worksheets = mocks.workbook.worksheets;
-            xlsx = mocks.workbook.xlsx;
-        },
-    },
-}));
-
-vi.mock("@/app/hooks/useFetchSingleDoc", () => ({
-    useFetchSingleDoc: mocks.useFetchSingleDoc,
-}));
-
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { SpreadsheetView } from "./SpreadsheetView";
 
-afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-});
+const { getSpreadsheetProjection } = vi.hoisted(() => ({
+  getSpreadsheetProjection: vi.fn(),
+}));
+vi.mock("@/app/lib/beaverApi", () => ({ getSpreadsheetProjection }));
 
 describe("SpreadsheetView", () => {
-    it("renders workbook data through the lightweight grid", async () => {
-        mocks.useFetchSingleDoc.mockReturnValue({
-            result: { type: "spreadsheet", buffer: new ArrayBuffer(8) },
-            error: null,
-        });
-        mocks.workbook.xlsx.load.mockResolvedValue(mocks.workbook);
-
-        render(<SpreadsheetView documentId="sheet-1" />);
-
-        await waitFor(() =>
-            expect(mocks.workbook.xlsx.load).toHaveBeenCalledOnce(),
-        );
-        expect(
-            await screen.findByRole("grid", { name: "Sheet 1" }),
-        ).toBeInTheDocument();
-        expect(screen.getByText("Example")).toBeInTheDocument();
+  it("renders projected cells and focuses cited evidence", async () => {
+    getSpreadsheetProjection.mockResolvedValue({
+      version_id: "v1",
+      sheets: [{
+        name: "Authorities",
+        cells: [{ address: "B2", value: "R v Example", row: 2, column: 2 }],
+      }],
     });
+
+    render(
+      <SpreadsheetView
+        documentId="sheet-1"
+        versionId="v1"
+        highlightCells={[{ sheet: "Authorities", cell: "B2" }]}
+      />,
+    );
+
+    expect(await screen.findByRole("grid", { name: "Authorities" })).toBeVisible();
+    expect(screen.getByText("R v Example").closest('[role="gridcell"]')).toHaveClass("bg-red-100");
+    expect(getSpreadsheetProjection).toHaveBeenCalledWith("sheet-1", "v1");
+  });
 });

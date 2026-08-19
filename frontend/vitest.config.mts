@@ -23,11 +23,6 @@ export default defineConfig({
         globals: true,
         environment: "jsdom",
         setupFiles: ["./vitest.setup.ts"],
-        // Supabase validates these at import; unit tests never connect.
-        env: {
-            NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321",
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: "test-anon-key",
-        },
         include: ["src/**/*.test.{ts,tsx}"],
         exclude: ["node_modules/**", "e2e/**", "**/*.spec.ts"],
         testTimeout: 20000,

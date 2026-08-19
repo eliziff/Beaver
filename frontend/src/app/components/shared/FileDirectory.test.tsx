@@ -18,10 +18,9 @@ const document: Document = {
     created_at: "2026-07-29T00:00:00Z",
 };
 
-const getLibrary = vi.hoisted(() => vi.fn());
+const listDirectory = vi.hoisted(() => vi.fn());
 vi.mock("@/app/lib/beaverApi", () => ({
-    getLibrary,
-    getProjectDirectory: vi.fn(),
+    directoryResource: () => ({ list: listDirectory }),
     listProjects: vi.fn(),
 }));
 
@@ -31,7 +30,7 @@ describe("FileDirectory folders", () => {
             id: "folder", user_id: "user", library_kind: "file",
             name: "Folder", parent_folder_id: null, created_at: "", updated_at: "",
         };
-        getLibrary.mockImplementation(async (_kind, options) => ({
+        listDirectory.mockImplementation(async (options) => ({
             items: options.q
                 ? [{ kind: "document", document }]
                 : options.parent_id

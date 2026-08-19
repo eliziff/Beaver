@@ -7,7 +7,7 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 
 // Live tool-loop E2E: drives the real /chat route in account-free mode with
 // REAL model calls (no LLM mock) against an isolated data home. Skipped
-// unless LIVE_E2E=1 and an OpenAI key are present:
+// unless LIVE_E2E=1. It defaults to the flat-rate Codex CLI surface:
 //
 //   LIVE_E2E=1 npx vitest run src/__tests__/integration/liveToolLoop.test.ts
 //
@@ -16,25 +16,23 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 // Turn B: the model must route a structural-drafting-errors request to the
 // deterministic lint_docx_structure tool and relay its findings.
 
-const LIVE = process.env.LIVE_E2E === "1" && !!process.env.OPENAI_API_KEY;
-const MODEL = "gpt-5.4-mini";
+const LIVE = process.env.LIVE_E2E === "1";
+const MODEL = process.env.LIVE_MODEL?.trim() || "codex:gpt-5.6-luna";
 const TURN_TIMEOUT = 240_000;
 
 vi.mock("../../lib/localMode", () => ({
-  isAnonymousLocalMode: () => true,
+  isLocalRuntime: () => true,
 }));
 
 let dataHome: string;
-let closeKnowledgeStore: (() => void) | null = null;
+let closeLocalStore: (() => Promise<void>) | null = null;
 
-async function loadApp() {
+async function loadApi() {
   vi.resetModules();
-  const [{ app }, graph] = await Promise.all([
-    import("../../app"),
-    import("../../lib/legalKnowledgeGraphStore"),
-  ]);
-  closeKnowledgeStore = () => graph.legalKnowledgeGraphStore().close();
-  return app;
+  const { api } = await import("../../api");
+  closeLocalStore = async () => (await import("../../lib/sqliteDatabase"))
+    .closeSqliteDatabase();
+  return api;
 }
 
 type SseEvent = { type?: string; [key: string]: unknown };
@@ -90,7 +88,7 @@ async function buildLeaseDocx(): Promise<Buffer> {
 
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-live-e2e-"));
-  vi.stubEnv("AUTH_MODE", "anonymous");
+  vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", dataHome);
   vi.stubEnv(
     "MIKE_LOCAL_DATA_DIR",
@@ -101,8 +99,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  closeKnowledgeStore?.();
-  closeKnowledgeStore = null;
+  await closeLocalStore?.();
+  closeLocalStore = null;
   vi.unstubAllEnvs();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
@@ -112,13 +110,13 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
   it(
     "reads an uploaded lease through library tools and answers with the rent",
     async () => {
-      const app = await loadApp();
-      const upload = await request(app)
+      const api = await loadApi();
+      const upload = await request(api)
         .post("/single-documents")
         .attach("file", await buildLeaseDocx(), "lease.docx");
       expect(upload.status).toBe(201);
 
-      const streamed = await request(app)
+      const streamed = await request(api)
         .post("/chat")
         .send({
           model: MODEL,
@@ -135,17 +133,17 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
       const answer = visibleText(events);
 
       // The model must have gone through the library tools, not memory.
-      expect(calls.some((name) => name.startsWith("library_"))).toBe(true);
+      expect(calls.some((name) => ["Glob", "Grep", "Read"].includes(name))).toBe(true);
       expect(answer).toContain("84,000");
       // Internal doc labels must not leak into prose.
       expect(answer).not.toMatch(/\bdoc-\d+\b/u);
 
       // Turn persisted: the transcript survives a reload with a version bump.
-      const chats = await request(app).get("/chat");
+      const chats = await request(api).get("/chat");
       expect(chats.status).toBe(200);
       const chatId = (chats.body as { id: string }[])[0]?.id;
       expect(chatId).toBeTruthy();
-      const transcript = await request(app).get(`/chat/${chatId}`);
+      const transcript = await request(api).get(`/chat/${chatId}`);
       expect(transcript.status).toBe(200);
       const transcriptText = JSON.stringify(transcript.body);
       expect(transcriptText).toContain("84,000");
@@ -156,13 +154,13 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
   it(
     "routes a drafting-errors request to the deterministic structural lint",
     async () => {
-      const app = await loadApp();
-      const upload = await request(app)
+      const api = await loadApi();
+      const upload = await request(api)
         .post("/single-documents")
         .attach("file", await buildLeaseDocx(), "lease.docx");
       expect(upload.status).toBe(201);
 
-      const streamed = await request(app)
+      const streamed = await request(api)
         .post("/chat")
         .send({
           model: MODEL,

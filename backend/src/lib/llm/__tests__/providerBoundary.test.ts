@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const src = fileURLToPath(new URL("../../../", import.meta.url));
-const providerImport = /["'][^"']*\/llm\/(?:claudeP?|deepseek|gemini|meta|ollamaApi|openai|openrouter)["']/u;
+const providerImport = /["'][^"']*\/llm\/(?:anthropicWire|claudeP?|deepseek|gemini(?:Wire)?|meta|ollama(?:Api|Models)|openai(?:CompatibleWire|ResponsesWire)?|openrouter|providerLoop)["']/u;
+const sdkImport = /from\s+["'](?:@anthropic-ai\/sdk|@google\/genai|openai)["']/u;
+const wireAdapter = /(?:anthropic|gemini|openaiCompatible|openaiResponses)Wire\.ts$/u;
 
 async function productionFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -21,10 +23,11 @@ async function productionFiles(directory: string): Promise<string[]> {
 }
 
 describe("LLM provider boundary", () => {
-  it("routes production provider calls through lib/llm/index", async () => {
+  it("keeps provider calls behind index and SDKs inside wire adapters", async () => {
     for (const file of await productionFiles(src)) {
-      if (file.startsWith(path.join(src, "lib", "llm"))) continue;
-      expect(await readFile(file, "utf8"), file).not.toMatch(providerImport);
+      const source = await readFile(file, "utf8");
+      if (!file.startsWith(path.join(src, "lib", "llm"))) expect(source, file).not.toMatch(providerImport);
+      if (sdkImport.test(source)) expect(file, file).toMatch(wireAdapter);
     }
   });
 });

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { Document, Workflow } from "../shared/types";
 import { createTabularReview } from "@/app/lib/beaverApi";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { FileDirectory } from "../shared/FileDirectory";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { Modal } from "../modals/Modal";
@@ -38,7 +38,7 @@ function OpenUseWorkflowModal({
     const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
     const assistantPromptRef = useRef("");
     const [saving, setSaving] = useState(false);
-    const router = useRouter();
+    const navigate = useNavigate();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
     async function handleStartChat() {
         setSaving(true);
@@ -61,7 +61,7 @@ function OpenUseWorkflowModal({
                 workflow: { id: wf.id, title: wf.metadata.title },
             });
             onClose();
-            router.push(
+            navigate(
                 projectId
                     ? `/projects/${projectId}/assistant/chat/${chatId}`
                     : `/assistant/chat/${chatId}`,
@@ -83,7 +83,7 @@ function OpenUseWorkflowModal({
                 project_id: projectId,
             });
             onClose();
-            router.push(
+            navigate(
                 projectId
                     ? `/projects/${projectId}/tabular-reviews/${review.id}`
                     : `/tabular-reviews/${review.id}`,

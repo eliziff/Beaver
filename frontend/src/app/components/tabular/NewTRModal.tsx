@@ -1,18 +1,13 @@
 import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
-import type { Document, Project, Workflow } from "../shared/types";
-import {
-    uploadProjectDocument,
-    uploadStandaloneDocument,
-} from "@/app/lib/beaverApi";
-import { FileDirectory } from "../shared/FileDirectory";
-import { Modal } from "../modals/Modal";
-import { ModalFieldLabel } from "../modals/ModalFieldLabel";
-import { ModalTextInput } from "../modals/ModalTextInput";
+import { directoryResource, uploadStandaloneDocument } from "@/app/lib/beaverApi";
+import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
+import { FileDirectory } from "../shared/FileDirectory";
+import type { Document, Project, Workflow } from "../shared/types";
 import { useWorkflowPickerState } from "../workflows/WorkflowPickerModal";
-import { CheckboxInput } from "../ui/checkbox";
-interface Props {
+
+type Props = {
     open: boolean;
     onClose: () => void;
     onAdd: (
@@ -25,247 +20,220 @@ interface Props {
     projectId?: string;
     projectName?: string;
     projectCmNumber?: string | null;
-}
+};
+
 export function NewTRModal({ open, ...props }: Props) {
-    if (!open) return null;
-    return <OpenNewTRModal open {...props} />;
+    return open ? <OpenNewTRModal {...props} /> : null;
 }
+
 function OpenNewTRModal({
-    open,
     onClose,
     onAdd,
     projects,
     projectId: fixedProjectId,
     projectName,
     projectCmNumber,
-}: Props) {
+}: Omit<Props, "open">) {
     const isProjectMode = fixedProjectId !== undefined;
     const [step, setStep] = useState<"details" | "documents">("details");
-    const titleRef = useRef("");
+    const title = useRef("");
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
-    const [projectDocs, setProjectDocs] = useState<Document[]>([]);
-    const [extraStandaloneDocs, setExtraStandaloneDocs] = useState<Document[]>(
-        [],
-    );
-    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
+    const [projectUploads, setProjectUploads] = useState<Document[]>([]);
+    const [standaloneUploads, setStandaloneUploads] = useState<Document[]>([]);
+    const [documents, setDocuments] = useState<Document[]>([]);
     const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const {
-        workflows,
-        loading: workflowsLoading,
-        selected: selectedWorkflow,
-        setSelected: setSelectedWorkflow,
-        hasMore: hasMoreWorkflows,
-        loadMore: loadMoreWorkflows,
-    } = useWorkflowPickerState("tabular");
+    const fileInput = useRef<HTMLInputElement>(null);
+    const workflow = useWorkflowPickerState("tabular");
     const formId = "new-tabular-review-modal-form";
-    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-        const title =
-            step === "details"
-                ? String(
-                      new FormData(e.currentTarget).get("title") ?? "",
-                  ).trim() || "Untitled review"
-                : titleRef.current;
-        if (underProject && !selectedProjectId) return;
-        const submitter = (e.nativeEvent as SubmitEvent)
+    const activeProjectId = fixedProjectId ??
+        (underProject ? selectedProjectId : undefined);
+    const invalid = underProject && !selectedProjectId;
+
+    function submit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const submitter = (event.nativeEvent as SubmitEvent)
             .submitter as HTMLButtonElement | null;
         if (step === "details" || submitter?.value !== "create-review") {
-            titleRef.current = title;
-            setStep("documents");
+            title.current = String(
+                new FormData(event.currentTarget).get("title") ?? "",
+            ).trim() || "Untitled review";
+            if (!invalid) setStep("documents");
             return;
         }
-        const projectId = fixedProjectId ?? (underProject ? selectedProjectId : undefined);
         onAdd(
-            title.trim(),
-            projectId || undefined,
-            selectedDocuments.length > 0
-                ? selectedDocuments.map((document) => document.id)
-                : undefined,
-            selectedWorkflow?.columns_config ?? undefined,
+            title.current,
+            activeProjectId,
+            documents.length ? documents.map(({ id }) => id) : undefined,
+            workflow.selected?.columns_config ?? undefined,
         );
         onClose();
     }
-    async function handleSelectProject(projectId: string) {
-        setSelectedProjectId(projectId);
-        setProjectDocs([]);
-        setSelectedDocuments([]);
-    }
-    async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const files = Array.from(e.target.files ?? []);
-        if (!files.length) return;
+
+    async function upload(files: FileList | null) {
+        if (!files?.length) return;
         setUploading(true);
         try {
-            const uploaded = await Promise.all(
-                files.map((f) =>
-                    fixedProjectId || (underProject && selectedProjectId)
-                        ? uploadProjectDocument(fixedProjectId ?? selectedProjectId, f)
-                        : uploadStandaloneDocument(f),
+            const resource = activeProjectId
+                ? directoryResource({ projectId: activeProjectId })
+                : null;
+            const added = await Promise.all(
+                Array.from(files, (file) =>
+                    resource
+                        ? resource.uploadDocument(file)
+                        : uploadStandaloneDocument(file),
                 ),
             );
-            const addUploaded =
-                fixedProjectId || (underProject && selectedProjectId)
-                    ? setProjectDocs
-                    : setExtraStandaloneDocs;
-            addUploaded((prev) => [...uploaded, ...prev]);
-            setSelectedDocuments((prev) => [
+            (activeProjectId ? setProjectUploads : setStandaloneUploads)(
+                (current) => [...added, ...current],
+            );
+            setDocuments((current) => [
                 ...new Map(
-                    [...prev, ...uploaded].map((doc) => [doc.id, doc]),
+                    [...current, ...added].map((document) => [
+                        document.id,
+                        document,
+                    ]),
                 ).values(),
             ]);
-        } catch (err) {
-            console.error("Upload failed:", err);
+        } catch (error) {
+            console.error("Upload failed", error);
         } finally {
             setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
+            if (fileInput.current) fileInput.current.value = "";
         }
     }
-    const directoryDocuments = isProjectMode || underProject
-        ? projectDocs
-        : extraStandaloneDocs;
-    const breadcrumbs =
-        isProjectMode && projectName
-            ? [
-                  "Projects",
-                  `${projectName}${projectCmNumber ? ` (#${projectCmNumber})` : ""}`,
-                  "New Tabular Review",
-              ]
-            : ["Tabular Reviews", "New Tabular Review"];
-    const invalid = underProject && !selectedProjectId;
+
+    const breadcrumbs = isProjectMode && projectName
+        ? [
+            "Projects",
+            `${projectName}${projectCmNumber ? ` (#${projectCmNumber})` : ""}`,
+            "New Tabular Review",
+        ]
+        : ["Tabular Reviews", "New Tabular Review"];
+
     return (
         <Modal
-            open={open}
+            open
             onClose={onClose}
             breadcrumbs={[
                 ...breadcrumbs,
                 step === "details" ? "Details" : "Add Documents",
             ]}
-            secondaryAction={
-                step === "documents"
-                    ? {
-                          label: uploading ? "Uploading..." : "Upload",
-                          icon: uploading ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                              <Upload className="h-3.5 w-3.5" />
-                          ),
-                          onClick: () => fileInputRef.current?.click(),
-                          disabled: uploading,
-                      }
-                    : undefined
-            }
-            cancelAction={
-                step === "documents"
-                    ? {
-                          label: "Back",
-                          onClick: () => setStep("details"),
-                          disabled: uploading,
-                      }
-                    : undefined
-            }
-            primaryAction={
-                step === "details"
-                    ? {
-                          label: "Next",
-                          type: "submit",
-                          form: formId,
-                          disabled: invalid,
-                      }
-                    : {
-                          label: "Create",
-                          type: "submit",
-                          form: formId,
-                          value: "create-review",
-                          disabled: invalid,
-                      }
-            }
+            secondaryAction={step === "documents" ? {
+                label: uploading ? "Uploading…" : "Upload",
+                icon: uploading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Upload className="h-3.5 w-3.5" />,
+                onClick: () => fileInput.current?.click(),
+                disabled: uploading,
+            } : undefined}
+            cancelAction={step === "documents" ? {
+                label: "Back",
+                onClick: () => setStep("details"),
+                disabled: uploading,
+            } : undefined}
+            primaryAction={step === "details" ? {
+                label: "Next",
+                type: "submit",
+                form: formId,
+                disabled: invalid,
+            } : {
+                label: "Create",
+                type: "submit",
+                form: formId,
+                value: "create-review",
+                disabled: invalid || uploading,
+            }}
         >
             <input
-                ref={fileInputRef}
+                ref={fileInput}
                 type="file"
                 accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
                 multiple
-                className="hidden"
-                onChange={handleUpload}
+                hidden
+                onChange={(event) => void upload(event.currentTarget.files)}
             />
             <form
                 id={formId}
-                onSubmit={handleSubmit}
-                className="flex flex-col min-h-0 flex-1"
+                onSubmit={submit}
+                className="flex min-h-0 flex-1 flex-col"
             >
                 {step === "details" ? (
                     <div className="space-y-6">
                         <div>
-                            <ModalFieldLabel htmlFor="new-tr-title">
+                            <label
+                                className={MODAL_LABEL_CLASS}
+                                htmlFor="new-tr-title"
+                            >
                                 Review name
-                            </ModalFieldLabel>
-                            <ModalTextInput
+                            </label>
+                            <input
                                 id="new-tr-title"
                                 name="title"
                                 type="text"
                                 placeholder="Review name"
-                                variant="minimal"
-                                className="placeholder:text-gray-400"
+                                className={`${MODAL_INPUT_CLASS} placeholder:text-gray-400`}
                                 autoFocus
                             />
                         </div>
                         <div>
-                            <ModalFieldLabel htmlFor="new-tr-workflow-template">
+                            <label
+                                className={MODAL_LABEL_CLASS}
+                                htmlFor="new-tr-workflow-template"
+                            >
                                 Workflow template
-                            </ModalFieldLabel>
+                            </label>
                             <div className="flex min-w-0 items-center gap-2">
                                 <select
                                     id="new-tr-workflow-template"
-                                    value={selectedWorkflow?.id ?? ""}
-                                    disabled={workflowsLoading && !workflows.length}
-                                    onChange={(event) => setSelectedWorkflow(
-                                        workflows.find(({ id }) => id === event.currentTarget.value) ?? null,
+                                    value={workflow.selected?.id ?? ""}
+                                    disabled={workflow.loading && !workflow.workflows.length}
+                                    onChange={(event) => workflow.setSelected(
+                                        workflow.workflows.find(({ id }) =>
+                                            id === event.currentTarget.value) ?? null,
                                     )}
                                     className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-600 disabled:opacity-60"
                                 >
                                     <option value="">Start from scratch</option>
-                                    {workflows.map((workflow) => (
-                                        <option key={workflow.id} value={workflow.id}>
-                                            {workflow.metadata.title}
+                                    {workflow.workflows.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.metadata.title}
                                         </option>
                                     ))}
                                 </select>
-                                {hasMoreWorkflows && (
+                                {workflow.hasMore && (
                                     <button
                                         type="button"
-                                        onClick={() => void loadMoreWorkflows()}
-                                        disabled={workflowsLoading}
+                                        onClick={() => void workflow.loadMore()}
+                                        disabled={workflow.loading}
                                         className="h-10 shrink-0 px-2 text-sm text-gray-600 hover:text-gray-900"
                                     >
-                                        {workflowsLoading ? "Loading..." : "Load more"}
+                                        {workflow.loading ? "Loading…" : "Load more"}
                                     </button>
                                 )}
                             </div>
-                            {selectedWorkflow?.metadata.description && (
+                            {workflow.selected?.metadata.description && (
                                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                                    {selectedWorkflow.metadata.description}
+                                    {workflow.selected.metadata.description}
                                 </p>
                             )}
                         </div>
                         {!isProjectMode && (
                             <div className="space-y-3">
-                                <ModalFieldLabel as="p">
-                                    Project
-                                </ModalFieldLabel>
+                                <p className={MODAL_LABEL_CLASS}>Project</p>
                                 <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-gray-600">
-                                    <CheckboxInput
+                                    <input
+                                        type="checkbox"
                                         checked={underProject}
                                         onChange={(event) => {
-                                            setUnderProject(
-                                                event.currentTarget.checked,
-                                            );
+                                            setUnderProject(event.currentTarget.checked);
                                             if (!event.currentTarget.checked) {
                                                 setSelectedProjectId("");
-                                                setProjectDocs([]);
-                                                setSelectedDocuments([]);
+                                                setProjectUploads([]);
+                                                setDocuments([]);
                                             }
                                         }}
+                                        className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                                     />
                                     Create under a project
                                 </label>
@@ -274,7 +242,9 @@ function OpenNewTRModal({
                                         projects={projects}
                                         value={selectedProjectId || null}
                                         onChange={(value) => {
-                                            void handleSelectProject(value);
+                                            setSelectedProjectId(value);
+                                            setProjectUploads([]);
+                                            setDocuments([]);
                                         }}
                                         disabled={projects?.length === 0}
                                     />
@@ -284,16 +254,14 @@ function OpenNewTRModal({
                     </div>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col">
-                        {(isProjectMode ||
-                            !underProject ||
-                            selectedProjectId) && (
+                        {(!underProject || activeProjectId) && (
                             <FileDirectory
-                                documents={directoryDocuments}
-                                projectId={isProjectMode
-                                    ? fixedProjectId
-                                    : underProject ? selectedProjectId : undefined}
-                                selectedDocuments={selectedDocuments}
-                                onChange={setSelectedDocuments}
+                                documents={activeProjectId
+                                    ? projectUploads
+                                    : standaloneUploads}
+                                projectId={activeProjectId}
+                                selectedDocuments={documents}
+                                onChange={setDocuments}
                                 showTabs={!isProjectMode && !underProject}
                             />
                         )}

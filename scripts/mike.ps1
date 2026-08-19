@@ -20,17 +20,14 @@ $StateFile = Join-Path $StateRoot 'lifecycle.json'
 
 $Services = @(
     [pscustomobject]@{
-        Name = 'backend'
-        Port = 3001
-        Url = 'http://127.0.0.1:3001/health'
-        Build = Join-Path $Backend 'dist\index.js'
-    },
-    [pscustomobject]@{
-        Name = 'frontend'
+        Name = 'beaver'
         Port = 3000
-        Url = 'http://127.0.0.1:3000/'
-        Build = Join-Path $Frontend '.next\BUILD_ID'
+        Url = 'http://127.0.0.1:3000/api/health'
     }
+)
+$Builds = @(
+    [pscustomobject]@{ Name = 'backend'; Path = Join-Path $Backend 'dist\index.js'; Command = 'cd backend; npm run build' },
+    [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $Frontend 'dist\index.html'; Command = 'cd frontend; npm run build' }
 )
 
 function Get-ProcessStamp([int]$Id) {
@@ -291,15 +288,9 @@ function Get-CredentialStatus([string[]]$Names) {
 }
 
 function Assert-Builds {
-    foreach ($service in $Services) {
-        if (-not (Test-Path -LiteralPath $service.Build -PathType Leaf)) {
-            $command = if ($service.Name -eq 'backend') {
-                'cd backend; npm run build'
-            }
-            else {
-                'cd frontend; npm run build'
-            }
-            throw "Missing $($service.Name) production build: $($service.Build). Run: $command"
+    foreach ($build in $Builds) {
+        if (-not (Test-Path -LiteralPath $build.Path -PathType Leaf)) {
+            throw "Missing $($build.Name) production build: $($build.Path). Run: $($build.Command)"
         }
     }
 }
@@ -334,7 +325,7 @@ function Wait-Ready(
         }
         try {
             $response = Invoke-RestMethod -Uri $Url -TimeoutSec 3
-            if ($Name -eq 'backend' -and $response.ok -ne $true) {
+            if ($Name -eq 'beaver' -and $response.ok -ne $true) {
                 throw 'health response did not contain ok=true'
             }
             if ($Name -eq 'table-of-authorities' -and
@@ -395,6 +386,7 @@ function Start-LoggedProcess(
     $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
         -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $process.PriorityClass = 'BelowNormal'
     return [pscustomobject]@{
         Process = $process
         Stdout = $stdout
@@ -471,14 +463,16 @@ function Invoke-Doctor {
         Write-Host "ERROR: $($_.Exception.Message)"
         $failed = $true
     }
-    foreach ($service in $Services) {
-        if (Test-Path -LiteralPath $service.Build -PathType Leaf) {
-            Write-Host "$($service.Name) build: present"
+    foreach ($build in $Builds) {
+        if (Test-Path -LiteralPath $build.Path -PathType Leaf) {
+            Write-Host "$($build.Name) build: present"
         }
         else {
-            Write-Host "$($service.Name) build: MISSING ($($service.Build))"
+            Write-Host "$($build.Name) build: MISSING ($($build.Path))"
             $failed = $true
         }
+    }
+    foreach ($service in $Services) {
         Write-Host "$($service.Name): $(Format-PortOwners $service.Port)"
         $ownedPid = @($state.processes | Where-Object {
             $_.name -eq $service.Name -and
@@ -526,12 +520,20 @@ function Invoke-Doctor {
         }
     }
     $authMode = Get-ConfigValue 'AUTH_MODE'
-    if ($authMode -ne 'anonymous' -and -not (Test-Configured @('SUPABASE_URL'))) {
-        Write-Host 'ERROR: AUTH_MODE is not anonymous and Supabase is not configured.'
+    $missingSupabase = @(
+        'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_PUBLISHABLE_KEY' |
+            Where-Object { -not (Test-Configured @($_)) }
+    )
+    if ($authMode -notin @('local', 'cloud')) {
+        Write-Host 'ERROR: AUTH_MODE must be local or cloud.'
+        $failed = $true
+    }
+    elseif ($authMode -eq 'cloud' -and $missingSupabase) {
+        Write-Host "ERROR: Cloud mode is missing: $($missingSupabase -join ', ')."
         $failed = $true
     }
     else {
-        Write-Host "Authentication: $(if ($authMode -eq 'anonymous') { 'local anonymous' } else { 'cloud' })"
+        Write-Host "Authentication: $(if ($authMode -eq 'local') { 'account-free local' } else { 'cloud' })"
     }
     $providers = [ordered]@{
         Anthropic = @('ANTHROPIC_API_KEY', 'CLAUDE_API_KEY')
@@ -577,32 +579,26 @@ function Start-Stack {
     $launched = @()
     $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_COMMAND', 'Process')
     $previousLegalPdfBinary = [Environment]::GetEnvironmentVariable('LEGALPDF_BINARY', 'Process')
+    $previousNodeEnvironment = [Environment]::GetEnvironmentVariable('NODE_ENV', 'Process')
     try {
-        # Pin resolved executables for the backend child; PATH is untouched.
+        # Pin resolved executables for the Beaver child; PATH is untouched.
         if ($codex) {
             [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $codex, 'Process')
         }
         [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $legalPdfBinary, 'Process')
 
-        $backendStart = Start-LoggedProcess 'backend' $node @('dist/index.js') $Backend $state
+        $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
+        [Environment]::SetEnvironmentVariable('PORT', '3000', 'Process')
+        [Environment]::SetEnvironmentVariable('NODE_ENV', 'production', 'Process')
+        $backendStart = Start-LoggedProcess 'beaver' $node @('dist/index.js') $Backend $state
         $launched += [pscustomobject]@{
             Id = $backendStart.Process.Id
             StartedAt = Get-ProcessStamp $backendStart.Process.Id
         }
-        Add-ProcessRecord $state 'backend' 3001 $backendStart.Process $backendStart.Stdout $backendStart.Stderr
-        Wait-Ready 'backend' $Services[0].Url $backendStart.Process $TimeoutSeconds
-        Set-ListenerRecord $state 'backend' 3001 $backendStart.Process
-        Write-Host "Backend ready: $($Services[0].Url)"
-
-        $frontendStart = Start-LoggedProcess 'frontend' $node @('node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '3000') $Frontend $state
-        $launched += [pscustomobject]@{
-            Id = $frontendStart.Process.Id
-            StartedAt = Get-ProcessStamp $frontendStart.Process.Id
-        }
-        Add-ProcessRecord $state 'frontend' 3000 $frontendStart.Process $frontendStart.Stdout $frontendStart.Stderr
-        Wait-Ready 'frontend' $Services[1].Url $frontendStart.Process $TimeoutSeconds
-        Set-ListenerRecord $state 'frontend' 3000 $frontendStart.Process
-        Write-Host "Frontend ready: $($Services[1].Url)"
+        Add-ProcessRecord $state 'beaver' 3000 $backendStart.Process $backendStart.Stdout $backendStart.Stderr
+        Wait-Ready 'beaver' $Services[0].Url $backendStart.Process $TimeoutSeconds
+        Set-ListenerRecord $state 'beaver' 3000 $backendStart.Process
+        Write-Host "Beaver ready: $($Services[0].Url)"
 
         if ($WithTableOfAuthorities) {
             $toaStart = Start-LoggedProcess 'table-of-authorities' $python @('bootstrap.py', '--web', '--port', '8765', '--no-browser') $Toa $state
@@ -629,6 +625,8 @@ function Start-Stack {
     finally {
         [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $previousCodex, 'Process')
         [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $previousLegalPdfBinary, 'Process')
+        [Environment]::SetEnvironmentVariable('PORT', $previousPort, 'Process')
+        [Environment]::SetEnvironmentVariable('NODE_ENV', $previousNodeEnvironment, 'Process')
     }
 
     if (-not $NoBrowser) {
@@ -653,12 +651,12 @@ function Invoke-Smoke {
         }
     }
     $checks = @(
-        [pscustomobject]@{ Name = 'backend'; Url = 'http://127.0.0.1:3001/health' },
-        [pscustomobject]@{ Name = 'frontend'; Url = 'http://127.0.0.1:3000/' },
-        [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3001/library/files' }
+        [pscustomobject]@{ Name = 'beaver'; Url = 'http://127.0.0.1:3000/api/health' },
+        [pscustomobject]@{ Name = 'app'; Url = 'http://127.0.0.1:3000/' },
+        [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3000/api/library/files' }
     )
     if ($state.codex) {
-        $checks += [pscustomobject]@{ Name = 'Model catalog'; Url = 'http://127.0.0.1:3001/models' }
+        $checks += [pscustomobject]@{ Name = 'Model catalog'; Url = 'http://127.0.0.1:3000/api/models' }
     }
     elseif ($Full) {
         throw 'Full smoke requires an installed and authenticated Codex CLI.'
@@ -675,9 +673,9 @@ function Invoke-Smoke {
             if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 400) {
                 throw "HTTP $($response.StatusCode)"
             }
-            if ($check.Name -ne 'frontend') {
+            if ($check.Name -ne 'app') {
                 $payload = $response.Content | ConvertFrom-Json
-                if ($check.Name -eq 'backend' -and $payload.ok -ne $true) {
+                if ($check.Name -eq 'beaver' -and $payload.ok -ne $true) {
                     throw 'health response did not contain ok=true'
                 }
                 if ($check.Name -eq 'Library' -and
@@ -709,7 +707,7 @@ function Invoke-Smoke {
         try {
             & $playwright test '--config=playwright.local-smoke.config.ts'
             if ($LASTEXITCODE -ne 0) {
-                throw "Full anonymous production smoke failed with exit code $LASTEXITCODE."
+                throw "Full local production smoke failed with exit code $LASTEXITCODE."
             }
         }
         finally {
@@ -786,9 +784,9 @@ function Invoke-SelfTest {
             throw
         }
     }
-    $build = $Services[0].Build
+    $build = $Builds[0].Path
     try {
-        $Services[0].Build = Join-Path $Repo 'definitely-missing-build'
+        $Builds[0].Path = Join-Path $Repo 'definitely-missing-build'
         try {
             Assert-Builds
             throw 'Missing build check did not fail.'
@@ -800,7 +798,7 @@ function Invoke-SelfTest {
         }
     }
     finally {
-        $Services[0].Build = $build
+        $Builds[0].Path = $build
     }
     Write-Host 'PASS lifecycle self-test'
 }

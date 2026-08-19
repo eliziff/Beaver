@@ -1,227 +1,148 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { apiFetch } from "@/app/lib/beaverApi";import { downloadBlob } from "@/app/lib/download";
-import { PillButton } from "@/app/components/ui/pill-button";
-import { DocumentViewer } from "../shared/views/DocumentViewer";
-import { useEditResolution } from "./EditCard";
-import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
-import {
-    expandCitationToEntries,
-    getDocumentCitationQuotes,
-    isDocxFilename,
-    isSpreadsheetFilename,
-} from "../shared/types";
+import { DocumentAutomation } from "../documents/DocumentAutomation";
 import type {
-    CitationQuote,
-    Citation,
-    EditAnnotation,
-    EditResolveHandlers,
+  Citation,
+  EditAnnotation,
+  EditResolveHandlers,
 } from "../shared/types";
+import {
+  expandCitationToEntries,
+  getDocumentCitationQuotes,
+  isDocxFilename,
+  isSpreadsheetFilename,
+} from "../shared/types";
+import { DocumentViewer } from "../shared/views/DocumentViewer";
+import { PillButton } from "../ui/pill-button";
+import { downloadDocument } from "../../lib/beaverApi";
+import { downloadBlob } from "../../lib/download";
+import { useEditResolution } from "./EditCard";
+
 export type DocPanelMode =
-    | { kind: "document" }
-    | { kind: "citation"; citation: Citation }
-    | ({
-          kind: "edit";
-          edit: EditAnnotation;
-          focusKey: number;
-          isEditReloading?: boolean;
-      } & EditResolveHandlers);
-interface Props {
-    documentId: string;
-    filename: string;
-    projectId?: string;
-    versionId: string | null;
-    versionNumber: number | null;
-    mode: DocPanelMode;
-    isReloading?: boolean;
-    warning?: string | null;
-    onWarningDismiss?: () => void;
-    initialScrollTop?: number | null;
-    onScrollChange?: (scrollTop: number) => void;
-}
-function useLocalOverride<T>(source: T) {
-    const [override, setOverride] = useState({ source, value: source });
-    return [
-        override.source === source ? override.value : source,
-        (value: T) => setOverride({ source, value }),
-    ] as const;
-}
+  | { kind: "document" }
+  | { kind: "citation"; citation: Citation }
+  | ({
+      kind: "edit";
+      edit: EditAnnotation;
+      focusKey: number;
+      isEditReloading?: boolean;
+    } & EditResolveHandlers);
+
 export function DocPanel({
-    documentId,
-    filename,
-    projectId,
-    versionId,
-    versionNumber,
-    mode,
-    isReloading = false,
-    warning,
-    onWarningDismiss,
-    initialScrollTop,
-    onScrollChange,
-}: Props) {
-    const useDocxView = isDocxFilename(filename);
-    const useSheetView = isSpreadsheetFilename(filename);
-    const [actionVersionId, setActionVersionId] = useLocalOverride(versionId);
-    const documentQuotes =
-        mode.kind === "citation"
-            ? getDocumentCitationQuotes(mode.citation)
-            : undefined;
-    const quotes: CitationQuote[] | undefined =
-        mode.kind === "citation"
-            ? expandCitationToEntries(mode.citation)
-            : undefined;
-    const highlightCells = documentQuotes
-        ?.filter((quote) => quote.cell || quote.sheet)
-        .map(({ cell, sheet }) => ({ cell, sheet }));
-    const highlightEdit =
-        mode.kind === "edit"
-            ? {
-                  key: `${mode.edit.edit_id}:${mode.focusKey}`,
-                  inserted_text: mode.edit.inserted_text,
-                  deleted_text: mode.edit.deleted_text,
-                  ins_w_id: mode.edit.ins_w_id ?? null,
-                  del_w_id: mode.edit.del_w_id ?? null,
-              }
-            : null;
-    return (
-        <div className="flex h-full flex-col">
-            {mode.kind !== "edit" && (
-                <DocumentTitleRow
-                    documentId={documentId}
-                    filename={filename}
-                    projectId={projectId}
-                    versionId={actionVersionId}
-                    versionNumber={versionNumber}
-                    isReloading={isReloading}
-                    onDocumentChanged={setActionVersionId}
-                />
-            )}
-            {mode.kind === "edit" && (
-                <TrackedChangeHeader {...mode} />
-            )}
-            <div className="flex flex-1 min-h-0 flex-col px-3 py-3">
-                <DocumentViewer                    documentId={documentId}                    kind={useDocxView ? "docx" : useSheetView ? "spreadsheet" : "pdf"}                    versionId={actionVersionId}                    quotes={quotes}                    highlightEdit={highlightEdit}                    highlightCells={highlightCells}                    warning={warning ?? null}                    onWarningDismiss={onWarningDismiss}                    initialScrollTop={initialScrollTop ?? null}                    onScrollChange={onScrollChange}                />            </div>
-        </div>
-    );
-}
-function TrackedChangeHeader({
-    edit,
-    isEditReloading,
-    ...handlers
-}: Extract<DocPanelMode, { kind: "edit" }>) {
-    const { status, resolve, disabled } = useEditResolution(
-        edit,
-        undefined,
-        isEditReloading,
-        handlers,
-    );
-    return (
-        <div className="flex shrink-0 justify-end border-b border-gray-200 px-3 py-2">
-            <div className="flex items-center gap-2">
-                <PillButton
-                    tone="black"
-                    size="sm"
-                    onClick={() => resolve("accept")}
-                    disabled={disabled}
-                >
-                    {status === "accepted" ? "Accepted" : "Accept"}
-                </PillButton>
-                <PillButton
-                    tone="white"
-                    size="sm"
-                    onClick={() => resolve("reject")}
-                    disabled={disabled}
-                >
-                    {status === "rejected" ? "Rejected" : "Reject"}
-                </PillButton>
-            </div>
-        </div>
-    );
-}
-function DocumentTitleRow({
-    documentId,
-    filename,
-    projectId,
-    versionId,
-    versionNumber,
-    isReloading,
-    onDocumentChanged,
+  documentId,
+  filename,
+  projectId,
+  versionId,
+  versionNumber,
+  mode,
+  isReloading = false,
+  warning,
+  onWarningDismiss,
+  initialScrollTop,
+  onScrollChange,
 }: {
-    documentId: string;
-    filename: string;
-    projectId?: string;
-    versionId: string | null;
-    versionNumber: number | null;
-    isReloading: boolean;
-    onDocumentChanged: (versionId: string) => void;
+  documentId: string;
+  filename: string;
+  projectId?: string;
+  versionId: string | null;
+  versionNumber: number | null;
+  mode: DocPanelMode;
+  isReloading?: boolean;
+  warning?: string | null;
+  onWarningDismiss?: () => void;
+  initialScrollTop?: number | null;
+  onScrollChange?: (scrollTop: number) => void;
 }) {
-    return (
-        <div className="flex items-start gap-3 px-3 pt-4 pb-3">
-            <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h2
-                        className="min-w-0 max-w-full truncate font-serif text-xl text-gray-900"
-                        title={filename}
-                    >
-                        {filename}
-                    </h2>
-                    {versionNumber && versionNumber > 0 && (
-                        <span className="shrink-0 inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                            V{versionNumber}
-                        </span>
-                    )}
-                </div>
-            </div>
-            <div className="shrink-0">
-                <DocumentAutomation
-                    document={{ id: documentId, filename, project_id: projectId }}
-                    onDocumentChanged={(result) =>
-                        onDocumentChanged(result.version_id)
-                    }
-                />
-            </div>
-            <div className="shrink-0">
-                <DownloadButton
-                    documentId={documentId}
-                    versionId={versionId}
-                    filename={filename}
-                    isReloading={isReloading}
-                />
-            </div>
-        </div>
-    );
-}
-function DownloadButton({
-    documentId,
-    versionId,
-    filename,
-    isReloading,
-}: {
-    documentId: string;
-    versionId: string | null;
-    filename: string;
-    isReloading?: boolean;
-}) {
-    const [busy, setBusy] = useState(false);
-    const handleClick = async () => {
-        if (busy || isReloading) return;
-        setBusy(true);
-        try {
-            const qs = versionId                ? `?version_id=${encodeURIComponent(versionId)}`                : "";            const resp = await apiFetch(                `/single-documents/${documentId}/file${qs}`,                { headers: { Accept: "*/*" } },            );            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            downloadBlob(await resp.blob(), filename);
-        } finally {
-            setBusy(false);
-        }
-    };
-    const spinning = busy || isReloading;
-    return (
-        <PillButton tone="white" onClick={handleClick} disabled={spinning}>
-            {spinning ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-                <Download className="h-3.5 w-3.5" />
-            )}
+  const [version, setVersion] = useState({ source: versionId, value: versionId });
+  const [downloading, setDownloading] = useState(false);
+  const activeVersion = version.source === versionId ? version.value : versionId;
+  const documentQuotes = mode.kind === "citation"
+    ? getDocumentCitationQuotes(mode.citation)
+    : undefined;
+  const editHighlight = mode.kind === "edit" ? {
+    key: `${mode.edit.edit_id}:${mode.focusKey}`,
+    inserted_text: mode.edit.inserted_text,
+    deleted_text: mode.edit.deleted_text,
+    ins_w_id: mode.edit.ins_w_id ?? null,
+    del_w_id: mode.edit.del_w_id ?? null,
+  } : null;
+
+  async function download() {
+    if (downloading || isReloading) return;
+    setDownloading(true);
+    try {
+      const result = await downloadDocument(documentId, activeVersion);
+      downloadBlob(result.blob, result.filename ?? filename);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {mode.kind === "edit" ? (
+        <EditActions mode={mode} />
+      ) : (
+        <header className="flex items-center gap-3 px-3 py-3">
+          <h2 className="min-w-0 flex-1 truncate font-serif text-xl" title={filename}>
+            {filename}
+            {!!versionNumber && <small className="ml-2 font-sans text-xs">V{versionNumber}</small>}
+          </h2>
+          <DocumentAutomation
+            document={{ id: documentId, filename, project_id: projectId }}
+            onDocumentChanged={(result) => setVersion({
+              source: versionId,
+              value: result.version_id,
+            })}
+          />
+          <PillButton tone="white" onClick={() => void download()} disabled={downloading || isReloading}>
+            {downloading || isReloading
+              ? <Loader2 className="size-3.5 animate-spin" />
+              : <Download className="size-3.5" />}
             Download
-        </PillButton>
-    );
+          </PillButton>
+        </header>
+      )}
+      <div className="flex min-h-0 flex-1 flex-col p-3">
+        <DocumentViewer
+          documentId={documentId}
+          kind={isDocxFilename(filename)
+            ? "docx"
+            : isSpreadsheetFilename(filename) ? "spreadsheet" : "pdf"}
+          versionId={activeVersion}
+          quotes={mode.kind === "citation"
+            ? expandCitationToEntries(mode.citation)
+            : undefined}
+          highlightEdit={editHighlight}
+          highlightCells={documentQuotes
+            ?.filter(({ cell, sheet }) => cell || sheet)
+            .map(({ cell, sheet }) => ({ cell, sheet }))}
+          warning={warning ?? null}
+          onWarningDismiss={onWarningDismiss}
+          initialScrollTop={initialScrollTop ?? null}
+          onScrollChange={onScrollChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EditActions({ mode }: { mode: Extract<DocPanelMode, { kind: "edit" }> }) {
+  const { edit, isEditReloading, ...handlers } = mode;
+  const { status, resolve, disabled } = useEditResolution(
+    edit,
+    undefined,
+    isEditReloading,
+    handlers,
+  );
+  return (
+    <header className="flex justify-end gap-2 border-b p-2">
+      <PillButton tone="black" onClick={() => resolve("accept")} disabled={disabled}>
+        {status === "accepted" ? "Accepted" : "Accept"}
+      </PillButton>
+      <PillButton tone="white" onClick={() => resolve("reject")} disabled={disabled}>
+        {status === "rejected" ? "Rejected" : "Reject"}
+      </PillButton>
+    </header>
+  );
 }

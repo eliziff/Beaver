@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
 export default function NotFound() {
     return (
@@ -12,7 +12,7 @@ export default function NotFound() {
                     have been moved.
                 </p>
                 <Link
-                    href="/"
+                    to="/"
                     className={pillButtonClassName("black", "normal")}
                 >
                     Go home

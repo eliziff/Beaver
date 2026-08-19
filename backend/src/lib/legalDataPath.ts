@@ -43,10 +43,6 @@ export function legalProviderDatabase(provider: string, filename: string) {
   return path.join(legalDataHome(), "providers", provider, filename);
 }
 
-export function legalProviderCache(provider: string) {
-  return path.join(legalDataHome(), "cache", provider);
-}
-
 export function withReadonlySqlite<T>(
   filename: string,
   operation: (database: DatabaseSync) => T,

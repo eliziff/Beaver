@@ -1,7 +1,9 @@
 import { isServerSupabaseConfigured } from "./localMode";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type CreateClient = typeof import("@supabase/supabase-js").createClient;
 let createClient: CreateClient | undefined;
+let serverClient: SupabaseClient<any, "public", any> | undefined;
 
 /**
  * Server-side Supabase client using the service role key.
@@ -18,5 +20,5 @@ export function createServerSupabase() {
   createClient ??=
     (require("@supabase/supabase-js") as { createClient: CreateClient })
       .createClient;
-  return createClient(url, key, { auth: { persistSession: false } });
+  return serverClient ??= createClient(url, key, { auth: { persistSession: false } });
 }

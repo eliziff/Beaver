@@ -87,6 +87,11 @@ describe("durable context checkpoints", () => {
       summary: "Native summary",
       keep_current: true,
       provider: "claude",
+      payload: {
+        type: "compaction",
+        content: "Native summary",
+        signature: "opaque-signature",
+      },
     });
     (messages[1].content as Record<string, unknown>[]).push({
       type: "content",
@@ -97,7 +102,15 @@ describe("durable context checkpoints", () => {
       {
         role: "assistant",
         content: "[Conversation checkpoint]\nNative summary",
-        contextCheckpoint: { provider: "claude", content: "Native summary" },
+        contextCheckpoint: {
+          provider: "claude",
+          content: "Native summary",
+          block: {
+            type: "compaction",
+            content: "Native summary",
+            signature: "opaque-signature",
+          },
+        },
       },
       { role: "assistant", content: "Continued after compaction." },
       { role: "user", content: "Now revise the remedy." },

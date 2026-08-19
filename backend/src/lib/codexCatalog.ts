@@ -176,14 +176,11 @@ export async function getCodexModelCatalog(): Promise<CodexModelCatalog> {
       const value = await runCatalog();
       cached = value;
       return cached;
-    } catch (liveError) {
+    } catch {
       return {
         models: [],
         source: "unavailable",
-        error:
-          liveError instanceof Error
-            ? liveError.message
-            : "Codex model catalog unavailable.",
+        error: "Codex model catalog unavailable.",
       } satisfies CodexModelCatalog;
     } finally {
       pending = null;

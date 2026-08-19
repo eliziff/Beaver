@@ -1,7 +1,7 @@
+import { useParams } from "react-router-dom";
 import { WorkflowDetailPage } from "@/app/components/workflows/WorkflowDetailPage";
-export default async function TabularReviewWorkflowPage({
-    params,
-}: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+
+export default function TabularReviewWorkflowPage() {
+    const { id = "" } = useParams<{ id: string }>();
     return <WorkflowDetailPage id={id} workflowType="tabular" />;
 }

@@ -4,6 +4,7 @@ import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { deleteAllChats, deleteAllProjects, deleteAllTabularReviews, exportAccountData, exportChatData, exportTabularReviewsData } from "@/app/lib/beaverApi";
 import { accountGlassDangerOutlineButtonClassName, accountGlassPrimaryButtonClassName } from "../accountStyles";
@@ -28,6 +29,7 @@ export default function PrivacyDataPage() {
     const { loadChats } = useChatHistoryContext();
     const [busy, setBusy] = useState<PendingAction | null>(null);
     const [pendingDelete, setPendingDelete] = useState<DeleteAction | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const { runMfa, mfaPopup } = useMfaAction();
 
     async function runExport(item: (typeof exports)[number]) {
@@ -37,7 +39,7 @@ export default function PrivacyDataPage() {
                 const result = await item.run();
                 downloadBlob(result.blob, result.filename ?? item.file);
             } finally { setBusy(null); }
-        }, { onError: () => alert("The export failed. Please try again.") });
+        }, { onError: () => setError("The export failed. Please try again.") });
     }
 
     async function runDelete(action: DeleteAction) {
@@ -50,7 +52,7 @@ export default function PrivacyDataPage() {
                 if (action !== "tabular-reviews") await loadChats();
                 setPendingDelete(null);
             } finally { setBusy(null); }
-        }, { onError: () => alert("The deletion failed. Please try again.") });
+        }, { onError: () => setError("The deletion failed. Please try again.") });
     }
 
     const deleteCopy = deletes.find((item) => item.action === pendingDelete);
@@ -58,6 +60,7 @@ export default function PrivacyDataPage() {
         <AccountSection heading="Export data">{exports.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.description} icon={<Download className="h-4 w-4" />} label={busy === item.action ? "Exporting…" : "Export"} disabled={busy != null} className={accountGlassPrimaryButtonClassName} onClick={() => void runExport(item)} divider={index < exports.length - 1} />)}</AccountSection>
         <AccountSection heading="Delete data">{deletes.map((item, index) => <ActionRow key={item.action} title={item.title} description={item.message} icon={<Trash2 className="h-4 w-4" />} label="Delete" disabled={busy != null} className={accountGlassDangerOutlineButtonClassName} onClick={() => setPendingDelete(item.action)} divider={index < deletes.length - 1} />)}</AccountSection>
         <ConfirmPopup open={!!pendingDelete} title={`${deleteCopy?.title ?? "Delete data"}?`} message={deleteCopy?.message} confirmLabel="Delete" confirmStatus={busy ? "loading" : "idle"} cancelLabel="Cancel" onCancel={() => { if (!busy) setPendingDelete(null); }} onConfirm={() => { if (pendingDelete) void runDelete(pendingDelete); }} />
+        <WarningPopup open={!!error} message={error} onClose={() => setError(null)} />
         {mfaPopup}
     </div>;
 }

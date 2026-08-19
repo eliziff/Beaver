@@ -14,12 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  closeJournalDatabases,
-  fetchJournalArticle,
-  lookupJournalArticle,
-  searchJournalArticles,
-} from "../journalArticles";
+import { journalLegalSourceProvider as journal } from "../legalSources/journal";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import {
@@ -267,7 +262,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  closeJournalDatabases();
+  journal.closeDatabases();
   if (previousDatabase === undefined) {
     delete process.env.MIKE_PUBLIC_ENDPOINT_DB;
   } else {
@@ -291,24 +286,24 @@ describe("local journal articles", () => {
   it("prefers registered final-contract text and native structure", () => {
     const canonical = fixtureFinalContractDatabase();
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
-    closeJournalDatabases();
+    journal.closeDatabases();
 
-    const article = fetchJournalArticle("7")!;
+    const article = journal.document("7")!;
     expect(article.text).toBe(canonical.text);
     expect(article.text).not.toContain("[page 100]");
-    expect(lookupJournalArticle(article, "page", "101")).toMatchObject({
+    expect(journal.lookup(article, "page", "101")).toMatchObject({
       status: "found",
       anchor: "page=2",
       block: { origin: "native" },
     });
-    expect(lookupJournalArticle(article, "section", "II")).toMatchObject({
+    expect(journal.lookup(article, "section", "II")).toMatchObject({
       status: "found",
       block: {
         origin: "native",
         text: expect.stringContaining("Canonical analysis paragraph."),
       },
     });
-    expect(lookupJournalArticle(article, "footnote", "1")).toMatchObject({
+    expect(journal.lookup(article, "footnote", "1")).toMatchObject({
       status: "found",
       anchor: "page=1",
       block: {
@@ -326,17 +321,17 @@ describe("local journal articles", () => {
   it("reconstructs only a locator kind missing from the final contract", () => {
     const canonical = fixtureFinalContractDatabase({ annotations: false });
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
-    closeJournalDatabases();
+    journal.closeDatabases();
 
-    const article = fetchJournalArticle("7")!;
-    expect(lookupJournalArticle(article, "footnote", "1")).toMatchObject({
+    const article = journal.document("7")!;
+    expect(journal.lookup(article, "footnote", "1")).toMatchObject({
       status: "found",
       block: { origin: "heuristic" },
     });
-    expect(lookupJournalArticle(article, "page", "100").block?.origin).toBe(
+    expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
     );
-    expect(lookupJournalArticle(article, "section", "I").block?.origin).toBe(
+    expect(journal.lookup(article, "section", "I").block?.origin).toBe(
       "native",
     );
   });
@@ -346,29 +341,29 @@ describe("local journal articles", () => {
       sourceDir: "..\\..\\outside",
     });
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
-    closeJournalDatabases();
+    journal.closeDatabases();
 
-    const article = fetchJournalArticle("7")!;
+    const article = journal.document("7")!;
     expect(article.text).toContain("[page 100]");
-    expect(lookupJournalArticle(article, "page", "100").block?.origin).toBe(
+    expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
     );
-    expect(lookupJournalArticle(article, "section", "I").block?.origin).toBe(
+    expect(journal.lookup(article, "section", "I").block?.origin).toBe(
       "heuristic",
     );
   });
 
   it("searches candidates, resolves stable locators, and builds multi-text links", () => {
-    const match = searchJournalArticles("Fixture Article")[0];
+    const match = journal.find("Fixture Article")[0];
     expect(match.hitId).toBe("journal:7");
     expect(match.citation).toBe(
       "Ada Example & Grace Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100",
     );
 
-    const article = fetchJournalArticle(String(match.articleId))!;
-    const page = lookupJournalArticle(article, "page", "101");
-    const section = lookupJournalArticle(article, "section", "II");
-    const footnote = lookupJournalArticle(article, "footnote", "2");
+    const article = journal.document(String(match.articleId))!;
+    const page = journal.lookup(article, "page", "101");
+    const section = journal.lookup(article, "section", "II");
+    const footnote = journal.lookup(article, "footnote", "2");
     expect(page.hitId).toBe("journal:7:page:page101");
     expect(page.anchor).toBe("page=2");
     expect(section.block?.text).toContain("II. Analysis");
@@ -443,7 +438,7 @@ describe("local journal articles", () => {
   });
 
   it("formats four-plus authors and an empty issue without a fallback citation", () => {
-    closeJournalDatabases();
+    journal.closeDatabases();
     const database = new DatabaseSync(process.env.MIKE_PUBLIC_ENDPOINT_DB!);
     database.prepare(`INSERT INTO articles (
       article_id, dataset, citation_en, name_en, authors, document_date_en,
@@ -456,7 +451,7 @@ describe("local journal articles", () => {
       "A complete paragraph long enough for deterministic source structure.",
     );
     database.close();
-    expect(fetchJournalArticle("8")?.citation).toBe(
+    expect(journal.document("8")?.citation).toBe(
       "Ada Example et al, “No Issue Article” (2025) 9 Fixture LJ 44",
     );
   });
@@ -480,7 +475,7 @@ describe("local journal articles", () => {
 
   it("filters journal search by indexed publication metadata", () => {
     expect(
-      searchJournalArticles("Fixture Article", 10, {
+      journal.find("Fixture Article", 10, {
         author: "Ada",
         journal: "Fixture LJ",
         startDate: "2025-01-01",
@@ -488,13 +483,13 @@ describe("local journal articles", () => {
       })[0]?.articleId,
     ).toBe(7);
     expect(
-      searchJournalArticles("Fixture Article", 10, { author: "Lin" }),
+      journal.find("Fixture Article", 10, { author: "Lin" }),
     ).toEqual([]);
     expect(
-      searchJournalArticles("Fixture Article", 10, { journal: "Other" }),
+      journal.find("Fixture Article", 10, { journal: "Other" }),
     ).toEqual([]);
     expect(
-      searchJournalArticles("Fixture Article", 10, {
+      journal.find("Fixture Article", 10, {
         startDate: "2027-01-01",
       }),
     ).toEqual([]);
@@ -503,17 +498,17 @@ describe("local journal articles", () => {
   it("drops a cached FTS sidecar when the source database changes", () => {
     const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
     process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = fixtureSearchDatabase(source);
-    expect(searchJournalArticles("second footnote")[0]?.articleId).toBe(7);
+    expect(journal.find("second footnote")[0]?.articleId).toBe(7);
 
     const future = new Date(Date.now() + 2_000);
     utimesSync(source, future, future);
-    expect(searchJournalArticles("second footnote")).toEqual([]);
+    expect(journal.find("second footnote")).toEqual([]);
   });
 
   it("drops a cached FTS sidecar when the configured source path changes", () => {
     const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
     process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB = fixtureSearchDatabase(source);
-    expect(searchJournalArticles("second footnote")[0]?.articleId).toBe(7);
+    expect(journal.find("second footnote")[0]?.articleId).toBe(7);
 
     const replacement = path.join(directory, "replacement.db");
     const sourceStat = statSync(source);
@@ -521,16 +516,16 @@ describe("local journal articles", () => {
     utimesSync(replacement, sourceStat.atime, sourceStat.mtime);
     process.env.MIKE_PUBLIC_ENDPOINT_DB = replacement;
 
-    expect(searchJournalArticles("second footnote")).toEqual([]);
+    expect(journal.find("second footnote")).toEqual([]);
   });
 
   it("drops parsed article state when the source snapshot changes", () => {
     const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
-    const first = fetchJournalArticle("7");
+    const first = journal.document("7");
     const future = new Date(Date.now() + 2_000);
     utimesSync(source, future, future);
 
-    expect(fetchJournalArticle("7")).not.toBe(first);
+    expect(journal.document("7")).not.toBe(first);
   });
 
   it("keeps the journalStructure engine's recorded behavior byte-identical", () => {
@@ -628,10 +623,10 @@ describe("local journal articles", () => {
       insertPage.run(index + 1, page.page_label, page.pdf_page);
     });
     database.close();
-    closeJournalDatabases();
+    journal.closeDatabases();
     process.env.MIKE_PUBLIC_ENDPOINT_DB = filename;
 
-    const article = fetchJournalArticle("13")!;
+    const article = journal.document("13")!;
     expect(sha256(article.text)).toBe(recording.textSha256);
     expect(article.structure.status).toBe(recording.status);
     expect(
@@ -648,7 +643,7 @@ describe("local journal articles", () => {
     // fell back to the label for journal blocks (only native markup ever set
     // one; journal page anchors were carried in `anchor` alone). Journals
     // never reach the TNA receipt path, so this defaulting is recording-only.
-    const payload = (lookup: ReturnType<typeof lookupJournalArticle>) => {
+    const payload = (lookup: ReturnType<typeof journal.lookup>) => {
       const block = (value: (typeof lookup)["block"]) =>
         value
           ? {
@@ -673,7 +668,7 @@ describe("local journal articles", () => {
       };
     };
     for (const before of recording.lookups) {
-      const after = lookupJournalArticle(
+      const after = journal.lookup(
         article,
         before.kind,
         before.locator,
@@ -702,11 +697,11 @@ const realDatabase =
 it.runIf(existsSync(realDatabase))(
   "reads a real public_endpoint.db article and native page map",
   () => {
-    closeJournalDatabases();
+    journal.closeDatabases();
     process.env.MIKE_PUBLIC_ENDPOINT_DB = realDatabase;
-    const article = fetchJournalArticle("2");
+    const article = journal.document("2");
     expect(article?.title).toContain("Alcohol Manufacturers");
-    expect(lookupJournalArticle(article!, "page", "9").anchor).toBe("page=9");
-    expect(searchJournalArticles("consumers fetal alcohol")[0]?.articleId).toBe(2);
+    expect(journal.lookup(article!, "page", "9").anchor).toBe("page=9");
+    expect(journal.find("consumers fetal alcohol")[0]?.articleId).toBe(2);
   },
 );

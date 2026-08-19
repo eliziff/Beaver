@@ -7,7 +7,7 @@ import {
     type ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 interface User {
     id: string;
     email: string;
@@ -21,9 +21,9 @@ interface AuthContextType {
     updateEmail: (email: string) => Promise<User>;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const ANONYMOUS_USER: User = {
+const LOCAL_USER: User = {
     id: "00000000-0000-0000-0000-000000000001",
-    email: "anonymous@localhost",
+    email: "local@localhost",
 };
 function toUser(user: SupabaseUser): User {
     return {
@@ -34,15 +34,16 @@ function toUser(user: SupabaseUser): User {
 }
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(
-        isAnonymousMode ? ANONYMOUS_USER : null,
+        isLocalMode ? LOCAL_USER : null,
     );
-    const [authLoading, setAuthLoading] = useState(!isAnonymousMode);
+    const [authLoading, setAuthLoading] = useState(!isLocalMode);
     useEffect(() => {
-        if (isAnonymousMode) return;
+        if (isLocalMode) return;
         let cancelled = false;
         let unsubscribe: (() => void) | undefined;
         async function startCloudAuth() {
-            const { supabase } = await import("@/app/lib/supabase");
+            const { getSupabase } = await import("@/app/lib/supabase");
+            const supabase = getSupabase();
             if (cancelled) return;
             const {
                 data: { subscription },
@@ -66,21 +67,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         authLoading,
         signOut: async () => {
-            if (isAnonymousMode) return;
-            const { supabase } = await import("@/app/lib/supabase");
-            await supabase.auth.signOut({ scope: "local" });
+            if (isLocalMode) return;
+            const { getSupabase } = await import("@/app/lib/supabase");
+            await getSupabase().auth.signOut({ scope: "local" });
             setUser(null);
         },
         updateEmail: async (email: string) => {
-            if (isAnonymousMode) {
-                throw new Error("Accounts are disabled in anonymous mode");
+            if (isLocalMode) {
+                throw new Error("Accounts are disabled in local mode");
             }
-            const { supabase } = await import("@/app/lib/supabase");
+            const { getSupabase } = await import("@/app/lib/supabase");
             const emailRedirectTo =
                 typeof window === "undefined"
                     ? undefined
                     : `${window.location.origin}/account`;
-            const { data, error } = await supabase.auth.updateUser(
+            const { data, error } = await getSupabase().auth.updateUser(
                 { email },
                 emailRedirectTo ? { emailRedirectTo } : undefined,
             );

@@ -1,7 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { openDocxSession } from "./docx/session";
 import type { DocumentStore } from "./documentStore";
-import { getLocalVersionFile } from "./localDocumentStore";
 import { decodeXmlText, escapeXmlText } from "./text";
 
 const SUPRA_PATTERN =
@@ -454,7 +452,7 @@ export async function fixDocxSupraCrossReferences(
   };
 }
 
-export async function fixLocalDocxSupraCrossReferences(
+export async function fixDocumentSupras(
   documents: DocumentStore,
   userId: string,
   documentId: string,
@@ -473,14 +471,12 @@ export async function fixLocalDocxSupraCrossReferences(
     } | null>;
   } = {},
 ) {
-  const file = await getLocalVersionFile(userId, documentId);
+  const file = await documents.read({ userId }, documentId, null, false);
   if (!file) throw new Error("Document not found");
   if (file.fileType.toLowerCase() !== "docx") {
     throw new Error("Supra cleanup currently requires a DOCX document");
   }
-  const cleanup = await fixDocxSupraCrossReferences(
-    await readFile(file.path),
-  );
+  const cleanup = await fixDocxSupraCrossReferences(file.bytes);
   if (!cleanup.converted) {
     return {
       ok: true,
@@ -493,7 +489,7 @@ export async function fixLocalDocxSupraCrossReferences(
     };
   }
 
-  const baseName = file.document.filename.replace(/\.docx$/iu, "");
+  const baseName = file.filename.replace(/\.docx$/iu, "");
   const filename = `${baseName} - supras fixed.docx`;
   const version = options.saveVersion
     ? await options.saveVersion({
@@ -506,7 +502,7 @@ export async function fixLocalDocxSupraCrossReferences(
       );
   if (!version) throw new Error("Document disappeared before saving");
   const downloadUrl =
-    `/single-documents/${encodeURIComponent(documentId)}/file` +
+    `/api/single-documents/${encodeURIComponent(documentId)}/file` +
     `?version_id=${encodeURIComponent(version.id)}`;
   return {
     ok: true,
@@ -529,16 +525,17 @@ export async function fixLocalDocxSupraCrossReferences(
   };
 }
 
-export async function inspectLocalDocxAutomation(
+export async function inspectDocxAutomation(
+  documents: DocumentStore,
   userId: string,
   documentId: string,
 ) {
-  const file = await getLocalVersionFile(userId, documentId);
+  const file = await documents.read({ userId }, documentId, null, false);
   if (!file) throw new Error("Document not found");
   if (file.fileType.toLowerCase() !== "docx") {
     throw new Error("Document automation currently requires a DOCX document");
   }
   return {
-    supra_references: await hasDocxSupraReferences(await readFile(file.path)),
+    supra_references: await hasDocxSupraReferences(file.bytes),
   };
 }

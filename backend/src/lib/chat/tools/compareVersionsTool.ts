@@ -1,6 +1,7 @@
 import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
+import { DOCUMENT_RESOURCE_PATTERN } from "../../resourceReferences";
 
 export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
   name: "compare_versions",
@@ -11,16 +12,13 @@ export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
     properties: {
       document_id: {
         type: "string",
-        description:
-          "Filename from Glob, or document_id when Glob reports a duplicate.",
+        pattern: DOCUMENT_RESOURCE_PATTERN,
+        description: "Version-pinned document resource to compare.",
       },
-      old_version_id: {
+      baseline: {
         type: "string",
-        description: "Baseline version; defaults to the version before new_version_id.",
-      },
-      new_version_id: {
-        type: "string",
-        description: "Compared version; defaults to current.",
+        pattern: DOCUMENT_RESOURCE_PATTERN,
+        description: "Earlier version-pinned resource of the same document; defaults to the prior version.",
       },
       save_redline: {
         type: "boolean",
@@ -35,23 +33,22 @@ export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
 
 const MAX_REPORTED_ABSTENTIONS = 20;
 const MAX_REPORTED_CHANGES = 12;
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 
-/** Handles compare_versions; returns null for other tool names. */
-export async function executeCompareVersionsTool(
+export async function compareDocumentVersions(
   documents: DocumentStore,
   scope: DocumentScope,
-  name: string,
-  args: Record<string, unknown>,
+  input: {
+    documentId: string;
+    newVersionId: string;
+    oldVersionId?: string;
+    saveRedline?: boolean;
+  },
   projectId?: string | null,
-): Promise<Record<string, unknown> | null> {
-  if (name !== "compare_versions") return null;
-  const documentId = text(args.document_id);
-  if (!documentId) return { ok: false, error: "document_id is required" };
+): Promise<Record<string, unknown>> {
+  const { documentId, newVersionId } = input;
   const listing = await documents.versions(scope, documentId);
   if (!listing) return { ok: false, error: "Document not found" };
-  const newVersionId = text(args.new_version_id) || listing.current_version_id;
-  let oldVersionId = text(args.old_version_id);
+  let oldVersionId = input.oldVersionId;
   if (!oldVersionId) {
     const index = listing.versions.findIndex(({ id }) => id === newVersionId);
     if (index < 0) return { ok: false, error: "version_not_found" };
@@ -59,7 +56,7 @@ export async function executeCompareVersionsTool(
       return {
         ok: false,
         error: "no_prior_version",
-        detail: "The document has no earlier version; pass old_version_id.",
+        detail: "The document has no earlier version; pass baseline.",
       };
     }
     oldVersionId = listing.versions[index - 1].id;
@@ -82,8 +79,8 @@ export async function executeCompareVersionsTool(
   });
   const summary: Record<string, unknown> = {
     ok: true,
-    old_version_id: oldVersionId,
-    new_version_id: newVersionId,
+    baseline_version_id: oldVersionId,
+    compared_version_id: newVersionId,
     changes_total: comparison.changes.length,
     changes: comparison.changes.slice(0, MAX_REPORTED_CHANGES).map((change) => ({
       kind: change.kind,
@@ -97,7 +94,7 @@ export async function executeCompareVersionsTool(
         excerpt: item.excerpt.slice(0, 120),
       })),
   };
-  if (args.save_redline !== true) return summary;
+  if (!input.saveRedline) return summary;
   const redline = await documents.create(scope, {
     filename: `${newFile.filename.replace(/\.docx$/iu, "")} (redline).docx`,
     fileType: "docx",
@@ -108,7 +105,6 @@ export async function executeCompareVersionsTool(
   });
   return {
     ...summary,
-    receipt: "mike-document:v1",
     action: "created",
     document_id: redline.id,
     version_id: redline.current_version_id,
@@ -116,7 +112,7 @@ export async function executeCompareVersionsTool(
     filename: redline.filename,
     file_type: redline.file_type,
     download_url:
-      `/single-documents/${encodeURIComponent(redline.id)}/file` +
+      `/api/single-documents/${encodeURIComponent(redline.id)}/file` +
       `?version_id=${encodeURIComponent(redline.current_version_id)}`,
   };
 }

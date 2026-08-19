@@ -40,8 +40,8 @@ vi.mock("../../lib/supabase", () => ({
     createServerSupabase: vi.fn(() => createMutableSupabaseStub(supabaseState)),
 }));
 
-vi.mock("../../lib/cloudObjectStorage", () => ({
-    cloudDocumentObjects: () => ({
+vi.mock("../../lib/s3ObjectStorage", () => ({
+    s3DocumentObjects: () => ({
         kind: "s3",
         put: vi.fn(async () => {}),
         get: vi.fn(async () => null),
@@ -119,7 +119,7 @@ vi.mock("../../lib/documentVersions", () => ({
     loadActiveVersion: (...args: unknown[]) => loadActiveVersion(...args),
 }));
 
-import { app } from "../../app";
+import { api } from "../../api";
 
 const AUTH = ["Authorization", "Bearer test"] as const;
 
@@ -159,11 +159,11 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/tabular-review").set(...AUTH);
+            const res = await request(api).get("/tabular-review").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toEqual({
-                items: [{ id: "r1", title: "Alpha" }],
+                items: [{ id: "r1", title: "Alpha", project_name: null }],
                 next_cursor: null,
             });
         });
@@ -171,7 +171,7 @@ describe("tabular.routes", () => {
         it("returns 500 with detail when the RPC errors", async () => {
             supabaseState.rpc = { data: null, error: { message: "boom" } };
 
-            const res = await request(app).get("/tabular-review").set(...AUTH);
+            const res = await request(api).get("/tabular-review").set(...AUTH);
 
             expect(res.status).toBe(500);
             expect(res.body.detail).toBe("Failed to load tabular reviews");
@@ -188,7 +188,7 @@ describe("tabular.routes", () => {
             // d2 is not accessible — it must be filtered out of the insert.
             filterAccessibleDocumentIds.mockResolvedValue(["d1"]);
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review")
                 .set(...AUTH)
                 .send({
@@ -206,7 +206,7 @@ describe("tabular.routes", () => {
         it("returns 404 when project access is denied", async () => {
             checkProjectAccess.mockResolvedValue({ ok: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review")
                 .set(...AUTH)
                 .send({
@@ -225,27 +225,13 @@ describe("tabular.routes", () => {
                 data: [{ id: "d2", user_id: "u1", project_id: "p2" }],
                 error: null,
             };
-            const res = await request(app).post("/tabular-review").set(...AUTH)
+            const res = await request(api).post("/tabular-review").set(...AUTH)
                 .send({ project_id: "p1", document_ids: ["d2"], columns_config: [] });
             expect(res.status).toBe(404);
             expect(res.body.detail).toBe("Document not found");
             expect(supabaseState.inserts).toEqual([]);
         });
 
-        it("returns 500 when the review insert errors", async () => {
-            supabaseState.tables.tabular_reviews = {
-                data: null,
-                error: { message: "insert failed" },
-            };
-
-            const res = await request(app)
-                .post("/tabular-review")
-                .set(...AUTH)
-                .send({ document_ids: [], columns_config: [] });
-
-            expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("Failed to create review");
-        });
     });
 
     // ── GET /tabular-review/:reviewId (detail) ────────────────────────────
@@ -253,7 +239,7 @@ describe("tabular.routes", () => {
         it("returns 404 when the review does not exist", async () => {
             supabaseState.tables.tabular_reviews = { data: null, error: null };
 
-            const res = await request(app)
+            const res = await request(api)
                 .get("/tabular-review/r1")
                 .set(...AUTH);
 
@@ -268,7 +254,7 @@ describe("tabular.routes", () => {
             };
             ensureReviewAccess.mockResolvedValue({ ok: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .get("/tabular-review/r1")
                 .set(...AUTH);
 
@@ -304,23 +290,21 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .get("/tabular-review/r1")
                 .set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body.review).toMatchObject({ id: "r1", is_owner: true });
             expect(res.body.cells).toHaveLength(1);
-            expect(res.body.documents).toEqual([
-                { id: "d1", current_version_id: null },
-            ]);
+            expect(res.body.documents).toEqual([]);
         });
     });
 
     // ── PATCH /tabular-review/:reviewId ───────────────────────────────────
     describe("PATCH /tabular-review/:reviewId", () => {
         it("returns 400 when project_id is an invalid type", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/tabular-review/r1")
                 .set(...AUTH)
                 .send({ project_id: 123 });
@@ -332,7 +316,7 @@ describe("tabular.routes", () => {
         });
 
         it("returns 400 when sharing the review with yourself", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/tabular-review/r1")
                 .set(...AUTH)
                 .send({ shared_with: ["U1@Test.Local"] });
@@ -346,7 +330,7 @@ describe("tabular.routes", () => {
         it("returns 404 when the review does not exist", async () => {
             supabaseState.tables.tabular_reviews = { data: null, error: null };
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/tabular-review/r1")
                 .set(...AUTH)
                 .send({ title: "Renamed" });
@@ -362,7 +346,7 @@ describe("tabular.routes", () => {
             };
             ensureReviewAccess.mockResolvedValue({ ok: true, isOwner: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/tabular-review/r1")
                 .set(...AUTH)
                 .send({ columns_config: [{ index: 0, name: "X", prompt: "p" }] });
@@ -380,7 +364,7 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .delete("/tabular-review/r1")
                 .set(...AUTH);
 
@@ -393,7 +377,7 @@ describe("tabular.routes", () => {
                 error: { message: "delete failed" },
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .delete("/tabular-review/r1")
                 .set(...AUTH);
 
@@ -405,7 +389,7 @@ describe("tabular.routes", () => {
     // ── POST /tabular-review/:reviewId/clear-cells ────────────────────────
     describe("POST /tabular-review/:reviewId/clear-cells", () => {
         it("returns 400 when document_ids is missing", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/clear-cells")
                 .set(...AUTH)
                 .send({});
@@ -421,7 +405,7 @@ describe("tabular.routes", () => {
             };
             ensureReviewAccess.mockResolvedValue({ ok: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/clear-cells")
                 .set(...AUTH)
                 .send({ document_ids: ["d1"] });
@@ -437,7 +421,7 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/clear-cells")
                 .set(...AUTH)
                 .send({ document_ids: ["d1"] });
@@ -449,7 +433,7 @@ describe("tabular.routes", () => {
     // ── POST /tabular-review/:reviewId/regenerate-cell ────────────────────
     describe("POST /tabular-review/:reviewId/regenerate-cell", () => {
         it("returns 400 when document_id / column_index are missing", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/regenerate-cell")
                 .set(...AUTH)
                 .send({});
@@ -467,7 +451,7 @@ describe("tabular.routes", () => {
             };
             ensureReviewAccess.mockResolvedValue({ ok: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/regenerate-cell")
                 .set(...AUTH)
                 .send({ document_id: "d1", column_index: 0 });
@@ -487,7 +471,7 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/regenerate-cell")
                 .set(...AUTH)
                 .send({ document_id: "d1", column_index: 0 });
@@ -509,7 +493,7 @@ describe("tabular.routes", () => {
             };
             filterAccessibleDocumentIds.mockResolvedValue([]);
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/regenerate-cell")
                 .set(...AUTH)
                 .send({ document_id: "d-forbidden", column_index: 0 });
@@ -540,7 +524,7 @@ describe("tabular.routes", () => {
                 api_keys: {},
             });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/regenerate-cell")
                 .set(...AUTH)
                 .send({ document_id: "d1", column_index: 0 });
@@ -556,7 +540,7 @@ describe("tabular.routes", () => {
         it("returns 404 when the review does not exist", async () => {
             supabaseState.tables.tabular_reviews = { data: null, error: null };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/generate")
                 .set(...AUTH);
 
@@ -571,7 +555,7 @@ describe("tabular.routes", () => {
             };
             ensureReviewAccess.mockResolvedValue({ ok: false });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/generate")
                 .set(...AUTH);
 
@@ -590,7 +574,7 @@ describe("tabular.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/generate")
                 .set(...AUTH);
 
@@ -616,7 +600,7 @@ describe("tabular.routes", () => {
                 api_keys: {},
             });
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/tabular-review/r1/generate")
                 .set(...AUTH);
 

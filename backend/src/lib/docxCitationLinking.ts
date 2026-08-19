@@ -9,7 +9,6 @@ import {
 } from "./legalSourceRegistry";
 import type { LegalSourceKind, LegalSourceLocator } from "./legalSources";
 import type { DocumentStore } from "./documentStore";
-import { getLocalVersionFile } from "./localDocumentStore";
 import { runLegalPdf } from "./legalPdfProcess";
 
 type JsonRecord = Record<string, unknown>;
@@ -204,7 +203,7 @@ type SavedVersion = {
   parentVersionId?: string;
 };
 
-export async function linkDocxCitations(input: {
+export async function applyDocxCitationLinks(input: {
   documentId: string;
   sourceVersionId: string;
   filename: string;
@@ -272,7 +271,7 @@ export async function linkDocxCitations(input: {
     });
     if (!version) throw new Error("Document disappeared before saving");
     const downloadUrl =
-      `/single-documents/${encodeURIComponent(input.documentId)}/file` +
+      `/api/single-documents/${encodeURIComponent(input.documentId)}/file` +
       `?version_id=${encodeURIComponent(version.id)}`;
     return {
       ok: true,
@@ -302,24 +301,24 @@ export async function linkDocxCitations(input: {
   }
 }
 
-export async function linkLocalDocxCitations(
+export async function linkDocxCitations(
   documents: DocumentStore,
   userId: string,
   documentId: string,
   options: {
-    saveVersion?: Parameters<typeof linkDocxCitations>[0]["saveVersion"];
+    saveVersion?: Parameters<typeof applyDocxCitationLinks>[0]["saveVersion"];
   } = {},
 ) {
-  const file = await getLocalVersionFile(userId, documentId);
+  const file = await documents.read({ userId }, documentId, null, false);
   if (!file) throw new Error("Document not found");
   if (file.fileType.toLowerCase() !== "docx") {
     throw new Error("Citation linking currently requires a DOCX document");
   }
-  return linkDocxCitations({
+  return applyDocxCitationLinks({
     documentId,
     sourceVersionId: file.version.id,
-    filename: file.document.filename,
-    bytes: await readFile(file.path),
+    filename: file.filename,
+    bytes: file.bytes,
     saveVersion: options.saveVersion ?? (async ({ filename, bytes }) => {
       const version = await documents.addVersion(
         { userId }, documentId, { filename, bytes, fileType: "docx" },

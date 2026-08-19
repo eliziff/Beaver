@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decision roster run desk</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f2e9;
+      --paper-deep: #eee5d5;
+      --card: #fffdf9;
+      --ink: #292623;
+      --muted: #736b62;
+      --line: #d9cfc1;
+      --brand: #9d3f2f;
+      --brand-deep: #713025;
+      --green: #28735b;
+      --green-wash: #e5f1eb;
+      --amber: #a8671a;
+      --amber-wash: #fff1d9;
+      --red: #a23d3d;
+      --red-wash: #f9e6e2;
+      --shadow: 0 12px 32px rgb(57 42 29 / 8%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    a { color: var(--brand-deep); text-underline-offset: 3px; }
+    a:hover { color: var(--brand); }
+    :focus-visible { outline: 3px solid #d58d6d; outline-offset: 2px; }
+    .shell { width: min(1480px, calc(100% - 32px)); margin: 0 auto; padding: 30px 0 48px; }
+    .masthead { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 7px; color: var(--brand); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font: 600 clamp(28px, 4vw, 46px)/1.02 Georgia, "Times New Roman", serif; letter-spacing: -.025em; }
+    .lede { max-width: 700px; margin-bottom: 0; color: var(--muted); font-size: 15px; }
+    .refresh-button, .link-button {
+      display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px;
+      border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); padding: 8px 13px;
+      text-decoration: none; font-weight: 700; cursor: pointer;
+    }
+    .refresh-button:hover, .link-button:hover { border-color: #b99d85; background: #fff; }
+    .panel { border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+    .live-panel { padding: 22px; margin-bottom: 22px; }
+    .live-heading { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+    .live-heading h2 { margin-bottom: 4px; font: 600 22px/1.15 Georgia, "Times New Roman", serif; }
+    .live-heading p { margin-bottom: 0; color: var(--muted); }
+    .live-state { display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; background: var(--amber-wash); color: var(--amber); padding: 6px 10px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .live-state.done { background: var(--green-wash); color: var(--green); }
+    .live-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .progress-wrap { margin-top: 19px; }
+    .progress-line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    progress { display: block; width: 100%; height: 13px; border: 0; border-radius: 99px; overflow: hidden; background: var(--paper-deep); }
+    progress::-webkit-progress-bar { background: var(--paper-deep); border-radius: 99px; }
+    progress::-webkit-progress-value { background: linear-gradient(90deg, var(--brand), #cb7657); border-radius: 99px; transition: width .35s ease; }
+    progress::-moz-progress-bar { background: linear-gradient(90deg, var(--brand), #cb7657); border-radius: 99px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin-top: 16px; }
+    .stat { min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; background: #fffaf2; }
+    .stat-label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .stat-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 800; }
+    .workspace { display: block; }
+    .detail-panel { min-width: 0; padding: 22px; }
+    .detail-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
+    .detail-heading h2 { margin-bottom: 5px; font: 600 25px/1.15 Georgia, "Times New Roman", serif; overflow-wrap: anywhere; }
+    .detail-subtitle { margin-bottom: 0; color: var(--muted); }
+    .detail-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+    .run-picker { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 5px 9px; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .run-picker select { max-width: min(42vw, 340px); border: 0; background: transparent; color: var(--ink); font-size: 12px; font-weight: 800; outline: none; }
+    .outcome-strip { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0 17px; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 99px; padding: 5px 9px; background: var(--paper-deep); color: var(--muted); font-size: 12px; font-weight: 800; }
+    .pill.accepted { background: var(--green-wash); color: var(--green); }
+    .pill.rejected, .pill.case_failed { background: var(--red-wash); color: var(--red); }
+    .pill.structure_unavailable { background: var(--amber-wash); color: var(--amber); }
+    .pill.separate_opinion { background: #eee9f6; color: #5e4b83; }
+    .filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(140px, 170px)); gap: 9px; margin-bottom: 14px; }
+    .filters label { display: block; }
+    .filters .label { display: block; margin: 0 0 4px; color: var(--muted); font-size: 11px; font-weight: 800; }
+    .filters input, .filters select { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 7px 10px; }
+    .case-list { display: grid; gap: 8px; }
+    .case-card { border: 1px solid var(--line); border-radius: 10px; background: #fffdf9; padding: 13px 14px; }
+    .case-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .case-title { min-width: 0; }
+    .case-citation { display: block; font-weight: 850; overflow-wrap: anywhere; }
+    .case-name { display: block; margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
+    .case-run { display: block; margin-top: 2px; color: var(--brand); font-size: 11px; overflow-wrap: anywhere; }
+    .case-actions { display: flex; flex: none; flex-wrap: wrap; justify-content: end; gap: 6px; }
+    .case-actions a, .range-list a { display: inline-flex; min-height: 29px; align-items: center; border: 1px solid #d4b9a7; border-radius: 6px; background: #fff8f2; padding: 4px 8px; color: var(--brand-deep); font-size: 11px; font-weight: 800; text-decoration: none; }
+    .case-actions a:hover, .range-list a:hover { border-color: var(--brand); background: #fff; }
+    .case-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr); gap: 15px; margin-top: 11px; }
+    .case-label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .judge-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .judge { border-radius: 5px; background: #f1ebe1; padding: 4px 6px; font-size: 12px; }
+    .judge em { color: var(--muted); font-size: 11px; font-style: normal; }
+    .range-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .range-list .range-majority { border-color: #9fc7b5; background: var(--green-wash); color: var(--green); }
+    .range-list .range-minority { border-color: #e0aaa0; background: var(--red-wash); color: var(--red); }
+    .range-list .range-concurring { border-color: #d5b277; background: var(--amber-wash); color: var(--amber); }
+    .muted { color: var(--muted); }
+    .empty { border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); padding: 22px 14px; text-align: center; }
+    .loading { color: var(--muted); padding: 24px 0; text-align: center; }
+    .pagination { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-top: 14px; color: var(--muted); font-size: 12px; }
+    .pagination button { min-height: 34px; border: 1px solid var(--line); border-radius: 7px; background: #fffaf3; padding: 6px 10px; cursor: pointer; }
+    .pagination button:disabled { cursor: not-allowed; opacity: .45; }
+    .footer { margin-top: 18px; color: var(--muted); font-size: 11px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 900px) {
+      .detail-panel { padding: 18px; }
+    }
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 20px, 1480px); padding-top: 20px; }
+      .masthead, .live-heading, .detail-heading { display: block; }
+      .refresh-button, .detail-actions { margin-top: 14px; }
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stat:last-child { grid-column: span 2; }
+      .filters, .case-body { grid-template-columns: 1fr; }
+      .case-actions { justify-content: start; margin-top: 9px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">A2AJ decision roster</p>
+        <h1>Run desk</h1>
+        <p class="lede">Check dispatch progress, then browse earlier runs by execution result and model outcome. The page changes only when you choose “Refresh now”.</p>
+      </div>
+      <button class="refresh-button" id="refresh-button" type="button">Refresh now</button>
+    </header>
+
+    <section class="panel live-panel" aria-labelledby="live-title">
+      <div class="live-heading">
+        <div>
+          <h2 id="live-title">Live dispatch</h2>
+          <p id="live-description">Looking for a receipt stream…</p>
+        </div>
+        <span class="live-state" id="live-state">Loading</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-line"><span id="progress-label">—</span><span id="progress-percent">—</span></div>
+        <progress id="live-progress" max="100" value="0" aria-label="Live dispatch progress">0%</progress>
+      </div>
+      <div class="stat-grid" aria-live="polite">
+        <div class="stat"><span class="stat-label">Accepted</span><strong class="stat-value" id="live-accepted">—</strong></div>
+        <div class="stat"><span class="stat-label">Rejected</span><strong class="stat-value" id="live-rejected">—</strong></div>
+        <div class="stat"><span class="stat-label">No structure</span><strong class="stat-value" id="live-structure">—</strong></div>
+        <div class="stat"><span class="stat-label">Case failures</span><strong class="stat-value" id="live-failed">—</strong></div>
+        <div class="stat"><span class="stat-label">Last receipt</span><strong class="stat-value" id="live-updated">—</strong></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <section class="panel detail-panel" aria-labelledby="detail-title">
+        <div id="run-detail"><div class="loading">Choose a run to inspect its cases.</div></div>
+      </section>
+    </section>
+
+    <p class="footer">The dashboard is read-only. Progress, the run library, and case rows change only on “Refresh now” or another deliberate selection.</p>
+  </main>
+
+  <script>
+    "use strict";
+    const pageSize = 60;
+    const app = { runs: [], selected: "all", cases: null, page: 1, query: "", outcome: "all", panel: "all", sort: "outcome", loadingCases: false, request: 0 };
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[character]));
+    const formatNumber = (value) => new Intl.NumberFormat().format(Number(value ?? 0));
+    const shortDate = (value) => value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
+    const shortModel = (run) => [run.model, run.effort ? `/${run.effort}` : ""].join("") || "model not recorded";
+    const outcomeText = (outcome) => ({ accepted: "Accepted", rejected: "Rejected", structure_unavailable: "No structure", case_failed: "Case failed", unknown: "Unknown" }[outcome] || outcome);
+
+    function renderLive(state) {
+      const progress = state.active_progress;
+      const active = progress && state.active_run_id;
+      const latest = state.runs.find((run) => run.id !== "all");
+      const current = active ? state.runs.find((run) => run.id === state.active_run_id) : null;
+      const shown = current || latest;
+      $("live-description").textContent = active
+        ? `${shown?.id || state.active_run_id} · ${shortModel(shown || {})}`
+        : shown
+          ? `No run is in progress. Latest library entry: ${shown.id}.`
+          : "No receipt streams found in the run library.";
+      const stateLabel = $("live-state");
+      stateLabel.textContent = active ? "In progress" : shown?.run_success ? "Idle" : "Waiting";
+      stateLabel.classList.toggle("done", !active && Boolean(shown?.run_success));
+      const processed = progress?.processed ?? shown?.processed_cases ?? 0;
+      const total = progress?.total ?? shown?.sample_size ?? 0;
+      const percent = progress?.percent ?? shown?.percent ?? 0;
+      $("progress-label").textContent = `${formatNumber(processed)} / ${formatNumber(total)} cases`;
+      $("progress-percent").textContent = `${Number(percent).toFixed(1)}%`;
+      $("live-progress").value = Number(percent) || 0;
+      $("live-progress").setAttribute("aria-valuetext", `${formatNumber(processed)} of ${formatNumber(total)} cases`);
+      $("live-accepted").textContent = formatNumber(progress?.accepted ?? shown?.counts?.accepted ?? 0);
+      $("live-rejected").textContent = formatNumber(progress?.rejected ?? shown?.counts?.rejected ?? 0);
+      $("live-structure").textContent = formatNumber(progress?.structure_unavailable ?? shown?.counts?.structure_unavailable ?? 0);
+      $("live-failed").textContent = formatNumber(progress?.failed ?? shown?.counts?.case_failed ?? 0);
+      $("live-updated").textContent = progress?.updated_utc ? shortDate(progress.updated_utc) : shown?.updated_utc ? shortDate(shown.updated_utc) : "—";
+    }
+
+    function renderPills(run) {
+      const counts = run.counts || {};
+      const outcomes = ["accepted", "rejected", "structure_unavailable", "case_failed"].map((key) => `<span class="pill ${key}">${outcomeText(key)} <strong>${formatNumber(counts[key] || 0)}</strong></span>`);
+      outcomes.push(`<span class="pill separate_opinion">Separate opinion <strong>${formatNumber(counts.separate_opinion || 0)}</strong></span>`);
+      return outcomes.join("");
+    }
+
+    function renderDetail() {
+      const run = app.runs.find((item) => item.id === app.selected);
+      if (!run) {
+        $("run-detail").innerHTML = `<div class="empty">Choose a run to inspect its cases.</div>`;
+        return;
+      }
+      const cases = app.cases;
+      const total = cases?.total ?? 0;
+      const page = cases?.page ?? app.page;
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      const rows = cases?.cases || [];
+      const runOptions = app.runs.map((candidate) => `<option value="${escapeHtml(candidate.id)}" ${candidate.id === run.id ? "selected" : ""}>${escapeHtml(candidate.display_name || candidate.id)} · ${escapeHtml(candidate.status_label)}</option>`).join("");
+      const runTitle = run.display_name || run.id;
+      const receiptLink = run.id === "all" ? "" : `<a class="link-button" target="_blank" rel="noopener noreferrer" href="/api/receipts?run=${encodeURIComponent(run.id)}">Receipts</a>`;
+      const rowsHtml = app.loadingCases ? `<div class="loading">Loading receipt rows…</div>` : rows.length ? rows.map(renderCase).join("") : `<div class="empty">No cases match these filters.</div>`;
+      $("run-detail").innerHTML = `<div class="detail-heading">
+        <div><p class="eyebrow">${escapeHtml(run.status_label)}</p><h2 id="detail-title">${escapeHtml(runTitle)}</h2><p class="detail-subtitle">${escapeHtml(shortModel(run))} · ${formatNumber(run.processed_cases)} / ${formatNumber(run.sample_size)} cases · updated ${escapeHtml(shortDate(run.updated_utc))}</p></div>
+        <div class="detail-actions"><label class="run-picker"><span>Run</span><select id="run-select" aria-label="Select a run">${runOptions}</select></label>${receiptLink}</div>
+      </div>
+      <div class="outcome-strip" aria-label="Run outcomes">${renderPills(run)}</div>
+      <form class="filters" id="case-filters">
+        <label><span class="label">Find a case, citation, or judge</span><input id="case-search" name="q" type="search" value="${escapeHtml(app.query)}" placeholder="e.g. 2018 BCCA or dissent"></label>
+        <label><span class="label">Model outcome</span><select id="case-outcome" name="outcome"><option value="all">All outcomes</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="structure_unavailable">No structure</option><option value="case_failed">Case failed</option></select></label>
+        <label><span class="label">Panel shape</span><select id="case-panel" name="panel"><option value="all">All panels</option><option value="separate">Concurring / dissenting</option><option value="single">Majority only</option></select></label>
+        <label><span class="label">Order</span><select id="case-sort" name="sort"><option value="outcome">Outcome first</option><option value="separate_first">Concurring / dissenting first</option></select></label>
+      </form>
+      <div class="case-list" aria-live="polite">${rowsHtml}</div>
+      <div class="pagination"><button type="button" id="previous-page" ${page <= 1 || app.loadingCases ? "disabled" : ""}>Previous</button><span>${total ? `Showing ${formatNumber((page - 1) * pageSize + 1)}–${formatNumber(Math.min(page * pageSize, total))} of ${formatNumber(total)}` : "0 results"}</span><button type="button" id="next-page" ${page >= pages || app.loadingCases ? "disabled" : ""}>Next</button></div>`;
+      $("run-select").addEventListener("change", () => selectRun($("run-select").value));
+      $("case-outcome").value = app.outcome;
+      $("case-panel").value = app.panel;
+      $("case-sort").value = app.sort;
+      $("case-filters").addEventListener("submit", (event) => { event.preventDefault(); app.query = $("case-search").value.trim(); app.outcome = $("case-outcome").value; app.panel = $("case-panel").value; app.sort = $("case-sort").value; app.page = 1; loadCases(); });
+      $("case-outcome").addEventListener("change", () => { app.outcome = $("case-outcome").value; app.page = 1; loadCases(); });
+      $("case-panel").addEventListener("change", () => { app.panel = $("case-panel").value; app.page = 1; loadCases(); });
+      $("case-sort").addEventListener("change", () => { app.sort = $("case-sort").value; app.page = 1; loadCases(); });
+      $("previous-page").addEventListener("click", () => { if (app.page > 1) { app.page -= 1; loadCases(); } });
+      $("next-page").addEventListener("click", () => { if (app.page < pages) { app.page += 1; loadCases(); } });
+    }
+
+    function renderCase(item) {
+      const judges = item.judges?.length ? item.judges.map((judge) => `<span class="judge">${escapeHtml(judge.name)} <em>${escapeHtml(judge.result_side || judge.role)} · ${escapeHtml(judge.relationship || "unknown")}</em></span>`).join("") : `<span class="muted">No judges returned</span>`;
+      const ranges = item.ranges?.length ? item.ranges.map((range) => `<a class="range-${escapeHtml(range.role)}" target="_blank" rel="noopener noreferrer" href="${escapeHtml(range.url || "#")}" title="Open ${escapeHtml(range.label)} in the source viewer">${escapeHtml(range.role)} ${escapeHtml(range.label)}</a>`).join("") : `<span class="muted">No model range</span>`;
+      const textLink = item.text_url ? `<a target="_blank" rel="noopener noreferrer" href="${escapeHtml(item.text_url)}">Text</a>` : `<span class="muted">Text unavailable</span>`;
+      const panelFlag = item.separate_opinion ? `<span class="pill separate_opinion">Separate opinion</span>` : "";
+      const origin = item.run_id ? `<span class="case-run">${escapeHtml(item.run_id)}</span>` : "";
+      return `<article class="case-card"><div class="case-head"><div class="case-title"><span class="case-citation">${escapeHtml(item.citation || `Document ${item.document_id ?? "?"}`)}</span><span class="case-name">${escapeHtml(item.name || `${item.dataset || ""} · document ${item.document_id ?? "?"}`)}</span>${origin}</div><div class="case-actions"><span class="pill ${escapeHtml(item.outcome)}">${escapeHtml(item.outcome_label)}</span>${panelFlag}${textLink}</div></div><div class="case-body"><div><span class="case-label">Judges</span><div class="judge-list">${judges}</div></div><div><span class="case-label">Model ranges</span><div class="range-list">${ranges}</div></div></div>${item.error ? `<p class="muted" style="margin:10px 0 0">${escapeHtml(item.error)}</p>` : ""}</article>`;
+    }
+
+    async function loadCases() {
+      if (!app.selected) return;
+      const request = ++app.request;
+      app.loadingCases = true;
+      renderDetail();
+      const params = new URLSearchParams({ run: app.selected, page: String(app.page), page_size: String(pageSize), q: app.query, outcome: app.outcome, panel: app.panel, sort: app.sort });
+      try {
+        const response = await fetch(`/api/cases?${params}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not load cases");
+        if (request !== app.request) return;
+        app.cases = payload;
+      } catch (error) {
+        if (request !== app.request) return;
+        app.cases = { total: 0, cases: [] };
+        $("run-detail").innerHTML = `<div class="empty">${escapeHtml(error.message || "Could not load cases")}</div>`;
+      } finally {
+        if (request === app.request) { app.loadingCases = false; renderDetail(); }
+      }
+    }
+
+    function selectRun(id) {
+      if (!id || (id !== "all" && !app.runs.some((run) => run.id === id))) return;
+      app.selected = id;
+      app.page = 1;
+      app.query = "";
+      app.outcome = "all";
+      app.panel = "all";
+      app.sort = "outcome";
+      app.cases = null;
+      history.replaceState(null, "", id === "all" ? location.pathname : `?run=${encodeURIComponent(id)}`);
+      renderDetail();
+      loadCases();
+    }
+
+    async function refresh({ manual = true } = {}) {
+      if (manual) $("refresh-button").disabled = true;
+      try {
+        const response = await fetch("/api/state", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not load dashboard state");
+        app.runs = payload.runs || [];
+        renderLive(payload);
+        if (!manual) return;
+        const requested = new URLSearchParams(location.search).get("run");
+        const next = requested && app.runs.some((run) => run.id === requested) ? requested : "all";
+        if (next && next !== app.selected) selectRun(next);
+        else if (next) { renderDetail(); loadCases(); }
+      } catch (error) {
+        $("live-description").textContent = error.message || "Could not load dashboard state";
+        $("live-state").textContent = "Unavailable";
+        if (manual) $("run-detail").innerHTML = `<div class="empty">${escapeHtml(error.message || "Could not load runs")}</div>`;
+      } finally {
+        if (manual) $("refresh-button").disabled = false;
+      }
+    }
+
+    $("refresh-button").addEventListener("click", () => refresh({ manual: true }));
+    refresh({ manual: true });
+  </script>
+</body>
+</html>

@@ -15,8 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
-import { useEditMode, useShowAutoMode } from "./editModePreference";
-import { useShowContextUsage } from "./displayPreferences";
+import { useAssistantPreferences } from "./assistantPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
 function mergeDocuments(...groups: Document[][]) {
@@ -92,9 +91,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
     const [model, setModel] = useSelectedModel();
     const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
-    const showAutoMode = useShowAutoMode();
-    const showContextUsage = useShowContextUsage();
-    const [editMode, setEditMode] = useEditMode();
+    const [{ showAutoMode, showContextUsage, editMode }, updatePreferences] =
+        useAssistantPreferences();
+    const setEditMode = (mode: "manual" | "auto") =>
+        updatePreferences((current) => ({ ...current, editMode: mode }));
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaId = useId();

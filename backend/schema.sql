@@ -1,7 +1,6 @@
 -- Beaver Supabase schema
--- Use this for a fresh Supabase database. Existing deployments should instead
--- apply the dated incremental migration files in backend/migrations that are
--- newer than the version of Beaver they currently have deployed.
+-- This is the sole database definition before Beaver's first public release.
+-- Introduce forward migrations only after a deployed user database exists.
 
 create extension if not exists "pgcrypto";
 
@@ -200,6 +199,8 @@ create table if not exists public.projects (
   practice text,
   visibility text not null default 'private',
   shared_with jsonb not null default '[]'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -368,6 +369,175 @@ create index if not exists document_edits_message_id_idx
 
 create index if not exists document_edits_version_id_idx
   on public.document_edits(version_id);
+
+create or replace function public.write_document(
+  p_actor_user_id text, p_actor_user_email text, p_action text,
+  p_document_id uuid, p_expected text, p_payload jsonb
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_document public.documents%rowtype;
+  v_version public.document_versions%rowtype;
+  v_doc jsonb := coalesce(p_payload->'document','{}'::jsonb);
+  v_next jsonb := coalesce(p_payload->'version','{}'::jsonb);
+  v_email text := lower(trim(coalesce(p_actor_user_email,'')));
+  v_project uuid := nullif(v_doc->>'project_id','')::uuid;
+  v_folder uuid := nullif(v_doc->>'folder_id','')::uuid;
+  v_library_folder uuid := nullif(v_doc->>'library_folder_id','')::uuid;
+begin
+  if coalesce(current_setting('request.jwt.claim.role', true), current_user)
+       <> 'service_role' and current_user <> 'service_role' then
+    raise insufficient_privilege using message = 'service role required';
+  end if;
+  if p_action='create' then
+    if v_doc->>'user_id'<>p_actor_user_id or (v_project is not null and not exists (
+      select 1 from public.projects p where p.id=v_project and
+        (p.user_id=p_actor_user_id or (v_email<>'' and exists (
+          select 1 from jsonb_array_elements_text(p.shared_with) member
+          where lower(trim(member))=v_email)))) or
+      (v_folder is not null and not exists (select 1 from public.project_subfolders f
+        where f.id=v_folder and f.project_id=v_project)) or
+      (v_library_folder is not null and not exists (select 1 from public.library_folders f
+        where f.id=v_library_folder and f.user_id=p_actor_user_id and
+          f.library_kind=coalesce(v_doc->>'library_kind','file'))) then
+      return jsonb_build_object('status','missing');
+    end if;
+    insert into public.documents(id,project_id,user_id,status,folder_id,library_kind,
+      library_folder_id,metadata,notes,created_at,updated_at)
+    values(p_document_id,v_project,p_actor_user_id,coalesce(v_doc->>'status','ready'),
+      v_folder,coalesce(v_doc->>'library_kind','file'),v_library_folder,
+      coalesce(v_doc->'metadata','{}'::jsonb),v_doc->>'notes',
+      (v_doc->>'created_at')::timestamptz,(v_doc->>'updated_at')::timestamptz)
+    returning * into v_document;
+  else
+    select * into v_document from public.documents d where d.id=p_document_id and
+      (d.user_id=p_actor_user_id or (p_action not in ('delete_version') and exists (
+        select 1 from public.projects p where p.id=d.project_id and
+          (p.user_id=p_actor_user_id or (v_email<>'' and exists (
+            select 1 from jsonb_array_elements_text(p.shared_with) member
+            where lower(trim(member))=v_email))))) for update;
+    if not found then return jsonb_build_object('status','missing'); end if;
+  end if;
+  if p_action in ('create','insert_version') then
+    if p_action='insert_version' and v_document.current_version_id::text<>p_expected then
+      return jsonb_build_object('status','conflict');
+    end if;
+    insert into public.document_versions(id,document_id,storage_path,pdf_storage_path,
+      source,version_number,filename,file_type,size_bytes,source_sha256,cleanup_paths,
+      page_count,provenance,created_at)
+    values((v_next->>'id')::uuid,p_document_id,v_next->>'storage_path',
+      nullif(v_next->>'pdf_storage_path',''),coalesce(v_next->>'source','upload'),
+      (v_next->>'version_number')::integer,v_next->>'filename',v_next->>'file_type',
+      (v_next->>'size_bytes')::integer,v_next->>'source_sha256',
+      coalesce(v_next->'cleanup_paths','[]'::jsonb),(v_next->>'page_count')::integer,
+      nullif(v_next->'provenance','null'::jsonb),(v_next->>'created_at')::timestamptz)
+    returning * into v_version;
+    update public.documents set current_version_id=v_version.id,
+      updated_at=v_version.created_at where id=p_document_id;
+  elsif p_action='update_version' then
+    select * into v_version from public.document_versions v where
+      v.id=(v_next->>'id')::uuid and v.document_id=p_document_id and v.deleted_at is null
+      for update;
+    if not found then return jsonb_build_object('status','missing'); end if;
+    if v_version.storage_path<>p_expected then return jsonb_build_object('status','conflict'); end if;
+    if p_payload ? 'resolve' and not exists (select 1 from public.document_edits e
+      where e.id=(p_payload->'resolve'->>'id')::uuid and e.document_id=p_document_id
+        and e.version_id=v_version.id) then return jsonb_build_object('status','conflict'); end if;
+    update public.document_versions set storage_path=v_next->>'storage_path',
+      pdf_storage_path=nullif(v_next->>'pdf_storage_path',''),source=v_next->>'source',
+      version_number=(v_next->>'version_number')::integer,filename=v_next->>'filename',
+      file_type=v_next->>'file_type',size_bytes=(v_next->>'size_bytes')::integer,
+      source_sha256=v_next->>'source_sha256',cleanup_paths=v_next->'cleanup_paths',
+      page_count=(v_next->>'page_count')::integer,
+      provenance=nullif(v_next->'provenance','null'::jsonb),
+      created_at=(v_next->>'created_at')::timestamptz where id=v_version.id
+      returning * into v_version;
+    update public.documents set updated_at=clock_timestamp() where id=p_document_id;
+  elsif p_action='rename_version' then
+    update public.document_versions set filename=p_payload->>'filename'
+      where id=(p_payload->>'version_id')::uuid and document_id=p_document_id
+        and deleted_at is null returning * into v_version;
+    if not found then return jsonb_build_object('status','missing'); end if;
+    update public.documents set updated_at=clock_timestamp() where id=p_document_id;
+  elsif p_action='relocate' then
+    if v_document.project_id is distinct from
+         nullif(p_payload->>'expected_project_id','')::uuid then
+      return jsonb_build_object('status','conflict');
+    end if;
+    v_project := nullif(p_payload->>'project_id','')::uuid;
+    v_folder := nullif(p_payload->>'folder_id','')::uuid;
+    if ((coalesce((p_payload->>'owner')::boolean,false) or v_project is null or
+         v_project is distinct from v_document.project_id) and
+        v_document.user_id<>p_actor_user_id) or
+       (v_project is not null and not exists (
+         select 1 from public.projects p where p.id=v_project and
+           (p.user_id=p_actor_user_id or (v_email<>'' and exists (
+             select 1 from jsonb_array_elements_text(p.shared_with) member
+             where lower(trim(member))=v_email))))) or
+       (v_folder is not null and (
+         (v_project is not null and not exists (
+           select 1 from public.project_subfolders f where f.id=v_folder and
+             f.project_id=v_project)) or
+         (v_project is null and not exists (
+           select 1 from public.library_folders f where f.id=v_folder and
+             f.user_id=p_actor_user_id and
+             f.library_kind=v_document.library_kind)))) then
+      return jsonb_build_object('status','missing');
+    end if;
+    update public.documents set project_id=v_project,
+      folder_id=case when v_project is not null then v_folder end,
+      library_folder_id=case when v_project is null then v_folder end,
+      updated_at=clock_timestamp() where id=p_document_id;
+    return jsonb_build_object('status','moved');
+  elsif p_action='delete_version' then
+    select * into v_version from public.document_versions v where
+      v.id=(p_payload->>'version_id')::uuid and v.document_id=p_document_id for update;
+    if not found then return jsonb_build_object('status','missing'); end if;
+    if v_document.current_version_id::text<>p_expected or
+       v_version.storage_path<>p_payload->>'expected_blob_key' or
+       v_version.pdf_storage_path is distinct from p_payload->>'expected_pdf_blob_key' or
+       v_version.cleanup_paths is distinct from coalesce(p_payload->'expected_cleanup_paths','[]'::jsonb) or
+       v_version.id=(p_payload->>'current_version_id')::uuid or not exists (
+         select 1 from public.document_versions next where
+           next.id=(p_payload->>'current_version_id')::uuid and
+           next.document_id=p_document_id and next.deleted_at is null)
+      then return jsonb_build_object('status','conflict'); end if;
+    update public.documents set current_version_id=(p_payload->>'current_version_id')::uuid,
+      updated_at=clock_timestamp() where id=p_document_id;
+    delete from public.document_versions where id=v_version.id;
+    return jsonb_build_object('status','updated');
+  elsif p_action='clear_cleanup' then
+    update public.document_versions v set cleanup_paths=coalesce((select jsonb_agg(kept.item)
+      from jsonb_array_elements(v.cleanup_paths) as kept(item) where not exists (
+        select 1 from jsonb_array_elements_text(p_payload->'keys') as removed(key)
+        where removed.key=kept.item#>>'{}')),'[]'::jsonb)
+    where v.id=(p_payload->>'version_id')::uuid and v.document_id=p_document_id;
+    return jsonb_build_object('status','updated');
+  else raise invalid_parameter_value using message='unknown document action'; end if;
+  if p_action in ('insert_version','update_version') then
+    insert into public.document_edits(id,document_id,version_id,change_id,del_w_id,
+      ins_w_id,deleted_text,inserted_text,context_before,context_after,status,resolved_at)
+    select (e->>'id')::uuid,p_document_id,v_version.id,e->>'change_id',e->>'del_w_id',
+      e->>'ins_w_id',coalesce(e->>'deleted_text',''),coalesce(e->>'inserted_text',''),
+      e->>'context_before',e->>'context_after',coalesce(e->>'status','pending'),
+      (e->>'resolved_at')::timestamptz from jsonb_array_elements(
+        coalesce(p_payload->'edits','[]'::jsonb)) e;
+    if p_payload ? 'resolve' then update public.document_edits set
+      status=p_payload->'resolve'->>'status',resolved_at=clock_timestamp()
+      where id=(p_payload->'resolve'->>'id')::uuid and document_id=p_document_id
+        and version_id=v_version.id; end if;
+  end if;
+  return jsonb_build_object('status',case when p_action in ('create','insert_version')
+    then 'created' else 'updated' end);
+end $$;
+
+revoke all on function public.write_document(text,text,text,uuid,text,jsonb)
+  from public, anon, authenticated;
+grant execute on function public.write_document(text,text,text,uuid,text,jsonb)
+  to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Audit history (cloud mode)
@@ -778,45 +948,84 @@ create table if not exists public.tabular_cells (
 create index if not exists idx_tabular_cells_review
   on public.tabular_cells(review_id, document_id, column_index);
 
+create unique index if not exists tabular_cells_coordinate_idx
+  on public.tabular_cells(review_id, document_id, column_index);
 
--- ---------------------------------------------------------------------------
--- CourtListener bulk-data indexes
--- ---------------------------------------------------------------------------
+create or replace function public.write_tabular_review(
+  p_actor_user_id text, p_actor_user_email text, p_review_id uuid,
+  p_expected_version timestamptz, p_input jsonb
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_review public.tabular_reviews%rowtype;
+  v_project uuid := nullif(p_input->>'project_id', '')::uuid;
+  v_documents jsonb := coalesce(p_input->'document_ids', '[]'::jsonb);
+  v_columns jsonb := coalesce(p_input->'columns_config', '[]'::jsonb);
+  v_email text := lower(trim(coalesce(p_actor_user_email, '')));
+begin
+  if coalesce(current_setting('request.jwt.claim.role', true), current_user)
+       <> 'service_role' and current_user <> 'service_role' then
+    raise insufficient_privilege using message = 'service role required';
+  end if;
+  if v_project is not null and not exists (
+    select 1 from public.projects p where p.id=v_project and
+      (p.user_id=p_actor_user_id or (v_email<>'' and exists (
+        select 1 from jsonb_array_elements_text(p.shared_with) member
+        where lower(trim(member))=v_email)))
+  ) then return jsonb_build_object('status','missing'); end if;
+  if exists (select 1 from jsonb_array_elements_text(v_documents) item
+    where not exists (select 1 from public.documents d where d.id=item::uuid and
+      ((v_project is null and d.project_id is null and d.user_id=p_actor_user_id) or
+       (v_project is not null and d.project_id=v_project)))) then
+    return jsonb_build_object('status','missing');
+  end if;
+  if p_review_id is null then
+    insert into public.tabular_reviews(user_id,title,project_id,columns_config,
+      document_ids,workflow_id,shared_with)
+    values (p_actor_user_id,p_input->>'title',v_project,v_columns,v_documents,
+      nullif(p_input->>'workflow_id','')::uuid,coalesce(p_input->'shared_with','[]'::jsonb))
+    returning * into v_review;
+  else
+    select * into v_review from public.tabular_reviews r where r.id=p_review_id and
+      (r.user_id=p_actor_user_id or (v_email<>'' and exists (
+        select 1 from jsonb_array_elements_text(r.shared_with) member
+        where lower(trim(member))=v_email)) or exists (
+        select 1 from public.projects p where p.id=r.project_id and
+          (p.user_id=p_actor_user_id or (v_email<>'' and exists (
+            select 1 from jsonb_array_elements_text(p.shared_with) member
+            where lower(trim(member))=v_email))))) for update;
+    if not found then return jsonb_build_object('status','missing'); end if;
+    if v_review.updated_at<>p_expected_version then return jsonb_build_object(
+      'status','conflict','value',to_jsonb(v_review)||jsonb_build_object(
+        'is_owner',v_review.user_id=p_actor_user_id)); end if;
+    update public.tabular_reviews set title=p_input->>'title',project_id=v_project,
+      columns_config=v_columns,document_ids=v_documents,
+      workflow_id=nullif(p_input->>'workflow_id','')::uuid,
+      shared_with=coalesce(p_input->'shared_with','[]'::jsonb),
+      updated_at=greatest(clock_timestamp(),v_review.updated_at+interval '1 microsecond')
+    where id=p_review_id returning * into v_review;
+  end if;
+  delete from public.tabular_cells c where c.review_id=v_review.id and not exists (
+    select 1 from jsonb_array_elements_text(v_documents) d
+      cross join jsonb_array_elements(v_columns) col
+    where c.document_id=d::uuid and c.column_index=(col->>'index')::integer);
+  insert into public.tabular_cells(review_id,document_id,column_index,status)
+    select v_review.id,d::uuid,(col->>'index')::integer,'pending'
+    from jsonb_array_elements_text(v_documents) d
+      cross join jsonb_array_elements(v_columns) col
+    on conflict(review_id,document_id,column_index) do nothing;
+  return jsonb_build_object('status','committed','value',to_jsonb(v_review)||
+    jsonb_build_object('is_owner',v_review.user_id=p_actor_user_id));
+end $$;
 
-create table if not exists public.courtlistener_citation_index (
-  id bigint primary key,
-  volume text not null,
-  reporter text not null,
-  page text not null,
-  type integer,
-  cluster_id bigint not null,
-  date_created timestamptz,
-  date_modified timestamptz
-);
+revoke all on function public.write_tabular_review(text,text,uuid,timestamptz,jsonb)
+  from public, anon, authenticated;
+grant execute on function public.write_tabular_review(text,text,uuid,timestamptz,jsonb)
+  to service_role;
 
-create index if not exists courtlistener_citation_lookup_idx
-  on public.courtlistener_citation_index(volume, reporter, page);
-
-create index if not exists courtlistener_citation_cluster_idx
-  on public.courtlistener_citation_index(cluster_id);
-
-alter table public.courtlistener_citation_index enable row level security;
-
-create table if not exists public.courtlistener_opinion_cluster_index (
-  id bigint primary key,
-  case_name text,
-  case_name_short text,
-  case_name_full text,
-  slug text,
-  date_filed date,
-  citation_count integer,
-  precedential_status text,
-  filepath_pdf_harvard text,
-  filepath_json_harvard text,
-  docket_id bigint
-);
-
-alter table public.courtlistener_opinion_cluster_index enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Direct client grant hardening
@@ -850,9 +1059,6 @@ revoke all on public.user_mcp_oauth_tokens from anon, authenticated;
 revoke all on public.user_mcp_oauth_states from anon, authenticated;
 revoke all on public.user_mcp_connector_tools from anon, authenticated;
 revoke all on public.user_mcp_tool_audit_logs from anon, authenticated;
-revoke all on public.courtlistener_citation_index from anon, authenticated;
-revoke all on public.courtlistener_opinion_cluster_index from anon, authenticated;
-
 -- Tables created by this file are owned by the database bootstrap role. The
 -- backend connects as service_role, so grant it only the data privileges that
 -- the direct browser roles above intentionally do not have. RLS is still

@@ -1,4 +1,3 @@
-import type { TabularStore } from "./tabularStore";
 import { visibleChatMessages } from "./chat/chatTranscript";
 import { abortChatTurnForDeletion } from "./chatTurns";
 
@@ -11,20 +10,13 @@ export type ChatMessageRecord = Record<string, unknown> & {
   content: unknown; files?: unknown; workflow?: unknown; citations?: unknown;
 };
 
-export type ChatCommitResult =
-  | { status: "missing" }
+export type ChatCommitResult = { status: "missing" }
   | { status: "conflict"; currentVersion: number }
   | { status: "committed"; currentVersion: number };
 
-export type ChatTurnCommit = {
-  expectedVersion: number;
-  userMessage?: {
-    id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown;
-  };
-  assistantMessage?: {
-    id: string; turnId?: string; content: unknown[]; citations?: unknown[];
-  };
-};
+export type ChatTurnCommit = { expectedVersion: number;
+  userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown };
+  assistantMessage?: { id: string; turnId?: string; content: unknown[]; citations?: unknown[] } };
 
 export class ChatStoreError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -35,55 +27,45 @@ export type ChatCreateInput = { projectId: string | null; tabularReviewId: strin
 export type ChatUpdateInput = { title?: string; projectId?: string | null };
 export type ChatDetail = { chat: ChatRecord; messages: ChatMessageRecord[] };
 export type ChatStore = {
-  list(scope: ChatScope, options: ChatListOptions): Promise<ChatRecord[]>;
-  deleted(scope: ChatScope): Promise<ChatRecord[]>;
-  create(scope: ChatScope, input: ChatCreateInput): Promise<ChatRecord>;
-  get(scope: ChatScope, chatId: string): Promise<ChatRecord | null>;
-  detail(scope: ChatScope, chatId: string): Promise<ChatDetail | null>;
-  transcript(scope: ChatScope, chatId: string): Promise<ChatMessageRecord[] | null>;
-  commitTurn(scope: ChatScope, chatId: string, commit: ChatTurnCommit): Promise<ChatCommitResult>;
-  appendAssistantEvent(scope: ChatScope, chatId: string, messageId: string,
-    event: Record<string, unknown>): Promise<ChatCommitResult>;
-  update(scope: ChatScope, chatId: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
-  trash(scope: ChatScope, chatId: string): Promise<boolean>;
-  restore(scope: ChatScope, chatId: string): Promise<boolean>;
-  remove(scope: ChatScope, chatId: string): Promise<boolean>;
-  generateTitle(scope: ChatScope, chatId: string, message: string): Promise<string | null>;
+  list(scope: ChatScope, options: ChatListOptions): Promise<ChatRecord[]>; deleted(scope: ChatScope): Promise<ChatRecord[]>;
+  create(scope: ChatScope, input: ChatCreateInput): Promise<ChatRecord>; get(scope: ChatScope, id: string): Promise<ChatRecord | null>;
+  detail(scope: ChatScope, id: string): Promise<ChatDetail | null>; transcript(scope: ChatScope, id: string): Promise<ChatMessageRecord[] | null>;
+  commitTurn(scope: ChatScope, id: string, commit: ChatTurnCommit): Promise<ChatCommitResult>;
+  appendAssistantEvent(scope: ChatScope, id: string, messageId: string, event: Record<string, unknown>): Promise<ChatCommitResult>;
+  update(scope: ChatScope, id: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
+  trash(scope: ChatScope, id: string): Promise<boolean>; restore(scope: ChatScope, id: string): Promise<boolean>;
+  remove(scope: ChatScope, id: string): Promise<boolean>; deleteAll(scope: ChatScope): Promise<number>;
+  generateTitle(scope: ChatScope, id: string, message: string): Promise<string | null>;
 };
-
-export type CreateChatStore = (tabular: TabularStore) => ChatStore;
 
 export type ChatMutation = { kind: "turn"; turn: ChatTurnCommit }
   | { kind: "append"; messageId: string; event: Record<string, unknown> };
 
 export type ChatRepository = {
-  context(kind: "project" | "review", id: string): Promise<boolean>;
-  list(options: ChatListOptions): Promise<ChatRecord[]>;
-  deleted(): Promise<ChatRecord[]>;
-  purge(cutoff: string): Promise<string[]>;
-  create(input: ChatCreateInput): Promise<ChatRecord>;
+  list(options: ChatListOptions): Promise<ChatRecord[]>; deleted(): Promise<ChatRecord[]>;
+  purge(cutoff: string): Promise<string[]>; create(input: ChatCreateInput): Promise<ChatRecord>;
   read(chatId: string, messages?: boolean, deleted?: boolean): Promise<ChatDetail | null>;
-  owns(chatId: string): Promise<boolean>;
-  commit(chatId: string, mutation: ChatMutation): Promise<ChatCommitResult>;
+  owns(chatId: string): Promise<boolean>; commit(chatId: string, mutation: ChatMutation): Promise<ChatCommitResult>;
   update(chatId: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
-  trash(chatId: string, at: string): Promise<boolean>;
-  restore(chatId: string, cutoff: string, at: string): Promise<boolean>;
-  remove(chatId: string): Promise<boolean>;
+  trash(chatId: string, at: string): Promise<boolean>; restore(chatId: string, cutoff: string, at: string): Promise<boolean>;
+  remove(chatId: string): Promise<boolean>; removeAll(): Promise<string[]>;
   decorate(messages: ChatMessageRecord[]): Promise<ChatMessageRecord[]>;
 };
 
 export type CreateChatRepository = (scope: ChatScope) => ChatRepository;
 type GenerateChatTitle = (scope: ChatScope, message: string) => Promise<string>;
+export type ChatContexts = { project(scope: ChatScope, id: string): Promise<boolean>;
+  review(scope: ChatScope, id: string): Promise<boolean> };
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const missing = (detail: string) => new ChatStoreError(404, detail);
 
-async function requireContext(repository: ChatRepository, input: {
+async function requireContext(contexts: ChatContexts, scope: ChatScope, input: {
   projectId?: string | null; tabularReviewId?: string | null;
 }) {
-  if (input.projectId && !await repository.context("project", input.projectId))
+  if (input.projectId && !await contexts.project(scope, input.projectId))
     throw missing("Project not found");
-  if (input.tabularReviewId && !await repository.context("review", input.tabularReviewId))
+  if (input.tabularReviewId && !await contexts.review(scope, input.tabularReviewId))
     throw missing("Review not found");
 }
 
@@ -93,11 +75,11 @@ async function purge(repository: ChatRepository) {
 }
 
 export function createChatStore(repositoryFor: CreateChatRepository,
-  generate: GenerateChatTitle): ChatStore {
+  generate: GenerateChatTitle, contexts: ChatContexts): ChatStore {
   return {
     async list(scope, options) {
       const repository = repositoryFor(scope);
-      await requireContext(repository, options); await purge(repository);
+      await requireContext(contexts, scope, options); await purge(repository);
       return repository.list(options);
     },
     async deleted(scope) {
@@ -105,7 +87,7 @@ export function createChatStore(repositoryFor: CreateChatRepository,
       return repository.deleted();
     },
     async create(scope, input) {
-      const repository = repositoryFor(scope); await requireContext(repository, input);
+      const repository = repositoryFor(scope); await requireContext(contexts, scope, input);
       return repository.create(input);
     },
     async get(scope, chatId) { return (await repositoryFor(scope).read(chatId))?.chat ?? null; },
@@ -125,7 +107,7 @@ export function createChatStore(repositoryFor: CreateChatRepository,
       return repositoryFor(scope).commit(chatId, { kind: "append", messageId, event }); },
     async update(scope, chatId, input) {
       const repository = repositoryFor(scope);
-      await requireContext(repository, { projectId: input.projectId });
+      await requireContext(contexts, scope, { projectId: input.projectId });
       return repository.update(chatId, input);
     },
     async trash(scope, chatId) {
@@ -140,6 +122,10 @@ export function createChatStore(repositoryFor: CreateChatRepository,
     async remove(scope, chatId) {
       const removed = await repositoryFor(scope).remove(chatId);
       if (removed) abortChatTurnForDeletion(chatId); return removed;
+    },
+    async deleteAll(scope) {
+      const ids = await repositoryFor(scope).removeAll();
+      ids.forEach(abortChatTurnForDeletion); return ids.length;
     },
     async generateTitle(scope, chatId, message) {
       const repository = repositoryFor(scope);
@@ -173,7 +159,7 @@ export function patchChatEditEvents(messages: ChatMessageRecord[], statuses:
     content: Array.isArray(message.content)
       ? message.content.map((event) => {
           const row = event as Record<string, unknown>;
-          if (row.type !== "doc_edited") return event;
+          if (row.type !== "document_artifact" || row.action !== "edited") return event;
           return { ...patch(row), annotations: Array.isArray(row.annotations)
             ? row.annotations.map((annotation) =>
                 patch(annotation as Record<string, unknown>)) : row.annotations };

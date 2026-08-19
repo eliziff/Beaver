@@ -2,7 +2,6 @@
 // Claude Code print transport. Claude Code owns the native MCP agent loop;
 // Beaver owns the MCP registry and executes every tool call.
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -12,7 +11,6 @@ import { abortError, throwIfAborted } from "./abort";
 import { modelContextWindow } from "./contextWindow";
 import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
 import type {
-  LlmCompactionReceipt,
   LlmContextRoundReceipt,
   NormalizedLlmUsage,
   StreamCallbacks,
@@ -26,8 +24,6 @@ const HARD_LIMIT_MS = 3_600_000;
 const MAX_PROVIDER_COMPACTIONS = 3;
 const MCP_TOKEN_ENV = "BEAVER_CLAUDE_MCP_TOKEN";
 const CLAUDE_SESSION_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
-const sha256 = (text: string) =>
-  createHash("sha256").update(text).digest("hex");
 
 export type ClaudePFatalCode =
   | "context_overflow"
@@ -96,81 +92,14 @@ function promptFrom(messages: StreamChatParams["messages"]) {
     .join("\n\n");
 }
 
-export type ClaudePCompactionEvent = {
-  trigger: string | null; preTokens: number | null; durationMs: number | null;
-};
-
-export function compactionFromStreamLine(
-  line: string,
-): ClaudePCompactionEvent | null {
-  if (!line.startsWith("{") || !line.includes('"compact_boundary"')) return null;
+function isCompaction(line: string) {
+  if (!line.startsWith("{") || !line.includes('"compact_boundary"')) return false;
   try {
-    const event = JSON.parse(line) as {
-      type?: string;
-      subtype?: string;
-      compactMetadata?: {
-        trigger?: string;
-        preTokens?: number;
-        durationMs?: number;
-      };
-      compact_metadata?: {
-        trigger?: string;
-        pre_tokens?: number;
-        duration_ms?: number;
-      };
-    };
-    if (event.type !== "system" || event.subtype !== "compact_boundary") {
-      return null;
-    }
-    return {
-      trigger:
-        event.compactMetadata?.trigger ??
-        event.compact_metadata?.trigger ??
-        null,
-      preTokens:
-        event.compactMetadata?.preTokens ??
-        event.compact_metadata?.pre_tokens ??
-        null,
-      durationMs:
-        event.compactMetadata?.durationMs ??
-        event.compact_metadata?.duration_ms ??
-        null,
-    };
+    const event = JSON.parse(line) as { type?: string; subtype?: string };
+    return event.type === "system" && event.subtype === "compact_boundary";
   } catch {
-    return null;
+    return false;
   }
-}
-
-function compactionReceipt(
-  event: ClaudePCompactionEvent,
-): LlmCompactionReceipt {
-  return {
-    iteration: 0,
-    thresholdTokens: 0,
-    triggerInputTokens: event.preTokens ?? 0,
-    triggerReason: "provider_auto",
-    requestInputItems: 0,
-    requestInputBytes: 0,
-    requestInputSha256: "",
-    requestInstructionsBytes: 0,
-    requestInstructionsSha256: "",
-    requestToolCount: 0,
-    requestToolBytes: 0,
-    requestToolSha256: "",
-    outputItems: 0,
-    outputBytes: 0,
-    outputSha256: "",
-    estimatedInputTokens: 0,
-    estimatedOutputTokens: 0,
-    latencyMs: event.durationMs ?? 0,
-    usage: {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: null,
-      cacheReadInputTokens: 0,
-      cacheWriteInputTokens: 0,
-    },
-  };
 }
 
 type ResultEnvelope = {
@@ -180,7 +109,7 @@ type ResultEnvelope = {
 
 type RunState = {
   result: ResultEnvelope | null; fullText: string;
-  compactions: LlmCompactionReceipt[]; contentOpen: boolean;
+  compactions: number; contentOpen: boolean;
   mcpReady: boolean; mcpError: string;
 };
 
@@ -211,9 +140,8 @@ function handleStreamLine(
       .join("; ") ?? "";
   }
 
-  const compaction = compactionFromStreamLine(line);
-  if (compaction) {
-    state.compactions.push(compactionReceipt(compaction));
+  if (isCompaction(line)) {
+    state.compactions += 1;
     callbacks.onCompaction?.("completed");
   }
 
@@ -304,7 +232,7 @@ async function runClaudeP(params: RunParams) {
       const state: RunState = {
         result: null,
         fullText: "",
-        compactions: [],
+        compactions: 0,
         mcpReady: false,
         mcpError: "",
         contentOpen: false,
@@ -343,10 +271,10 @@ async function runClaudeP(params: RunParams) {
           lastActivity = Date.now();
         }
         if (state.result) child.stdin.end();
-        if (state.compactions.length >= MAX_PROVIDER_COMPACTIONS) {
+        if (state.compactions >= MAX_PROVIDER_COMPACTIONS) {
           fail(
             new ClaudePFatalError(
-              `claude -p provider compaction limit: ${state.compactions.length}`,
+              `claude -p provider compaction limit: ${state.compactions}`,
               "compaction_limit",
             ),
           );
@@ -505,15 +433,11 @@ export async function streamClaudeP(
       {
         iteration: 0,
         requestAttempts: 1,
-        continuation: continuationId ? "provider" : "none",
         instructionsBytes: Buffer.byteLength(params.systemPrompt),
-        instructionsSha256: sha256(params.systemPrompt),
         inputItems: params.messages.length,
         inputBytes: Buffer.byteLength(messagesJson),
-        inputSha256: sha256(messagesJson),
         toolCount: initialTools.length,
         toolBytes: Buffer.byteLength(toolsJson),
-        toolSha256: sha256(toolsJson),
         ...stats,
         usage,
       },
@@ -523,7 +447,6 @@ export async function streamClaudeP(
       fullText,
       usage,
       contextRounds,
-      compactions: state.compactions,
       ...(params.providerSession?.persist && sessionId
         ? { continuationId: sessionId }
         : {}),

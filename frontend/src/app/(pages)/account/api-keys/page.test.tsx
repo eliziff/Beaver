@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ApiKeysPage from "./page";
 
-const mocks = vi.hoisted(() => ({ anonymous: true }));
+const mocks = vi.hoisted(() => ({ local: true }));
 vi.mock("@/app/lib/authMode", () => ({
-    get isAnonymousMode() {
-        return mocks.anonymous;
+    get isLocalMode() {
+        return mocks.local;
     },
 }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({
@@ -26,9 +26,9 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
     }),
 }));
 
-describe("anonymous API-key settings", () => {
+describe("local API-key settings", () => {
     beforeEach(() => {
-        mocks.anonymous = true;
+        mocks.local = true;
     });
 
     it("shows environment status without secret controls", () => {
@@ -43,7 +43,7 @@ describe("anonymous API-key settings", () => {
     });
 
     it("keeps editable controls in cloud mode", () => {
-        mocks.anonymous = false;
+        mocks.local = false;
         const { container } = render(<ApiKeysPage />);
         const inputs = Array.from(
             container.querySelectorAll<HTMLInputElement>('input[name="key"]'),

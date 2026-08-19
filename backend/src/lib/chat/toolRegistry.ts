@@ -6,32 +6,28 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
+import { safeErrorLog } from "../safeError";
 import type { AskInputsEvent } from "./types";
 import type { LegalEvidenceReceipt } from "./legalEvidence";
-import { safeErrorLog } from "../safeError";
+import type { ReadSubagentRegion } from "./readSubagents";
 
 export const LOAD_TOOLS_NAME = "load_tools";
 export const SPECIALIST_LIMIT = 3;
 export const MAX_MODEL_TOOL_RESULT_CHARS = 64_000;
 
-type ResultMetadata = Omit<
-  NormalizedToolResult,
-  "tool_use_id" | "content" | "terminal"
->;
-
 export type BeaverOutcome = {
   result: CallToolResult;
-  metadata?: ResultMetadata;
+  metadata?: Omit<NormalizedToolResult, "tool_use_id" | "content" | "terminal">;
   events?: unknown[];
   evidence?: LegalEvidenceReceipt[];
   pause?: AskInputsEvent;
   mutated?: boolean;
   terminal?: boolean;
 };
-
 export type BeaverTool<Context> = Tool & {
   specialist?: boolean;
-  reader?: boolean;
+  research?: boolean;
+  reader?: readonly ReadSubagentRegion[];
   sequential?: boolean | ((input: Record<string, unknown>) => boolean);
   activity?: (input: Record<string, unknown>) => string | null;
   execute(
@@ -41,7 +37,6 @@ export type BeaverTool<Context> = Tool & {
     call: Readonly<NormalizedToolCall>,
   ): Promise<BeaverOutcome>;
 };
-
 export type ToolBatch = {
   results: NormalizedToolResult[];
   outcomes: BeaverOutcome[];
@@ -52,196 +47,142 @@ export type ToolBatch = {
 };
 
 const validator = new AjvJsonSchemaValidator();
-const schemaOf = ({
-  name,
-  title,
-  description,
-  inputSchema,
-  outputSchema,
-  annotations,
-  execution,
-  icons,
-  _meta,
-}: Tool): Tool => ({
-  name,
-  ...(title ? { title } : {}),
-  ...(description ? { description } : {}),
-  inputSchema,
-  ...(outputSchema ? { outputSchema } : {}),
-  ...(annotations ? { annotations } : {}),
-  ...(execution ? { execution } : {}),
-  ...(icons ? { icons } : {}),
-  ...(_meta ? { _meta } : {}),
+const schema = (tool: Tool): Tool => ({
+  name: tool.name,
+  ...(tool.title && { title: tool.title }),
+  ...(tool.description && { description: tool.description }),
+  inputSchema: tool.inputSchema,
+  ...(tool.outputSchema && { outputSchema: tool.outputSchema }),
+  ...(tool.annotations && { annotations: tool.annotations }),
+  ...(tool.execution && { execution: tool.execution }),
+  ...(tool.icons && { icons: tool.icons }),
+  ...(tool._meta && { _meta: tool._meta }),
+});
+const loader = (names: string[], limit: number): Tool => ({
+  name: LOAD_TOOLS_NAME,
+  description: `Load up to ${limit} exact specialist tool names for this turn.`,
+  inputSchema: {
+    type: "object",
+    properties: { names: {
+      type: "array", minItems: 1, maxItems: limit, uniqueItems: true,
+      items: names.length ? { type: "string", enum: names } : { type: "string" },
+    } },
+    required: ["names"],
+    additionalProperties: false,
+  },
 });
 
 export const toolText = (value: unknown, isError = false): CallToolResult => ({
-  content: [{
-    type: "text",
-    text: typeof value === "string" ? value : JSON.stringify(value),
-  }],
-  ...(isError ? { isError: true } : {}),
+  content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
+  ...(isError && { isError: true }),
 });
-
-export function toolResultText(result: CallToolResult) {
-  return result.content.map((block) =>
-    block.type === "text" ? block.text : JSON.stringify(block)
-  ).join("\n");
-}
-
-const withoutStructuredUrls = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(withoutStructuredUrls);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .flatMap(([key, item]) => /(?:^|_)(?:url|uri|href)$/iu.test(key)
-      ? []
-      : [[key, withoutStructuredUrls(item)]]));
-};
-
-const modelResultText = (result: CallToolResult) => {
-  const visible = result.content.map((block) => {
+export const toolResultText = (result: CallToolResult) => result.content
+  .map((block) => block.type === "text" ? block.text : JSON.stringify(block)).join("\n");
+const withoutUrls = (value: unknown): unknown => Array.isArray(value)
+  ? value.map(withoutUrls)
+  : value && typeof value === "object"
+    ? Object.fromEntries(Object.entries(value as Record<string, unknown>)
+        .flatMap(([key, item]) => /(?:^|_)(?:url|uri|href)$/iu.test(key)
+          ? [] : [[key, withoutUrls(item)]]))
+    : value;
+const visibleText = (result: CallToolResult) => {
+  const text = result.content.map((block) => {
     if (block.type !== "text") return JSON.stringify(block);
-    try {
-      return JSON.stringify(withoutStructuredUrls(JSON.parse(block.text)));
-    } catch {
-      return block.text;
-    }
+    try { return JSON.stringify(withoutUrls(JSON.parse(block.text))); }
+    catch { return block.text; }
   }).join("\n");
-  if (visible.length <= MAX_MODEL_TOOL_RESULT_CHARS) {
-    return { content: visible, truncated: false };
-  }
+  if (text.length <= MAX_MODEL_TOOL_RESULT_CHARS) return { text, truncated: false };
   const marker = "\n… tool result truncated; retry with narrower inputs …\n";
   const tail = Math.floor(MAX_MODEL_TOOL_RESULT_CHARS / 4);
-  const head = MAX_MODEL_TOOL_RESULT_CHARS - tail - marker.length;
   return {
-    content: visible.slice(0, head) + marker + visible.slice(-tail),
+    text: text.slice(0, MAX_MODEL_TOOL_RESULT_CHARS - tail - marker.length) +
+      marker + text.slice(-tail),
     truncated: true,
   };
 };
-
-const normalized = (
-  id: string,
-  outcome: BeaverOutcome,
-): NormalizedToolResult => {
-  const visible = modelResultText(outcome.result);
+const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => {
+  const visible = visibleText(outcome.result);
+  const evidenceRefs = outcome.evidence?.flatMap((receipt) => receipt.span_text ? [{
+    handle: receipt.evidence_id,
+    filename: receipt.name ?? receipt.citation,
+    locator: receipt.locator.label,
+    text: receipt.span_text,
+    exactSha256: receipt.exact_span_sha256 ?? receipt.span_sha256,
+    kind: "evidence" as const,
+  }] : []);
   return {
     tool_use_id: id,
-    content: visible.content,
+    content: visible.text,
     ...outcome.metadata,
-    ...(visible.truncated && !outcome.metadata?.status
-      ? { status: "truncated" as const }
-      : {}),
-    ...(outcome.terminal ? { terminal: true } : {}),
+    ...(!outcome.metadata?.evidenceRefs && evidenceRefs?.length && { evidenceRefs }),
+    status: outcome.metadata?.status ??
+      (visible.truncated ? "truncated" : outcome.result.isError ? "error" : "ok"),
+    ...(outcome.terminal && { terminal: true }),
   };
 };
 
-function loaderSchema(names: string[], limit: number): Tool {
-  return {
-    name: LOAD_TOOLS_NAME,
-    description:
-      `Load up to ${limit} exact specialist tool names for this turn. This does not search or rank tools.`,
-    inputSchema: {
-      type: "object",
-      properties: {
-        names: {
-          type: "array",
-          minItems: 1,
-          maxItems: limit,
-          uniqueItems: true,
-          items: names.length ? { type: "string", enum: names } : { type: "string" },
-        },
-      },
-      required: ["names"],
-      additionalProperties: false,
-    },
-  };
-}
-
-type Compiled<Context> = {
-  tool: BeaverTool<Context>;
-  input: ReturnType<AjvJsonSchemaValidator["getValidator"]>;
-  output?: ReturnType<AjvJsonSchemaValidator["getValidator"]>;
-};
-
-type Prepared<Context> = {
-  call: NormalizedToolCall;
-  immediate?: CallToolResult;
-  tool?: BeaverTool<Context>;
-  output?: ReturnType<AjvJsonSchemaValidator["getValidator"]>;
-};
+type Check = ReturnType<AjvJsonSchemaValidator["getValidator"]>;
+type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
+type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
+const errorOutcome = (error: string, detail?: string): BeaverOutcome => ({
+  result: toolText({ ok: false, error, ...(detail && { detail }) }, true),
+});
 
 export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
-  readonly #byName: Map<string, Compiled<Context>>;
-  readonly #active: Set<string>;
+  readonly #byName = new Map<string, Compiled<Context>>();
+  readonly #active = new Set<string>();
   readonly #loaded = new Set<string>();
-  readonly #loaderInput: ReturnType<AjvJsonSchemaValidator["getValidator"]>;
   #mutated = false;
 
   constructor(tools: BeaverTool<Context>[]) {
-    this.#byName = new Map();
-    this.#tools = tools.map((tool) => {
-      const parsed = ToolSchema.safeParse(schemaOf(tool));
-      if (!parsed.success) {
-        throw new Error(`Invalid tool ${tool.name || "<empty>"}: ${parsed.error.message}`);
-      }
-      const name = tool.name.trim();
+    this.#tools = tools.map((candidate) => {
+      const parsed = ToolSchema.safeParse(schema(candidate));
+      if (!parsed.success) throw new Error(
+        `Invalid tool ${candidate.name || "<empty>"}: ${parsed.error.message}`);
+      const name = candidate.name.trim();
       if (!name || name === LOAD_TOOLS_NAME) {
         throw new Error(`Reserved or empty tool name: ${name || "<empty>"}`);
       }
       if (this.#byName.has(name)) throw new Error(`Duplicate tool: ${name}`);
       const compiled: Compiled<Context> = {
-        tool: { ...tool, name },
-        input: validator.getValidator(tool.inputSchema),
-        ...(tool.outputSchema
-          ? { output: validator.getValidator(tool.outputSchema) }
-          : {}),
+        tool: { ...candidate, name },
+        input: validator.getValidator(candidate.inputSchema),
+        ...(candidate.outputSchema && {
+          output: validator.getValidator(candidate.outputSchema),
+        }),
       };
       this.#byName.set(name, compiled);
+      if (!candidate.specialist) this.#active.add(name);
       return compiled;
     });
-    this.#active = new Set(this.#tools
-      .filter(({ tool }) => !tool.specialist)
-      .map(({ tool }) => tool.name));
-    this.#loaderInput = validator.getValidator(
-      loaderSchema(this.specialists(), SPECIALIST_LIMIT).inputSchema,
-    );
-  }
-
-  visible() {
-    const specialists = this.specialists();
-    const remaining = SPECIALIST_LIMIT - this.#loaded.size;
-    return [
-      ...(remaining && specialists.length
-        ? [loaderSchema(specialists, remaining)]
-        : []),
-      ...this.#tools.flatMap(({ tool }) =>
-        this.#active.has(tool.name) ? [schemaOf(tool)] : []),
-    ];
-  }
-
-  all() {
-    const specialists = this.specialists();
-    return [
-      ...(specialists.length ? [loaderSchema(specialists, SPECIALIST_LIMIT)] : []),
-      ...this.#tools.map(({ tool }) => schemaOf(tool)),
-    ];
   }
 
   specialists() {
-    return this.#tools.map(({ tool }) => tool.name)
-      .filter((name) => !this.#active.has(name));
+    return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
   }
-
+  visible() {
+    const specialists = this.specialists(), remaining = SPECIALIST_LIMIT - this.#loaded.size;
+    return [
+      ...(remaining > 0 && specialists.length ? [loader(specialists, remaining)] : []),
+      ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
+    ];
+  }
+  all() {
+    const specialists = this.specialists();
+    return [
+      ...(specialists.length ? [loader(specialists, SPECIALIST_LIMIT)] : []),
+      ...this.#tools.map(({ tool }) => schema(tool)),
+    ];
+  }
   specialistPrompt() {
     const names = this.specialists();
     return names.length
       ? `Specialist tools available through load_tools: ${names.join(", ")}. Load only exact names needed for the task.`
       : "";
   }
-
   activity(call: NormalizedToolCall) {
-    return call.name === LOAD_TOOLS_NAME
-      ? "Loading tools"
+    return call.name === LOAD_TOOLS_NAME ? "Loading tools"
       : this.#byName.get(call.name)?.tool.activity?.(call.input) ?? null;
   }
 
@@ -250,161 +191,96 @@ export class TurnToolRegistry<Context> {
     context: Context,
     signal: AbortSignal = new AbortController().signal,
   ): Promise<ToolBatch> {
-    const prepared = calls.map((call) => this.#prepare(call));
-    const sequential = prepared.some(({ tool, call }) =>
-      tool && (typeof tool.sequential === "function"
-        ? tool.sequential(call.input)
-        : tool.sequential === true));
-    const executions = sequential
-      ? await this.#serial(prepared, context, signal)
-      : await Promise.all(prepared.map((item) => this.#execute(item, context, signal)));
+    const serial = calls.some((call) => {
+      const setting = this.#byName.get(call.name)?.tool.sequential;
+      return typeof setting === "function" ? setting(call.input) : setting === true;
+    });
+    const executions = serial
+      ? await this.#serial(calls, context, signal)
+      : await Promise.all(calls.map((call) => this.#execute(call, context, signal)));
     this.#mutated ||= executions.some(({ outcome }) => outcome.mutated);
-    const terminal = executions.length > 0 &&
-      executions.every(({ outcome }) => outcome.terminal === true);
+    const terminal = executions.length > 0 && executions.every(({ outcome }) => outcome.terminal);
+    const outcomes = executions.map(({ outcome }) => outcome);
     return {
-      results: executions.map(({ call, outcome }) => normalized(call.id, {
-        ...outcome,
-        terminal,
-      })),
-      outcomes: executions.map(({ outcome }) => outcome),
-      pause: executions.find(({ outcome }) => outcome.pause)?.outcome.pause,
-      mutated: executions.some(({ outcome }) => outcome.mutated),
-      events: executions.flatMap(({ outcome }) => outcome.events ?? []),
-      evidence: executions.flatMap(({ outcome }) => outcome.evidence ?? []),
+      results: executions.map(({ call, outcome }) => normalize(call.id, { ...outcome, terminal })),
+      outcomes,
+      pause: outcomes.find(({ pause }) => pause)?.pause,
+      mutated: outcomes.some(({ mutated }) => mutated === true),
+      events: outcomes.flatMap(({ events }) => events ?? []),
+      evidence: outcomes.flatMap(({ evidence }) => evidence ?? []),
     };
   }
 
-  #prepare(call: NormalizedToolCall): Prepared<Context> {
-    if (call.name === LOAD_TOOLS_NAME) {
-      const checked = this.#loaderInput(call.input);
-      return {
-        call,
-        immediate: checked.valid
-          ? this.#load(call.input)
-          : toolText({
-              ok: false,
-              error: "invalid_arguments",
-              detail: checked.errorMessage,
-            }, true),
-      };
-    }
-    const compiled = this.#byName.get(call.name);
-    if (!compiled || !this.#active.has(call.name)) {
-      return {
-        call,
-        immediate: toolText({
-          ok: false,
-          error: compiled ? "tool_not_loaded" : "unknown_tool",
-          detail: compiled
-            ? `Load ${call.name} with load_tools before calling it.`
-            : `Unknown tool: ${call.name}`,
-        }, true),
-      };
-    }
-    const checked = compiled.input(call.input);
-    return checked.valid
-      ? { call, tool: compiled.tool, output: compiled.output }
-      : {
-          call,
-          immediate: toolText({
-            ok: false,
-            error: "invalid_arguments",
-            detail: checked.errorMessage,
-          }, true),
-        };
-  }
-
-  async #serial(
-    prepared: Prepared<Context>[],
-    context: Context,
-    signal: AbortSignal,
-  ) {
-    const results: Array<{ call: NormalizedToolCall; outcome: BeaverOutcome }> = [];
+  async #serial(calls: NormalizedToolCall[], context: Context, signal: AbortSignal) {
+    const results: Execution[] = [];
     let mutated = this.#mutated;
-    for (const item of prepared) {
-      if (results.some(({ outcome }) => outcome.pause)) {
-        results.push({
-          call: item.call,
-          outcome: { result: toolText({ ok: false, error: "waiting_for_user" }, true) },
-        });
-      } else {
-        const executed = await this.#execute(item, context, signal);
-        if (executed.outcome.pause && mutated) {
-          executed.outcome = {
-            result: toolText({
-              ok: false,
-              error: "ask_inputs_after_mutation",
-              detail: "ask_inputs must run before any document or workflow change in a turn",
-            }, true),
-          };
-        }
-        mutated ||= executed.outcome.mutated === true;
-        results.push(executed);
-      }
+    for (const call of calls) {
+      let executed = results.some(({ outcome }) => outcome.pause)
+        ? { call, outcome: errorOutcome("waiting_for_user") }
+        : await this.#execute(call, context, signal);
+      if (executed.outcome.pause && mutated) executed = {
+        call,
+        outcome: errorOutcome(
+          "ask_inputs_after_mutation",
+          "ask_inputs must run before document or workflow changes",
+        ),
+      };
+      mutated ||= executed.outcome.mutated === true;
+      results.push(executed);
     }
     return results;
   }
 
   async #execute(
-    prepared: Prepared<Context>,
+    call: NormalizedToolCall,
     context: Context,
     signal: AbortSignal,
-  ) {
-    const { call } = prepared;
-    if (prepared.immediate) {
-      return { call, outcome: { result: prepared.immediate } };
+  ): Promise<Execution> {
+    if (call.name === LOAD_TOOLS_NAME) {
+      const checked = validator.getValidator(
+        loader(this.specialists(), SPECIALIST_LIMIT).inputSchema)(call.input);
+      return { call, outcome: checked.valid
+        ? { result: this.#load(call.input.names as string[]) }
+        : errorOutcome("invalid_arguments", checked.errorMessage) };
     }
+    const compiled = this.#byName.get(call.name);
+    if (!compiled || !this.#active.has(call.name)) return {
+      call,
+      outcome: errorOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
+        compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
+    };
+    const checked = compiled.input(call.input);
+    if (!checked.valid) return { call, outcome: errorOutcome(
+      "invalid_arguments", checked.errorMessage) };
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
-      const outcome = await prepared.tool!.execute(call.input, context, signal, call);
+      const outcome = await compiled.tool.execute(call.input, context, signal, call);
       const parsed = CallToolResultSchema.safeParse(outcome?.result);
       if (!parsed.success) throw new Error(`Malformed tool result: ${parsed.error.message}`);
-      if (prepared.output) {
-        if (!parsed.data.structuredContent) {
-          throw new Error("Tool declared outputSchema but returned no structuredContent");
-        }
-        const checked = prepared.output(parsed.data.structuredContent);
-        if (!checked.valid) {
-          throw new Error(`Invalid structuredContent: ${checked.errorMessage}`);
-        }
+      if (compiled.output) {
+        if (!parsed.data.structuredContent) throw new Error(
+          "Tool declared outputSchema but returned no structuredContent");
+        const output = compiled.output(parsed.data.structuredContent);
+        if (!output.valid) throw new Error(`Invalid structuredContent: ${output.errorMessage}`);
       }
       return { call, outcome: { ...outcome, result: parsed.data } };
     } catch (error) {
-      console.error("[assistant-tool] execution failed", {
-        tool: call.name,
-        ...safeErrorLog(error),
-      });
-      return {
-        call,
-        outcome: {
-          result: toolText({
-            ok: false,
-            error: "tool_error",
-            detail: "Tool execution failed",
-          }, true),
-          metadata: { status: "error" as const },
-        },
-      };
+      console.error("[assistant-tool] execution failed", { tool: call.name, ...safeErrorLog(error) });
+      return { call, outcome: {
+        ...errorOutcome("tool_error", "Tool execution failed"),
+        metadata: { status: "error" },
+      } };
     }
   }
 
-  #load(input: Record<string, unknown>) {
-    const names = input.names as string[];
+  #load(names: string[]) {
     const unknown = names.filter((name) => !this.#byName.has(name));
-    if (unknown.length) {
-      return toolText({ ok: false, error: "unknown_tools", unknown }, true);
-    }
+    if (unknown.length) return toolText({ ok: false, error: "unknown_tools", unknown }, true);
     const added = names.filter((name) => !this.#active.has(name));
-    if (this.#loaded.size + added.length > SPECIALIST_LIMIT) {
-      return toolText({
-        ok: false,
-        error: `At most ${SPECIALIST_LIMIT} specialist tools may be loaded per turn`,
-      }, true);
-    }
-    added.forEach((name) => {
-      this.#active.add(name);
-      this.#loaded.add(name);
-    });
+    if (this.#loaded.size + added.length > SPECIALIST_LIMIT) return toolText({
+      ok: false, error: `At most ${SPECIALIST_LIMIT} specialist tools may be loaded per turn`,
+    }, true);
+    added.forEach((name) => { this.#active.add(name); this.#loaded.add(name); });
     return toolText({ ok: true, loaded: added });
   }
 }

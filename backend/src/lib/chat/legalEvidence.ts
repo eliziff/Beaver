@@ -1,20 +1,15 @@
 import crypto from "node:crypto";
 
 import {
-  getA2AJDocumentSourceDoc,
-  getA2AJLookupDocument,
+  a2ajLegalSourceProvider,
   type A2AJDocument,
   type A2AJLocatorLookup,
-} from "../a2aj";
+} from "../legalSources/a2aj";
 import { hasCitationInText } from "../citationKey";
 import {
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
-import {
-  type NormalizedLlmUsage,
-  type Tool,
-  type UserApiKeys,
-} from "../llm";
+import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import {
   citationPresentationText,
@@ -134,39 +129,12 @@ function stableA2AJSourceId(source: {
   ].join(":");
 }
 
-export function createA2AJDocumentEvidence(
-  document: A2AJDocument,
-  sourceClass: LegalSourceClass = "case",
-): LegalEvidenceReceipt {
-  const sourceText = getA2AJDocumentSourceDoc(document).text;
-  return withEvidenceId({
-    provider: "a2aj",
-    jurisdiction: "CA",
-    source_class: sourceClass,
-    stable_source_id: stableA2AJSourceId(document),
-    source_sha256: sha256(sourceText),
-    scope: "document",
-    block_id: "document",
-    exact_span_sha256: sha256(sourceText),
-    span_sha256: sha256(normalizeWhitespace(sourceText)),
-    span_text: null,
-    citation: document.citation,
-    name: document.name,
-    dataset: document.dataset,
-    language: document.language,
-    version: document.date,
-    external_url: document.url,
-    locator: { kind: "document", label: "document" },
-    resolver_version: "a2aj-inline-v1",
-  });
-}
-
 export function createA2AJLookupEvidence(
   lookup: A2AJLocatorLookup,
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt | null {
   if (lookup.status !== "found" || !lookup.block) return null;
-  const sourceText = getA2AJLookupDocument(lookup)?.text ?? lookup.block.text;
+  const sourceText = a2ajLegalSourceProvider.source(lookup)?.text ?? lookup.block.text;
   return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
@@ -609,53 +577,29 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
   },
 };
 
-const emptyUsage = (): NormalizedLlmUsage => ({
-  inputTokens: 0,
-  outputTokens: 0,
-  reasoningTokens: null,
-  cacheReadInputTokens: 0,
-  cacheWriteInputTokens: 0,
-});
-
-export type LegalEvidenceFinalizationResult = {
-  passed: boolean;
-  modelCalls: number;
-  usage: NormalizedLlmUsage;
-  diagnostic: string | null;
-};
-
-export async function finalizeLegalEvidenceExperiment(args: {
-  state: LegalEvidenceTurnState;
-  model: string;
-  draft: string;
-  requestContext?: string;
-  apiKeys?: UserApiKeys;
-  reasoningEffort?: string;
-  abortSignal?: AbortSignal;
-}): Promise<LegalEvidenceFinalizationResult> {
-  const usage = emptyUsage();
-  const { state } = args;
-  const namesAuthority = hasCaseNameInText(args.draft);
-  const citesAuthority = hasCitationInText(args.draft) ||
-    hasCanadianDecisionLink(args.draft);
+export function finalizeLegalEvidence(
+  state: LegalEvidenceTurnState,
+  draft: string,
+) {
+  const namesAuthority = hasCaseNameInText(draft);
+  const citesAuthority = hasCitationInText(draft) || hasCanadianDecisionLink(draft);
   if (!state.mode && !state.answer && (
     namesAuthority || citesAuthority ||
     [...state.evidence.values()].some(({ receipt }) => receipt.provider !== "library")
   )) state.mode = "citation_structure";
-  if (!state.mode)
-    return { passed: true, modelCalls: 0, usage, diagnostic: null };
+  if (!state.mode) return true;
   state.attempted = true;
   if (!state.answer && ![...state.evidence.values()].some(
     ({ receipt }) => receipt.scope === "passage",
   )) {
     state.failure = "The answer named legal authorities without verified passages.";
-    return { passed: false, modelCalls: 0, usage, diagnostic: null };
+    return false;
   }
   if (!state.answer) {
     state.failure = "The model did not submit a grounded answer.";
-    return { passed: false, modelCalls: 0, usage, diagnostic: null };
+    return false;
   }
-  return { passed: true, modelCalls: 0, usage, diagnostic: null };
+  return true;
 }
 
 function citationFor(entry: RegisteredEvidence) {

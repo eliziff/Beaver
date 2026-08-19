@@ -334,11 +334,10 @@ async function child() {
   let inputTokens = 0;
   let outputTokens = 0;
   let providerTurns = 0;
-  const manifestPath = process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH ?? "";
-  if (manifestPath && existsSync(manifestPath)) {
-    for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/u)) {
+  const metricsPath = process.env.MIKE_LLM_METRICS_PATH ?? "";
+  if (metricsPath && existsSync(metricsPath)) {
+    for (const line of readFileSync(metricsPath, "utf8").split(/\r?\n/u)) {
       if (!line.trim()) continue;
-      providerTurns += 1;
       const entry = JSON.parse(line) as {
         usage?: {
           inputTokens?: number | null;
@@ -346,8 +345,10 @@ async function child() {
           cacheReadInputTokens?: number | null;
           cacheWriteInputTokens?: number | null;
         } | null;
-        inputEstimate?: { tokens?: number };
+        rounds?: Array<{ instructionsBytes?: number; inputBytes?: number;
+          toolBytes?: number; toolResultBytes?: number }>;
       };
+      providerTurns += entry.rounds?.length ?? 1;
       if (entry.usage?.inputTokens != null) {
         inputTokens +=
           entry.usage.inputTokens +
@@ -355,7 +356,9 @@ async function child() {
           (entry.usage.cacheWriteInputTokens ?? 0);
         outputTokens += entry.usage.outputTokens ?? 0;
       } else {
-        inputTokens += entry.inputEstimate?.tokens ?? 0;
+        inputTokens += Math.ceil((entry.rounds ?? []).reduce((sum, round) => sum +
+          (round.instructionsBytes ?? 0) + (round.inputBytes ?? 0) +
+          (round.toolBytes ?? 0) + (round.toolResultBytes ?? 0), 0) / 4);
       }
     }
   }
@@ -473,7 +476,7 @@ async function child() {
 async function parent() {
   const surface = surfaceById(argOf("surface"));
   const dataHome = mkdtempSync(path.join(os.tmpdir(), "docx-edit-bench-"));
-  const manifestPath = path.join(dataHome, "llm-manifest.jsonl");
+  const metricsPath = path.join(dataHome, "llm-metrics.jsonl");
   // tsx lives in the backend workspace, not beside this file.
   const tsxCli = require.resolve("tsx/cli", {
     paths: [path.join(__dirname, "..", "..", "..", "backend")],
@@ -487,12 +490,12 @@ async function parent() {
         ...surface.env,
         DOCX_EDIT_BENCH_CHILD: "1",
         NODE_ENV: "",
-        AUTH_MODE: "anonymous",
+        AUTH_MODE: "local",
         OPEN_LEGAL_DATA_HOME: dataHome,
         MIKE_LOCAL_DATA_DIR: path.join(dataHome, "apps", "mike", "library"),
         SUPABASE_URL: "",
         SUPABASE_SECRET_KEY: "",
-        MIKE_LLM_CONTEXT_MANIFEST_PATH: manifestPath,
+        MIKE_LLM_METRICS_PATH: metricsPath,
       },
       stdio: "inherit",
       timeout: 40 * 60_000,

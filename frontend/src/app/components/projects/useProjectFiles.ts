@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import {
-    createProjectFolder, deleteProjectFolder, getProjectDirectory,
-    moveDocumentToFolder, moveSubfolderToFolder, removeProjectDocument,
-    renameProjectDocument, renameProjectFolder, uploadProjectDocument,
+    directoryResource,
+    removeProjectDocument,
 } from "@/app/lib/beaverApi";
 import type { Folder } from "@/app/components/shared/types";
 import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
@@ -10,32 +9,25 @@ import { useProjectWorkspace } from "./ProjectWorkspace";
 
 export function useProjectFiles() {
     const { projectId, project, search } = useProjectWorkspace();
+    const resource = useMemo(
+        () => directoryResource({ projectId }),
+        [projectId],
+    );
     const directory = usePagedDirectory(
-        (parentId, q, cursor, signal) => getProjectDirectory(projectId, {
+        (parentId, q, cursor, signal) => resource.list({
             parent_id: parentId, q, cursor,
         }, signal),
-        search, [projectId, search], project != null,
+        search, [resource, search], project != null,
     );
     const folders = directory.folders as Folder[];
     const reload = (...parents: (string | null | undefined)[]) => Promise.all(
         [...new Set(parents.map((id) => id ?? null))].map(directory.reload),
     );
     const operations = useMemo(() => ({
+        ...resource,
         removeDocument: (id: string) => removeProjectDocument(projectId, id),
-        uploadDocument: (file: File) => uploadProjectDocument(projectId, file),
         refreshCollection: directory.reload,
-        createFolder: (name: string, parent?: string | null) =>
-            createProjectFolder(projectId, name, parent),
-        renameFolder: (id: string, name: string) =>
-            renameProjectFolder(projectId, id, name),
-        deleteFolder: (id: string) => deleteProjectFolder(projectId, id),
-        moveFolder: (id: string, parent: string | null) =>
-            moveSubfolderToFolder(projectId, id, parent),
-        moveDocument: (id: string, folder: string | null) =>
-            moveDocumentToFolder(projectId, id, folder),
-        renameDocument: (id: string, filename: string) =>
-            renameProjectDocument(projectId, id, filename),
-    }), [directory.reload, projectId]);
+    }), [directory.reload, projectId, resource]);
     return {
         documents: directory.documents,
         folders,

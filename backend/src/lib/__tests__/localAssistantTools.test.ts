@@ -13,6 +13,7 @@ import {
 import * as XLSX from "xlsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resourceReference } from "../resourceReferences";
+import { extractDocument } from "../chat/assistantTools";
 
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
@@ -117,28 +118,14 @@ async function expectReadRecipesAccepted(
 
 afterEach(async () => {
   try {
-    const store = await import("../localDocumentStore");
-    (await import("../localApplicationDatabase"))
-      .closeLocalApplicationDatabase();
+    const store = await import("../sqlitePersistence");
+    (await import("../sqliteDatabase")).closeSqliteDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
-  delete process.env.MIKE_RETRIEVAL_EXPERIMENT;
-  delete process.env.MIKE_MODEL_COVERAGE_ROUTING;
-  delete process.env.MIKE_WHOLE_READ_MAX_CHARS;
-  delete process.env.MIKE_SUPPRESS_DUPLICATE_WHOLE_READS;
-  delete process.env.MIKE_RESIDENT_AUTHORING;
-  delete process.env.MIKE_TERMINAL_AUTHORING;
-  delete process.env.MIKE_DISABLE_RESEARCH_TOOLS;
-  delete process.env.MIKE_DISABLE_ASK_INPUTS;
-  delete process.env.MIKE_TOOL_RESULT_CAP;
-  delete process.env.MIKE_CONTEXT_HANDOFF;
-  delete process.env.MIKE_DRAFT_HANDOFF_MODE;
-  delete process.env.MIKE_DRAFT_HOT_EVIDENCE_MAX_CHARS;
-  delete process.env.MIKE_DRAFT_EDIT;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
-  vi.doUnmock("../localDocumentStore");
+  vi.doUnmock("../sqlitePersistence");
   vi.doUnmock("../legalStructureSidecar");
   vi.doUnmock("../chat/tools/sourceSearchTools");
   vi.doUnmock("node:fs/promises");
@@ -211,14 +198,14 @@ describe("local assistant tools", () => {
       "main",
     );
     expect(entries.find(({ name }) => name === "Read")?.activity?.({
-      file_path: document.id,
+      file_path: `document://${document.id}/version/${document.current_version_id}`,
     })).toBe("Reading draft.docx");
     const edit = entries.find(({ name }) => name === "Edit")!;
     const call = {
       id: "coding-edit",
       name: "Edit",
       input: {
-        file_path: "draft.docx",
+        file_path: `document://${document.id}/version/${document.current_version_id}`,
         old_string: "Original",
         new_string: "Revised",
       },
@@ -231,7 +218,8 @@ describe("local assistant tools", () => {
     );
     events.push(...(edited.events ?? []));
     expect(events).toMatchObject([{
-      type: "doc_edited",
+      type: "document_artifact",
+      action: "edited",
       document_id: document.id,
       edit_mode: mode,
       annotations: [{
@@ -244,14 +232,33 @@ describe("local assistant tools", () => {
         status,
       }],
     }]);
-    const saved = await store.getLocalVersionFile("local-user", document.id);
+    expect(JSON.parse(edited.result.content[0].type === "text"
+      ? edited.result.content[0].text
+      : "{}")).toMatchObject({ artifact: "draft-1" });
+    const followUp = {
+      id: "artifact-edit",
+      name: "Edit",
+      input: {
+        file_path: "draft-1",
+        old_string: "provision",
+        new_string: "clause",
+      },
+    };
+    await edit.execute(
+      followUp.input,
+      { evidence, emit: vi.fn(), addEvent: (event) => events.push(event) },
+      new AbortController().signal,
+      followUp,
+    );
+    const saved = await store.localDocuments.read(
+      { userId: "local-user" }, document.id, null, false);
     expect(saved).not.toBeNull();
     const { extractDocxBodyText, extractTrackedChangeIds } = await import(
       "../docxTrackedChanges"
     );
-    const savedBytes = await readFile(saved!.path);
-    expect(await extractDocxBodyText(savedBytes)).toContain("Revised provision.");
-    expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount);
+    const savedBytes = saved!.bytes;
+    expect(await extractDocxBodyText(savedBytes)).toContain("Revised clause.");
+    expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount * 2);
     expect(committed).toHaveBeenCalledOnce();
   }, 10_000);
 
@@ -316,13 +323,12 @@ describe("local assistant tools", () => {
 
     expect(JSON.parse(created.content), created.content).toMatchObject({
       ok: true,
-      receipt: "mike-document:v1",
       action: "created",
       filename: "Requested memo.docx",
     });
     expect(created).toMatchObject({
       mutated: true,
-      events: [{ type: "doc_created", filename: "Requested memo.docx" }],
+      events: [{ type: "document_artifact", action: "created", filename: "Requested memo.docx" }],
     });
     expect([workbook, presentation].map(({ content }) =>
       JSON.parse(content).file_type)).toEqual(["xlsx", "pptx"]);
@@ -401,7 +407,7 @@ describe("local assistant tools", () => {
           id: "deterministic-edit",
           name: "edit_docx_advanced",
           input: {
-            file_path: "draft.docx",
+            file_path: `document://${document.id}/version/${document.current_version_id}`,
             ops: [
               {
                 op: "replace_text",
@@ -425,12 +431,12 @@ describe("local assistant tools", () => {
     });
     expect(response).toMatchObject({
       mutated: true,
-      events: [{ type: "doc_edited", document_id: document.id }],
+      events: [{ type: "document_artifact", action: "edited", document_id: document.id }],
     });
     expect(payload.annotations[0]).not.toHaveProperty("reason");
   });
 
-  it("source-qualifies multi-document coding reads independently of aliases", async () => {
+  it("source-qualifies multi-document coding reads by canonical resource", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-evidence-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -447,7 +453,7 @@ describe("local assistant tools", () => {
       bytes: Buffer.from("shared needle in second", "utf8"),
     });
     const tools = await import("./support/localAssistantTools");
-    const [grep, byFilename, byId] = await tools.runLocalAssistantTools(
+    const [grep, firstRead, secondRead] = await tools.runLocalAssistantTools(
       "local-user",
       [
         {
@@ -456,14 +462,18 @@ describe("local assistant tools", () => {
           input: { pattern: "needle", output_mode: "content" },
         },
         {
-          id: "read-name",
+          id: "read-first",
           name: "Read",
-          input: { file_path: "first.txt" },
+          input: {
+            file_path: `document://${first.id}/version/${first.current_version_id}`,
+          },
         },
         {
-          id: "read-id",
+          id: "read-second",
           name: "Read",
-          input: { file_path: first.id },
+          input: {
+            file_path: `document://${second.id}/version/${second.current_version_id}`,
+          },
         },
       ],
     );
@@ -471,13 +481,13 @@ describe("local assistant tools", () => {
     expect(new Set(grep.evidenceSegments?.map((item) => item.documentId))).toEqual(
       new Set([first.id, second.id]),
     );
-    expect(byFilename.evidenceSegments?.[0]).toMatchObject({
+    expect(firstRead.evidenceSegments?.[0]).toMatchObject({
       documentId: first.id,
       versionId: first.current_version_id,
     });
-    expect(byId.evidenceSegments?.[0]).toMatchObject({
-      documentId: first.id,
-      versionId: first.current_version_id,
+    expect(secondRead.evidenceSegments?.[0]).toMatchObject({
+      documentId: second.id,
+      versionId: second.current_version_id,
     });
   });
 
@@ -499,13 +509,13 @@ describe("local assistant tools", () => {
         name: "Grep",
         input: {
           pattern: "NEEDLE",
-          path: "focus.txt",
+          path: `document://${document.id}/version/${document.current_version_id}`,
           output_mode: "content",
           "-C": 3,
         },
       },
     ]);
-    const extracted = await tools.extractDocument(
+    const extracted = await extractDocument(
       (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
@@ -522,7 +532,6 @@ describe("local assistant tools", () => {
   });
 
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
-    process.env.MIKE_RETRIEVAL_EXPERIMENT = "h4-legal-grep";
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-xlsx-cells-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     vi.resetModules();
@@ -545,7 +554,7 @@ describe("local assistant tools", () => {
       bytes,
     });
     const tools = await import("./support/localAssistantTools");
-    const extracted = await tools.extractDocument(
+    const extracted = await extractDocument(
       (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
@@ -566,7 +575,7 @@ describe("local assistant tools", () => {
         id: "read-xlsx-cell",
         name: "Read",
         input: {
-          file_path: document.id,
+          file_path: `document://${document.id}/version/${document.current_version_id}`,
           section: "table:1/row:2/col:2",
         },
       },
@@ -595,7 +604,7 @@ describe("local assistant tools", () => {
       }),
     );
     const store = await import("./support/localDocumentFixtures");
-    await store.createLocalDocument({
+    const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
       filename: "duplicate.docx",
@@ -608,7 +617,7 @@ describe("local assistant tools", () => {
         name: "Grep",
         input: {
           pattern: "UNIQUE NEEDLE",
-          path: "duplicate.docx",
+          path: `document://${document.id}/version/${document.current_version_id}`,
           output_mode: "content",
         },
       },
@@ -641,7 +650,7 @@ describe("local assistant tools", () => {
             id: `replace-${oldString}`,
             name: "Edit",
             input: {
-              file_path: "case.docx",
+              file_path: `document://${document.id}/version/${document.current_version_id}`,
               old_string: oldString,
               new_string: newString,
               replace_all: true,
@@ -661,7 +670,7 @@ describe("local assistant tools", () => {
       action: "revised",
       change_count: 1,
     });
-    expect((await tools.extractDocument(
+    expect((await extractDocument(
       (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       document.id,
@@ -669,7 +678,7 @@ describe("local assistant tools", () => {
       .toContain("Clause term TERM.");
   });
 
-  it("recovers duplicate filenames by id and consolidates a coding edit turn", async () => {
+  it("lists duplicate filenames and edits by canonical resource", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-turn-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -687,11 +696,10 @@ describe("local assistant tools", () => {
     const intendedResource =
       `document://${intended.id}/version/${intended.current_version_id}`;
     const tools = await import("./support/localAssistantTools");
-    const [listed, ambiguous, recovered] = await tools.runLocalAssistantTools(
+    const [listed, recovered] = await tools.runLocalAssistantTools(
       "local-user",
       [
         { id: "glob-duplicates", name: "Glob", input: { pattern: "shared.docx" } },
-        { id: "ambiguous-read", name: "Read", input: { file_path: "shared.docx" } },
         { id: "id-read", name: "Read", input: { file_path: intendedResource } },
       ],
     );
@@ -701,12 +709,12 @@ describe("local assistant tools", () => {
     expect(listed.content).toContain(
       `document://${other.id}/version/${other.current_version_id}\tfilename=shared.docx`,
     );
-    expect(ambiguous.content).toContain("File path is ambiguous");
-    expect(ambiguous.content).toContain("Glob(pattern=");
     expect(recovered.content).toContain("Alpha Beta.");
 
-    const turnState: import("./support/localAssistantTools").AssistantEditTurnState =
-      new Map();
+    const turnState = new Map<
+      string,
+      { versionId: string; parentVersionId: string }
+    >();
     const edits = [
       ...(await tools.runLocalAssistantTools(
         "local-user",
@@ -741,13 +749,37 @@ describe("local assistant tools", () => {
       .toHaveLength(2);
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
-    expect((await tools.extractDocument(
+    expect((await extractDocument(
       (await import("./support/localDocumentFixtures")).localDocuments,
       { userId: "local-user" },
       intended.id,
     ))?.text)
       .toContain("Gamma Delta.");
   }, 45_000);
+
+  it("discovers root Library files when the chat has no focused documents", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "library-opinion.txt",
+      bytes: Buffer.from("Library evidence survives an empty chat focus."),
+    });
+    const tools = await import("./support/localAssistantTools");
+    const resource = resourceReference.document(
+      document.id,
+      document.current_version_id,
+    );
+    const [listed, read] = await tools.runLocalAssistantTools("local-user", [
+      { id: "glob-library", name: "Glob", input: { pattern: "*" } },
+      { id: "read-library", name: "Read", input: { file_path: resource } },
+    ], { allowedDocumentIds: new Set() });
+
+    expect(listed.content).toContain(`${resource}\tfilename=library-opinion.txt`);
+    expect(read.content).toContain("Library evidence survives an empty chat focus.");
+  });
 
   it("reads system workflow instructions in account-free mode", async () => {
     const tools = await import("./support/localAssistantTools");
@@ -761,49 +793,6 @@ describe("local assistant tools", () => {
 
     expect(response.content).toContain("# Extract Key Terms");
     expect(response.content).toContain("uploaded documents");
-  });
-
-  it("rolls back a generated DOCX when matter attachment fails", async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
-    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    vi.doMock("../convert", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("../convert")>()),
-      docxToPdf: vi.fn(async () => Buffer.from("%PDF-1.4 preview")),
-    }));
-    const graph = (
-      await import("../legalKnowledgeGraphStore")
-    ).legalKnowledgeGraphStore();
-    try {
-      const matter = graph.createMatter("local-user", { name: "Appeal" });
-      vi.spyOn(graph, "attachMatterDocument").mockImplementationOnce(() => {
-        throw new Error("Storage unavailable");
-      });
-    const tools = await import("./support/localAssistantTools");
-
-      const [response] = await tools.runLocalAssistantTools(
-        "local-user",
-        [
-          {
-            id: "call-create",
-            name: "Write",
-            input: {
-              filename: "Unattached Draft.docx",
-              document_type: "other",
-              content: "Draft text.",
-            },
-          },
-        ],
-        { allowedDocumentIds: new Set(), matterId: matter.id },
-      );
-
-      expect(JSON.parse(response.content)).toMatchObject({ ok: false });
-      const { localLibraryStore } = await import("./support/localDocumentFixtures");
-      expect((await localLibraryStore.page({ userId: "local-user", kind: "file" }, {
-        q: "", parentFolderId: null, limit: 50, after: null,
-      })).items).toEqual([]);
-    } finally {
-      graph.close();
-    }
   });
 
   it("does not expose local paths for a missing PDF resource", async () => {
@@ -824,7 +813,7 @@ describe("local assistant tools", () => {
 
     expect(JSON.parse(response.content)).toEqual({
       ok: false,
-      error: "File does not exist: document://missing/version/missing",
+      error: "Document resource does not exist: document://missing/version/missing",
     });
     expect(response.content).not.toContain(temporaryDirectory);
     expect(response.content).not.toContain("ENOENT");
@@ -864,8 +853,7 @@ describe("local assistant tools", () => {
         id: "call-toa",
         name: "create_table_of_authorities",
         input: {
-          document_id: document.id,
-          version_id: document.current_version_id,
+          document_id: `document://${document.id}/version/${document.current_version_id}`,
           split_fallback: "auto",
         },
       },
@@ -883,7 +871,6 @@ describe("local assistant tools", () => {
       version_id: document.current_version_id,
       job: {
         id: jobId,
-        app_url: `/table-of-authorities?job=${jobId}`,
       },
     });
 
@@ -898,8 +885,7 @@ describe("local assistant tools", () => {
         id: "call-toa-pdf",
         name: "create_table_of_authorities",
         input: {
-          document_id: pdf.id,
-          version_id: pdf.current_version_id,
+          document_id: `document://${pdf.id}/version/${pdf.current_version_id}`,
           split_fallback: "off",
         },
       },

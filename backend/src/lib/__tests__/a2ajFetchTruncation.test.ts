@@ -11,7 +11,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ) => fetch(input, init),
 }));
 
-import { clearA2AJCache } from "../a2aj";
+import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import {
   legalSourcePassageUrl,
   readLegalSourcePassage,
@@ -26,12 +26,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  clearA2AJCache();
+  a2ajLegalSourceProvider.clearCache();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
-function stubA2AJText(text: string) {
+function stubA2AJText(text: string, citation: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -41,7 +41,7 @@ function stubA2AJText(text: string) {
         results: [
           {
             dataset: "LEGISLATION-FED",
-            citation_en: "RSC 1985, c C-46",
+            citation_en: citation,
             name_en: "Criminal Code",
             source_url_en: "https://laws-lois.justice.gc.ca/eng/XML/C-46.xml",
             unofficial_text_en: text,
@@ -53,12 +53,13 @@ function stubA2AJText(text: string) {
 }
 
 async function readDocument(text: string) {
-  stubA2AJText(text);
+  const citation = `RSC 1985, c C-${text.length}`;
+  stubA2AJText(text, citation);
   return readLegalSourcePassage({
     source: {
       provider: "a2aj",
-      id: "RSC 1985, c C-46",
-      citation: "RSC 1985, c C-46",
+      id: citation,
+      citation,
       kind: "legislation",
       collection: "LEGISLATION-FED",
     },

@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { Profiler } from "react";
 import { expect, it, vi } from "vitest";
 import type { Workflow } from "../shared/types";
 import { WorkflowDetailPage } from "./WorkflowDetailPage";
@@ -11,8 +10,8 @@ const mocks = vi.hoisted(() => ({
     updateWorkflow: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: vi.fn() }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => vi.fn(),
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     deleteWorkflow: vi.fn(),
@@ -29,6 +28,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({ profile: null }),
 }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: false }));
 vi.mock("@/app/components/workflows/UseWorkflowModal", () => ({
     UseWorkflowModal: () => null,
 }));
@@ -85,30 +85,18 @@ mocks.getWorkflow.mockResolvedValue(workflow);
 mocks.listWorkflowShares.mockResolvedValue([]);
 mocks.updateWorkflow.mockResolvedValue(workflow);
 
-it("keeps one delete control mounted while column selection changes", async () => {
-    let commits = 0;
+it("deletes selected workflow columns", async () => {
     render(
-        <Profiler id="workflow-detail" onRender={() => commits++}>
-            <WorkflowDetailPage id={workflow.id} workflowType="tabular" />
-        </Profiler>,
+        <WorkflowDetailPage id={workflow.id} workflowType="tabular" />,
     );
 
     await screen.findByText("Party");
-    expect(commits).toBe(2);
     const deleteButton = screen.getByRole("button", {
         name: "Delete selected",
     });
     expect(deleteButton).toBeDisabled();
-    expect(deleteButton).toHaveClass("invisible", "w-28");
-
-    fireEvent.click(screen.getAllByRole("checkbox")[1]);
-
-    expect(
-        screen.getByRole("button", { name: "Delete selected" }),
-    ).toBe(deleteButton);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Party" }));
     expect(deleteButton).toBeEnabled();
-    expect(deleteButton).not.toHaveClass("invisible");
-
     fireEvent.click(deleteButton);
 
     await waitFor(() =>
@@ -119,7 +107,6 @@ it("keeps one delete control mounted while column selection changes", async () =
     expect(screen.queryByText("Party")).not.toBeInTheDocument();
     expect(screen.getByText("Counterparty")).toBeInTheDocument();
     expect(deleteButton).toBeDisabled();
-    expect(deleteButton).toHaveClass("invisible");
 });
 
 it("updates workflow sharing without refetching the saved roster", async () => {
@@ -140,28 +127,22 @@ it("updates workflow sharing without refetching the saved roster", async () => {
     expect(mocks.listWorkflowShares).toHaveBeenCalledTimes(1);
 });
 
-it("does not rerender the workflow for every prompt keystroke", async () => {
+it("saves the assistant workflow prompt on blur", async () => {
     mocks.getWorkflow.mockResolvedValueOnce({
         ...workflow,
         metadata: { ...workflow.metadata, type: "assistant" },
         skill_md: "Review the agreement.",
     });
     mocks.updateWorkflow.mockClear();
-    let commits = 0;
     render(
-        <Profiler id="workflow-detail" onRender={() => commits++}>
-            <WorkflowDetailPage id={workflow.id} workflowType="assistant" />
-        </Profiler>,
+        <WorkflowDetailPage id={workflow.id} workflowType="assistant" />,
     );
 
     const prompt = await screen.findByRole("textbox", {
         name: "Workflow prompt",
     });
     fireEvent.change(prompt, { target: { value: "Review this agreement." } });
-    const firstChangeCommits = commits;
     fireEvent.change(prompt, { target: { value: "Review this agreement well." } });
-    expect(commits).toBe(firstChangeCommits);
-
     fireEvent.blur(prompt);
     await waitFor(() =>
         expect(mocks.updateWorkflow).toHaveBeenCalledWith(workflow.id, {

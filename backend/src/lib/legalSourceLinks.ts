@@ -1,9 +1,8 @@
 import {
-  getA2AJDocumentSourceDoc,
-  getA2AJLookupDocument,
+  a2ajLegalSourceProvider,
   type A2AJDocument,
   type A2AJLocatorLookup,
-} from "./a2aj";
+} from "./legalSources/a2aj";
 import {
   createTextSourceDoc,
   sourceDocBlockText,
@@ -48,32 +47,6 @@ export type LegalSourceEvidence = {
 function asDoc(source: QuoteSource): SourceDoc {
   return typeof source === "string" ? createTextSourceDoc(source) : source;
 }
-
-/**
- * Compile each distinct rendition in one operation exactly once.
- *
- * A DOCX resolve hydrates up to 256 evidence handles off one source version,
- * and an answer can carry a dozen blocks of one decision. Without this each of
- * them tokenizes the same document again; with it the whole operation pays for
- * one token index. Scoped to the operation - it is hoisting, not a cache.
- */
-function sharedSourceDocs() {
-  const docs = new Map<string, SourceDoc>();
-  return (source: QuoteSource) => {
-    if (typeof source !== "string") return source;
-    const existing = docs.get(source);
-    if (existing) return existing;
-    const doc = createTextSourceDoc(source);
-    docs.set(source, doc);
-    return doc;
-  };
-}
-
-export type AutomaticLegalSourceLink = {
-  key: string;
-  label: string;
-  evidence: LegalSourceEvidence;
-};
 
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
@@ -521,7 +494,7 @@ function appendDirectives(url: string, directives: string[]) {
 export function buildA2AJPinpointUrl(
   lookup: A2AJLocatorLookup,
   quotes: string[],
-  document: SourceDoc | null = getA2AJLookupDocument(lookup),
+  document: SourceDoc | null = a2ajLegalSourceProvider.source(lookup),
   block: A2AJLookupBlock | null = lookup.block,
 ) {
   const sourceAnchor = locatorAnchor(lookup, block);
@@ -786,7 +759,7 @@ export function buildA2AJParagraphRangeUrl(
     ) {
       continue;
     }
-    const source = getA2AJLookupDocument(lookup);
+    const source = a2ajLegalSourceProvider.source(lookup);
     if (source) sources.set(source.id, { source, metadata: lookup });
   }
   for (const document of documents) {
@@ -797,7 +770,8 @@ export function buildA2AJParagraphRangeUrl(
         document,
       )
     ) {
-      const source = getA2AJDocumentSourceDoc(document);
+      const source = a2ajLegalSourceProvider.source(document);
+      if (!source) continue;
       const current = sources.get(source.id);
       if (!current || source.blocks.length > current.source.blocks.length) {
         sources.set(source.id, { source, metadata: document });
@@ -835,7 +809,7 @@ export function buildA2AJParagraphRangeUrl(
   const metadata = structured?.metadata ?? rangeLookup[0];
   const source =
     structured?.source ??
-    getA2AJLookupDocument(rangeLookup[0]) ??
+    a2ajLegalSourceProvider.source(rangeLookup[0]) ??
     createTextSourceDoc(rangeLookup[0].block!.text);
   const lines = structured
     ? []
@@ -857,66 +831,4 @@ export function buildA2AJParagraphRangeUrl(
         textRangeDirective(startTarget, endTarget),
       ])
     : null;
-}
-
-export function hasLegalSourceQuoteCandidates(answer: string) {
-  return answerQuoteCandidates(answer).length > 0;
-}
-
-export function appendLegalSourcePinpointLinks(
-  answer: string,
-  sources: AutomaticLegalSourceLink[],
-  existingUrls: string[] = [],
-) {
-  // Blocks of one document share that document's artifact, so its token index
-  // is built once for the whole answer rather than once per source.
-  const compiled = sharedSourceDocs();
-  const uniqueSources = [
-    ...new Map(sources.map((source) => [source.key, source])).values(),
-  ].map((source) => {
-    const block = compiled(source.evidence.blockText);
-    return {
-      ...source,
-      block,
-      evidence: {
-        ...source.evidence,
-        blockText: block,
-        documentText: source.evidence.documentText
-          ? compiled(source.evidence.documentText)
-          : undefined,
-      },
-    };
-  });
-  const assigned = new Map<
-    string,
-    { source: AutomaticLegalSourceLink; quotes: string[] }
-  >();
-  for (const quote of answerQuoteCandidates(answer)) {
-    const matches = uniqueSources.filter(({ block }) =>
-      quoteMatchesBlock(block, quote),
-    );
-    if (matches.length !== 1) continue;
-    const source = matches[0];
-    assigned.set(source.key, {
-      source,
-      quotes: [...(assigned.get(source.key)?.quotes ?? []), quote],
-    });
-  }
-
-  const links = [...assigned.values()].flatMap(({ source, quotes }) => {
-    const url = buildLegalSourcePinpointUrl(source.evidence, quotes);
-    const markdownUrl = url?.replace(/\)/gu, "%29");
-    if (
-      !url ||
-      !markdownUrl ||
-      answer.includes(url) ||
-      answer.includes(markdownUrl) ||
-      existingUrls.includes(url)
-    ) {
-      return [];
-    }
-    return [`[${source.label.replace(/[[\]]/gu, "\\$&")}](${markdownUrl})`];
-  });
-  if (!links.length) return answer;
-  return `${answer}${answer ? "\n\n" : ""}Source${links.length === 1 ? "" : "s"}: ${links.join("; ")}`;
 }

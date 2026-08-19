@@ -16,7 +16,7 @@ export type Provider =
   | "ollama";
 
 export type ProviderContextCheckpoint =
-  | { provider: "claude"; content: string }
+  | { provider: "claude"; content: string; block: Record<string, unknown> }
   | { provider: "openai"; item: Record<string, unknown> };
 
 export type LlmMessage = {
@@ -223,50 +223,14 @@ export type NormalizedLlmUsage = {
 export type LlmContextRoundReceipt = {
   iteration: number;
   requestAttempts: number;
-  continuation: "none" | "provider";
   instructionsBytes: number;
-  instructionsSha256: string;
   inputItems: number;
   inputBytes: number;
-  inputSha256: string;
   toolCount: number;
   toolBytes: number;
-  toolSha256: string;
   toolCallCount: number;
   toolArgumentBytes: number;
   toolResultBytes: number;
-  usage: NormalizedLlmUsage;
-};
-
-/** Content-free receipt for one provider compaction request. */
-export type LlmCompactionReceipt = {
-  iteration: number;
-  thresholdTokens: number;
-  triggerInputTokens: number;
-  triggerReason?:
-    | "reported_usage"
-    | "projected_input"
-    | "context_length_exceeded"
-    // The provider's own CLI/runtime compacted the conversation in place.
-    // Not a harness compaction request: request/
-    // output receipt fields are zeroed, and usage is zeroed because the
-    // spend is already inside the turn envelope's reported usage.
-    | "provider_auto";
-  projectedInputTokens?: number;
-  requestInputItems: number;
-  requestInputBytes: number;
-  requestInputSha256: string;
-  requestInstructionsBytes: number;
-  requestInstructionsSha256: string;
-  requestToolCount: number;
-  requestToolBytes: number;
-  requestToolSha256: string;
-  outputItems: number;
-  outputBytes: number;
-  outputSha256: string;
-  estimatedInputTokens: number;
-  estimatedOutputTokens: number;
-  latencyMs: number;
   usage: NormalizedLlmUsage;
 };
 
@@ -276,14 +240,8 @@ export type StreamChatResult = {
   usage?: NormalizedLlmUsage;
   /** Provider-reported service tier actually used for the response. */
   serviceTier?: string;
-  /** Opaque provider request/thread ID for diagnostics, not automatic reuse. */
-  providerInvocationId?: string;
   /** Opaque provider continuation identifier, when one survives this call. */
   continuationId?: string;
   /** Content-free per-request receipts for diagnosing tool-loop context cost. */
   contextRounds?: LlmContextRoundReceipt[];
-  /** Content-free receipts for actual provider compactions. */
-  compactions?: LlmCompactionReceipt[];
-  /** Hash only; the provider cache-routing key is never persisted. */
-  promptCacheKeySha256?: string;
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../documentStore";
 import type { UserApiKeys } from "../llm";
-import type { TabularStore } from "../tabularStore";
+import type { TabularRepository } from "../tabularStore";
 import { createTabularApplication, tabularDtos } from "./application";
 import type { runChatTurn } from "../chat/turnEngine";
 
@@ -13,13 +13,14 @@ const review = { id: "review", user_id: "owner", project_id: "project",
 const cell = { id: "cell", review_id: "review", document_id: "document",
   column_index: 0, content: null, status: "pending" as const };
 
-function port(overrides: Partial<TabularStore> = {}): TabularStore {
+function port(overrides: Partial<TabularRepository> = {}): TabularRepository {
   return {
     page: vi.fn(async () => ({ items: [review], nextAfter: null })),
     create: vi.fn(async () => ({ status: "committed", value: review })),
     detail: vi.fn(async () => ({ review, cells: [cell], documents: [{ id: "document" }] })),
     people: vi.fn(async () => ({ owner: { user_id: "owner", email: null,
       display_name: null }, members: [] })),
+    missingRecipient: vi.fn(async () => null),
     update: vi.fn(async (_scope, _id, _version, input) => ({ status: "committed",
       value: { ...review, title: input.title ?? review.title } })),
     delete: vi.fn(async () => ({ status: "committed", value: null })),
@@ -30,6 +31,7 @@ function port(overrides: Partial<TabularStore> = {}): TabularStore {
   };
 }
 const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => ({
+  metadata: vi.fn(async () => ({ id: "document", filename: "lease.txt" })),
   read: vi.fn(async () => ({ bytes, filename: "lease.txt", fileType: "txt",
     hasPdfRendition: false, version: { id: "v1", version_number: 1, source: null,
       created_at: null, filename: "lease.txt" } })),
@@ -39,20 +41,21 @@ const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "co
     typeof import("../userSettings").getUserModelSettings>>;
 const project = vi.fn(async (input: { bytes?: Buffer }) => ({ kind: "source-doc" as const,
   text: input.bytes?.toString("utf8") ?? "", sourceDoc: {} as never, tableCells: [] as [] }));
+const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {
   it("maps committed, conflict, and missing writes explicitly", async () => {
-    const committed = createTabularApplication(port(), documentStore(), { settings, project });
+    const committed = createTabularApplication(port(), documentStore(), projects, { settings, project });
     await expect(committed.update(scope, "review", { title: "Changed" }))
       .resolves.toMatchObject({ title: "Changed" });
 
     const conflict = createTabularApplication(port({ update: vi.fn(async () =>
-      ({ status: "conflict", value: review })) }), documentStore(), { settings, project });
+      ({ status: "conflict", value: review })) }), documentStore(), projects, { settings, project });
     await expect(conflict.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 409 });
 
     const missing = createTabularApplication(port({ detail: vi.fn(async () => null) }),
-      documentStore(), { settings, project });
+      documentStore(), projects, { settings, project });
     await expect(missing.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 404 });
   });
@@ -67,10 +70,27 @@ describe("TabularApplication", () => {
       user_id: "attacker" }).success).toBe(false);
   });
 
+  it("exports the authorized durable review as a real XLSX workbook", async () => {
+    const done = { ...cell, status: "done" as const, content: {
+      summary: "Alberta [[page:2||quote:source words]] [[Yes]]",
+    } };
+    const app = createTabularApplication(port({ detail: vi.fn(async () => ({
+      review, cells: [done],
+    })) }), documentStore(), projects, { settings, project });
+    const file = await app.export(scope, "review");
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.read(file.bytes, { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json<string[]>(workbook.Sheets.Review, {
+      header: 1,
+    });
+    expect(file.filename).toBe("Review.xlsx");
+    expect(rows).toEqual([["Document", "Law"], ["lease.txt", "Alberta Yes"]]);
+  });
+
   it("rejects oversized extraction files before invoking a model", async () => {
     const runTurn = vi.fn() as unknown as typeof import("../chat/turnEngine").runChatTurn;
     const app = createTabularApplication(port(),
-      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), { settings, runTurn, project });
+      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, runTurn, project });
     await expect(app.regenerate(scope, "review", {
       document_id: "document", column_index: 0,
     })).rejects.toMatchObject({ status: 413 });
@@ -90,7 +110,8 @@ describe("TabularApplication", () => {
       });
       throw new Error("unreachable");
     }) as unknown as typeof import("../chat/turnEngine").runChatTurn;
-    const app = createTabularApplication(port(), documentStore(), { settings, runTurn, project });
+    const app = createTabularApplication(port(), documentStore(), projects,
+      { settings, runTurn, project });
     const controller = new AbortController();
     const work = app.regenerate(scope, "review", {
       document_id: "document", column_index: 0,

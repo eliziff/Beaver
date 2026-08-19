@@ -11,19 +11,22 @@ const mocks = vi.hoisted(() => ({
     signUp: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => mocks.push,
+    Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (
+        <a href={to} {...props}>{children}</a>
+    ),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ authLoading: false, isAuthenticated: false }),
 }));
 vi.mock("@/app/lib/supabase", () => ({
-    supabase: {
+    getSupabase: () => ({
         auth: {
             signInWithPassword: mocks.signIn,
             signUp: mocks.signUp,
         },
-    },
+    }),
 }));
 vi.mock("@/app/lib/beaverApi", () => ({ updateUserProfile: vi.fn() }));
 

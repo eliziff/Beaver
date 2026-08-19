@@ -1,29 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { expect, it } from "vitest";
-import { TableLoadMore, TableRow, TableScrollArea, TableSelectionCheckbox,
-    useTableSelection } from "./TablePrimitive";
-
-it("forbids horizontal scrolling unless a spatial table opts in", () => {
-    const { container, rerender } = render(
-        <TableScrollArea>
-            <TableRow>Row</TableRow>
-        </TableScrollArea>,
-    );
-
-    const scrollArea = container.querySelector(".overflow-y-auto");
-    expect(scrollArea).toHaveClass("overflow-x-hidden");
-    expect(container.querySelector(".min-w-max")).not.toBeInTheDocument();
-
-    rerender(
-        <TableScrollArea horizontal>
-            <TableRow>Row</TableRow>
-        </TableScrollArea>,
-    );
-    expect(container.querySelector(".overflow-y-auto")).toHaveClass(
-        "overflow-x-auto",
-    );
-});
+import { TableLoadMore, TableSelectionCheckbox, useTableSelection } from "./TablePrimitive";
 
 it("selects all visible rows from a mixed selection", () => {
     function Harness() {

@@ -136,16 +136,15 @@ describe("agreement DOCX drafting", () => {
   });
 
   it("reports every bad field in one recoverable error", async () => {
-    const rendered = await renderMarkdownDocx("Lease", "{{a}}", [
+    const error = await renderMarkdownDocx("Lease", "{{a}}", [
       { id: "a", value: "ok" },
       { id: "", value: "x" },
       { id: "a", value: "dup" },
       { id: "b", value: 7 },
-    ]);
-    if (!("error" in rendered)) throw new Error("expected rejection");
-    expect(rendered.error).toContain("fields[1].id");
-    expect(rendered.error).toContain('"a" is duplicated');
-    expect(rendered.error).toContain('"b" value');
+    ]).then(() => "", (reason: Error) => reason.message);
+    expect(error).toContain("fields[1].id");
+    expect(error).toContain('"a" is duplicated');
+    expect(error).toContain('"b" value');
   });
 
 });

@@ -1,773 +1,351 @@
-// Account HTTP boundary. Public entrypoint: userRouter.
-// Canonical operations live in userApiKeys, userDataExport/Cleanup, and
-// mcp/servers; keep this file to validation and HTTP response mapping.
 import { randomBytes } from "node:crypto";
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
-import {
-    createServerSupabase,
-} from "../lib/supabase";
 import { recordAudit } from "../lib/audit";
-import {
-    DEFAULT_TABULAR_MODEL,
-    DEFAULT_TITLE_MODEL,
-    CLAUDE_LOW_MODELS,
-    DEEPSEEK_MAIN_MODELS,
-    OPENAI_LOW_MODELS,
-    resolveModel,
-} from "../lib/llm";
-import {
-    type ApiKeyStatus,
-    getUserApiKeyStatus,
-    hasEnvApiKey,
-    normalizeApiKeyProvider,
-    saveUserApiKey,
-} from "../lib/userApiKeys";
-import * as userDataCleanup from "../lib/userDataCleanup";
-import * as userDataExport from "../lib/userDataExport";
-import { findProfileUserByEmail } from "../lib/userLookup";
 import { normalizeDraftingStyleSettings } from "../lib/draftingStyle";
-import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
-import * as mcpServers from "../lib/mcp/servers";
+import { getDraftingStyleSettings, saveDraftingStyleSettings } from "../lib/draftingStyleStore";
 import { sha256 } from "../lib/hash";
-
-export const userRouter = Router();
-
-const MONTHLY_CREDIT_LIMIT = 999999;
-
-type UserProfileRow = {
-    display_name: string | null;
-    organisation: string | null;
-    message_credits_used: number;
-    credits_reset_date: string;
-    tier: string;
-    title_model: string | null;
-    tabular_model: string;
-    mfa_on_login: boolean | null;
-    legal_research_us: boolean | null;
-    drafting_style: unknown;
-};
-
-function respondUserError(res: Response, error: unknown, status: number) {
-    console.error("[user] request failed", safeErrorLog(error));
-    res.status(status).json({ detail: safeErrorMessage(error) });
-}
+import { resolveModel } from "../lib/llm";
+import { isLocalRuntime } from "../lib/localMode";
+import * as mcp from "../lib/mcp/servers";
+import {
+  McpOAuthRequiredError,
+  startUserMcpConnectorOAuth,
+} from "../lib/mcp/oauth";
+import { publicOrigin } from "../lib/publicOrigin";
+import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import { createServerSupabase } from "../lib/supabase";
+import {
+  API_KEY_PROVIDERS, getEnvironmentApiKeyStatus, getUserApiKeyStatus,
+  hasEnvApiKey, saveUserApiKey, type ApiKeyStatus,
+} from "../lib/userApiKeys";
+import * as cleanup from "../lib/userDataCleanup";
+import * as dataExport from "../lib/userDataExport";
+import { findProfileUserByEmail } from "../lib/userLookup";
+import { resolveAvailableModel } from "../lib/userSettings";
+import { runtime } from "../runtime";
 
 type Db = ReturnType<typeof createServerSupabase>;
+type ProfileRow = {
+  display_name: string | null; organisation: string | null;
+  message_credits_used: number; credits_reset_date: string; tier: string;
+  title_model: string | null; tabular_model: string | null;
+  mfa_on_login: boolean | null; legal_research_us: boolean | null; drafting_style: unknown;
+};
+type Identity = { userId: string; userEmail?: string };
 
-async function sendUserExport(
-    res: Response,
-    kind: Parameters<typeof userDataExport.userExportFilename>[0],
-    action: string,
-    build: (db: Db, userId: string, userEmail?: string) => Promise<unknown>,
-) {
-    const userId = res.locals.userId as string;
-    const userEmail = res.locals.userEmail as string | undefined;
-    const db = createServerSupabase();
-    try {
-        const data = await build(db, userId, userEmail);
-        res.attachment(userDataExport.userExportFilename(kind, userId));
-        void recordAudit(db, { userId, userEmail, action, surface: "account" });
-        res.json(data);
-    } catch (error) {
-        respondUserError(res, error, 500);
-    }
+class HttpError extends Error {
+  constructor(readonly status: number, message: string, readonly code?: string) { super(message); }
 }
 
-async function deleteUserCollection(
-    res: Response,
-    remove: (db: Db, userId: string) => Promise<unknown>,
-) {
-    const userId = res.locals.userId as string;
-    try {
-        await remove(createServerSupabase(), userId);
-        res.status(204).send();
-    } catch (error) {
-        respondUserError(res, error, 500);
-    }
-}
+const PROFILE_COLUMNS = "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us, drafting_style";
+const MONTHLY_CREDITS = 999_999;
+const nextReset = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString();
+};
 
-function frontendUrl(path = "/account/connectors") {
-    const base = (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(
-        /\/+$/,
-        "",
-    );
-    return `${base}${path}`;
-}
-
-function mcpOAuthPopupHtml(payload: {
-    success: boolean;
-    connectorId?: string;
-    detail?: string;
-}, nonce: string) {
-    const targetOrigin = new URL(frontendUrl()).origin;
-    const targetUrl = frontendUrl();
-    const message = JSON.stringify({
-        type: "mcp_oauth_result",
-        ...payload,
-    });
-    return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MCP authorization</title>
-    <style>
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; background: #f9fafb; }
-      main { max-width: 360px; padding: 24px; text-align: center; }
-      p { color: #6b7280; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>${payload.success ? "Authorization complete" : "Authorization failed"}</h1>
-      <p>${payload.success ? "You can return to Beaver." : "Return to Beaver and try connecting again."}</p>
-    </main>
-    <script nonce="${nonce}">
-      const message = ${message};
-      const targetUrl = ${JSON.stringify(targetUrl)};
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(message, ${JSON.stringify(targetOrigin)});
-      }
-      setTimeout(() => window.close(), ${payload.success ? 600 : 2500});
-      ${
-          payload.success
-              ? "setTimeout(() => window.location.assign(targetUrl), 1000);"
-              : ""
-      }
-    </script>
-  </body>
-</html>`;
-}
-
-function mcpOAuthPopupCsp(nonce: string) {
-    return [
-        "default-src 'none'",
-        `script-src 'nonce-${nonce}'`,
-        "style-src 'unsafe-inline'",
-        "base-uri 'none'",
-        "form-action 'none'",
-        "frame-ancestors 'none'",
-    ].join("; ");
-}
-
-const PROFILE_SELECT =
-    "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us, drafting_style";
-
-async function selectProfile(
-    db: ReturnType<typeof createServerSupabase>,
-    userId: string,
-    mode: "maybe" | "single",
-) {
-    const query = db
-        .from("user_profiles")
-        .select(PROFILE_SELECT)
-        .eq("user_id", userId);
-    return mode === "single" ? query.single() : query.maybeSingle();
-}
-
-function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
-    const creditsUsed = row.message_credits_used ?? 0;
-    const titleFallback = apiKeyStatus?.gemini
-        ? DEFAULT_TITLE_MODEL
-        : apiKeyStatus?.openai
-          ? OPENAI_LOW_MODELS[0]
-          : apiKeyStatus?.deepseek
-            ? DEEPSEEK_MAIN_MODELS[0]
-          : apiKeyStatus?.claude
-            ? CLAUDE_LOW_MODELS[0]
-            : DEFAULT_TITLE_MODEL;
-    return {
-        displayName: row.display_name,
-        organisation: row.organisation,
-        messageCreditsUsed: creditsUsed,
-        creditsResetDate: row.credits_reset_date,
-        creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
-        tier: row.tier || "Free",
-        titleModel: resolveModel(row.title_model, titleFallback),
-        tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
-        mfaOnLogin: row.mfa_on_login === true,
-        legalResearchUs: row.legal_research_us !== false,
-        draftingStyle: normalizeDraftingStyleSettings(row.drafting_style),
-        ...(apiKeyStatus ? { apiKeyStatus } : {}),
-    };
-}
-
-const supportedModel = z.string().refine((value) => !!resolveModel(value, ""));
-const profilePayload = z.object({
-    displayName: z.string().nullable().optional(),
-    organisation: z.string().nullable().optional(),
-    titleModel: supportedModel.optional(),
-    tabularModel: supportedModel.optional(),
-    legalResearchUs: z.boolean().optional(),
-    draftingStyle: z.record(z.unknown()).optional(),
+const supportedModel = z.string().trim().min(1).max(160)
+  .refine((value) => !!resolveModel(value, ""), "Unsupported model");
+const profileInput = z.object({
+  displayName: z.string().trim().max(160).nullable().optional(),
+  organisation: z.string().trim().max(240).nullable().optional(),
+  titleModel: supportedModel.optional(), tabularModel: supportedModel.optional(),
+  legalResearchUs: z.boolean().optional(),
+  draftingStyle: z.record(z.unknown()).optional(),
 }).strict();
-const enabledPayload = z.object({ enabled: z.boolean() }).strict();
-const connectorCreatePayload = z.object({
-    name: z.preprocess((value) => typeof value === "string" ? value : "", z.string()),
-    serverUrl: z.preprocess((value) => typeof value === "string" ? value : "", z.string()),
-    bearerToken: z.preprocess((value) => typeof value === "string" ? value : null, z.string().nullable()).optional(),
-    headers: z.preprocess(
-        (value) => value && typeof value === "object" && !Array.isArray(value) ? value : undefined,
-        z.record(z.unknown()).optional(),
-    ),
-});
-const connectorPatchPayload = z.object({
-    name: z.preprocess((value) => typeof value === "string" ? value : undefined, z.string().optional()),
-    serverUrl: z.preprocess((value) => typeof value === "string" ? value : undefined, z.string().optional()),
-    enabled: z.preprocess((value) => typeof value === "boolean" ? value : undefined, z.boolean().optional()),
-    bearerToken: z.preprocess((value) => typeof value === "string" ? value : null, z.string().nullable()).optional(),
-    headers: z.preprocess(
-        (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
-        z.record(z.unknown()),
-    ).optional(),
-});
+const enabledInput = z.object({ enabled: z.boolean() }).strict();
+const keyInput = z.object({ api_key: z.string().trim().max(32_768).nullable().optional() }).strict();
+const providerInput = z.enum(API_KEY_PROVIDERS);
+const connectorCreateInput = z.object({
+  name: z.string().trim().min(1).max(120), serverUrl: z.string().trim().url().max(2_048),
+  bearerToken: z.string().max(32_768).nullable().optional(),
+  headers: z.record(z.unknown()).optional(),
+}).strict();
+const connectorPatchInput = connectorCreateInput.partial().extend({ enabled: z.boolean().optional() })
+  .refine((value) => Object.keys(value).length > 0, "At least one field is required");
 
-function validationDetail(error: z.ZodError, profile: boolean) {
-    const issue = error.issues[0];
-    if (issue?.code === "unrecognized_keys") {
-        const field = issue.keys[0];
-        return `${profile ? "Unsupported profile field" : "Unsupported field"}: ${field}`;
-    }
-    const field = String(issue?.path[0] ?? "");
-    if (!field) return "Expected a JSON object";
-    if (field === "titleModel" || field === "tabularModel") {
-        return issue?.code === "custom"
-            ? `Unsupported ${field}`
-            : `${field} must be a string`;
-    }
-    if (field === "displayName" || field === "organisation") {
-        return `${field} must be a string or null`;
-    }
-    if (field === "draftingStyle") return "draftingStyle must be an object";
-    return `${field} must be a boolean`;
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value);
+  if (!result.success) throw new HttpError(400, result.error.issues[0]?.message || "Invalid request");
+  return result.data;
 }
 
-function validateProfilePayload(body: unknown) {
-    const parsed = profilePayload.safeParse(body);
-    if (!parsed.success) {
-        return { ok: false as const, detail: validationDetail(parsed.error, true) };
+function identity(res: Response): Identity {
+  return { userId: String(res.locals.userId), userEmail: res.locals.userEmail || undefined };
+}
+
+function serializeProfile(row: ProfileRow, apiKeyStatus: ApiKeyStatus) {
+  const used = row.message_credits_used ?? 0;
+  return {
+    displayName: row.display_name, organisation: row.organisation,
+    messageCreditsUsed: used, creditsResetDate: row.credits_reset_date,
+    creditsRemaining: Math.max(MONTHLY_CREDITS - used, 0), tier: row.tier || "Free",
+    titleModel: resolveModel(row.title_model, resolveAvailableModel(apiKeyStatus)),
+    tabularModel: resolveModel(row.tabular_model, resolveAvailableModel(apiKeyStatus, true)),
+    mfaOnLogin: row.mfa_on_login === true, legalResearchUs: row.legal_research_us !== false,
+    draftingStyle: normalizeDraftingStyleSettings(row.drafting_style), apiKeyStatus,
+  };
+}
+
+export class AccountApplication {
+  readonly local = isLocalRuntime();
+  private client?: Db;
+
+  db() {
+    if (this.local) throw new HttpError(
+      501, "This account feature is unavailable in account-free local mode.",
+    );
+    return this.client ??= createServerSupabase();
+  }
+
+  private async cloudProfile(userId: string) {
+    const db = this.db();
+    const { error: ensureError } = await db.from("user_profiles").upsert(
+      { user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true },
+    );
+    if (ensureError) throw ensureError;
+    const { data, error } = await db.from("user_profiles").select(PROFILE_COLUMNS)
+      .eq("user_id", userId).single();
+    if (error || !data) throw error ?? new Error("Profile not found");
+    const row = data as ProfileRow;
+    if (!row.credits_reset_date || Date.now() > Date.parse(row.credits_reset_date)) {
+      row.message_credits_used = 0;
+      row.credits_reset_date = nextReset();
+      const { error: resetError } = await db.from("user_profiles").update({
+        message_credits_used: 0, credits_reset_date: row.credits_reset_date,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", userId);
+      if (resetError) throw resetError;
     }
-    const raw = parsed.data;
+    return serializeProfile(row, await getUserApiKeyStatus(userId, db));
+  }
+
+  async profile({ userId }: Identity) {
+    if (!this.local) return this.cloudProfile(userId);
+    const apiKeyStatus = getEnvironmentApiKeyStatus();
+    return serializeProfile({
+      display_name: null, organisation: null, message_credits_used: 0,
+      credits_reset_date: nextReset(), tier: "Free", title_model: null,
+      tabular_model: null, mfa_on_login: false, legal_research_us: true,
+      drafting_style: await getDraftingStyleSettings(userId),
+    }, apiKeyStatus);
+  }
+
+  async updateProfile(account: Identity, body: unknown) {
+    const input = parse(profileInput, body);
+    if (this.local) {
+      if (Object.keys(input).length !== 1 || !input.draftingStyle) {
+        throw new HttpError(501, "Only drafting style is editable in account-free local mode.");
+      }
+      await saveDraftingStyleSettings(account.userId, input.draftingStyle);
+      return this.profile(account);
+    }
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if ("displayName" in raw) update.display_name = raw.displayName?.trim() || null;
-    if ("organisation" in raw) update.organisation = raw.organisation?.trim() || null;
-    if (raw.titleModel) update.title_model = raw.titleModel;
-    if (raw.tabularModel) update.tabular_model = raw.tabularModel;
-    if (raw.legalResearchUs !== undefined) update.legal_research_us = raw.legalResearchUs;
-    if (raw.draftingStyle) {
-        update.drafting_style = normalizeDraftingStyleSettings(raw.draftingStyle);
+    if ("displayName" in input) update.display_name = input.displayName || null;
+    if ("organisation" in input) update.organisation = input.organisation || null;
+    if (input.titleModel) update.title_model = input.titleModel;
+    if (input.tabularModel) update.tabular_model = input.tabularModel;
+    if (input.legalResearchUs !== undefined) update.legal_research_us = input.legalResearchUs;
+    if (input.draftingStyle) update.drafting_style = normalizeDraftingStyleSettings(input.draftingStyle);
+    const db = this.db();
+    const { error } = await db.from("user_profiles").upsert(
+      { user_id: account.userId, ...update }, { onConflict: "user_id" },
+    );
+    if (error) throw error;
+    return this.cloudProfile(account.userId);
+  }
+
+  apiKeys({ userId }: Identity) {
+    return this.local ? getEnvironmentApiKeyStatus() : getUserApiKeyStatus(userId, this.db());
+  }
+
+  async saveApiKey(account: Identity, provider: unknown, body: unknown) {
+    if (this.local) this.db();
+    const selected = parse(providerInput, provider);
+    if (hasEnvApiKey(selected)) throw new HttpError(
+      409, "This provider is configured by the server environment and cannot be changed from the browser.",
+    );
+    await saveUserApiKey(account.userId, selected, parse(keyInput, body).api_key ?? null, this.db());
+    return this.apiKeys(account);
+  }
+
+  async setMfaOnLogin(account: Identity, body: unknown) {
+    const enabled = parse(enabledInput, body).enabled, db = this.db();
+    if (enabled) {
+      const { data, error } = await db.auth.admin.getUserById(account.userId);
+      if (error) throw error;
+      if (!(data.user?.factors ?? []).some((factor) =>
+        factor.factor_type === "totp" && factor.status === "verified")) {
+        throw new HttpError(400, "Set up an authenticator app before requiring verification on login.");
+      }
     }
-    return { ok: true as const, update };
+    const { error } = await db.from("user_profiles").upsert({
+      user_id: account.userId, mfa_on_login: enabled, updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (error) throw error;
+    return this.cloudProfile(account.userId);
+  }
 }
 
-function readEnabled(body: unknown) {
-    const parsed = enabledPayload.safeParse(body);
-    return parsed.success
-        ? { ok: true as const, value: parsed.data.enabled }
-        : { ok: false as const, detail: validationDetail(parsed.error, false) };
-}
-
-async function userHasVerifiedTotpFactor(
-    db: ReturnType<typeof createServerSupabase>,
-    userId: string,
-) {
-    const { data, error } = await db.auth.admin.getUserById(userId);
-    if (error) return { ok: false as const, error };
-
-    const factors = data.user?.factors ?? [];
-    return {
-        ok: true as const,
-        hasVerifiedTotp: factors.some(
-            (factor) =>
-                factor.factor_type === "totp" && factor.status === "verified",
-        ),
-    };
-}
-
-async function ensureProfileRow(
-    db: ReturnType<typeof createServerSupabase>,
-    userId: string,
-) {
-    const { error } = await db
-        .from("user_profiles")
-        .upsert(
-            { user_id: userId },
-            { onConflict: "user_id", ignoreDuplicates: true },
-        );
-    return error;
-}
-
-async function loadProfile(
-    db: ReturnType<typeof createServerSupabase>,
-    userId: string,
-    options: { repairMissing?: boolean; apiKeyStatus?: ApiKeyStatus } = {},
-) {
-    let { data, error } = await selectProfile(db, userId, "maybe");
-
-    if (error) return { data: null, error };
-    if (!data) {
-        if (!options.repairMissing) {
-            return { data: null, error: new Error("Profile not found") };
-        }
-
-        const ensureError = await ensureProfileRow(db, userId);
-        if (ensureError) return { data: null, error: ensureError };
-
-        const created = await selectProfile(db, userId, "single");
-        if (created.error) return { data: null, error: created.error };
-        data = created.data;
+const account = new AccountApplication();
+type Handler = (req: Request, res: Response, db?: Db) => Promise<unknown>;
+function endpoint(handler: Handler, errorStatus = 500) {
+  return async (req: Request, res: Response) => {
+    try { await handler(req, res); }
+    catch (error) {
+      const status = error instanceof HttpError ? error.status : errorStatus;
+      const detail = error instanceof HttpError ? error.message
+        : errorStatus >= 500 ? "Account operation failed" : safeErrorMessage(error);
+      console.error("[account] request failed", safeErrorLog(error));
+      res.status(status).json({ ...(error instanceof HttpError && error.code ? { code: error.code } : {}), detail });
     }
-
-    let row = data as UserProfileRow;
-    if (
-        row.credits_reset_date &&
-        new Date() > new Date(row.credits_reset_date)
-    ) {
-        const creditsResetDate = new Date();
-        creditsResetDate.setDate(creditsResetDate.getDate() + 30);
-        const { error: resetError } = await db
-            .from("user_profiles")
-            .update({
-                message_credits_used: 0,
-                credits_reset_date: creditsResetDate.toISOString(),
-                updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", userId);
-
-        if (resetError) return { data: null, error: resetError };
-        const { data: resetData, error: resetLoadError } = await selectProfile(
-            db,
-            userId,
-            "single",
-        );
-        if (resetLoadError) return { data: null, error: resetLoadError };
-        row = resetData as UserProfileRow;
-    }
-
-    return { data: serializeProfile(row, options.apiKeyStatus), error: null };
+  };
+}
+function cloud(handler: Handler, errorStatus = 500) {
+  return endpoint((req, res) => handler(req, res, account.db()), errorStatus);
 }
 
-userRouter.post("/profile", requireAuth, async (_req, res) => {
-    const userId = res.locals.userId as string;
-    const db = createServerSupabase();
-    const error = await ensureProfileRow(db, userId);
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json({ ok: true });
-});
+export const userRouter = Router();
+userRouter.get("/profile", requireAuth, endpoint(async (_req, res) => {
+  res.json(await account.profile(identity(res)));
+}));
+userRouter.patch("/profile", requireAuth, endpoint(async (req, res) => {
+  res.json(await account.updateProfile(identity(res), req.body));
+}));
+userRouter.get("/lookup", requireAuth, cloud(async (req, res, db) => {
+  const email = parse(z.string().trim().email().max(320), req.query.email);
+  const user = await findProfileUserByEmail(db!, email);
+  res.json({ exists: !!user, email: user?.email ?? email.toLowerCase(),
+    display_name: user?.display_name ?? null });
+}, 400));
+userRouter.patch("/security/mfa-login", requireAuth, requireMfaIfEnrolled,
+  endpoint(async (req, res) => res.json(await account.setMfaOnLogin(identity(res), req.body))));
+userRouter.get("/api-keys", requireAuth, endpoint(async (_req, res) => {
+  res.json(await account.apiKeys(identity(res)));
+}));
+userRouter.put("/api-keys/:provider", requireAuth, requireMfaIfEnrolled,
+  endpoint(async (req, res) => res.json(
+    await account.saveApiKey(identity(res), req.params.provider, req.body),
+  )));
 
-userRouter.get("/lookup", requireAuth, async (req, res) => {
-    const email = typeof req.query.email === "string" ? req.query.email : "";
-    if (!email.trim()) {
-        return void res.status(400).json({ detail: "email is required" });
-    }
-
-    const db = createServerSupabase();
-    const user = await findProfileUserByEmail(db, email);
-    res.json({
-        exists: !!user,
-        email: user?.email ?? email.trim().toLowerCase(),
-        display_name: user?.display_name ?? null,
-    });
-});
-
-userRouter.get("/profile", requireAuth, async (_req, res) => {
+userRouter.get("/mcp-connectors", requireAuth, cloud(async (_req, res, db) => {
+  res.json(await mcp.listUserMcpConnectors(identity(res).userId, db!, { includeTools: false }));
+}));
+userRouter.get("/mcp-connectors/:connectorId", requireAuth, cloud(async (req, res, db) => {
+  res.json(await mcp.getUserMcpConnector(identity(res).userId, req.params.connectorId, db!));
+}, 404));
+userRouter.post("/mcp-connectors", requireAuth, requireMfaIfEnrolled,
+  cloud(async (req, res, db) => res.status(201).json(await mcp.createUserMcpConnector(
+    identity(res).userId, parse(connectorCreateInput, req.body), db!,
+  )), 400));
+userRouter.patch("/mcp-connectors/:connectorId", requireAuth, requireMfaIfEnrolled,
+  cloud(async (req, res, db) => res.json(await mcp.updateUserMcpConnector(
+    identity(res).userId, req.params.connectorId, parse(connectorPatchInput, req.body), db!,
+  )), 400));
+userRouter.delete("/mcp-connectors/:connectorId", requireAuth, requireMfaIfEnrolled,
+  cloud(async (req, res, db) => {
+    await mcp.deleteUserMcpConnector(identity(res).userId, req.params.connectorId, db!);
+    res.status(204).send();
+  }));
+userRouter.post("/mcp-connectors/:connectorId/oauth/start", requireAuth, requireMfaIfEnrolled,
+  cloud(async (req, res, db) => res.json(await startUserMcpConnectorOAuth(
+    identity(res).userId, req.params.connectorId, db!,
+  )), 400));
+userRouter.post("/mcp-connectors/:connectorId/refresh-tools", requireAuth, requireMfaIfEnrolled,
+  cloud(async (req, res, db) => {
     try {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-        const { data, error } = await loadProfile(db, userId, {
-            repairMissing: true,
-            apiKeyStatus,
-        });
-        if (error) return void res.status(500).json({ detail: error.message });
-        res.json({ ...data, apiKeyStatus });
+      res.json(await mcp.refreshUserMcpConnectorTools(
+        identity(res).userId, req.params.connectorId, db!,
+      ));
     } catch (error) {
-        console.error("[user/profile] failed to load profile", error);
-        res.status(500).json({ detail: "Failed to load user profile" });
+      if (error instanceof McpOAuthRequiredError) {
+        throw new HttpError(401, safeErrorMessage(error), "oauth_required");
+      }
+      throw error;
     }
-});
+  }, 400));
+userRouter.patch("/mcp-connectors/:connectorId/tools/:toolId", requireAuth,
+  requireMfaIfEnrolled, cloud(async (req, res, db) => res.json(
+    await mcp.setUserMcpToolEnabled(identity(res).userId, req.params.connectorId,
+      req.params.toolId, parse(enabledInput, req.body).enabled, db!),
+  ), 400));
 
-userRouter.patch("/profile", requireAuth, async (req, res) => {
-    const userId = res.locals.userId as string;
-    const parsed = validateProfilePayload(req.body);
-    if (!parsed.ok) return void res.status(400).json({ detail: parsed.detail });
-
-    const db = createServerSupabase();
-    const ensureError = await ensureProfileRow(db, userId);
-    if (ensureError)
-        return void res.status(500).json({ detail: ensureError.message });
-
-    const { error: updateError } = await db
-        .from("user_profiles")
-        .update(parsed.update)
-        .eq("user_id", userId);
-    if (updateError)
-        return void res.status(500).json({ detail: updateError.message });
-
-    const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-    const { data, error } = await loadProfile(db, userId, { apiKeyStatus });
-    if (error) return void res.status(500).json({ detail: error.message });
-    res.json({ ...data, apiKeyStatus });
-});
-
-userRouter.patch(
-    "/security/mfa-login",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const parsed = readEnabled(req.body);
-        if (!parsed.ok)
-            return void res.status(400).json({ detail: parsed.detail });
-
-        const db = createServerSupabase();
-        if (parsed.value) {
-            const factorCheck = await userHasVerifiedTotpFactor(db, userId);
-            if (!factorCheck.ok) {
-                return void res.status(500).json({
-                    detail: factorCheck.error.message,
-                });
-            }
-            if (!factorCheck.hasVerifiedTotp) {
-                return void res.status(400).json({
-                    detail: "Set up an authenticator app before requiring verification on login.",
-                });
-            }
-        }
-
-        const ensureError = await ensureProfileRow(db, userId);
-        if (ensureError)
-            return void res.status(500).json({ detail: ensureError.message });
-
-        const { error: updateError } = await db
-            .from("user_profiles")
-            .update({
-                mfa_on_login: parsed.value,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", userId);
-        if (updateError)
-            return void res.status(500).json({ detail: updateError.message });
-
-        const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-        const { data, error } = await loadProfile(db, userId, { apiKeyStatus });
-        if (error) return void res.status(500).json({ detail: error.message });
-        res.json({ ...data, apiKeyStatus });
-    },
-);
-
-userRouter.get("/api-keys", requireAuth, async (_req, res) => {
-    const userId = res.locals.userId as string;
-    const db = createServerSupabase();
-    const status = await getUserApiKeyStatus(userId, db);
-    res.json(status);
-});
-
-userRouter.put(
-    "/api-keys/:provider",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const provider = normalizeApiKeyProvider(req.params.provider);
-        if (!provider)
-            return void res
-                .status(400)
-                .json({ detail: "Unsupported provider" });
-
-        const apiKey =
-            typeof req.body?.api_key === "string" ? req.body.api_key : null;
-        const db = createServerSupabase();
-        try {
-            if (hasEnvApiKey(provider)) {
-                return void res.status(409).json({
-                    detail: "This provider is configured by the server environment and cannot be changed from the browser.",
-                });
-            }
-            await saveUserApiKey(userId, provider, apiKey, db);
-            const status = await getUserApiKeyStatus(userId, db);
-            res.json(status);
-        } catch (err) {
-            respondUserError(res, err, 500);
-        }
-    },
-);
-
-userRouter.get("/mcp-connectors", requireAuth, async (_req, res) => {
-    const userId = res.locals.userId as string;
-    const db = createServerSupabase();
-    try {
-        res.json(
-            await mcpServers.listUserMcpConnectors(
-                userId,
-                db,
-                { includeTools: false },
-            ),
-        );
-    } catch (err) {
-        respondUserError(res, err, 500);
-    }
-});
-
-userRouter.get(
-    "/mcp-connectors/:connectorId",
-    requireAuth,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            res.json(
-                await mcpServers.getUserMcpConnector(
-                    userId,
-                    req.params.connectorId,
-                    db,
-                ),
-            );
-        } catch (err) {
-            respondUserError(res, err, 404);
-        }
-    },
-);
-
-userRouter.post(
-    "/mcp-connectors",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            const input = connectorCreatePayload.parse(req.body);
-            const connector = await mcpServers.createUserMcpConnector(
-                userId,
-                { ...input, bearerToken: input.bearerToken ?? null },
-                db,
-            );
-            res.status(201).json(connector);
-        } catch (err) {
-            respondUserError(res, err, 400);
-        }
-    },
-);
-
-userRouter.patch(
-    "/mcp-connectors/:connectorId",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            const input = connectorPatchPayload.parse(req.body);
-            const connector = await mcpServers.updateUserMcpConnector(
-                userId,
-                req.params.connectorId,
-                input,
-                db,
-            );
-            res.json(connector);
-        } catch (err) {
-            respondUserError(res, err, 400);
-        }
-    },
-);
-
-userRouter.delete(
-    "/mcp-connectors/:connectorId",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            await mcpServers.deleteUserMcpConnector(
-                userId,
-                req.params.connectorId,
-                db,
-            );
-            res.status(204).send();
-        } catch (err) {
-            respondUserError(res, err, 500);
-        }
-    },
-);
-
-userRouter.post(
-    "/mcp-connectors/:connectorId/oauth/start",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            const result = await mcpServers.startUserMcpConnectorOAuth(
-                userId,
-                req.params.connectorId,
-                db,
-            );
-            res.json(result);
-        } catch (err) {
-            respondUserError(res, err, 400);
-        }
-    },
-);
-
+function oauthHtml(success: boolean, connectorId: string | undefined, nonce: string) {
+  const origin = publicOrigin(), payload = JSON.stringify({
+    type: "mcp_oauth_result", success, ...(connectorId ? { connectorId } : {}),
+  }).replace(/</gu, "\\u003c");
+  return `<!doctype html><meta charset="utf-8"><title>MCP authorization</title><h1>${
+    success ? "Authorization complete" : "Authorization failed"
+  }</h1><p>${success ? "You can return to Beaver." : "Return to Beaver and try again."}</p><script nonce="${nonce}">const m=${payload},o=${JSON.stringify(origin)};if(opener&&!opener.closed){opener.postMessage(m,o);setTimeout(()=>close(),600)}else{location.assign(o+"/account/connectors")}</script>`;
+}
+const oauthCsp = (nonce: string) => [
+  "default-src 'none'", `script-src 'nonce-${nonce}'`, "base-uri 'none'",
+  "form-action 'none'", "frame-ancestors 'none'",
+].join("; ");
 userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
-    const nonce = randomBytes(16).toString("base64");
+  const nonce = randomBytes(16).toString("base64");
+  try {
+    const state = parse(z.string().min(1).max(4_096), req.query.state);
+    const code = parse(z.string().min(1).max(16_384), req.query.code);
+    if (req.query.error) throw new Error("OAuth authorization was not completed");
+    const result = await mcp.completeUserMcpConnectorOAuth(state, code, account.db());
+    res.set("Content-Security-Policy", oauthCsp(nonce)).type("html")
+      .send(oauthHtml(true, result.connectorId, nonce));
+  } catch (error) {
     const state = typeof req.query.state === "string" ? req.query.state : "";
-    const code = typeof req.query.code === "string" ? req.query.code : "";
-    const error =
-        typeof req.query.error === "string" ? req.query.error : undefined;
-    const db = createServerSupabase();
+    console.error("[account/oauth] callback failed", {
+      error: safeErrorMessage(error), stateDigest: state ? sha256(state).slice(0, 12) : null,
+    });
     try {
-        if (error) throw new Error("OAuth authorization was not completed.");
-        if (!state || !code)
-            throw new Error("OAuth callback is missing state or code.");
-        const result = await mcpServers.completeUserMcpConnectorOAuth(state, code, db);
-        res.set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
-            .type("html")
-            .send(
-                mcpOAuthPopupHtml(
-                    {
-                        success: true,
-                        connectorId: result.connectorId,
-                    },
-                    nonce,
-                ),
-            );
-    } catch (err) {
-        const internalError = safeErrorMessage(err);
-        console.error("[user/mcp-connectors] oauth callback failed", {
-            error: internalError,
-            stateDigest: state ? sha256(state).slice(0, 12) : null,
-            hasCode: !!code,
-            hasError: !!error,
-        });
-        res.status(400)
-            .set("Content-Security-Policy", mcpOAuthPopupCsp(nonce))
-            .type("html")
-            .send(
-                mcpOAuthPopupHtml(
-                    {
-                        success: false,
-                        detail: "OAuth authorization failed.",
-                    },
-                    nonce,
-                ),
-            );
+      res.status(400).set("Content-Security-Policy", oauthCsp(nonce)).type("html")
+        .send(oauthHtml(false, undefined, nonce));
+    } catch {
+      res.status(500).type("text").send("OAuth callback configuration is invalid");
     }
+  }
 });
 
-userRouter.post(
-    "/mcp-connectors/:connectorId/refresh-tools",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const db = createServerSupabase();
-        try {
-            const connector = await mcpServers.refreshUserMcpConnectorTools(
-                userId,
-                req.params.connectorId,
-                db,
-            );
-            res.json(connector);
-        } catch (err) {
-            const detail = safeErrorMessage(err);
-            if (err instanceof Error && err.name === "McpOAuthRequiredError") {
-                return void res.status(401).json({
-                    code: "oauth_required",
-                    detail,
-                });
-            }
-            respondUserError(res, err, 400);
-        }
-    },
-);
+userRouter.delete("/account", requireAuth, requireMfaIfEnrolled, cloud(async (_req, res, db) => {
+  const id = identity(res);
+  await cleanup.deleteUserAccountData(db!, await runtime.documents(), id.userId, id.userEmail);
+  const { error } = await db!.auth.admin.deleteUser(id.userId);
+  if (error) throw error;
+  res.status(204).send();
+}));
+userRouter.delete("/chats", requireAuth, requireMfaIfEnrolled,
+  endpoint(async (_req, res) => {
+    await (await runtime.chats()).deleteAll(identity(res));
+    res.status(204).send();
+  }));
+userRouter.delete("/projects", requireAuth, requireMfaIfEnrolled,
+  endpoint(async (_req, res) => {
+    await (await runtime.projects()).deleteAll(identity(res));
+    res.status(204).send();
+  }));
+userRouter.delete("/tabular-reviews", requireAuth, requireMfaIfEnrolled,
+  endpoint(async (_req, res) => {
+    await (await runtime.tabular()).deleteAll(identity(res));
+    res.status(204).send();
+  }));
 
-userRouter.patch(
-    "/mcp-connectors/:connectorId/tools/:toolId",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (req, res) => {
-        const userId = res.locals.userId as string;
-        const parsed = readEnabled(req.body);
-        if (!parsed.ok)
-            return void res.status(400).json({ detail: parsed.detail });
-
-        const db = createServerSupabase();
-        try {
-            const connector = await mcpServers.setUserMcpToolEnabled(
-                userId,
-                req.params.connectorId,
-                req.params.toolId,
-                parsed.value,
-                db,
-            );
-            res.json(connector);
-        } catch (err) {
-            respondUserError(res, err, 400);
-        }
-    },
-);
-
-userRouter.delete(
-    "/account",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        const userId = res.locals.userId as string;
-        const userEmail = res.locals.userEmail as string | undefined;
-        const db = createServerSupabase();
-        try {
-            await userDataCleanup.deleteUserAccountData(db, userId, userEmail);
-            const { error } = await db.auth.admin.deleteUser(userId);
-            if (error)
-                return void res.status(500).json({ detail: error.message });
-            res.status(204).send();
-        } catch (err) {
-            respondUserError(res, err, 500);
-        }
-    },
-);
-
-userRouter.delete("/chats", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
-    await deleteUserCollection(res, userDataCleanup.deleteAllUserChats);
-});
-
-userRouter.delete("/projects", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
-    await deleteUserCollection(res, userDataCleanup.deleteUserProjects);
-});
-
-userRouter.delete(
-    "/tabular-reviews",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        await deleteUserCollection(res, userDataCleanup.deleteAllUserTabularReviews);
-    },
-);
-
-userRouter.get("/export", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
-    await sendUserExport(res, "account", "export.account", userDataExport.buildUserAccountExport);
-});
-
-userRouter.get("/chats/export", requireAuth, requireMfaIfEnrolled, async (_req, res) => {
-    await sendUserExport(res, "chats", "export.chats", userDataExport.buildUserChatsExport);
-});
-
-userRouter.get(
-    "/tabular-reviews/export",
-    requireAuth,
-    requireMfaIfEnrolled,
-    async (_req, res) => {
-        await sendUserExport(
-            res,
-            "tabular-reviews",
-            "export.tabular",
-            userDataExport.buildUserTabularReviewsExport,
-        );
-    },
-);
+function exportRoute(
+  kind: Parameters<typeof dataExport.userExportFilename>[0], action: string,
+  build: (db: Db, userId: string, email?: string) => Promise<unknown>,
+) {
+  return endpoint(async (_req, res) => {
+    const id = identity(res), db = account.db();
+    const data = await build(db, id.userId, id.userEmail);
+    res.attachment(dataExport.userExportFilename(kind, id.userId)).json(data);
+    void recordAudit(db, { userId: id.userId, userEmail: id.userEmail,
+      action, surface: "account" });
+  });
+}
+userRouter.get("/export", requireAuth, requireMfaIfEnrolled,
+  exportRoute("account", "export.account", dataExport.buildUserAccountExport));
+userRouter.get("/chats/export", requireAuth, requireMfaIfEnrolled,
+  exportRoute("chats", "export.chats", dataExport.buildUserChatsExport));
+userRouter.get("/tabular-reviews/export", requireAuth, requireMfaIfEnrolled,
+  exportRoute("tabular-reviews", "export.tabular", dataExport.buildUserTabularReviewsExport));

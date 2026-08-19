@@ -55,6 +55,17 @@ describe("legal PDF binary selection", () => {
     ).toBe("kraken-lite");
   });
 
+  it("explicitly disables optional OCR and layout runtimes", () => {
+    expect(configuredLegalPdfOcrProvider({
+      env: { MIKE_PDF_OCR_PROVIDER: "none" },
+      exists: () => true,
+    })).toBeNull();
+    expect(configuredLegalPdfLayout({
+      env: { MIKE_PDF_LAYOUT_PROVIDER: "none" },
+      exists: () => true,
+    })).toBeNull();
+  });
+
   it("builds the complete native Kraken argument contract", () => {
     const args = legalPdfOcrArguments(
       "kraken-lite",

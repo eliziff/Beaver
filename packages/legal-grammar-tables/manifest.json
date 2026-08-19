@@ -1,13 +1,14 @@
 {
   "format": "legal-grammar-manifest:v1",
   "corpus": "grammar-corpus.json",
-  "sha256": "34aa8dcd3e31038f54a5e90bcd646f2635c3c4b4070189c2be7470c18e214130",
+  "sha256": "8e6da9011c1cf78c609d54d53abb67b7a3e50f9a67cbf48cd72ab8136b16606f",
   "tables": [
     "citations",
     "footnote-labels",
     "pinpoints",
+    "provisions",
     "references"
   ],
-  "entries": 52,
-  "vectors": 225
+  "entries": 64,
+  "vectors": 252
 }

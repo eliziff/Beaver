@@ -13,12 +13,12 @@ import { TableOfAuthoritiesHost } from "@/app/components/shared/TableOfAuthoriti
 vi.mock("@/app/lib/beaverApi", () => ({
   launchTableOfAuthorities: vi.fn(),
 }));
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
 const navigation = vi.hoisted(() => ({ search: "" }));
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(navigation.search),
+vi.mock("react-router-dom", () => ({
+  useSearchParams: () => [new URLSearchParams(navigation.search), vi.fn()],
 }));
 
 function attemptFor(frame: HTMLElement) {

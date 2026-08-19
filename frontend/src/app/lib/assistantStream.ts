@@ -1,4 +1,4 @@
-import { parseAssistantProtocolEvent, type AssistantProtocolEvent } from "./assistantSession";
+import { parseAssistantProtocolEvent, type ProtocolEvent } from "./assistantSession";
 import { readSseData } from "./sse";
 
 export const ASSISTANT_STREAM_LIMITS = {
@@ -23,7 +23,7 @@ export async function readAssistantEventStream({
   body: ReadableStream<Uint8Array>;
   signal: AbortSignal;
   expectedChatId?: string;
-  onEvent: (event: AssistantProtocolEvent, chatId?: string) => void;
+  onEvent: (event: ProtocolEvent, chatId?: string) => void;
 }) {
   let chatId = expectedChatId;
   let sawDone = false;

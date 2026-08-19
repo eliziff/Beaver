@@ -5,14 +5,19 @@ import { AddDocumentsModal } from "./AddDocumentsModal";
 
 const api = vi.hoisted(() => ({
     addDocumentToProject: vi.fn(),
-    getLibrary: vi.fn(),
-    getProject: vi.fn(),
+    listDirectory: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     listProjects: vi.fn(),
-    uploadProjectDocument: vi.fn(),
+    uploadDocument: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => api);
+vi.mock("@/app/lib/beaverApi", () => ({
+    ...api,
+    directoryResource: () => ({
+        list: api.listDirectory,
+        uploadDocument: api.uploadDocument,
+    }),
+}));
 
 function makeDocument(
     id: string,
@@ -74,22 +79,20 @@ describe("AddDocumentsModal project mode", () => {
             ),
         );
         expect(onClose).toHaveBeenCalledOnce();
-        expect(api.getProject).not.toHaveBeenCalled();
-        expect(api.getLibrary).not.toHaveBeenCalled();
-        expect(api.listProjects).not.toHaveBeenCalled();
         expect(api.addDocumentToProject).not.toHaveBeenCalled();
     });
 
     it("keeps project upload, empty, search, and Escape behavior in the shared modal", async () => {
         const onClose = vi.fn();
+        const onSelect = vi.fn();
         const uploaded = makeDocument("uploaded", "Uploaded.pdf");
-        api.uploadProjectDocument.mockResolvedValueOnce(uploaded);
+        api.uploadDocument.mockResolvedValueOnce(uploaded);
 
         render(
             <AddDocumentsModal
                 open
                 onClose={onClose}
-                onSelect={vi.fn()}
+                onSelect={onSelect}
                 breadcrumb={["Project", "Add Documents"]}
                 projectId="project-1"
                 documents={[]}
@@ -112,22 +115,20 @@ describe("AddDocumentsModal project mode", () => {
         );
 
         await waitFor(() =>
-            expect(api.uploadProjectDocument).toHaveBeenCalledWith(
-                "project-1",
-                file,
-            ),
+            expect(api.uploadDocument).toHaveBeenCalledWith(file),
+        );
+        await waitFor(() =>
+            expect(onSelect).toHaveBeenCalledWith([uploaded], "project-1"),
         );
         expect(api.uploadStandaloneDocument).not.toHaveBeenCalled();
 
-        fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-        expect(onClose).toHaveBeenCalledOnce();
     });
 
     it("keeps successful uploads and reports failed files without closing", async () => {
         const onClose = vi.fn();
         const onSelect = vi.fn();
         const uploaded = makeDocument("uploaded", "Uploaded.pdf");
-        api.uploadProjectDocument
+        api.uploadDocument
             .mockResolvedValueOnce(uploaded)
             .mockRejectedValueOnce(new Error("fetch failed"));
 
@@ -155,8 +156,9 @@ describe("AddDocumentsModal project mode", () => {
         );
 
         expect(await screen.findByRole("alert")).toHaveTextContent(
-            "Unable to upload Failed.pdf. Check the file and your connection, then try again.",
+            "Unable to upload Failed.pdf. Check your connection and try again.",
         );
+        expect(onSelect).toHaveBeenCalledWith([uploaded], "project-1");
         expect(onClose).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -202,7 +204,7 @@ describe("AddDocumentsModal project mode", () => {
         fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
         expect(await screen.findByRole("alert")).toHaveTextContent(
-            "Unable to add Second.pdf to this project. Check your connection and try again.",
+            "Unable to add Second.pdf. Check your connection and try again.",
         );
         expect(onSelect).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();

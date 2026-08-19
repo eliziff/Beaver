@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useState, type ComponentType } from "react";
 import { BookOpen, Link2, Loader2, RefreshCw, WandSparkles, X } from "lucide-react";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import {
     fixLibraryDocxSupras,
     inspectLibraryDocumentAutomation,
@@ -121,7 +121,7 @@ export function DocumentAutomation({
         result: DeterministicDocxActionResult,
     ) => Promise<void> | void;
 }) {
-    if (!isAnonymousMode) return null;
+    if (!isLocalMode) return null;
     const eligibleDocument = documentAutomationEligible(document)
         ? document
         : null;
@@ -257,7 +257,9 @@ function DocumentAutomationMenu({
             publishAutomationRun(docxRun(runId, tool, result));
             try {
                 await onDocumentChanged?.(result);
-            } catch {}
+            } catch {
+                // The completed automation remains available even if the view cannot refresh.
+            }
         } catch (error) {
             publishAutomationRun({
                 type: "automation_run",
@@ -291,7 +293,7 @@ function DocumentAutomationMenu({
                     event.stopPropagation();
                     void openAutomation();
                 }}
-                className="flex h-8 w-[6.5rem] items-center justify-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 text-xs font-medium text-gray-800 hover:border-gray-500 hover:bg-gray-50 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                className="flex h-8 w-[6.5rem] items-center justify-center gap-1 rounded-md border border-gray-950 bg-gray-950 px-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
             >
                 <span className="flex h-4 w-4 items-center justify-center">
                     {inspecting ? (

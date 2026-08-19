@@ -109,7 +109,7 @@ export function ProjectChoiceList({
                         <button type="button" onClick={() => void page.loadMore()}
                             disabled={page.loading}
                             className="min-h-10 w-full rounded px-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">
-                            {page.loading ? "Loadingâ€¦" : "Load more"}
+                            {page.loading ? "Loading…" : "Load more"}
                         </button>
                     )}
                     </>

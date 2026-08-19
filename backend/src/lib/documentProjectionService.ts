@@ -5,15 +5,9 @@ import {
   access,
   mkdir,
   readFile,
-  readdir,
   rm,
-  stat,
 } from "node:fs/promises";
-import { mikeLocalDataHome } from "./legalDataPath";
-import {
-  LOCAL_PDF_SOURCE_SCHEMA,
-  parseLegalPdfSourceDoc,
-} from "./legalPdfSourceDoc";
+import { parseLegalPdfSourceDoc } from "./legalPdfSourceDoc";
 import {
   configuredLegalPdfLayout,
   configuredLegalPdfOcrProvider,
@@ -32,35 +26,31 @@ import {
   runPdfVisionLayout,
 } from "./pdfVisionLayout";
 import {
-  lookupLocalPdfStructure,
-  readLocalPdfEvidenceReceipt,
-  readLocalPdfSourceDoc,
-  rehydrateLocalPdfEvidence,
-  rehydrateLocalPdfLinkEvidence,
-  verifyLocalPdfLinkEvidence,
-  type LocalPdfEvidenceReceipt,
-  type LocalPdfLinkEvidence,
-  type LocalPdfLocatorKind,
-  type LocalPdfLookupInput,
-  type LocalPdfLookupUnit,
+  lookupPdfStructure,
+  readPdfEvidenceReceipt,
+  readPdfSourceDoc,
+  rehydratePdfEvidence,
+  rehydratePdfLinkEvidence,
+  verifyPdfLinkEvidence,
+  type PdfEvidenceReceipt,
+  type PdfLinkEvidence,
+  type PdfLocatorKind,
+  type PdfLookupInput,
+  type PdfLookupUnit,
 } from "./documentProjectionPdf";
 import {
   atomicWriteProjection,
-  canonicalProjectionOptions,
   inspectPdf,
   openPdfProjection,
   pdfProjectionDirectory,
   pdfProjectionIdentity,
   pdfProjectionKey,
   projectionDirectory,
-  projectionFormatRoot,
-  projectionKey,
   publishPdfBytes,
   publishPdfProjection,
   relativeLocalDataPath,
   removePdfProjection,
   resolveLocalDataPath,
-  type PdfProjectionIdentity,
 } from "./documentProjection";
 import { openDocxSession, type DocxSession } from "./docx/session";
 import {
@@ -90,29 +80,29 @@ const STATE_SUFFIX = ".legalpdf-state.json";
 const STATE_SCHEMA = "mike.pdf_parse.v1";
 const statuses = new Set(["queued", "parsing", "ready", "degraded", "failed"]);
 
-export type LocalPdfParseStatus =
+export type PdfParseStatus =
   | "queued"
   | "parsing"
   | "ready"
   | "degraded"
   | "failed";
 
-export type LocalPdfOcrProvider = LegalPdfOcrProvider;
+export type PdfOcrProvider = LegalPdfOcrProvider;
 
 export type {
-  LocalPdfEvidenceReceipt,
-  LocalPdfLinkEvidence,
-  LocalPdfLocatorKind,
-  LocalPdfLookupInput,
-  LocalPdfLookupUnit,
+  PdfEvidenceReceipt,
+  PdfLinkEvidence,
+  PdfLocatorKind,
+  PdfLookupInput,
+  PdfLookupUnit,
 };
 
-export type LocalPdfRepairConfig = {
+export type PdfRepairConfig = {
   model: string;
   effort: string;
 };
 
-type LocalPdfRepairIdentity = {
+type PdfRepairIdentity = {
   schema_version: "legalpdf.codex.repair-identity.v1";
   prompt_version: string;
   response_schema_sha256: string;
@@ -124,19 +114,17 @@ type LocalPdfRepairIdentity = {
   repairable_diagnostics: string[];
 };
 
-export type LocalPdfParseState = {
+export type PdfParseState = {
   schema_version: typeof STATE_SCHEMA;
   job_id: string;
   document_id: string;
   version_id: string;
-  status: LocalPdfParseStatus;
-  source_path: string;
+  status: PdfParseStatus;
   source_sha256: string;
   parser_version: string;
-  parser_config_version: string;
   parser_config: {
     mode: "local" | "codex";
-    ocr_provider: LocalPdfOcrProvider | null;
+    ocr_provider: PdfOcrProvider | null;
     ocr_identity?: string;
     ocr_language?: string;
     ocr_dpi?: number;
@@ -155,7 +143,7 @@ export type LocalPdfParseState = {
     max_live_calls?: number | null;
     max_scope_pages?: number | null;
   };
-  repair_contract?: LocalPdfRepairIdentity;
+  repair_contract?: PdfRepairIdentity;
   cache_key: string;
   artifact_manifest: string;
   attempts: number;
@@ -174,37 +162,26 @@ export type LocalPdfParseState = {
   };
   structural_repair_available?: boolean;
   error?: string;
-  error_detail?: string;
 };
 
 type JsonObject = Record<string, unknown>;
 
-const dataRoot = mikeLocalDataHome();
-const scheduled = new Set<string>();
-const cancelled = new Set<string>();
-const activeControllers = new Map<string, AbortController>();
-const jobs = new Map<string, Promise<void>>();
-const jobSignals = new Map<string, AbortSignal>();
-let repairIdentityPromise: Promise<LocalPdfRepairIdentity> | null = null;
+const jobs = new Map<string, { promise: Promise<void>; controller: AbortController }>();
 const layoutIdentityPromises = new Map<string, Promise<string>>();
 const layoutApiKeys = new Map<string, UserApiKeys>();
 // ponytail: one parser at a time protects weak local machines; use a bounded
 // worker pool only if measured queue latency justifies the extra machinery.
 let workTail: Promise<unknown> = Promise.resolve();
 
-function configVersion() {
-  return process.env.MIKE_PDF_PARSE_CONFIG_VERSION?.trim() || "mike-local-v1";
-}
-
 function parserConfig(
-  ocrProvider: LocalPdfOcrProvider | null,
+  ocrProvider: PdfOcrProvider | null,
   ocrIdentity?: string,
   layout?: LegalPdfLayoutConfig | null,
   layoutIdentity?: string,
-  repairIdentity?: LocalPdfRepairIdentity | null,
-  repair?: LocalPdfRepairConfig | null,
-): LocalPdfParseState["parser_config"] {
-  const config: LocalPdfParseState["parser_config"] = {
+  repairIdentity?: PdfRepairIdentity | null,
+  repair?: PdfRepairConfig | null,
+): PdfParseState["parser_config"] {
+  const config: PdfParseState["parser_config"] = {
     mode: repair ? "codex" : "local",
     ocr_provider: ocrProvider,
     layout_provider: layout?.provider ?? null,
@@ -244,7 +221,7 @@ function parserConfig(
   };
 }
 
-function validRepairRequest(value: LocalPdfRepairConfig) {
+function validRepairRequest(value: PdfRepairConfig) {
   return (
     typeof value.model === "string" &&
     value.model === value.model.trim() &&
@@ -257,15 +234,15 @@ function validRepairRequest(value: LocalPdfRepairConfig) {
 }
 
 function preservedRepair(
-  state: LocalPdfParseState | null,
-): LocalPdfRepairConfig | null {
+  state: PdfParseState | null,
+): PdfRepairConfig | null {
   const config = state?.parser_config;
   if (config?.mode !== "codex") return null;
   const repair = { model: config.model, effort: config.effort };
   return typeof repair.model === "string" &&
     typeof repair.effort === "string" &&
-    validRepairRequest(repair as LocalPdfRepairConfig)
-    ? (repair as LocalPdfRepairConfig)
+    validRepairRequest(repair as PdfRepairConfig)
+    ? (repair as PdfRepairConfig)
     : null;
 }
 
@@ -296,27 +273,9 @@ function safeParserError(error: unknown) {
   return "PDF structural parser failed";
 }
 
-function parserErrorDetail(error: unknown) {
-  if (!(error instanceof Error)) return String(error).slice(0, 4_000);
-  const processError = error as Error & {
-    code?: unknown;
-    stderr?: unknown;
-    stdout?: unknown;
-  };
-  return [
-    error.message,
-    processError.code === undefined ? "" : `exit: ${String(processError.code)}`,
-    typeof processError.stderr === "string" ? processError.stderr : "",
-    typeof processError.stdout === "string" ? processError.stdout : "",
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .slice(0, 4_000);
-}
-
 async function detectedOcrIdentity(
-  provider: LocalPdfOcrProvider,
-  config: LocalPdfParseState["parser_config"],
+  provider: PdfOcrProvider,
+  config: PdfParseState["parser_config"],
   signal?: AbortSignal,
 ) {
   try {
@@ -351,7 +310,7 @@ async function detectedOcrIdentity(
 
 async function detectedRepairIdentity(
   signal?: AbortSignal,
-): Promise<LocalPdfRepairIdentity> {
+): Promise<PdfRepairIdentity> {
   try {
     const result = await runLegalPdf(["repair-identity"], {
       timeoutMs: 3_000,
@@ -416,25 +375,9 @@ async function detectedRepairIdentity(
   }
 }
 
-function cachedRepairIdentity() {
-  repairIdentityPromise ??= detectedRepairIdentity().catch((error) => {
-    repairIdentityPromise = null;
-    throw error;
-  });
-  return repairIdentityPromise;
-}
-
-function statePath(sourcePath: string) {
-  return `${sourcePath}${STATE_SUFFIX}`;
-}
-
-function jobKey(sourcePath: string) {
-  return path.resolve(statePath(sourcePath));
-}
-
-function artifactDirectory(_sourcePath: string, cacheKey: string) {
-  return projectionDirectory("pdf", cacheKey);
-}
+const statePath = (sourcePath: string) => `${sourcePath}${STATE_SUFFIX}`;
+const jobKey = (sourcePath: string) => path.resolve(statePath(sourcePath));
+const artifactDirectory = (cacheKey: string) => projectionDirectory("pdf", cacheKey);
 
 async function detectedLayoutIdentity(
   layout: LegalPdfLayoutConfig,
@@ -480,20 +423,13 @@ async function detectedLayoutIdentity(
   return pending;
 }
 
-async function exists(filePath: string) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const exists = (filePath: string) => access(filePath).then(() => true, () => false);
 
-function parseState(value: unknown): LocalPdfParseState {
+function parseState(value: unknown): PdfParseState {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Invalid PDF parse state");
   }
-  const state = value as Partial<LocalPdfParseState>;
+  const state = value as Partial<PdfParseState>;
   if (
     state.schema_version !== STATE_SCHEMA ||
     typeof state.job_id !== "string" ||
@@ -503,7 +439,7 @@ function parseState(value: unknown): LocalPdfParseState {
   ) {
     throw new Error("Invalid PDF parse state");
   }
-  return state as LocalPdfParseState;
+  return state as PdfParseState;
 }
 
 async function readState(sourcePath: string) {
@@ -516,7 +452,7 @@ async function readState(sourcePath: string) {
   }
 }
 
-async function writeState(sourcePath: string, state: LocalPdfParseState) {
+async function writeState(sourcePath: string, state: PdfParseState) {
   if (!(await exists(sourcePath))) return false;
   await atomicWriteProjection(
     statePath(sourcePath),
@@ -529,7 +465,6 @@ function projectionIdentity(
   documentId: string,
   versionId: string,
   sourceSha256: string,
-  version: string,
   config: object,
   parserVersion = LEGAL_PDF_PARSER_VERSION,
 ) {
@@ -538,13 +473,13 @@ function projectionIdentity(
     versionId,
     sourceSha256,
     compiler: { name: "legalpdf", version: parserVersion },
-    options: { parser_config_version: version, parser_config: config },
+    options: { parser_config: config },
   });
 }
 
-function stateProjectionIdentity(state: LocalPdfParseState) {
+function stateProjectionIdentity(state: PdfParseState) {
   return projectionIdentity(state.document_id, state.version_id, state.source_sha256,
-    state.parser_config_version, state.parser_config, state.parser_version);
+    state.parser_config, state.parser_version);
 }
 
 function newQueuedState(params: {
@@ -552,13 +487,13 @@ function newQueuedState(params: {
   versionId: string;
   sourcePath: string;
   sourceSha256: string;
-  ocrProvider: LocalPdfOcrProvider | null;
+  ocrProvider: PdfOcrProvider | null;
   ocrIdentity?: string;
   layout: LegalPdfLayoutConfig | null;
   layoutIdentity?: string;
-  repairIdentity: LocalPdfRepairIdentity | null;
-  repair?: LocalPdfRepairConfig | null;
-  previous?: LocalPdfParseState | null;
+  repairIdentity: PdfRepairIdentity | null;
+  repair?: PdfRepairConfig | null;
+  previous?: PdfParseState | null;
 }) {
   const now = new Date().toISOString();
   const config = parserConfig(
@@ -569,12 +504,10 @@ function newQueuedState(params: {
     params.repairIdentity,
     params.repair,
   );
-  const version = configVersion();
   const key = pdfProjectionKey(projectionIdentity(
     params.documentId,
     params.versionId,
     params.sourceSha256,
-    version,
     config,
   ));
   return {
@@ -583,67 +516,26 @@ function newQueuedState(params: {
     document_id: params.documentId,
     version_id: params.versionId,
     status: "queued",
-    source_path: relativeLocalDataPath(params.sourcePath),
     source_sha256: params.sourceSha256,
     parser_version: LEGAL_PDF_PARSER_VERSION,
-    parser_config_version: version,
     parser_config: config,
     ...(params.repairIdentity
       ? { repair_contract: params.repairIdentity }
       : {}),
     cache_key: key,
     artifact_manifest: relativeLocalDataPath(
-      path.join(artifactDirectory(params.sourcePath, key), "document.json"),
+      path.join(artifactDirectory(key), "document.json"),
     ),
     attempts: params.previous?.attempts ?? 0,
     queued_at: now,
     updated_at: now,
     interrupted_at: params.previous?.interrupted_at,
-  } satisfies LocalPdfParseState;
-}
-
-function rekeyOcrState(
-  sourcePath: string,
-  state: LocalPdfParseState,
-  identity: string,
-) {
-  if (state.parser_config.ocr_identity === identity) return state;
-  const now = new Date().toISOString();
-  const config = { ...state.parser_config, ocr_identity: identity };
-  const key = pdfProjectionKey(projectionIdentity(
-    state.document_id,
-    state.version_id,
-    state.source_sha256,
-    state.parser_config_version,
-    config,
-    state.parser_version,
-  ));
-  return {
-    ...state,
-    job_id: crypto.randomUUID(),
-    status: "queued",
-    parser_config: config,
-    cache_key: key,
-    artifact_manifest: relativeLocalDataPath(
-      path.join(artifactDirectory(sourcePath, key), "document.json"),
-    ),
-    queued_at: now,
-    updated_at: now,
-    started_at: undefined,
-    completed_at: undefined,
-    engine_status: undefined,
-    page_count: undefined,
-    counts: undefined,
-    diagnostic_count: undefined,
-    diagnostic_summary: undefined,
-    structural_repair_available: undefined,
-    error: undefined,
-  } satisfies LocalPdfParseState;
+  } satisfies PdfParseState;
 }
 
 async function requeueInvalidPublication(
   sourcePath: string,
-  state: LocalPdfParseState,
+  state: PdfParseState,
 ) {
   const now = new Date().toISOString();
   const queued = {
@@ -661,35 +553,14 @@ async function requeueInvalidPublication(
     diagnostic_summary: undefined,
     structural_repair_available: undefined,
     error: undefined,
-  } satisfies LocalPdfParseState;
+  } satisfies PdfParseState;
   await writeState(sourcePath, queued);
   schedule(sourcePath);
   return queued;
 }
 
-function jsonLines(raw: string) {
-  return raw
-    .split(/\r?\n/u)
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as JsonObject);
-}
-
-function publishedArtifactPath(output: string, value: unknown, name: string) {
-  if (typeof value !== "string" || !value) {
-    throw new Error(`PDF parser did not publish ${name} artifacts`);
-  }
-  const resolved = path.resolve(output, value);
-  const relative = path.relative(output, resolved);
-  if (
-    !relative ||
-    relative === ".." ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative)
-  ) {
-    throw new Error(`PDF parser published an unsafe ${name} artifact path`);
-  }
-  return resolved;
-}
+const jsonLines = (raw: string) => raw.split(/\r?\n/u).filter(Boolean)
+  .map((line) => JSON.parse(line) as JsonObject);
 
 function objectValue(value: unknown, label: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -698,35 +569,8 @@ function objectValue(value: unknown, label: string) {
   return value as JsonObject;
 }
 
-function jsonObject(raw: string, label: string) {
-  return objectValue(JSON.parse(raw) as unknown, label);
-}
-
-function compactPage(row: JsonObject) {
-  const lines = Array.isArray(row.lines)
-    ? row.lines.map((value) => {
-        const line = objectValue(value, "PDF page line");
-        return {
-          reading_order: line.reading_order,
-          text: line.text,
-        };
-      })
-    : [];
-  return {
-    id: row.id,
-    index: row.index,
-    number: row.number,
-    printed_label: row.printed_label,
-    printed_label_source: row.printed_label_source,
-    source: row.source,
-    text_quality: row.text_quality,
-    lines,
-  };
-}
-
 async function validatePublishedArtifacts(
-  sourcePath: string,
-  state: LocalPdfParseState,
+  state: PdfParseState,
 ) {
   try {
     const identity = stateProjectionIdentity(state);
@@ -745,10 +589,9 @@ async function validatePublishedArtifacts(
 }
 
 async function publishCompactArtifacts(
-  sourcePath: string,
-  state: LocalPdfParseState,
+  state: PdfParseState,
 ) {
-  const output = artifactDirectory(sourcePath, state.cache_key);
+  const output = artifactDirectory(state.cache_key);
   const manifestPath = path.join(output, "document.json");
   const manifest = JSON.parse(
     await readFile(manifestPath, "utf8"),
@@ -789,57 +632,7 @@ async function publishCompactArtifacts(
       throw new Error("PDF Codex repair provenance does not match its job");
     }
   }
-  const artifacts =
-    manifest.artifacts && typeof manifest.artifacts === "object"
-      ? (manifest.artifacts as JsonObject)
-      : {};
-  const pagesPath = publishedArtifactPath(
-    output,
-    artifacts.pages,
-    "page",
-  );
-  const pages = jsonLines(await readFile(pagesPath, "utf8")).map(compactPage);
-  await atomicWriteProjection(
-    pagesPath,
-    pages.map((row) => JSON.stringify(row)).join("\n") +
-      (pages.length ? "\n" : ""),
-  );
   const identity = stateProjectionIdentity(state);
-  await atomicWriteProjection(
-    path.join(output, "parser-config.json"),
-    `${JSON.stringify(
-      {
-        parser_version: state.parser_version,
-        parser_config_version: state.parser_config_version,
-        parser_config: state.parser_config,
-        cache_key: state.cache_key,
-        source_sha256: state.source_sha256,
-        projection_options: identity.options,
-      },
-      null,
-      2,
-    )}\n`,
-  );
-  manifest.artifacts = {
-    ...artifacts,
-    parser_config: "parser-config.json",
-  };
-  if (
-    manifest.metadata &&
-    typeof manifest.metadata === "object" &&
-    !Array.isArray(manifest.metadata)
-  ) {
-    const pairing = (manifest.metadata as JsonObject).pairing;
-    if (pairing && typeof pairing === "object" && !Array.isArray(pairing)) {
-      delete (pairing as JsonObject).created_at;
-      delete (pairing as JsonObject).elapsed_seconds;
-    }
-  }
-  delete manifest.artifact_profile;
-  manifest.engine_schema_version = LEGAL_PDF_DOCUMENT_SCHEMA;
-  manifest.schema_version = LOCAL_PDF_SOURCE_SCHEMA;
-  manifest.artifact_profile = "compact-source";
-  await atomicWriteProjection(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await publishPdfProjection(identity);
   return manifest;
 }
@@ -894,30 +687,22 @@ function structuralRepairAvailable(
   });
 }
 
-async function processJob(sourcePath: string) {
+async function processJob(sourcePath: string, controller: AbortController) {
   const key = jobKey(sourcePath);
-  if (cancelled.has(key)) return;
-  const controller = new AbortController();
-  const callerSignal = jobSignals.get(key);
-  const abortFromCaller = () => controller.abort(callerSignal?.reason);
-  callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
-  activeControllers.set(key, controller);
-  let parsing: LocalPdfParseState | null = null;
+  if (controller.signal.aborted) return;
+  let parsing: PdfParseState | null = null;
   try {
-    let queued = await readState(sourcePath);
-    if (!queued || queued.status !== "queued" || cancelled.has(key)) return;
+    const queued = await readState(sourcePath);
+    if (!queued || queued.status !== "queued" || controller.signal.aborted) return;
     if (queued.parser_config.ocr_provider) {
       const identity = await detectedOcrIdentity(
         queued.parser_config.ocr_provider,
         queued.parser_config,
         controller.signal,
       );
-      if (cancelled.has(key)) return;
-      const rekeyed = rekeyOcrState(sourcePath, queued, identity);
-      if (rekeyed !== queued) {
-        queued = rekeyed;
-        if (!(await writeState(sourcePath, queued))) return;
-      }
+      if (controller.signal.aborted) return;
+      if (queued.parser_config.ocr_identity !== identity)
+        throw new Error("OCR runtime changed after the parse was queued");
     }
     const started = new Date().toISOString();
     parsing = {
@@ -928,10 +713,10 @@ async function processJob(sourcePath: string) {
       updated_at: started,
       error: undefined,
     };
-    const output = artifactDirectory(sourcePath, parsing.cache_key);
+    const output = artifactDirectory(parsing.cache_key);
     await inspectPdf(sourcePath, { expectedSha256: queued.source_sha256,
       signal: controller.signal });
-    if (cancelled.has(key)) return;
+    if (controller.signal.aborted) return;
     if (!(await writeState(sourcePath, parsing))) return;
     await rm(output, { recursive: true, force: true });
     const configuredTimeout = Number(process.env.MIKE_PDF_PARSE_TIMEOUT_MS);
@@ -1040,7 +825,7 @@ async function processJob(sourcePath: string) {
         signal: controller.signal,
       });
     }
-    if (cancelled.has(key)) return;
+    if (controller.signal.aborted) return;
     if (!(await exists(sourcePath)) || !(await inspectPdf(sourcePath,
       { expectedSha256: parsing.source_sha256 }).then(() => true, () => false))) {
       await Promise.all([
@@ -1049,8 +834,8 @@ async function processJob(sourcePath: string) {
       ]);
       return;
     }
-    const manifest = await publishCompactArtifacts(sourcePath, parsing);
-    if (cancelled.has(key)) return;
+    const manifest = await publishCompactArtifacts(parsing);
+    if (controller.signal.aborted) return;
     const diagnostics = await diagnosticSummary(
       output,
       parsing.repair_contract?.repairable_diagnostics,
@@ -1066,7 +851,7 @@ async function processJob(sourcePath: string) {
             ),
           )
         : {};
-    if (cancelled.has(key)) return;
+    if (controller.signal.aborted) return;
     const completedState = {
       ...parsing,
       status: engineStatus === "ready" ? "ready" : "degraded",
@@ -1081,14 +866,14 @@ async function processJob(sourcePath: string) {
       structural_repair_available: diagnostics.structuralRepairAvailable,
       completed_at: completed,
       updated_at: completed,
-    } satisfies LocalPdfParseState;
-    if (!(await validatePublishedArtifacts(sourcePath, completedState))) {
+    } satisfies PdfParseState;
+    if (!(await validatePublishedArtifacts(completedState))) {
       await rm(path.join(output, "document.json"), { force: true });
       throw new Error("PDF parser published incomplete or corrupt artifacts");
     }
     await writeState(sourcePath, completedState);
   } catch (error) {
-    if (cancelled.has(key) || controller.signal.aborted) return;
+    if (controller.signal.aborted) return;
     if (!parsing) {
       const queued = await readState(sourcePath);
       if (!queued) return;
@@ -1102,7 +887,7 @@ async function processJob(sourcePath: string) {
         error: undefined,
       };
     }
-    await rm(artifactDirectory(sourcePath, parsing.cache_key), {
+    await rm(artifactDirectory(parsing.cache_key), {
       recursive: true,
       force: true,
     });
@@ -1130,39 +915,31 @@ async function processJob(sourcePath: string) {
       ...parsing,
       status: "failed",
       error: safeParserError(error),
-      error_detail: parserErrorDetail(error),
       completed_at: failed,
       updated_at: failed,
     });
   } finally {
-    callerSignal?.removeEventListener("abort", abortFromCaller);
     layoutApiKeys.delete(key);
-    if (activeControllers.get(key) === controller) {
-      activeControllers.delete(key);
-    }
   }
 }
 
 function schedule(sourcePath: string) {
   const key = jobKey(sourcePath);
-  if (scheduled.has(key)) return;
-  scheduled.add(key);
-  const job = workTail
+  if (jobs.has(key)) return;
+  const controller = new AbortController();
+  const promise = workTail
     .catch(() => undefined)
-    .then(() => processJob(sourcePath))
+    .then(() => processJob(sourcePath, controller))
     .catch((error) => {
-      console.error("[local-library] PDF parse worker failed", {
+      console.error("[pdf-projection] PDF parse worker failed", {
         error: safeParserError(error),
       });
     })
     .finally(() => {
-      scheduled.delete(key);
       jobs.delete(key);
-      jobSignals.delete(key);
-      cancelled.delete(key);
     });
-  jobs.set(key, job);
-  workTail = job;
+  jobs.set(key, { promise, controller });
+  workTail = promise;
 }
 
 async function queuePdf(params: {
@@ -1171,10 +948,10 @@ async function queuePdf(params: {
   sourcePath: string;
   sourceSha256?: string;
   force?: boolean;
-  ocrProvider?: LocalPdfOcrProvider | null;
+  ocrProvider?: PdfOcrProvider | null;
   layout?: LegalPdfLayoutConfig | null;
   apiKeys?: UserApiKeys;
-  repair?: LocalPdfRepairConfig | null;
+  repair?: PdfRepairConfig | null;
   signal?: AbortSignal;
 }) {
   throwIfAborted(params.signal);
@@ -1189,15 +966,11 @@ async function queuePdf(params: {
   })).sourceSha256;
   let current = await readState(params.sourcePath);
   const key = jobKey(params.sourcePath);
-  const activeStatus =
-    current?.status === "queued" || current?.status === "parsing";
-  const hasOwner =
-    scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
-  if (current && activeStatus && hasOwner) {
+  const active = current?.status === "queued" || current?.status === "parsing";
+  if (current && active && jobs.has(key)) {
     if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
     return current;
   }
-  const unownedActive = Boolean(current && activeStatus);
   let repair = params.repair === undefined ? preservedRepair(current) : null;
   if (params.repair) {
     if (!validRepairRequest(params.repair)) {
@@ -1211,7 +984,7 @@ async function queuePdf(params: {
       : params.ocrProvider;
   const layout =
     params.layout === undefined ? configuredLegalPdfLayout() : params.layout;
-  let repairIdentity: LocalPdfRepairIdentity | null;
+  let repairIdentity: PdfRepairIdentity | null;
   let ocrIdentity: string | undefined;
   let layoutIdentity: string | undefined;
   try {
@@ -1229,14 +1002,8 @@ async function queuePdf(params: {
       ? await detectedLayoutIdentity(layout, params.signal)
       : undefined;
   } catch (error) {
-    if (
-      current &&
-      unownedActive &&
-      (scheduled.has(key) || jobs.has(key) || activeControllers.has(key))
-    ) {
-      return current;
-    }
-    if (current && unownedActive) {
+    if (current && active && jobs.has(key)) return current;
+    if (current && active) {
       const failed = new Date().toISOString();
       current = {
         ...current,
@@ -1250,40 +1017,9 @@ async function queuePdf(params: {
     }
     throw error;
   }
-  const ownerAfterProbes =
-    scheduled.has(key) || jobs.has(key) || activeControllers.has(key);
-  if (current && activeStatus && ownerAfterProbes) {
+  if (current && active && jobs.has(key)) {
     if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
     return current;
-  }
-  const hasNoOwner = !ownerAfterProbes;
-  const recoverOrphan = Boolean(
-    current?.status === "parsing" && unownedActive && hasNoOwner,
-  );
-  const refreshRepairContract = Boolean(
-    repairIdentity &&
-    current &&
-    hasNoOwner &&
-    !isDeepStrictEqual(current.repair_contract, repairIdentity),
-  );
-  if (current && (recoverOrphan || refreshRepairContract)) {
-    const updated = new Date().toISOString();
-    current = {
-      ...current,
-      ...(recoverOrphan
-        ? {
-            status: "queued" as const,
-            queued_at: updated,
-            interrupted_at: updated,
-            error: undefined,
-          }
-        : {}),
-      ...(refreshRepairContract && repairIdentity
-        ? { repair_contract: repairIdentity }
-        : {}),
-      updated_at: updated,
-    };
-    await writeState(params.sourcePath, current);
   }
   const candidate = newQueuedState({
     ...params,
@@ -1301,22 +1037,16 @@ async function queuePdf(params: {
     current.cache_key === candidate.cache_key &&
     current.source_sha256 === sourceSha256
   ) {
-    if (current.status === "queued" || current.status === "parsing") {
-      schedule(params.sourcePath);
-      return current;
-    }
     if (
       !params.force &&
       (current.status === "ready" || current.status === "degraded") &&
-      (await validatePublishedArtifacts(params.sourcePath, current))
+      (await validatePublishedArtifacts(current))
     ) {
       return current;
     }
     if (!params.force && current.status === "failed") return current;
   }
-  cancelled.delete(jobKey(params.sourcePath));
   if (params.apiKeys) layoutApiKeys.set(key, params.apiKeys);
-  if (params.signal) jobSignals.set(key, params.signal);
   await writeState(params.sourcePath, candidate);
   schedule(params.sourcePath);
   return candidate;
@@ -1344,7 +1074,7 @@ async function parsePdf(
     current &&
     params.layout === undefined &&
     (current.status === "ready" || current.status === "degraded") &&
-    (await validatePublishedArtifacts(params.sourcePath, current))
+    (await validatePublishedArtifacts(current))
   ) {
     return current;
   }
@@ -1354,7 +1084,7 @@ async function parsePdf(
     force: current?.status === "failed",
   });
   if (queued.status === "ready" || queued.status === "degraded") return queued;
-  const job = jobs.get(jobKey(params.sourcePath));
+  const job = jobs.get(jobKey(params.sourcePath))?.promise;
   if (job) {
     await new Promise<void>((resolve, reject) => {
       const abort = () => reject(abortError());
@@ -1368,61 +1098,28 @@ async function parsePdf(
   return (await pdfState(params.sourcePath)) ?? queued;
 }
 
-/**
- * Light parse-state summary for library listings: reads the state file
- * only — no artifact validation, no diagnostics load, no writes — so a
- * list of N documents costs N stat-reads, not N artifact walks. The full
- * `pdfState` stays the source of truth for the per-document
- * inspector.
- */
-async function peekPdfState(sourcePath: string) {
-  const state = await readState(sourcePath);
-  if (!state) return null;
-  return {
-    status: state.status,
-    error: state.error ?? null,
-    attempts: state.attempts,
-    queued_at: state.queued_at,
-    updated_at: state.updated_at,
-    completed_at: state.completed_at ?? null,
-    engine_status: state.engine_status ?? null,
-    page_count: state.page_count ?? null,
-    diagnostic_count: state.diagnostic_count ?? null,
-    structural_repair_available: state.structural_repair_available ?? false,
-  };
-}
-
 async function pdfState(
   sourcePath: string,
   options?: { validatePublication?: boolean },
 ) {
   let state = await readState(sourcePath);
   if (!state) return null;
-  const storedRepairContract = state.repair_contract;
-  let repairContract = state.repair_contract;
+  if (["queued", "parsing"].includes(state.status) &&
+      !jobs.has(jobKey(sourcePath))) {
+    void queuePdf({
+      documentId: state.document_id,
+      versionId: state.version_id,
+      sourcePath,
+      sourceSha256: state.source_sha256,
+    }).catch(() => undefined);
+  }
   let diagnostics: JsonObject[] = [];
   let diagnosticsLoaded = false;
-  if (state.status === "ready" || state.status === "degraded") {
-    try {
-      const latest = await cachedRepairIdentity();
-      repairContract = latest;
-      if (!isDeepStrictEqual(state.repair_contract, latest)) {
-        state = {
-          ...state,
-          repair_contract: latest,
-          updated_at: new Date().toISOString(),
-        };
-        await writeState(sourcePath, state);
-      }
-    } catch {
-      repairContract = undefined;
-    }
-  }
   if (
     options?.validatePublication !== false &&
     (state.status === "ready" || state.status === "degraded")
   ) {
-    if (!(await validatePublishedArtifacts(sourcePath, state))) {
+    if (!(await validatePublishedArtifacts(state))) {
       state = await requeueInvalidPublication(sourcePath, state);
       return {
         ...state,
@@ -1434,7 +1131,7 @@ async function pdfState(
       diagnostics = jsonLines(
         await readFile(
           path.join(
-            artifactDirectory(sourcePath, state.cache_key),
+            artifactDirectory(state.cache_key),
             "diagnostics.jsonl",
           ),
           "utf8",
@@ -1450,90 +1147,23 @@ async function pdfState(
     structural_repair_available: diagnosticsLoaded
       ? structuralRepairAvailable(
           diagnostics,
-          repairContract?.repairable_diagnostics,
+          state.repair_contract?.repairable_diagnostics,
         )
-      : repairContract &&
-          isDeepStrictEqual(storedRepairContract, repairContract)
-        ? state.structural_repair_available
-        : false,
+      : state.structural_repair_available ?? false,
     diagnostics,
   };
 }
 
 async function removePdf(sourcePath: string) {
   const key = jobKey(sourcePath);
-  const wasScheduled = scheduled.has(key);
-  const active = activeControllers.get(key);
   const job = jobs.get(key);
-  cancelled.add(key);
-  active?.abort();
-  await job?.catch(() => undefined);
+  job?.controller.abort();
+  await job?.promise.catch(() => undefined);
   const state = await readState(sourcePath);
   await rm(statePath(sourcePath), { force: true });
   if (state) await removePdfProjection(stateProjectionIdentity(state));
-  if (!wasScheduled) cancelled.delete(key);
 }
 
-async function stateFiles(directory: string): Promise<string[]> {
-  let entries;
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-  const nested = await Promise.all(
-    entries.map((entry) => {
-      const entryPath = path.join(directory, entry.name);
-      return entry.isDirectory()
-        ? stateFiles(entryPath)
-        : Promise.resolve(entry.name.endsWith(STATE_SUFFIX) ? [entryPath] : []);
-    }),
-  );
-  return nested.flat();
-}
-
-async function resume() {
-  for (const filePath of await stateFiles(path.join(dataRoot, "files"))) {
-    try {
-      const sourcePath = filePath.slice(0, -STATE_SUFFIX.length);
-      const state = await readState(sourcePath);
-      if (!state) continue;
-      if (!(await exists(sourcePath))) {
-        const now = new Date().toISOString();
-        await atomicWriteProjection(
-          filePath,
-          `${JSON.stringify(
-            {
-              ...state,
-              status: "failed",
-              error: "PDF source is missing",
-              completed_at: now,
-              updated_at: now,
-            },
-            null,
-            2,
-          )}\n`,
-        );
-        continue;
-      }
-      if (!["queued", "parsing"].includes(state.status)) continue;
-      await queuePdf({
-        documentId: state.document_id,
-        versionId: state.version_id,
-        sourcePath,
-        sourceSha256: state.source_sha256,
-      });
-    } catch (error) {
-      console.error("[local-library] Could not resume PDF parse state", {
-        filePath,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-}
-
-const PROJECTION_SCHEMA = "beaver.document-projection.v1";
 const MAX_DOCUMENT_INPUT_BYTES = 100 * 1024 * 1024;
 const MAX_COMPRESSED_PACKAGE_BYTES = 50 * 1024 * 1024;
 const MAX_EXPANDED_PACKAGE_BYTES = 256 * 1024 * 1024;
@@ -1547,8 +1177,7 @@ export type DocumentProjectionInput = Readonly<{
   fileType: string;
   filename?: string;
   sourceSha256?: string | null;
-  bytes?: Buffer;
-  localPath?: string;
+  bytes: Buffer;
 }>;
 
 export type DocumentReadProjection =
@@ -1573,43 +1202,12 @@ export type DocumentReadProjection =
       tableCells: SpreadsheetLlmStructure["tableCells"];
     };
 
-type ProjectionIdentity = {
-  schema: typeof PROJECTION_SCHEMA;
-  document_id: string;
-  version_id: string;
-  source_sha256: string;
-  compiler_version: string;
-  material_options: unknown;
-};
-
-type CachedReadProjection =
-  | {
-      kind: "source-doc" | "pdf-artifact";
-      sourceDoc: Pick<
-        SourceDoc,
-        "provider" | "id" | "url" | "docType" | "text" | "blocks"
-      >;
-    }
-  | { kind: "spreadsheet-grid"; grid: SpreadsheetLlmStructure };
-
 function abortError() {
   return new DOMException("Document projection aborted", "AbortError");
 }
 
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw abortError();
-}
-
-function compilerVersion(fileType: string) {
-  if (fileType === "pdf") {
-    return `legal-pdf-parser@${LEGAL_PDF_PARSER_VERSION}+beaver-pdf-source@1`;
-  }
-  if (fileType === "docx") return "beaver-docx-session@1";
-  if (isSpreadsheetDocumentType(fileType)) return "beaver-spreadsheet-grid@2";
-  if (isPlainTextDocumentType(fileType)) return "beaver-plain-text@1";
-  if (fileType === "eml") return "beaver-email-text@1";
-  if (fileType === "pptx") return "beaver-presentation-text@1";
-  return "beaver-office-pdf-text@2";
 }
 
 function validProjectionId(value: string) {
@@ -1629,18 +1227,8 @@ async function boundedSource(
     throw new Error("Document projection requires valid document and version IDs");
   }
   throwIfAborted(signal);
-  if (input.localPath) relativeLocalDataPath(input.localPath);
   const fileType = input.fileType.trim().toLowerCase();
-  const bytes = input.bytes ?? await (async () => {
-    if (!input.localPath) throw new Error("Document projection source is missing");
-    const filename = path.resolve(input.localPath);
-    relativeLocalDataPath(filename);
-    const info = await stat(filename);
-    if (!info.isFile() || info.size <= 0 || info.size > MAX_DOCUMENT_INPUT_BYTES) {
-      throw new Error("Document projection input exceeds the read limit");
-    }
-    return readFile(filename);
-  })();
+  const bytes = input.bytes;
   if (!bytes.length || bytes.length > MAX_DOCUMENT_INPUT_BYTES) {
     throw new Error("Document projection input exceeds the read limit");
   }
@@ -1680,55 +1268,6 @@ async function assertBoundedSpreadsheetPackage(bytes: Buffer, fileType: string) 
   }
 }
 
-function projectionCacheFile(key: string) {
-  return path.join(projectionDirectory("read", key), "projection.json");
-}
-
-async function cachedPdfSource(
-  input: DocumentProjectionInput,
-  bytes: Buffer,
-  sourceSha256: string,
-  signal?: AbortSignal,
-) {
-  if (input.localPath) return input.localPath;
-  return publishPdfBytes(bytes, sourceSha256, signal);
-}
-
-async function readProjectionCache(
-  key: string,
-  identity: ProjectionIdentity,
-): Promise<CachedReadProjection | null> {
-  const filename = projectionCacheFile(key);
-  try {
-    const info = await stat(filename);
-    if (!info.isFile() || info.size > MAX_PROJECTION_OUTPUT_BYTES) return null;
-    const parsed = JSON.parse(await readFile(filename, "utf8")) as {
-      identity?: unknown;
-      projection?: CachedReadProjection;
-      projection_sha256?: string;
-    };
-    return isDeepStrictEqual(parsed.identity, identity) && parsed.projection &&
-      parsed.projection_sha256 === sha256(JSON.stringify(parsed.projection))
-      ? parsed.projection
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeProjectionCache(
-  key: string,
-  identity: ProjectionIdentity,
-  projection: CachedReadProjection,
-) {
-  const serialized = `${JSON.stringify({ identity, projection,
-    projection_sha256: sha256(JSON.stringify(projection)) })}\n`;
-  if (Buffer.byteLength(serialized) > MAX_PROJECTION_OUTPUT_BYTES) {
-    throw new Error("Document projection output exceeds the cache limit");
-  }
-  await atomicWriteProjection(projectionCacheFile(key), serialized);
-}
-
 function sourceDocProjection(
   kind: "source-doc" | "pdf-artifact",
   doc: SourceDoc,
@@ -1737,21 +1276,6 @@ function sourceDocProjection(
     throw new Error("Document projection output exceeds the read limit");
   }
   return { kind, text: doc.text, sourceDoc: doc, tableCells: [] };
-}
-
-function restoreProjection(value: CachedReadProjection): DocumentReadProjection {
-  if (value.kind === "spreadsheet-grid") {
-    return {
-      kind: value.kind,
-      text: value.grid.text,
-      grid: value.grid,
-      tableCells: value.grid.tableCells,
-    };
-  }
-  return sourceDocProjection(
-    value.kind,
-    createSourceDoc(value.sourceDoc),
-  );
 }
 
 async function compileReadProjection(
@@ -1801,7 +1325,7 @@ async function compileReadProjection(
   }
   let doc: SourceDoc;
   if (fileType === "pdf") {
-    const sourcePath = await cachedPdfSource(input, bytes, sourceSha256, signal);
+    const sourcePath = await publishPdfBytes(bytes, sourceSha256, signal);
     await parsePdf({
       documentId: input.documentId,
       versionId: input.versionId,
@@ -1809,7 +1333,7 @@ async function compileReadProjection(
       sourceSha256,
       signal,
     });
-    doc = (await readLocalPdfSourceDoc(sourcePath)) ??
+    doc = (await readPdfSourceDoc(sourcePath)) ??
       await parseLegalPdfSourceDoc(bytes, signal);
     return sourceDocProjection("pdf-artifact", doc);
   }
@@ -1817,7 +1341,7 @@ async function compileReadProjection(
   if (isPlainTextDocumentType(fileType)) {
     text = bytes.toString("utf8").replace(/^\uFEFF/u, "");
   } else if (fileType === "eml") {
-    text = extractEmailText(bytes);
+    text = await extractEmailText(bytes);
   } else if (fileType === "pptx") {
     text = await extractPresentationText(bytes);
   } else if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType)) {
@@ -1828,20 +1352,6 @@ async function compileReadProjection(
   doc = createSourceDoc({ provider: null,
     id: `${input.documentId}:${input.versionId}`, text, blocks: [] });
   return sourceDocProjection("source-doc", doc);
-}
-
-function cacheableProjection(
-  projection: DocumentReadProjection,
-): CachedReadProjection | null {
-  if (projection.kind === "docx-session") return null;
-  if (projection.kind === "spreadsheet-grid") {
-    return { kind: projection.kind, grid: projection.grid };
-  }
-  const { provider, id, url, docType, text, blocks } = projection.sourceDoc;
-  return {
-    kind: projection.kind,
-    sourceDoc: { provider, id, url, docType, text, blocks },
-  };
 }
 
 function assertProjectionOutput(projection: DocumentReadProjection) {
@@ -1855,28 +1365,16 @@ function assertProjectionOutput(projection: DocumentReadProjection) {
 
 async function read(
   input: DocumentProjectionInput,
-  options: { signal?: AbortSignal; material?: Record<string, unknown> } = {},
+  options: { signal?: AbortSignal } = {},
 ) {
   const source = await boundedSource(input, options.signal);
-  const identity: ProjectionIdentity = {
-    schema: PROJECTION_SCHEMA,
-    document_id: input.documentId,
-    version_id: input.versionId,
-    source_sha256: source.sourceSha256,
-    compiler_version: compilerVersion(source.fileType),
-    material_options: canonicalProjectionOptions(options.material ?? {}),
-  };
-  const key = projectionKey("read", identity);
+  const key = `${input.documentId}\0${input.versionId}\0${source.sourceSha256}`;
   let pending = projectionMemory.get(key);
   if (!pending) {
     pending = (async () => {
-      const cached = await readProjectionCache(key, identity);
-      if (cached) return restoreProjection(cached);
       const projection = await compileReadProjection(input, source, options.signal);
       assertProjectionOutput(projection);
       throwIfAborted(options.signal);
-      const serializable = cacheableProjection(projection);
-      if (serializable) await writeProjectionCache(key, identity, serializable);
       return projection;
     })().catch((error) => {
       projectionMemory.delete(key);
@@ -1892,16 +1390,6 @@ async function read(
   return result;
 }
 
-async function clear(input?: Pick<DocumentProjectionInput, "documentId" | "versionId">) {
-  projectionMemory.clear();
-  if (!input) {
-    await rm(projectionFormatRoot("read"), {
-      recursive: true,
-      force: true,
-    });
-  }
-}
-
 /**
  * Beaver's only document-projection entrypoint.
  *
@@ -1913,17 +1401,15 @@ async function clear(input?: Pick<DocumentProjectionInput, "documentId" | "versi
  */
 export const documentProjectionService = Object.freeze({
   read,
-  clear,
   queuePdf,
   parsePdf,
-  peekPdfState,
+  publishPdf: (bytes: Buffer, expected?: string, signal?: AbortSignal) =>
+    publishPdfBytes(bytes, expected ?? sha256(bytes), signal),
   pdfState,
   removePdf,
-  resume,
-  readPdfSourceDoc: readLocalPdfSourceDoc,
-  lookupPdf: lookupLocalPdfStructure,
-  readPdfEvidence: readLocalPdfEvidenceReceipt,
-  rehydratePdfEvidence: rehydrateLocalPdfEvidence,
-  verifyPdfEvidence: verifyLocalPdfLinkEvidence,
-  rehydratePdfLink: rehydrateLocalPdfLinkEvidence,
+  lookupPdf: lookupPdfStructure,
+  readPdfEvidence: readPdfEvidenceReceipt,
+  rehydratePdfEvidence: rehydratePdfEvidence,
+  verifyPdfEvidence: verifyPdfLinkEvidence,
+  rehydratePdfLink: rehydratePdfLinkEvidence,
 });

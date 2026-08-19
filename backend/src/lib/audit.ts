@@ -47,6 +47,7 @@ export async function recordAudit(db: Db, event: AuditEventInput) {
 
 type TurnEvent = {
   type?: string;
+  action?: string;
   filename?: string;
   document_id?: string;
   title?: string;
@@ -88,9 +89,9 @@ export async function recordChatTurn(
       continue;
     }
     const action =
-      event.type === "doc_created"
+      event.type === "document_artifact" && event.action === "created"
         ? "document.generated"
-        : event.type === "doc_edited"
+        : event.type === "document_artifact" && event.action === "edited"
           ? "document.edited"
           : event.type === "workflow_applied"
             ? "workflow.applied"

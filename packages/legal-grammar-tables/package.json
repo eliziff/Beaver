@@ -1,7 +1,7 @@
 {
   "name": "@beaver/legal-grammar-tables",
   "version": "1.0.0",
-  "description": "Portable legal citation, pinpoint, footnote, and reference grammars",
+  "description": "Portable legal citation, pinpoint, footnote, provision, and reference grammars",
   "scripts": {
     "check": "node check.mjs",
     "sync": "node check.mjs --sync"

@@ -133,14 +133,10 @@ describe("local CourtListener bulk data", () => {
           ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const {
-      getCourtlistenerCaseOpinions,
-      getCourtlistenerOpinionDocumentText,
-      getCourtlistenerOpinionStructure,
-      lookupCourtlistenerOpinionLocator,
-      searchCourtlistenerCaseLaw,
-    } = await import("../courtlistener");
-    const fetchedCase = await getCourtlistenerCaseOpinions({
+    const { courtlistenerLegalSourceProvider } = await import(
+      "../legalSources/courtlistener"
+    );
+    const fetchedCase = await courtlistenerLegalSourceProvider.caseOpinions({
       clusterId: 42,
       maxChars: 1000,
     });
@@ -150,34 +146,20 @@ describe("local CourtListener bulk data", () => {
     expect(opinion.text).toContain("Canonical native opinion text");
     expect(opinion.text).not.toContain("Stale plain rendition");
     expect(opinion.text!.length).toBeLessThan(canonicalOpinionText.length);
-    expect(getCourtlistenerOpinionDocumentText(opinion)).toContain(
-      canonicalOpinionText,
-    );
-    const opinionStructure = getCourtlistenerOpinionStructure(opinion);
-    expect(opinionStructure?.text).toContain(canonicalOpinionText);
-    expect(
-      opinionStructure?.blocks
-        .filter(({ kind }) => kind === "paragraph")
-        .map(({ label, origin, anchor }) => [label, origin, anchor]),
-    ).toEqual([
-      ["par1", "native", "p1"],
-      ["par2", "heuristic", undefined],
-      ["par3", "heuristic", undefined],
-      ["par4", "heuristic", undefined],
-      ["par5", "heuristic", undefined],
-    ]);
-    expect(
-      lookupCourtlistenerOpinionLocator(opinion, "page", "123 F.3d 457")
-        ?.status,
-    ).toBe("found");
-    const filtered = await searchCourtlistenerCaseLaw({
-      query: "Alpha",
-      court: "ca9",
-      filedAfter: "2025-01-01",
+    const page = await courtlistenerLegalSourceProvider.readPassage!({
+      source: { provider: "courtlistener", id: "42", kind: "case" },
+      locator: { kind: "page", value: "123 F.3d 457" },
+    });
+    expect(page[0]?.text).toContain("Reporter-qualified pinpoint passage");
+    const filtered = await courtlistenerLegalSourceProvider.configured({
       apiToken: "test-token",
+    }).search!({
+      text: "Alpha",
+      kinds: ["case"],
+      court: "ca9",
+      dateFrom: "2025-01-01",
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
     const searchRequest = fetchMock.mock.calls.find(([input]) =>
       String(input).includes("court=ca9"),
     )!;
@@ -185,9 +167,9 @@ describe("local CourtListener bulk data", () => {
     expect(String(searchRequest[0])).toContain(
       "filed_after=2025-01-01",
     );
-    expect(filtered).toMatchObject({
-      results: [{ clusterId: 99, court: "ca9", dateFiled: "2025-01-02" }],
-    });
+    expect(filtered).toMatchObject([
+      { id: "99", collection: "ca9", date: "2025-01-02" },
+    ]);
   });
 
   it("slices a truncated multi-stream opinions dump at the last complete record", async () => {

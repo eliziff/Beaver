@@ -21,13 +21,13 @@ describe("CitationQuotesHeader", () => {
             />,
         );
 
-        await user.click(screen.getByRole("button", { name: "Cite" }));
+        await user.click(screen.getByRole("button", { name: "Copy quote and citation" }));
 
         expect(writeText).toHaveBeenCalledWith(`"he said 'hi'" Doe 2020`);
         expect(await screen.findByText("Copied")).toBeInTheDocument();
     });
 
-    it("shows, lists, and collapses quotes", async () => {
+    it("selects and collapses quotes", async () => {
         const user = userEvent.setup();
         render(
             <CitationQuotesHeader
@@ -40,11 +40,10 @@ describe("CitationQuotesHeader", () => {
 
         expect(screen.getByText(/First passage/)).toBeInTheDocument();
         expect(screen.queryByText(/Second passage/)).not.toBeInTheDocument();
-        await user.click(screen.getByTitle("Quote list"));
-        expect(screen.getByText(/Second passage/)).toBeInTheDocument();
-        await user.click(screen.getByTitle("Minimize"));
+        await user.click(screen.getByRole("button", { name: "Quote 2" }));
         expect(screen.queryByText(/First passage/)).not.toBeInTheDocument();
-        await user.click(screen.getByTitle("Single quote"));
-        expect(screen.getByText(/First passage/)).toBeInTheDocument();
+        expect(screen.getByText(/Second passage/)).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Minimize" }));
+        expect(screen.queryByText(/Second passage/)).not.toBeInTheDocument();
     });
 });

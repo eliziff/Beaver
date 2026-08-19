@@ -552,8 +552,6 @@ export const TEXT_OPS: Record<string, OpFn> = {
   remove_trailing_whitespace: removeTrailingWhitespace,
 };
 
-export const TEXT_OP_NAMES = Object.keys(TEXT_OPS);
-
 export async function runTextOp(
   op: string,
   text: string,

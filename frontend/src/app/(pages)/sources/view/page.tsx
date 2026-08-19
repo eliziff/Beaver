@@ -1,29 +1,22 @@
+import { useSearchParams } from "react-router-dom";
 import { LegalLibrarySourcePage } from "@/app/components/legal/LegalLibrary";
 import type { LegalDocumentType } from "@/app/lib/beaverApi";
 
-export default async function DirectSourcePage({
-    searchParams,
-}: {
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-    const params = await searchParams;
-    const value = (name: string) => {
-        const raw = params[name];
-        return typeof raw === "string" ? raw : "";
-    };
-    const rawType = value("doc_type");
+export default function DirectSourcePage() {
+    const [params] = useSearchParams();
+    const rawType = params.get("doc_type");
     const docType: LegalDocumentType | "auto" =
         rawType === "laws" || rawType === "articles" || rawType === "auto"
             ? rawType
             : "cases";
     return (
         <LegalLibrarySourcePage
-            provider={value("provider") === "journal" ? "journal" : "a2aj"}
-            citation={value("citation")}
-            sourceId={value("source_id") || null}
+            provider={params.get("provider") === "journal" ? "journal" : "a2aj"}
+            citation={params.get("citation") ?? ""}
+            sourceId={params.get("source_id")}
             docType={docType}
-            language={value("language") === "fr" ? "fr" : "en"}
-            dataset={value("dataset") || null}
+            language={params.get("language") === "fr" ? "fr" : "en"}
+            dataset={params.get("dataset")}
         />
     );
 }

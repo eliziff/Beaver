@@ -1,7 +1,7 @@
+import { useParams } from "react-router-dom";
 import { TRView } from "@/app/components/tabular/TabularReviewView";
-export default async function TabularReviewPage({
-    params,
-}: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+
+export default function TabularReviewPage() {
+    const { id = "" } = useParams<{ id: string }>();
     return <TRView reviewId={id} />;
 }

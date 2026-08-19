@@ -1,17 +1,11 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
 import type { EditDiffSegment } from "../docxTrackedChanges";
-import { parseResourceReference } from "../resourceReferences";
 
 const isDev = process.env.NODE_ENV !== "production";
 export const devLog = (...args: Parameters<typeof console.log>) => {
   if (isDev) console.log(...args);
 };
 
-
-export type DocStore = Map<
-  string,
-  { storage_path: string; file_type: string; filename: string }
->;
 
 export type WorkflowStore = Map<string, { title: string; skill_md: string }>;
 
@@ -47,39 +41,6 @@ export type ChatMessage = {
   /** Internal provider continuation metadata; never accepted from the browser. */
   contextCheckpoint?: LlmMessage["contextCheckpoint"];
 };
-
-
-export function resolveDoc(rawId: string, docIndex: DocIndex) {
-  return docIndex[rawId];
-}
-
-export function resolveDocLabel(
-  rawId: string,
-  docStore: DocStore,
-  docIndex?: DocIndex,
-): string | null {
-  const resource = parseResourceReference(rawId);
-  if (resource?.kind === "document" && docIndex) {
-    for (const [label, info] of Object.entries(docIndex)) {
-      if (
-        info.document_id === resource.documentId &&
-        info.version_id === resource.versionId
-      ) return label;
-    }
-    return null;
-  }
-  if (docStore.has(rawId)) return rawId;
-  const byFilename = [...docStore.entries()]
-    .filter(([, info]) => info.filename === rawId)
-    .map(([label]) => label);
-  if (byFilename.length === 1) return byFilename[0];
-  if (docIndex) {
-    for (const [label, info] of Object.entries(docIndex)) {
-      if (info.document_id === rawId) return label;
-    }
-  }
-  return null;
-}
 
 
 export type AskInputOption = {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -78,7 +78,7 @@ describe("KeyboardShortcuts", () => {
             screen.queryByRole("dialog", { name: "Second" }),
         ).not.toBeInTheDocument();
         expect(screen.getByRole("dialog", { name: "First" })).toBeVisible();
-        expect(secondOpener).toHaveFocus();
+        await waitFor(() => expect(secondOpener).toHaveFocus());
 
         await user.keyboard("{Escape}");
         expect(

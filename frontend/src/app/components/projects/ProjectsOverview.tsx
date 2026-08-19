@@ -1,6 +1,6 @@
 "use client";
 import { useDeferredValue, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
@@ -67,7 +67,7 @@ export function ProjectsOverview() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [search, setSearch] = useState("");
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
     const deferredSearch = useDeferredValue(search.trim());
@@ -147,7 +147,7 @@ export function ProjectsOverview() {
             <TabPillButton
                 disabled={selectedIds.length !== 1}
                 onClick={() =>
-                    router.push(`/projects/${selectedIds[0]}/assistant`)
+                    navigate(`/projects/${selectedIds[0]}/assistant`)
                 }
             >
                 <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -259,7 +259,7 @@ export function ProjectsOverview() {
                                 selected={selection.selected.has(project.id)}
                                 className="h-14 w-full min-w-0 bg-white"
                                 onClick={() =>
-                                    router.push(`/projects/${project.id}`)
+                                    navigate(`/projects/${project.id}`)
                                 }
                             >
                                 <TablePrimaryCell
@@ -311,7 +311,7 @@ export function ProjectsOverview() {
                 onClose={() => setModalOpen(false)}
                 onCreated={(p) => {
                     updateProjects((previous) => [p, ...previous]);
-                    router.push(`/projects/${p.id}`);
+                    navigate(`/projects/${p.id}`);
                 }}
             />
             <ProjectDetailsModal

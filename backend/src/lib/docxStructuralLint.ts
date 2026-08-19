@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { getLocalVersionFile } from "./localDocumentStore";
 import { isExternalReference } from "./legalReferenceGrammar";
 import { decodeXmlText, escapeRegExp } from "./text";
 import { openDocxSession } from "./docx/session";
@@ -71,7 +69,6 @@ function normalizeText(value: string) {
     .replace(/\s+/gu, " ")
     .trim();
 }
-
 function paragraphTexts(documentXml: string) {
   const texts: string[] = [];
   for (const paragraph of documentXml.matchAll(PARAGRAPH_PATTERN)) {
@@ -291,7 +288,6 @@ function checkCrossReferences(
     notes,
   };
 }
-
 type AttachmentResult = {
   references: number;
   resolved: number;
@@ -584,25 +580,5 @@ export async function lintDocxStructure(
     },
     findings,
     notes,
-  };
-}
-
-export async function lintLocalDocxStructure(
-  userId: string,
-  documentId: string,
-  versionId?: string,
-) {
-  const file = await getLocalVersionFile(userId, documentId, versionId);
-  if (!file) throw new Error("Document not found");
-  if (file.fileType.toLowerCase() !== "docx") {
-    throw new Error("Structural lint currently requires a DOCX document");
-  }
-  const report = await lintDocxStructure(await readFile(file.path));
-  return {
-    ok: true as const,
-    document_id: documentId,
-    version_id: file.version.id,
-    filename: file.version.filename,
-    ...report,
   };
 }

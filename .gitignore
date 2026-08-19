@@ -1,19 +1,17 @@
 node_modules
-.next
 dist
-frontend/dist-static-shell
+frontend/public/pdfjs-standard-fonts/
 out
 build
-.open-next
 
 .env
 .env.*
 !.env.example
-!.env.local.example
 
 *.log
-*.raw-llm-stream.json
 *.tsbuildinfo
+.tmp-*
+.tmp/
 next-env.d.ts
 .DS_Store
 .vercel
@@ -45,6 +43,8 @@ benchmarks/legalbench_rag/results/
 benchmarks/legalbench/data/
 benchmarks/legalbench/results/
 backend/src/lib/chat/*.old.harness.ts
+backend/ocr-identity/
+backend/page-count/
 
 # Playwright artifacts and the bootstrapped e2e session (contains auth tokens)
 .tmp-ui/
@@ -68,3 +68,4 @@ benchmarks/harvey-labs/**/__pycache__/
 # embeds already-tracked task document text; history does not need a copy)
 benchmarks/harvey-labs/launchpad.html
 benchmarks/harvey-labs/launchpad_materials.json
+benchmarks/harvey-labs/results-quarantine/

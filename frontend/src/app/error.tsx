@@ -1,12 +1,9 @@
-"use client";
-import Link from "next/link";
 import { useEffect } from "react";
+import { Link, useRouteError } from "react-router-dom";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-export default function Error({
-    error,
-}: {
-    error: Error & { digest?: string };
-}) {
+
+export default function RouteError() {
+    const error = useRouteError();
     useEffect(() => {
         console.error("App error:", error);
     }, [error]);
@@ -20,10 +17,7 @@ export default function Error({
                     We encountered an unexpected error. This has been logged and
                     our team will look into it.
                 </p>
-                <Link
-                    href="/"
-                    className={pillButtonClassName("black", "normal")}
-                >
+                <Link to="/" className={pillButtonClassName("black", "normal")}>
                     Home
                 </Link>
             </div>

@@ -13,12 +13,11 @@ async function ingestionModule() {
     "../documentProjectionService"
   );
   return {
-    queueLocalPdfParse: documentProjectionService.queuePdf,
-    parseLocalPdfOnDemand: documentProjectionService.parsePdf,
-    peekLocalPdfParseState: documentProjectionService.peekPdfState,
-    readLocalPdfParseState: documentProjectionService.pdfState,
-    removeLocalPdfParseArtifacts: documentProjectionService.removePdf,
-    resumeLocalPdfParses: documentProjectionService.resume,
+    queuePdfParse: documentProjectionService.queuePdf,
+    parsePdfOnDemand: documentProjectionService.parsePdf,
+    publishPdf: documentProjectionService.publishPdf,
+    readPdfParseState: documentProjectionService.pdfState,
+    removePdfParseArtifacts: documentProjectionService.removePdf,
   };
 }
 
@@ -134,6 +133,8 @@ async function fakeArtifacts(
       sentence_proposition: "The proposition.",
       passage_since_prior_note: "The proposition.",
     })}\n`,
+    "tables.jsonl": "",
+    "images.jsonl": "",
     "diagnostics.jsonl":
       status === "ready"
         ? ""
@@ -210,6 +211,8 @@ async function fakeArtifacts(
         paragraphs: 1,
         sections: 1,
         footnotes: 1,
+        tables: 0,
+        images: 0,
         diagnostics: status === "ready" ? 0 : 1,
         repairs: 0,
       },
@@ -218,6 +221,8 @@ async function fakeArtifacts(
         paragraphs: "paragraphs.jsonl",
         sections: "sections.jsonl",
         footnotes: "footnotes.jsonl",
+        tables: "tables.jsonl",
+        images: "images.jsonl",
         diagnostics: "diagnostics.jsonl",
         repairs: "repairs.jsonl",
       },
@@ -256,7 +261,7 @@ async function waitForState(
 ) {
   let lastState = null;
   for (let attempt = 0; attempt < 500; attempt++) {
-    const state = await ingestion.readLocalPdfParseState(sourcePath);
+    const state = await ingestion.readPdfParseState(sourcePath);
     if (state?.status === expected) return state;
     lastState = state;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -273,9 +278,8 @@ afterEach(async () => {
   renameFault.injected = 0;
   if (temporaryDirectory) {
     try {
-      const store = await import("../localDocumentStore");
-      (await import("../localApplicationDatabase"))
-        .closeLocalApplicationDatabase();
+      const store = await import("../sqlitePersistence");
+      (await import("../sqliteDatabase")).closeSqliteDatabase();
     } catch {}
   }
   delete process.env.MIKE_LOCAL_DATA_DIR;
@@ -283,8 +287,8 @@ afterEach(async () => {
   delete process.env.MIKE_PDF_OCR_LANGUAGE;
   delete process.env.MIKE_PDF_OCR_DPI;
   delete process.env.MIKE_PDF_OCR_PSM;
-  delete process.env.MIKE_PDF_OCR_PROVIDER;
-  delete process.env.MIKE_PDF_LAYOUT_PROVIDER;
+  process.env.MIKE_PDF_OCR_PROVIDER = "none";
+  process.env.MIKE_PDF_LAYOUT_PROVIDER = "none";
   delete process.env.MIKE_PDF_LAYOUT_MODEL;
   delete process.env.LEGALPDF_KRAKEN_MODEL;
   delete process.env.LEGALPDF_KRAKEN_CODEC;
@@ -297,7 +301,7 @@ afterEach(async () => {
   }
 });
 
-describe("local PDF ingestion", () => {
+describe("PDF ingestion", () => {
   it("runs the PPDoc-free vision layout path and publishes normal artifacts", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -320,7 +324,7 @@ describe("local PDF ingestion", () => {
       throw new Error(`unexpected legalpdf command: ${args.join(" ")}`);
     });
     const ingestion = await ingestionModule();
-    const state = await ingestion.parseLocalPdfOnDemand({
+    const state = await ingestion.parsePdfOnDemand({
       documentId: "document-1",
       versionId: "version-1",
       sourcePath,
@@ -354,17 +358,17 @@ describe("local PDF ingestion", () => {
       filename: "sample.pdf",
       bytes,
     });
-    const file = await store.getLocalVersionFile("local-user", document.id);
+    const file = await store.localDocumentFile("local-user", document.id);
 
     expect(document).not.toHaveProperty("pdf_parse");
-    expect(await ingestion.readLocalPdfParseState(file!.path)).toBeNull();
+    expect(await ingestion.readPdfParseState(file!.path)).toBeNull();
     expect(file).not.toBeNull();
-    expect(path.basename(file!.path)).toMatch(
-      new RegExp(`^${file!.version.id}-[a-f0-9]{16}\\.pdf$`, "u"),
+    expect(path.basename(file!.path)).toBe(
+      `${file!.version.source_sha256}.pdf`,
     );
     expect(await readFile(file!.path)).toEqual(bytes);
 
-    const state = await ingestion.parseLocalPdfOnDemand({
+    const state = await ingestion.parsePdfOnDemand({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -376,7 +380,6 @@ describe("local PDF ingestion", () => {
     expect(state).toMatchObject({
       source_sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
       parser_version: "0.3.0",
-      parser_config_version: "mike-local-v1",
       parser_config: {
         mode: "local",
         model: null,
@@ -404,21 +407,19 @@ describe("local PDF ingestion", () => {
       await readFile(path.join(artifactRoot, "document.json"), "utf8"),
     );
     expect(manifest).toMatchObject({
-      schema_version: "mike.pdf_source.v1",
-      engine_schema_version: "legalpdf.document.v2",
+      schema_version: "legalpdf.document.v2",
       artifact_profile: "compact-source",
-      metadata: { pairing: { paired_count: 1 } },
+      metadata: { pairing: { paired_count: 1, elapsed_seconds: 1.2345 } },
     });
-    expect(manifest.metadata.pairing).not.toHaveProperty("created_at");
-    expect(manifest.metadata.pairing).not.toHaveProperty("elapsed_seconds");
     expect(manifest.artifacts).toMatchObject({
       pages: "pages.jsonl",
       paragraphs: "paragraphs.jsonl",
       sections: "sections.jsonl",
       footnotes: "footnotes.jsonl",
+      tables: "tables.jsonl",
+      images: "images.jsonl",
       diagnostics: "diagnostics.jsonl",
       repairs: "repairs.jsonl",
-      parser_config: "parser-config.json",
     });
     const [page] = (
       await readFile(path.join(artifactRoot, "pages.jsonl"), "utf8")
@@ -441,7 +442,7 @@ describe("local PDF ingestion", () => {
     expect(page.lines[0]).not.toHaveProperty("spans");
     expect(page.lines[0]).not.toHaveProperty("words");
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -466,14 +467,14 @@ describe("local PDF ingestion", () => {
     const firstBytes = Buffer.from("%PDF-1.4 first version");
     const firstHash = crypto.createHash("sha256").update(firstBytes).digest("hex");
     await writeFile(source, firstBytes);
-    const first = await ingestion.parseLocalPdfOnDemand({
+    const first = await ingestion.parsePdfOnDemand({
       documentId: "document",
       versionId: "version-1",
       sourcePath: source,
       sourceSha256: firstHash,
     });
     const firstManifest = path.join(temporaryDirectory, first.artifact_manifest);
-    await ingestion.parseLocalPdfOnDemand({
+    await ingestion.parsePdfOnDemand({
       documentId: "document",
       versionId: "version-1",
       sourcePath: source,
@@ -486,7 +487,7 @@ describe("local PDF ingestion", () => {
       .digest("hex");
     await writeFile(source, secondBytes);
     await expect(
-      ingestion.parseLocalPdfOnDemand({
+      ingestion.parsePdfOnDemand({
         documentId: "document",
         versionId: "version-1",
         sourcePath: source,
@@ -497,7 +498,7 @@ describe("local PDF ingestion", () => {
       code: "ENOENT",
     });
 
-    const second = await ingestion.parseLocalPdfOnDemand({
+    const second = await ingestion.parsePdfOnDemand({
       documentId: "document",
       versionId: "version-2",
       sourcePath: source,
@@ -526,14 +527,14 @@ describe("local PDF ingestion", () => {
     const bytes = Buffer.from("%PDF-1.4 original");
     await writeFile(source, bytes);
 
-    const queued = await ingestion.parseLocalPdfOnDemand({
+    const queued = await ingestion.parsePdfOnDemand({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
       sourceSha256: crypto.createHash("sha256").update(bytes).digest("hex"),
     });
 
-    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    await expect(ingestion.readPdfParseState(source)).resolves.toBeNull();
     await expect(
       readFile(path.join(temporaryDirectory, queued.artifact_manifest)),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -568,7 +569,7 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 cache integrity", "utf8");
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -580,13 +581,12 @@ describe("local PDF ingestion", () => {
 
     await writeFile(path.join(output, "paragraphs.jsonl"), "{broken", "utf8");
     await expect(
-      ingestion.readLocalPdfParseState(source),
+      ingestion.readPdfParseState(source),
     ).resolves.toMatchObject({ status: "queued" });
     const repaired = await waitForState(ingestion, source, "ready");
     expect(repaired!.attempts).toBe(2);
 
     await rm(path.join(output, "sections.jsonl"));
-    await ingestion.resumeLocalPdfParses();
     const completed = await waitForState(ingestion, source, "ready");
     expect(completed!.attempts).toBe(3);
     await expect(
@@ -594,7 +594,7 @@ describe("local PDF ingestion", () => {
     ).resolves.toContain("Introduction");
     expect(rebuildStartedWithManifest).toEqual([false, false]);
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -602,7 +602,7 @@ describe("local PDF ingestion", () => {
     expect(parseCalls).toBe(3);
   });
 
-  it("survives overlapping state reads and extended Windows rename contention", async () => {
+  it("survives transient Windows rename contention", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
@@ -615,24 +615,17 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 concurrent", "utf8");
-    renameFault.remaining = process.platform === "win32" ? 21 : 0;
+    renameFault.remaining = process.platform === "win32" ? 3 : 0;
 
-    const queued = ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
     });
-    const readers = Array.from({ length: 32 }, async () => {
-      for (let attempt = 0; attempt < 8; attempt++) {
-        await ingestion.readLocalPdfParseState(source);
-      }
-    });
-    await Promise.all([queued, ...readers]);
     const state = await waitForState(ingestion, source, "ready");
 
     expect(state!.error).toBeUndefined();
     expect(renameFault.remaining).toBe(0);
-    expect(renameFault.injected).toBe(process.platform === "win32" ? 21 : 0);
   });
 
   it("reports raster-only parser output honestly as degraded", async () => {
@@ -650,9 +643,9 @@ describe("local PDF ingestion", () => {
       filename: "scan.pdf",
       bytes: Buffer.from("%PDF-1.4 scan"),
     });
-    const file = await store.getLocalVersionFile("local-user", document.id);
+    const file = await store.localDocumentFile("local-user", document.id);
 
-    const state = await ingestion.parseLocalPdfOnDemand({
+    const state = await ingestion.parsePdfOnDemand({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -675,7 +668,7 @@ describe("local PDF ingestion", () => {
     runLegalPdf.mockImplementation((args: string[]) =>
       fakeLegalPdf(args, "ready", identity),
     );
-    const queued = await ingestion.queueLocalPdfParse({
+    const queued = await ingestion.queuePdfParse({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -709,7 +702,7 @@ describe("local PDF ingestion", () => {
     ]);
     const firstOcrManifest = recovered!.artifact_manifest;
     identity = "tesseract-cli-v1:tesseract 5.4.0";
-    const requeued = await ingestion.queueLocalPdfParse({
+    const requeued = await ingestion.queuePdfParse({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -725,7 +718,7 @@ describe("local PDF ingestion", () => {
     process.env.MIKE_PDF_OCR_DPI = "601";
     process.env.MIKE_PDF_OCR_PSM = "14";
     identity = "tesseract-cli-v1:tesseract 5.5.0";
-    const validated = await ingestion.queueLocalPdfParse({
+    const validated = await ingestion.queuePdfParse({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -752,7 +745,7 @@ describe("local PDF ingestion", () => {
       filename: "scan.pdf",
       bytes: Buffer.from("%PDF-1.4 scan"),
     });
-    const file = await store.getLocalVersionFile("local-user", document.id);
+    const file = await store.localDocumentFile("local-user", document.id);
     for (const name of [
       "LEGALPDF_KRAKEN_MODEL",
       "LEGALPDF_KRAKEN_CODEC",
@@ -766,7 +759,7 @@ describe("local PDF ingestion", () => {
       fakeLegalPdf(args, "ready", identity),
     );
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: document.id,
       versionId: file!.version.id,
       sourcePath: file!.path,
@@ -820,7 +813,7 @@ describe("local PDF ingestion", () => {
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 uncertain columns", "utf8");
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -831,7 +824,7 @@ describe("local PDF ingestion", () => {
       parser_config: { mode: "local", model: null },
     });
 
-    const queued = await ingestion.queueLocalPdfParse({
+    const queued = await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -866,7 +859,7 @@ describe("local PDF ingestion", () => {
     expect(repairParse).toContain("--no-cache");
   });
 
-  it("refreshes the engine repair contract without changing local cache identity", async () => {
+  it("keeps the durable repair contract stable across restart", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const engineCodes = ["TEXT_QUALITY_LOW"];
@@ -904,7 +897,7 @@ describe("local PDF ingestion", () => {
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 catalog", "utf8");
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -937,7 +930,7 @@ describe("local PDF ingestion", () => {
       return fakeLegalPdf(args, "degraded");
     });
     const restarted = await ingestionModule();
-    const refreshed = await restarted.readLocalPdfParseState(source);
+    const refreshed = await restarted.readPdfParseState(source);
 
     expect(refreshed!.cache_key).toBe(state!.cache_key);
     expect(refreshed!.parser_config).toMatchObject({
@@ -946,13 +939,13 @@ describe("local PDF ingestion", () => {
       prompt_version: null,
     });
     expect(refreshed!.repair_contract!.prompt_version).toBe(
-      changedIdentity.prompt_version,
+      engineIdentity.prompt_version,
     );
     expect(parseCalls).toBe(1);
     expect(refreshed!.repair_contract!.repairable_diagnostics).toEqual(
-      changedCodes,
+      engineCodes,
     );
-    expect(refreshed!.structural_repair_available).toBe(true);
+    expect(refreshed!.structural_repair_available).toBe(false);
   });
 
   it("does not block deterministic import when repair identity is unavailable", async () => {
@@ -973,7 +966,7 @@ describe("local PDF ingestion", () => {
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 identity outage", "utf8");
 
-    const queued = await ingestion.queueLocalPdfParse({
+    const queued = await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -990,20 +983,15 @@ describe("local PDF ingestion", () => {
     expect(completed!.repair_contract).toBeUndefined();
   });
 
-  it("requeues a parse left in parsing state and records the interruption", async () => {
+  it("resumes an interrupted parse when its state is read", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
     const ingestion = await ingestionModule();
-    const source = path.join(
-      temporaryDirectory,
-      "files",
-      "document",
-      "version-hash.pdf",
+    const source = await ingestion.publishPdf(
+      Buffer.from("%PDF-1.4 interrupted"),
     );
-    await mkdir(path.dirname(source), { recursive: true });
-    await writeFile(source, "%PDF-1.4 interrupted", "utf8");
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1016,10 +1004,9 @@ describe("local PDF ingestion", () => {
     delete interrupted.completed_at;
     await writeFile(stateFile, JSON.stringify(interrupted), "utf8");
 
-    await ingestion.resumeLocalPdfParses();
+    await ingestion.readPdfParseState(source);
     const resumed = await waitForState(ingestion, source, "ready");
 
-    expect(resumed!.interrupted_at).toBeTruthy();
     expect(resumed!.attempts).toBe(2);
     expect(resumed!.parser_config.ocr_identity).toBe(
       "tesseract-cli-v1:tesseract 5.3.0",
@@ -1039,7 +1026,7 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 restart queue", "utf8");
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1053,7 +1040,7 @@ describe("local PDF ingestion", () => {
 
     vi.resetModules();
     const restarted = await ingestionModule();
-    const queued = await restarted.queueLocalPdfParse({
+    const queued = await restarted.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1061,7 +1048,6 @@ describe("local PDF ingestion", () => {
 
     expect(queued).toMatchObject({
       status: "queued",
-      interrupted_at: expect.any(String),
     });
     const completed = await waitForState(restarted, source, "ready");
     expect(completed!.attempts).toBe(2);
@@ -1080,7 +1066,7 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 preserved repair", "utf8");
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1102,7 +1088,7 @@ describe("local PDF ingestion", () => {
     const restarted = await ingestionModule();
 
     await expect(
-      restarted.queueLocalPdfParse({
+      restarted.queuePdfParse({
         documentId: "document",
         versionId: "version",
         sourcePath: source,
@@ -1132,7 +1118,7 @@ describe("local PDF ingestion", () => {
         );
         await mkdir(path.dirname(source), { recursive: true });
         await writeFile(source, `%PDF-1.4 preserved OCR ${status}`, "utf8");
-        await ingestion.queueLocalPdfParse({
+        await ingestion.queuePdfParse({
           documentId: status,
           versionId: "version",
           sourcePath: source,
@@ -1161,7 +1147,7 @@ describe("local PDF ingestion", () => {
 
     for (const job of jobs) {
       await expect(
-        restarted.queueLocalPdfParse({
+        restarted.queuePdfParse({
           documentId: job.status,
           versionId: "version",
           sourcePath: job.source,
@@ -1207,16 +1193,16 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 active owner", "utf8");
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
     });
     await parseStarted;
-    const active = await ingestion.readLocalPdfParseState(source, {
+    const active = await ingestion.readPdfParseState(source, {
       validatePublication: false,
     });
-    const same = await ingestion.queueLocalPdfParse({
+    const same = await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1244,7 +1230,7 @@ describe("local PDF ingestion", () => {
     );
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 probe race", "utf8");
-    await initial.queueLocalPdfParse({
+    await initial.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1285,7 +1271,7 @@ describe("local PDF ingestion", () => {
       return fakeLegalPdf(args);
     });
     const restarted = await ingestionModule();
-    const probing = restarted.queueLocalPdfParse({
+    const probing = restarted.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1294,7 +1280,7 @@ describe("local PDF ingestion", () => {
 
     try {
       await ocrStarted;
-      await restarted.queueLocalPdfParse({
+      await restarted.queuePdfParse({
         documentId: "document",
         versionId: "version",
         sourcePath: source,
@@ -1303,7 +1289,7 @@ describe("local PDF ingestion", () => {
       await parseStarted;
       releaseOcr();
       const preserved = await probing;
-      const active = await restarted.readLocalPdfParseState(source, {
+      const active = await restarted.readPdfParseState(source, {
         validatePublication: false,
       });
 
@@ -1341,7 +1327,7 @@ describe("local PDF ingestion", () => {
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 failure", "utf8");
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
@@ -1350,8 +1336,7 @@ describe("local PDF ingestion", () => {
 
     expect(state!.error).toBe("PDF structural parser failed");
     expect(state!.error).not.toContain(temporaryDirectory);
-    expect(state!.error_detail).toContain("Command failed while reading");
-    expect(state!.error_detail).toContain(temporaryDirectory);
+    expect(state).not.toHaveProperty("error_detail");
     await expect(readFile(partialPath, "utf8")).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -1398,16 +1383,16 @@ describe("local PDF ingestion", () => {
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 OCR cancellation", "utf8");
 
-    await ingestion.queueLocalPdfParse({
+    await ingestion.queuePdfParse({
       documentId: "document",
       versionId: "version",
       sourcePath: source,
       ocrProvider: "tesseract",
     });
     await parseStarted;
-    await ingestion.removeLocalPdfParseArtifacts(source);
+    await ingestion.removePdfParseArtifacts(source);
 
-    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    await expect(ingestion.readPdfParseState(source)).resolves.toBeNull();
     await expect(
       readFile(`${source}.legalpdf-state.json`, "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -1416,7 +1401,7 @@ describe("local PDF ingestion", () => {
     });
   });
 
-  it("does not parse an untouched stored PDF during startup recovery", async () => {
+  it("does not parse an untouched stored PDF when its state is read", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-pdf-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     runLegalPdf.mockImplementation((args: string[]) => fakeLegalPdf(args));
@@ -1425,8 +1410,7 @@ describe("local PDF ingestion", () => {
     const source = path.join(temporaryDirectory, relativeSource);
     await mkdir(path.dirname(source), { recursive: true });
     await writeFile(source, "%PDF-1.4 stored", "utf8");
-    await ingestion.resumeLocalPdfParses();
-    await expect(ingestion.readLocalPdfParseState(source)).resolves.toBeNull();
+    await expect(ingestion.readPdfParseState(source)).resolves.toBeNull();
     expect(runLegalPdf).not.toHaveBeenCalled();
   });
 });

@@ -14,10 +14,6 @@ import {
 import { isAbortError } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import type { McpToolEvent } from "../mcp/types";
-import type {
-  CaseCitationEvent,
-  CourtlistenerToolEvent,
-} from "./tools/courtlistenerTools";
 import type { LocalAutomationEvent } from "./localAutomationEvent";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
@@ -37,7 +33,7 @@ import {
 } from "./legalOutputGate";
 import {
   createLegalEvidenceTurnState,
-  finalizeLegalEvidenceExperiment,
+  finalizeLegalEvidence,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
@@ -56,17 +52,23 @@ import {
   RESUME_SUBAGENT_TOOL_NAME,
   allowedReadSubagentRegions,
   createReadSubagentAdmission,
+  getReadSubagentCapability,
   readSubagentActivityLabel,
-  readSubagentJurisdiction,
+  readSubagentAssignment,
+  readSubagentInstruction,
   readSubagentResumePrompt,
-  readSubagentTools,
-  runReadSubagent,
+  receiptSource,
   runReadSubagentRound,
+  type ReadSubagentAssignment,
   type ReadSubagentCheckpoint,
   type ReadSubagentEvent,
   type ToolActivity,
 } from "./readSubagents";
-import { jurisdictionPreferencePrompt, type JurisdictionPreference } from "./prompts";
+import {
+  SOURCE_SEARCH_SYSTEM_PROMPT,
+  jurisdictionPreferencePrompt,
+  type JurisdictionPreference,
+} from "./prompts";
 import {
   estimateContextTokens,
   modelContextWindow,
@@ -87,32 +89,19 @@ export type AssistantEvent =
         skipped?: boolean;
       }[];
     }
-  | { type: "doc_read"; filename: string; document_id?: string }
-  | { type: "doc_find"; filename: string; query: string; total_matches: number }
   | {
-      type: "doc_created";
+      type: "document_artifact";
+      action: "created" | "edited";
       filename: string;
       download_url: string;
-      document_id?: string;
-      version_id?: string;
-      version_number?: number | null;
-      resource?: string;
-    }
-  | { type: "doc_download"; filename: string; download_url: string }
-  | { type: "workflow_applied"; workflow_id: string; title: string }
-  | {
-      type: "doc_edited";
-      filename: string;
       document_id: string;
       version_id: string;
       version_number: number | null;
-      download_url: string;
-      edit_mode: "manual" | "auto";
-      annotations: EditAnnotation[];
-      resource: string;
+      resource?: string;
+      edit_mode?: "manual" | "auto";
+      annotations?: EditAnnotation[];
     }
-  | CaseCitationEvent
-  | CourtlistenerToolEvent
+  | { type: "workflow_applied"; workflow_id: string; title: string }
   | McpToolEvent
   | LegalEvidenceReceiptEvent
   | ReadSubagentEvent
@@ -193,10 +182,9 @@ export async function runChatTurn(options: {
   messages: LlmMessage[];
   createTools: (
     evidence: LegalEvidenceTurnState,
-    scope: "main" | "reader",
+    scope: "main" | ReadSubagentAssignment,
   ) => BeaverTool<ChatToolContext>[];
   emit: (event: unknown) => void;
-  done: () => void;
   apiKeys?: UserApiKeys;
   reasoningEffort?: string;
   serviceTier?: string;
@@ -208,10 +196,9 @@ export async function runChatTurn(options: {
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
-  toolActivityMetadata?: (
-    call: NormalizedToolCall,
-  ) => { label?: string; source?: ToolActivity["source"] };
   priorEvidence?: LegalEvidenceReceipt[];
+  evidenceState?: LegalEvidenceTurnState;
+  readerAssignment?: ReadSubagentAssignment;
   resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   providerSession?: { persist: true; continuationId?: string };
   onProviderContinuation?: (continuationId: string) => void;
@@ -221,9 +208,7 @@ export async function runChatTurn(options: {
   prepareMessages?: (
     onCompaction: (status: "running" | "completed" | "failed") => void,
   ) => Promise<LlmMessage[]>;
-  transformText?: (text: string, citations: unknown[]) => Promise<string> | string;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
-  onFinish?: (result: ChatTurnResult) => Promise<void> | void;
 }) {
   const {
     emit,
@@ -233,7 +218,7 @@ export async function runChatTurn(options: {
   } = options;
   const events: AssistantEvent[] = [];
   const toolActivities = new Map<string, ToolActivity>();
-  const evidence = createLegalEvidenceTurnState();
+  const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
   const replaceLastEvent = (
@@ -270,8 +255,11 @@ export async function runChatTurn(options: {
     READ_SUBAGENT_TOOL_NAME,
     RESUME_SUBAGENT_TOOL_NAME,
   ]);
-  const mainTools = options.createTools(evidence, "main")
-    .filter((tool) => !internalNames.has(tool.name));
+  const mainTools = options.createTools(evidence, options.readerAssignment ?? "main")
+    .filter((tool) => !internalNames.has(tool.name))
+    .filter((tool) => !options.readerAssignment ||
+      tool.reader?.includes(options.readerAssignment.jurisdiction))
+    .map((tool) => options.readerAssignment ? { ...tool, specialist: false } : tool);
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
     .find((message) => message.role === "user")?.content ?? "";
@@ -311,11 +299,6 @@ export async function runChatTurn(options: {
     if (text) addEvent({ type: "content", text });
     reasoning = "";
   };
-  const toolContext = (state: LegalEvidenceTurnState): ChatToolContext => ({
-    evidence: state,
-    emit,
-    addEvent,
-  });
   const evidenceTool = (state: LegalEvidenceTurnState): BeaverTool<ChatToolContext> => ({
     ...LEGAL_EVIDENCE_SUBMIT_TOOL,
     sequential: true,
@@ -348,59 +331,163 @@ export async function runChatTurn(options: {
       ...(terminal ? { terminal: true } : {}),
     };
   };
-  const runReader = (
+  const runReader = async (
     call: NormalizedToolCall,
     resume?: ReadSubagentCheckpoint,
-  ) => {
-    const childEvidence = createLegalEvidenceTurnState("citation_structure");
-    const childTools = options.createTools(childEvidence, "reader")
-      .filter((tool) => tool.reader === true);
-    const assignmentCall = resume
-      ? { ...call, input: resume.assignment }
-      : call;
-    const schemas = readSubagentTools(
-      childTools,
-      readSubagentJurisdiction(assignmentCall),
-    );
-    const names = new Set(schemas.map((tool) => tool.name));
-    const childRegistry = new TurnToolRegistry([
-      ...childTools.filter((tool) => names.has(tool.name)).map((tool) => ({
-        ...tool,
-        specialist: false,
-      })),
-      evidenceTool(childEvidence),
-    ]);
-    return runReadSubagent({
-      call,
-      tools: childRegistry.visible(),
-      evidenceState: childEvidence,
-      publishEvidenceTo: evidence,
-      model: options.subagentModel,
-      effort: options.subagentEffort,
-      jurisdictionPrompt: jurisdictionPreferencePrompt(
-        options.jurisdictionPreference ?? null,
-      ),
-      signal,
-      resume,
-      onEvent: (event) => {
-        emit(event);
-        options.onSubagentEvent?.(event);
-        if (event.status !== "running") addEvent(event);
-      },
-      runTools: async (childCalls) => {
-        const batch = await childRegistry.run(
-          childCalls,
-          toolContext(childEvidence),
-          providerSignal,
-        );
-        batch.evidence.forEach((receipt) =>
-          registerLegalEvidence(childEvidence, receipt));
-        return batch.results;
-      },
-    }).then((result) => {
-      if (resume && result.status === "ok") resumableReaders.delete(resume.id);
-      return result;
+  ): Promise<NormalizedToolResult> => {
+    const assignment = resume?.assignment ?? readSubagentAssignment(call);
+    if (!assignment) return {
+      tool_use_id: call.id,
+      status: "error",
+      content: JSON.stringify({ ok: false, error: "task and scope are required." }),
+    };
+    const capability = await getReadSubagentCapability(undefined, {
+      model: resume?.model ?? options.subagentModel,
+      effort: resume?.effort ?? options.subagentEffort,
     });
+    if (!capability.available) return {
+      tool_use_id: call.id,
+      status: "error",
+      content: JSON.stringify({ ok: false, error: capability.reason }),
+    };
+    const childEvidence = createLegalEvidenceTurnState("citation_structure");
+    let continuationId = resume?.continuation_id;
+    const id = resume?.id ?? call.id;
+    const activities = new Map<string, ToolActivity>();
+    const base = {
+      type: "subagent_run" as const,
+      id,
+      agent: "scout" as const,
+      task: `${assignment.scope}: ${assignment.task}`,
+      model: capability.displayName,
+      effort: capability.effort,
+    };
+    const checkpoint = (): ReadSubagentCheckpoint | undefined => continuationId
+      ? {
+          id,
+          continuation_id: continuationId,
+          model: capability.model,
+          effort: capability.effort,
+          assignment,
+          evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
+        }
+      : undefined;
+    const publish = (event: ReadSubagentEvent) => {
+      emit(event);
+      options.onSubagentEvent?.(event);
+      if (event.status !== "running") addEvent(event);
+    };
+    const running = () => publish({
+      ...base,
+      status: "running",
+      ...(activities.size ? { activities: [...activities.values()] } : {}),
+      ...(checkpoint() ? { resume: checkpoint() } : {}),
+    });
+    running();
+    try {
+      const child = await runChatTurn({
+        model: `codex:${capability.model}`,
+        systemPrompt: [
+          readSubagentInstruction(assignment),
+          jurisdictionPreferencePrompt(options.jurisdictionPreference ?? null),
+          SOURCE_SEARCH_SYSTEM_PROMPT,
+        ].filter(Boolean).join("\n\n"),
+        messages: [{
+          role: "user",
+          content: resume
+            ? "Continue the original assignment from where the session stopped and complete its grounded answer."
+            : `Assigned scope: ${assignment.scope}\n\nQuestion: ${assignment.task}`,
+        }],
+        createTools: options.createTools,
+        readerAssignment: assignment,
+        evidenceState: childEvidence,
+        priorEvidence: resume?.evidence,
+        emit(event) {
+          if (!event || typeof event !== "object" || Array.isArray(event)) return;
+          const activity = event as Partial<ToolActivity> & { type?: string };
+          if (activity.type === "tool_activity" && activity.id && activity.tool &&
+              activity.label && activity.status) {
+            activities.set(activity.id, {
+              id: activity.id,
+              tool: activity.tool,
+              label: activity.label,
+              status: activity.status,
+              ...(activity.source && { source: activity.source }),
+            });
+            running();
+          }
+        },
+        apiKeys: options.apiKeys,
+        reasoningEffort: capability.effort,
+        signal,
+        subagentMode: "none",
+        activityDetail: "tools",
+        providerSession: {
+          persist: true,
+          ...(continuationId ? { continuationId } : {}),
+        },
+        onProviderContinuation(id) {
+          continuationId = id;
+          running();
+        },
+      });
+      const grounding = legalEvidenceReceiptEvent(child.evidence);
+      if (!grounding || grounding.status !== "passed") {
+        throw new Error("Reader returned no grounded answer.");
+      }
+      const used = new Set(grounding.claims.flatMap((claim) => claim.evidence_ids));
+      for (const evidenceId of used) {
+        const registered = child.evidence.evidence.get(evidenceId);
+        if (registered) evidence.evidence.set(evidenceId, registered);
+      }
+      if (resume) resumableReaders.delete(resume.id);
+      publish({
+        ...base,
+        status: "completed",
+        output: child.fullText,
+        activities: [...activities.values()],
+        sources: grounding.evidence.map(receiptSource),
+        grounding,
+      });
+      return {
+        tool_use_id: call.id,
+        status: "ok",
+        content: JSON.stringify({
+          ok: true,
+          agent: "scout",
+          findings: grounding.claims,
+          evidence: grounding.evidence.map((receipt) => ({
+            evidence_id: receipt.evidence_id,
+            citation: receipt.citation,
+            name: receipt.name,
+            locator: receipt.locator,
+            exact_passage: receipt.span_text,
+          })),
+        }),
+      };
+    } catch (error) {
+      const interrupted = Boolean(signal?.aborted) || isAbortError(error);
+      const status = interrupted ? "interrupted" as const : "error" as const;
+      for (const [key, activity] of activities) {
+        if (activity.status === "running") activities.set(key, { ...activity, status });
+      }
+      publish({
+        ...base,
+        status,
+        error: safeErrorMessage(error, "Reading agent failed"),
+        activities: [...activities.values()],
+        ...(checkpoint() ? { resume: checkpoint() } : {}),
+      });
+      return {
+        tool_use_id: call.id,
+        status: "error",
+        content: JSON.stringify({
+          ok: false,
+          error: safeErrorMessage(error, "Reading agent failed"),
+          ...(interrupted && { interrupted: true, ...(continuationId && { resume_id: id }) }),
+        }),
+      };
+    }
   };
   const readerSchemas = [
     ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
@@ -415,13 +502,11 @@ export async function runChatTurn(options: {
       ? readSubagentActivityLabel(input)
       : "Resuming reading agents",
     async execute(_input, _context, _signal, call) {
-      const [result] = await runReadSubagentRound({
-        calls: [call],
+      const result = await runReadSubagentRound({
+        call,
         admit: admitReaders,
-        runDirect: async () => [],
         runReader,
         resumable: resumableReaders,
-        runResume: (resumeCall, checkpoint) => runReader(resumeCall, checkpoint),
       });
       return normalizedOutcome(result);
     },
@@ -518,14 +603,12 @@ export async function runChatTurn(options: {
         : call.name === RESUME_SUBAGENT_TOOL_NAME
           ? "Resuming reading agents"
         : registry.activity(call);
-      const metadata = options.toolActivityMetadata?.(call);
       if (
         defaultLabel === null &&
-        !metadata?.label &&
         activityDetail !== "tools" &&
         activityDetail !== "trace"
       ) return;
-      const label = metadata?.label ?? defaultLabel ??
+      const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
       boundary = Boolean(text);
       emitToolActivity({
@@ -533,7 +616,6 @@ export async function runChatTurn(options: {
         tool: call.name,
         status: "running",
         label,
-        ...(metadata?.source && { source: metadata.source }),
       });
     },
     onContextUsage(usage: {
@@ -560,7 +642,10 @@ export async function runChatTurn(options: {
         keep_current: true,
         provider: checkpoint.provider,
         ...(checkpoint.provider === "claude"
-          ? { summary: checkpoint.content }
+          ? {
+              summary: checkpoint.content,
+              payload: checkpoint.block,
+            }
           : {}),
         ...(checkpoint.provider === "openai"
           ? { payload: checkpoint.item }
@@ -716,16 +801,8 @@ export async function runChatTurn(options: {
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
     if (!paused) {
-      let finalized = await finalizeLegalEvidenceExperiment({
-        state: evidence,
-        model: options.model,
-        draft: text,
-        requestContext: request || undefined,
-        apiKeys: options.apiKeys,
-        reasoningEffort: options.reasoningEffort,
-        abortSignal: signal,
-      });
-      for (let attempt = 0; !finalized.passed && attempt < 2; attempt += 1) {
+      let finalized = finalizeLegalEvidence(evidence, text);
+      for (let attempt = 0; !finalized && attempt < 2; attempt += 1) {
         const rejected = text;
         const failure = evidence.failure ?? "No grounded submission was received.";
         evidence.answer = null;
@@ -737,17 +814,9 @@ export async function runChatTurn(options: {
           draft: rejected,
           findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request, retrieve any missing authority passages, and finish with submit_grounded_answer. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
         });
-        finalized = await finalizeLegalEvidenceExperiment({
-          state: evidence,
-          model: options.model,
-          draft: text,
-          requestContext: request || undefined,
-          apiKeys: options.apiKeys,
-          reasoningEffort: options.reasoningEffort,
-          abortSignal: signal,
-        });
+        finalized = finalizeLegalEvidence(evidence, text);
       }
-      if (!finalized.passed) {
+      if (!finalized) {
         text = "";
         emit({ type: "content_reset" });
         throw new Error("Grounding verification failed after correction attempts");
@@ -766,18 +835,6 @@ export async function runChatTurn(options: {
   }
 
   const citations = paused ? [] : createLegalEvidenceCitations(evidence);
-  if (!paused && options.transformText) {
-    const transformed = await options.transformText(text, citations);
-    if (transformed !== text) {
-      if (transformed.startsWith(text)) {
-        emit({ type: "content_delta", text: transformed.slice(text.length) });
-      } else {
-        emit({ type: "content_reset" });
-        emit({ type: "content_delta", text: transformed });
-      }
-      text = transformed;
-    }
-  }
   const receipt = legalEvidenceReceiptEvent(evidence);
   if (receipt) addEvent(receipt);
   if (text) addEvent({ type: "content", text });
@@ -790,9 +847,7 @@ export async function runChatTurn(options: {
     evidence,
   };
   emit({ type: "content_final", text });
-  await options.onFinish?.(result);
   emit({ type: "citations", status: "final", citations });
-  options.done();
   options.onProviderControl?.(null);
   return result;
 }

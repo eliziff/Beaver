@@ -70,10 +70,6 @@ function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | nu
   return operation(searchConnection.database);
 }
 
-export function warmLocalHansardSearch() {
-  return withSearchDatabase(() => true) ?? false;
-}
-
 function string(row: Row, field: string) {
   const value = row[field];
   return typeof value === "string" && value.trim() ? value.trim() : null;

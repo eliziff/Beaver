@@ -1,5 +1,5 @@
-"use client";
-import { useEffect, useState } from "react";import {
+import { useEffect, useState } from "react";
+import {
     deleteTabularReview,
     listTabularReviews,
     updateTabularReview,
@@ -133,7 +133,7 @@ export default function ProjectTabularReviewsPage() {
                 <button type="button" onClick={() => void page.loadMore()}
                     disabled={page.loading}
                     className="mx-auto my-2 min-h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50">
-                    {page.loading ? "Loadingâ€¦" : "Load more"}
+                    {page.loading ? "Loading…" : "Load more"}
                 </button>
             )}
             <TabularReviewDetailsModal

@@ -609,7 +609,7 @@ Focused checks:
 - generate, Glob, Grep, Read, and Edit the same `.docx` in one turn;
 - a generated document survives restart with the same path/version;
 - an uploaded source cannot be overwritten by an output;
-- anonymous local and cloud adapters preserve the same semantics; and
+- account-free local and cloud adapters preserve the same semantics; and
 - one assistant edit turn creates one consolidated durable version.
 
 Acceptance:

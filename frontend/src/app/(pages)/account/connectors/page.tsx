@@ -49,7 +49,6 @@ const connectorDraft = (
     name: connector?.name ?? "",
     serverUrl: connector?.serverUrl ?? "",
 });
-const mcpOAuthMessageOrigin = new URL(API_BASE).origin;
 const errorMessage = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback;
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
@@ -63,13 +62,6 @@ function parseCustomHeaders(raw: string): Record<string, string> | undefined {
         throw new Error("Custom header values must be strings.");
     }
     return parsed as Record<string, string>;
-}
-function isGoogleMcpConnector(connector: McpConnectorSummary) {
-    try {
-        return new URL(connector.serverUrl).hostname.endsWith("googleapis.com");
-    } catch {
-        return false;
-    }
 }
 export default function ConnectorsPage() {
     const [connectors, setConnectors] =
@@ -209,7 +201,10 @@ export default function ConnectorsPage() {
                 else resolve();
             };
             window.addEventListener("message", (event) => {
-                if (event.origin !== mcpOAuthMessageOrigin) return;
+                if (
+                    event.source !== popup ||
+                    event.origin !== new URL(API_BASE, location.href).origin
+                ) return;
                 const result = event.data as Record<string, unknown>;
                 if (result?.type !== "mcp_oauth_result") return;
                 if (result.connectorId && result.connectorId !== connectorId)
@@ -256,12 +251,7 @@ export default function ConnectorsPage() {
                 "Complete authorization in the popup to finish connecting this MCP server.",
             );
         }
-        return isGoogleMcpConnector(refreshed) && !refreshed.oauthConnected
-            ? onOAuth(
-                  refreshed.id,
-                  "Authorize Google in the popup to finish connecting this MCP server.",
-              )
-            : refreshed;
+        return refreshed;
     };
     const handleCreate = () => {
         if (!add) return;

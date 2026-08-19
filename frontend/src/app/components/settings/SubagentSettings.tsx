@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { ModelPicker } from "@/app/components/assistant/ModelPicker";
 import { ReasoningEffortToggle } from "@/app/components/assistant/ModelToggle";
-import { useReadSubagentPreference } from "@/app/components/assistant/readSubagentPreferences";
+import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import {
     getSessionModelCatalog,
     preloadModelCatalog,
@@ -12,7 +12,10 @@ import {
 import type { ModelCatalog } from "@/app/lib/beaverApi";
 
 export function SubagentSettings() {
-    const preference = useReadSubagentPreference();
+    const [preferences, savePreferences] = useAssistantPreferences();
+    const preference = preferences.readSubagents;
+    const update = (patch: Partial<typeof preference>) =>
+        savePreferences({ readSubagents: { ...preference, ...patch } });
     const [catalog, setCatalog] = useState<ModelCatalog | null>(
         getSessionModelCatalog,
     );
@@ -55,9 +58,7 @@ export function SubagentSettings() {
                     <select
                         value={preference.mode}
                         onChange={(event) =>
-                            preference.setMode(
-                                event.currentTarget.value as typeof preference.mode,
-                            )
+                            update({ mode: event.currentTarget.value as typeof preference.mode })
                         }
                         className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                     >
@@ -74,14 +75,14 @@ export function SubagentSettings() {
                         <ModelPicker
                             value={preference.model}
                             models={models}
-                            onChange={preference.setModel}
+                            onChange={(model) => update({ model })}
                             disabled={loading || !serverEnabled}
                         />
                     </div>
                     <ReasoningEffortToggle
                         model={preference.model}
                         value={preference.effort}
-                        onChange={preference.setEffort}
+                        onChange={(effort) => update({ effort })}
                     />
                 </div>
                 <label className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3">
@@ -99,7 +100,7 @@ export function SubagentSettings() {
                             role="switch"
                             checked={preference.showDock}
                             onChange={(event) =>
-                                preference.setShowDock(event.currentTarget.checked)
+                                update({ showDock: event.currentTarget.checked })
                             }
                             className="peer sr-only"
                         />

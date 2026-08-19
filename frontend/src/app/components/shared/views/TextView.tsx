@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
+import { useDocumentFile } from "@/app/hooks/useDocumentFile";
 
 interface Props {
     documentId: string;
@@ -26,7 +26,7 @@ const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdown"]);
  * offsets every citation indexes are measured on those exact bytes.
  */
 export function TextView({ documentId, versionId, filename, rounded }: Props) {
-    const { result, error, loading } = useFetchSingleDoc(documentId, versionId);
+    const { result, error, loading } = useDocumentFile(documentId, versionId);
     const text = useMemo(() => {
         if (!result || result.type !== "text") return null;
         return new TextDecoder("utf-8").decode(result.buffer);

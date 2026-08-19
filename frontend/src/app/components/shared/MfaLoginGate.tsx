@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 
@@ -14,14 +14,13 @@ const MfaVerificationPopup = lazy(async () => {
 });
 
 export function MfaLoginGate({ children }: { children: ReactNode }) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user, signOut } = useAuth();
     const { profile, loading } = useUserProfile();
     const [gateState, setGateState] = useState<GateState>("idle");
 
     useEffect(() => {
         if (!user?.id) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- sync fast path for signed-out and account-free sessions
             setGateState("idle");
             return;
         }
@@ -72,7 +71,7 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
                     title="Verify your identity"
                     message="Enter the six-digit code from your authenticator app to continue."
                     onCancel={() => {
-                        void signOut().then(() => router.replace("/login"));
+                        void signOut().then(() => navigate("/login", { replace: true }));
                     }}
                     onVerified={() => {
                         markMfaVerifiedForGate();

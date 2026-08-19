@@ -1,47 +1,33 @@
-import ExcelJS, { type Cell, type Worksheet } from "exceljs";
-import {
-    type CSSProperties,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
+import {
+    getSpreadsheetProjection,
+    type SpreadsheetProjection,
+} from "@/app/lib/beaverApi";
 
-const COL_HEADER = 28;
+const COLUMN_HEADER = 28;
 const ROW_HEADER = 48;
 const ROW_HEIGHT = 25;
+const COLUMN_WIDTH = 96;
 const OVERSCAN = 2;
-const INVALID = "This spreadsheet could not be displayed.";
 
 type HighlightCell = { sheet?: string; cell?: string };
 type Range = { r0: number; r1: number; c0: number; c1: number };
-type Parsed = {
-    buffer: ArrayBuffer;
-    workbook?: ExcelJS.Workbook;
-    error?: string;
-};
-
-interface Props {
+type SheetProjection = SpreadsheetProjection["sheets"][number];
+type Props = {
     documentId: string;
     versionId?: string | null;
     highlightCells?: HighlightCell[];
     rounded?: boolean;
-}
-
-function columnIndex(letters: string) {
-    let result = 0;
-    for (const letter of letters.toUpperCase())
-        result = result * 26 + letter.charCodeAt(0) - 64;
-    return result;
-}
+};
 
 function parseCell(value: string) {
-    const match = value.trim().match(/^([A-Za-z]+)(\d+)$/);
+    const match = value.trim().match(/^([A-Za-z]+)(\d+)$/u);
     if (!match) return null;
+    let column = 0;
+    for (const letter of match[1].toUpperCase())
+        column = column * 26 + letter.charCodeAt(0) - 64;
     const row = Number(match[2]);
-    const column = columnIndex(match[1]);
     return row > 0 && column > 0 ? { row, column } : null;
 }
 
@@ -50,14 +36,12 @@ function parseRange(value?: string): Range | null {
     const [from, to = from] = value.split(":");
     const start = parseCell(from);
     const end = parseCell(to);
-    return start && end
-        ? {
-              r0: Math.min(start.row, end.row),
-              r1: Math.max(start.row, end.row),
-              c0: Math.min(start.column, end.column),
-              c1: Math.max(start.column, end.column),
-          }
-        : null;
+    return start && end ? {
+        r0: Math.min(start.row, end.row),
+        r1: Math.max(start.row, end.row),
+        c0: Math.min(start.column, end.column),
+        c1: Math.max(start.column, end.column),
+    } : null;
 }
 
 function columnName(index: number) {
@@ -67,56 +51,11 @@ function columnName(index: number) {
     return name;
 }
 
-function argb(value?: string) {
-    const color = value?.replace(/^#/, "");
-    return color && (color.length === 6 || color.length === 8)
-        ? `#${color.slice(-6)}`
-        : undefined;
-}
-
-function cellStyle(cell: Cell): CSSProperties {
-    const fill =
-        cell.fill?.type === "pattern" ? argb(cell.fill.fgColor?.argb) : undefined;
-    const horizontal = cell.alignment?.horizontal;
-    return {
-        backgroundColor: fill,
-        color: argb(cell.font?.color?.argb),
-        fontFamily: cell.font?.name,
-        fontSize: cell.font?.size ? `${cell.font.size}px` : undefined,
-        fontStyle: cell.font?.italic ? "italic" : undefined,
-        fontWeight: cell.font?.bold ? 600 : undefined,
-        justifyContent:
-            cell.alignment?.horizontal === "center"
-                ? "center"
-                : cell.alignment?.horizontal === "right"
-                  ? "flex-end"
-                  : undefined,
-        textAlign:
-            horizontal === "fill" || horizontal === "centerContinuous"
-                ? "center"
-                : horizontal === "distributed"
-                  ? "justify"
-                  : horizontal,
-        whiteSpace: cell.alignment?.wrapText ? "normal" : "nowrap",
-    };
-}
-
-function firstVisible(offsets: number[], value: number) {
-    let low = 0;
-    let high = offsets.length - 1;
-    while (low < high) {
-        const mid = Math.floor((low + high + 1) / 2);
-        if (offsets[mid] <= value) low = mid;
-        else high = mid - 1;
-    }
-    return low;
-}
-
 function SpreadsheetGrid({
     sheet,
     highlight,
 }: {
-    sheet: Worksheet;
+    sheet: SheetProjection;
     highlight: Range | null;
 }) {
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -126,39 +65,44 @@ function SpreadsheetGrid({
         width: 900,
         height: 600,
     });
-    const rowCount = Math.max(sheet.dimensions?.bottom ?? 0, 1);
-    const columnCount = Math.max(sheet.dimensions?.right ?? 0, 1);
-    const columns = useMemo(() => {
-        const widths = Array.from({ length: columnCount }, (_, index) =>
-            Math.max(64, Math.min(320, (sheet.getColumn(index + 1).width ?? 14) * 7)),
+    const grid = useMemo(() => {
+        const cells = new Map(
+            sheet.cells.map((cell) => [`${cell.row}:${cell.column}`, cell]),
         );
-        const offsets = [0];
-        for (const width of widths) offsets.push(offsets.at(-1)! + width);
-        return { widths, offsets };
-    }, [columnCount, sheet]);
-    const merges = useMemo(() => {
-        const result = new Map<string, Range>();
-        for (const value of sheet.model.merges ?? []) {
-            const range = parseRange(value);
-            if (range) result.set(`${range.r0}:${range.c0}`, range);
+        const covered = new Set<string>();
+        let rows = 1;
+        let columns = 1;
+        for (const cell of sheet.cells) {
+            const rowSpan = cell.rowSpan ?? 1;
+            const columnSpan = cell.columnSpan ?? 1;
+            rows = Math.max(rows, cell.row + rowSpan - 1);
+            columns = Math.max(columns, cell.column + columnSpan - 1);
+            for (let row = cell.row; row < cell.row + rowSpan; row += 1) {
+                for (
+                    let column = cell.column;
+                    column < cell.column + columnSpan;
+                    column += 1
+                ) {
+                    if (row !== cell.row || column !== cell.column)
+                        covered.add(`${row}:${column}`);
+                }
+            }
         }
-        return result;
+        return { cells, covered, rows, columns };
     }, [sheet]);
 
     useEffect(() => {
         const element = scrollRef.current;
         if (!element) return;
-        const sync = () =>
-            setViewport((current) => ({
-                ...current,
-                width: element.clientWidth,
-                height: element.clientHeight,
-            }));
+        const sync = () => setViewport((current) => ({
+            ...current,
+            width: element.clientWidth,
+            height: element.clientHeight,
+        }));
         sync();
-        const observer =
-            typeof ResizeObserver === "undefined"
-                ? null
-                : new ResizeObserver(sync);
+        const observer = typeof ResizeObserver === "undefined"
+            ? null
+            : new ResizeObserver(sync);
         observer?.observe(element);
         window.addEventListener("resize", sync);
         return () => {
@@ -170,128 +114,86 @@ function SpreadsheetGrid({
     useEffect(() => {
         const element = scrollRef.current;
         if (!element || !highlight) return;
-        const left = columns.offsets[highlight.c0 - 1] ?? 0;
-        const right = columns.offsets[highlight.c1] ?? left;
-        const top = (highlight.r0 - 1) * ROW_HEIGHT;
-        const bottom = highlight.r1 * ROW_HEIGHT;
-        element.scrollTo({
-            left: Math.max(0, (left + right - element.clientWidth) / 2),
-            top: Math.max(0, (top + bottom - element.clientHeight) / 2),
-        });
-    }, [columns, highlight, sheet]);
+        const left = Math.max(
+                0,
+                ((highlight.c0 + highlight.c1 - 1) * COLUMN_WIDTH -
+                    element.clientWidth) / 2,
+            );
+        const top = Math.max(
+                0,
+                ((highlight.r0 + highlight.r1 - 1) * ROW_HEIGHT -
+                    element.clientHeight) / 2,
+            );
+        if (typeof element.scrollTo === "function") element.scrollTo({ left, top });
+        else {
+            element.scrollLeft = left;
+            element.scrollTop = top;
+        }
+    }, [highlight, sheet]);
 
     const firstRow = Math.max(
         1,
-        Math.floor(Math.max(0, viewport.top - COL_HEADER) / ROW_HEIGHT) + 1 - OVERSCAN,
+        Math.floor(Math.max(0, viewport.top - COLUMN_HEADER) / ROW_HEIGHT) +
+            1 - OVERSCAN,
     );
     const lastRow = Math.min(
-        rowCount,
+        grid.rows,
         Math.ceil((viewport.top + viewport.height) / ROW_HEIGHT) + OVERSCAN,
     );
     const firstColumn = Math.max(
         1,
-        firstVisible(columns.offsets, Math.max(0, viewport.left - ROW_HEADER)) -
-            OVERSCAN,
+        Math.floor(Math.max(0, viewport.left - ROW_HEADER) / COLUMN_WIDTH) +
+            1 - OVERSCAN,
     );
     const lastColumn = Math.min(
-        columnCount,
-        firstVisible(
-            columns.offsets,
-            viewport.left + viewport.width + ROW_HEADER,
-        ) + OVERSCAN,
+        grid.columns,
+        Math.ceil((viewport.left + viewport.width) / COLUMN_WIDTH) + OVERSCAN,
     );
-    const visibleCells = [];
-    for (let row = firstRow; row <= lastRow; row++) {
-        for (let column = firstColumn; column <= lastColumn; column++) {
-            const cell = sheet.getCell(row, column);
-            if (cell.isMerged && cell.master.address !== cell.address) continue;
-            const merge = merges.get(`${row}:${column}`);
-            const right = merge?.c1 ?? column;
-            const bottom = merge?.r1 ?? row;
-            const active =
-                !!highlight &&
-                row <= highlight.r1 &&
-                bottom >= highlight.r0 &&
-                column <= highlight.c1 &&
-                right >= highlight.c0;
-            const style = {
-                ...cellStyle(cell),
-                left: ROW_HEADER + columns.offsets[column - 1],
-                top: COL_HEADER + (row - 1) * ROW_HEIGHT,
-                width:
-                    columns.offsets[right] - columns.offsets[column - 1],
-                height: (bottom - row + 1) * ROW_HEIGHT,
-            };
-            const href =
-                cell.hyperlink && /^(https?:\/\/|mailto:)/i.test(cell.hyperlink)
-                    ? cell.hyperlink
-                    : null;
-            const content = href ? (
-                <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="truncate text-blue-700 underline"
-                >
-                    {cell.text}
-                </a>
-            ) : (
-                cell.text
-            );
-            visibleCells.push(
+    const cells = [];
+    for (let row = firstRow; row <= lastRow; row += 1) {
+        for (let column = firstColumn; column <= lastColumn; column += 1) {
+            const key = `${row}:${column}`;
+            if (grid.covered.has(key)) continue;
+            const cell = grid.cells.get(key);
+            const right = column + (cell?.columnSpan ?? 1) - 1;
+            const bottom = row + (cell?.rowSpan ?? 1) - 1;
+            const active = !!highlight &&
+                row <= highlight.r1 && bottom >= highlight.r0 &&
+                column <= highlight.c1 && right >= highlight.c0;
+            cells.push(
                 <div
-                    key={cell.address}
+                    key={key}
                     role="gridcell"
                     aria-colindex={column}
                     aria-rowindex={row}
+                    data-position={key}
                     className={`absolute flex items-center overflow-hidden border-b border-r border-gray-200 px-1.5 text-xs text-gray-900 ${
-                        active ? "z-[1] bg-red-100 ring-2 ring-inset ring-red-600" : ""
+                        active
+                            ? "z-[1] bg-red-100 ring-2 ring-inset ring-red-600"
+                            : ""
                     }`}
-                    style={style}
-                    title={cell.text}
+                    style={{
+                        left: ROW_HEADER + (column - 1) * COLUMN_WIDTH,
+                        top: COLUMN_HEADER + (row - 1) * ROW_HEIGHT,
+                        width: (cell?.columnSpan ?? 1) * COLUMN_WIDTH,
+                        height: (cell?.rowSpan ?? 1) * ROW_HEIGHT,
+                    }}
+                    title={cell?.value}
                 >
-                    <span className="min-w-0 truncate">{content}</span>
+                    <span className="min-w-0 truncate">{cell?.value}</span>
                 </div>,
             );
         }
     }
-    const visibleColumns = [];
-    for (let column = firstColumn; column <= lastColumn; column++)
-        visibleColumns.push(
-            <div
-                key={column}
-                className="absolute top-0 flex h-7 items-center justify-center border-r border-gray-300 bg-gray-100 text-xs font-medium text-gray-600"
-                style={{
-                    left:
-                        ROW_HEADER +
-                        columns.offsets[column - 1] -
-                        viewport.left,
-                    width: columns.widths[column - 1],
-                }}
-            >
-                {columnName(column)}
-            </div>,
-        );
-    const visibleRows = [];
-    for (let row = firstRow; row <= lastRow; row++)
-        visibleRows.push(
-            <div
-                key={row}
-                className="absolute left-0 flex w-12 items-center justify-center border-b border-gray-300 bg-gray-100 text-xs text-gray-600"
-                style={{
-                    top: COL_HEADER + (row - 1) * ROW_HEIGHT - viewport.top,
-                    height: ROW_HEIGHT,
-                }}
-            >
-                {row}
-            </div>,
-        );
+
     return (
         <div className="relative min-h-0 flex-1 overflow-hidden bg-white">
             <div
                 ref={scrollRef}
                 role="grid"
                 aria-label={sheet.name}
+                aria-rowcount={grid.rows}
+                aria-colcount={grid.columns}
                 className="absolute inset-0 overflow-auto"
                 onScroll={(event) => {
                     const element = event.currentTarget;
@@ -306,18 +208,48 @@ function SpreadsheetGrid({
                 <div
                     className="relative"
                     style={{
-                        width: ROW_HEADER + columns.offsets.at(-1)!,
-                        height: COL_HEADER + rowCount * ROW_HEIGHT,
+                        width: ROW_HEADER + grid.columns * COLUMN_WIDTH,
+                        height: COLUMN_HEADER + grid.rows * ROW_HEIGHT,
                     }}
                 >
-                    {visibleCells}
+                    {cells}
                 </div>
             </div>
             <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-7 overflow-hidden">
-                {visibleColumns}
+                {Array.from(
+                    { length: lastColumn - firstColumn + 1 },
+                    (_, offset) => firstColumn + offset,
+                ).map((column) => (
+                    <div
+                        key={column}
+                        className="absolute top-0 flex h-7 items-center justify-center border-r border-gray-300 bg-gray-100 text-xs font-medium text-gray-600"
+                        style={{
+                            left: ROW_HEADER +
+                                (column - 1) * COLUMN_WIDTH - viewport.left,
+                            width: COLUMN_WIDTH,
+                        }}
+                    >
+                        {columnName(column)}
+                    </div>
+                ))}
             </div>
             <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 overflow-hidden">
-                {visibleRows}
+                {Array.from(
+                    { length: lastRow - firstRow + 1 },
+                    (_, offset) => firstRow + offset,
+                ).map((row) => (
+                    <div
+                        key={row}
+                        className="absolute left-0 flex w-12 items-center justify-center border-b border-gray-300 bg-gray-100 text-xs text-gray-600"
+                        style={{
+                            top: COLUMN_HEADER +
+                                (row - 1) * ROW_HEIGHT - viewport.top,
+                            height: ROW_HEIGHT,
+                        }}
+                    >
+                        {row}
+                    </div>
+                ))}
             </div>
             <div className="pointer-events-none absolute left-0 top-0 z-20 h-7 w-12 border-b border-r border-gray-300 bg-gray-200" />
         </div>
@@ -330,64 +262,43 @@ export function SpreadsheetView({
     highlightCells,
     rounded = true,
 }: Props) {
-    const { result, error: fetchError } = useFetchSingleDoc(documentId, versionId);
-    const [parsed, setParsed] = useState<Parsed | null>(null);
-    const target = highlightCells?.[0];
+    const [projection, setProjection] =
+        useState<SpreadsheetProjection | null>(null);
+    const [error, setError] = useState(false);
     const [sheetIndex, setSheetIndex] = useState(0);
+    const target = highlightCells?.[0];
 
     useEffect(() => {
-        if (result?.type !== "spreadsheet") return;
-        let cancelled = false;
-        const workbook = new ExcelJS.Workbook();
-        workbook.xlsx
-            .load(result.buffer)
-            .then(() => {
-                if (!cancelled)
-                    setParsed(
-                        workbook.worksheets.length
-                            ? { buffer: result.buffer, workbook }
-                            : { buffer: result.buffer, error: INVALID },
-                    );
-            })
-            .catch(() => {
-                if (!cancelled)
-                    setParsed({ buffer: result.buffer, error: INVALID });
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [result]);
+        let live = true;
+        setProjection(null);
+        setError(false);
+        void getSpreadsheetProjection(documentId, versionId)
+            .then((value) => { if (live) setProjection(value); })
+            .catch(() => { if (live) setError(true); });
+        return () => { live = false; };
+    }, [documentId, versionId]);
 
-    const current =
-        result?.type === "spreadsheet" && parsed?.buffer === result.buffer
-            ? parsed
-            : null;
-    const workbook = current?.workbook;
     useEffect(() => {
-        if (!workbook || !target?.sheet) return;
-        const index = workbook.worksheets.findIndex(
-            (sheet) => sheet.name === target.sheet,
+        if (!projection || !target?.sheet) return;
+        const index = projection.sheets.findIndex(
+            ({ name }) => name === target.sheet,
         );
         if (index >= 0) setSheetIndex(index);
-    }, [target?.sheet, workbook]);
+    }, [projection, target?.sheet]);
 
-    const message =
-        (result && result.type !== "spreadsheet" ? INVALID : current?.error) ??
-        (fetchError ? "Failed to load spreadsheet." : null);
-    const sheet = workbook?.worksheets[sheetIndex] ?? workbook?.worksheets[0];
+    const sheet = projection?.sheets[sheetIndex] ?? projection?.sheets[0];
     return (
-        <div
-            className={`relative flex min-h-0 flex-1 flex-col overflow-hidden border border-gray-200 ${
-                rounded ? "rounded-lg" : ""
-            }`}
-        >
-            {message ? (
-                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
-                    {message}
+        <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden border border-gray-200 ${
+            rounded ? "rounded-lg" : ""
+        }`}>
+            {error ? (
+                <div role="alert" className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
+                    Failed to load spreadsheet.
                 </div>
             ) : !sheet ? (
-                <div className="flex h-full items-center justify-center">
+                <div role="status" className="flex h-full items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-red-700" />
+                    <span className="sr-only">Loading spreadsheet…</span>
                 </div>
             ) : (
                 <>
@@ -395,15 +306,18 @@ export function SpreadsheetView({
                         sheet={sheet}
                         highlight={parseRange(target?.cell)}
                     />
-                    {workbook!.worksheets.length > 1 && (
+                    {projection!.sheets.length > 1 && (
                         <div
-                            className="flex h-9 shrink-0 items-stretch overflow-x-auto border-t border-gray-300 bg-gray-100"
+                            role="tablist"
                             aria-label="Sheets"
+                            className="flex h-9 shrink-0 items-stretch overflow-x-auto border-t border-gray-300 bg-gray-100"
                         >
-                            {workbook!.worksheets.map((item, index) => (
+                            {projection!.sheets.map((item, index) => (
                                 <button
-                                    key={item.id}
+                                    key={item.name}
                                     type="button"
+                                    role="tab"
+                                    aria-selected={index === sheetIndex}
                                     onClick={() => setSheetIndex(index)}
                                     className={`shrink-0 border-r border-gray-300 px-4 text-xs ${
                                         index === sheetIndex

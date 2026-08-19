@@ -9,7 +9,6 @@ import {
 } from "./codexAppServer";
 import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
 import { codexModelSlug } from "./models";
-import { createLlmTrace } from "./rawStreamLog";
 import type {
   NormalizedLlmUsage,
   NormalizedToolCall,
@@ -228,14 +227,7 @@ async function runCodexTurn(
     throw new Error("Invalid Codex continuation ID.");
   }
 
-  const trace = createLlmTrace({ provider: "codex-app-server", model: params.model });
-  const startedAt = performance.now();
   const server = await acquireCodexAppServer(params.apiKeys?.codex?.trim() || "");
-  trace.record({
-    iteration: 0,
-    label: "app_server_ready",
-    payload: { elapsedMs: performance.now() - startedAt },
-  });
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
   let bridge: McpToolBridge | null = null;
   if (params.tools?.length && params.runTools) {
@@ -366,7 +358,6 @@ async function runCodexTurn(
     }
     if (event.params.threadId !== threadId) return;
     resetIdle();
-    trace.record({ iteration: 0, label: event.method, payload: event.params });
     switch (event.method) {
       case "turn/started": {
         const startedTurn = record(event.params.turn);
@@ -469,8 +460,6 @@ async function runCodexTurn(
 
   const unsubscribe = server.subscribe(listener);
   params.abortSignal?.addEventListener("abort", onAbort, { once: true });
-  let resultStatus: "completed" | "error" = "error";
-  let resultError: unknown;
   try {
     const common = threadParams(params, bridge);
     const opened = continuationId
@@ -487,12 +476,6 @@ async function runCodexTurn(
       throw new Error("Codex app-server returned an invalid thread ID.");
     }
     params.providerSession?.onContinuationId?.(threadId);
-    trace.record({
-      iteration: 0,
-      label: continuationId ? "thread_resumed" : "thread_started",
-      payload: { elapsedMs: performance.now() - startedAt, threadId },
-    });
-
     const model = codexModelSlug(params.model);
     const started = await server.request<TurnResponse>("turn/start", {
       threadId,
@@ -511,54 +494,25 @@ async function runCodexTurn(
     });
     turnId = typeof started.turn?.id === "string" ? started.turn.id : "";
     if (!turnId) throw new Error("Codex app-server returned an invalid turn ID.");
-    trace.record({
-      iteration: 0,
-      label: "turn_started",
-      payload: { elapsedMs: performance.now() - startedAt, threadId, turnId },
-    });
     params.providerSession?.onControl?.({
       steer: async (message) => {
-        trace.record({
-          iteration: 0,
-          label: "turn_steer_requested",
-          payload: { threadId, turnId, messageId: message.id },
+        await Promise.race([
+          turnReady,
+          completion.then(() => {
+            throw new Error("Codex turn ended before it could be steered.");
+          }),
+        ]);
+        const steered = await server.request<SteerResponse>("turn/steer", {
+          threadId,
+          expectedTurnId: turnId,
+          clientUserMessageId: message.id,
+          input: [{ type: "text", text: message.text, text_elements: [] }],
         });
-        try {
-          await Promise.race([
-            turnReady,
-            completion.then(() => {
-              throw new Error("Codex turn ended before it could be steered.");
-            }),
-          ]);
-          const steered = await server.request<SteerResponse>("turn/steer", {
-            threadId,
-            expectedTurnId: turnId,
-            clientUserMessageId: message.id,
-            input: [{ type: "text", text: message.text, text_elements: [] }],
-          });
-          if (typeof steered.turnId !== "string" || !steered.turnId) {
-            throw new Error("Codex app-server returned an invalid steered turn ID.");
-          }
-          turnId = steered.turnId;
-          trace.record({
-            iteration: 0,
-            label: "turn_steer_accepted",
-            payload: { threadId, turnId, messageId: message.id },
-          });
-          params.callbacks?.onSteer?.(message);
-        } catch (error) {
-          trace.record({
-            iteration: 0,
-            label: "turn_steer_failed",
-            payload: {
-              threadId,
-              turnId,
-              messageId: message.id,
-              error: error instanceof Error ? error.message : String(error),
-            },
-          });
-          throw error;
+        if (typeof steered.turnId !== "string" || !steered.turnId) {
+          throw new Error("Codex app-server returned an invalid steered turn ID.");
         }
+        turnId = steered.turnId;
+        params.callbacks?.onSteer?.(message);
       },
     });
     resetIdle();
@@ -568,16 +522,11 @@ async function runCodexTurn(
     if (!fullText.trim() && !bridge?.hasTerminalResult()) {
       throw new Error(failure || "Codex app-server returned no response.");
     }
-    resultStatus = "completed";
     return {
       fullText,
       ...(usage ? { usage } : {}),
-      providerInvocationId: threadId,
       ...(params.providerSession?.persist ? { continuationId: threadId } : {}),
     };
-  } catch (error) {
-    resultError = error;
-    throw error;
   } finally {
     clearTimeout(idleTimer);
     clearTimeout(interruptTimer);
@@ -589,7 +538,6 @@ async function runCodexTurn(
     if (threadId && server.alive()) {
       void server.request("thread/unsubscribe", { threadId }).catch(() => undefined);
     }
-    await trace.flush(resultStatus, resultError);
   }
 }
 

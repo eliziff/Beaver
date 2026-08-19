@@ -27,6 +27,7 @@ export function ModelPicker({
     className,
     detail,
     onDetailClick,
+    onOpen,
 }: {
     value: string;
     models: ModelOption[];
@@ -36,6 +37,7 @@ export function ModelPicker({
     className?: string;
     detail?: string;
     onDetailClick?: () => void;
+    onOpen?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const selected = models.find((model) => model.id === value);
@@ -65,7 +67,10 @@ export function ModelPicker({
                 aria-expanded={open}
                 aria-haspopup="dialog"
                 disabled={disabled}
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                    onOpen?.();
+                    setOpen(true);
+                }}
                 title={
                     selectedAvailable
                         ? displayLabel

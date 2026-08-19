@@ -1,6 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { LogOut, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -16,19 +16,20 @@ import {
 } from "./accountStyles";
 import { AccountSection } from "./AccountSection";
 export default function AccountPage() {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user, signOut, updateEmail } = useAuth();
     const { profile, updateProfile } = useUserProfile();
     const [savingProfile, setSavingProfile] = useState(false);
     const [isSavingEmail, setIsSavingEmail] = useState(false);
     const [emailStatus, setEmailStatus] = useState<string | null>(null);
     const [emailWarning, setEmailWarning] = useState<string | null>(null);
+    const [actionWarning, setActionWarning] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const { runMfa, mfaPopup } = useMfaAction();
     const handleLogout = async () => {
         await signOut();
-        router.push("/");
+        navigate("/");
     };
     const handleDeleteAccount = () => {
         void runMfa(
@@ -37,7 +38,7 @@ export default function AccountPage() {
                 try {
                     await deleteAccount();
                     await signOut();
-                    router.push("/");
+                    navigate("/");
                 } finally {
                     setIsDeleting(false);
                 }
@@ -49,7 +50,7 @@ export default function AccountPage() {
                 onPending: () => setDeleteConfirm(false),
                 onError: () => {
                     setDeleteConfirm(false);
-                    alert("Failed to delete account. Please try again.");
+                    setActionWarning("Failed to delete account. Please try again.");
                 },
             },
         );
@@ -107,7 +108,7 @@ export default function AccountPage() {
             organisation: String(form.get("organisation") ?? "").trim(),
         });
         setSavingProfile(false);
-        if (!success) alert("Failed to update profile. Please try again.");
+        if (!success) setActionWarning("Failed to update profile. Please try again.");
     };
     if (!user) return null;
     return (
@@ -242,6 +243,11 @@ export default function AccountPage() {
                 title="Email already registered"
                 message={emailWarning}
                 onClose={() => setEmailWarning(null)}
+            />
+            <WarningPopup
+                open={!!actionWarning}
+                message={actionWarning}
+                onClose={() => setActionWarning(null)}
             />
             {mfaPopup}
         </div>

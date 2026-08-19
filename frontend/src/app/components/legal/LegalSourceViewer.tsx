@@ -1,828 +1,628 @@
-import { createElement, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import DOMPurify from "dompurify";
+import {
+  createElement,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import type { CaseCitationQuote } from "@/app/components/shared/types";
-import { clearDocxQuoteHighlights, highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
-import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
-import { formatLongDate } from "@/app/lib/utils";
 import {
-    getCourtlistenerOpinions,
-    getDirectLegalSourceDocument,
-    getLegalSourceDocument,
-    type CaseLawOpinion,
-    type LegalDocumentType,
-    type LegalSourceInlineToken,
-    type LegalSourcePresentationBlock,
-    type LegalSourceViewerPayload,
+  clearDocxQuoteHighlights,
+  highlightDocxQuotes,
+} from "@/app/components/shared/views/highlightDocxQuote";
+import {
+  getCourtlistenerOpinions,
+  getDirectLegalSourceDocument,
+  getLegalSourceDocument,
+  type CaseLawOpinion,
+  type LegalDocumentType,
+  type LegalSourceInlineToken,
+  type LegalSourcePresentationBlock,
+  type LegalSourceViewerPayload,
 } from "@/app/lib/beaverApi";
-type ViewerAnchor = LegalSourceViewerPayload["structure"]["blocks"][number];
-type ViewerMetadata = LegalSourceViewerPayload["metadata"];
+import { formatLongDate } from "@/app/lib/utils";
+
+type Anchor = LegalSourceViewerPayload["structure"]["blocks"][number];
+type Metadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
-function snapInsideViewer(
-    root: HTMLElement,
-    target: HTMLElement,
-    align: "center" | "start" = "center",
-) {
-    const rootBox = root.getBoundingClientRect();
-    const targetBox = target.getBoundingClientRect();
-    root.scrollTop +=
-        targetBox.top -
-        rootBox.top -
-        (align === "start" ? 16 : 32);
-}
-export type LegalSourceViewerProps = {
-    referenceId?: string; provider?: "a2aj" | "journal";
-    citation?: string; sourceId?: string | null;
-    docType?: LegalDocumentType | "auto"; language?: "en" | "fr";
-    dataset?: string | null; quotes?: { quote: string }[];
-    citationRef?: number; compact?: boolean;
-    initialLocator?: string | null;
-    caseTab?: CaseTab;
-};
+
 export type CaseTab = {
-    kind: "case"; id: `case:${number}`; chatId: string; clusterId: number;
-    citationRef?: number; caseName: string | null; citation: string | null;
-    url: string | null; dateFiled: string | null; pdfUrl: string | null;
-    initialLocator?: string | null;
-    quotes?: CaseCitationQuote[]; opinions?: CaseLawOpinion[];
+  kind: "case";
+  id: `case:${number}`;
+  chatId: string;
+  clusterId: number;
+  citationRef?: number;
+  caseName: string | null;
+  citation: string | null;
+  url: string | null;
+  dateFiled: string | null;
+  pdfUrl: string | null;
+  initialLocator?: string | null;
+  quotes?: CaseCitationQuote[];
+  opinions?: CaseLawOpinion[];
 };
+
 export type LegalSourceTab = {
-    kind: "legal"; id: `legal:${string}`; citation: string;
-    name: string | null; dataset: string | null;
-    provider?: "a2aj" | "journal"; sourceId?: string | null;
-    docType: LegalDocumentType | "auto"; language: "en" | "fr"; citationRef?: number;
-    initialLocator?: string | null;
-    quotes?: { quote: string }[];
+  kind: "legal";
+  id: `legal:${string}`;
+  citation: string;
+  name: string | null;
+  dataset: string | null;
+  provider?: "a2aj" | "journal";
+  sourceId?: string | null;
+  docType: LegalDocumentType | "auto";
+  language: "en" | "fr";
+  citationRef?: number;
+  initialLocator?: string | null;
+  quotes?: { quote: string }[];
 };
-const caseOpinionsCache = new Map<
-    number,
-    CaseLawOpinion[] | Promise<CaseLawOpinion[]>
->();
-const CASE_HTML_CONFIG = {
-    ALLOWED_TAGS:
-        "a blockquote br code div em h1 h2 h3 h4 h5 h6 i li ol p pre small span strong sub sup table tbody td th thead tr u ul".split(
-            " ",
-        ),
-    ALLOWED_ATTR:
-        "aria-label class colspan href id rel rowspan target title".split(" "),
-    ALLOW_DATA_ATTR: false,
-    ALLOW_ARIA_ATTR: true,
-    ALLOWED_URI_REGEXP: /^(?:https:\/\/www\.courtlistener\.com\/|#)/iu,
-    FORBID_ATTR: ["style"],
-    FORBID_TAGS: "embed form iframe math object script style svg".split(" "),
-    RETURN_TRUSTED_TYPE: false,
+
+export type LegalSourceViewerProps = {
+  referenceId?: string;
+  provider?: "a2aj" | "journal";
+  citation?: string;
+  sourceId?: string | null;
+  docType?: LegalDocumentType | "auto";
+  language?: "en" | "fr";
+  dataset?: string | null;
+  quotes?: { quote: string }[];
+  citationRef?: number;
+  compact?: boolean;
+  initialLocator?: string | null;
+  caseTab?: CaseTab;
 };
-function sanitizeCaseHtml(value: string) {
-    const sanitized = DOMPurify.sanitize(value, CASE_HTML_CONFIG);
-    if (typeof document === "undefined") return sanitized;
-    const template = document.createElement("template");
-    template.innerHTML = sanitized;
-    template.content.querySelectorAll("a[href]").forEach((anchor) => {
-        if (anchor.getAttribute("href")?.startsWith("#")) return;
-        anchor.setAttribute("target", "_blank");
-        anchor.setAttribute("rel", "noopener noreferrer");
-    });
-    return template.innerHTML;
-}
-function friendlyCaseError(message: string) {
-    if (message.includes("429") || /rate limit|throttled/iu.test(message)) {
-        const wait = message.match(/available in\s+(\d+)\s+seconds/iu)?.[1];
-        return `CourtListener is rate limiting requests. Please try again${
-            wait ? ` in about ${wait} seconds` : " shortly"
-        }.`;
-    }
-    if (message.includes("401") || /credentials|token|auth/iu.test(message))
-        return "CourtListener authentication is not configured correctly.";
-    return "Could not load this case from CourtListener. Please try again shortly.";
-}
-function formatCaseDate(value: string | null) {
-    return formatLongDate(value);
-}
-function opinionTypeLabel(value: string | null) {
-    if (!value) return "Opinion";
-    const type = value.replace(/^\d+/u, "").replace(/_/gu, " ").trim();
-    const compact = type.toLowerCase().replace(/\s+/gu, "");
-    if (compact === "lead") return "Lead Opinion";
-    if (/^(?:concurrentinpart|concurrenceinpart|concurinpart)$/u.test(compact)) {
-        return "Concurrence in part";
-    }
-    if (compact === "combined") return "Combined Opinion";
-    return type.replace(/\b\w/gu, (character) => character.toUpperCase());
-}
-function opinionTitle(
-    opinion: Pick<CaseLawOpinion, "type" | "author">,
-    index?: number,
-) {
-    const type = opinion.type
-        ? opinionTypeLabel(opinion.type)
-        : `Opinion ${index ?? ""}`.trim();
-    return opinion.author ? `${type} by ${opinion.author}` : type;
-}
-function opinionRank(value: string | null) {
-    const type = value?.replace(/^\d+/u, "").toLowerCase() ?? "";
-    if (/lead|majority|unanimous|plurality/u.test(type)) return 0;
-    if (type.includes("concurr")) return 1;
-    if (type.includes("dissent")) return 2;
-    return type.includes("combined") ? 4 : 3;
-}
-function orderOpinions(opinions: CaseLawOpinion[]) {
-    return opinions
-        .map((opinion, index) => ({ opinion, index }))
-        .sort((a, b) => opinionRank(a.opinion.type) - opinionRank(b.opinion.type) || a.index - b.index);
-}
+
 export function legalSourceKindLabel(docType?: LegalDocumentType) {
-    return docType === "laws"
-        ? "Legislation"
-        : docType === "articles"
-          ? "Journal article"
-          : "Decision";
+  if (docType === "laws") return "Legislation";
+  if (docType === "articles") return "Journal article";
+  return "Decision";
 }
+
 export function legalSourceAnchorId(label: string) {
-    return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
+  return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
+
 export function legalSourceLocatorFromUrl(value: string | null | undefined) {
-    if (!value) return null;
-    try {
-        const hash = decodeURIComponent(new URL(value).hash.slice(1));
-        return hash.match(/^((?:par|sec)\d[^:]*)/iu)?.[1] ?? null;
-    } catch {
-        return null;
-    }
+  if (!value) return null;
+  try {
+    return decodeURIComponent(new URL(value).hash.slice(1))
+      .match(/^((?:par|sec)\d[^:]*)/iu)?.[1] ?? null;
+  } catch {
+    return null;
+  }
 }
+
 export function normalizeLegalSourceLocator(value: string | null | undefined) {
-    const locator = value?.trim();
-    if (!locator) return null;
-    const paragraph = locator.match(/^para(?:graph)?s?\.?\s*(\d+)/iu);
-    return paragraph ? `par${paragraph[1]}` : locator.match(/^par\d+/iu)?.[0] ?? locator;
+  const locator = value?.trim();
+  if (!locator) return null;
+  const paragraph = locator.match(/^para(?:graph)?s?\.?\s*(\d+)/iu)?.[1];
+  return paragraph ? `par${paragraph}` : locator.match(/^par\d+/iu)?.[0] ?? locator;
 }
+
 function locatorLabel(label: string) {
-    if (label.startsWith("page")) return `Page ${label.slice(4)}`;
-    if (label.startsWith("par")) return `[${label.slice(3)}]`;
-    if (label.startsWith("fn")) return `Footnote ${label.slice(2)}`;
-    if (label.startsWith("sec")) return label.slice(3);
-    return label;
+  if (label.startsWith("page")) return `Page ${label.slice(4)}`;
+  if (label.startsWith("par")) return `[${label.slice(3)}]`;
+  if (label.startsWith("fn")) return `Footnote ${label.slice(2)}`;
+  return label.startsWith("sec") ? label.slice(3) : label;
 }
+
 function sectionDepth(label: string) {
-    const locator = label.replace(/^sec/u, "");
-    return Math.min(
-        5,
-        (locator.match(/\(/gu)?.length ?? 0) +
-            Math.max(0, locator.split(/[.-]/u).length - 1),
-    );
+  const locator = label.replace(/^sec/u, "");
+  return Math.min(
+    5,
+    (locator.match(/\(/gu)?.length ?? 0) +
+      Math.max(0, locator.split(/[.-]/u).length - 1),
+  );
 }
-function primaryAnchor(anchors: ViewerAnchor[], docType: LegalDocumentType) {
-    const wanted = docType === "laws" ? "section" : "paragraph";
-    let primary: ViewerAnchor | undefined;
-    for (const anchor of anchors)
-        if (anchor.kind === wanted && (!primary || anchor.label.length > primary.label.length))
-            primary = anchor;
-    return primary ?? anchors.find((anchor) => anchor.kind === "page") ?? null;
+
+function primaryAnchor(anchors: Anchor[], docType: LegalDocumentType) {
+  const wanted = docType === "laws" ? "section" : "paragraph";
+  return anchors
+    .filter(({ kind }) => kind === wanted)
+    .sort((left, right) => right.label.length - left.label.length)[0]
+    ?? anchors.find(({ kind }) => kind === "page")
+    ?? null;
 }
-function escapeRegExp(value: string) {
-    return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
+
 export function buildLegalSourceViewerSlices(payload: LegalSourceViewerPayload) {
-    const text = payload.text;
-    const relevantKind =
-        payload.reference.docType === "laws" ? "section" : "paragraph";
-    const usable = payload.structure.blocks.filter(
-        (block) =>
-            block.start >= 0 &&
-            block.start < text.length &&
-            (block.kind === relevantKind || block.kind === "page"),
-    );
-    const anchorsByStart = new Map<number, ViewerAnchor[]>();
-    for (const block of usable) {
-        const anchors = anchorsByStart.get(block.start);
-        if (anchors) anchors.push(block);
-        else anchorsByStart.set(block.start, [block]);
-    }
-    const starts = [
-        ...new Set(
-            usable.length
-                ? [0, ...anchorsByStart.keys()]
-                : [
-                      0,
-                      ...Array.from(
-                          text.matchAll(/\n[ \t]*\n+/gu),
-                          (match) => match.index + match[0].length,
-                      ),
-                  ],
-        ),
-    ].sort((left, right) => left - right);
-    if (starts.at(-1) !== text.length) starts.push(text.length);
-    return starts.slice(0, -1).flatMap((start, index) => {
-        const end = starts[index + 1];
-        const anchors = anchorsByStart.get(start) ?? [];
-        const content = text.slice(start, end).trim();
-        if (!content && !anchors.length) return [];
-        const primary = primaryAnchor(anchors, payload.reference.docType);
-        return [
-            {
-                key: `${start}:${end}`,
-                text: content,
-                anchors,
-                primary,
-                depth:
-                    primary?.kind === "section"
-                        ? sectionDepth(primary.label)
-                        : 0,
-            },
-        ];
-    });
+  const relevant = payload.reference.docType === "laws" ? "section" : "paragraph";
+  const usable = payload.structure.blocks.filter((block) =>
+    block.start >= 0 && block.start < payload.text.length &&
+    (block.kind === relevant || block.kind === "page"));
+  const byStart = new Map<number, Anchor[]>();
+  for (const block of usable) {
+    byStart.set(block.start, [...(byStart.get(block.start) ?? []), block]);
+  }
+  const paragraphBreaks = Array.from(
+    payload.text.matchAll(/\n[ \t]*\n+/gu),
+    (match) => match.index + match[0].length,
+  );
+  const starts = [...new Set(usable.length ? [0, ...byStart.keys()] : [0, ...paragraphBreaks])]
+    .sort((left, right) => left - right);
+  if (starts.at(-1) !== payload.text.length) starts.push(payload.text.length);
+  return starts.slice(0, -1).flatMap((start, index) => {
+    const end = starts[index + 1];
+    const anchors = byStart.get(start) ?? [];
+    const text = payload.text.slice(start, end).trim();
+    if (!text && !anchors.length) return [];
+    const primary = primaryAnchor(anchors, payload.reference.docType);
+    return [{
+      key: `${start}:${end}`,
+      text,
+      anchors,
+      primary,
+      depth: primary?.kind === "section" ? sectionDepth(primary.label) : 0,
+    }];
+  });
 }
-function stripDisplayedMarker(text: string, anchor: ViewerAnchor | null) {
-    if (!anchor || !text) return text;
-    if (anchor.kind === "paragraph") {
-        const number = anchor.label.slice(3);
-        return text.replace(
-            new RegExp(`^\\s*(?:\\[\\s*${number}\\s*\\]|${number}\\.)\\s*`, "u"),
-            "",
-        );
-    }
-    if (anchor.kind !== "section") return text;
-    const locator = anchor.label.slice(3);
-    const escaped = escapeRegExp(locator).replace(/\\\(/gu, "\\s*\\(");
-    const full = text.replace(new RegExp(`^\\s*${escaped}\\s*`, "iu"), "");
-    if (full !== text) return full;
-    const child = locator.match(/(\([^)]+\))$/u)?.[1];
-    return child
-        ? text.replace(
-              new RegExp(
-                  `^\\s*${escapeRegExp(child)}\\s*`,
-                  "iu",
-              ),
-              "",
-          )
-        : text;
+
+function safeHref(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
 }
-function safeExternalHref(value: string | null | undefined) {
-    if (!value) return null;
-    try {
-        const url = new URL(value);
-        return (url.protocol === "http:" || url.protocol === "https:") &&
-            !url.username &&
-            !url.password
-            ? value
-            : null;
-    } catch {
-        return null;
-    }
+
+export function legalSourceViewerActions(metadata: Metadata) {
+  return ([
+    ["source", "Site", metadata.url],
+    ["pdf", "PDF", metadata.pdfUrl],
+  ] as const).flatMap(([kind, label, value]) => {
+    const href = safeHref(value);
+    return href ? [{ kind, label, href }] : [];
+  });
 }
-export function legalSourceViewerActions(metadata: ViewerMetadata) {
-    return (
-        [
-            ["source", "Site", metadata.url],
-            ["pdf", "PDF", metadata.pdfUrl],
-        ] as const
-    ).flatMap(([kind, label, value]) => {
-        const href = safeExternalHref(value);
-        return href ? [{ kind, label, href }] : [];
-    });
-}
-function stripInlinePrefix(
-    tokens: LegalSourceInlineToken[],
-    strip: (text: string) => string,
-) {
-    const text = tokens.map((token) => token.text).join("");
-    let remaining = text.length - strip(text).length;
-    if (remaining <= 0) return tokens;
-    return tokens.flatMap((token) => {
-        if (remaining >= token.text.length) {
-            remaining -= token.text.length;
-            return [];
-        }
-        if (remaining > 0) {
-            const result = { ...token, text: token.text.slice(remaining) };
-            remaining = 0;
-            return [result];
-        }
-        return [token];
-    });
-}
+
 export function LegalInlineText({ tokens }: { tokens: LegalSourceInlineToken[] }) {
-    return tokens.map((token, index) => {
-        if (token.kind === "text") return token.text;
-        const key = `${index}:${token.kind}`;
-        if (token.kind !== "link") {
-            return createElement(
-                token.kind,
-                {
-                    key,
-                    className:
-                        token.kind === "code"
-                            ? "rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]"
-                            : undefined,
-                },
-                token.text,
-            );
-        }
-        const href = token.href.startsWith("#")
-            ? token.href
-            : safeExternalHref(token.href);
-        if (!href) return token.text;
-        const external = !href.startsWith("#");
-        return (
-            <a
-                key={key}
-                href={href}
-                target={external ? "_blank" : undefined}
-                rel={external ? "noopener noreferrer" : undefined}
-                className="text-brand underline decoration-brand/35 underline-offset-2 hover:decoration-brand"
-            >
-                {token.text}
-            </a>
-        );
-    });
+  return tokens.map((token, index) => {
+    if (token.kind === "text") return token.text;
+    if (token.kind === "link") {
+      const href = token.href.startsWith("#") ? token.href : safeHref(token.href);
+      if (!href) return token.text;
+      const external = !href.startsWith("#");
+      return (
+        <a
+          key={index}
+          href={href}
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener noreferrer" : undefined}
+          className="text-brand underline decoration-brand/35 underline-offset-2 hover:decoration-brand"
+        >
+          {token.text}
+        </a>
+      );
+    }
+    return createElement(token.kind, {
+      key: index,
+      className: token.kind === "code"
+        ? "rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]"
+        : undefined,
+    }, token.text);
+  });
 }
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function stripMarker(text: string, anchor: Anchor | null) {
+  if (anchor?.kind === "paragraph") {
+    return text.replace(new RegExp(`^\\s*(?:\\[\\s*${anchor.label.slice(3)}\\s*\\]|${anchor.label.slice(3)}\\.)\\s*`, "u"), "");
+  }
+  if (anchor?.kind === "section") {
+    const label = anchor.label.slice(3);
+    const stripped = text.replace(new RegExp(`^\\s*${escapeRegExp(label).replace(/\\\(/gu, "\\s*\\(")}\\s*`, "iu"), "");
+    if (stripped !== text) return stripped;
+    const child = label.match(/(\([^)]+\))$/u)?.[1];
+    return child
+      ? text.replace(new RegExp(`^\\s*${escapeRegExp(child)}\\s*`, "iu"), "")
+      : text;
+  }
+  return text;
+}
+
 const HEADING_CLASSES = {
-    2: "mb-4 mt-10 border-b border-gray-300 pb-2 text-[1.5rem] font-semibold leading-tight text-gray-950 first:mt-0",
-    3: "mb-3 mt-8 border-b-2 border-brand pb-1 text-[1.25rem] font-semibold leading-snug text-gray-950 first:mt-0",
-    4: "mb-3 mt-7 border-l-4 border-brand pl-3 text-[1.1rem] font-semibold leading-snug text-gray-950 first:mt-0",
-    5: "mb-2 mt-6 text-sm font-semibold uppercase leading-snug tracking-[0.08em] text-gray-800 first:mt-0",
+  2: "mb-4 mt-10 border-b border-gray-300 pb-2 text-[1.5rem] font-semibold leading-tight text-gray-950 first:mt-0",
+  3: "mb-3 mt-8 border-b-2 border-brand pb-1 text-[1.25rem] font-semibold leading-snug text-gray-950 first:mt-0",
+  4: "mb-3 mt-7 border-l-4 border-brand pl-3 text-[1.1rem] font-semibold leading-snug text-gray-950 first:mt-0",
+  5: "mb-2 mt-6 text-sm font-semibold uppercase leading-snug tracking-[0.08em] text-gray-800 first:mt-0",
 } as const;
-function LegalPresentedBlocks({ blocks, anchor }: {
-    blocks: LegalSourcePresentationBlock[];
-    anchor: ViewerAnchor | null;
+
+function trimTokens(tokens: LegalSourceInlineToken[], strip: (text: string) => string) {
+  let remaining = tokens.map(({ text }) => text).join("").length - strip(tokens.map(({ text }) => text).join("")).length;
+  return tokens.flatMap((token) => {
+    if (remaining >= token.text.length) {
+      remaining -= token.text.length;
+      return [];
+    }
+    const next = remaining ? { ...token, text: token.text.slice(remaining) } : token;
+    remaining = 0;
+    return [next];
+  });
+}
+
+function PresentedBlocks({
+  blocks,
+  anchor,
+}: {
+  blocks: LegalSourcePresentationBlock[];
+  anchor: Anchor | null;
 }) {
-    const nodes: ReactNode[] = [];
-    let index = 0;
-    const inline = (block: LegalSourcePresentationBlock, blockIndex: number) => {
-        const anchored = blockIndex || !anchor
-            ? block.inline
-            : stripInlinePrefix(block.inline, (text) =>
-                  stripDisplayedMarker(text, anchor),
-              );
-        return block.kind === "provision"
-            ? stripInlinePrefix(anchored, (text) =>
-                  text.replace(
-                      new RegExp(
-                          `^\\s*${escapeRegExp(block.label)}\\s*`,
-                          "iu",
-                      ),
-                      "",
-                  ),
-              )
-            : anchored;
-    };
-    while (index < blocks.length) {
-        const block = blocks[index];
-        if (block.kind === "list-item") {
-            const ordered = block.ordered;
-            const depth = block.depth;
-            const start = index;
-            while (index < blocks.length) {
-                const item = blocks[index];
-                if (item.kind !== "list-item" || item.ordered !== ordered || item.depth !== depth) break;
-                index += 1;
-            }
-            const firstNumber = Number.parseInt(block.marker, 10);
-            nodes.push(
-                createElement(
-                    ordered ? "ol" : "ul",
-                    {
-                        key: `list:${start}`,
-                        className: `mb-4 space-y-1 pl-6 ${ordered ? "list-decimal" : "list-disc"}`,
-                        style: { marginInlineStart: `${Math.min(depth, 4) * 0.75}rem` },
-                        start: ordered && Number.isFinite(firstNumber) ? firstNumber : undefined,
-                    },
-                    blocks.slice(start, index).map((item, itemIndex) => (
-                        <li key={`${item.kind}:${itemIndex}`} className="pl-1.5">
-                            <LegalInlineText tokens={inline(item, start + itemIndex)} />
-                        </li>
-                    )),
-                ),
-            );
-            continue;
-        }
-        const tokens = inline(block, index);
-        const key = `${index}:${block.kind}`;
-        if (block.kind === "provision" && !anchor) {
-            nodes.push(
-                <p
-                    key={key}
-                    className="mb-4 grid grid-cols-[minmax(2.4rem,auto)_minmax(0,1fr)] gap-x-3"
-                    style={{ marginInlineStart: `${Math.min(block.depth, 4) * 0.75}rem` }}
-                >
-                    <span className="font-semibold text-gray-700">{block.label}</span>
-                    <span><LegalInlineText tokens={tokens} /></span>
-                </p>,
-            );
-        } else {
-            const heading = block.kind === "heading";
-            const quote = block.kind === "blockquote";
-            nodes.push(
-                createElement(
-                    heading ? `h${block.level}` : quote ? "blockquote" : "p",
-                    {
-                        key,
-                        className: heading
-                            ? HEADING_CLASSES[block.level]
-                            : quote
-                              ? "mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700"
-                              : "mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]",
-                    },
-                    <LegalInlineText tokens={tokens} />,
-                ),
-            );
-        }
+  const nodes: ReactNode[] = [];
+  const inline = (block: LegalSourcePresentationBlock, index: number) => {
+    const tokens = index || !anchor ? block.inline : trimTokens(block.inline, (text) => stripMarker(text, anchor));
+    return block.kind === "provision"
+      ? trimTokens(tokens, (text) => text.replace(new RegExp(`^\\s*${escapeRegExp(block.label)}\\s*`, "iu"), ""))
+      : tokens;
+  };
+  for (let index = 0; index < blocks.length;) {
+    const block = blocks[index];
+    if (block.kind === "list-item") {
+      const start = index;
+      while (index < blocks.length) {
+        const candidate = blocks[index];
+        if (candidate.kind !== "list-item" ||
+          candidate.ordered !== block.ordered ||
+          candidate.depth !== block.depth) break;
         index += 1;
+      }
+      nodes.push(createElement(
+        block.ordered ? "ol" : "ul",
+        {
+          key: `list:${start}`,
+          className: `mb-4 space-y-1 pl-6 ${block.ordered ? "list-decimal" : "list-disc"}`,
+          style: { marginInlineStart: `${Math.min(block.depth, 4) * 0.75}rem` },
+          start: block.ordered ? Number.parseInt(block.marker, 10) || undefined : undefined,
+        },
+        blocks.slice(start, index).map((item, offset) => (
+          <li key={offset} className="pl-1.5"><LegalInlineText tokens={inline(item, start + offset)} /></li>
+        )),
+      ));
+      continue;
     }
-    return nodes;
+    const tokens = inline(block, index);
+    if (block.kind === "provision" && !anchor) {
+      nodes.push(
+        <p key={index}
+          className="mb-4 grid grid-cols-[minmax(2.4rem,auto)_minmax(0,1fr)] gap-x-3"
+          style={{ marginInlineStart: `${Math.min(block.depth, 4) * 0.75}rem` }}>
+          <strong className="text-gray-700">{block.label}</strong>
+          <span><LegalInlineText tokens={tokens} /></span>
+        </p>,
+      );
+    } else {
+      nodes.push(createElement(
+        block.kind === "heading" ? `h${block.level}` : block.kind === "blockquote" ? "blockquote" : "p",
+        {
+          key: index,
+          className: block.kind === "heading"
+            ? HEADING_CLASSES[block.level]
+            : block.kind === "blockquote"
+              ? "mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700"
+              : "mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]",
+        },
+        <LegalInlineText tokens={tokens} />,
+      ));
+    }
+    index += 1;
+  }
+  return nodes;
 }
+
+const opinionCache = new Map<number, CaseLawOpinion[] | Promise<CaseLawOpinion[]>>();
+function friendlyCaseError(message: string) {
+  if (message.includes("429") || /rate limit|throttled/iu.test(message)) {
+    const wait = message.match(/available in\s+(\d+)\s+seconds/iu)?.[1];
+    return `CourtListener is rate limiting requests. Please try again${
+      wait ? ` in about ${wait} seconds` : " shortly"
+    }.`;
+  }
+  if (message.includes("401") || /credentials|token|auth/iu.test(message))
+    return "CourtListener authentication is not configured correctly.";
+  return "Could not load this case from CourtListener. Please try again shortly.";
+}
+
+function opinionTypeLabel(value: string | null) {
+  if (!value) return "Opinion";
+  const type = value.replace(/^\d+/u, "").replace(/_/gu, " ").trim();
+  const compact = type.toLowerCase().replace(/\s+/gu, "");
+  if (compact === "lead") return "Lead Opinion";
+  if (/^(?:concurrentinpart|concurrenceinpart|concurinpart)$/u.test(compact))
+    return "Concurrence in part";
+  if (compact === "combined") return "Combined Opinion";
+  return type.replace(/\b\w/gu, (letter) => letter.toUpperCase());
+}
+
+function opinionTitle(opinion: Pick<CaseLawOpinion, "type" | "author">, index?: number) {
+  const type = opinion.type
+    ? opinionTypeLabel(opinion.type)
+    : `Opinion ${index ?? ""}`.trim();
+  return opinion.author ? `${type} by ${opinion.author}` : type;
+}
+
+function opinionRank(value: string | null) {
+  const type = value?.replace(/^\d+/u, "").toLowerCase() ?? "";
+  if (/lead|majority|unanimous|plurality/u.test(type)) return 0;
+  if (type.includes("concurr")) return 1;
+  if (type.includes("dissent")) return 2;
+  return type.includes("combined") ? 4 : 3;
+}
+
+function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
+  const rootBox = root.getBoundingClientRect();
+  const targetBox = target.getBoundingClientRect();
+  root.scrollTop += targetBox.top - rootBox.top - (top ? 16 : 32);
+}
+
 export function LegalSourceViewer({
-    referenceId,
-    provider = "a2aj",
-    citation,
-    sourceId,
-    docType = "auto",
-    language = "en",
-    dataset,
-    quotes = EMPTY_QUOTES,
-    citationRef,
-    compact = false,
-    initialLocator,
-    caseTab,
+  referenceId,
+  provider = "a2aj",
+  citation,
+  sourceId,
+  docType = "auto",
+  language = "en",
+  dataset,
+  quotes = EMPTY_QUOTES,
+  citationRef,
+  compact = false,
+  initialLocator,
+  caseTab,
 }: LegalSourceViewerProps) {
-    const caseClusterId = caseTab?.clusterId;
-    const suppliedOpinions = caseTab?.opinions;
-    const sourceKey =
-        caseTab?.id ??
-        [referenceId, provider, citation, sourceId, docType, language, dataset]
-            .join("\0");
-    const startingLocator = normalizeLegalSourceLocator(
-        initialLocator ?? caseTab?.initialLocator,
-    );
-    const [loaded, setLoaded] = useState<
-        [string, LegalSourceViewerPayload | CaseLawOpinion[] | string]
-    >();
-    const current = loaded?.[0] === sourceKey ? loaded[1] : undefined;
-    const payload =
-        current && typeof current !== "string" && !Array.isArray(current)
-            ? current
-            : null;
-    const cachedOpinions = caseTab
-        ? caseOpinionsCache.get(caseTab.clusterId)
-        : undefined;
-    const error = typeof current === "string" ? current : null;
-    const [activeQuote, setActiveQuote] = useState(0);
-    const [activeLocator, setActiveLocator] = useState<string | null>(
-        startingLocator,
-    );
-    const [activeOpinionId, setActiveOpinionId] = useState<number | null>(null);
-    const contentRef = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        if (caseClusterId !== undefined && suppliedOpinions?.length) return;
-        let cancelled = false;
-        let request: Promise<LegalSourceViewerPayload | CaseLawOpinion[]>;
-        if (caseClusterId !== undefined) {
-            let caseRequest = caseOpinionsCache.get(caseClusterId);
-            if (!caseRequest) {
-                caseRequest = getCourtlistenerOpinions(caseClusterId);
-                caseOpinionsCache.set(caseClusterId, caseRequest);
-            }
-            request = Promise.resolve(caseRequest);
-        } else {
-            request = referenceId
-                ? getLegalSourceDocument(referenceId)
-                : citation
-                  ? getDirectLegalSourceDocument({
-                        provider,
-                        citation,
-                        sourceId,
-                        docType,
-                        language,
-                        dataset,
-                    })
-                  : Promise.reject(
-                        new Error("Legal source reference is missing"),
-                    );
-        }
-        void request
-            .then((result) => {
-                if (caseClusterId !== undefined && Array.isArray(result)) {
-                    caseOpinionsCache.set(caseClusterId, result);
-                }
-                if (!cancelled) setLoaded([sourceKey, result]);
-            })
-            .catch((reason: unknown) => {
-                if (caseClusterId !== undefined) {
-                    caseOpinionsCache.delete(caseClusterId);
-                }
-                if (cancelled) return;
-                const isCase = caseClusterId !== undefined;
-                const message =
-                    reason instanceof Error
-                        ? reason.message
-                        : isCase
-                          ? "Failed to load case"
-                          : "Could not load legal source";
-                setLoaded([
-                    sourceKey,
-                    isCase ? friendlyCaseError(message) : message,
-                ]);
-            });
-        return () => { cancelled = true; };
-    }, [caseClusterId, citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey, suppliedOpinions]);
-    const [slices, presentation] = useMemo(
-        () => [
-            payload ? buildLegalSourceViewerSlices(payload) : [],
-            new Map<string, LegalSourcePresentationBlock[]>(
-                payload?.presentation?.segments.map((segment) => [
-                    `${segment.start}:${segment.end}`,
-                    segment.blocks,
-                ]) ?? [],
-            ),
-        ] as const,
-        [payload],
-    );
-    const displayedOpinions = caseTab
-        ? suppliedOpinions?.length
-            ? suppliedOpinions
-            : Array.isArray(cachedOpinions)
-              ? cachedOpinions
-              : Array.isArray(current)
-                ? current
-                : undefined
-        : undefined;
-    const orderedOpinions = useMemo(() => orderOpinions(displayedOpinions ?? []), [displayedOpinions]);
-    const activeOpinion =
-        displayedOpinions?.find((opinion) => opinion.opinionId === activeOpinionId)
-        ?? orderedOpinions[0]?.opinion;
-    const sourceQuotes = caseTab?.quotes ?? quotes;
-    const quoteItems = sourceQuotes.map((quote, index) => {
-        const caseQuote = caseTab?.quotes?.[index];
-        return {
-            id: `legal-quote-${index}`,
-            quote: quote.quote,
-            eyebrow:
-                caseQuote && (caseQuote.author || caseQuote.type)
-                    ? opinionTitle(caseQuote)
-                    : null,
-        };
-    });
-    useLayoutEffect(() => {
-        const root = contentRef.current;
-        if (!root || (!payload && !activeOpinion)) return;
-        clearDocxQuoteHighlights(root);
-        const matches = highlightDocxQuotes(
-            root,
-            sourceQuotes.map(({ quote }) => quote),
-        );
-        const match = matches[activeQuote];
-        if (!match) return;
-        snapInsideViewer(root, match);
-    }, [activeOpinion, activeQuote, payload, sourceQuotes]);
-    useEffect(() => {
-        if (!payload) return;
-        setActiveLocator(
-            startingLocator ??
-            (window.location.hash
-                ? decodeURIComponent(window.location.hash.slice(1))
-                    .replace(/^legal-/u, "")
-                : null),
-        );
-    }, [payload, startingLocator]);
-    useEffect(() => {
-        const root = contentRef.current;
-        if (!payload || !root || !activeLocator) return;
-        const frame = window.requestAnimationFrame(() => {
-            const target = root.querySelector<HTMLElement>(
-                `#${legalSourceAnchorId(activeLocator)}`,
-            );
-            if (!target) return;
-            snapInsideViewer(root, target, "start");
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [activeLocator, payload]);
-    if (!payload && !caseTab) {
-        return (
-            <div className="flex h-full items-center justify-center p-6">
-                {error ? (
-                    <p className="max-w-md rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                        {error}</p>
-                ) : (
-                    <ThinkingSpinner label="Loading legal source" size={24} />
-                )}
-            </div>
-        );
+  const sourceKey = caseTab?.id ?? [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
+  const suppliedOpinions = caseTab?.opinions;
+  const [result, setResult] = useState<[string, LegalSourceViewerPayload | CaseLawOpinion[] | Error]>();
+  const current = result?.[0] === sourceKey ? result[1] : undefined;
+  const payload = current && !(current instanceof Error) && !Array.isArray(current) ? current : null;
+  const loadedOpinions = Array.isArray(current) ? current : undefined;
+  const cached = caseTab ? opinionCache.get(caseTab.clusterId) : undefined;
+  const opinions = caseTab
+    ? suppliedOpinions?.length ? suppliedOpinions : Array.isArray(cached) ? cached : loadedOpinions
+    : undefined;
+  const error = current instanceof Error ? current.message : null;
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [opinionId, setOpinionId] = useState<number | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const locator = normalizeLegalSourceLocator(initialLocator ?? caseTab?.initialLocator);
+
+  useEffect(() => {
+    if (caseTab && suppliedOpinions?.length) return;
+    let live = true;
+    let request: Promise<LegalSourceViewerPayload | CaseLawOpinion[]>;
+    if (caseTab) {
+      let caseRequest = opinionCache.get(caseTab.clusterId);
+      if (!caseRequest) {
+        caseRequest = getCourtlistenerOpinions(caseTab.clusterId);
+        opinionCache.set(caseTab.clusterId, caseRequest);
+      }
+      request = Promise.resolve(caseRequest);
+    } else if (referenceId) {
+      request = getLegalSourceDocument(referenceId);
+    } else if (citation) {
+      request = getDirectLegalSourceDocument({ provider, citation, sourceId, docType, language, dataset });
+    } else {
+      request = Promise.reject(new Error("Legal source reference is missing"));
     }
-    const metadata: ViewerMetadata = payload?.metadata ?? {
-        title: caseTab?.caseName || caseTab?.citation || "Decision",
-        citation: caseTab?.citation ?? "",
-        alternateCitation: null,
-        date: caseTab?.dateFiled ?? null,
-        dataset: "CourtListener",
-        url: caseTab?.url ?? null,
-        pdfUrl: caseTab?.pdfUrl ?? null,
-        language: "en",
-    };
-    const actions = legalSourceViewerActions(metadata);
-    const details = [
-        metadata.title !== metadata.citation ? metadata.citation : null,
-        metadata.alternateCitation,
-        formatCaseDate(metadata.date),
-    ].filter(Boolean);
-    const selectQuote = (index: number) => {
-        setActiveQuote(index);
-        const opinionId = caseTab?.quotes?.[index]?.opinionId;
-        if (typeof opinionId === "number") setActiveOpinionId(opinionId);
-    };
-    const selectOpinion = (opinion: CaseLawOpinion) => {
-        setActiveOpinionId(opinion.opinionId);
-        const index = caseTab?.quotes?.findIndex(
-            (quote) => quote.opinionId === opinion.opinionId,
-        );
-        if (index !== undefined && index >= 0) setActiveQuote(index);
-    };
-    return (
-        <div className="flex h-full min-h-0 flex-col bg-white">
-            <header
-                className={`shrink-0 border-b border-gray-200 bg-white ${
-                    compact ? "px-4 py-3" : "px-5 py-4 sm:px-8"
-                }`}
-            >
-                <div className="mx-auto max-w-5xl">
-                    <div className="flex min-w-0 items-start gap-3">
-                        <h1 className={`min-w-0 flex-1 ${compact
-                            ? "text-base font-semibold leading-tight text-gray-950"
-                            : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}`}>
-                            {metadata.title}</h1>
-                    {!!actions.length && (
-                        <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
-                            {actions.map((action) => (
-                                <a
-                                    key={`${action.kind}:${action.href}`}
-                                    href={action.href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label={action.label}
-                                    title={action.label}
-                                    className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                                        action.kind === "pdf"
-                                            ? "border-red-200 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-100"
-                                            : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400 hover:bg-blue-100"
-                                    }`}
-                                >
-                                    {action.label}
-                                </a>
-                            ))}
-                        </nav>
-                    )}
-                    </div>
-                    {!!details.length && (
-                        <p
-                            className={`${compact ? "mt-1 text-xs leading-5" : "mt-2 text-sm leading-5"} truncate whitespace-nowrap text-gray-600`}
-                            title={details.join(" · ")}
-                        >
-                            {details.join(" · ")}
-                        </p>
-                    )}
-                </div>
-            </header>
-            {quoteItems.length > 0 && !compact && (
-                <div className="shrink-0 py-2">
-                    <CitationQuotesHeader
-                        quotes={quoteItems}
-                        currentIndex={activeQuote}
-                        activeQuoteId={quoteItems[activeQuote]?.id}
-                        citationRef={citationRef ?? caseTab?.citationRef}
-                        citationText={metadata.citation}
-                        onSelect={(_quote, index) => selectQuote(index)}
-                        onIndexChange={selectQuote}
-                    />
-                </div>
-            )}
-            {caseTab && orderedOpinions.length > 1 && (
-                <div className="shrink-0 border-b border-gray-200 px-4 py-2">
-                    <div className="flex flex-wrap gap-1">
-                        {orderedOpinions.map(({ opinion, index }) => (
-                            <button
-                                key={opinion.opinionId ?? index}
-                                type="button"
-                                disabled={opinion.opinionId === null}
-                                onClick={() => selectOpinion(opinion)}
-                                className={`flex h-8 max-w-[180px] items-center rounded-md border px-3 text-[13px] ${
-                                    opinion === activeOpinion
-                                        ? "border-gray-400 bg-white text-gray-900"
-                                        : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white"
-                                } disabled:cursor-not-allowed disabled:opacity-50`}
-                            >
-                                <span className="truncate">{opinionTitle(opinion, index)}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            {payload?.truncated && (
-                <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-                    This unusually long source is displayed through the first five million characters.
-                </p>
-            )}
-            <div
-                ref={contentRef}
-                className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10"
-            >
-                {caseTab ? (
-                    error && !displayedOpinions?.length ? (
-                        <p className="mx-auto max-w-[48rem] rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                            {error}
-                        </p>
-                    ) : !displayedOpinions ? (
-                        <div className="flex h-full items-center justify-center">
-                            <ThinkingSpinner label="Loading case law" size={24} />
-                        </div>
-                    ) : activeOpinion ? (
-                        <OpinionBlock opinion={activeOpinion} />
-                    ) : (
-                        <p className="mx-auto max-w-[48rem] text-sm text-gray-500">
-                            No opinions were returned for this case.</p>
-                    )
-                ) : (
-                    <article
-                        lang={metadata.language}
-                        className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900"
-                    >
-                        {slices.map((slice) => {
-                        const page = slice.anchors.find((anchor) => anchor.kind === "page");
-                        const marker =
-                            slice.primary && slice.primary.kind !== "page"
-                                ? locatorLabel(slice.primary.label)
-                                : null;
-                        const blocks = presentation.get(slice.key);
-                        return (
-                            <section
-                                key={slice.key}
-                                id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
-                                className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
-                                style={{
-                                    contentVisibility: activeLocator ? "visible" : "auto",
-                                    containIntrinsicSize: "auto 150px",
-                                    marginInlineStart: payload?.reference.docType === "laws"
-                                        ? `${Math.min(slice.depth, 4) * 0.8}rem` : undefined,
-                                }}
-                            >
-                                {slice.anchors
-                                    .filter((anchor) => anchor !== slice.primary)
-                                    .map((anchor) => (
-                                        <span
-                                            key={anchor.label} id={legalSourceAnchorId(anchor.label)}
-                                            className="col-span-full block scroll-mt-4"
-                                            aria-hidden="true" />
-                                    ))}
-                                {page && (
-                                    <div
-                                        role="doc-pagebreak" aria-label={locatorLabel(page.label)}
-                                        className="col-span-full mb-7 mt-10 border-t border-gray-300 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 first:mt-0"
-                                    >
-                                        {locatorLabel(page.label)}</div>
-                                )}
-                                {slice.text && (
-                                    <>
-                                        {marker && (
-                                            <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">
-                                                {marker}</span>
-                                        )}
-                                        <div className="min-w-0">
-                                            <LegalPresentedBlocks
-                                                blocks={blocks ?? [{
-                                                    kind: "paragraph", text: slice.text,
-                                                    inline: [{ kind: "text", text: slice.text }], depth: 0,
-                                                }]}
-                                                anchor={slice.primary}
-                                            />
-                                        </div>
-                                    </>
-                                )}
-                            </section>
-                        );
-                        })}
-                    </article>
-                )}
-            </div>
+    void request.then((value) => {
+      if (!live) return;
+      if (caseTab && Array.isArray(value)) opinionCache.set(caseTab.clusterId, value);
+      setResult([sourceKey, value]);
+    }).catch((reason: unknown) => {
+      const message = reason instanceof Error
+        ? reason.message
+        : caseTab ? "Failed to load case" : "Could not load source";
+      if (live) setResult([sourceKey, new Error(caseTab ? friendlyCaseError(message) : message)]);
+      if (caseTab) opinionCache.delete(caseTab.clusterId);
+    });
+    return () => { live = false; };
+  }, [caseTab, citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey, suppliedOpinions]);
+
+  const slices = useMemo(() => payload ? buildLegalSourceViewerSlices(payload) : [], [payload]);
+  const presentation = useMemo(() => new Map(
+    payload?.presentation?.segments.map((segment) => [`${segment.start}:${segment.end}`, segment.blocks]) ?? [],
+  ), [payload]);
+  const orderedOpinions = useMemo(() => (opinions ?? [])
+    .map((opinion, index) => ({ opinion, index }))
+    .sort((left, right) =>
+      opinionRank(left.opinion.type) - opinionRank(right.opinion.type) ||
+      left.index - right.index), [opinions]);
+  const displayedOpinion = opinions?.find((opinion) => opinion.opinionId === opinionId)
+    ?? orderedOpinions[0]?.opinion;
+  const sourceQuotes = caseTab?.quotes ?? quotes;
+
+  useLayoutEffect(() => {
+    if (!root.current || (!payload && !displayedOpinion)) return;
+    clearDocxQuoteHighlights(root.current);
+    const match = highlightDocxQuotes(root.current, sourceQuotes.map(({ quote }) => quote))[quoteIndex];
+    if (match) scrollTo(root.current, match);
+  }, [displayedOpinion, payload, quoteIndex, sourceQuotes]);
+
+  useEffect(() => {
+    if (!payload || !root.current) return;
+    const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
+    if (!targetLocator) return;
+    const frame = requestAnimationFrame(() => {
+      const target = root.current?.querySelector<HTMLElement>(`#${legalSourceAnchorId(targetLocator)}`);
+      if (root.current && target) scrollTo(root.current, target, true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [locator, payload]);
+
+  if (!payload && !caseTab) {
+    return <div className="grid h-full place-items-center p-6">
+      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : <ThinkingSpinner label="Loading legal source" size={24} />}
+    </div>;
+  }
+
+  const metadata: Metadata = payload?.metadata ?? {
+    title: caseTab?.caseName || caseTab?.citation || "Decision",
+    citation: caseTab?.citation ?? "",
+    alternateCitation: null,
+    date: caseTab?.dateFiled ?? null,
+    url: caseTab?.url ?? null,
+    pdfUrl: caseTab?.pdfUrl ?? null,
+    language: "en",
+  };
+  const details = [
+    metadata.title !== metadata.citation ? metadata.citation : null,
+    metadata.alternateCitation,
+    formatLongDate(metadata.date),
+  ].filter(Boolean).join(" · ");
+  const actions = legalSourceViewerActions(metadata);
+  const quoteItems = sourceQuotes.map((quote, index) => ({
+    id: `legal-quote-${index}`,
+    quote: quote.quote,
+    eyebrow: caseTab?.quotes?.[index] &&
+      (caseTab.quotes[index].author || caseTab.quotes[index].type)
+      ? opinionTitle(caseTab.quotes[index])
+      : null,
+  }));
+  const selectQuote = (index: number) => {
+    setQuoteIndex(index);
+    const id = caseTab?.quotes?.[index]?.opinionId;
+    if (typeof id === "number") setOpinionId(id);
+  };
+  const selectOpinion = (opinion: CaseLawOpinion) => {
+    setOpinionId(opinion.opinionId);
+    const index = caseTab?.quotes?.findIndex(
+      ({ opinionId }) => opinionId === opinion.opinionId,
+    );
+    if (index !== undefined && index >= 0) setQuoteIndex(index);
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-white">
+      <header className={`shrink-0 border-b border-gray-200 bg-white ${
+        compact ? "px-4 py-3" : "px-5 py-4 sm:px-8"
+      }`}>
+        <div className="mx-auto max-w-5xl">
+          <div className="flex min-w-0 items-start gap-3">
+            <h1 className={`min-w-0 flex-1 ${compact
+              ? "text-base font-semibold leading-tight text-gray-950"
+              : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}`}>
+              {metadata.title}
+            </h1>
+            {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
+              {actions.map(({ kind, label, href }) => (
+                <a key={`${kind}:${href}`} href={href} target="_blank"
+                  rel="noopener noreferrer" aria-label={label} title={label}
+                  className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${kind === "pdf"
+                    ? "border-red-200 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-100"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400 hover:bg-blue-100"}`}>
+                  {label}
+                </a>
+              ))}
+            </nav>}
+          </div>
+          {details && <p className={`${compact ? "mt-1 text-xs leading-5" : "mt-2 text-sm leading-5"} truncate whitespace-nowrap text-gray-600`} title={details}>
+            {details}
+          </p>}
         </div>
-    );
+      </header>
+      {!!quoteItems.length && !compact && (
+        <div className="shrink-0 py-2">
+          <CitationQuotesHeader
+            quotes={quoteItems}
+            currentIndex={quoteIndex}
+            activeQuoteId={quoteItems[quoteIndex]?.id}
+            citationRef={citationRef ?? caseTab?.citationRef}
+            citationText={metadata.citation}
+            onSelect={(_quote, index) => selectQuote(index)}
+            onIndexChange={selectQuote}
+          />
+        </div>
+      )}
+      {caseTab && orderedOpinions.length > 1 && (
+        <div className="shrink-0 border-b border-gray-200 px-4 py-2">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Opinions">
+          {orderedOpinions.map(({ opinion, index }) => (
+            <button
+              key={opinion.opinionId ?? index}
+              type="button"
+              role="tab"
+              aria-selected={opinion === displayedOpinion}
+              disabled={opinion.opinionId === null}
+              onClick={() => selectOpinion(opinion)}
+              className={`flex h-8 max-w-[180px] items-center rounded-md border px-3 text-[13px] ${opinion === displayedOpinion
+                ? "border-gray-400 bg-white text-gray-900"
+                : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <span className="truncate">{opinionTitle(opinion, index)}</span>
+            </button>
+          ))}
+          </div>
+        </div>
+      )}
+      {payload?.truncated && <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+        This unusually long source is displayed through the first five million characters.
+      </p>}
+      <div ref={root} className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
+        {caseTab ? (
+          error && !opinions?.length ? <p role="alert" className="text-red-700">{error}</p>
+            : !opinions ? <ThinkingSpinner label="Loading case law" size={24} />
+              : displayedOpinion ? <OpinionBlock opinion={displayedOpinion} />
+                : <p className="mx-auto max-w-[48rem] text-sm text-gray-500">No opinions were returned for this case.</p>
+        ) : (
+          <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
+            {slices.map((slice) => {
+              const page = slice.anchors.find(({ kind }) => kind === "page");
+              const marker = slice.primary?.kind !== "page" && slice.primary
+                ? locatorLabel(slice.primary.label)
+                : null;
+              const blocks = presentation.get(slice.key) ?? [{
+                kind: "paragraph" as const,
+                text: slice.text,
+                inline: [{ kind: "text" as const, text: slice.text }],
+                depth: 0,
+              }];
+              return (
+                <section
+                  key={slice.key}
+                  id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
+                  className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
+                  style={{
+                    contentVisibility: locator ? "visible" : "auto",
+                    containIntrinsicSize: "auto 150px",
+                    marginInlineStart: payload?.reference.docType === "laws"
+                      ? `${Math.min(slice.depth, 4) * 0.8}rem`
+                      : undefined,
+                  }}
+                >
+                  {slice.anchors.filter((anchor) => anchor !== slice.primary).map((anchor) => (
+                    <span key={anchor.label} id={legalSourceAnchorId(anchor.label)}
+                      className="col-span-full block scroll-mt-4" aria-hidden="true" />
+                  ))}
+                  {page && <div role="doc-pagebreak" aria-label={locatorLabel(page.label)}
+                    className="col-span-full mb-7 mt-10 border-t border-gray-300 pt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 first:mt-0">
+                    {locatorLabel(page.label)}
+                  </div>}
+                  {marker && <span className="pt-[0.23rem] text-right text-xs font-semibold text-gray-600">{marker}</span>}
+                  <div className="min-w-0"><PresentedBlocks blocks={blocks} anchor={slice.primary} /></div>
+                </section>
+              );
+            })}
+          </article>
+        )}
+      </div>
+    </div>
+  );
 }
+
 function OpinionBlock({ opinion }: { opinion: CaseLawOpinion }) {
-    const html = useMemo(
-        () => (opinion.html ? sanitizeCaseHtml(opinion.html) : ""),
-        [opinion.html],
-    );
-    return (
-        <article className="case-opinion-content mx-auto max-w-[48rem] font-serif text-[17px] leading-7 text-gray-900">
-            <h2 className="mb-4 text-lg font-semibold">
-                {opinionTitle(opinion)}
-            </h2>
-            {html ? (
-                <div
-                    className="prose prose-sm max-w-none [&_*]:font-serif [&_.case-page-number]:mx-1 [&_.case-page-number]:text-xs [&_.case-page-number]:text-gray-400 [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-700 [&_p]:my-3"
-                    dangerouslySetInnerHTML={{ __html: html }}
-                />
-            ) : (
-                <div className="whitespace-pre-wrap">
-                    {opinion.text || "No opinion text returned."}
-                </div>
-            )}
-        </article>
-    );
+  return (
+    <article className="case-opinion-content mx-auto max-w-[48rem] font-serif text-[17px] leading-7 text-gray-900">
+      <h2 className="mb-4 text-lg font-semibold">{opinionTitle(opinion)}</h2>
+      <div className="whitespace-pre-wrap">
+        {opinion.text || "No opinion text returned."}
+      </div>
+    </article>
+  );
 }

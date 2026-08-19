@@ -42,15 +42,17 @@ export function CitationQuotesHeader({
 }: Props) {
     const [viewMode, setViewMode] = useState<ViewMode>("single");
     const [isCopied, setIsCopied] = useState(false);
+    const [localIndex, setLocalIndex] = useState(currentIndex);
+    const selectedIndex = onIndexChange ? currentIndex : localIndex;
     const hasMultipleQuotes = quotes.length > 1;
-    const currentQuote = quotes[currentIndex];
+    const currentQuote = quotes[selectedIndex];
     const visibleMode =
         !hasMultipleQuotes && viewMode === "list" ? "single" : viewMode;
     const visibleQuotes =
         visibleMode === "list"
-            ? quotes.map((quote, index) => ({ quote, index }))
-            : currentQuote
-              ? [{ quote: currentQuote, index: currentIndex }]
+              ? quotes.map((quote, index) => ({ quote, index }))
+              : currentQuote
+              ? [{ quote: currentQuote, index: selectedIndex }]
               : [];
 
     async function copyCitation() {
@@ -87,9 +89,14 @@ export function CitationQuotesHeader({
                                     <button
                                         key={quote.id}
                                         type="button"
-                                        onClick={() => onIndexChange?.(index)}
+                                        aria-label={`Quote ${index + 1}`}
+                                        aria-pressed={selectedIndex === index}
+                                        onClick={() => {
+                                            if (onIndexChange) onIndexChange(index);
+                                            else setLocalIndex(index);
+                                        }}
                                         className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
-                                            currentIndex === index
+                                            selectedIndex === index
                                                 ? "bg-white font-medium text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.22)]"
                                                 : "bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700"
                                         }`}
@@ -102,6 +109,7 @@ export function CitationQuotesHeader({
                         {currentQuote && (
                             <button
                                 type="button"
+                                aria-label="Copy quote and citation"
                                 onClick={(event) => {
                                     event.stopPropagation();
                                     event.preventDefault();

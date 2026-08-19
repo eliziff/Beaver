@@ -1,13 +1,10 @@
-import type { ReactNode } from "react";
+import { Outlet, useParams } from "react-router-dom";
 import { ProjectWorkspaceProvider } from "@/app/components/projects/ProjectWorkspace";
-export default async function ProjectLayout({
-    params,
-    children,
-}: { params: Promise<{ id: string }>; children: ReactNode }) {
-    const { id } = await params;
+export default function ProjectLayout() {
+    const { id = "" } = useParams<{ id: string }>();
     return (
         <ProjectWorkspaceProvider key={id} projectId={id}>
-            {children}
+            <Outlet />
         </ProjectWorkspaceProvider>
     );
 }

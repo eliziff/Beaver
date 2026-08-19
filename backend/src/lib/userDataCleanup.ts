@@ -1,21 +1,7 @@
 import { createServerSupabase } from "./supabase";
-import { cloudDocumentObjects } from "./cloudObjectStorage";
+import type { DocumentStore } from "./documentStore";
 
 type Db = ReturnType<typeof createServerSupabase>;
-
-const DELETE_BATCH_SIZE = 500;
-
-function uniqueStrings(values: Array<string | null | undefined>): string[] {
-    return [...new Set(values.filter((value): value is string => !!value))];
-}
-
-function chunks<T>(values: T[], size = DELETE_BATCH_SIZE): T[][] {
-    const result: T[][] = [];
-    for (let i = 0; i < values.length; i += size) {
-        result.push(values.slice(i, i + size));
-    }
-    return result;
-}
 
 async function throwIfError<T extends { message?: string } | null>(
     error: T,
@@ -24,92 +10,13 @@ async function throwIfError<T extends { message?: string } | null>(
     if (error) throw new Error(`${context}: ${error.message ?? "unknown error"}`);
 }
 
-async function deleteByIds(db: Db, table: string, ids: string[]) {
-    for (const batch of chunks(ids)) {
-        const { error } = await (db as any).from(table).delete().in("id", batch);
-        await throwIfError(error, `Failed to delete ${table}`);
-    }
-}
-
-async function deleteWhereIn(
-    db: Db,
-    table: string,
-    column: string,
-    values: string[],
-) {
-    for (const batch of chunks(values)) {
-        const { error } = await (db as any)
-            .from(table)
-            .delete()
-            .in(column, batch);
-        await throwIfError(error, `Failed to delete ${table}`);
-    }
-}
-
 async function getOwnedProjectIds(db: Db, userId: string): Promise<string[]> {
     const { data, error } = await db
         .from("projects")
         .select("id")
         .eq("user_id", userId);
     await throwIfError(error, "Failed to load user projects");
-    return uniqueStrings((data ?? []).map((row) => row.id as string | null));
-}
-
-async function getDocumentIdsForAccountDeletion(
-    db: Db,
-    userId: string,
-    ownedProjectIds: string[],
-): Promise<string[]> {
-    const [ownedDocs, projectDocs] = await Promise.all([
-        db.from("documents").select("id").eq("user_id", userId),
-        ownedProjectIds.length > 0
-            ? db.from("documents").select("id").in("project_id", ownedProjectIds)
-            : Promise.resolve({ data: [], error: null }),
-    ]);
-
-    await throwIfError(ownedDocs.error, "Failed to load user documents");
-    await throwIfError(projectDocs.error, "Failed to load project documents");
-
-    return uniqueStrings([
-        ...((ownedDocs.data ?? []) as { id: string | null }[]).map((row) => row.id),
-        ...((projectDocs.data ?? []) as { id: string | null }[]).map((row) => row.id),
-    ]);
-}
-
-async function deleteDocumentVersionFiles(db: Db, documentIds: string[]) {
-    const paths = new Set<string>();
-
-    for (const batch of chunks(documentIds)) {
-        const { data, error } = await db
-            .from("document_versions")
-            .select("storage_path, pdf_storage_path, cleanup_paths")
-            .in("document_id", batch);
-        await throwIfError(error, "Failed to load document storage paths");
-
-        for (const version of data ?? []) {
-            for (const path of [version.storage_path, version.pdf_storage_path]) {
-                if (typeof path === "string" && path) paths.add(path);
-            }
-            if (Array.isArray(version.cleanup_paths)) for (const path of version.cleanup_paths) {
-                if (typeof path === "string" && path) paths.add(path);
-            }
-        }
-    }
-
-    const objects = cloudDocumentObjects();
-    await Promise.all([...paths].map((path) => objects.remove(path)));
-}
-
-async function deleteUserStoragePrefix(userId: string) {
-    const objects = cloudDocumentObjects();
-    const keys: string[] = [];
-    let cursor: string | null = null;
-    do {
-        const page = await objects.list(userId, { cursor });
-        keys.push(...page.keys);
-        cursor = page.cursor;
-    } while (cursor);
-    await Promise.all(keys.map((path) => objects.remove(path)));
+    return (data ?? []).flatMap((row) => typeof row.id === "string" ? [row.id] : []);
 }
 
 async function removeEmailFromSharedWith(
@@ -150,125 +57,22 @@ async function removeEmailFromSharedWith(
     );
 }
 
-export async function deleteAllUserChats(db: Db, userId: string) {
-    const result = await db.from("chats").delete().eq("user_id", userId);
-    await throwIfError(result.error, "Failed to delete chats");
-}
-
-export async function deleteAllUserTabularReviews(db: Db, userId: string) {
-    const { data: reviews, error: reviewsError } = await db
-        .from("tabular_reviews")
-        .select("id")
-        .eq("user_id", userId);
-    await throwIfError(reviewsError, "Failed to load tabular reviews");
-
-    const reviewIds = uniqueStrings(
-        ((reviews ?? []) as { id: string | null }[]).map((row) => row.id),
-    );
-    if (reviewIds.length === 0) return 0;
-
-    await deleteWhereIn(db, "tabular_cells", "review_id", reviewIds);
-    await deleteByIds(db, "tabular_reviews", reviewIds);
-
-    return reviewIds.length;
-}
-
-export async function deleteUserProjects(
-    db: Db,
-    userId: string,
-    projectIds?: string[],
-) {
-    const requestedProjectIds = projectIds
-        ? uniqueStrings(projectIds)
-        : undefined;
-    if (requestedProjectIds && requestedProjectIds.length === 0) return 0;
-
-    let query = db.from("projects").select("id").eq("user_id", userId);
-    if (requestedProjectIds) query = query.in("id", requestedProjectIds);
-
-    const { data: projects, error: projectsError } = await query;
-    await throwIfError(projectsError, "Failed to load user projects");
-
-    const ownedProjectIds = uniqueStrings(
-        ((projects ?? []) as { id: string | null }[]).map((row) => row.id),
-    );
-    if (ownedProjectIds.length === 0) return 0;
-
-    const [projectDocs, projectChats, projectReviews, projectFolders] =
-        await Promise.all([
-            db.from("documents").select("id").in("project_id", ownedProjectIds),
-            db.from("chats").select("id").in("project_id", ownedProjectIds),
-            db
-                .from("tabular_reviews")
-                .select("id")
-                .in("project_id", ownedProjectIds),
-            db
-                .from("project_subfolders")
-                .select("id")
-                .in("project_id", ownedProjectIds),
-        ]);
-
-    await throwIfError(projectDocs.error, "Failed to load project documents");
-    await throwIfError(projectChats.error, "Failed to load project chats");
-    await throwIfError(
-        projectReviews.error,
-        "Failed to load project tabular reviews",
-    );
-    await throwIfError(projectFolders.error, "Failed to load project folders");
-
-    const documentIds = uniqueStrings(
-        ((projectDocs.data ?? []) as { id: string | null }[]).map(
-            (row) => row.id,
-        ),
-    );
-    const chatIds = uniqueStrings(
-        ((projectChats.data ?? []) as { id: string | null }[]).map(
-            (row) => row.id,
-        ),
-    );
-    const reviewIds = uniqueStrings(
-        ((projectReviews.data ?? []) as { id: string | null }[]).map(
-            (row) => row.id,
-        ),
-    );
-    const folderIds = uniqueStrings(
-        ((projectFolders.data ?? []) as { id: string | null }[]).map(
-            (row) => row.id,
-        ),
-    );
-
-    await deleteDocumentVersionFiles(db, documentIds);
-    await deleteWhereIn(db, "tabular_cells", "review_id", reviewIds);
-    await deleteByIds(db, "tabular_reviews", reviewIds);
-    await deleteWhereIn(db, "chat_messages", "chat_id", chatIds);
-    await deleteByIds(db, "chats", chatIds);
-    await deleteByIds(db, "documents", documentIds);
-    await deleteByIds(db, "project_subfolders", folderIds);
-    await deleteByIds(db, "projects", ownedProjectIds);
-
-    return ownedProjectIds.length;
-}
-
 export async function deleteUserAccountData(
     db: Db,
+    documents: DocumentStore,
     userId: string,
     userEmail?: string | null,
 ) {
     const ownedProjectIds = await getOwnedProjectIds(db, userId);
-    const documentIds = await getDocumentIdsForAccountDeletion(
-        db,
-        userId,
-        ownedProjectIds,
-    );
 
     await Promise.all([
         removeEmailFromSharedWith(db, "projects", userEmail),
         removeEmailFromSharedWith(db, "tabular_reviews", userEmail),
-        deleteDocumentVersionFiles(db, documentIds),
-        deleteUserStoragePrefix(userId),
     ]);
-
-    await deleteByIds(db, "documents", documentIds);
+    await documents.deleteUserDocuments(
+        { userId, userEmail: userEmail ?? undefined },
+        { projectIds: ownedProjectIds, includeOwned: true, purgeObjects: true },
+    );
 
     const deletions = [
         db.from("tabular_reviews").delete().eq("user_id", userId),

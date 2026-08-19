@@ -4,7 +4,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import type { ApiKeyProvider, ApiKeyState } from "@/app/lib/beaverApi";
 import {
     accountGlassIconButtonClassName,
@@ -59,7 +59,7 @@ export function ApiKeySettings() {
                 API keys
             </h2>
             <p className="mb-4 text-sm leading-6 text-gray-600">
-                {isAnonymousMode
+                {isLocalMode
                     ? "Read from the server environment."
                     : "Stored keys are encrypted. Server environment keys take precedence."}
             </p>
@@ -74,7 +74,7 @@ export function ApiKeySettings() {
                     />
                 ))}
             </AccountSection>
-            {!isAnonymousMode && mfaPopup}
+            {!isLocalMode && mfaPopup}
         </div>
     );
 }
@@ -91,9 +91,10 @@ function ApiKeyField({
 }) {
     const [reveal, setReveal] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const description =
         "description" in field ? field.description : undefined;
-    if (isAnonymousMode)
+    if (isLocalMode)
         return (
             <div className="flex items-start justify-between gap-4 px-4 py-5">
                 <div>
@@ -123,6 +124,7 @@ function ApiKeyField({
     ) => {
         void runMfa(
             async () => {
+                setError(null);
                 setSaving(true);
                 try {
                     const ok = await update(
@@ -138,7 +140,7 @@ function ApiKeyField({
             },
             {
                 onError: () =>
-                    alert(`Failed to ${action} ${field.label}.`),
+                    setError(`Failed to ${action} ${field.label}.`),
             },
         );
     };
@@ -209,6 +211,11 @@ function ApiKeyField({
                         </button>
                     )}
                 </div>
+                {error && (
+                    <p role="alert" className="text-xs text-red-700">
+                        {error}
+                    </p>
+                )}
             </div>
         </form>
     );

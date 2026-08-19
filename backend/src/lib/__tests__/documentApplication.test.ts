@@ -66,11 +66,11 @@ function memoryRepository() {
       version.filename = filename;
       return true;
     },
-    async deleteVersion(scope, id, versionId, currentVersionId) {
+    async deleteVersion(scope, id, input) {
       const value = await repository.get(scope, id);
       if (!value) return false;
-      value.versions = value.versions.filter(({ id }) => id !== versionId);
-      value.document.currentVersionId = currentVersionId;
+      value.versions = value.versions.filter(({ id }) => id !== input.versionId);
+      value.document.currentVersionId = input.nextCurrentVersionId;
       return true;
     },
     async deleteDocument(scope, id) {
@@ -81,7 +81,7 @@ function memoryRepository() {
       if (version) version.cleanupKeys = version.cleanupKeys.filter((key) => !keys.includes(key));
     },
     async recordOrphan(_scope, key) { orphans.add(key); },
-    async clearOrphan(key) { orphans.delete(key); },
+    async clearOrphan(_maintenance, key) { orphans.delete(key); },
     async pendingOrphans() { return [...orphans]; },
     async pendingCleanup() {
       return [...values.values()].flatMap((value) => value.versions.flatMap((version) =>

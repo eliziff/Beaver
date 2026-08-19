@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createBenchmarkEvidence,
   createLegalEvidenceTurnState,
-  finalizeLegalEvidenceExperiment,
+  finalizeLegalEvidence,
   hasCaseNameInText,
   legalEvidenceReceiptEvent,
   priorLegalEvidenceReceipts,
@@ -11,6 +11,7 @@ import {
   renderLegalEvidenceAnswer,
   submitLegalEvidenceAnswer,
 } from "../legalEvidence";
+import { createLegalEvidenceCitations } from "../citations";
 
 function passage(locatorLabel = "par12") {
   return createBenchmarkEvidence({
@@ -29,19 +30,13 @@ function passage(locatorLabel = "par12") {
 }
 
 describe("production legal evidence", () => {
-  it("recognizes named cases even when the model omits their citations", async () => {
+  it("recognizes named cases even when the model omits their citations", () => {
     expect(hasCaseNameInText("My favourite is *R. v. Oakes*.")).toBe(true);
     expect(hasCaseNameInText("I prefer Baker v. Canada for this point.")).toBe(true);
     expect(hasCaseNameInText("The answer is a general explanation.")).toBe(false);
 
     const state = createLegalEvidenceTurnState();
-    const result = await finalizeLegalEvidenceExperiment({
-      state,
-      model: "gemini-3-flash-preview",
-      draft: "My favourite is *R. v. Oakes*.",
-    });
-    expect(result.passed).toBe(false);
-    expect(result.modelCalls).toBe(0);
+    expect(finalizeLegalEvidence(state, "My favourite is *R. v. Oakes*.")).toBe(false);
     expect(state.failure).toContain("without verified passages");
     expect(renderLegalEvidenceAnswer(state)).toBeNull();
   });
@@ -58,6 +53,37 @@ describe("production legal evidence", () => {
     const event = legalEvidenceReceiptEvent(state)!;
     expect(event.status).toBe("passed");
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
+  });
+
+  it("emits typed public-source citations from provider receipts", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const evidence = createBenchmarkEvidence({
+      jurisdiction: "UK",
+      sourceClass: "case",
+      stableSourceId: "tna:uksc/2026/1:page-3",
+      sourceText: "The appeal is allowed.",
+      spanText: "The appeal is allowed.",
+      citation: "Example v State",
+      dataset: "tna",
+      externalUrl: "https://example.test/judgment.pdf#page=3",
+      locatorKind: "page",
+      locatorLabel: "page=3",
+    });
+    registerLegalEvidence(state, evidence);
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "The appeal is allowed.",
+      evidence_ids: [evidence.evidence_id],
+    }] }, state);
+
+    expect(createLegalEvidenceCitations(state)).toEqual([
+      expect.objectContaining({
+        type: "citation_data",
+        kind: "public_legal",
+        provider: "tna",
+        identifier: "uksc/2026/1:page-3",
+        url: expect.stringContaining("judgment.pdf#page=3:~:text="),
+      }),
+    ]);
   });
 
   it("rejects unknown evidence and renders linked citation structure", () => {
@@ -94,15 +120,10 @@ describe("production legal evidence", () => {
     expect(rendered).not.toContain("[[");
   });
 
-  it("does not call a second model to retrofit an unstructured draft", async () => {
+  it("rejects an unstructured legal draft", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     registerLegalEvidence(state, passage());
-    const result = await finalizeLegalEvidenceExperiment({
-      state,
-      model: "unused",
-      draft: "Example v Example allowed the appeal.",
-    });
-    expect(result).toMatchObject({ passed: false, modelCalls: 0 });
+    expect(finalizeLegalEvidence(state, "Example v Example allowed the appeal.")).toBe(false);
     expect(state.failure).toBe("The model did not submit a grounded answer.");
   });
 

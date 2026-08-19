@@ -1,13 +1,10 @@
 "use client";
 
-import {
-    setShowAutoMode,
-    useShowAutoMode,
-} from "@/app/components/assistant/editModePreference";
+import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { AccountToggle } from "@/app/(pages)/account/AccountToggle";
 
 export function EditModeSettings() {
-    const showAutoMode = useShowAutoMode();
+    const [preferences, savePreferences] = useAssistantPreferences();
     return (
         <div className="flex items-center justify-between gap-4">
             <div>
@@ -20,8 +17,8 @@ export function EditModeSettings() {
                 </p>
             </div>
             <AccountToggle
-                checked={showAutoMode}
-                onChange={setShowAutoMode}
+                checked={preferences.showAutoMode}
+                onChange={(showAutoMode) => savePreferences({ showAutoMode })}
                 size="md"
                 ariaLabel="Enable Auto mode"
             />

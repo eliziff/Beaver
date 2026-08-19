@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     supabaseLoads: 0,
@@ -9,20 +9,20 @@ const mocks = vi.hoisted(() => ({
     pathname: "/assistant",
 }));
 
-vi.mock("next/navigation", () => ({
-    usePathname: () => mocks.pathname,
+vi.mock("react-router-dom", () => ({
+    useLocation: () => ({ pathname: mocks.pathname }),
 }));
 
 vi.mock("@/app/lib/supabase", () => {
     mocks.supabaseLoads += 1;
     return {
-        supabase: {
+        getSupabase: () => ({
             auth: {
                 onAuthStateChange: mocks.onAuthStateChange,
                 signOut: vi.fn(),
                 updateUser: vi.fn(),
             },
-        },
+        }),
     };
 });
 
@@ -34,7 +34,24 @@ vi.mock("@/app/lib/beaverApi", () => ({
     updateUserProfile: vi.fn(),
 }));
 
-describe("account-free startup", () => {
+async function configure(mode: "local" | "cloud") {
+    const { initializeRuntimeConfig } = await import("@/app/lib/runtimeConfig");
+    const config =
+        mode === "local"
+            ? { mode }
+            : {
+                  mode,
+                  supabaseUrl: "https://example.supabase.co",
+                  supabasePublishableKey: "test-key",
+              };
+    await initializeRuntimeConfig(async () =>
+        new Response(JSON.stringify(config), {
+            headers: { "Content-Type": "application/json" },
+        }),
+    );
+}
+
+describe("local startup", () => {
     beforeEach(() => {
         vi.resetModules();
         vi.clearAllMocks();
@@ -48,12 +65,8 @@ describe("account-free startup", () => {
         });
     });
 
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
     it("renders immediately without loading Supabase or waiting for the profile", async () => {
-        vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+        await configure("local");
         const { AuthProvider, useAuth } = await import("./AuthContext");
         const { UserProfileProvider, useUserProfile } = await import(
             "./UserProfileContext"
@@ -83,7 +96,7 @@ describe("account-free startup", () => {
     });
 
     it("restores cloud auth from one subscription and keeps MFA fail-closed while the profile loads", async () => {
-        vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "cloud");
+        await configure("cloud");
         mocks.onAuthStateChange.mockImplementation((callback) => {
             queueMicrotask(() =>
                 callback("INITIAL_SESSION", {
@@ -134,7 +147,7 @@ describe("account-free startup", () => {
     });
 
     it("reuses a loaded profile across route categories but still reloads explicitly", async () => {
-        vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+        await configure("local");
         mocks.getUserProfile.mockResolvedValue({
             displayName: "Local user",
             organisation: null,
