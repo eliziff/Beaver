@@ -195,19 +195,27 @@ export function fetchLocalA2AJDocumentsByIds(args: {
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
   withDatabase((database) => {
-    const statement = database.prepare(
-      `SELECT document.*
-       FROM document
-       WHERE document.id = ? AND document.doc_type = ?`,
-    );
-    for (const id of ids) {
-      const row = statement.get(id, docType) as Row | undefined;
-      const result = row ? document(row, language) : null;
-      if (!result) continue;
-      if (result.text.length > maxChars) {
-        result.text = result.text.slice(0, maxChars);
+    for (let index = 0; index < ids.length; index += 500) {
+      const chunk = ids.slice(index, index + 500);
+      const marks = chunk.map(() => "?").join(",");
+      const rows = new Map((database.prepare(
+        `SELECT id, doc_type, dataset,
+                citation_en, citation_fr, citation2_en, citation2_fr,
+                name_en, name_fr, document_date_en, document_date_fr,
+                url_en, url_fr, unofficial_text_en, unofficial_text_fr,
+                unofficial_sections_en, unofficial_sections_fr, upstream_license
+         FROM document
+         WHERE document.id IN (${marks}) AND document.doc_type = ?`,
+      ).all(...chunk, docType) as Row[]).map((row) => [Number(row.id), row]));
+      for (const id of chunk) {
+        const row = rows.get(id);
+        const result = row ? document(row, language) : null;
+        if (!result) continue;
+        if (result.text.length > maxChars) {
+          result.text = result.text.slice(0, maxChars);
+        }
+        out.set(id, result);
       }
-      out.set(id, result);
     }
   });
   return out;

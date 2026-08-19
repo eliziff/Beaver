@@ -21,6 +21,13 @@ describe("analyzeOpinionStructure", () => {
     expect(result.panel).toEqual(["Nancy Rosenberg"]);
   });
 
+  it("keeps the named decision maker without creating a title-only panel member", () => {
+    const result = structure(`Before: Richard Morneau, Prothonotary
+
+[1] The motion is dismissed.`);
+    expect(result.panel).toEqual(["Richard Morneau"]);
+  });
+
   it("keeps a middle-initial adjudicator and discards the following office title", () => {
     const result = structure(`Before: Ian R. Mackenzie, Vice-Chairperson
 
@@ -505,6 +512,24 @@ I AGREE:
     ]));
   });
 
+  it("preserves same-surname panel members and routes their identity to review", () => {
+    const text = `Before: Jane Smith J. and John Smith J.
+
+Reasons for Judgment of the Honourable Justice Jane Smith:
+[1] ${reasons}
+[2] The application is dismissed.
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.panel).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Jane Smith/iu),
+      expect.stringMatching(/John Smith/iu),
+    ]));
+    expect(result.status).toBe("unresolved");
+    expect(result.refusals).toEqual(expect.arrayContaining([
+      expect.stringMatching(/same surname/iu),
+    ]));
+  });
+
   it("separates a dissent from majority reasons and their joining judge", () => {
     const text = `Before:
 The Honourable Madam Justice Alpha
@@ -599,6 +624,87 @@ For those reasons, the application is dismissed.
     expect(text.slice(result.opinions[0].end, text.indexOf('"The Honourable')).trim()).toBe("");
     expect(result.opinions[0].startQuote.length).toBeGreaterThan(0);
     expect(result.opinions[0].endQuote.length).toBeGreaterThan(0);
+  });
+
+  it("stops a one-line delivered-by heading before judges mentioned in its reasons", () => {
+    const text = `Present: Rinfret C.J. and Kellock, Estey and Cartwright JJ.
+
+The judgment of the Court was delivered by Kellock J.:â€”${reasons} This appeal is from the judgment of the Exchequer Court, Cameron J., and must be dismissed.
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions[0].authors).toEqual(["Kellock J."]);
+  });
+
+  it("separates an SCC judgment bloc from the writer named on the next line", () => {
+    const text = `The judgment of Alpha, Beta and Gamma JJ. was delivered by
+1. Beta J. ‑‑ ${reasons}
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions[0].authors).toEqual(["Beta J."]);
+    expect(result.judges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: expect.stringMatching(/Beta/iu), relationship: "authors" }),
+      expect.objectContaining({ name: expect.stringMatching(/Alpha/iu), relationship: "joins_reasons" }),
+      expect.objectContaining({ name: expect.stringMatching(/Gamma/iu), relationship: "joins_reasons" }),
+    ]));
+  });
+
+  it("routes a delivered-by writer who does not match the named judgment bloc", () => {
+    const text = `The judgment of Alpha and Beta JJ. was delivered by
+Gimma J.—${reasons}
+`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("unresolved");
+    expect(result.opinions[0].authors).toEqual(["Gimma J."]);
+  });
+
+  it("does not turn a judge named in reported speech into the opinion author", () => {
+    const text = `Before: Crawford J.
+
+Reasons for Judgment
+[1] ${reasons}
+[14] At para. 22, Sopinka J. stated:
+[15] ${reasons}
+[16] In Sheppard, Binnie J. wrote, at para. 55:
+[17] ${reasons}
+[18] The judgment in Stern was delivered by Wright J., who said in part:
+[19] ${reasons}
+[20] The application is dismissed.
+"R. Crawford, J."
+`;
+    const starts = [1, 14, 15, 16, 17, 18, 19, 20].map((number) => ({ number, start: text.indexOf(`[${number}]`) }));
+    const paragraphs = starts.map(({ number, start }, index) => ({
+      label: `par${number}`,
+      start,
+      end: starts[index + 1]?.start ?? text.length,
+    }));
+    const result = deriveTextOpinionStructure({ text, paragraphs, firstParagraphStart: starts[0].start });
+    expect(result.opinions.flatMap(({ authors }) => authors)).not.toEqual(expect.arrayContaining([
+      expect.stringMatching(/Sopinka/iu),
+      expect.stringMatching(/Binnie/iu),
+      expect.stringMatching(/Wright/iu),
+    ]));
+    expect(result.opinions.flatMap(({ authors }) => authors)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Crawford/iu),
+    ]));
+  });
+
+  it("does not read a middle initial J as a judicial title", () => {
+    const text = `[24] The Affidavit of Donna J. Harris: ${reasons}`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("unavailable");
+    expect(result.opinions).toEqual([]);
+  });
+
+  it("routes an apparent opinion author who conflicts with the parsed panel", () => {
+    const text = `Coram: Alpha J.
+[1] At 758, Cory J. provided a three-step instruction: ${reasons}`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("unresolved");
+    expect(result.refusals).toEqual(expect.arrayContaining([
+      expect.stringMatching(/absent from the parsed panel/iu),
+    ]));
   });
 
   it("excludes nonparticipating judges and trims post-opinion court metadata", () => {

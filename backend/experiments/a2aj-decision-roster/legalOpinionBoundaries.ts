@@ -64,6 +64,7 @@ export type JudgeOpinionRelationship =
 export type TextOpinion = {
   id: string;
   authors: string[];
+  joiners?: string[];
   alignment: OpinionAlignment;
   start: number;
   end: number;
@@ -129,7 +130,7 @@ const NAME_TOKEN = String.raw`[\p{Lu}](?:\.[\p{Lu}]){0,2}\.?[${NAME_CHARS}]*`;
 const SUFFIX_RE = new RegExp(`(?:${SUFFIX_SOURCE})(?:\\.)?`, "u");
 
 const JUDGE_NAME_RE = new RegExp(
-  `(${NAME_TOKEN}(?:\\s+${NAME_TOKEN})*?)\\s+(${SUFFIX_SOURCE})(?:\\.)?(?=[\\s:,;()\\[\\]\\/\\-‐‑‒–—]|$)`,
+  `(${NAME_TOKEN}(?:\\s+${NAME_TOKEN})*?)\\s+(${SUFFIX_SOURCE})(?:\\.)?(?!\\s+${NAME_TOKEN}(?:\\s|$))(?=[\\s:,;()\\[\\]\\/\\-‐‑‒–—]|$)`,
   "u",
 );
 
@@ -240,8 +241,31 @@ function nameKey(name: string) {
   return "";
 }
 
+function identityNameTokens(name: string) {
+  const ignored = new Set([
+    "a", "b", "c", "f", "j", "n", "o", "q", "s", "t", "acj", "cj", "ja", "jj", "jca", "chief", "honorable", "honourable",
+    "judge", "justice", "madam", "madame", "mr", "mrs", "the",
+  ]);
+  const tokens = (part: string) => part.normalize("NFKD").replace(/\p{M}/gu, "")
+    .toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu)?.filter((token) => !ignored.has(token)) ?? [];
+  const comma = name.indexOf(",");
+  return comma >= 0
+    ? [...tokens(name.slice(comma + 1)), ...tokens(name.slice(0, comma))]
+    : tokens(name);
+}
+
+function compatibleIdentity(left: string, right: string) {
+  const a = identityNameTokens(left);
+  const b = identityNameTokens(right);
+  if (!a.length || !b.length || a.at(-1) !== b.at(-1)) return false;
+  if (a.join(" ") === b.join(" ") || a.length === 1 || b.length === 1) return true;
+  const firstA = a[0];
+  const firstB = b[0];
+  return firstA === firstB || (firstA.length === 1 && firstA === firstB[0]) || (firstB.length === 1 && firstB === firstA[0]);
+}
+
 function pushUnique(list: string[], name: string) {
-  if (/^(?:Q\.?C\.?|K\.?C\.?|Board\s+Member|(?:Vice[-\s]?)?Chair(?:person)?)$/iu.test(name.trim())) return;
+  if (/^(?:Q\.?C\.?|K\.?C\.?|Adjudicator|Arbitrator|Board\s+Member|Court|Judge|Justice|Member|Panel|Prothonotary|Registrar|Tribunal|(?:Vice[-\s]?)?Chair(?:person)?)$/iu.test(name.trim())) return;
   if (
     !SUFFIX_RE.test(name) &&
     !/^the\s+honourable\b|\bchief\s+justice\b/iu.test(name) &&
@@ -251,7 +275,9 @@ function pushUnique(list: string[], name: string) {
   }
   const key = nameKey(name);
   if (!key || key.length < 2) return;
-  const index = list.findIndex((item) => nameKey(item) === key);
+  const sameSurname = list.flatMap((item, index) => nameKey(item) === key ? [index] : []);
+  const compatible = sameSurname.filter((index) => compatibleIdentity(list[index], name));
+  const index = compatible.length === 1 ? compatible[0] : -1;
   if (index === -1) {
     list.push(name);
     return;
@@ -841,6 +867,7 @@ type OpinionStart = {
   start: number;
   kind: "heading" | "paragraph_author" | "paragraph_fallback";
   authors: string[];
+  joiners: string[];
   alignment: OpinionAlignment | null;
   evidence: string;
 };
@@ -881,12 +908,39 @@ function headingAuthors(line: string) {
       /^.*?\b(?:reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court)|judg(?:e)?ment|decision)\s+(?:of|by)\s*/iu,
       "",
     )
+    .replace(/^\s*[:：]\s*/u, "")
     .replace(/[:：]\s*$/u, "")
     .trim();
-  return parseNames(cleaned);
+  return parseNames(cleaned.split(/[:\u2013\u2014]/u, 1)[0].trim());
+}
+
+function deliveredByAttribution(line: string, followingLine?: string) {
+  const match = /^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+of\s+(.+?)\s+(?:was\s+)?delivered\s+(?:orally\s+)?by\s*:?[—–-]*\s*(.*)$/iu.exec(line.trim());
+  if (!match) return null;
+  const reasonOwners = parseNames(match[1]);
+  const inlineWriter = match[2].trim();
+  const writerLine = inlineWriter || followingLine?.trim() || "";
+  const writerHead = /^(?:\d+[.)]?\s+)?(.{1,100}?)(?:\s*[:：]\s*|\s*[-‐‑‒–—]{1,2}\s*)/u.exec(writerLine)?.[1] ?? "";
+  const authors = parseNames(writerHead);
+  const heading = inlineWriter
+    ? line.trim().slice(0, Math.max(0, line.trim().length - inlineWriter.length)).trim()
+    : line.trim();
+  return {
+    authors,
+    joiners: authors.length
+      ? reasonOwners.filter((owner) => !authors.some((author) => compatibleIdentity(owner, author)))
+      : reasonOwners,
+    evidence: compact(`${heading}${writerHead ? ` | ${writerHead}` : ""}`),
+    writerMatchesOwners: authors.length > 0 && (!reasonOwners.length || authors.every((author) =>
+      reasonOwners.some((owner) => compatibleIdentity(owner, author))
+    )),
+  };
 }
 
 function isOpinionHeading(line: string) {
+  if (/^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+(?:in\b|of\s+(?:the\s+)?(?:court\s+of\s+appeal|divisional\s+court|exchequer\s+court|superior\s+court|trial\s+court))/iu.test(line)) {
+    return false;
+  }
   return /^(?:(?:written|oral|reserved)\s+)?(?:(?:joint|dissenting|concurring|separate|additional)\s+)?reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court|(?:of|by)\b)/iu.test(
     line,
   ) || /^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+.*\bdelivered\s+(?:orally\s+)?by\b/iu.test(
@@ -900,6 +954,9 @@ function paragraphAuthor(line: string) {
   );
   if (!match) return null;
   const head = match[1].trim();
+  if (/\b(?:adds?|added|cites?|concludes?|concluded|continues?|continued|deals?|dealt|delivers?|delivered|describes?|described|discusses?|discussed|elucidates?|elucidated|explains?|explained|holds?|held|notes?|noted|observes?|observed|orders?|ordered|points?\s+out|pointed\s+out|remarks?|remarked|said|says|states?|stated|summarizes?|summarized|touches?\s+upon|touched\s+upon|writes?|wrote)\b/iu.test(head)) {
+    return null;
+  }
   const authors = /^(?:the\s+court|by\s+the\s+court)$/iu.test(head)
     ? []
     : parseNames(head);
@@ -1060,6 +1117,7 @@ function deriveVotes(
 
   for (const opinion of opinions) {
     for (const author of opinion.authors) add(author, opinion, "authors", opinion.evidence[0] ?? "opinion author");
+    for (const joiner of opinion.joiners ?? []) add(joiner, opinion, "joins_reasons", opinion.evidence[0] ?? "joins reasons");
   }
 
   let current: TextOpinion | undefined;
@@ -1072,31 +1130,35 @@ function deriveVotes(
       nextOpinion += 1;
     }
     const mayBeAgreement = /\b(?:agree|concur)/iu.test(line.trimmed);
-    const paragraph = mayBeAgreement ? paragraphAuthor(line.text) : null;
-    if (paragraph && agreementOnly(paragraph.body) && current) {
-      const relationship = /\bin\s+the\s+result\b/iu.test(paragraph.body)
-        ? "concurs_in_result_only"
-        : "joins_reasons";
-      for (const name of paragraph.authors) add(name, current, relationship, compact(line.trimmed));
-      continue;
-    }
-    const bare = /^(?:I|we)\s+(agree|concur)(?:\s+in\s+the\s+result)?\s*[:.]?\s*(.*)$/iu.exec(line.trimmed);
-    if (bare && agreementOnly(line.trimmed.replace(/:\s*.*$/u, "")) && current) {
-      const relationship = /\bin\s+the\s+result\b/iu.test(line.trimmed)
-        ? "concurs_in_result_only"
-        : "joins_reasons";
-      const inline = signatureNames(bare[2]);
-      if (inline.length) {
-        for (const name of inline) add(name, current, relationship, compact(line.trimmed));
-      } else {
-        awaiting = { opinion: current, relationship, evidence: compact(line.trimmed) };
+    if (mayBeAgreement) {
+      const paragraph = paragraphAuthor(line.text);
+      if (paragraph && agreementOnly(paragraph.body) && current) {
+        const relationship = /\bin\s+the\s+result\b/iu.test(paragraph.body)
+          ? "concurs_in_result_only"
+          : "joins_reasons";
+        for (const name of paragraph.authors) add(name, current, relationship, compact(line.trimmed));
+        continue;
       }
-      continue;
+      const bare = /^(?:I|we)\s+(agree|concur)(?:\s+in\s+the\s+result)?\s*[:.]?\s*(.*)$/iu.exec(line.trimmed);
+      if (bare && agreementOnly(line.trimmed.replace(/:\s*.*$/u, "")) && current) {
+        const relationship = /\bin\s+the\s+result\b/iu.test(line.trimmed)
+          ? "concurs_in_result_only"
+          : "joins_reasons";
+        const inline = signatureNames(bare[2]);
+        if (inline.length) {
+          for (const name of inline) add(name, current, relationship, compact(line.trimmed));
+        } else {
+          awaiting = { opinion: current, relationship, evidence: compact(line.trimmed) };
+        }
+        continue;
+      }
     }
-    const signatures = signatureNames(line.trimmed);
-    if (awaiting && signatures.length) {
-      for (const name of signatures) add(name, awaiting.opinion, awaiting.relationship, awaiting.evidence);
-      awaiting = null;
+    if (awaiting) {
+      const signatures = signatureNames(line.trimmed);
+      if (signatures.length) {
+        for (const name of signatures) add(name, awaiting.opinion, awaiting.relationship, awaiting.evidence);
+        awaiting = null;
+      }
     }
   }
 
@@ -1214,11 +1276,17 @@ function deriveTextOpinionStructureFromLines(
   }
 
   let opinions = rangedOpinions;
+  let deliveryWriterMismatch = false;
   if (!opinions.length) {
     const agreementAuthors = new Set<string>();
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      const line = lines[lineIndex];
       if (isOpinionHeading(line.trimmed)) {
-        const authors = headingAuthors(line.trimmed);
+        const following = lines.slice(lineIndex + 1, lineIndex + 4).find((candidate) => candidate.trimmed)?.trimmed;
+        const delivery = deliveredByAttribution(line.trimmed, following);
+        const authors = delivery?.authors ?? headingAuthors(line.trimmed);
+        const joiners = delivery?.joiners ?? [];
+        if (delivery && !delivery.writerMatchesOwners) deliveryWriterMismatch = true;
         // BCCA front matter commonly contains bare labels such as "Written
         // Reasons by:" or "Oral Reasons for Judgment" before the real,
         // author-bearing body heading.  They are metadata, not opinions.
@@ -1229,8 +1297,9 @@ function deriveTextOpinionStructureFromLines(
           start: line.start,
           kind: "heading",
           authors,
+          joiners,
           alignment: headingRole(line.trimmed),
-          evidence: compact(line.trimmed),
+          evidence: delivery?.evidence ?? compact(line.trimmed),
         });
         continue;
       }
@@ -1252,6 +1321,7 @@ function deriveTextOpinionStructureFromLines(
         start: line.start,
         kind: "paragraph_author",
         authors: paragraph.authors.length ? paragraph.authors : [...structure.panel],
+        joiners: [],
         alignment: headingRole(paragraph.head),
         evidence: compact(paragraph.head),
       });
@@ -1268,13 +1338,14 @@ function deriveTextOpinionStructureFromLines(
         );
         if (candidate.start - previous.start < 2_000 && betweenWords < 24 && sameAuthors) {
           addNames(previous.authors, candidate.authors);
+          addNames(previous.joiners, candidate.joiners);
           previous.alignment = candidate.alignment ?? previous.alignment;
           previous.evidence = `${previous.evidence} | ${candidate.evidence}`;
           if (previous.kind === "heading" && candidate.kind === "heading") previous.start = candidate.start;
           continue;
         }
       }
-      merged.push({ ...candidate, authors: [...candidate.authors] });
+      merged.push({ ...candidate, authors: [...candidate.authors], joiners: [...candidate.joiners] });
     }
 
     if (!merged.length && paragraphs.length) {
@@ -1285,6 +1356,7 @@ function deriveTextOpinionStructureFromLines(
           start: paragraphs[0].start,
           kind: "paragraph_fallback",
           authors: [...authors],
+          joiners: [],
           alignment: "lead",
           evidence: "first source paragraph after sole author attribution",
         });
@@ -1307,6 +1379,7 @@ function deriveTextOpinionStructureFromLines(
       return [{
         id: `o${ordinal + 1}`,
         authors: candidate.authors,
+        joiners: candidate.joiners,
         alignment,
         start: candidate.start,
         end,
@@ -1319,9 +1392,17 @@ function deriveTextOpinionStructureFromLines(
   }
 
   const judges = deriveVotes(args.text, lines, structure, opinions);
+  const duplicatePanelSurname = structure.panel.some((name, index) =>
+    structure.panel.some((other, otherIndex) => otherIndex > index && nameKey(name) === nameKey(other)),
+  );
+  const authorPanelConflict = structure.panel.length > 0 && opinions.some((opinion) =>
+    opinion.authors.some((author) => !structure.panel.some((member) => compatibleIdentity(author, member)))
+  );
+  if (duplicatePanelSurname) refusals.push("panel contains multiple judges with the same surname; deterministic identity is unresolved");
+  if (authorPanelConflict) refusals.push("opinion author is absent from the parsed panel; deterministic identity is unresolved");
   const status: TextOpinionStructure["status"] = !opinions.length
     ? "unavailable"
-    : opinions.some((opinion) => !opinion.authors.length || opinion.alignment === "unknown") ||
+    : duplicatePanelSurname || authorPanelConflict || deliveryWriterMismatch || opinions.some((opinion) => !opinion.authors.length || opinion.alignment === "unknown") ||
         judges.some((judge) => judge.resultSide === "unknown")
       ? "unresolved"
       : "ready";

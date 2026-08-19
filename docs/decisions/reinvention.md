@@ -25,6 +25,36 @@ Verdict vocabulary (exactly one per row):
 | **REFERENCE-ONLY** | No fork counterpart. Future work must port, not invent. |
 | **FORK-ONLY** | Genuinely new ground, no reference counterpart. |
 
+## 2026-08-19 follow-up status
+
+This ledger remains the historical audit of the 2026-07-29 tree. Three items
+below must not be read as the current implementation state:
+
+- The former 16-versus-19 grammar-table drift is repaired. The current source
+  is `packages/legal-grammar-tables/grammar-corpus.json`: 64 entries and 252
+  vectors across citation, footnote-label, pinpoint, provision, and reference
+  tables, with a fail-closed check and a byte-identical Legal PDF Parser copy.
+  Rust deterministic citation parsing consumes it, and TypeScript consumes the
+  provision grammar. The remaining work is to route every shipping grammar
+  consumer, including structure inference, through this authored corpus.
+- The two statute-spine descendants are now part of a larger ownership
+  problem. `sourceDocA2AJ.ts` and `sourceDocNativeMarkup.ts` infer provider text
+  structure while Legal PDF Parser's Rust `structure.rs` independently infers
+  PDF paragraphs, sections, notes, and relations. Remediation is one
+  provider-neutral semantic structure engine between source/PDF evidence and
+  SourceDoc/LegalDocument projection, preserving the measured SourceDoc
+  root-at-1 and gap-intolerant sequence behavior. Merely merging two TypeScript
+  functions would leave the main duplication intact.
+- Harness-local re-detection is not an acceptable corpus gate. Structure
+  experiments must execute or compare the shipping engine and preserve exact
+  corpus receipts; they must not implement another paragraph/section/note
+  selector to generate proxy scores.
+
+The active implementation order, audit evidence, Rust qualification, and
+grammar-source policy are maintained in
+`experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md` and
+`docs/decisions/citation-grammar.md`.
+
 ---
 
 ## 1. Live artifact ownership (`%LOCALAPPDATA%\ALR Quote Verifier\`)
