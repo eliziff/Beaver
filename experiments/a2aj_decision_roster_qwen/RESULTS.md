@@ -1,5 +1,69 @@
 # A2AJ decision-roster results
 
+## Fast deterministic storage and selection (2026-08-19)
+
+The durable boundary remains newline-delimited JSON: the representative
+15,000-case audit ledger is 17,721,477 bytes and its measured final write took
+168 ms. JSON is no longer an IPC transport. Parser workers write contiguous,
+ordered JSONL parts once and return only counts and filenames; the parent
+concatenates those bytes. A 32-case fixed-seed comparison had zero receipt or
+document-order differences from the earlier ledger.
+
+Model answers now have a separate append-only `.outputs.jsonl` ledger. Exact
+raw output is written there before validation; progress and case receipts keep
+its SHA-256 instead of duplicating the answer and parsed rejection. Concurrent
+appends are queued per file and covered by the runner self-test. Compact
+streaming receipts are now the default, so the final run summary does not hold
+or duplicate the whole receipt library.
+
+Random `ALL` selection now draws seeded primary keys and rejects the small
+ineligible set through indexed lookups instead of scanning every decision.
+One-case selection plus a dry receipt fell from 14.8 s to 0.95 s. A 15,000-case
+manifest took 1.48 s and contained 15,000 unique IDs across all 29 datasets.
+The bulk document reader now fetches 500 IDs per SQLite query and omits unused
+citation-graph columns.
+
+The storage check also found a deterministic false positive in `2004 BCSC
+1220`: `At para. 22, Sopinka J. stated:` had been treated as an opinion start.
+Reported-speech verbs are now rejected as paragraph-author markers; the real
+sole panel author, Crawford J., is recovered. The focused corpus case and 38
+boundary tests pass.
+
+## Open-source baseline and court-roster inventory (2026-08-19)
+
+The local corpus has 225,162 decisions in the same 29 datasets shown by A2AJ's
+current public inventory. Nine are provincial or territorial court datasets:
+`BCCA`, `BCSC`, `ONCA`, `NSCA`, `NSSC`, `NSPC`, `NSFC`, `NSSM`, and `YKCA`.
+They contain 108,698 local decisions. The prior 15,000-case Luna cohort did
+touch all 29 datasets; the remaining provincial problem is representative
+coverage and historical roster depth, not missing runner configurations.
+
+CourtListener is the closest reusable structural baseline, and Beaver already
+imports its cluster/opinion split plus raw author and joiner strings. Its
+opinion types remain source observations: `lead` is not necessarily majority,
+and a generic concurrence does not establish agreement in reasons. CAP adds the
+useful discipline of keeping upstream renditions, hashes, and corrections
+separate. Neither project supplies exact source-text opinion boundaries,
+partial/result-only joins, passage voice, or occurrence-level Canadian
+treatment; those are the narrow extension layer this experiment must test.
+
+Official roster coverage is strongest for SCC, BC, Ontario, FCA, FC, and TCC.
+Nova Scotia's consolidated page and the IRB member list are current snapshots,
+not historical appointment records. Nova Scotia and federal Orders in Council
+are the reusable historical sources. CMAC biographies contain court-specific
+appointment dates. YKCA draws candidates from BCCA and northern superior
+courts, while NSSC judges are ex officio NSCA candidates; neither fact proves a
+judge sat in a particular case. OHSTC has no official consolidated roster found,
+so its A2AJ `Decision-makers` and signatures remain the best positive evidence.
+`RPD` and `RLLR` are one adjudicative body with two dataset aliases.
+
+The Federal Organizations pages expose both original and current appointment
+dates. The original date may describe membership in the broader organization;
+only the current appointment date supports the displayed role or division.
+Current/name-only lists are stored as point-in-time roster observations rather
+than fabricated open-ended service intervals. Registry misses remain warnings,
+never proof that a named adjudicator could not sit.
+
 ## Luna-high 15,000-case dispatch and parser throughput (2026-08-17)
 
 The authorized Luna-high cohort uses seed `1783814219`. Its manifest contains
@@ -61,6 +125,30 @@ opinion bodies retain the general 40-word floor. `2004 BCSC 353` moved from a
 false deterministic-ready result (a 46-word caption beginning at offset zero)
 to the Luna route, and the behavior has a direct fixture.
 
+### Deterministic v5 stopping point
+
+The retained v5 changes are structural rather than case-specific. Reported
+judge speech is no longer treated as a new opinion, title-only names are
+discarded, a middle initial `J.` followed by a surname is not treated as a
+judicial suffix, and a parsed author who conflicts with a nonempty parsed panel
+forces Luna review. Older SCC `judgment of [bloc] ... delivered by` reports now
+separate the writer on the next line from the judges who joined that judgment;
+an OCR mismatch between the writer and the named bloc also routes to Luna.
+
+The final check reused the 662-document challenge set selected from anomalies
+in the earlier 15,000-case audit. It completed in 2.42 seconds at eight workers:
+409 cases remained deterministic-ready and 253 were conservatively routed to
+Luna. Among those 409, the audit found no reported-speech author evidence,
+generic panel member, or author-versus-panel conflict. This is a targeted
+regression set, not an estimate of corpus-wide accuracy or coverage.
+
+Further deterministic work should be limited to explicit document grammar,
+exact source anchoring, registry-backed identity checks, and contradiction
+detection. Implicit authorship, damaged or incomplete panel lists, quoted or
+recounted voices without structural markers, and non-explicit voting alignment
+belong in the Luna path. New rules require a recurring cross-dataset error
+class and a fixture; isolated lexical variants are not enough.
+
 ### Live rejection audit and v4 corrections
 
 At the 626-receipt checkpoint, the active immutable v3 cell had 427 accepted
@@ -81,8 +169,9 @@ The v4 prompt/validator now:
 - rejects institutional panel-description tails such as `Employment Board`;
 - trims appearances, counsel, solicitor, and non-participation metadata from
   the substantive opinion body; and
-- records the exact rejected schema submission in compact receipts and links
-  every progress event to its document and citation.
+- records every exact, untruncated model response in progress and compact
+  receipts, for both accepted and rejected outcomes, and links every progress
+  event to its document and citation.
 
 Two real-corpus checks closed the motivating failures. `2012 SCC 18` now lists
 Binnie and Charron JJ. as nonparticipants rather than majority joiners, and its
@@ -90,6 +179,63 @@ opinion ends at “Appeal dismissed with costs” rather than after the solicito
 list. `2019 FPSLREB 62` now has only Nancy Rosenberg on the deciding panel and
 routes deterministic-ready instead of requiring a fictitious `Employment
 Board` vote.
+
+### Completed 15,000-case rejection replay (2026-08-19)
+
+The interrupted `-r1` dispatch had actually completed all 15,000 cases: 9,751
+were accepted and 5,249 were rejected by the frozen v3 validator, with no
+missing cases, duplicate receipts, malformed receipts, or execution failures.
+Replaying every rejected schema submission locally against v4, without new
+model calls, produced:
+
+| Frozen v3 rejection outcome under v4 | Cases | Share of v3 rejections |
+| --- | ---: | ---: |
+| Salvaged | 4,290 | 81.7% |
+| Still rejected | 649 | 12.4% |
+| Submission unavailable | 310 | 5.9% |
+
+Among the 4,939 replayable rejections, v4 salvaged 86.9%. The original 5,249
+count was therefore primarily a validator result, not a Luna failure rate.
+
+The 649 residual cases contain 1,419 validation messages. After suppressing
+secondary vote errors caused by an already-invalid opinion, the largest
+overlapping case families are: 193 below the 40-word floor, 122 missing a
+deterministically asserted panel member, 112 missing a start anchor, 101 using
+an `unknown` placeholder, 82 missing an end anchor, and 61 with vote/alignment
+coherence errors. Seventy-two of the placeholder cases are also below the
+length floor. Of all 193 length failures, 77 contain fewer than ten substantive
+words; repeated examples are “The appeal was withdrawn” and “There is no
+document available for this decision.” The strict v3 schema required at least
+one opinion and one judge, so it forced Luna to fabricate an opinion-shaped
+answer for records that have no extractable opinion. A future schema must make
+that outcome explicit instead.
+
+The deterministic panel assertion is also not yet a trustworthy rejection
+oracle. Its frequent alleged omissions include `PROTHONOTARY` (13),
+`Stephan J.` (13, parsed from Stephan J. Bertrand), `The Honourable Justice
+Robert J.` (9), `Prothonotary` (8), `Justice J.` (4), `Adjudicator` (3), and
+`Esquire` (3). These are title fragments and header noise, not reliable missing
+votes. Similarly, the 61 `mixed` coherence failures are dominated by sole
+tribunal members deciding several claimants with mixed outcomes; Luna used
+`mixed` for the disposition, while the opinion-vote contract means a sole
+decider still authored the lead/majority reasons.
+
+Residuals are concentrated in CITT (129), SCC (83), ONCA (76), FC (45), RAD
+(44), and FPSLREB (44). CITT is dominated by forced placeholders and tiny
+withdrawal notices. ONCA is dominated by below-floor spans that need sampling
+before the threshold changes. SCC's rate cannot yet be treated as
+representative because 213 of the 310
+unavailable historical submissions are SCC cases.
+
+The replay exposed a receipt-contract defect: the historical v3 cell did not
+guarantee storage of the exact model response. Later rejected receipts retained
+the parsed schema object, but 310 earlier rejections could not be reconstructed
+from their truncated progress preview. The initial V4 fix duplicated each raw
+answer in progress and the terminal receipt. The current runner instead writes
+it once to the durable output ledger before validation and places its hash in
+progress and accepted or rejected receipts.
+`analyze_revalidation.mjs` regenerates the ignored per-case/dataset/error-family
+analysis from the receipt and revalidation JSONL streams.
 
 ### Offline oracle comparison and resumable parallel audit
 

@@ -729,10 +729,41 @@ result hashes.
 ### `SourceDoc`: linear text and legal locators
 
 Keep and finish the existing `SourceDoc`. Provider, PDF, DOCX accepted text,
-plain text, presentation text, and email compilers yield one immutable linear
-text plus paragraph/page/section/footnote blocks where those coordinates
-exist. Native coordinates are preserved first; recovery runs only for missing
+plain text, presentation text, and email paths yield one immutable linear text
+plus paragraph/page/section/footnote blocks where those coordinates exist.
+Native coordinates are preserved first; recovery runs only for missing
 structure. Token and locator indexes are built once per revision.
+
+Source-specific compilers are evidence adapters, not independent structure
+detectors. They decode or fetch text, anchors, trustworthy native blocks,
+excluded ranges, and provenance. One provider-neutral semantic structure
+engine reconciles that evidence into document-wide paragraphs, numbered
+units, headings, sections, notes, relations, and sequence state before the
+result reaches SourceDoc or a geometry-preserving LegalDocument projection.
+The engine must preserve the existing measured SourceDoc sequence contract:
+root ordinary ladders at 1, accept only valid successors, recover gaps only
+from direct surrounding evidence, reject competing late ladders, and reuse
+provider-native structure wherever it exists.
+
+Legal PDF Parser remains responsible for physical PDF evidence—glyphs, spans,
+lines, boxes, flow proposals, spatial regions, tables, and images—but must not
+maintain a second final semantic spine. Packaging may be a shared library or a
+persistent versioned sidecar; separately maintained Rust and TypeScript
+implementations and per-document process spawning are forbidden. Rust is a
+candidate for the computational engine only after exact provider-fixture,
+native-PDF-corpus, throughput, memory, and deployment differentials.
+
+The engine must also keep two meanings of “paragraph” separate. A
+geometry/provider-backed prose paragraph is an anchored segmentation unit for
+reflow, chunking, retrieval, and context windows. Its internal one-based ID is
+not a legal label. Only a printed/provider enumerator accepted by the
+document-wide sequence grammar becomes a numbered legal paragraph or
+provision. Unnumbered prose is addressed by printed/physical page plus exact
+text anchor, not exposed as synthetic `para N`. Reuse Text-Fidelity's existing
+PAGE-XML/BLLA break primitive—page/flow-local large gaps,
+sentence-plus-indent, guarded block-start indents, and continuity
+suppression—inside the shared engine rather than treating one spatial region
+as one paragraph.
 
 Do not force spreadsheet cells, OOXML run properties, PDF geometry, or provider
 response metadata into `SourceDoc`. Store the small source-specific metadata
@@ -1124,6 +1155,16 @@ grammar consumer, runs every table vector in each runtime, fails on missing or
 extra entries and byte drift, and differentially compares match spans against
 the displaced implementations before those implementations are deleted.
 
+Current state: `packages/legal-grammar-tables/grammar-corpus.json` has 64
+entries and 252 vectors, and its packaged Legal PDF Parser copy is
+byte-identical. Rust deterministic citation splitting consumes the corpus;
+TypeScript currently consumes mainly its provision grammar. Complete the
+consumer wiring, including typed citation/pinpoint spans as collision evidence
+inside the shared structure engine. Eyecite and other mature grammars may be
+used as provenance-bearing source/oracle material for measured missing
+dialects in the universal corpus, but not as a second shipping resolver,
+grammar runtime, or citation AST.
+
 Cumulative production target: **93,500 or fewer**.
 
 ### Phase 5 — DOCX package/session
@@ -1138,10 +1179,11 @@ upstream ceiling.
 
 ### Phase 6 — providers, evidence, PDF, artifacts, and experiments
 
-Reduce provider modules to fetch/compile adapters, converge evidence and cache
-envelopes, keep neutral PDF work in its pinned engine, and move no-caller graph
-visualization code to a runnable experiment. Remove production dependencies
-whose only caller moved or disappeared.
+Reduce provider modules to fetch/decode/evidence adapters, converge evidence
+and cache envelopes, keep physical PDF extraction in its pinned parser, and
+route provider and PDF semantic inference through the one shared structure
+engine. Move no-caller graph visualization code to a runnable experiment and
+remove production dependencies whose only caller moved or disappeared.
 
 Cumulative production target: **87,500 or fewer**.
 

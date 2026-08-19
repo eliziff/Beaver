@@ -10,15 +10,21 @@
     },
     "AuthoritiesHelper": {
       "branch": "main",
-      "commit": "426f0b503ccdde2243c6ae0f14b285d598a63415",
+      "commit": "9d002632ea77c4349ab459c73f83281cbfddc170",
       "bundle": null,
       "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
     },
     "legal-pdf-parser": {
       "branch": "main",
-      "commit": "efbb2a9645d768069768d1fcac0cd279de0e00c2",
+      "commit": "db82486dc0f075a07f553e4131d251dcb091a596",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-pdf-parser.git"
+    },
+    "legal-browser-ocr": {
+      "branch": "main",
+      "commit": "ec48ad76c181cb7ad10ca3091a7314660848de36",
+      "bundle": null,
+      "remote": "https://github.com/eliziff/legal-browser-ocr.git"
     }
   }
 }

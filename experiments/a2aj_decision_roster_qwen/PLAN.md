@@ -6,21 +6,120 @@ Derive auditable substantive opinion bodies and judge voting relationships for A
 
 The experiment must remain siloed from the inflight compaction/tool-structure work. It must reuse the existing A2AJ, `SourceDoc`, lookup, locator, evidence, and SQLite machinery. It must not grow a second family of runners, watchers, caches, bridges, or generated artifacts.
 
-## Current v4 architecture
+## Current architecture
 
 1. The deterministic extractor recognizes explicit opinion ranges, author-bearing reasons headings, paragraph-start authors, BCCA joinders/signatures, and terminal disposition lines. It emits exact `[start, end)` offsets, boundary anchors, opinion alignment, and per-judge vote relationships.
 2. A result is `ready` only when every substantive opinion has an author and alignment and every discovered judge has a result side. A sole unopposed opinion is `lead`; all judges who author or join it are majority, even when the source never uses that word.
 3. `codex` normally accepts deterministic-ready cases locally and sends only `unresolved` or `unavailable` cases to Luna. `--force` is reserved for controlled cells whose input manifest was already prequalified for Luna.
-4. Luna returns strict schema `a2aj_opinion_votes`: opinion authors/alignment and unique verbatim start/end quotes, plus judges with `result_side`, `relationship`, and `opinion_ids`. Validation resolves exact offsets, enforces a substantive-length floor and non-overlap, checks panel coverage, and verifies vote/opinion coherence.
-5. Each Luna case gets a distinct ephemeral `codex exec`. Runs use a bounded worker pool, append each completed receipt immediately, preserve partial output, and can resume without repeating completed document IDs.
+4. Luna returns strict schema `a2aj_opinion_votes`: exact disposition and boundary quotes, named or collective authors, participants and nonparticipants, result positions, and evidenced author/joinder links. Validation resolves exact offsets, enforces a substantive-length floor and non-overlap, and verifies name, vote, and opinion-link evidence.
+5. Each Luna case gets a distinct ephemeral `codex exec`. Runs use a bounded worker pool and persist the exact untruncated response before validation. Raw answers live once in an append-only `.outputs.jsonl` ledger; progress and receipts retain their hashes. Runs can resume without repeating completed document IDs.
 6. Cold deterministic screening reads IDs from the corpus's covering dataset index and fans independent derivations across up to ten persistent child processes. Workers receive only IDs and small metadata, then batch-read and compile their own source once through the existing bulk primitive; full case text is never serialized from the main process. Screen receipts cache source length and routing, so a resumed manifest can sample the qualified cache without reparsing.
 7. The resumable audit uses the same ten-process batch pool. With a frozen full JSON or compact JSONL receipt input it source-hash checks each case and compares model output directly with the deterministic oracle for exact text boundaries, derived paragraph roles, and judge votes.
 
-V4 additionally treats explicit non-participation as exclusion from the deciding
+The deterministic layer additionally treats explicit non-participation as exclusion from the deciding
 panel, filters institutional tails in tribunal panel descriptions, expands
-unique short boundary anchors without moving their offsets, and persists the
-raw schema submission for every rejected compact receipt. Historical v3 runs
-remain immutable and retain their original prompt/validator behavior.
+unique short boundary anchors without moving their offsets, and refuses
+reported-speech cues as opinion-author markers.
+
+## V5 extraction and treatment ablation
+
+The V5 Luna contract records exact disposition evidence, opinion boundaries,
+named or collective authors, participating and nonparticipating judges, and a
+many-to-many author/joinder graph. Code resolves quotes into source offsets and
+derives paragraph intersections, result-side majorities, majority/plurality/
+concurrence/dissent labels, hashes, and compatibility views.
+
+Opinion authorship is a first-class target, not something inferred from panel
+membership or agreement. For each opinion, preserve the source-displayed author
+name or collective label, an exact local authorship cue, and whether that cue is
+an explicit reasons heading, a delivered-by/byline formula, a signed opinion,
+external source metadata, or only an inference. A signature that merely records
+agreement is joinder evidence, not authorship. Permit unresolved authorship
+rather than forcing a named writer. Resolve a displayed name to a registry
+person only after extraction, and retain `unique`, `ambiguous`, or `no_match`
+alongside the raw name so later judicial-behaviour analysis does not silently
+merge people.
+
+Judge identity may be enriched from a local, source-cited temporal registry of
+aliases, courts, service intervals, roles, and permanent or special
+assignments. Registry matches are receipt metadata, not model inputs or hard
+panel exclusions. A missing match can be an incomplete registry, an ad hoc
+sitting, or an ex officio assignment.
+
+Case treatment is an empirical extension of this work, not a predetermined
+second stage. The harness must support two paired modes over identical frozen
+cases and deterministic citation candidates:
+
+1. **Combined:** one Luna call returns the opinion/vote extraction and the
+   treatment events together.
+2. **Staged:** the first call returns opinions/votes; the second receives those
+   resolved opinion records and returns the same treatment-event contract.
+
+Both modes use the same model, reasoning effort, source, citation edges, and
+selection order. Compare opinion-boundary and vote accuracy, treatment label
+and evidence accuracy, cross-record coherence, schema/validation failures,
+latency, and tokens. Preserve raw output from every call. Do not select the
+production mode until the paired results exist.
+
+## Open-source baseline and A2AJ roster coverage
+
+Do not invent a second case-law hierarchy. Beaver already imports
+CourtListener clusters and opinions. Use that separation as the baseline:
+
+```text
+source document -> decision/cluster -> exact opinion spans
+person -> dated court position
+opinion -> participants and scoped joins
+citation occurrence -> resolved citation edge -> treatment assertion
+```
+
+CourtListener `type`, `author_str`, `joined_by_str`, panel strings, and citation
+edges are imported source assertions. They are not proof that an opinion is a
+majority or that a judge adopted all of its reasoning. Extend the baseline only
+where the Canadian work requires it: source-hash-bound character spans,
+coauthors, partial/result-only joins, unresolved raw judge names, claim-level
+evidence, passage voice, and model/deterministic receipts. Use CAP's source
+discipline--preserved upstream payloads, separate normalized renditions, hashes,
+and corrections--without copying its full database history machinery.
+
+The current A2AJ case corpus has 29 datasets. The nine provincial/territorial
+court datasets are `BCCA`, `BCSC`, `ONCA`, `NSCA`, `NSSC`, `NSPC`, `NSFC`,
+`NSSM`, and `YKCA`; coverage work must measure those datasets directly, not use
+the Luna sample as a proxy. The remaining sources are `SCC`, `FCA`, `FC`, `TCC`,
+`CMAC`, `CHRT`, `CIRB`, `CITT`, `CT`, `FPSLREB`, `OHSTC`, `OIC`, `PSDPT`,
+`RAD`, `RPD`, `RLLR`, `SST`, `TATC`, `CART`, and `SCT`. `RPD` and `RLLR`
+refer to the same IRB division and therefore share one court identity with two
+dataset aliases.
+
+The roster snapshot uses CourtListener's person/position/court vocabulary and
+keeps exact official-source evidence on every position. A current roster proves
+only membership as of retrieval; it does not invent an appointment start date.
+Likewise, NSSC judges' eligibility to sit ex officio on NSCA, BCCA judges'
+eligibility for YKCA, and other special assignments create candidate pools,
+not hard panel membership. Missing registry support never excludes a displayed
+judge. Federal Organizations `Original appointment date` describes broad
+organization membership; role-specific intervals use the `Current appointment
+date` and retain the original date only as separate evidence.
+
+Roster work is admitted source by source. Each adapter has saved HTML fixtures,
+parser tests, page URL/retrieval time/content hash, exact supporting text, and a
+coverage report by A2AJ dataset and decision year. Historical gaps are filled
+from official appointment/retirement releases and Orders in Council where
+available. The scraper writes a valid partial snapshot after every page and
+never treats a current name-only list as a complete historical registry.
+
+Pass a validated snapshot to a run with
+`--judge-service-file <snapshot.json>`. The parent reads and hashes it once;
+workers never receive the registry. Full and compact case receipts retain each
+raw participant name and its `unique`, `ambiguous`, or non-exclusionary `no_match`
+resolution, while run metadata records the local path and snapshot hash.
+
+Treatment stays attached to a resolved citation occurrence and its containing
+opinion. Direct appellate history is stored separately from substantive
+treatment; party submissions and quoted sources cannot silently become the
+court's treatment. A stable citation key permits treatment of a cited decision
+that is absent from A2AJ, although target-proposition alignment then remains
+unavailable until that decision is acquired.
 
 Seeded samples preserve pseudo-random draw order rather than sorting by document ID. A filtered manifest can prequalify an exact number of deterministic-unresolved cases while excluding an earlier manifest:
 
@@ -32,6 +131,494 @@ node experiments/a2aj_decision_roster_qwen/harness.mjs manifest `
 ```
 
 The screen starts with an interleaved sample from every eligible A2AJ dataset, then fills from the global seeded random order. Screening is local, resumable, ten-process by default, and makes no model calls. Use `--workers` to lower its process bound.
+
+## Issue, authority, and treatment utility experiment
+
+### Decision after the adversarial review
+
+No public benchmark establishes the complete claim this project needs to make.
+The project must separately test four claims:
+
+1. the extractor accurately represents the issues a decision resolves;
+2. the representation improves retrieval beyond ordinary compression;
+3. opinion support and treatment data prevent authority-sensitive mistakes at
+   inference time; and
+4. extracted records remain stable and useful enough for corpus analysis.
+
+[CanLegalRAGBench](https://arxiv.org/abs/2605.30497) is demoted to a secondary
+Canadian QA and compression regression test. Its questions are generated from
+seed cases, its relevant-document sets are incomplete, and it does not score
+issue scope, opinion side, treatment, hierarchy, or law as of a date. An issue
+card generated from its seed case may simply resemble the generated query.
+That is not proof of authority-aware legal research.
+
+Build the missing Canadian test as a small extension of the existing
+`benchmarks/beaver_can` contract. Reuse its required issues, propositions,
+authorities, acceptable pinpoints, conclusions, forbidden claims, source
+packets, and law-as-of dates. Reuse the existing A2AJ and journal
+`LegalSourceProvider`/`SourceDoc` paths, citation keys, opinion graph, receipts,
+and runner. Do not create another benchmark schema, corpus store, runner, or
+general legal ontology.
+
+This is a gated experiment. A valid outcome is to keep only deterministic
+opinion and citation metadata, extract issues lazily, or delete the semantic
+issue layer.
+
+### Records to test
+
+#### Issue card
+
+An issue card belongs to one resolved opinion. It is a retrieval and reading
+unit, not a universal doctrinal node:
+
+```text
+local_id                 temporary ID used within one model response
+opinion_id               existing resolved opinion
+question                 normalized separately answered legal question
+answer                   the opinion's answer
+basis_and_limits[]       concise reasons and qualifications, each typed
+relation_to_disposition  dispositive | independent_alternative |
+                         non_dispositive | unclear
+discussion_spans[]       exact start/end anchors for the complete discussion
+evidence[]               exact quotes, voice, and the field/claim supported
+```
+
+Every generated answer, basis, limit, and disposition-relation judgment must
+link to one or more evidence records. Evidence voice is one of current court,
+party, quoted authority, reported decision, procedural record, or unclear.
+At least one answer or basis span must be current-court speech. Exact
+discussion spans are the context returned to a later reader; they may overlap
+across issues and need not follow paragraph boundaries.
+
+Use this granularity rule:
+
+> Emit one card for each separately answered legal question. Keep the elements
+> of one applied test together unless the opinion gives them distinct answers
+> or independent grounds that could later be accepted, rejected, or treated
+> separately. If two independent grounds answer the same question, emit two
+> cards with the same question and different bases. Do not turn a question the
+> court expressly declines to decide into a resolved issue.
+
+Do not precompute a proposition graph. When an inference model needs a precise
+proposition, retrieve the issue card and its exact discussion span and let the
+reader formulate the proposition for the current task. This tests the intended
+use directly: for example, retrieve only issue discussions supported by the
+majority. A treatment event may link to an issue when the match is clear, but
+the link is nullable and never required to accept the treatment event.
+
+#### Citation treatment
+
+Treatment remains an occurrence-level event in the citing source and its
+containing opinion. It records the target citation, treatment label and scope,
+speaker/attribution, and exact evidence. Direct appellate history remains a
+separate event family. The attribution vocabulary must cover current court,
+party, quoted source, and reported lower-court or tribunal reasoning.
+
+An optional proposition quote is accepted only when the citing source states
+one explicitly. Treatment extraction does not hunt for a complete proposition
+scope and does not create an issue record. Case-level indicators are derived
+views over time-indexed events, never a scalar `is_good_law` fact. A case can be
+distinguished on one issue and remain useful on another.
+
+#### Judicial and scholarly characterizations
+
+Use a small provenance-bearing assertion record for a source's characterization
+of another decision:
+
+```text
+assertion_id              harness-assigned after validation
+source_document_id        decision or journal article
+source_actor_type         judicial_opinion | scholarly_author |
+                          editorial_material | party
+source_span               exact evidence and source hash
+source_date               date at which the assertion was made
+claim_type                issue_characterization | rule_characterization |
+                          treatment_characterization | critique
+claim_text                normalized assertion
+target_decision_id        citation key allowed when A2AJ ID is unavailable
+target_issue_id           nullable
+target_treatment_event_id nullable
+```
+
+This is a provenance distinction, not a source-of-truth hierarchy. A later
+court's text proves what that court said or did; it does not prove that the
+court accurately characterized the earlier decision. A peer-reviewed journal
+analysis may be the better account. Preserve court, journal, citator, editorial,
+party, model, and reviewer assertions separately and make agreement and conflict
+queryable. Do not merge a scholarly formulation into the source decision's own
+issue card or force it onto an issue at the wrong level of abstraction.
+
+The repository already has a local journal provider with full text, authors,
+dates, licences, source hashes, stable page/section/footnote locators, and
+exact-source lookup. Route journal work through that provider rather than
+building a new article corpus.
+
+### Deterministic and semantic boundaries
+
+The model returns semantic judgments and verbatim anchors. The harness derives
+or validates, where mechanically possible:
+
+- persistent IDs, character offsets, paragraph intersections, and hashes;
+- citation identities and citation-occurrence IDs;
+- source type, document, court, jurisdiction, and date;
+- opinion boundaries, authors, joiners, participants, and nonparticipants;
+- judge/court service-registry matches;
+- chronological eligibility for an as-of query; and
+- opinion support from explicit whole-opinion authorship and joinders.
+
+The harness cannot validate entailment merely because a quote exists. It also
+cannot infer universal issue-level support from a case-level result:
+
+- a judge's presence on the panel or agreement with reasons does not prove
+  authorship;
+- a signature is authorship evidence only when its local form identifies the
+  signed reasons as that judge's own;
+
+- result-only agreement does not adopt another opinion's reasons;
+- an unscoped `joins_in_part` does not support a particular issue;
+- `lead` does not mean majority;
+- a plurality or separate concurrence may support the result on another basis.
+
+Initially derive `majority_supported`, `minority_only`, `plurality_supported`,
+or `authority_ambiguous` only for the safe subset: sole unopposed reasons and
+explicit full-opinion authors/joins. Partial joins remain ambiguous until an
+observed coverage failure justifies issue-scoped join extraction.
+
+### Combined versus staged extraction
+
+Do not assume that opinion, issue, and treatment extraction must be one stage
+or multiple stages. Compare two frozen modes on the same sources, citation
+edges, model, effort, and selection order:
+
+1. **Combined:** one call returns opinions/votes, issue cards, and treatments.
+2. **Structure first:** the first call returns opinions/votes; one semantic
+   call over the resolved opinion text returns issue cards and treatments.
+
+Only split issues and treatment into separate semantic calls if these two modes
+expose a specific interference failure. Compare boundary/vote accuracy, issue
+recall and split/merge behavior, treatment accuracy, cross-record coherence,
+schema failures, severe errors, tokens, latency, and accepted-record yield.
+Both modes receive the same deterministically resolved, bounded citation-edge
+batch. Never truncate a large case silently; record that it exceeded the
+single-call cell and split only at an opinion or citation-edge boundary shared
+by both modes.
+
+Each case remains a distinct ephemeral `codex exec`, with up to ten cases in
+parallel and one case per worker per dispatch. Every raw response is appended
+before validation, and every run is resumable. No hot multi-case model session
+is permitted.
+
+### Luna effort and verifier experiments
+
+Luna Max is the provisional quality-first extractor for issue and treatment
+work, but it is not an oracle. Test low, high, and max independently against
+the same locked human-reviewed items. Do not show one effort's answer to
+another during scoring. Test medium only if low fails and high/max leave a
+meaningful unresolved cost-quality question.
+
+A lower effort earns a production role only if it:
+
+- adds no severe error on the locked items;
+- does not materially reduce issue or treatment coverage;
+- saves at least 25% of end-to-end cost after retries and escalation; and
+- has a routing rule that identifies its failures.
+
+If more than roughly one third of lower-effort results escalate, use Max
+directly. Because deterministic parsing already removes easy cases, Luna sees
+the difficult tail; a cheap tier may have no useful production role.
+
+Test any proposed Max verifier with known corruptions: swapped answers, removed
+qualifications, dissent relabelled as majority, reversed treatment, counsel or
+quoted evidence attributed to the court, and treatment attached to the wrong
+citation. Use about 30 clean and 30 corrupted records. Delete the verifier if
+it does not catch nearly all injected severe errors or adds little beyond the
+deterministic checks. A verifier reading only selected evidence cannot measure
+issues omitted from the full opinion.
+
+### Verification status and human work
+
+Do not use an ordinal truth ladder. Store independent receipt facts:
+
+```text
+anchors_valid
+cross_pass_consistent
+max_reconciled
+external_assertions_present
+human_claim_checked
+human_full_opinion_checked
+unresolved
+```
+
+Two Luna passes have correlated errors. Agreement measures reproducibility and
+can route review; it does not establish correctness. A Max reconciliation after
+seeing candidate answers remains a model-produced record and may be anchored by
+them. Preserve all inputs and raw answers.
+
+Use three samples and never pool their percentages:
+
+1. a reproducible probability sample across A2AJ datasets, courts, dates,
+   languages, lengths, and opinion structures;
+2. a challenge sample enriched for multiple opinions, partial joins,
+   alternative grounds, party argument, reported decisions, quotation, and
+   procedural history; and
+3. a treatment sample of unique citing/target pairs, reported by treatment and
+   attribution class.
+
+Retain selection probabilities for quota-sampled strata. Compute intervals by
+decision or article, not by their correlated issue records or citation
+sentences.
+
+Human review has two different jobs:
+
+- **Claim audit:** accept, edit, or reject a card/event against its exact spans.
+- **Blind full-opinion inventory:** list resolved issues before seeing model
+  output. This is the only direct check on issue omission and split/merge error.
+
+Use sequential caps, not one large commitment:
+
+1. **Schema development:** 12 full decisions (six ordinary, six challenge) and
+   30 treatment contexts. Run low, high, and max independently: 126 calls.
+2. **Locked extraction pilot:** 20 probability-sampled decisions, 10 challenge
+   decisions, and 60 treatment relationships, again at the three efforts: 270
+   calls. Blindly inventory at least ten probability decisions and claim-audit
+   a broad random sample of accepted and rejected records.
+3. Re-review three decisions and ten treatment contexts later without the first
+   labels visible to detect rubric drift.
+
+These are model-call and human-work ceilings for separate gated phases. Review
+in batches of ten. Budget roughly 6-10 human hours for schema development and
+10-18 additional hours for the locked pilot; stop and reassess if the compact
+receipts do not make those ranges realistic. If more than two development
+decisions require changing the meaning of a field, revise the schema and freeze
+a new batch rather than enlarging the sample. Even zero severe errors in 30
+independent decisions leaves an approximate 95% upper bound near 10%; do not
+claim a tiny corpus error rate.
+
+Predeclare severe errors:
+
+- assigning an opinion to the wrong author or converting unresolved authorship
+  into a named writer;
+- reversing or materially overstating the opinion's answer;
+- omitting a qualification so the rule becomes materially broader;
+- treating a party, quotation, reported decision, dissent, or plurality as
+  controlling reasons;
+- assigning treatment to the wrong decision, occurrence, or issue;
+- missing negative treatment that changes the queried proposition's use;
+- inventing a proposition not supported by the cited evidence; or
+- giving majority support to a proposition without the necessary joinders.
+
+Formatting failures, harmless wording differences, and slightly imperfect but
+valid anchors are not severe.
+
+### Silver construction
+
+Deterministic validation proves offsets, identity, containment, ordering, and
+some opinion relationships. It does not prove a semantic claim. Machine silver
+may record `cross_pass_consistent` or `max_reconciled`; neither is a confidence
+score.
+
+The simplest production pipeline may be one Max extraction, deterministic
+validation, and random quality-control reruns. Do not pay for two correlated
+model calls per case unless the locked experiment shows that the second call
+materially reduces human-observed errors.
+
+Later judicial descriptions, scholarly analysis, citator classifications,
+editorial summaries, and verbatim quotations are independent assertions and
+valuable challenge/evaluation signals. No source class is presumed correct.
+Conflicts are retained as first-class review cases.
+
+Do not create the proposed 1,000-case semantic silver sample before the oracle
+utility experiment shows that accurate records would be useful. Do not start a
+whole-corpus issue build.
+
+### Benchmark portfolio
+
+#### Local scalable retrieval sets
+
+Build two known-target query sets without inventing questions:
+
+1. **Judicial contexts:** mask a resolved citation in an A2AJ citing passage and
+   retrieve the cited earlier decision and, where a quote or pinpoint permits,
+   its supporting passage.
+2. **Journal contexts:** mask case names, neutral and reporter citations, short
+   forms, footnote cross-references, and other target leakage from a substantive
+   article passage, then retrieve the cited decision and relevant issue span.
+
+Journal and judicial contexts are equal provenance-bearing observations. The
+journal set is particularly valuable because a human scholar wrote the case
+characterization independently of the issue extractor. Record venue, authors,
+publication date, review provenance when known, source hash, and licence.
+
+Use singleton citations with pinpoints as the clean passage-retrieval stratum.
+Singleton citations without pinpoints support document retrieval. String
+citations and composite propositions have incomplete positive sets and must be
+scored separately. Pure citation lists, background references, party material,
+and procedural history are separate strata, not silent positives or negatives.
+
+Split by citing decision or article and target-case family. Candidate decisions
+must predate the query source. Use the full eligible corpus when feasible, or a
+documented first-stage pool with hard negatives matched by court, date, and
+topic. Do not use only 999 random negatives. The observed citation is a known
+positive, not the only legally acceptable answer; report MRR and known-target
+recall rather than misleading precision.
+
+Audit 50-100 short journal contexts across singleton-pinpoint,
+singleton-no-pinpoint, string-citation, and express-treatment strata before
+using them as a benchmark. At roughly three to five minutes per context, this
+is a separate four-to-eight-hour human gate. Keep hashes, offsets, and only
+authorized excerpts; do not commit a downloaded article corpus.
+
+#### Authority-sensitive Beaver-CAN slice
+
+Add two reviewed tasks for each of six failure patterns to the existing
+Beaver-CAN framework:
+
+1. the tempting proposition appears in a dissent, not the majority;
+2. an older case receives negative treatment on the queried issue;
+3. negative treatment concerns a different issue and the case remains useful;
+4. counsel or a reported decision characterizes authority without adoption;
+5. separate concurrences agree in result but no rationale has majority support;
+6. a later case narrows one ground while leaving another intact.
+
+Twelve carefully reviewed tasks are the initial acceptance set. Models may
+propose task candidates and source packets, but extracted cards may not define
+their gold. Existing Beaver-CAN propositions, acceptable authorities and
+pinpoints, forbidden claims, and law-as-of dates provide the durable contract.
+
+#### External component checks
+
+Use each external benchmark only for the claim it can support:
+
+- [COLIEE Task 1](https://coliee.org/COLIEE2025/corpus/task1) tests Canadian
+  cited-case retrieval; [Task 2](https://coliee.org/COLIEE2025/corpus/task2)
+  tests cross-case paragraph entailment when the target decision is known.
+- [SG-LegalCite](https://arxiv.org/abs/2605.21057) is the closest published
+  principle-augmentation design. Its main result uses an LLM principle
+  extracted from the citation-bearing context, a 1,000-way sampled pool, and
+  partially validated silver. Its cold-start test contains only 50 cases.
+- [AusLaw Citation](https://doi.org/10.1007/s10506-026-09506-9) supports
+  comparing full text, editorial catchwords, and aggregated reasons for
+  citation. It does not supply Canadian opinion-side or treatment labels.
+- [Validate Your Authority](https://aclanthology.org/2025.nllp-1.13/) and the
+  [236-pair overruling benchmark](https://arxiv.org/abs/2510.20941) are
+  out-of-jurisdiction treatment and long-context checks.
+- [CLERC](https://aclanthology.org/2025.findings-naacl.441/) and LePaRD are
+  external citation- and passage-retrieval stress tests, not Canadian
+  acceptance gates.
+- CanLegalRAGBench remains an ordinary Canadian RAG regression and
+  compression check only.
+
+The literature supports the experiment, not its conclusion. SG-LegalCite
+reports large gains from explicit principles, while its own worked example
+extracts a principle from a passage recounting stakeholder submissions--an
+example of the attribution error Beaver must avoid. Scholarly legal citation
+recommendation has also been evaluated directly over article text
+([Arslan et al.](https://arxiv.org/abs/2311.05902)). Multiple-model agreement
+must be treated cautiously because LLM evaluator errors are strongly correlated
+([Kohli et al.](https://machinelearning.apple.com/research/correlated-llm-evaluation-panels)).
+
+### Proving downstream value
+
+Test the oracle upper bound before building large silver. If human-accepted
+issue/treatment records do not help, model extraction cannot rescue the idea.
+
+First hold retrieved source packets fixed and compare, at the same input-token
+budget and with the same reader/output contract:
+
+1. raw passages;
+2. raw passages plus deterministic opinion, vote, date, court, and citation
+   metadata;
+3. equal-token generic summaries with exact evidence;
+4. human-accepted issue cards with exact evidence but no authority/treatment;
+5. the same issue cards plus opinion support and treatment.
+
+The generic-summary control separates issue structure from ordinary
+compression. The deterministic condition asks whether cheap metadata captures
+the value. Run a small intentionally corrupted-card condition to measure
+whether confident structure makes the reader credulous.
+
+Only after the oracle layer helps, add Luna silver as a sixth condition. Then
+run retrieval separately on the masked judicial and journal contexts, comparing
+raw-text, generic-summary, and issue-card indexes. Do not change retrieval and
+reader packets in the same initial experiment.
+
+Score:
+
+- required proposition and conclusion accuracy;
+- forbidden-claim and severe-error rates;
+- authority, opinion-side, treatment, and law-as-of correctness;
+- supporting-span, quotation, and pinpoint correctness;
+- qualification retention and omitted contrary authority;
+- document and passage MRR/Recall@k;
+- input/output tokens, model calls, paired wall time, and retry rate; and
+- offline extraction and validation cost.
+
+Randomize and interleave paired conditions. Inspect changed answers blind to
+condition. A small pilot is a kill test for a large effect, not evidence of a
+two-point non-inferiority margin.
+
+Advance from oracle to silver only if the oracle layer causes no new severe
+authority error and achieves at least one large practical effect:
+
+- at least 10 absolute points more known-target Recall@10 or supported-answer
+  accuracy at comparable cost;
+- at least 30% fewer inference input tokens with no worse reviewed answers; or
+- at least a two-to-one win among materially different paired answers.
+
+Stop semantic extraction if deterministic metadata comes within roughly two
+points of oracle retrieval or within 10% of its token savings. Silver advances
+only if it retains at least 75% of the oracle improvement and introduces no new
+severe error in reviewed changed answers.
+
+Report quality-cost frontiers and:
+
+    break_even_queries = offline_extraction_and_validation_cost /
+                         per_query_cost_saving
+
+There is no break-even when per-query saving is zero or negative. Beaver has no
+observed query-frequency distribution, so show sensitivity at 1, 5, 10, 50,
+and 100 uses per enriched decision rather than inventing a workload.
+
+### Corpus-analysis value
+
+Answer-generation success does not prove analytical validity. Only after the
+oracle and silver utility gates pass, extract a reproducible 1,000-decision
+sample with broad A2AJ coverage and known selection probabilities.
+
+Predeclare a small set of doctrinal discovery questions and compare raw text,
+deterministic metadata, equal-token generic summaries, and issue cards. Measure
+known-target recall from masked judicial and scholarly contexts, precision in
+human-reviewed top results, cross-run stability, review time, and coverage by
+dataset, court, period, language, length, and opinion complexity. Report
+stratum-specific error. Natural-language cards may support search and
+clustering; prevalence estimates remain exploratory until the relevant strata
+are audited.
+
+### Gated execution order
+
+1. **Zero-call feasibility:** confirm benchmark/data access, licences, citation
+   mappings, journal footnote scope, temporal fences, and leakage controls.
+2. **Schema development:** run the capped 126-call cell and revise until one
+   reviewer can apply the issue/treatment rubric consistently.
+3. **Oracle utility:** add the twelve authority-sensitive Beaver-CAN tasks and
+   a small masked-context set; run the fixed-packet representation comparison.
+4. **Locked extraction:** only if oracle records help, run the capped 270-call
+   low/high/max comparison and verifier mutation test.
+5. **Silver utility:** compare accepted Luna records with the oracle condition
+   and measure how much value extraction noise destroys.
+6. **First scale-out:** only after silver passes, extract at most 1,000 random,
+   broadly covered A2AJ decisions with random quality-control review.
+7. **External confirmation:** run the relevant COLIEE/component checks and use
+   CanLegalRAGBench only as a regression suite before making broader claims.
+
+Defer a global issue taxonomy, issue trees, formal argument graphs, universal
+ratio/obiter labels, per-judge issue stances, forced cross-case proposition
+alignment, a scalar good-law score, forced issue links, and whole-corpus
+extraction. Add one only when a measured failure requires it.
+
+No metered run begins without separate explicit authorization. Durable positive
+and negative findings go in RESULTS.md; raw responses and partial results remain
+in ignored resumable receipts.
 
 ## Controlled paired run
 
@@ -77,15 +664,25 @@ Luna is a comparator/teacher candidate, not a hidden source of Qwen guidance. It
 
 ## Deterministic preflight
 
-Run a small deterministic search pass before the model sees the case. Report:
+Run the v5 deterministic pass before the model sees the case. It may complete a
+case only from explicit document grammar or a mechanically compelled
+single-opinion result. Report:
 
 - judge/header candidates found by the existing lightweight header pass;
-- searches for `majority`, `minority`, `dissent`, `concurring`, and reasons headings;
-- zero-hit results explicitly;
-- paragraph labels and short snippets for hits;
-- the fact that these are search hints, not role adjudications.
+- exact opinion offsets, boundary quotes, writer, joiners, panel, and
+  nonparticipants when the source states them;
+- registry-backed identity matches separately from the raw displayed names;
+- contradictions such as author absent from a nonempty panel, duplicate
+  surnames, OCR disagreement, short bodies, and unresolved votes; and
+- zero-hit results and routing reasons explicitly.
 
-The preflight may narrow the model’s hunt, but it must not silently assign majority or minority status. It should report what was tried and failed, not invent an answer.
+The pass may call a sole unopposed opinion majority and may translate explicit
+reason ranges and joinders. It must route implicit authorship, damaged or
+incomplete rosters, unmarked reported voices, and non-explicit multi-opinion
+alignment to Luna. Add a new deterministic rule only for a recurring
+cross-dataset grammar or validation invariant with a fixture; do not grow a
+case-specific reporting-verb list. The 662-case anomaly challenge set is a
+regression corpus, not a tuning target or accuracy benchmark.
 
 ## Qwen turn protocol
 

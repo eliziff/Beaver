@@ -135,6 +135,13 @@ describe("local A2AJ bulk data", () => {
       }),
     ).toMatchObject([{ citation: "2024 CSC 1", name: "Alpha c. Beta" }]);
 
+    const batch = bulk.fetchLocalA2AJDocumentsByIds({ ids: [2, 1] });
+    expect([...batch.keys()]).toEqual([2, 1]);
+    expect([...batch.values()].map(({ citation }) => citation)).toEqual([
+      "2023 ONCA 9",
+      "2024 SCC 1",
+    ]);
+
     const longDocument = bulk.fetchLocalA2AJDocument({
       citation: "2022 SCC 88",
     });

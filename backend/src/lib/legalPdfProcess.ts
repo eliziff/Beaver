@@ -186,7 +186,6 @@ export function configuredLegalPdfProfile(options: RuntimeOptions = {}): LegalPd
           }),
         ),
         ...(env.LEGALPDF_KRAKEN_DEVICE?.trim() ? { device: env.LEGALPDF_KRAKEN_DEVICE.trim() } : {}),
-        ...(env.LEGALPDF_KRAKEN_CPU_FALLBACK === "1" ? { cpu_fallback: true } : {}),
       },
     };
   }
