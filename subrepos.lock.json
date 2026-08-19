@@ -16,7 +16,7 @@
     },
     "legal-pdf-parser": {
       "branch": "main",
-      "commit": "db82486dc0f075a07f553e4131d251dcb091a596",
+      "commit": "621fb62b751cbf508f828afa325615de27cb1fc4",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-pdf-parser.git"
     },
@@ -25,6 +25,12 @@
       "commit": "ec48ad76c181cb7ad10ca3091a7314660848de36",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-browser-ocr.git"
+    },
+    "mike-workflows": {
+      "branch": "main",
+      "commit": "b45b1ba83691ab6e504c35146da0cea8e0dcbb91",
+      "bundle": null,
+      "remote": "https://github.com/Open-Legal-Products/mike-workflows.git"
     }
   }
 }

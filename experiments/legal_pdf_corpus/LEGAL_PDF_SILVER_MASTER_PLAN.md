@@ -1171,3 +1171,739 @@ The overall effort is complete when:
   regressions pass;
 - no source text, geometry, deep legal relations, or exact lookup capability is
   traded away for speed.
+
+## 18. Executable project contract and harness
+
+### 18.1 Required project result
+
+Deliver one provider-neutral legal structure engine that:
+
+- is linked directly into Legal PDF Parser and used by every SourceDoc
+  missing-structure recovery path without a second implementation;
+- preserves provider-native paragraphs, pages, sections, footnotes/endnotes,
+  anchors, and exclusions as authoritative claims unless a source-identity
+  violation is diagnosed;
+- uses the existing root-at-1, monotonic-successor, gap-intolerant structure
+  selector for inferred numbered streams;
+- retains and modestly improves the existing strong note pairing/repair and
+  page detection rather than replacing them;
+- derives unnumbered prose paragraph boundaries without inventing legal
+  paragraph locators;
+- materializes fast native results for all 750 digital-born PDFs and settled
+  Kraken-lite results for all 750 non-digital PDFs; and
+- runs on GPU and laptop profiles with the same source-accounting and semantic
+  contract.
+
+The project is not complete when only a new module exists. It is complete when
+the old duplicated semantic detectors have been deleted, every provider/PDF
+caller uses the shared engine, whole-corpus receipts pass, and the entire
+root-plus-subrepository production source has contracted.
+
+### 18.2 Frozen quantitative baseline and ceilings
+
+Baseline root commit: `5d29906341d17239e5e36a5442ca665f5f2a12f0`.
+The line receipt includes the root and every repository pinned by
+`subrepos.lock.json`; moving code into a subrepo cannot improve the number.
+Vendored third-party code and generated source are reported separately, while
+all authored production, tests, experiments, and tooling remain visible.
+
+| Metric | Baseline | Hard ceiling | Completion target |
+| --- | ---: | ---: | ---: |
+| Whole-project production nonblank lines | 125,896 | 125,896 | at most 124,500 |
+| Whole-project production + test lines | 181,886 | 181,886 | at most 180,500 |
+| Whole-project all authored code lines | 285,654 | 285,654 | at most 284,000 |
+| Tracked compact receipts for this program | 0 | 5 MiB | under 2 MiB |
+| One per-document receipt | n/a | 32 KiB | under 16 KiB median |
+| One phase summary | n/a | 256 KiB | under 64 KiB |
+| Legal PDF Parser binary | 16,616,960 B | 16,949,299 B (+2%) | no material growth |
+| OCR cache excluding source PDFs/models | n/a | 10 GiB | smallest lossless reusable cache |
+
+`npm run check:source-budget` is the fail-closed source gate. The configuration
+and all performance/artifact budgets live in
+`scripts/legal-structure-guardrails.json`. A vertical slice may temporarily
+add code in a dirty worktree, but it cannot be accepted until its old path is
+deleted and both whole-project ceilings pass.
+
+The baseline is four lines higher than the counter's first draft because the
+tracked `watch-qwen.cmd` was executable authored source but `.cmd` was not in
+the old extension set. The guardrail was corrected rather than preserving a
+convenient undercount. It is another 231 lines higher because the existing
+clean `mike-workflows` repository was ignored and absent from the subrepo lock;
+it is now pinned and counted. The completion targets were not raised.
+
+### 18.3 Speed and build budgets
+
+Slow feedback is a defect. Use cached extraction/OCR evidence and replay only
+the structure layer during development.
+
+| Gate | Required result |
+| --- | ---: |
+| Warm `cargo quick` median / p95 | at most 2.0 s / 4.0 s |
+| Final incremental release link | at most 30 s |
+| Inner-loop SourceDoc provider parity smoke | at most 1 s |
+| Complete SourceDoc provider regression suite | at most 8 s |
+| Any focused backend structure test command | at most 15 s |
+| Rust cached structure replay | at least 1,000 pages/s |
+| All 24,707 successful native pages, cached replay | at most 30 s |
+| Text-only SourceDoc recovery | at least 50 MiB/s after process warmup |
+| Kraken-lite Quality, settled GPU | at least 5.5 pages/s |
+| Kraken-lite Quality, laptop profile | at least 2.0 pages/s |
+| Selective OCR over all 750 non-digital documents on GPU | at most 60 min |
+
+Do not run a clean whole-workspace build during an ordinary edit. Use one
+package-scoped metadata/check command, batch edits, then link once for the final
+behavioral gate. Do not spawn one structure process per document in production
+or corpus gates; use an in-process library or one warmed persistent/batched
+sidecar.
+
+The budgets above are completion gates, not invented baseline claims. Current
+measured reference points are a 0.799 s warm `cargo quick`, a 0.513 s
+all-provider smoke including Vitest startup, and 293.1 cached page-passes/s for
+the preliminary 11-document Rust parity sample when the executable is invoked
+per document. The full 748-document replay establishes the real baseline. The
+1,000 pages/s and 30 s goals require the final warmed/batched architecture; an
+ownership-only move first has to remain within 2% of its frozen baseline.
+
+### 18.4 Proof and compact-provenance policy
+
+The harness is auto-self-documenting. Each run writes one bounded phase JSON
+containing:
+
+- schema, stage, command contract, commit and subrepo hashes;
+- source/corpus manifest hash, parser/model/config identities, and cache state;
+- attempted/completed/failed document and page counts;
+- exact baseline/candidate output hashes and categorized deltas;
+- median/p95 wall time, throughput, peak memory where available, and artifact
+  bytes; and
+- pass/fail for every applicable invariant and budget.
+
+Do not accumulate process theatre. No per-command diary, screenshots of green
+tests, duplicated result trees, copied PDFs, copied page images, or full
+baseline/candidate JSON pairs are durable evidence. Raw outputs live in one
+ignored content-addressed cache, are overwritten/reused by stage, and can be
+deleted after their hashes and compact failure exemplars are recorded. A full
+corpus parity run retains one hash row per document plus bounded examples for
+each delta class. Long jobs update one atomic partial summary and one compact
+per-document receipt so interruption never discards completed work.
+
+### 18.5 Fine-grained execution stages and acceptance gates
+
+#### Stage 0 — harness and baseline
+
+- **Result:** one command can measure source, build, provider fixtures,
+  structure replay, output hashes, throughput, and artifact size.
+- **Whole-corpus proof:** reconstruct replay inputs from the existing 748
+  native extraction caches without reparsing PDFs; hash every current result.
+- **Tests:** harness self-test rejects a changed byte, missing document,
+  mismatched subrepo pin, exceeded budget, and stale cache identity.
+- **LoC:** tooling only; zero production growth.
+- **Speed:** representative smoke finishes under 2 s; record rather than hide
+  the full cached baseline. Do not require old per-document startup behavior to
+  meet the final 30 s/1,000 pages/s target.
+- **Receipt:** one baseline summary plus one compact 748-row hash manifest.
+
+#### Stage 1 — Rust ownership extraction
+
+- **Result:** the semantic structure core has a provider-neutral library input
+  and output; Legal PDF Parser is an evidence adapter plus projection caller.
+- **Whole-corpus proof:** all 748 successful native document result bytes are
+  identical before and after the move, not merely schema-equivalent.
+- **Tests:** all current Rust structure/pairing/projection tests plus exact
+  common-input replay differential.
+- **LoC:** net production growth at most zero when the old ownership path is
+  deleted; no copied Rust/TypeScript implementation.
+- **Speed/build:** no replay regression above 2%; warm `cargo quick` and final
+  link stay within Section 18.3.
+- **Receipt:** before/after engine hashes, 748 exact matches, timings, and LoC.
+
+#### Stage 2 — SourceDoc provider breadth freeze
+
+- **Result:** one applicability matrix covers every real SourceDoc-producing
+  provider and every mode that provider actually exposes. A mode with no real
+  captured baseline is incomplete; a synthetic/mock row cannot turn it green.
+- **Whole-corpus proof:** run all existing A2AJ/provider fixture corpora and
+  frozen legacy outputs, then add the missing real captures identified in
+  Section 18.8. Every row compares the pre-refactor and candidate canonical
+  public output bytes; native provider blocks/anchors remain byte-identical.
+- **Tests:** assert root-at-1/gapless inferred sequences, source text, locators,
+  ranges, page/footnote ordering, native-block preservation, and failed-closed
+  gaps for every applicable lane.
+- **LoC:** the gate belongs in experiments or replaces narrower duplicate tests;
+  no production growth.
+- **Speed:** real-capture parity smoke under 1 s, comprehensive provider suite
+  under 8 s, and 2.3 MiB text fixture under 100 ms after warmup.
+- **Receipt:** one provider/mode row with source, output hash, invariants, and
+  elapsed time.
+
+#### Stage 3 — shared-engine provider integration
+
+- **Result:** provider adapters pass native claims and missing text ranges to
+  one warmed shared engine; they do not surrender trustworthy native structure.
+- **Whole-corpus proof:** every Stage-2 fixture is byte-identical during the
+  ownership cutover, including every non-native path.
+- **Tests:** persistent protocol batching, version/schema refusal, crash/error
+  isolation, native-claim precedence, and exact projection parity.
+- **LoC:** delete SourceDoc detector copies as each family moves; the completed
+  stage must contract whole-project production by at least 300 lines.
+- **Speed:** no per-document spawn; at least 50 MiB/s text recovery and no
+  provider fixture more than 5% slower.
+- **Receipt:** protocol identity, batch size, parity hashes, throughput, LoC.
+
+#### Stage 4 — monotonic numbered streams
+
+- **Result:** paragraph/provision/section/note/page candidates share the proven
+  origin-at-1 and monotonic-successor selector with explicit grammar/restarts.
+- **Whole-corpus proof:** run every SourceDoc provider corpus plus all cached
+  native PDFs; list every origin, gap, jump, duplicate, restart, and collision.
+- **Tests:** repeated starts, TOCs, quoted provisions, numeric tables, forms,
+  transcripts, endnote tails, missing-marker recovery, and custom marks.
+- **LoC:** one selector replaces all descendants; net production contraction.
+- **Speed:** linear or bounded-near-linear scan; all native cached replay under
+  30 s and provider matrix under 8 s.
+- **Receipt:** per stream-family counts and bounded audited delta examples.
+
+#### Stage 5 — notes and propositions
+
+- **Result:** reuse existing strong reference/body/pair/restart/proposition
+  logic through the shared engine; make only corpus-proven modest corrections.
+- **Whole-corpus proof:** all 1,500 documents after OCR materialization, plus
+  frozen 661-page journal truth, with apparatus modes reported separately.
+- **Tests:** numeric/symbolic labels, restarts, continued notes, endnotes,
+  tables/forms at page bottoms, citation/paragraph collisions, crossrefs, and
+  proposition spans.
+- **LoC:** delete hand-parsed grammar shadows; no net production growth.
+- **Speed:** note work remains a small fraction of cached replay and never
+  triggers model inference on digital-native pages.
+- **Receipt:** pair/proposition invariants and audited intended deltas only.
+
+#### Stage 6 — physical and printed pages
+
+- **Result:** preserve the existing page solution and fix only confirmed edge
+  cases: Roman/prefixed labels, transitions/restarts, alternating folios, and
+  furniture conflicts.
+- **Whole-corpus proof:** all 1,500 PDFs have complete physical page sequences;
+  every printed-label transition/gap is enumerated and audited by class.
+- **Tests:** covers/front matter, Roman-to-Arabic, attachments, prefixed pages,
+  missing labels, restarts, transcript folios, and false paragraph/date labels.
+- **LoC:** consolidate with the shared monotonic primitive; no growth.
+- **Speed:** page reconciliation is linear and does not affect replay budget.
+- **Receipt:** physical exactness plus transition/gap histograms.
+
+#### Stage 7 — prose paragraph boundaries
+
+- **Result:** port Text-Fidelity geometry break evidence; keep inferred prose
+  groups separate from legal numbered units and locators.
+- **Whole-corpus proof:** compare native/BLLA line geometry on all applicable
+  pages; preserve text, line IDs, order, provider blocks, and real paragraph
+  labels exactly.
+- **Tests:** large gaps, sentence-indent, block-start indent, columns, tables,
+  headings, soft-hyphen/must-follow edges, block quotes, and inverted note
+  hanging indents.
+- **LoC:** reuse/port the existing primitive once; delete region-as-paragraph
+  logic; completed stage net-negative.
+- **Speed:** paragraph grouping stays inside the 1,000 pages/s replay budget.
+- **Receipt:** boundary evidence counts, collisions, and chunk/locator checks.
+
+#### Stage 8 — digital-native whole-corpus acceptance
+
+- **Result:** all 750 digital-born PDFs parse, or an ingestion failure has an
+  explicit recovery/failed-closed receipt; current two CanadaBuys failures are
+  resolved or bounded.
+- **Whole-corpus proof:** 24,779 attempted pages, exact source accounting,
+  structure invariants, provider consumer lookups, and audited delta classes.
+- **Tests:** cached replay every edit; full extraction only at stage close.
+- **LoC:** whole-project ceilings and contraction target pass.
+- **Speed:** cached proof under 30 s; one full native extraction pass under
+  12 min, resumable and parallel without duplicate outputs.
+- **Receipt:** 750 compact rows plus one phase summary.
+
+#### Stage 9 — non-digital Kraken-lite materialization
+
+- **Result:** every one of the 750 non-digital PDFs is assessed; pages needing
+  OCR use the settled Kraken-lite profile and all usable native pages remain
+  native.
+- **Whole-corpus proof:** 86,763 physical pages, routing reason per page,
+  model/runtime hashes, source-anchor accounting, and resumable completion.
+- **Tests:** small cross-cutting smoke before launch; recognition/segmentation
+  contract, native preservation, cache replay, and interruption/resume.
+- **LoC:** experiment runner only unless a measured production defect appears.
+- **Speed:** at least 5.5 pages/s GPU and 2.0 pages/s laptop; selective GPU lane
+  under 60 min. Reject repeated model/process startup if it threatens budget.
+- **Disk:** no copied PDFs/page images; compressed reusable OCR evidence under
+  10 GiB excluding sources/models.
+- **Receipt:** 750 compact rows, atomic partial summary, and final routing/
+  throughput/artifact summary.
+
+#### Stage 10 — intentional quality improvements and machine silver
+
+- **Result:** only audit-backed structure deltas are admitted; Luna silver is
+  bounded to unresolved cases and never repairs ordinary native mechanics.
+- **Whole-corpus proof:** all 1,500 documents, stratified by source, kind,
+  generation, layout, length, and hardware profile; existing human truth is
+  regression-only.
+- **Tests:** consumer-level exact lookups, hierarchy, note/proposition pairs,
+  tables/forms/TOCs/transcripts, source accounting, and abstention.
+- **LoC:** no new shadow detector/resolver; final target at most 124,500
+  production and 180,500 production-plus-test lines.
+- **Speed:** deterministic replay budgets still pass; no metered inference is
+  run without explicit authorization.
+- **Receipt:** categorized intended deltas, quality metrics, costs if
+  authorized, and held-out machine-silver hashes.
+
+#### Stage 11 — release close
+
+- **Result:** old detector implementations and temporary compatibility paths
+  are gone; one engine and one authored grammar corpus ship.
+- **Whole-corpus proof:** repeat provider, 750-native, 750-non-digital, grammar,
+  source, build, binary-size, disk, and release gates from clean locked commits.
+- **Tests:** repository release checks plus the compact harness; no redundant
+  full corpus copies.
+- **LoC:** meet the completion contraction targets, not merely the ceilings.
+- **Speed:** every Section-18.3 budget passes on the recorded hardware.
+- **Receipt:** one final manifest linking compact phase receipts and exact
+  commit/subrepo/model/corpus hashes.
+
+### 18.6 Mandatory execution order and change isolation
+
+The gates are ordered. A later green gate cannot excuse an earlier failure.
+
+1. Freeze inputs, baseline binaries/commits, serializers, provider modes,
+   corpus membership, and existing failures before changing production.
+2. Prove the harness detects deliberately corrupted outputs and incomplete
+   work before trusting a green receipt.
+3. Perform the Rust ownership extraction with zero output changes.
+4. Prove real baseline parity for every SourceDoc-producing provider and each
+   applicable native/hybrid/flat-text mode.
+5. Cut one caller/mode at a time to the shared engine, retaining exact parity,
+   and delete its displaced detector in the same accepted slice.
+6. Only after all ownership gates are exact may one structure family change at
+   a time: sequences, notes, pages, headings, then prose boundaries.
+7. Re-run every locally available applicable corpus after each intentional
+   semantic family closes, and all of them once more at release.
+8. Start machine-silver/model work only after deterministic digital-native
+   mechanics and provider integration pass.
+
+Do not mix an ownership move with a quality improvement. An ownership commit
+has zero accepted deltas. A quality commit has an explicit delta manifest and
+must remain byte-identical outside its named fields/documents. If output moves
+unexpectedly, the slice is not promoted until the cause is classified and the
+proof is rerun from the frozen baseline.
+
+### 18.7 Exact parity contract
+
+“Parity” means a real pre-refactor implementation and the candidate both run
+over the same real frozen input. It never means that the candidate agrees with
+itself, passes its own invariants, or matches a synthetic object.
+
+For every document/provider-mode row, retain and compare:
+
+- exact source/input byte hash and stable document identity;
+- baseline commit, locked subrepo commits, binary hash, feature set, grammar
+  hash, serializer version, material options, and provider mode;
+- raw transport bytes where the public contract is serialized;
+- a canonical public-object serialization with ordered arrays preserved and
+  only object-key order normalized;
+- canonical text bytes and exact source-anchor/span/line/box identities;
+- every ordered block tuple, including kind, label, offsets, anchor, origin,
+  aliases, parent, continuation, confidence, and exclusions where present;
+- range/index state, missing labels, status, mode, revision hash, diagnostics,
+  and abstentions;
+- normalized lookup results for every emitted label/alias and bounded negative
+  lookups around each range; and
+- consumer projections used by Legal PDF Parser, SourceDoc, evidence lookup,
+  chunking, and note/proposition retrieval.
+
+The parity serializer is frozen before the port and hashed in the receipt. It
+cannot be changed in the same slice as the engine. Where the product already
+emits deterministic bytes, both raw bytes and canonical bytes must match. A
+canonical match cannot conceal changed transport bytes. Timing fields and
+machine-local paths must not enter the public object in the first place; they
+belong in the run receipt.
+
+Baseline generation and candidate execution must be independent:
+
+- use separate pinned worktrees/binaries or an already frozen accepted binary;
+- the candidate may not call the baseline, copy its result, or fall back to it;
+- the baseline may not be regenerated from candidate source after work starts;
+- common extraction input may be reused only when its byte hash and extraction
+  boundary are frozen, and both engines must still execute structure logic;
+- baseline and candidate caches use separate namespaces and complete keys; and
+- the final clean-lock rerun verifies that no dirty file supplied hidden code
+  or altered evidence.
+
+Every baseline row is real. Synthetic and adversarial fixtures remain useful
+unit tests, but they can never satisfy provider or corpus parity denominators.
+Missing real evidence makes the row incomplete and the release gate red.
+
+### 18.8 Provider-by-mode real-baseline matrix
+
+The matrix lists only modes a provider actually exposes. “Every provider” does
+not mean fabricating all three modes for each provider. It means that every
+shipping SourceDoc-producing route has a real frozen row and exact parity.
+Hansard is currently a string artifact rather than a SourceDoc provider and is
+outside this matrix unless it starts producing SourceDoc during the work.
+
+| Provider/path | Applicable real modes | Required baseline proof | Current gap before migration |
+| --- | --- | --- | --- |
+| A2AJ cases | flat-text recovery | real captured decisions, including bracketed, bare, TOC, unnumbered, and endnote shapes; exact SourceDoc and lookups | expand the four legacy byte recordings to the full captured case fixture set and local corpus |
+| A2AJ laws | native/hybrid section-map plus flat recovery | real statutes/regulations across all local sets; exact native claims and recovered ranges | freeze canonical public bytes for every fixture/corpus row before moving the selector |
+| CourtListener | CAP/native and ordinary HTML hybrid/flat | real captured provider payloads for each applicable mode | CAP is real; synthetic hybrid/flat edge cases do not satisfy parity and need real captures |
+| TNA | native Akoma Ntoso | real captured judgment markup and exact eId/anchor/block output | broaden beyond the current one real capture if other local captures exist |
+| GovInfo | flat text today | preserve the real capture's current text, status, mode, and unavailable locator state exactly | add a real structured capture before claiming recovery quality; do not invent blocks to make the row green |
+| GOV.UK ET | flat text today | preserve the real capture's current text, status, mode, and unavailable locator state exactly | add a real structured capture before claiming recovery quality; current abstention is a parity result, not a quality pass |
+| Journal | final-contract native, legacy hybrid, missing-kind recovery | real captured article/database rows for every mode; exact text, full block tuples, ranges, aliases, and lookups | freeze a new canonical baseline because the old recording predates alias-aware range counts |
+| Local PDF | Rust projection through TypeScript adapter | at least one real compact PDF and its real Rust `source_doc` bytes, then exact adapter text/block/anchor/alias/parent/range/lookup bytes | current backend row is synthetic/mocked and is not parity evidence |
+
+A provider/mode may migrate only when its own real row and every broader local
+corpus containing that mode are green. Provider-native text spans, labels,
+boundaries, anchors, aliases, parentage, exclusions, and order remain exact.
+Inference may fill an absent structure kind or an explicitly missing range; it
+must never renumber or replace a native claim. A conflicting native claim is
+preserved with a diagnostic unless source identity itself is proven invalid.
+
+The first fail-closed coverage ledger has 17 required provider/mode rows. Eight
+currently have real captured canonical baselines; nine remain explicitly
+missing. Therefore provider acceptance is currently red even though the fast
+real-capture differential passes. The missing rows are A2AJ native-only
+section maps, CourtListener hybrid and flat opinions, TNA hybrid fill,
+journal native and flat modes, and local-PDF native/hybrid/flat Rust-to-TS
+captures. This denominator cannot shrink merely because investigation later
+shows a mode is rare; applicability must be disproved from real provider/corpus
+evidence and the ledger change reviewed separately.
+
+### 18.9 Shared-engine boundary and sequence invariants
+
+The shared engine accepts evidence; it does not fetch providers or parse PDF
+containers. Its minimum neutral input is:
+
+- immutable document/source identity and exact canonical text;
+- ordered source anchors with text offsets and optional page/line/word/span,
+  box, font, style, language, flow, and orientation evidence;
+- provider-native claims and explicit precedence/provenance;
+- excluded/protected ranges such as citations, tables, TOCs, forms, quoted
+  instruments, furniture, and other non-spine zones;
+- candidate roles, enumerators, paragraph-break edges, and grammar match IDs;
+- declared complete-document versus excerpt scope; and
+- model/runtime evidence as proposals, never anonymous truth.
+
+It returns one anchored structure graph: source order/flows, prose groups,
+numbered units, pages, headings/hierarchy/section spans, notes/references/
+propositions, list/table/form/TOC/caption relations, diagnostics, conflicts,
+and abstentions. Provider integration, fetching, caching policy, SourceDoc
+index construction, and application projection remain outside the engine.
+
+Sequence rules are evaluated per namespace, never by accepting every number on
+a page:
+
+- all internal object identities and physical pages are exactly `1..N`;
+- an inferred complete-document paragraph, footnote, endnote, end-reference,
+  or ordinary numbered-unit ladder begins at observed 1 and accepts ordinary
+  successors of `+1`;
+- a printed/provider semantic label such as reporter page 335 or statute
+  section 22 is preserved separately from its internal one-based identity;
+- Roman, alphabetic, decimal, multipart, prefixed, and custom-mark ladders use
+  an explicit grammar with an explicit origin, successor, nesting, transition,
+  and restart scope;
+- a missing origin, internal gap, jump, duplicate, competing late ladder, or
+  unexplained restart fails closed for inferred digital-native structure;
+- a truly incomplete provider excerpt or unrecoverable OCR gap is retained as
+  incomplete with direct provenance and a diagnostic, never silently promoted
+  to a complete sequence; and
+- table values, transcript line numbers, dates, citation pinpoints, TOC target
+  pages, form questions, quoted provisions, notes, headings, and document
+  paragraphs remain different streams even when their tokens coincide.
+
+For every accepted structure family, require both false-positive and
+false-negative evidence. Count-only output is insufficient. The proof surface
+must cover headings and hierarchy, numbered units, physical/printed pages,
+prose paragraph boundaries, note references/bodies/pairs/propositions, lists,
+TOCs/indexes, tables, figures/captions, forms, furniture, reading order/flows,
+continuations, exclusions, and abstention. Where no independent truth exists,
+claim exact parity and invariant validity only—not improved accuracy.
+
+### 18.10 Every-local-corpus proof registry
+
+Before the first production change and again at release, the harness scans the
+known repository, subrepository, ignored benchmark, and configured local-data
+roots and writes one compact corpus registry. Each row records:
+
+- corpus ID, owner, path identity without private content, input type, truth or
+  oracle type, and applicable structure gates;
+- exact file/document/page/record denominator and byte size;
+- a sorted membership manifest hash and hashes of every manifest/truth/index;
+- duplicate-byte groups without dropping their document aliases;
+- baseline availability, expected historical failures, cache availability,
+  and whether the row is runnable offline; and
+- an explicit inclusion result or a narrowly stated machine-checkable reason
+  the corpus cannot exercise this engine.
+
+An applicable discovered corpus that is absent from the registry fails the
+run. An exclusion cannot be a broad glob such as `old`, `slow`, `large`,
+`legacy`, or `unsupported`; it must prove that the data cannot reach the shared
+engine. New or changed local corpus membership invalidates the earlier receipt
+and expands the denominator automatically. Exact duplicate bytes may share one
+expensive parse, but every alias remains in source accounting and receives the
+same result hash. Historical summaries do not substitute for a runnable corpus
+whose source bytes are missing; such a row is reported as historical evidence,
+not a current pass.
+
+Known applicable local surfaces to register immediately include at least:
+
+| Surface | Known current/historical denominator | Required proof |
+| --- | ---: | --- |
+| Universal legal-PDF corpus | 1,500 PDFs: 750 digital-born + 750 non-digital | every document and physical page accounted; both lanes share semantic output contract |
+| Acquisition ledger | 4,693 rows / 1,735 accepted, but exactly 1,500 accepted rows currently map to materialized PDFs | provenance accounting only; the 235 accepted-but-unmaterialized rows cannot inflate or replace the run denominator |
+| Digital-native extraction/cache lane | 750 documents / 24,779 attempted pages; 748 documents / 24,707 pages currently materialized; two CanadaBuys failures / 72 pages | full baseline and candidate hashes; failures remain explicit and are not removed from denominator |
+| Non-digital lane | 750 documents / 86,763 physical pages; 15,795 pages are currently only a sparse-routing estimate | route every page; OCR every routed page; prove native-page preservation and exact routing denominator |
+| Deterministic cross-lane sample | 120 PDFs / 10,435 pages, but current cache has only 36 pairs / 1,627 pages and historical summary completed two | execute all 120 before making a sample claim; partial caches/summaries stay explicitly partial |
+| Public cache-contract PDFs | 8 PDFs / 425 pages, all locally present | cold/warm/prepare/selected-page/lookup/corrupt-cache/source-identity parity through a new batched gate; the old 4,127.5 s / 14,264-call method is rejected as too slow |
+| Historical frozen journal qualification | 1,024 articles / 27,391 pages / 8,192 product sidecars, not currently materialized | historical evidence only until exact source inputs are local again; it cannot be a current release pass |
+| Historical external digital-born qualification | 29 URL rows and prior 1,445-page / 232-sidecar results, but source PDFs are not local | historical evidence only; URLs are not runnable corpus bytes |
+| Legal OCR benchmark | 153 pages: 123 manual gold + 30 reviewed silver | recognition, segmentation, routing, structure, and speed using the frozen split |
+| Text-Fidelity ordered journal truth | 661 pages / 350 articles / 32,553 lines in local revision `_01` | regression only; reconcile the `_01` versus OCR plan's accepted `_05` identity before any OCR-quality claim; no new user labeling |
+| Legal25 layout holdout | 87 pages / 975 annotations / 25 categories; consumer join covers only 48 pages | region accuracy on all 87; line-role/order/note claims only on their actual 48-page joined denominator |
+| Real-document layout surface | 1,500 images / 1,500 annotations | region-detector breadth only, never a semantic-structure denominator |
+| Local structure-stress corpora | most recent historical sweep: 330,473 A2AJ cases, 36,927 A2AJ laws, and 2,494 journals | remeasure live membership, then full provider/grammar/sequence proof over all present rows |
+| Current installed A2AJ full-text store | 248,685 documents: 225,017 cases + 23,668 laws | exact pre-refactor/candidate SourceDoc and lookup hashes over every row; reconcile membership difference from the historical sweep rather than choosing the smaller denominator |
+| Current local CourtListener bodies/audit | 55,504 installed opinion bodies and 69,393 audited rows in 71 completed parts | full real native/hybrid/flat classification and parity; metadata-only rows remain separately accounted |
+| Current local journal database | 18,958 articles / 404,506 article-page rows; FTS sidecar currently indexes 18,595 articles | all articles and page rows accounted; exact native/hybrid/flat output by actual applicability |
+| CanLII title/index corpus | historical local index: 3,538,714 case titles + 91,669 legislation titles | grammar/citation collision and membership proof where structure engine consumes those matches |
+| SourceDoc captured fixtures | currently 21 A2AJ SourceDoc JSON files and 7 native-markup JSON files | real-input canonical baseline per applicable provider/mode; synthetic rows separately labeled |
+| Legal generalization corpus | 31 raw/text document pairs | manifest/hash fidelity plus all heading/numbered-unit/paragraph/note/page outputs |
+| Canadian structure truth | 10 statute + 8 decision structure-gold documents | exact hierarchy/sequence/anchor scoring |
+| U.S. public-laws USLM truth | 79 XML documents currently present | native hierarchy/identifier preservation and shared projection parity |
+| Bilingual amending Acts | 16 text artifacts currently present | English/French grammar, sequence, heading, and parallel-flow proof |
+| Local DOCX legal corpus | 24 byte-unique documents, 2,009 notes / 1,860 unique note texts, plus the frozen 405-row accepted ALR split where present | cross-format text/note/proposition/structure regression and matching PDF equivalents where present |
+| Harvested grammar vectors | 271 rows across negative/reference/raw/splitter/TOA groups | assert all 271; the current 18-of-31 splitter oracle cannot be reported as full coverage |
+| Authored legal grammar corpus | 64 entries / 252 vectors | every shipping runtime loads the same bytes and returns exact match spans for every vector |
+| Kraken named splits | benchmark 153, heldout/manual 55, validation/manual 68, silver 30, and probe 12 | report each split by its own manifest; aliases do not double the denominator and silver is not gold |
+| Scan-silver candidates | 42 PNG/XML candidates / zero verified pages | mechanics only; no OCR-quality claim |
+| Court scan corpus | 115 PDFs / 650 PNGs / 290 XMLs / four verified pages | mechanics over all artifacts; quality on exactly four verified pages |
+| CourtListener scan silver | 33 PDFs / 270 candidate groups / 26 verified pages | silver mechanics on candidates; OCR quality on exactly 26 verified pages |
+| Kraken/PP-DocLayout/BLLA remaining held-out and ablation sets | dynamically inventory every frozen split and truth file under parser experiments | recognition, segmentation, region proposal, anchor coverage, and postprocessing parity by named split |
+
+This table is a floor, not an allowlist. Stage 0 must discover additional local
+applicable surfaces, including ignored accepted gold, cached provider exports,
+real PDF regression fixtures, and browser/runtime held-outs. Every discovered
+surface must be registered and run, or explicitly proven irrelevant.
+
+### 18.11 Anti-skip, anti-cache, and source-accounting rules
+
+For each corpus, freeze the denominator before execution. A passing receipt
+requires:
+
+```text
+attempted = passed + intended_delta + expected_failure
+skipped = 0
+unclassified_failure = 0
+duplicate_id = 0
+missing_input = 0
+```
+
+Expected failures remain in the manifest with their frozen error class and
+bytes. A timeout, crash, parse error, oversized document, missing model,
+unsupported type, or absent provider credential is a failure, not a skip.
+Large, slow, multilingual, scanned, malformed, image-heavy, table-heavy, or
+previously troublesome documents cannot be filtered from the release run.
+Samples are permitted only for fast inner loops and must be named `smoke`; a
+smoke receipt can never satisfy a corpus or release gate.
+
+Cache keys include input bytes, baseline/candidate binary, engine/schema/
+serializer/grammar versions, model/runtime/config hashes, feature flags, and
+material hardware-dependent options. Each row reports hit/miss and the exact
+cache-key hash. The harness must prove:
+
+- a deliberately stale binary/model/grammar/input key misses;
+- cold and warm executions produce exact same public bytes;
+- corrupted/truncated cache entries are rejected rather than counted;
+- baseline and candidate never read each other's semantic outputs;
+- extraction caches are reusable only across a frozen extraction boundary;
+- selective OCR reports a route reason for every page, and native pages do not
+  disappear merely because they bypass recognition; and
+- interruption/resume produces the same final manifest as an uninterrupted
+  run.
+
+Every document result accounts for source anchors exactly once. Every physical
+PDF page is present exactly once. Every source text byte/span is retained,
+explicitly excluded with reason, or explicitly repaired with an anchored
+operation. Hash equality on a summary cannot substitute for document rows.
+
+### 18.12 Anti-test-weakening and harness self-tests
+
+The harness is not trusted until its negative controls fail. Automated
+self-tests must independently inject and detect at least:
+
+- one changed output byte and one changed source byte;
+- a deleted, duplicated, renamed, and reordered document row;
+- a missing provider mode and a synthetic row substituted for a real row;
+- a changed native anchor, alias, parent, origin, range, lookup, or mode while
+  preserving text;
+- a sequence missing 1, an internal gap, duplicate, restart, and competing late
+  ladder;
+- an omitted page, OCR-routed page counted as native, and failed page removed
+  from throughput denominator;
+- a stale/corrupt cache, changed binary/model/grammar hash, and baseline cache
+  reused as candidate output;
+- a deliberately weakened/removed fixture, assertion, corpus registry row, or
+  expected-failure entry;
+- a receipt edited after generation, a truncated atomic checkpoint, and a
+  phase marked green with a red child row;
+- a dirty or unpinned subrepo, hidden untracked production source, and a source
+  file moved into an excluded directory or uncounted extension; and
+- a timing run that drops failures, startup, or slow documents from its work
+  denominator.
+
+Baseline fixture, serializer, corpus-registry, expected-failure, and assertion
+manifests are hashed at the baseline commit. Changing one during the port
+invalidates parity and demands a separately reviewed baseline-update phase.
+Deleting or loosening tests cannot make a slice pass. The receipt reports test
+files, assertions/cases, real fixture rows, and applicable provider modes
+before and after; reductions require an explicit replacement mapping to a
+stronger public-outcome test.
+
+### 18.13 Anti-LoC and anti-architecture evasion
+
+The source gate counts the root plus every locked subrepository. It also
+reports authored production, tests, experiments, tooling, generated code,
+vendored code, grammar/data bytes, dependency count, binary size, and tracked
+artifact size separately. The following do not count as contraction:
+
+- moving code to a subrepo, script, experiment, fixture, generated file,
+  build step, vendored directory, untracked file, new extension, or dependency;
+- minifying/compressing authored logic or encoding it as large JSON/regex/data
+  tables;
+- deleting tests, corpus rows, diagnostics, or public behavior;
+- retaining the old detector behind a fallback, feature flag, compatibility
+  alias, subprocess, generated wrapper, or “temporary” migration path; or
+- linking both implementations and selecting the one that matches the
+  baseline.
+
+The line classifier and its extension/directory rules are themselves frozen
+and self-tested. Any new authored extension or executable input is classified
+before the gate runs. A dependency or code-generation change reports its
+maintained-source and binary impact even if npm/Cargo vendor files are excluded
+from production LoC. The accepted engine must have one semantic implementation
+in the dependency/call graph. Static inventory and runtime counters prove that
+each recovery route invokes it and that no old semantic detector remains.
+
+Provider adapters may preserve and pass through native structure but may not
+grow replacement detection logic. The shared engine may not absorb provider
+fetching, provider URL policy, SourceDoc query/index code, or PDF container
+recovery. Rust is accepted only if the measured direct-link plus warmed host
+path meets exact parity, build, throughput, memory, binary, deployment, and
+whole-project contraction gates. A Rust wrapper around retained TypeScript—or
+the reverse—is not the refactor.
+
+### 18.14 Performance-proof integrity
+
+Performance receipts identify CPU, core/thread count, RAM, OS, storage,
+GPU/VRAM, power profile, runtime versions, process concurrency, batch size, and
+cache state. Compare the same frozen manifest and configuration with alternating
+baseline/candidate runs. Report cold start separately from warmed throughput,
+and report median and p95 over repeated runs. Include initialization,
+serialization, failures, retries, and process startup in end-to-end wall time;
+an internal kernel timer may be reported only as an additional metric.
+
+The numerator comes from the frozen source manifest, not successful output
+rows. A faster result that processed fewer bytes/pages/documents, changed OCR
+routing, reduced resolution, disabled a structure family, increased
+abstention, or used a different accuracy profile fails. Concurrency may change
+only when it is the intended shippable configuration and memory/disk ceilings
+still pass. Record peak RSS, GPU memory, artifact/model/binary bytes, cache
+growth, and temporary peak disk—not only steady-state throughput.
+
+Ordinary development uses warm package-scoped checks and cached structure
+replay. One controlled package-scoped cold/offline build and one final clean
+locked release build prove reproducibility; repeated clean builds are process
+theatre. Build work is itself timed and cannot be excluded from the build
+budget by prebuilding an unrecorded binary.
+
+### 18.15 Quality-change proof and no-new-annotation rule
+
+After exact ownership parity, an intentional semantic change needs:
+
+- a named recurring failure class and the exact documents/fields expected to
+  change;
+- stronger source/provider/manual-gold/machine-silver evidence than the old
+  output, with source anchors sufficient to reproduce the judgment;
+- false-positive and false-negative results for the affected structure family;
+- zero source-text/anchor loss and zero unrelated public-output delta;
+- no regression on any real provider mode or local corpus, including corpora
+  outside the one that motivated the fix;
+- an allowlist generated from the proposed run and verified on an independent
+  rerun, never a wildcard or count-only tolerance; and
+- a bounded before/after exemplar for each delta class plus full hash rows.
+
+No new user annotation, page verification, or tagging is a project dependency.
+The existing 661-page journal truth, OCR truth, provider-native claims,
+structure gold, and other accepted local gold are frozen regressions. Agent
+inspection diagnoses mechanics and validates machine-generated evidence; it
+does not create a new human-labeling obligation. Where local truth is absent,
+the plan permits exact parity, deterministic invariants, native-oracle checks,
+or machine silver after authorization—it does not permit an unsupported
+accuracy claim.
+
+### 18.16 One fail-closed harness interface
+
+The target interface is one command with explicit scopes:
+
+```text
+npm run check:legal-structure -- --stage quick
+npm run check:legal-structure -- --stage parity
+npm run check:legal-structure -- --stage providers
+npm run check:legal-structure -- --stage all-local-corpora
+npm run check:legal-structure -- --stage native-pdf
+npm run check:legal-structure -- --stage ocr
+npm run check:legal-structure -- --stage release
+```
+
+`quick` runs source/lock guards, real-provider smoke, harness negative controls,
+and a fixed representative cached replay. `parity` runs every frozen
+baseline/candidate row. `providers` runs every real provider-mode fixture and
+every locally present provider corpus. `all-local-corpora` dynamically verifies
+the registry and runs every applicable local surface. `native-pdf` and `ocr`
+run their exact complete denominators. `release` composes all prior receipts,
+reruns clean-lock identity checks, and refuses stale children.
+
+Each stage writes one compact atomic JSON receipt and, only where needed, one
+compressed row manifest. Receipts include parent/child hashes and expire when
+code, inputs, manifests, models, configuration, hardware-sensitive options, or
+subrepo pins change. The verifier recomputes hashes and invariants; hand-edited
+receipts fail. Exit status is nonzero for missing, stale, skipped, incomplete,
+over-budget, dirty, unpinned, or unexpectedly changed work. There is no
+warning-only release state.
+
+### 18.17 Current gate state — 2026-08-19
+
+No stage is being called complete prematurely:
+
+- The whole-project source guard self-test passes. It now includes untracked
+  authored files inside subrepositories and `.cmd` source. It correctly fails
+  the current dirty slice because Legal PDF Parser contains an uncommitted
+  parity harness and production-plus-test source is temporarily over the
+  corrected baseline ceiling. Production source itself has not grown.
+- The Rust baseline harness has now hardened the full denominator: 750 audit
+  records = 748 cached successes plus the two explicit ingestion failures.
+  The independent resumed check passed 748/748 documents / 24,707 pages with
+  zero replay failures and aggregate output SHA-256
+  `eca681b34db5186d7689f1532f401c9e311c4aa85a11a73a151b0dd29c50d9d3`.
+  Its fresh 168.628 s run achieved only 147.3 pages/s and therefore correctly
+  failed the unchanged 250 pages/s interim speed gate. This freezes Stage-0
+  bytes but does not satisfy the ownership-refactor or final 1,000 pages/s
+  gates; production Rust remains unchanged.
+- The SourceDoc coverage ledger has 17 provider/mode rows: eight real captured
+  baselines are frozen and exact, while nine missing real captures keep the
+  acceptance gate red. Synthetic/mocked cases remain unit tests only.
+- The non-digital runner has verified the full local manifest and exact
+  denominator of 750 documents / 86,763 physical pages. Its first CUDA product
+  smoke correctly failed when all CPU execution-provider fallback was
+  forbidden: the settled model has a small unavoidable CPU-node assignment.
+  The exact run is now live without a rebuild using the same frozen binary and
+  model, with `fallback=cpu` explicitly enabled and identity-pinned. The first
+  durable checkpoint has 76/750 documents passed, zero failed, and 101/86,763
+  physical pages accounted; 60 pages were detector-marked, 73 OCR attempts
+  were routed, and 70 OCR pages were emitted. This is progress, not a corpus
+  completion claim, and the image-only 6.263 pages/s result remains distinct
+  from end-to-end product throughput.
+- The dynamic all-local-corpus registry and its negative controls remain Stage
+  0 work. The inventory floor in Section 18.10 is not yet a green receipt.

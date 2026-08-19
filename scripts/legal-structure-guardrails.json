@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "5d29906341d17239e5e36a5442ca665f5f2a12f0",
+  "baselineSubrepos": {
+    "OpenLegalData": "adeb597c82a2dfe8c8ba58cc62d6a13e87200a4a",
+    "AuthoritiesHelper": "9d002632ea77c4349ab459c73f83281cbfddc170",
+    "legal-pdf-parser": "db82486dc0f075a07f553e4131d251dcb091a596",
+    "legal-browser-ocr": "ec48ad76c181cb7ad10ca3091a7314660848de36",
+    "mike-workflows": "b45b1ba83691ab6e504c35146da0cea8e0dcbb91"
+  },
+  "maximums": {
+    "production": 125896,
+    "productionAndTests": 181886,
+    "authored": 285654
+  },
+  "targets": {
+    "production": 124500,
+    "productionAndTests": 180500,
+    "authored": 284000
+  },
+  "buildSeconds": {
+    "cargoQuickWarmMedian": 2.0,
+    "cargoQuickWarmP95": 4.0,
+    "incrementalReleaseLink": 30.0,
+    "providerParitySmoke": 1.0,
+    "providerRegressionSuite": 8.0,
+    "backendTargeted": 15.0
+  },
+  "throughput": {
+    "rustStructureReplayPagesPerSecond": 1000,
+    "fullNativeCachedReplaySeconds": 30,
+    "sourceDocTextMegabytesPerSecond": 50,
+    "krakenQualityGpuPagesPerSecond": 5.5,
+    "krakenQualityLaptopPagesPerSecond": 2.0,
+    "nonDigitalSelectiveGpuMinutes": 60
+  },
+  "artifactBytes": {
+    "trackedReceiptsTotal": 5242880,
+    "receiptPerDocument": 32768,
+    "phaseSummary": 262144,
+    "parserBinary": 16949299,
+    "ocrCacheExcludingSourcesAndModels": 10737418240
+  },
+  "parity": {
+    "ownershipRefactor": "byte-identical",
+    "nativeProviderBlocks": "byte-identical",
+    "sourceTextAndAnchors": "byte-identical",
+    "providerRowsMustUseRealCapturedInputs": true,
+    "syntheticOrMockRowsMaySatisfyParity": false,
+    "everyApplicableProviderModeRequired": true,
+    "intentionalStructureDeltasRequireAuditEvidence": true
+  },
+  "observedBaselines": {
+    "cargoQuickWarmSeconds": 0.799,
+    "providerSmokeIncludingStartupSeconds": 0.513,
+    "rustCachedReplayPagePassesPerSecondPreliminary": 293.1,
+    "rustCachedReplayPreliminaryDocuments": 11,
+    "rustCachedReplayPreliminaryPages": 401,
+    "krakenQualityGpuPagesPerSecond": 6.263,
+    "krakenQualityLaptopPagesPerSecond": 2.18
+  },
+  "corpusDenominators": {
+    "universalPdfs": 1500,
+    "universalPhysicalPages": 111542,
+    "acquisitionAcceptedRows": 1735,
+    "acquisitionMaterializedAcceptedRows": 1500,
+    "digitalNativePdfs": 750,
+    "digitalNativeAttemptedPages": 24779,
+    "digitalNativeCachedSuccessDocuments": 748,
+    "digitalNativeCachedSuccessPages": 24707,
+    "digitalNativeExpectedIngestionFailures": 2,
+    "digitalNativeExpectedIngestionFailurePages": 72,
+    "nonDigitalPdfs": 750,
+    "nonDigitalPhysicalPages": 86763,
+    "ocrBenchmarkPages": 153,
+    "textFidelityFullPages": 661,
+    "legalGeneralizationDocuments": 31,
+    "canadianStructureGoldDocuments": 18,
+    "uslmDocuments": 79,
+    "grammarEntries": 64,
+    "grammarVectors": 252
+  },
+  "historicalNotCurrentlyRunnable": {
+    "journalQualificationDocuments": 1024,
+    "journalQualificationPages": 27391,
+    "externalDigitalBornDocuments": 29,
+    "externalDigitalBornPages": 1445
+  },
+  "requiredProof": {
+    "discoveredApplicableLocalCorporaRegistered": true,
+    "skippedRows": 0,
+    "unclassifiedFailures": 0,
+    "duplicateIds": 0,
+    "missingInputs": 0,
+    "sourceAnchorsAccountedExactlyOnce": true,
+    "physicalPagesAccountedExactlyOnce": true,
+    "coldWarmOutputParity": true,
+    "separateBaselineAndCandidateCacheNamespaces": true,
+    "cleanLockedReleaseRerun": true
+  },
+  "antiCheat": {
+    "baselineAndCandidateBuiltFromIndependentPinnedSources": true,
+    "candidateMayCallOrCopyBaseline": false,
+    "baselineMayBeRegeneratedAfterPortStarts": false,
+    "smokeMaySatisfyCorpusGate": false,
+    "expectedFailuresRemainInDenominator": true,
+    "timeoutsCrashesAndUnsupportedInputsMayBeSkipped": false,
+    "changingSerializerFixtureRegistryOrAssertionsInvalidatesBaseline": true,
+    "weakenedOrDeletedTestsRequireStrongerReplacementMapping": true,
+    "hiddenFallbackOrDualImplementationAllowed": false,
+    "codeMovedToSubrepoExperimentToolingGeneratedVendorOrDataCountsAsContraction": false,
+    "throughputUsesFrozenInputDenominatorAndEndToEndWallTime": true,
+    "receiptWarningsMaySatisfyRelease": false
+  }
+}
