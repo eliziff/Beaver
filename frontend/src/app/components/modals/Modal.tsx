@@ -1,9 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { cn } from "@/app/lib/utils";
 type ModalSize = "sm" | "md" | "lg" | "xl";
+export const MODAL_LABEL_CLASS = "mb-1 block text-sm font-medium text-gray-700";
+export const MODAL_INPUT_CLASS =
+    "block h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
 type ModalAction = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     "className"
@@ -50,6 +53,15 @@ export function Modal({
 }: ModalProps) {
     const dialogRef = useRef<HTMLDialogElement>(null);
     const openerRef = useRef<HTMLElement | null>(null);
+    const wasOpenRef = useRef(false);
+    if (open && !wasOpenRef.current) {
+        openerRef.current =
+            typeof document !== "undefined" &&
+            document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+    }
+    wasOpenRef.current = open;
     const titleId = useId();
     const breadcrumbCount = breadcrumbs?.length ?? 0;
     const hasHeader = breadcrumbCount > 0;
@@ -61,20 +73,15 @@ export function Modal({
     useLayoutEffect(() => {
         const dialog = dialogRef.current;
         if (!open || !dialog) return;
-        openerRef.current =
-            document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null;
         dialog.showModal();
         return () => {
             if (dialog.open) dialog.close();
-        };
-    }, [open]);
-    useEffect(() => {
-        if (!open) return;
-        const opener = openerRef.current;
-        return () => {
-            if (opener?.isConnected) opener.focus();
+            window.setTimeout(() => {
+                if (dialog.open) return;
+                const opener = openerRef.current;
+                openerRef.current = null;
+                if (opener?.isConnected) opener.focus({ preventScroll: true });
+            }, 0);
         };
     }, [open]);
     if (!open && !keepMounted) return null;

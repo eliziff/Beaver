@@ -4,27 +4,26 @@ import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:
 import path from "node:path";
 
 export const MAX_OBJECT_SIZE_BYTES = 100 * 1024 * 1024;
-export const DEFAULT_STORAGE_TIMEOUT_MS = 15_000;
+const DEFAULT_STORAGE_TIMEOUT_MS = 15_000;
 export const SIGNED_GET_TTL_SECONDS = 90;
 
-export type StorageOptions = {
+type StorageOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
 };
 
-export type StorageListPage = {
+type StorageListPage = {
   keys: string[];
   cursor: string | null;
 };
 
-export type SignedGetOptions = StorageOptions & {
+type SignedGetOptions = StorageOptions & {
   filename: string;
   disposition?: "inline" | "attachment";
   expiresIn?: number;
 };
 
 export type ObjectStorage = {
-  readonly kind: "filesystem" | "s3";
   put(key: string, bytes: Uint8Array, contentType: string,
     options?: StorageOptions): Promise<void>;
   get(key: string, options?: StorageOptions & { maxBytes?: number }): Promise<Buffer | null>;
@@ -34,11 +33,7 @@ export type ObjectStorage = {
     limit?: number;
   }): Promise<StorageListPage>;
   signedGet?(key: string, options: SignedGetOptions): Promise<string>;
-  localPath?(key: string): string;
 };
-
-export type ReadOnlyObjectStorage = Pick<ObjectStorage,
-  "kind" | "get" | "list" | "signedGet" | "localPath">;
 
 export type S3Configuration = {
   endpoint: string;
@@ -226,7 +221,6 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
   }));
 
   return {
-    kind: "s3",
     async put(key, bytes, type, options) {
       validateObjectKey(key);
       const body = checkedBytes(bytes);
@@ -327,7 +321,6 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
     return result;
   };
   return {
-    kind: "filesystem",
     async put(key, bytes, type, options) {
       contentType(type);
       const body = checkedBytes(bytes);
@@ -396,7 +389,6 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       const page = keys.slice(0, limit);
       return { keys: page, cursor: keys.length > limit ? page.at(-1)! : null };
     },
-    localPath: resolve,
   };
 }
 
@@ -407,7 +399,6 @@ export function scopeObjectStorage(
   validateObjectKey(prefix);
   const full = (key: string) => `${prefix}/${validateObjectKey(key)}`;
   return {
-    kind: base.kind,
     put: (key, bytes, type, options) => base.put(full(key), bytes, type, options),
     get: (key, options) => base.get(full(key), options),
     remove: (key, options) => base.remove(full(key), options),
@@ -424,17 +415,6 @@ export function scopeObjectStorage(
     signedGet: base.signedGet
       ? (key, options) => base.signedGet!(full(key), options)
       : undefined,
-    localPath: base.localPath ? (key) => base.localPath!(full(key)) : undefined,
-  };
-}
-
-export function readOnlyObjectStorage(base: ObjectStorage): ReadOnlyObjectStorage {
-  return {
-    kind: base.kind,
-    get: base.get.bind(base),
-    list: base.list.bind(base),
-    signedGet: base.signedGet?.bind(base),
-    localPath: base.localPath?.bind(base),
   };
 }
 
@@ -446,13 +426,13 @@ export function normalizeDownloadFilename(name: string): string {
     .slice(0, 200).join("");
 }
 
-export function sanitizeDispositionFilename(name: string): string {
+function sanitizeDispositionFilename(name: string): string {
   return normalizeDownloadFilename(name)
     .replace(/["\\]/gu, "_")
     .replace(/[^\x20-\x7E]/gu, "_");
 }
 
-export function encodeRFC5987(value: string): string {
+function encodeRFC5987(value: string): string {
   return encodeURIComponent(value).replace(
     /['()*]/gu,
     (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,

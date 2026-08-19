@@ -1,14 +1,13 @@
-"use client";
-
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, MessageSquare, MessageSquareX, Play, Plus, Upload, Users } from "lucide-react";
 import {
     clearTabularCells, deleteTabularReview, getProject, getTabularReview,
     getTabularReviewPeople, regenerateTabularCell,
-    streamTabularGeneration, updateTabularReview, uploadProjectDocument,
+    directoryResource, exportTabularReview, streamTabularGeneration, updateTabularReview,
     uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
+import { downloadBlob } from "@/app/lib/download";
 import { readSseData } from "@/app/lib/sse";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
@@ -40,20 +39,18 @@ type CellView = { cellId: string; citation?: ParsedCitation & { citationRef: num
 const cellKey = (documentId: string, columnIndex: number) =>
     `${documentId}:${columnIndex}`;
 const pendingCell = (
-    reviewId: string, documentId: string, columnIndex: number,
+    documentId: string, columnIndex: number,
 ): TabularCell => ({
     id: `new-${documentId}-${columnIndex}`,
-    review_id: reviewId,
     document_id: documentId,
     column_index: columnIndex,
     content: null,
     status: "pending",
-    created_at: new Date().toISOString(),
 });
 
 export function TRView({ reviewId, projectId }: Props) {
-    const router = useRouter();
-    const searchParams = useSearchParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { user } = useAuth();
     const { setSidebarOpen } = useSidebar();
     const { profile } = useUserProfile();
@@ -143,7 +140,7 @@ export function TRView({ reviewId, projectId }: Props) {
             setCells((current) => [
                 ...current,
                 ...added.flatMap((document) => columns.map((column) =>
-                    pendingCell(reviewId, document.id, column.index))),
+                    pendingCell(document.id, column.index))),
             ]);
         }
     }
@@ -152,7 +149,7 @@ export function TRView({ reviewId, projectId }: Props) {
         setUi({ uploading: files.map(({ name }) => name) });
         try {
             const uploaded = await Promise.all(files.map((file) => projectId
-                ? uploadProjectDocument(projectId, file)
+                ? directoryResource({ projectId }).uploadDocument(file)
                 : uploadStandaloneDocument(file)));
             await addDocuments(uploaded);
         } catch (error) {
@@ -211,7 +208,7 @@ export function TRView({ reviewId, projectId }: Props) {
                 return documents.flatMap((document) => columns.map((column) => {
                     const cell = existing.get(cellKey(
                         document.id, column.index)) ?? {
-                        ...pendingCell(reviewId, document.id, column.index),
+                        ...pendingCell(document.id, column.index),
                         id: `${document.id}-${column.index}`,
                     };
                     return cell.status === "done" && cell.content
@@ -254,7 +251,7 @@ export function TRView({ reviewId, projectId }: Props) {
                     .filter(({ index }) =>
                         !existing.has(cellKey(document.id, index)))
                     .map(({ index }) =>
-                        pendingCell(reviewId, document.id, index))),
+                        pendingCell(document.id, index))),
             ];
         });
         try {
@@ -334,7 +331,7 @@ export function TRView({ reviewId, projectId }: Props) {
         setReview(updated);
         if (!projectId && updated.project_id) {
             setUi({ modal: null });
-            router.push(
+            navigate(
                 `/projects/${updated.project_id}/tabular-reviews/${reviewId}`);
         }
     }
@@ -343,7 +340,7 @@ export function TRView({ reviewId, projectId }: Props) {
         setUi({ deleteStatus: "deleting" });
         try {
             await deleteTabularReview(reviewId);
-            router.push(projectId
+            navigate(projectId
                 ? `/projects/${projectId}/tabular-reviews`
                 : "/tabular-reviews");
         } catch (error) {
@@ -398,16 +395,16 @@ export function TRView({ reviewId, projectId }: Props) {
         columns.find(({ index }) => index === expandedCell.column_index);
     const breadcrumbs: PageHeaderBreadcrumb[] = [
         ...(projectId ? [{
-            label: "Projects", onClick: () => router.push("/projects"),
+            label: "Projects", onClick: () => navigate("/projects"),
         }, {
             ...(loading
                 ? { loading: true, skeletonClassName: "w-32" }
                 : { label: project?.name ?? "" }),
-            onClick: () => router.push(reviewListHref),
+            onClick: () => navigate(reviewListHref),
             title: "Back to project",
         }] : [{
             label: "Tabular Reviews",
-            onClick: () => router.push(reviewListHref),
+            onClick: () => navigate(reviewListHref),
             title: "Back to Tabular Reviews",
         }]),
         loading
@@ -426,12 +423,11 @@ export function TRView({ reviewId, projectId }: Props) {
                 () => setUi({ workflowStatus: "open" })),
         },
         { label: "Export", disabled: !hasTable,
-            onSelect: () => void import("./exportToExcel").then(
-                ({ exportTabularReviewToExcel }) =>
-                    exportTabularReviewToExcel({
-                        reviewTitle: review?.title || "Tabular Review",
-                        columns, documents, cells,
-                    })),
+            onSelect: () => void exportTabularReview(reviewId).then(
+                ({ blob, filename }) => downloadBlob(
+                    blob,
+                    filename ?? `${review?.title || "Tabular Review"}.xlsx`,
+                )),
         },
         { label: "Clear results", disabled: !documents.length,
             onSelect: () => void clearResults(

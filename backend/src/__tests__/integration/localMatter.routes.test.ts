@@ -20,12 +20,11 @@ const mocks = vi.hoisted(() => ({
     systemPrompt: string;
     messages: { role: string; content: string }[];
   }[],
-  appendLocalPdfPinpointLinks: vi.fn(),
   streamChatWithTools: vi.fn(),
 }));
 
 vi.mock("../../lib/localMode", () => ({
-  isAnonymousLocalMode: () => true,
+  isLocalRuntime: () => true,
 }));
 
 vi.mock("../../lib/supabase", async (importOriginal) => ({
@@ -39,10 +38,6 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
 vi.mock("../../lib/llm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/llm")>()),
   streamChatWithTools: mocks.streamChatWithTools,
-}));
-
-vi.mock("../../lib/chat/localPdfEvidenceState", () => ({
-  appendLocalPdfPinpointLinks: mocks.appendLocalPdfPinpointLinks,
 }));
 
 let dataHome: string;
@@ -76,26 +71,18 @@ function spreadsheetBytes(value: string) {
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
-async function loadApp() {
+async function loadApi() {
   vi.resetModules();
-  const [{ app }, graph, tabular, documents] = await Promise.all([
-    import("../../app"),
-    import("../../lib/legalKnowledgeGraphStore"),
-    import("../../lib/localTabularStore"),
-    import("../../lib/localDocumentStore"),
-  ]);
+  const { api } = await import("../../api");
   closeLocalStores = async () => {
-    graph.legalKnowledgeGraphStore().close();
-    tabular.closeLocalTabularStore();
-    (await import("../../lib/localApplicationDatabase"))
-      .closeLocalApplicationDatabase();
+    (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
   };
-  return app;
+  return api;
 }
 
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-matter-routes-"));
-  vi.stubEnv("AUTH_MODE", "anonymous");
+  vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", dataHome);
   vi.stubEnv(
     "MIKE_LOCAL_DATA_DIR",
@@ -106,8 +93,6 @@ beforeEach(async () => {
   mocks.supabaseCalls = 0;
   mocks.toolResults.length = 0;
   mocks.modelInputs.length = 0;
-  mocks.appendLocalPdfPinpointLinks.mockReset();
-  mocks.appendLocalPdfPinpointLinks.mockImplementation(async (answer) => answer);
   mocks.streamChatWithTools.mockReset();
   mocks.streamChatWithTools.mockImplementation(async (params) => {
     mocks.modelInputs.push({
@@ -133,8 +118,8 @@ afterEach(async () => {
 
 describe("account-free matter routes", () => {
   it("passes the client-work-product presumption to the provider", async () => {
-    const app = await loadApp();
-    const streamed = await request(app).post("/chat").send({
+    const api = await loadApi();
+    const streamed = await request(api).post("/chat").send({
       expected_version: 0,
       current_turn: { kind: "message", content: "Draft an agreement." },
     });
@@ -145,42 +130,12 @@ describe("account-free matter routes", () => {
     );
   });
 
-  it("streams links added by local PDF evidence finalization", async () => {
-    const app = await loadApp();
-    mocks.appendLocalPdfPinpointLinks.mockImplementationOnce(
-      async (answer: string) =>
-        `${answer}\n\nSource: [fixture.pdf, p. 7](/single-documents/document-1/file?rendition=pdf&version_id=version-1#page=7)`,
-    );
-
-    const streamed = await request(app)
-      .post("/chat")
-      .send({
-        expected_version: 0,
-        current_turn: {
-          kind: "message",
-          content: "Quote the retrieved rule.",
-        },
-      });
-
-    expect(streamed.status).toBe(200);
-    expect(streamedContent(streamed.text)).toContain(
-      "Source: [fixture.pdf, p. 7]",
-    );
-    expect(mocks.appendLocalPdfPinpointLinks).toHaveBeenCalledWith(
-      "Scoped answer",
-      expect.any(String),
-      expect.any(Set),
-      expect.any(Set),
-      [],
-    );
-  });
-
-  it("persists pointer-only Library membership and isolated matter chat", async () => {
-    let app = await loadApp();
-    const firstMatter = await request(app)
+  it("moves a Library document into one matter and isolates matter chat", async () => {
+    let api = await loadApi();
+    const firstMatter = await request(api)
       .post("/projects")
       .send({ name: "Appeal", cm_number: "CA-42", practice: "Litigation" });
-    const secondMatter = await request(app)
+    const secondMatter = await request(api)
       .post("/projects")
       .send({ name: "Separate matter" });
     expect(firstMatter.status).toBe(201);
@@ -193,53 +148,50 @@ describe("account-free matter routes", () => {
     });
     expect(secondMatter.status).toBe(201);
 
-    const source = await request(app)
+    const source = await request(api)
       .post("/library/files/documents")
       .attach("file", spreadsheetBytes("record"), "appeal-record.xlsx");
-    const unrelated = await request(app)
+    const unrelated = await request(api)
       .post("/library/files/documents")
       .attach("file", spreadsheetBytes("other"), "unrelated.xlsx");
     expect(source.status).toBe(201);
     expect(unrelated.status).toBe(201);
 
-    const attached = await request(app).post(
+    const attached = await request(api).post(
       `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
     );
     expect(attached.status).toBe(200);
     expect(attached.body.id).toBe(source.body.id);
 
-    const library = await request(app).get("/library/files");
-    expect(pageDocuments(library.body).map((row) => row.id)).toEqual(
-      expect.arrayContaining([source.body.id, unrelated.body.id]),
-    );
-    expect(
-      pageDocuments(library.body).filter((row) => row.id === source.body.id),
-    ).toHaveLength(1);
+    const library = await request(api).get("/library/files");
+    expect(pageDocuments(library.body).map((row) => row.id)).toEqual([
+      unrelated.body.id,
+    ]);
 
-    const firstDetail = await request(app).get(
+    const firstDetail = await request(api).get(
       `/projects/${firstMatter.body.id}`,
     );
-    const secondDetail = await request(app).get(
+    const secondDetail = await request(api).get(
       `/projects/${secondMatter.body.id}`,
     );
     expect(firstDetail.body).not.toHaveProperty("documents");
     expect(secondDetail.body).not.toHaveProperty("documents");
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${firstMatter.body.id}/directory`,
     )).body).map((document) => document.id)).toEqual([source.body.id]);
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${secondMatter.body.id}/directory`,
     )).body)).toEqual([]);
 
-    const createdChat = await request(app)
+    const createdChat = await request(api)
       .post("/chat/create")
       .send({ project_id: firstMatter.body.id });
     expect(createdChat.status).toBe(200);
 
-    const assistantHistory = await request(app).get("/chat");
+    const assistantHistory = await request(api).get("/chat");
     expect(assistantHistory.body).toEqual([]);
 
-    const streamed = await request(app)
+    const streamed = await request(api)
       .post("/chat")
       .send({
         project_id: firstMatter.body.id,
@@ -251,13 +203,13 @@ describe("account-free matter routes", () => {
     expect(streamedContent(streamed.text)).toBe("Scoped answer");
     expect(mocks.toolResults.at(-1)).toContain("appeal-record.xlsx");
     expect(mocks.toolResults.at(-1)).not.toContain("unrelated.xlsx");
-    const matterHistory = await request(app).get(
+    const matterHistory = await request(api).get(
       `/projects/${firstMatter.body.id}/chats`,
     );
     expect(matterHistory.body).toHaveLength(1);
     expect(matterHistory.body[0].id).toBe(createdChat.body.id);
 
-    const missingFocus = await request(app)
+    const missingFocus = await request(api)
       .post("/chat")
       .send({
         project_id: firstMatter.body.id,
@@ -274,11 +226,15 @@ describe("account-free matter routes", () => {
     expect(missingFocus.status).toBe(400);
     expect(missingFocus.body.detail).toMatch(/unavailable/u);
 
-    const [{ createLocalChatStore }, { localTabularData }] = await Promise.all([
-      import("../../lib/localChatStore"),
-      import("../../lib/localTabularStore"),
+    const [{ createChatStore }, { sqliteChatRepository }, { generateChatTitle }] = await Promise.all([
+      import("../../lib/chatStore"),
+      import("../../lib/sqliteChatRepository"),
+      import("../../lib/chatTitle"),
     ]);
-    const chatStore = createLocalChatStore(localTabularData);
+    const chatStore = createChatStore(
+      sqliteChatRepository, generateChatTitle,
+      { project: async () => false, review: async () => false },
+    );
     const user = { userId: "00000000-0000-0000-0000-000000000001" };
     const messages = (await chatStore.transcript(user, createdChat.body.id))!;
     const assistant = [...messages].reverse().find(
@@ -304,7 +260,7 @@ describe("account-free matter routes", () => {
       },
     });
 
-    const continued = await request(app)
+    const continued = await request(api)
       .post("/chat")
       .send({
         project_id: firstMatter.body.id,
@@ -367,7 +323,7 @@ describe("account-free matter routes", () => {
     // document; its text stays behind the Library tools.
     expect(lastContent).not.toContain("full text:");
 
-    const continuedChat = await request(app).get(
+    const continuedChat = await request(api).get(
       `/chat/${createdChat.body.id}`,
     );
     expect(
@@ -384,7 +340,7 @@ describe("account-free matter routes", () => {
       "content",
     ]);
 
-    const wrongMatter = await request(app)
+    const wrongMatter = await request(api)
       .post("/chat")
       .send({
         project_id: secondMatter.body.id,
@@ -395,7 +351,7 @@ describe("account-free matter routes", () => {
     expect(wrongMatter.status).toBe(400);
     expect(wrongMatter.body.detail).toMatch(/does not match/u);
 
-    const malformed = await request(app)
+    const malformed = await request(api)
       .post("/chat")
       .send({
         project_id: firstMatter.body.id,
@@ -407,16 +363,16 @@ describe("account-free matter routes", () => {
 
     await closeLocalStores?.();
     closeLocalStores = null;
-    app = await loadApp();
+    api = await loadApi();
 
-    const reloadedMatter = await request(app).get(
+    const reloadedMatter = await request(api).get(
       `/projects/${firstMatter.body.id}`,
     );
-    const reloadedChat = await request(app).get(
+    const reloadedChat = await request(api).get(
       `/chat/${createdChat.body.id}`,
     );
     expect(reloadedMatter.body).not.toHaveProperty("documents");
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${firstMatter.body.id}/directory`,
     )).body)[0].id).toBe(source.body.id);
     expect(reloadedChat.body.chat.project_id).toBe(firstMatter.body.id);
@@ -424,21 +380,21 @@ describe("account-free matter routes", () => {
       reloadedChat.body.messages.map((row: { role: string }) => row.role),
     ).toEqual(["user", "assistant"]);
 
-    const deletedThroughKnowledge = await request(app).delete(
-      `/legal-knowledge/projects/${firstMatter.body.id}`,
+    const deletedThroughKnowledge = await request(api).delete(
+      `/projects/${firstMatter.body.id}`,
     );
-    const orphanedChat = await request(app).get(`/chat/${createdChat.body.id}`);
+    const orphanedChat = await request(api).get(`/chat/${createdChat.body.id}`);
     expect(deletedThroughKnowledge.status).toBe(204);
     expect(orphanedChat.status).toBe(404);
     expect(mocks.supabaseCalls).toBe(0);
   });
 
   it("uses explicit chat documents without changing matter membership", async () => {
-    let app = await loadApp();
-    const matter = await request(app)
+    let api = await loadApi();
+    const matter = await request(api)
       .post("/projects")
       .send({ name: "Appeal" });
-    const source = await request(app)
+    const source = await request(api)
       .post("/library/files/documents")
       .attach("file", Buffer.from("record"), "appeal-record.xlsx");
     const store = await import("../../lib/__tests__/support/localDocumentFixtures");
@@ -448,11 +404,11 @@ describe("account-free matter routes", () => {
       filename: "foreign.docx",
       bytes: Buffer.from("foreign"),
     });
-    const chat = await request(app)
+    const chat = await request(api)
       .post("/chat/create")
       .send({ project_id: matter.body.id });
     const turn = (expectedVersion: number) =>
-      request(app)
+      request(api)
         .post("/chat")
         .send({
           project_id: matter.body.id,
@@ -478,11 +434,11 @@ describe("account-free matter routes", () => {
 
     expect((await turn(0)).status).toBe(200);
     expect((await turn(2)).status).toBe(200);
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${matter.body.id}/directory`,
     )).body)).toEqual([]);
 
-    const rejected = await request(app)
+    const rejected = await request(api)
       .post("/chat")
       .send({
         project_id: matter.body.id,
@@ -504,24 +460,24 @@ describe("account-free matter routes", () => {
 
     await closeLocalStores?.();
     closeLocalStores = null;
-    app = await loadApp();
-    expect(pageDocuments((await request(app).get(
+    api = await loadApi();
+    expect(pageDocuments((await request(api).get(
       `/projects/${matter.body.id}/directory`,
     )).body)).toEqual([]);
   });
 
   it("returns 400 for malformed local project fields", async () => {
-    const app = await loadApp();
+    const api = await loadApi();
     for (const payload of [
       { name: 7 },
       { name: "x".repeat(121) },
       { name: "Appeal", cm_number: 7 },
       { name: "Appeal", practice: [] },
     ]) {
-      const response = await request(app).post("/projects").send(payload);
+      const response = await request(api).post("/projects").send(payload);
       expect(response.status).toBe(400);
     }
-    expect((await request(app).get("/projects")).body).toEqual({
+    expect((await request(api).get("/projects")).body).toEqual({
       items: [],
       next_cursor: null,
     });
@@ -529,55 +485,53 @@ describe("account-free matter routes", () => {
   });
 
   it("detaches a document from one matter without deleting the Library file", async () => {
-    const app = await loadApp();
-    const firstMatter = await request(app)
+    const api = await loadApi();
+    const firstMatter = await request(api)
       .post("/projects")
       .send({ name: "Appeal" });
-    const secondMatter = await request(app)
+    const secondMatter = await request(api)
       .post("/projects")
       .send({ name: "Separate matter" });
-    const source = await request(app)
+    const source = await request(api)
       .post("/library/files/documents")
       .attach("file", Buffer.from("record"), "appeal-record.xlsx");
 
     expect(
       (
-        await request(app).post(
+        await request(api).post(
           `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
         )
       ).status,
     ).toBe(200);
-    expect(
-      (
-        await request(app).post(
-          `/projects/${secondMatter.body.id}/documents/${source.body.id}`,
-        )
-      ).status,
-    ).toBe(200);
+    const copied = await request(api).post(
+      `/projects/${secondMatter.body.id}/documents/${source.body.id}`,
+    );
+    expect(copied.status).toBe(201);
+    expect(copied.body.id).not.toBe(source.body.id);
 
-    const detached = await request(app).delete(
+    const detached = await request(api).delete(
       `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
     );
 
     expect(detached.status).toBe(204);
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${firstMatter.body.id}/directory`,
     )).body)).toEqual([]);
-    expect(pageDocuments((await request(app).get(
+    expect(pageDocuments((await request(api).get(
       `/projects/${secondMatter.body.id}/directory`,
-    )).body).map((row) => row.id)).toEqual([source.body.id]);
-    expect(pageDocuments((await request(app).get("/library/files")).body)
+    )).body).map((row) => row.id)).toEqual([copied.body.id]);
+    expect(pageDocuments((await request(api).get("/library/files")).body)
       .map((row) => row.id)).toEqual([source.body.id]);
     expect(
       (
-        await request(app).delete(
+        await request(api).delete(
           `/projects/${firstMatter.body.id}/documents/${source.body.id}`,
         )
       ).status,
     ).toBe(404);
     expect(
       (
-        await request(app).delete(
+        await request(api).delete(
           `/projects/${randomUUID()}/documents/${source.body.id}`,
         )
       ).status,
@@ -585,33 +539,21 @@ describe("account-free matter routes", () => {
     expect(mocks.supabaseCalls).toBe(0);
   });
 
-  it("fails closed when a matter disappears during document attachment", async () => {
-    const app = await loadApp();
-    const matter = await request(app)
-      .post("/projects")
-      .send({ name: "Appeal" });
-    const source = await request(app)
-      .post("/library/files/documents")
-      .attach("file", Buffer.from("record"), "existing.xlsx");
-    const graph = await import("../../lib/legalKnowledgeGraphStore");
-    const attach = vi
-      .spyOn(graph.legalKnowledgeGraphStore(), "attachMatterDocument")
-      .mockReturnValue(false);
+  it("bulk-deletes local chats, projects, and reviews through the shared applications", async () => {
+    const api = await loadApi();
+    expect((await request(api).post("/chat/create").send({})).status).toBe(200);
+    expect((await request(api).post("/projects").send({ name: "Appeal" })).status).toBe(201);
+    expect((await request(api).post("/tabular-review").send({
+      title: "Review", document_ids: [], columns_config: [],
+    })).status).toBe(201);
 
-    const existing = await request(app).post(
-      `/projects/${matter.body.id}/documents/${source.body.id}`,
-    );
-    const uploaded = await request(app)
-      .post(`/projects/${matter.body.id}/documents`)
-      .attach("file", Buffer.from("new"), "race-upload.xlsx");
-    const library = await request(app).get("/library/files");
+    expect((await request(api).delete("/user/chats")).status).toBe(204);
+    expect((await request(api).delete("/user/tabular-reviews")).status).toBe(204);
+    expect((await request(api).delete("/user/projects")).status).toBe(204);
 
-    expect(existing.status).toBe(404);
-    expect(uploaded.status).toBe(404);
-    expect(
-      pageDocuments(library.body).map((document) => document.filename),
-    ).toEqual(["existing.xlsx"]);
-    expect(attach).toHaveBeenCalledTimes(2);
-    expect(mocks.supabaseCalls).toBe(0);
+    expect((await request(api).get("/chat")).body).toEqual([]);
+    expect((await request(api).get("/projects")).body.items).toEqual([]);
+    expect((await request(api).get("/tabular-review")).body.items).toEqual([]);
   });
+
 });

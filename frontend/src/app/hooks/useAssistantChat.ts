@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import {
   compactChat,
   generateChatTitle,
@@ -15,7 +15,6 @@ import {
   assistantSessionReducer,
   createAssistantSessionState,
   type AssistantTurnOptions,
-  type RejectedAssistantTurn,
 } from "@/app/lib/assistantSession";
 import {
   AssistantProtocolError,
@@ -25,9 +24,10 @@ import {
   readSelectedModel,
   readSelectedReasoningEffort,
 } from "./useSelectedModel";
-import { jurisdictionPreferenceForChat } from "@/app/components/assistant/jurisdictionPreferences";
-import { readReadSubagentPreference } from "@/app/components/assistant/readSubagentPreferences";
-import { readActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
+import {
+  jurisdictionPreferenceForChat,
+  readAssistantPreferences,
+} from "@/app/components/assistant/assistantPreferences";
 
 interface UseAssistantChatOptions {
   chatId?: string;
@@ -37,7 +37,6 @@ interface UseAssistantChatOptions {
   onTitleChange?: (chatId: string, title: string) => void;
 }
 
-export type { AssistantTurnOptions, RejectedAssistantTurn };
 export type AssistantChatLoad =
   | { status: "loading"; chatId: string }
   | { status: "loaded"; chatId?: string; chat: Chat | null }
@@ -77,7 +76,7 @@ export function useAssistantChat({
   onChatIdChange,
   onTitleChange,
 }: UseAssistantChatOptions = {}) {
-  const router = useRouter();
+    const navigate = useNavigate();
   const {
     claimPendingChatMessage,
     peekPendingChatMessage,
@@ -247,7 +246,8 @@ export function useAssistantChat({
     let retryableProviderFailure = false;
     try {
       const model = message.model ?? readSelectedModel();
-      const readSubagents = readReadSubagentPreference();
+      const preferences = readAssistantPreferences();
+      const readSubagents = preferences.readSubagents;
       const attachedDocs = (message.files ?? []).flatMap((file) =>
         file.document_id ? [{ filename: file.filename, document_id: file.document_id }] : [],
       );
@@ -273,11 +273,11 @@ export function useAssistantChat({
         model,
         reasoning_effort: message.reasoningEffort ?? readSelectedReasoningEffort(),
         edit_mode: message.editMode ?? "manual",
-        jurisdiction_preference: jurisdictionPreferenceForChat(),
+        jurisdiction_preference: jurisdictionPreferenceForChat(preferences.jurisdiction),
         subagent_mode: readSubagents.mode === "native" && !model.startsWith("codex:") ? "none" : readSubagents.mode,
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
-        activity_detail: readActivityDetail(),
+        activity_detail: preferences.activityDetail,
         time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         displayed_doc: turnOptions?.displayedDoc
           ? { filename: turnOptions.displayedDoc.filename, document_id: turnOptions.displayedDoc.documentId }
@@ -343,7 +343,7 @@ export function useAssistantChat({
         if (current.chatId) replaceChatId(current.chatId, finalChatId, message.content.trim().slice(0, 120) || "New Chat");
         if (!tabularReviewId) {
           const base = projectId ? `/projects/${projectId}/assistant/chat` : "/assistant/chat";
-          router.replace(`${base}/${finalChatId}`);
+          navigate(`${base}/${finalChatId}`, { replace: true });
         }
       }
       if (!tabularReviewId) await loadChats();

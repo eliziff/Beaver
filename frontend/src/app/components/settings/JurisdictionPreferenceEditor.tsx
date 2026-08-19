@@ -4,8 +4,8 @@ import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import {
     JURISDICTION_GROUPS,
-    useJurisdictionPreference,
-} from "@/app/components/assistant/jurisdictionPreferences";
+    useAssistantPreferences,
+} from "@/app/components/assistant/assistantPreferences";
 import { cn } from "@/app/lib/utils";
 
 export function JurisdictionPreferenceEditor({
@@ -17,7 +17,10 @@ export function JurisdictionPreferenceEditor({
     const [query, setQuery] = useState("");
     const [countryIndex, setCountryIndex] = useState(0);
     const countryTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-    const { preference, setPreference } = useJurisdictionPreference();
+    const [preferences, savePreferences] = useAssistantPreferences();
+    const preference = preferences.jurisdiction;
+    const setPreference = (jurisdiction: typeof preference) =>
+        savePreferences({ jurisdiction });
     const selected = new Set(preference.jurisdictions);
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const disabled = preference.mode !== "presume";

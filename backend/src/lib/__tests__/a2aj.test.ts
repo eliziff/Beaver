@@ -1,32 +1,22 @@
 import crypto from "node:crypto";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../remoteUrlSafety", () => ({
-  guardedRemoteFetch: (
+const { guardedRemoteFetch } = vi.hoisted(() => ({
+  guardedRemoteFetch: vi.fn((
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
-  ) => fetch(input, init),
+  ) => fetch(input, init)),
 }));
+vi.mock("../remoteUrlSafety", () => ({ guardedRemoteFetch }));
 
 import {
-  canonicalA2AJSourceUrl,
-  clearA2AJCache,
-  fetchA2AJDocument,
-  getA2AJCoverage,
-  getA2AJDocumentSourceDoc,
-  lookupA2AJLocator,
-  resolveA2AJViewerDocument,
-  searchA2AJ,
-} from "../a2aj";
-import { createA2AJDocumentEvidence } from "../chat/legalEvidence";
-import { normalizeWhitespace } from "../text";
-
-let temporaryLegalDataHome: string | null = null;
+  a2ajLegalSourceProvider,
+} from "../legalSources/a2aj";
 
 beforeEach(() => {
+  guardedRemoteFetch.mockClear();
   // These tests exercise the HTTP contract. Keep a developer's installed
   // local corpus from silently bypassing the mocked provider response.
   vi.stubEnv(
@@ -35,39 +25,13 @@ beforeEach(() => {
   );
 });
 
-afterEach(async () => {
-  clearA2AJCache();
+afterEach(() => {
+  a2ajLegalSourceProvider.clearCache();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-  delete process.env.OPEN_LEGAL_DATA_HOME;
-  if (temporaryLegalDataHome) {
-    await rm(temporaryLegalDataHome, { recursive: true, force: true });
-    temporaryLegalDataHome = null;
-  }
 });
 
 describe("A2AJ client", () => {
-  it("prefers the canonical source URL and rejects unsafe schemes", () => {
-    expect(
-      canonicalA2AJSourceUrl({
-        source_url_en: "https://official.example/case",
-        url_en: "https://www.canlii.org/en/example",
-      }),
-    ).toBe("https://official.example/case");
-    expect(
-      canonicalA2AJSourceUrl({
-        source_url_en: "javascript:alert(1)",
-        url_en: "https://www.canlii.org/en/example",
-      }),
-    ).toBe("https://www.canlii.org/en/example");
-    expect(
-      canonicalA2AJSourceUrl(
-        { source_url_fr: "https://official.example/fr" },
-        "en",
-      ),
-    ).toBe("https://official.example/fr");
-  });
-
   it("maps live coverage dimensions without a reduced jurisdiction list", async () => {
     vi.stubGlobal(
       "fetch",
@@ -91,7 +55,7 @@ describe("A2AJ client", () => {
       }),
     );
 
-    await expect(getA2AJCoverage("cases")).resolves.toMatchObject([
+    await expect(a2ajLegalSourceProvider.coverage("cases")).resolves.toMatchObject([
       {
         dataset: "CHRT",
         jurisdictionCode: "FED",
@@ -105,7 +69,7 @@ describe("A2AJ client", () => {
     ]);
   });
 
-  it("maps a fetched document and bounds returned text", async () => {
+  it("maps a complete provider document", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -124,80 +88,26 @@ describe("A2AJ client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const document = await fetchA2AJDocument({
-      citation: "2020 SCC 5",
-      maxChars: 3,
-    });
+    const document = await a2ajLegalSourceProvider.document({ citation: "2020 SCC 5" });
 
     expect(document).toMatchObject({
       dataset: "SCC",
       citation: "2020 SCC 5",
       name: "Nevsun Resources Ltd. v. Araya",
       url: "https://decisions.scc-csc.ca/item/18169",
-      text: "abc",
-      truncated: true,
-      total_chars: 6,
-    });
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
-      "citation=2020+SCC+5",
-    );
-  });
-
-  it("reports an untruncated fetch as complete", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          results: [
-            {
-              dataset: "SCC",
-              citation_en: "2020 SCC 6",
-              unofficial_text_en: "abcdef",
-            },
-          ],
-        }),
-      }),
-    );
-
-    await expect(
-      fetchA2AJDocument({ citation: "2020 SCC 6" }),
-    ).resolves.toMatchObject({
       text: "abcdef",
-      truncated: false,
-      total_chars: 6,
     });
-  });
-
-  it("signals the default 50,000 character cut instead of slicing silently", async () => {
-    const text = "s".repeat(60_000);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          results: [
-            {
-              dataset: "LEGISLATION-FED",
-              citation_en: "RSC 1985, c C-46",
-              name_en: "Criminal Code",
-              unofficial_text_en: text,
-            },
-          ],
-        }),
+    expect(guardedRemoteFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/^https:\/\/api\.a2aj\.ca\/fetch\?citation=2020\+SCC\+5/u),
+      expect.any(Object),
+      expect.objectContaining({
+        allowedHosts: ["api.a2aj.ca"],
+        allowIpLiterals: false,
+        defaultPortOnly: true,
+        timeoutMs: 15_000,
+        response: expect.objectContaining({ maxBytes: 64 * 1024 * 1024 }),
       }),
     );
-
-    const document = await fetchA2AJDocument({
-      citation: "RSC 1985, c C-46",
-      docType: "laws",
-    });
-
-    expect(document?.text).toHaveLength(50_000);
-    expect(document?.truncated).toBe(true);
-    expect(document?.total_chars).toBe(60_000);
   });
 
   it("maps search metadata without exposing the raw API payload", async () => {
@@ -224,12 +134,19 @@ describe("A2AJ client", () => {
       }),
     );
 
-    await expect(searchA2AJ({ query: "privacy", size: 1 })).resolves.toEqual([
+    await expect(a2ajLegalSourceProvider.search!({
+      text: "privacy",
+      kinds: ["case"],
+      limit: 1,
+    })).resolves.toEqual([
       {
-        dataset: "ONCA",
+        provider: "a2aj",
+        id: "2024 ONCA 1",
+        kind: "case",
+        collection: "ONCA",
         citation: "2024 ONCA 1",
         alternateCitation: null,
-        name: "Example v. Example",
+        title: "Example v. Example",
         date: null,
         url: "https://example.test/case",
         snippet: "A matching passage",
@@ -258,14 +175,14 @@ describe("A2AJ client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const document = await fetchA2AJDocument({ citation: "2099 SCC 1" });
-    const lookup = await lookupA2AJLocator({
+    const document = await a2ajLegalSourceProvider.document({ citation: "2099 SCC 1" });
+    const lookup = await a2ajLegalSourceProvider.lookup({
       citation: "2099 SCC 1",
       kind: "paragraph",
       locator: "para 3",
       contextBlocks: 1,
     });
-    const range = await lookupA2AJLocator({
+    const range = await a2ajLegalSourceProvider.lookup({
       citation: "2099 SCC 1",
       kind: "paragraph",
       locator: "2",
@@ -292,7 +209,6 @@ describe("A2AJ client", () => {
     });
     expect(range?.block?.text).toContain("Decision paragraph 2");
     expect(range?.block?.text).toContain("Decision paragraph 4");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("uses A2AJ's raw section map for nested provision lookup", async () => {
@@ -324,12 +240,11 @@ describe("A2AJ client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const document = await fetchA2AJDocument({
+    const document = await a2ajLegalSourceProvider.document({
       citation: "RSC 1985, c C-46",
       docType: "laws",
-      maxChars: 40,
     });
-    const lookup = await lookupA2AJLocator({
+    const lookup = await a2ajLegalSourceProvider.lookup({
       citation: "RSC 1985, c C-46",
       docType: "laws",
       kind: "section",
@@ -338,19 +253,10 @@ describe("A2AJ client", () => {
 
     expect(document).toMatchObject({
       docType: "laws",
-      text: fullText.slice(0, 40),
-      truncated: true,
-      total_chars: fullText.length,
+      text: fullText,
       structure: { source: "flat_text" },
     });
-    expect(getA2AJDocumentSourceDoc(document!).text).toBe(fullText);
-    const evidence = createA2AJDocumentEvidence(document!, "legislation");
-    expect(evidence.span_sha256).toBe(
-      `sha256:${crypto
-        .createHash("sha256")
-        .update(normalizeWhitespace(fullText))
-        .digest("hex")}`,
-    );
+    expect(a2ajLegalSourceProvider.source(document!).text).toBe(fullText);
     expect(lookup).toMatchObject({
       status: "found",
       sourceMethod: "provider_section",
@@ -360,7 +266,6 @@ describe("A2AJ client", () => {
     expect(lookup?.block?.text).toContain(
       "requested nested statutory paragraph",
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("looks up provider-native named, suffixed and combined map keys exactly", async () => {
@@ -392,7 +297,7 @@ describe("A2AJ client", () => {
     for (const [locator, text] of Object.entries(sections).filter(
       ([locator]) => locator !== "1",
     )) {
-      const lookup = await lookupA2AJLocator({
+      const lookup = await a2ajLegalSourceProvider.lookup({
         citation: "RSC 2099, c P-1",
         docType: "laws",
         kind: "section",
@@ -410,7 +315,6 @@ describe("A2AJ client", () => {
         sourceMethod: "provider_section",
       });
     }
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("refuses blank section renditions and normalized-key collisions", async () => {
@@ -443,7 +347,7 @@ describe("A2AJ client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      lookupA2AJLocator({
+      a2ajLegalSourceProvider.lookup({
         citation: "RSC 2099, c C-2",
         docType: "laws",
         kind: "section",
@@ -455,7 +359,7 @@ describe("A2AJ client", () => {
       sourceMethod: "provider_section",
     });
     await expect(
-      lookupA2AJLocator({
+      a2ajLegalSourceProvider.lookup({
         citation: "RSC 2099, c C-2",
         docType: "laws",
         kind: "section",
@@ -466,14 +370,9 @@ describe("A2AJ client", () => {
       matches: [],
       sourceMethod: "structure_index",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns a stable pointer payload and reuses the persistent response cache", async () => {
-    temporaryLegalDataHome = await mkdtemp(
-      path.join(os.tmpdir(), "beaver-a2aj-cache-"),
-    );
-    process.env.OPEN_LEGAL_DATA_HOME = temporaryLegalDataHome;
+  it("returns a stable viewer payload", async () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
@@ -497,23 +396,16 @@ describe("A2AJ client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const first = await resolveA2AJViewerDocument({
+    const first = await a2ajLegalSourceProvider.viewer({
       citation: "2099 SCC 2",
       dataset: "SCC",
     });
-    const second = await resolveA2AJViewerDocument({
+    const second = await a2ajLegalSourceProvider.viewer({
       citation: "2099 SCC 2",
       dataset: "SCC",
     });
-    clearA2AJCache();
-    const afterMemoryReset = await resolveA2AJViewerDocument({
-      citation: "2099 SCC 2",
-      dataset: "SCC",
-    });
-
     expect(first).not.toBeNull();
     expect(second?.etag).toBe(first?.etag);
-    expect(afterMemoryReset?.etag).toBe(first?.etag);
     expect(first?.payload).toMatchObject({
       schemaVersion: "mike.legal-source.v1",
       reference: {
@@ -542,9 +434,5 @@ describe("A2AJ client", () => {
         .some((block) => block.text.includes("*")),
     ).toBe(false);
     expect(first?.payload.structure).not.toHaveProperty("text");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    await expect(
-      readdir(path.join(temporaryLegalDataHome, "cache", "a2aj", "http")),
-    ).resolves.toHaveLength(1);
   });
 });

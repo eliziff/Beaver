@@ -4,34 +4,6 @@ import {
   type RenderDocxMarkdownOptions,
 } from "./docxMarkdown";
 
-export function citationReminder(docLabel: string, filename: string): string {
-  return [
-    `[Citation requirement for ${docLabel} ("${filename}")]:`,
-    "Use the returned Citation evidence_id in submit_grounded_answer for any factual claim from this document.",
-    "Do not write citation markers, citation JSON, URLs, or pinpoints in prose.",
-  ].join("\n");
-}
-
-async function generatedDocxResult(title: string, bytes: Buffer) {
-  const zip = await import("jszip");
-  const packageZip = await zip.default.loadAsync(bytes);
-  for (const requiredPath of [
-    "[Content_Types].xml",
-    "word/document.xml",
-    "word/_rels/document.xml.rels",
-  ]) {
-    if (!packageZip.file(requiredPath)) {
-      throw new Error(
-        `Generated DOCX is missing required package part: ${requiredPath}`,
-      );
-    }
-  }
-  return {
-    filename: safeGeneratedFilename(title, "docx"),
-    bytes,
-  };
-}
-
 function docxFieldValues(raw: unknown) {
   if (raw === undefined) return {};
   if (!Array.isArray(raw) || raw.length > 100) {
@@ -88,35 +60,18 @@ export async function renderMarkdownDocx(
   fields?: unknown,
   options?: Omit<RenderDocxMarkdownOptions, "title" | "values">,
 ) {
-  try {
-    const bytes = await renderDocxMarkdown(markdown, {
-      title,
-      landscape: options?.landscape,
-      values: docxFieldValues(fields),
-      citations: options?.citations,
-      citationPlacement: options?.citationPlacement,
-      citationHyperlinks: options?.citationHyperlinks,
-      numberHeadings: options?.numberHeadings,
-      memoHeader: options?.memoHeader,
-      generatedAt: options?.generatedAt,
-      timeZone: options?.timeZone,
-    });
-    return await generatedDocxResult(title, bytes);
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "DOCX creation failed.",
-    };
-  }
+  const bytes = await renderDocxMarkdown(markdown, {
+    ...options,
+    title,
+    values: docxFieldValues(fields),
+  });
+  return { filename: safeGeneratedFilename(title, "docx"), bytes };
 }
 
 export function safeGeneratedFilename(title: string, extension: string) {
-  const rawTitle = typeof title === "string" ? title : "document";
-  const suffix = `.${extension}`;
-  const titleWithoutExtension = rawTitle.toLowerCase().endsWith(suffix.toLowerCase())
-    ? rawTitle.slice(0, -suffix.length)
-    : rawTitle;
   const safeTitle =
-    titleWithoutExtension
+    title
+      .replace(/\.(?:docx|xlsx|pptx)$/iu, "")
       .replace(/[^a-zA-Z0-9 -]/g, "")
       .trim()
       .slice(0, 64) || "document";
@@ -127,14 +82,11 @@ function xmlEscape(value: unknown) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/>/g, "&gt;");
 }
 
-function normalizeSheetName(value: unknown, fallback: string) {
-  const raw =
-    typeof value === "string" && value.trim() ? value.trim() : fallback;
+function normalizeSheetName(value: string, fallback: string) {
+  const raw = value.trim() || fallback;
   return (
     raw
       .replace(/[:\\/?*[\]]/g, " ")
@@ -143,102 +95,63 @@ function normalizeSheetName(value: unknown, fallback: string) {
   );
 }
 
-function normalizeRows(rows: unknown, colCount: number) {
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter((row): row is unknown[] => Array.isArray(row))
-    .map((row) =>
-      Array.from({ length: colCount }, (_, i) =>
-        row[i] == null ? "" : String(row[i]),
-      ),
-    );
+function markdownSections(markdown: string, initial?: string) {
+  const sections: Array<{ title: string; lines: string[] }> = initial === undefined
+    ? [] : [{ title: initial, lines: [] }];
+  for (const line of markdown.split(/\r?\n/u)) {
+    const heading = /^##\s+(.+)$/u.exec(line);
+    if (heading) sections.push({ title: heading[1].trim(), lines: [] });
+    else sections.at(-1)?.lines.push(line);
+  }
+  return sections;
 }
 
 export function workbookFromMarkdown(markdown: string) {
-  const sheets: Array<{ name: string; columns: string[]; rows: string[][] }> = [];
-  let name = "Sheet 1";
-  let table: string[][] = [];
-  const flush = () => {
-    if (table.length) {
-      sheets.push({ name, columns: table[0], rows: table.slice(1) });
-      table = [];
-    }
-  };
-  for (const line of markdown.split(/\r?\n/u)) {
-    const heading = /^##\s+(.+)$/u.exec(line);
-    if (heading) {
-      flush();
-      name = heading[1].trim();
-      continue;
-    }
-    if (!/^\s*\|.*\|\s*$/u.test(line)) continue;
-    const cells = line.trim().slice(1, -1).split("|").map((cell) => cell.trim());
-    if (cells.every((cell) => /^:?-{3,}:?$/u.test(cell))) continue;
-    table.push(cells);
-  }
-  flush();
+  const sheets = markdownSections(markdown, "Sheet 1").flatMap(({ title, lines }) => {
+    const table = lines.flatMap((line) => {
+      if (!/^\s*\|.*\|\s*$/u.test(line)) return [];
+      const cells = line.trim().slice(1, -1).split("|").map((cell) => cell.trim());
+      return cells.every((cell) => /^:?-{3,}:?$/u.test(cell)) ? [] : [cells];
+    });
+    return table.length
+      ? [{ name: title, columns: table[0], rows: table.slice(1) }]
+      : [];
+  });
   if (!sheets.length) throw new Error("XLSX content requires at least one pipe table.");
   return sheets;
 }
 
 export function presentationFromMarkdown(markdown: string) {
-  const slides: Array<{ title: string; bullets: string[] }> = [];
-  let slide: { title: string; bullets: string[] } | null = null;
-  let notes = false;
-  const flush = () => {
-    if (slide) slides.push(slide);
-  };
-  for (const line of markdown.split(/\r?\n/u)) {
-    if (/^```notes\s*$/iu.test(line)) {
-      notes = true;
-      continue;
-    }
-    if (notes) {
-      if (/^```\s*$/u.test(line)) notes = false;
-      continue;
-    }
-    const heading = /^##\s+(.+)$/u.exec(line);
-    if (heading) {
-      flush();
-      slide = { title: heading[1].trim(), bullets: [] };
-      continue;
-    }
-    if (!slide) continue;
-    const bullet = /^\s*(?:[-*+] |\d+[.)]\s+)(.+)$/u.exec(line);
-    if (bullet) slide.bullets.push(bullet[1].trim());
-  }
-  flush();
+  const slides = markdownSections(markdown).map(({ title, lines }) => ({
+    title,
+    bullets: lines.join("\n")
+      .replace(/^```notes\s*$[\s\S]*?(?:^```\s*$|(?![\s\S]))/gimu, "")
+      .split("\n")
+      .flatMap((line) => {
+        const bullet = /^\s*(?:[-*+] |\d+[.)]\s+)(.+)$/u.exec(line);
+        return bullet ? [bullet[1].trim()] : [];
+      }),
+  }));
   if (!slides.length) throw new Error("PPTX content requires at least one ## slide heading.");
   return slides;
 }
 
 export async function renderXlsxWorkbook(
   title: string,
-  sheetsInput: unknown[],
+  sheets: ReturnType<typeof workbookFromMarkdown>,
 ) {
   const XLSX = await import("xlsx");
   const workbook = XLSX.utils.book_new();
   workbook.Props = { Title: title, Author: "Beaver" };
-  const sheets = sheetsInput.length
-    ? sheetsInput
-    : [{ name: title, columns: [], rows: [] }];
   sheets.forEach((sheet, index) => {
-    const raw = (sheet && typeof sheet === "object" ? sheet : {}) as {
-      name?: unknown;
-      columns?: unknown;
-      rows?: unknown;
-    };
-    const columns = Array.isArray(raw.columns)
-      ? raw.columns.map((col) => String(col ?? "")).filter((col) => col.trim())
-      : [];
-    const header = columns.length ? columns : ["Value"];
+    const header = sheet.columns.length ? sheet.columns : ["Value"];
     XLSX.utils.book_append_sheet(
       workbook,
       XLSX.utils.aoa_to_sheet([
         header,
-        ...normalizeRows(raw.rows, header.length),
+        ...sheet.rows.map((row) => header.map((_, column) => row[column] ?? "")),
       ]),
-      normalizeSheetName(raw.name, `Sheet ${index + 1}`),
+      normalizeSheetName(sheet.name, `Sheet ${index + 1}`),
       true,
     );
   });
@@ -251,9 +164,9 @@ export async function renderXlsxWorkbook(
   );
 }
 
-function pptTextParagraphs(lines: string[], opts: { title?: boolean } = {}) {
-  const titleAttrs = opts.title ? ' sz="3200" b="1"' : ' sz="2000"';
-  const bullet = opts.title
+function pptTextParagraphs(lines: string[], title = false) {
+  const titleAttrs = title ? ' sz="3200" b="1"' : ' sz="2000"';
+  const bullet = title
     ? ""
     : '<a:pPr marL="342900" indent="-171450"><a:buChar char="&#8226;"/></a:pPr>';
   return lines
@@ -280,29 +193,17 @@ function pptShape(
 </p:sp>`;
 }
 
-export async function buildPptxPresentation(title: string, slidesInput: unknown[]) {
+const pptRelationships = (...relationships: string[]) =>
+  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${relationships.join("\n")}
+</Relationships>`;
+
+export async function buildPptxPresentation(
+  slides: ReturnType<typeof presentationFromMarkdown>,
+) {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
-  const rawSlides = slidesInput.length
-    ? slidesInput
-    : [{ title, bullets: ["Generated by Beaver"] }];
-  const slides = rawSlides.map((slide, index) => {
-    const raw = (slide && typeof slide === "object" ? slide : {}) as {
-      title?: unknown;
-      bullets?: unknown;
-    };
-    return {
-      title:
-        typeof raw.title === "string" && raw.title.trim()
-          ? raw.title.trim()
-          : index === 0
-            ? title
-            : `Slide ${index + 1}`,
-      bullets: Array.isArray(raw.bullets)
-        ? raw.bullets.map((bullet) => String(bullet ?? "")).filter(Boolean)
-        : [],
-    };
-  });
 
   zip.file(
     "[Content_Types].xml",
@@ -314,8 +215,6 @@ export async function buildPptxPresentation(title: string, slidesInput: unknown[
   <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
   <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
   <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
-  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 ${slides
   .map(
     (_, i) =>
@@ -326,32 +225,7 @@ ${slides
   );
   zip.file(
     "_rels/.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
-</Relationships>`,
-  );
-  zip.file(
-    "docProps/core.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>${xmlEscape(title)}</dc:title>
-  <dc:creator>Beaver</dc:creator>
-  <cp:lastModifiedBy>Beaver</cp:lastModifiedBy>
-  <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
-  <dcterms:modified xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:modified>
-</cp:coreProperties>`,
-  );
-  zip.file(
-    "docProps/app.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Application>Beaver</Application>
-  <PresentationFormat>On-screen Show (16:9)</PresentationFormat>
-  <Slides>${slides.length}</Slides>
-</Properties>`,
+    pptRelationships('  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>'),
   );
   zip.file(
     "ppt/presentation.xml",
@@ -367,17 +241,14 @@ ${slides.map((_, i) => `    <p:sldId id="${256 + i}" r:id="rId${i + 1}"/>`).join
   );
   zip.file(
     "ppt/_rels/presentation.xml.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-${slides
-  .map(
+    pptRelationships(
+      ...slides.map(
     (_, i) =>
       `  <Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i + 1}.xml"/>`,
-  )
-  .join("\n")}
-  <Relationship Id="rId${slides.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
-  <Relationship Id="rId${slides.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
-</Relationships>`,
+      ),
+      `  <Relationship Id="rId${slides.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`,
+      `  <Relationship Id="rId${slides.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`,
+    ),
   );
   zip.file(
     "ppt/slideMasters/slideMaster1.xml",
@@ -389,11 +260,10 @@ ${slides
   );
   zip.file(
     "ppt/slideMasters/_rels/slideMaster1.xml.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
-</Relationships>`,
+    pptRelationships(
+      '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>',
+      '  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>',
+    ),
   );
   zip.file(
     "ppt/slideLayouts/slideLayout1.xml",
@@ -425,7 +295,7 @@ ${slides
     <p:spTree>
       <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
       <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
-      ${pptShape(2, "Title", 685800, 457200, 10820400, 914400, pptTextParagraphs([slide.title], { title: true }))}
+      ${pptShape(2, "Title", 685800, 457200, 10820400, 914400, pptTextParagraphs([slide.title], true))}
       ${pptShape(3, "Content", 914400, 1600200, 10363200, 4343400, pptTextParagraphs(bullets))}
     </p:spTree>
   </p:cSld>
@@ -433,55 +303,12 @@ ${slides
     );
     zip.file(
       `ppt/slides/_rels/slide${index + 1}.xml.rels`,
-      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-</Relationships>`,
+      pptRelationships('  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'),
     );
   }
 
   return zip.generateAsync({ type: "nodebuffer" });
 }
-
-/**
- * Build a whitespace-collapsed, lowercased copy of `text`, plus a map from
- * each character index in the normalized form back to the corresponding
- * index in the original text, keeping tolerant matches anchored to the
- * exact original excerpt.
- */
-function normalizeWithMap(text: string): { norm: string; origIdx: number[] } {
-  const norm: string[] = [];
-  const origIdx: number[] = [];
-  let prevSpace = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (/\s/.test(ch)) {
-      if (!prevSpace) {
-        norm.push(" ");
-        origIdx.push(i);
-        prevSpace = true;
-      }
-    } else {
-      norm.push(ch.toLowerCase());
-      origIdx.push(i);
-      prevSpace = false;
-    }
-  }
-  return { norm: norm.join(""), origIdx };
-}
-
-function normalizeQuery(q: string): string {
-  return q.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-export type TextMatch = {
-  index: number;
-  excerpt: string;
-  context: string;
-  /** Original-text character offset of the match start (composable with
-   *  windowed reads and structural lookup, like grep's file:line). */
-  at: number;
-};
 
 export function findTextMatches(params: {
   text: string;
@@ -489,55 +316,32 @@ export function findTextMatches(params: {
   maxResults: number;
   contextChars: number;
   startIndex?: number;
-}): { hits: TextMatch[]; totalMatches: number } {
+}) {
   const { text, query, maxResults, contextChars, startIndex = 0 } = params;
-  const { norm, origIdx } = normalizeWithMap(text);
-  const needle = normalizeQuery(query);
-  const hits: TextMatch[] = [];
+  const hits: Array<{ index: number; excerpt: string; context: string; at: number }> = [];
+  const tokens = query.trim().split(/\s+/u).filter(Boolean);
+  if (!tokens.length) return { hits, totalMatches: 0 };
+  const pattern = tokens
+    .map((token) => token.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"))
+    .join("\\s+");
   let totalMatches = 0;
-  if (!needle) return { hits, totalMatches };
-
-  let from = 0;
-  while (from <= norm.length - needle.length) {
-    const pos = norm.indexOf(needle, from);
-    if (pos < 0) break;
-    const endNormPos = pos + needle.length;
-    const origStart = origIdx[pos] ?? 0;
-    const origEnd =
-      endNormPos - 1 < origIdx.length
-        ? origIdx[endNormPos - 1] + 1
-        : text.length;
+  for (const match of text.matchAll(new RegExp(pattern, "giu"))) {
+    const start = match.index;
+    const end = start + match[0].length;
     if (hits.length < maxResults) {
-      const ctxStart = Math.max(0, origStart - contextChars);
-      const ctxEnd = Math.min(text.length, origEnd + contextChars);
+      const ctxStart = Math.max(0, start - contextChars);
+      const ctxEnd = Math.min(text.length, end + contextChars);
       hits.push({
         index: startIndex + hits.length,
-        excerpt: text.slice(origStart, origEnd),
+        excerpt: match[0],
         context:
           (ctxStart > 0 ? "…" : "") +
           text.slice(ctxStart, ctxEnd).replace(/\s+/g, " ").trim() +
           (ctxEnd < text.length ? "…" : ""),
-        at: origStart,
+        at: start,
       });
     }
     totalMatches++;
-    from = pos + Math.max(1, needle.length);
   }
-
   return { hits, totalMatches };
-}
-
-/** Extend only a nearby clipped paragraph tail; never guess a legal section. */
-export function boundedParagraphTail(
-  text: string,
-  end: number,
-  maxChars = 1_500,
-) {
-  if (end <= 0 || end >= text.length || maxChars <= 0) return null;
-  const newline = text.indexOf("\n", end);
-  const tailEnd = newline < 0 ? text.length : newline;
-  const tail = text.slice(end, tailEnd);
-  return tail.length <= maxChars && /\S/u.test(tail)
-    ? { text: tail, start: end, end: tailEnd }
-    : null;
 }

@@ -185,7 +185,6 @@ describe("claude -p native MCP transport", () => {
         cacheReadInputTokens: 3,
       },
       contextRounds: [{ toolCallCount: 1, toolResultBytes: 13 }],
-      compactions: [{ triggerInputTokens: 123, latencyMs: 4 }],
     });
   });
 

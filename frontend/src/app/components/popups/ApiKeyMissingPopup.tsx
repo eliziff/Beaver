@@ -1,4 +1,4 @@
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { providerLabel, type ModelProvider } from "@/app/lib/modelAvailability";
 import { WarningPopup } from "../popups/WarningPopup";
@@ -9,7 +9,7 @@ interface Props {
     message?: string;
 }
 export function ApiKeyMissingPopup({ open, onClose, provider, message }: Props) {
-    const router = useRouter();
+    const navigate = useNavigate();
     if (!open) return null;
     const providerName = provider ? providerLabel(provider) : "this provider";
     const body =
@@ -17,7 +17,7 @@ export function ApiKeyMissingPopup({ open, onClose, provider, message }: Props) 
         `You haven't added a ${providerName} API key yet. Add one in your account settings to use this model.`;
     const handleGoToAccount = () => {
         onClose();
-        router.push("/account/models");
+        navigate("/account/models");
     };
     return (
         <WarningPopup

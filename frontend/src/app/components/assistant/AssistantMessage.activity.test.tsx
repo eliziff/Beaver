@@ -45,7 +45,8 @@ function AssistantMessage({
 const editEvent = (
     edit_mode: "manual" | "auto",
 ): Record<string, unknown> => ({
-    type: "doc_edited",
+    type: "document_artifact",
+    action: "edited",
     filename: "Draft.docx",
     document_id: "doc-1",
     version_id: "version-2",
@@ -207,7 +208,6 @@ describe("AssistantMessage activity", () => {
                 events={[{
                     type: "reasoning",
                     text: "Planning targeted non-overlapping delegations\n\nAssigning authority identification tasks",
-                    debug: true,
                 }]}
             />,
         );
@@ -226,7 +226,6 @@ describe("AssistantMessage activity", () => {
                     {
                         type: "reasoning",
                         text: "I should probably inspect something.",
-                        debug: true,
                     },
                     {
                         type: "tool_activity",

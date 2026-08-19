@@ -1,61 +1,27 @@
 import {
-  Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "react-router-dom";
 import { launchTableOfAuthorities } from "@/app/lib/beaverApi";
-import { isAnonymousMode } from "@/app/lib/authMode";
 import { AuthoritiesShell } from "@/app/components/shared/TableOfAuthoritiesFrame";
 const BOOT_TIMEOUT_MS = 15_000;
 const JOB_ID = /^[0-9a-f]{32}$/;
 const PROJECT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const warmedService =
-  typeof window !== "undefined" && isAnonymousMode
-    ? launchTableOfAuthorities()
-    : null;
-void warmedService?.catch(() => {});
 interface TableOfAuthoritiesHostProps {
   active: boolean;
   pending?: boolean;
   enabled: boolean;
-}
-type AuthoritiesScope = {
-  job: string;
-  project: string;
-};
-function ScopeReader({
-  active,
-  onChange,
-}: {
-  active: boolean;
-  onChange: (scope: AuthoritiesScope) => void;
-}) {
-  const searchParams = useSearchParams();
-  const job = JOB_ID.test(searchParams.get("job") || "")
-    ? searchParams.get("job")!
-    : "";
-  const project = PROJECT_ID.test(searchParams.get("project") || "")
-    ? searchParams.get("project")!
-    : "";
-  useLayoutEffect(() => {
-    if (active) onChange({ job, project });
-  }, [active, job, onChange, project]);
-  return null;
 }
 export function TableOfAuthoritiesHost({
   active,
   pending = false,
   enabled,
 }: TableOfAuthoritiesHostProps) {
-  const [scope, setScope] = useState<AuthoritiesScope>({
-    job: "",
-    project: "",
-  });
+  const [searchParams] = useSearchParams();
   const [url, setUrl] = useState<string | null>(null);
   const [frameReady, setFrameReady] = useState(false);
   const [frameScope, setFrameScope] = useState("");
@@ -65,10 +31,14 @@ export function TableOfAuthoritiesHost({
   const expectedOriginRef = useRef("");
   const attemptRef = useRef("");
   const watchdogRef = useRef<number | null>(null);
-  const serviceRef = useRef(warmedService);
+  const serviceRef = useRef<ReturnType<typeof launchTableOfAuthorities> | null>(null);
   const visible = active || pending;
-  const targetJob = pending ? "" : scope.job;
-  const targetProject = pending ? "" : scope.project;
+  const requestedJob = searchParams.get("job") ?? "";
+  const requestedProject = searchParams.get("project") ?? "";
+  const targetJob = !pending && JOB_ID.test(requestedJob) ? requestedJob : "";
+  const targetProject = !pending && PROJECT_ID.test(requestedProject)
+    ? requestedProject
+    : "";
   const scopeSignature = `${targetJob}:${targetProject}`;
   const clearWatchdog = useCallback(() => {
     if (watchdogRef.current !== null) {
@@ -94,7 +64,9 @@ export function TableOfAuthoritiesHost({
     if (!target || !expectedOrigin) return;
     try {
       if (target.location.origin !== expectedOrigin) return;
-    } catch {}
+    } catch {
+      // Cross-origin frames cannot expose their location; postMessage is safe.
+    }
     target.postMessage(
       { type: "mike:table-of-authorities-probe" },
       expectedOrigin,
@@ -217,9 +189,6 @@ export function TableOfAuthoritiesHost({
     frameScope === scopeSignature ? error : null;
   return (
     <>
-      <Suspense fallback={null}>
-        <ScopeReader active={active} onChange={setScope} />
-      </Suspense>
       <AuthoritiesShell
         active={visible}
         busy={visible && !frameCurrent && !visibleError}

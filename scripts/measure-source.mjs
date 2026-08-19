@@ -16,6 +16,13 @@ const fixtureExtensions = new Set([
   ".csv", ".json", ".md", ".txt", ".xml", ".yaml", ".yml",
 ]);
 const appRoots = ["backend/src", "frontend/src"];
+const relocatedFeatureFiles = [
+  "backend/experiments/passage-retrieval/retrievalRerank.ts",
+  "backend/experiments/passage-retrieval/passageRetrieval.ts",
+  "backend/experiments/passage-retrieval/a2ajPassageSearch.ts",
+  "backend/experiments/docx-analysis/numbering.ts",
+  "backend/experiments/docx-analysis/stories.ts",
+];
 
 const git = (args, cwd = root) =>
   execFileSync("git", cwd === root ? args : ["-c", `safe.directory=${cwd}`, ...args], {
@@ -97,6 +104,12 @@ const experiments = experimentNames
     files: sum.files + 1,
     lines: sum.lines + lines(readFileSync(path.join(root, name), "utf8")),
   }), { files: 0, lines: 0 });
+const relocatedFeatureLines = relocatedFeatureFiles.reduce((sum, name) => {
+  const file = path.join(root, name);
+  if (!existsSync(file)) throw new Error(`Relocated feature missing: ${name}`);
+  return sum + lines(readFileSync(file, "utf8"));
+}, 0);
+const honestProduction = current.production + relocatedFeatureLines;
 
 const lock = JSON.parse(readFileSync(path.join(root, "subrepos.lock.json"), "utf8"));
 const subrepos = Object.fromEntries(Object.entries(lock.repositories).map(([name, pin]) => {
@@ -137,8 +150,11 @@ const report = {
   current: { ...current, files: undefined },
   pinnedUpstream: { ...pinned, files: undefined },
   deltaToUpstream: current.production - pinned.production,
-  designTarget: 87_000,
-  deltaToDesignTarget: current.production - 87_000,
+  designTarget: 70_000,
+  deltaToDesignTarget: current.production - 70_000,
+  relocatedFeatureLines,
+  honestProduction,
+  honestDeltaToDesignTarget: honestProduction - 70_000,
   experiments,
   dependencies,
   subrepos,
@@ -157,8 +173,11 @@ console.table({
   "Beaver production": { lines: current.production },
   "Pinned upstream production": { lines: pinned.production },
   "Excess over upstream": { lines: report.deltaToUpstream },
-  "Excess over 87k target": { lines: report.deltaToDesignTarget },
+  "Excess over 70k target": { lines: report.deltaToDesignTarget },
   "Beaver production + tests": { lines: current.total },
+  "Intact features moved to experiments": { lines: relocatedFeatureLines },
+  "Honest production": { lines: honestProduction },
+  "Honest excess over 70k target": { lines: report.honestDeltaToDesignTarget },
 });
 console.log("\nDependencies");
 console.table(dependencies);

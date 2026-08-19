@@ -5,7 +5,7 @@
 - [User-request acceptance ledger](user-request-acceptance-ledger.md)
 - [Canonical master plan](beaver-master-plan.md) — authoritative status,
   priorities, acceptance gates, and execution order.
-- [Research reader](../frontend/public/mike-research-reader.html) — a
+- [Research reader experiment](../frontend/experiments/prototypes/mike-research-reader.html) — a
   self-contained visual explanation of the research and proposed experiments.
 
 ## Architecture and implementation appendices
@@ -53,7 +53,6 @@ authoritative implementation/status record.
 
 ## Testing and operations
 
-- [Testing coverage](testing-coverage.md)
 - [End-to-end CI](e2e-ci.md)
 - [Safe local testing](safe-local-testing.md)
 

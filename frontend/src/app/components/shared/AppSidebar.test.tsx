@@ -11,7 +11,7 @@ import { AppSidebar } from "./AppSidebar";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/assistant/chat/assistant-chat",
-  anonymousMode: true,
+  localMode: true,
   profile: null as { displayName: string; tier: string } | null,
   loadChats: vi.fn(),
   deleteChat: vi.fn(),
@@ -29,22 +29,20 @@ function sidebar(mobileOpen: boolean, onToggle = vi.fn()) {
   );
 }
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => mocks.pathname,
-  useRouter: () => ({ replace: mocks.replace }),
-}));
-vi.mock("next/link", () => ({
-  default: ({
+vi.mock("react-router-dom", () => ({
+  useLocation: () => ({ pathname: mocks.pathname }),
+  useNavigate: () => mocks.replace,
+  Link: ({
     children,
     onClick,
-    onNavigate,
+    to,
     ...props
-  }: React.ComponentProps<"a"> & { onNavigate?: () => void }) => (
+  }: React.ComponentProps<"a"> & { to: string }) => (
     <a
       {...props}
+      href={to}
       onClick={(event) => {
         event.preventDefault();
-        onNavigate?.();
         onClick?.(event);
       }}
     >
@@ -104,15 +102,15 @@ vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
   updateChatProject: mocks.updateChatProject,
 }));
 vi.mock("@/app/lib/authMode", () => ({
-  get isAnonymousMode() {
-    return mocks.anonymousMode;
+  get isLocalMode() {
+    return mocks.localMode;
   },
 }));
 vi.mock("@/app/components/shared/SidebarChatItem", () => ({
   SidebarChatItem: ({
     chat,
     isActive,
-    href,
+    to,
     onNavigate,
     onClearSelection,
     onSelect,
@@ -128,7 +126,7 @@ vi.mock("@/app/components/shared/SidebarChatItem", () => ({
     isSelected?: boolean;
     selectedCount?: number;
     isSelectionActionOwner?: boolean;
-    href: string;
+    to: string;
     onNavigate?: () => void;
     onClearSelection?: () => void;
     onSelect?: (modifiers: {
@@ -147,7 +145,7 @@ vi.mock("@/app/components/shared/SidebarChatItem", () => ({
       onDragStart={onDragChat}
     >
       <a
-        href={href}
+        href={to}
         onClick={(event) => {
           event.preventDefault();
           if (event.shiftKey || event.ctrlKey || event.metaKey) {
@@ -205,7 +203,7 @@ vi.mock("@/app/components/assistant/SelectAssistantProjectModal", () => ({
 describe("AppSidebar", () => {
   beforeEach(() => {
     mocks.pathname = "/assistant/chat/assistant-chat";
-    mocks.anonymousMode = true;
+    mocks.localMode = true;
     mocks.profile = null;
     vi.clearAllMocks();
     mocks.loadChats.mockResolvedValue(undefined);
@@ -396,7 +394,7 @@ describe("AppSidebar", () => {
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat");
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-2");
     expect(mocks.deleteChat).toHaveBeenCalledWith("assistant-chat-3");
-    expect(mocks.replace).toHaveBeenCalledWith("/assistant");
+    expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
   });
 
   it("gives only the topmost selected chat the row actions", () => {
@@ -438,7 +436,7 @@ describe("AppSidebar", () => {
   });
 
   it("opens one Settings modal in cloud mode", async () => {
-    mocks.anonymousMode = false;
+    mocks.localMode = false;
     mocks.profile = null;
     const onToggle = vi.fn();
     render(sidebar(true, onToggle));

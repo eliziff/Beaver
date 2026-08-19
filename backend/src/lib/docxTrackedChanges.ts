@@ -22,7 +22,6 @@ import {
     elAttrs,
     elChildren,
     elName,
-    getTextContent,
     makeEl,
     makeText,
     setChildren,
@@ -824,11 +823,11 @@ export async function applyTrackedEdits(
         const deletedText = clusters
             .map((cluster) => cluster.deleted)
             .filter(Boolean)
-            .join(" â€¦ ");
+            .join(" … ");
         const insertedText = clusters
             .map((cluster) => cluster.inserted)
             .filter(Boolean)
-            .join(" â€¦ ");
+            .join(" … ");
         const applied = appliedChangesByEdit.get(editIdx);
         if (applied) {
             applied.delId = revision.delWId;

@@ -1,9 +1,8 @@
 "use client";
 import { useEffect } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
 const TABS = [
     { label: "General", href: "/account" },
@@ -17,24 +16,23 @@ const TABS = [
     { label: "API keys", href: "/account/api-keys" },
     { label: "Connectors", href: "/account/connectors" },
 ];
-export default function AccountLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
-    const router = useRouter();
-    const pathname = usePathname();
+export default function AccountLayout() {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
     const { isAuthenticated, authLoading } = useAuth();
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
-            router.push("/");
+            navigate("/", { replace: true });
         }
-    }, [isAuthenticated, authLoading, router]);
+    }, [isAuthenticated, authLoading, navigate]);
     if (!authLoading && !isAuthenticated) {
         return null;
     }
-    const tabs = isAnonymousMode
-        ? TABS.filter((tab) => tab.href === "/account/api-keys")
+    const tabs = isLocalMode
+        ? TABS.filter((tab) =>
+              tab.href === "/account/features" ||
+              tab.href === "/account/api-keys",
+          )
         : TABS;
     const activeTab =
         tabs.find(
@@ -59,7 +57,7 @@ export default function AccountLayout({
                             aria-label="Settings section"
                             value={activeTab.href}
                             onChange={(event) =>
-                                router.push(event.target.value)
+                                navigate(event.target.value)
                             }
                             className="h-9 w-auto max-w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-800 shadow-sm outline-none focus:border-gray-300 md:hidden"
                         >
@@ -78,7 +76,7 @@ export default function AccountLayout({
                                             aria-current={
                                                 active ? "page" : undefined
                                             }
-                                            href={tab.href}
+                                            to={tab.href}
                                             className={accountTabButtonClassName(
                                                 active,
                                             )}
@@ -99,7 +97,7 @@ export default function AccountLayout({
                                 Loading settings…
                             </p>
                         ) : (
-                            children
+                            <Outlet />
                         )}
                     </div>
                 </div>

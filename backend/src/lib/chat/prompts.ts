@@ -1,5 +1,3 @@
-import { COURTLISTENER_SYSTEM_PROMPT } from "./tools/courtlistenerTools";
-
 export const CLIENT_WORK_PRODUCT_PRESUMPTION =
   "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.";
 export const JOURNAL_RESEARCH_GUIDANCE =
@@ -45,26 +43,6 @@ export type JurisdictionPreference = {
   jurisdictions: string[];
 };
 
-export function parseJurisdictionPreference(
-  value: unknown,
-): JurisdictionPreference | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const row = value as Record<string, unknown>;
-  const jurisdictions = Array.isArray(row.jurisdictions)
-    ? [
-        ...new Set(
-          row.jurisdictions
-            .filter((entry): entry is string => typeof entry === "string")
-            .map((entry) => entry.trim().slice(0, 80))
-            .filter(Boolean),
-        ),
-      ].slice(0, 64)
-    : [];
-  return row.mode === "presume" && jurisdictions.length
-    ? { mode: "presume", jurisdictions }
-    : { mode: "ask", jurisdictions: jurisdictions.length ? jurisdictions : ["Canada"] };
-}
-
 export function jurisdictionPreferencePrompt(
   preference: JurisdictionPreference | null,
 ) {
@@ -76,55 +54,6 @@ export function jurisdictionPreferencePrompt(
     preference.jurisdictions.length === 1 ? "this jurisdiction" : "these jurisdictions"
   }. Treat an unqualified reference to multiple jurisdictions as jurisdictions within the selected region or regions. Keep research and delegated reading within the selected region or regions unless the current request explicitly asks for comparative foreign law. An explicit jurisdiction overrides this preference.`;
 }
-
-const DRAFTING_ROUTING = `ARTIFACT WRITING:
-- To create or draft a document, call Write with the exact .docx filename and hand over the Word file rather than only displaying text inline.
-- To adapt an existing DOCX precedent, call Read once with mode "drafting" first.
-- For a spreadsheet, table workbook, tracker, checklist matrix, or Excel file, call Write with an .xlsx filename.
-- For slides, a presentation, pitch deck, board deck, or PowerPoint file, call Write with a .pptx filename.
-- To revise a document you just generated, call Edit on its returned resource unless the user explicitly wants a brand-new document or the change is too broad for coherent editing.`;
-
-const GENERIC_CONDUCT_RULES = `- Be precise, professional, and evidence-aware.
-- Do not fabricate document content.
-- Batch independent tool calls.
-`;
-
-const SYSTEM_PROMPT_BEFORE_RESEARCH = `You are Beaver, an AI legal assistant for lawyers and legal professionals. Help analyze documents, answer legal questions, and draft legal documents.
-
-CORE RULES:
-- ${CLIENT_WORK_PRODUCT_PRESUMPTION}
-${GENERIC_CONDUCT_RULES}- If the user selects a workflow with [Workflow: <title> (id: <id>)], immediately call read_workflow with that id and follow the workflow before doing anything else.
-- Call ask_inputs only for what blocks the work: an instruction only the user can give, or a document that was never provided. Resolve ordinary ambiguity yourself on the most reasonable reading and state the assumption. Never seek confirmation of an instruction already given.
-- User-supplied particulars in a fresh form are fields, not blockers. After the user answers a real blocker, continue and complete the task without asking them to restate it.
-
-DOCUMENT CITATIONS:
-Cite only exact evidence returned by document tools. Finish any evidence-based answer with submit_grounded_answer, attaching the returned evidence_ids to the natural prose units they support. Put no citation markers, citation JSON, URLs, or pinpoints in prose.
-
-${DRAFTING_ROUTING}
-
-DOCUMENT EDITING:
-- Read the relevant document resource before editing unless the needed text is already in this response.
-- Before Edit adds, deletes, moves, or reorders a numbered item, use Read or Grep to find affected numbering and cross-references, then update them together.
-- When deleting square brackets, delete both "[" and "]".`;
-
-const SYSTEM_PROMPT_AFTER_RESEARCH = `DOCUMENT NAMES IN PROSE:
-- Chat-local labels such as "doc-0" are internal: use them only in tool arguments, never in prose, headings, lists, or tool activity text. Name documents by filename or natural description ("the NDA draft").
-
-ACTIVITY:
-- Do not narrate planning, tool discovery, schemas, orchestration, or tool calls.
-
-GENERAL GUIDANCE:
-- Cite the exact document or fetched opinion passage for evidence-backed claims.
-- When a tool returns app_url, use that exact value in a Markdown link; never construct an application route yourself.
-- If no Library documents are provided, answer ordinary non-source questions normally. Legal-authority questions still require legal-source research and grounded evidence receipts.
-- Do not use emojis.
-`;
-
-export const A2AJ_SYSTEM_PROMPT = `CANADIAN LEGAL RESEARCH (A2AJ):
-Use search_sources for Canadian case law and legislation, then Read the returned source resource. Pass locator_kind and locator (plus end_locator for a paragraph range) to read a specific decision paragraph, reporter page, or statutory provision instead of relying on a whole-document navigation read.
-- Base quoted or source-specific claims on text returned by Read, not on search metadata or memory.
-- Use exact passages returned by Read as support and attach their evidence_id values with submit_grounded_answer. Put no citation, URL, or pinpoint in claim text.
-- If A2AJ returns no document, say the citation was not found; do not infer that the source or proposition does not exist.`;
 
 export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
 - Use Glob, Grep, and Read only for user-uploaded or saved Library documents.
@@ -146,38 +75,3 @@ export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
 export const SPREADSHEET_CITATION_PROMPT = `SPREADSHEET CITATIONS:
 - Use the evidence_id returned for the exact cell or range in submit_grounded_answer.
 - Put no sheet, cell, page, marker, or citation data in prose.`;
-
-/**
- * Assemble the chat system prompt. When `includeResearchTools` is true the
- * CourtListener (US case-law) research instructions are spliced in; when
- * false they are omitted entirely so the model is not told about tools it
- * does not have.
- */
-export const DOMAIN_PROMPTS: Record<string, string> = {
-  research: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
-  cases: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${COURTLISTENER_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
-  legislation: `${SOURCE_SEARCH_SYSTEM_PROMPT}\n\n${A2AJ_SYSTEM_PROMPT}`,
-  commentary: SOURCE_SEARCH_SYSTEM_PROMPT,
-  citations:
-    "Citation tools verify or repair citation mechanics and assemble authorities. They do not establish that a proposition is legally supported; open cases and read the decision for that.",
-  output_document:
-    "Create each requested deliverable with Write, the exact requested filename, and completed semantic content. The creation receipt already includes compiler diagnostics.",
-  drafting:
-    "Before revising a Library document, read the active version and address the exact provision or table cell. For deletion plus sibling renumbering, use the atomic delete-and-renumber tool rather than issuing manual heading and pointer edits. Treat a successful version receipt—not proposed prose—as completion.",
-  document_quality:
-    "Use this domain only to audit an existing DOCX. Run the narrow deterministic check the user requested, report findings and abstentions, and do not silently convert a diagnostic into edits.",
-  amendment:
-    "Use amendment application only for a formal amending instrument, and version comparison only for saved versions. Ordinary drafting and clause renumbering belong elsewhere.",
-  deadlines:
-    "Use the returned date and derivation trace; state the supplied jurisdiction and counting convention rather than recomputing the deadline from memory.",
-  workflow:
-    "Open the selected workflow and follow its instructions against the documents actually in scope.",
-};
-
-export function buildSystemPrompt(includeResearchTools = true): string {
-  return includeResearchTools
-    ? `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${DOMAIN_PROMPTS.research}\n${SYSTEM_PROMPT_AFTER_RESEARCH}`
-    : `${SYSTEM_PROMPT_BEFORE_RESEARCH}\n\n${SYSTEM_PROMPT_AFTER_RESEARCH}`;
-}
-
-export const SYSTEM_PROMPT = buildSystemPrompt(true);

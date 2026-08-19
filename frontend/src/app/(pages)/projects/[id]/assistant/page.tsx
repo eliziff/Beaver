@@ -1,5 +1,5 @@
-"use client";
-import { useEffect, useState } from "react";import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
@@ -11,7 +11,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 export default function ProjectAssistantPage() {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user } = useAuth();
     const {
         createChat,
@@ -108,7 +108,7 @@ export default function ProjectAssistantPage() {
                 loading={loading}
                 onCreateChat={() => void createChat()}
                 onOpenChat={(chatId) =>
-                    router.push(
+                    navigate(
                         `/projects/${projectId}/assistant/chat/${chatId}`,
                     )
                 }

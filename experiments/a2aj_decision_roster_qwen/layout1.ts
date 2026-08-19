@@ -1,6 +1,6 @@
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentById } from "../../backend/src/lib/a2ajLocalBulk";
 import { withReadonlySqlite } from "../../backend/src/lib/legalDataPath";
-import { getA2AJDocumentSourceDoc } from "../../backend/src/lib/a2aj";
+import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 
 const citations = ["2006 BCCA 127", "2008 FCA 24", "2021 SCC 46", "2021 SCC 47", "2003 BCCA 332"];
 
@@ -17,7 +17,7 @@ for (const entry of ids) {
   if (!entry) continue;
   const document = fetchLocalA2AJDocumentById({ id: entry.id, docType: "cases", language: "en", maxChars: Number.MAX_SAFE_INTEGER });
   if (!document) continue;
-  const source = getA2AJDocumentSourceDoc(document);
+  const source = a2ajLegalSourceProvider.source(document);
   const paragraphs = source.blocks.filter((b) => b.kind === "paragraph");
   const text = document.text;
   console.log(`\n========== ${document.citation} (${entry.dataset}) ${document.name ?? ""} paragraphs=${paragraphs.length} text=${text.length}`);

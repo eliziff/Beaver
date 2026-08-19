@@ -15,7 +15,7 @@ tool-calling turn. Those are useful foundations. However:
 - every new user turn sends the entire visible conversation back to the
   backend and then to the selected provider;
 - there is no cross-turn compaction or authoritative context checkpoint;
-- anonymous-local chats now have a durable raw transcript, but not a durable
+- account-free local chats now have a durable raw transcript, but not a durable
   provider session or server-owned compacted context: every turn still trusts
   and projects the full history supplied by the browser;
 - Codex is launched as a fresh `--ephemeral` thread for every user turn, so
@@ -131,7 +131,7 @@ the prompt wording behind an equivalence test.
 
 There are useful bounded paths:
 
-- anonymous-local `library_read` caps extracted text at 300,000 characters
+- account-free local `library_read` caps extracted text at 300,000 characters
   (`backend/src/lib/chat/localAssistantTools.ts:251`);
 - MCP output is capped at 60,000 characters and reports truncation
   (`backend/src/lib/mcp/types.ts:127` and
@@ -151,7 +151,7 @@ The cloud document paths are less safe:
 
 Long tool outputs cause context pressure much faster than ordinary dialogue.
 They also reduce cache reuse because each result changes the prefix seen by the
-next tool iteration. The 300,000-character anonymous-local cap is technically
+next tool iteration. The 300,000-character account-free local cap is technically
 bounded, but it is not context-safe and can still dominate a model request.
 
 ## Comparison with current primary guidance
@@ -339,7 +339,7 @@ existing chat, backed by the same small repository contract in both modes:
 - `compareAndSwapContextState(chatId, expectedVersion, nextState)`
 
 For cloud mode, implement it over the existing Supabase chat tables plus one
-versioned context-state row. For anonymous-local mode, implement the same
+versioned context-state row. For account-free local mode, implement the same
 contract beside the existing versioned atomic-JSON chat records under shared
 AppData. The process-local `Map` remains only a read-through cache. A database
 is unnecessary at current single-user scale; the repository boundary can
@@ -540,7 +540,7 @@ selection telemetry and regression fixtures exist.
 
 Create deterministic 40-80 turn sessions covering:
 
-- cloud and anonymous-local modes;
+- cloud and account-free local modes;
 - backend restart and browser refresh;
 - model/effort change and provider change;
 - uploaded PDF/DOCX/XLSX documents with multiple versions;
@@ -609,7 +609,7 @@ Do not approve a compaction strategy merely because a summary “looks right.”
 Strict wins:
 
 - usage/latency/context instrumentation;
-- durable anonymous-local chat storage (completed);
+- durable account-free local chat storage (completed);
 - explicit bounded result envelopes with visible truncation/cursors;
 - persisting Codex thread IDs and OpenAI continuation/checkpoint metadata behind
   compatibility guards;

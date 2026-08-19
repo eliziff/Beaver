@@ -1,8 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat as useAssistantSession } from "./useAssistantChat";
-import { setJurisdictionPreference } from "@/app/components/assistant/jurisdictionPreferences";
-import { setReadSubagentPreferences } from "@/app/components/assistant/readSubagentPreferences";
+import {
+  readAssistantPreferences,
+  updateAssistantPreferences,
+} from "@/app/components/assistant/assistantPreferences";
 
 function useAssistantChat(options: Parameters<typeof useAssistantSession>[0]) {
   const { state, actions, chatLoad } = useAssistantSession(options);
@@ -31,10 +33,10 @@ const mocks = vi.hoisted(() => ({
   renameChat: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => vi.fn(),
 }));
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
   compactChat: mocks.compactChat,
   getChat: mocks.getChat,
@@ -164,10 +166,9 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("sends the standing jurisdiction preference with the turn", async () => {
-    setJurisdictionPreference({
-      mode: "presume",
-      jurisdictions: ["ca-ab", "us-ny"],
-    });
+    updateAssistantPreferences({ jurisdiction: {
+      mode: "presume", jurisdictions: ["ca-ab", "us-ny"],
+    } });
     mocks.streamChat.mockResolvedValueOnce(
       streamResponse([
         { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
@@ -199,7 +200,9 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("sends the selected subagent mode with the turn", async () => {
-    setReadSubagentPreferences({ mode: "beaver" });
+    updateAssistantPreferences({
+      readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },
+    });
     mocks.streamChat.mockResolvedValueOnce(
       streamResponse([
         { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
@@ -600,8 +603,8 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("keeps structured ask-input selections for an exact retry", async () => {
-    localStorage.setItem("mike.selectedModel", "codex:gpt-5.6-terra");
-    localStorage.setItem("mike.reasoningEffort", "high");
+    localStorage.setItem("beaver.selectedModel", "codex:gpt-5.6-terra");
+    localStorage.setItem("beaver.reasoningEffort", "high");
     mocks.streamChat
       .mockResolvedValueOnce(
         new Response(
@@ -1028,9 +1031,16 @@ describe("useAssistantChat local transcript boundary", () => {
           status: "running",
           label: "Editing Draft.docx",
         },
-        { type: "doc_edited_start", filename: "Draft.docx" },
         {
-          type: "doc_edited",
+          type: "tool_activity",
+          id: "edit-1",
+          tool: "Edit",
+          status: "completed",
+          label: "Edited Draft.docx",
+        },
+        {
+          type: "document_artifact",
+          action: "edited",
           filename: "Draft.docx",
           document_id: "document-1",
           version_id: "version-2",
@@ -1087,9 +1097,9 @@ describe("useAssistantChat local transcript boundary", () => {
           chatId: "chat-1",
           transcriptVersion: 1,
         },
-        { type: "doc_created_start", filename: "Draft.docx" },
         {
-          type: "doc_created",
+          type: "document_artifact",
+          action: "created",
           filename: "Draft.docx",
           document_id: "document-1",
           version_id: "version-1",

@@ -22,8 +22,6 @@ const connector = {
             id: "tool-1",
             title: "Find cases",
             toolName: "find_cases",
-            openaiToolName: "connector_find_cases",
-            description: "Search reported decisions.",
             enabled: true,
             requiresConfirmation: false,
         },
@@ -88,7 +86,6 @@ describe("McpConnectorFields", () => {
         const onToolEnabled = vi.fn().mockResolvedValue(undefined);
         const { rerender } = render(<McpToolList connector={connector} />);
 
-        expect(screen.getByText("Search reported decisions.")).toBeVisible();
         expect(screen.getByText("Enabled")).toBeVisible();
 
         rerender(
@@ -103,8 +100,5 @@ describe("McpConnectorFields", () => {
             "tool-1",
             false,
         );
-        expect(
-            screen.queryByText("Search reported decisions."),
-        ).not.toBeInTheDocument();
     });
 });

@@ -2,7 +2,7 @@ import {
   fetchLocalA2AJDocument,
   getLocalA2AJStructure,
 } from "../../backend/src/lib/a2ajLocalBulk";
-import { getA2AJDocumentSourceDoc } from "../../backend/src/lib/a2aj";
+import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -30,7 +30,7 @@ for (const { citation, dataset } of CASES) {
     console.log(`${citation}: not found`);
     continue;
   }
-  const source = getLocalA2AJStructure(document) ?? getA2AJDocumentSourceDoc(document);
+  const source = getLocalA2AJStructure(document) ?? a2ajLegalSourceProvider.source(document);
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   const structure = analyzeOpinionStructure({
     text: source.text,

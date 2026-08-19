@@ -5,7 +5,7 @@ import {
     type DragEvent,
     type MouseEvent,
 } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -25,7 +25,7 @@ interface Props {
     isSelected?: boolean;
     selectedCount?: number;
     isSelectionActionOwner?: boolean;
-    href: string;
+    to: string;
     onNavigate?: () => void;
     onClearSelection?: () => void;
     onSelect?: (
@@ -42,7 +42,7 @@ export function SidebarChatItem({
     isSelected = false,
     selectedCount = 0,
     isSelectionActionOwner = false,
-    href,
+    to,
     onNavigate,
     onClearSelection,
     onSelect,
@@ -127,7 +127,7 @@ export function SidebarChatItem({
                         )}
                     </span>
                     <Link
-                        href={href}
+                        to={to}
                         onClick={(event) => {
                             if (
                                 isChatOwner &&

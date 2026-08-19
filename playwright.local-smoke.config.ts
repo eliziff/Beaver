@@ -5,14 +5,14 @@ import { defineConfig, devices } from "@playwright/test";
 // has proved ownership of the production listeners.
 export default defineConfig({
     testDir: "./smoke",
-    testMatch: /anonymous-production-smoke\.spec\.ts/,
+    testMatch: /local-production-smoke\.spec\.ts/,
     fullyParallel: false,
     workers: 1,
     retries: 0,
     timeout: 180_000,
     expect: { timeout: 15_000 },
     reporter: "list",
-    outputDir: "test-results/anonymous-production-smoke",
+    outputDir: "test-results/local-production-smoke",
     use: {
         baseURL: "http://127.0.0.1:3000",
         trace: "retain-on-failure",
@@ -21,7 +21,7 @@ export default defineConfig({
     },
     projects: [
         {
-            name: "anonymous-production",
+            name: "local-production",
             use: devices["Desktop Chrome"],
         },
     ],

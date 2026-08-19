@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 interface SiteLogoProps {
     size?: "sm" | "md" | "lg" | "xl";
@@ -43,7 +43,7 @@ export function SiteLogo({
     if (asLink) {
         return (
             <Link
-                href={landingHref}
+                to={landingHref}
                 className="cursor-pointer hover:opacity-80"
             >
                 {logo}

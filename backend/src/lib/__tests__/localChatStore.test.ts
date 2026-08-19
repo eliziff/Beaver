@@ -10,12 +10,16 @@ const otherOwner = "00000000-0000-0000-0000-000000000002";
 const scope = (userId = owner) => ({ userId });
 
 async function closeDatabase() {
-  (await import("../localApplicationDatabase")).closeLocalApplicationDatabase();
+  (await import("../sqliteDatabase")).closeSqliteDatabase();
 }
 
 async function loadStore() {
-  const { createLocalChatStore } = await import("../localChatStore");
-  return createLocalChatStore({ detail: async () => null } as never);
+  const [{ createChatStore }, { sqliteChatRepository }, { generateChatTitle }] = await Promise.all([
+    import("../chatStore"), import("../sqliteChatRepository"), import("../chatTitle"),
+  ]);
+  return createChatStore(sqliteChatRepository, generateChatTitle, {
+    project: async () => false, review: async () => false,
+  });
 }
 
 async function reopenStore() {
@@ -123,22 +127,22 @@ describe("local chat store", () => {
 
   it("retains provider state in trash and cascades it on permanent delete", async () => {
     const store = await loadStore();
-    const sessions = await import("../localProviderSessionStore");
+    const sessions = await import("../sqliteProviderSessionStore");
     const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
-    sessions.writeLocalCodexSession({
+    sessions.writeProviderSession({
       userId: owner, chatId: chat.id, projectId: null,
       continuationId: randomUUID(), compatibilityKey: "a".repeat(64),
       transcriptVersion: 0,
     });
 
     await expect(store.trash(scope(), chat.id)).resolves.toBe(true);
-    expect(sessions.readLocalCodexSession(owner, chat.id)).not.toBeNull();
+    expect(sessions.readProviderSession(owner, chat.id)).not.toBeNull();
     await expect(store.commitTurn(scope(), chat.id, {
       expectedVersion: 0,
       userMessage: { id: randomUUID(), content: "stale" },
     })).resolves.toEqual({ status: "missing" });
     await expect(store.remove(scope(), chat.id)).resolves.toBe(true);
-    expect(sessions.readLocalCodexSession(owner, chat.id)).toBeNull();
+    expect(sessions.readProviderSession(owner, chat.id)).toBeNull();
   });
 
   it("restores before expiry and purges at exactly thirty days", async () => {

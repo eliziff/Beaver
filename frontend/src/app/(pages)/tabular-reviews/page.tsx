@@ -1,6 +1,5 @@
-"use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import {
     createTabularReview,
     deleteTabularReview,
@@ -27,7 +26,7 @@ const REVIEW_SCOPES: { id: ReviewScope; label: string }[] = [
     { id: "standalone", label: "Standalone" },
 ];
 export default function TabularReviewsPage() {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user } = useAuth();
     const [creating, setCreating] = useState(false);
     const [newTROpen, setNewTROpen] = useState(false);
@@ -64,7 +63,7 @@ export default function TabularReviewsPage() {
                 columns_config: columnsConfig ?? [],
                 ...(projectId && { project_id: projectId }),
             });
-            router.push(
+            navigate(
                 projectId
                     ? `/projects/${projectId}/tabular-reviews/${review.id}`
                     : `/tabular-reviews/${review.id}`,
@@ -207,7 +206,7 @@ export default function TabularReviewsPage() {
                 <button type="button" onClick={() => void page.loadMore()}
                     disabled={page.loading}
                     className="mx-auto my-2 min-h-9 rounded-md border border-gray-300 px-4 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50">
-                    {page.loading ? "Loadingâ€¦" : "Load more"}
+                    {page.loading ? "Loading…" : "Load more"}
                 </button>
             )}
             <NewTRModal

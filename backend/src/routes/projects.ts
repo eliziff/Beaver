@@ -1,33 +1,16 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
+import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { validateDocumentFile } from "../lib/documentTypes";
 import type { ChatStore } from "../lib/chatStore";
+import { type DocumentStore } from "../lib/documentStore";
 import {
-  DocumentStoreError,
-  type DocumentStore,
-} from "../lib/documentStore";
-import {
-  ProjectStoreError,
   type ProjectScope,
   type ProjectStore,
 } from "../lib/projectStore";
-import {
-  encodePageCursor,
-  pageRequest,
-  PageCursorError,
-} from "../lib/pagination";
+import { encodePageCursor, pageRequest } from "../lib/pagination";
 import { singleFileUpload } from "../lib/upload";
-
-class ProjectRequestError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-const reject = (status: number, detail: string): never => {
-  throw new ProjectRequestError(status, detail);
-};
 
 const bodyOf = (req: Request): Record<string, unknown> =>
   req.body && typeof req.body === "object" && !Array.isArray(req.body)
@@ -86,26 +69,8 @@ export function createProjectsRouter(
   const router = Router();
   router.use(requireAuth);
 
-  const route = (handler: Handler) => asyncRoute(async (req, res) => {
-    try {
-      await handler(req, res, {
-        userId: res.locals.userId as string,
-        userEmail: res.locals.userEmail as string | undefined,
-      });
-    } catch (error) {
-      if (error instanceof ProjectRequestError ||
-          error instanceof ProjectStoreError ||
-          error instanceof DocumentStoreError ||
-          error instanceof PageCursorError) {
-        const status = error instanceof PageCursorError ? 400 : error.status;
-        return void res.status(status).json({ detail: error.message });
-      }
-      console.error("[projects] operation failed", error);
-      res.status(500).json({
-        detail: error instanceof Error ? error.message : "Project operation failed",
-      });
-    }
-  });
+  const route = (handler: Handler) => asyncRoute((req, res) =>
+    handler(req, res, applicationScope(res)));
 
   router.get("/", route(async (req, res, scope) => {
     const q = typeof req.query.q === "string"

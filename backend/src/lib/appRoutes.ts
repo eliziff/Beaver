@@ -41,7 +41,7 @@ export function appUrl(target: BeaverAppTarget): string {
         : "/library";
   }
   if (target.kind === "legal-source") {
-    return `/library/legal/${segment(target.id)}`;
+    return `/sources/${segment(target.id)}`;
   }
   if (target.kind === "authorities") {
     const query = new URLSearchParams();

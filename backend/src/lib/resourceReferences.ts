@@ -17,6 +17,11 @@ export const RESOURCE_LOCATOR_KINDS = [
   "article",
 ] as const;
 
+const DOCUMENT_RESOURCE = "document://[^/?#]+/version/[^/?#]+";
+export const DOCUMENT_RESOURCE_PATTERN = `^${DOCUMENT_RESOURCE}$`;
+export const DOCUMENT_OR_DRAFT_PATTERN = `^(?:${DOCUMENT_RESOURCE}|draft-[1-9][0-9]*)$`;
+export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|(?:workflow|job)://[^/?#]+|draft-[1-9][0-9]*)$`;
+
 const segment = (value: string) => {
   if (!value) throw new Error("Resource reference segments cannot be empty");
   return encodeURIComponent(value);

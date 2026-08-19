@@ -2,19 +2,20 @@ import { z } from "zod";
 import { documentProjectionService } from "../documentProjectionService";
 import { runChatTurn } from "../chat/turnEngine";
 import type { DocumentStore } from "../documentStore";
+import type { ProjectStore } from "../projectStore";
 import { throwIfAborted } from "../llm/abort";
 import { providerForModel, type Provider, type UserApiKeys } from "../llm";
 import { encodePageCursor, pageRequest } from "../pagination";
 import { getUserModelSettings } from "../userSettings";
 import {
-  TabularStoreError,
   type TabularCell,
   type TabularCellContent,
   type TabularColumn,
   type TabularScope,
-  type TabularStore,
+  type TabularRepository,
   type WriteResult,
 } from "../tabularStore";
+import { ApplicationError } from "../applicationError";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_DOCUMENT_CHARS = 120_000;
@@ -99,7 +100,7 @@ type Dependencies = {
 };
 
 const fail = (status: number, message: string): never => {
-  throw new TabularStoreError(status, message);
+  throw new ApplicationError(status, message);
 };
 const value = <T>(result: WriteResult<T>, noun: string) => {
   if (result.status === "committed") return result.value;
@@ -113,9 +114,9 @@ const modelKey = (model: string, apiKeys: UserApiKeys) => {
   const provider = providerForModel(model);
   if (provider === "codex" || provider === "claude-p" || provider === "ollama") return;
   if (apiKeys[provider]?.trim()) return;
-  throw Object.assign(new TabularStoreError(422,
-    `${providerLabel(provider)} API key is required to use ${model}. Add an API key or select a different tabular review model.`),
-  { code: "missing_api_key", provider, model });
+  throw new ApplicationError(422,
+    `${providerLabel(provider)} API key is required to use ${model}. Add an API key or select a different tabular review model.`,
+    { code: "missing_api_key", provider, model });
 };
 const suffix = (format?: string, tags?: string[]) => ({
   bulleted_list: ' Use a markdown bulleted list only in "summary".',
@@ -135,15 +136,36 @@ const cleanResult = (raw: Record<string, unknown>): TabularCellContent => ({
 });
 const json = (raw: string) => JSON.parse(raw.replace(/^```(?:json)?\s*/iu, "")
   .replace(/\s*```$/u, "").trim()) as Record<string, unknown>;
+const citationMetadata = /\[\[((?:[^\[\]]|\[[^\]]*\])+)\]\]/gu;
+function exportCell(cell: TabularCell | undefined) {
+  if (!cell || cell.status === "pending" || cell.status === "generating") return "";
+  if (cell.status === "error") return "Error";
+  return (cell.content?.summary ?? "")
+    .replace(citationMetadata, (_marker, metadata: string) =>
+      /^(?:page:\d+|sheet:).*?\|\|(?:quote:)?/iu.test(metadata)
+        ? ""
+        : metadata)
+    .replace(/[ \t]+/gu, " ")
+    .trim();
+}
 
 export function createTabularApplication(
-  store: TabularStore,
+  store: TabularRepository,
   documents: DocumentStore,
+  projects: ProjectStore,
   dependencies: Dependencies = {},
 ) {
   const turn = dependencies.runTurn ?? runChatTurn;
   const settings = dependencies.settings ?? getUserModelSettings;
   const project = dependencies.project ?? documentProjectionService.read;
+  const placement = async (scope: TabularScope, ids: string[], projectId: string | null) => {
+    if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
+    const unique = [...new Set(ids)], values = await Promise.all(
+      unique.map((id) => documents.metadata(scope, id)));
+    if (values.some((value) => !value || projectId && value.project_id !== projectId))
+      fail(404, "Document not found");
+    return unique;
+  };
 
   async function modelText(input: { model: string; system: string; user: string;
     apiKeys: UserApiKeys; reasoningEffort?: string; signal?: AbortSignal;
@@ -160,7 +182,7 @@ export function createTabularApplication(
           streamed += item.text;
           if (streamed.length > MAX_MODEL_CHARS) { overflow = true; limit.abort(); return; }
           input.onDelta?.(item.text);
-        }, done() {}, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
+        }, apiKeys: input.apiKeys, reasoningEffort: input.reasoningEffort,
         signal, subagentMode: "none", separateContentBlocks: false,
       });
       if (overflow || result.fullText.length > MAX_MODEL_CHARS)
@@ -186,7 +208,6 @@ export function createTabularApplication(
       fileType: content.fileType,
       sourceSha256: content.version.source_sha256,
       bytes: content.bytes,
-      localPath: content.localPath,
     }, { signal });
     const markdown = projection.text;
     throwIfAborted(signal);
@@ -283,20 +304,59 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
   return {
     async list(scope: TabularScope, input: z.infer<typeof tabularDtos.list>) {
       const q = input.q?.toLocaleLowerCase() ?? "", projectId = input.project_id ?? null;
+      if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
       const listScope = input.scope ?? "all", filters = { q, project_id: projectId, scope: listScope };
       const { after, limit } = pageRequest<[string, string]>(input, "tabular-review",
         filters, ["string", "string"]);
       const page = await store.page(scope, { projectId, scope: listScope, q, limit, after });
-      return { items: page.items, next_cursor: page.nextAfter
+      const items = await Promise.all(page.items.map(async (item) => {
+        const id = typeof item.project_id === "string" ? item.project_id : null;
+        const owner = id ? await projects.get(scope, id) : null;
+        return { ...item, project_name: typeof owner?.name === "string" ? owner.name : null };
+      }));
+      return { items, next_cursor: page.nextAfter
         ? encodePageCursor("tabular-review", filters, page.nextAfter) : null };
     },
     async create(scope: TabularScope, input: z.infer<typeof tabularDtos.create>) {
+      const projectId = input.project_id ?? null;
       return value(await store.create(scope, { title: input.title,
-        projectId: input.project_id ?? null, documentIds: input.document_ids,
+        projectId, documentIds: await placement(scope, input.document_ids, projectId),
         columns: input.columns_config, workflowId: input.workflow_id }), "Review");
     },
     async detail(scope: TabularScope, reviewId: string) {
-      return await store.detail(scope, reviewId) ?? fail(404, "Review not found");
+      const detail = await store.detail(scope, reviewId);
+      if (!detail) return fail(404, "Review not found");
+      const loaded = await Promise.all(detail.review.document_ids.map((id) =>
+        documents.metadata(scope, id)));
+      return { ...detail, documents: loaded.flatMap((document) => document ? [document] : []) };
+    },
+    async export(scope: TabularScope, reviewId: string) {
+      const detail = await store.detail(scope, reviewId);
+      if (!detail) return fail(404, "Review not found");
+      const columns = [...detail.review.columns_config].sort((a, b) => a.index - b.index);
+      const cells = new Map(detail.cells.map((cell) =>
+        [`${cell.document_id}:${cell.column_index}`, cell]));
+      const documentsById = new Map((await Promise.all(
+        detail.review.document_ids.map((documentId) => documents.metadata(scope, documentId)),
+      )).flatMap((document) => document ? [[document.id, document] as const] : []));
+      const rows = [
+        ["Document", ...columns.map(({ name }) => name)],
+        ...detail.review.document_ids.map((documentId) => [
+          String(documentsById.get(documentId)?.filename ?? documentId),
+          ...columns.map(({ index }) => exportCell(cells.get(`${documentId}:${index}`))),
+        ]),
+      ];
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
+      worksheet["!cols"] = rows[0].map((_value, index) => ({
+        wch: Math.min(60, Math.max(20, ...rows.map((row) => String(row[index] ?? "").length))),
+      }));
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Review");
+      return {
+        filename: `${detail.review.title?.trim() || "Tabular Review"}.xlsx`,
+        bytes: Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })),
+      };
     },
     async people(scope: TabularScope, reviewId: string) {
       return await store.people(scope, reviewId) ?? fail(404, "Review not found");
@@ -313,12 +373,21 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         return fail(403, "Only the review owner can change sharing");
       if (!current.review.is_owner && input.project_id !== undefined)
         return fail(403, "Only the review owner can move a review");
+      if (input.shared_with) {
+        const missing = await store.missingRecipient(scope, input.shared_with);
+        if (missing) fail(400, `${missing} does not belong to a Beaver user.`);
+      }
+      const nextProject = input.project_id === undefined
+        ? current.review.project_id : input.project_id;
+      const nextDocuments = input.document_ids === undefined && input.project_id === undefined
+        ? undefined : await placement(scope,
+          input.document_ids ?? current.review.document_ids, nextProject);
       return value(await store.update(scope, reviewId,
         input.expected_version ?? current.review.updated_at, {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.project_id !== undefined ? { projectId: input.project_id } : {}),
           ...(input.columns_config !== undefined ? { columns: input.columns_config } : {}),
-          ...(input.document_ids !== undefined ? { documentIds: input.document_ids } : {}),
+          ...(nextDocuments ? { documentIds: nextDocuments } : {}),
           ...(input.shared_with !== undefined ? { sharedWith: input.shared_with } : {}),
         }), "Review");
     },
@@ -327,6 +396,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       if (!current || !current.review.is_owner) return fail(404, "Review not found");
       value(await store.delete(scope, reviewId, current.review.updated_at), "Review");
     },
+    deleteAll: (scope: TabularScope) => store.deleteAll(scope),
     async clear(scope: TabularScope, reviewId: string,
       input: z.infer<typeof tabularDtos.clear>) {
       const detail = await store.detail(scope, reviewId);

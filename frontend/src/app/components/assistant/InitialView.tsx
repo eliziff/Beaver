@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { MoreHorizontal, Zap } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
@@ -13,13 +13,12 @@ import { DocumentAutomation } from "../documents/DocumentAutomation";
 import { LegalLibraryPage } from "../legal/LegalLibrary";
 import { LibraryCollectionPage, LibraryWorkspaceProvider } from "../library/LibraryWorkspace";
 import { createTabularReview } from "@/app/lib/beaverApi";
-import { preloadDuringIdle } from "@/app/lib/preloadDuringIdle";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import {
     QUICK_ACTIONS,
     type QuickActionId,
-    useQuickActionsPreference,
-} from "./quickActionsPreferences";
+    useAssistantPreferences,
+} from "./assistantPreferences";
 import type { Document, Message, Workflow } from "../shared/types";
 const loadNewTRModal = () => import("../tabular/NewTRModal");
 const loadSelectAssistantProjectModal = () => import("./SelectAssistantProjectModal");
@@ -70,25 +69,19 @@ export function InitialView({
 }) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
-    const router = useRouter();
+    const navigate = useNavigate();
     const [modal, setModal] = useState<InitialModal | null>(null);
     const [dockTab, setDockTab] = useState("sources");
     const [dockOpen, setDockOpen] = useState(false);
     const [automationDocument, setAutomationDocument] = useState<Document | null>(null);
-    const { visibleActions, setVisibleActions } = useQuickActionsPreference();
+    const [{ quickActions: visibleActions }, updatePreferences] =
+        useAssistantPreferences();
     const chatInputRef = useRef<ChatInputHandle>(null);
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
     const visibleQuickActions = QUICK_ACTIONS.filter(
         (action) => visibleActions[action.id],
     );
-    useEffect(() => {
-        return preloadDuringIdle(() => void Promise.all([
-            loadNewTRModal(),
-            loadSelectAssistantProjectModal(),
-            loadNewProjectModal(),
-        ]));
-    }, []);
     useEffect(() => {
         for (const document of initialDocuments) {
             chatInputRef.current?.addDoc(document);
@@ -119,7 +112,7 @@ export function InitialView({
             ...(projectId && { project_id: projectId }),
         });
         setModal(null);
-        router.push(
+        navigate(
             projectId
                 ? `/projects/${projectId}/tabular-reviews/${review.id}`
                 : `/tabular-reviews/${review.id}`,
@@ -247,10 +240,13 @@ export function InitialView({
                                         checked={visibleActions[action.id]}
                                         aria-label={`Show ${action.label}`}
                                         onChange={() =>
-                                            setVisibleActions((previous) => ({
-                                                ...previous,
-                                                [action.id]:
-                                                    !previous[action.id],
+                                            updatePreferences((current) => ({
+                                                ...current,
+                                                quickActions: {
+                                                    ...current.quickActions,
+                                                    [action.id]:
+                                                        !current.quickActions[action.id],
+                                                },
                                             }))
                                         }
                                         className="ml-auto"
@@ -276,7 +272,7 @@ export function InitialView({
                         onClose={() => setModal(null)}
                         onCreated={(project) => {
                             setModal(null);
-                            router.push(`/projects/${project.id}`);
+                            navigate(`/projects/${project.id}`);
                         }}
                     />
                 </Suspense>

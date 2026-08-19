@@ -1,7 +1,7 @@
 # Beaver master plan
 
 Status: canonical implementation plan
-Last reconciled: 2026-08-14
+Last reconciled: 2026-08-18
 
 This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
@@ -73,6 +73,17 @@ These decisions are not open backlog items:
 15. Every assistant view and provider uses one turn engine, executable tool
     registry, resource plane, and event contract. Specialist tools load by
     exact name; Beaver never ranks tool schemas from prompt similarity.
+16. The browser product is one statically built Vite/React Router application
+    served from the Express application origin. Local and cloud deployment may
+    place identical immutable assets behind different caches, but application
+    code has no Next/OpenNext runtime, server-component split, API-base branch,
+    or normal-operation CORS topology.
+17. Before Beaver's first supported persistent-data release, migration effort
+    is not an architectural constraint. A replacement updates every caller,
+    adapter, schema, fixture, and deployment surface and deletes the displaced
+    implementation in the same vertical slice. Production retains no legacy
+    alias, fallback, compatibility DTO, dual read/write, migration framework,
+    or transition flag; Git is the rollback mechanism.
 
 ## Implemented baseline
 
@@ -138,7 +149,7 @@ Measured baseline and target:
 | --- | ---: | ---: | ---: |
 | Backend production lines | 84,053 | 39,748 | no independent quota; remove backend duplication first |
 | Frontend production lines | 34,137 | 51,951 | remain compact while sharing event/resource paths |
-| Combined production lines | 118,190 | 91,699 | hard ceiling 91,699; design target 87,000 or fewer |
+| Combined production lines | 118,190 | 91,699 | 70,000 or fewer |
 | Production + test lines | 190,274 | not frozen | lower than 190,274 without weakening behavior coverage |
 
 Acceptance is the plan's full definition of done. In particular: one
@@ -253,27 +264,15 @@ SPA state at 1440, 390, and 320 pixels with no failed requests.
 
 ### P0.3 Account-free local parity
 
-Status: **Partial**
+Status: **Complete for the core product**
 
-Anonymous local mode now covers Library, durable chats, matters/projects,
-project membership and chats, tabular reviews, drafting/revision, deterministic
-DOCX mutation, local PDF structure, and legal evidence. Custom workflow CRUD,
-sharing/contribution behavior, several account-only surfaces, and the assembled
-local/cloud parity matrix remain incomplete. Mode branches are also still
-spread through projects, workflows, tabular, and chat routes; P0.0 removes
-that maintenance burden rather than adding more paired branches.
-
-Work:
-
-- Finish one canonical entity/DTO contract for documents, matters/projects,
-  chats, workflows, and tabular reviews.
-- Make local and cloud data-port constructors satisfy that contract and feed
-  one domain-runtime factory; keep mode selection at composition and
-  automatically run one behavior suite for both.
-- Add local custom workflow persistence where the product presents editable
-  workflows; keep genuinely cloud-only account/sharing administration explicit.
-- Remove ordinary route/tool/UI mode branches as each vertical slice moves to
-  the shared domain operation.
+Account-free local mode and cloud mode now use the same document, Library,
+project, chat, workflow, tabular, assistant, and account application services.
+Runtime composition selects thin SQLite/filesystem or Postgres/S3 repositories;
+ordinary routes and tools contain no paired local/cloud implementation. Local
+custom workflows are durable. Cloud-only identity, sharing, contribution, and
+audit administration fail explicitly when unavailable rather than acquiring a
+second local product path.
 
 Acceptance:
 
@@ -1391,17 +1390,22 @@ Acceptance:
 5. **Canonicalize document intelligence**: finish SourceDoc/grid projections,
    one raw-preserving DOCX session, provider/evidence/artifact convergence, and
    thin universal-PDF integration. Delete each superseded path as callers move.
-6. **Close the contraction release**: reach the upstream line ceiling and
-   87,000-line design target, converge frontend event/resource state, audit
+6. **Replace the browser runtime outright**: convert the complete route and
+   deep-link inventory to Vite/React Router, serve it from the Express origin,
+   retain bearer authentication, and delete Next/OpenNext, API-base/CORS
+   topology, server-component rules, and their tests/configuration in the same
+   slice.
+7. **Close the contraction release**: reach **70,000 or fewer nonblank
+   production lines**, converge frontend event/resource state, audit
    dependencies/experiments, publish performance receipts, and pass every
    local/cloud/release gate.
-7. **Resume product backlog on the smaller architecture**: complete PDF job/OCR
+8. **Resume product backlog on the smaller architecture**: complete PDF job/OCR
    UX, evidence/viewer/DOCX/spreadsheet work, and provider breadth without
    recreating mode or assistant paths.
-8. **Benchmark before promoting context changes**: use the completed research,
+9. **Benchmark before promoting context changes**: use the completed research,
    full-history control, exact legal-state gates, provider continuation, and
    isolation tests; promote only an earned candidate.
-9. **Complete durable work products and release breadth**: ontology artifacts,
+10. **Complete durable work products and release breadth**: ontology artifacts,
    Table of Authorities packaging, the first Alberta filing-package profile,
    curated examples, multimodal validation, cloud deployment evidence,
    accessibility, and measured retrieval additions.

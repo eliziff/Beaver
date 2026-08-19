@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type { A2AJDocument, A2AJSearchResult } from "./a2aj";
+import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { citationLookupKey } from "./citationKey";
 import {
   legalProviderDatabase,
@@ -52,10 +52,6 @@ function withSearchDatabase<T>(
     return withReadonlySqlite(filename, operation);
   }
   return withCachedReadonlySqlite(filename, operation);
-}
-
-export function warmLocalA2AJSearch() {
-  return withSearchDatabase("cases", hasFts) ?? false;
 }
 
 function string(row: Row, field: string) {

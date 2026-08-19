@@ -1,18 +1,21 @@
 import { createDocumentApplication } from "../../documentApplication";
 import type { DocumentProvenance } from "../../documentStore";
-import { localDocumentRepository } from "../../localDocumentStore";
-import { localDocumentObjects } from "../../localObjectStorage";
-import { createLocalLibraryStore } from "../../localLibraryStore";
-import { createLocalProjectStore } from "../../localProjectStore";
+import { sqliteDocumentRepository, sqliteLibraryRepository } from "../../sqlitePersistence";
+import { filesystemDocumentObjects } from "../../filesystemObjectStorage";
+import { createLibraryStore } from "../../libraryStore";
+import { sqliteProjectRepository } from "../../sqliteProjectRepository";
+import { createProjectStore } from "../../projectStore";
 
-export * from "../../localDocumentStore";
+export * from "../../sqlitePersistence";
 
 const application = () => createDocumentApplication(
-  localDocumentRepository, localDocumentObjects(),
+  sqliteDocumentRepository, filesystemDocumentObjects(),
 );
 export const localDocuments = application();
-export const localLibraryStore = createLocalLibraryStore(localDocuments);
-export const localProjects = createLocalProjectStore(localDocuments);
+export const localLibraryStore = createLibraryStore(
+  sqliteLibraryRepository, localDocuments,
+);
+export const localProjects = createProjectStore(sqliteProjectRepository, localDocuments);
 
 export const createLocalDocument = (input: {
   userId: string;
@@ -57,3 +60,13 @@ export const replaceLocalVersion = (input: {
 
 export const deleteLocalDocument = (userId: string, documentId: string) =>
   application().deleteDocument({ userId }, documentId);
+
+export const localDocumentFile = async (
+  userId: string, documentId: string, versionId: string | null = null,
+) => {
+  const file = await localDocuments.read({ userId }, documentId, versionId, false);
+  if (!file) return null;
+  const { documentProjectionService } = await import("../../documentProjectionService");
+  return { ...file, path: await documentProjectionService.publishPdf(
+    file.bytes, file.version.source_sha256) };
+};

@@ -1,5 +1,5 @@
 import "../src/lib/loadEnv";
-import { streamOpenAI } from "../src/lib/llm/openai";
+import { streamResponses } from "../src/lib/llm/openai";
 
 const model = process.argv[2]?.trim() || "gpt-5.4";
 const requestedServiceTier = process.argv[3]?.trim() || "fast";
@@ -9,14 +9,14 @@ const expectedServiceTier =
     : requestedServiceTier.toLowerCase();
 
 async function main() {
-  const result = await streamOpenAI({
+  const result = await streamResponses({
     model,
     systemPrompt: "Reply with exactly OK.",
     messages: [{ role: "user", content: "Reply OK." }],
     reasoningEffort: "low",
     maxIterations: 1,
     serviceTier: requestedServiceTier,
-  });
+  }, "openai");
 
   const receipt = {
     model,

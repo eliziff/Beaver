@@ -28,7 +28,7 @@ import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     TableLoadingRows, TableSelectionCheckbox, TableStickyCell, useTableSelection }
     from "@/app/components/shared/TablePrimitive";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-import { preloadSingleDoc } from "@/app/hooks/useFetchSingleDoc";
+import { preloadDocumentFile } from "@/app/hooks/useDocumentFile";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
@@ -76,7 +76,7 @@ function prewarmDocumentView(doc: Document) {
         .toLowerCase().replace(/^\./u, "");
     if (type === "pdf" || !!doc.pdf_storage_path) {
         void getPdfJs();
-        void preloadSingleDoc(doc.id, doc.current_version_id, doc.updated_at)
+        void preloadDocumentFile(doc.id, doc.current_version_id, doc.updated_at)
             .catch(() => {});
     }
 }
@@ -137,7 +137,7 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
     const values: Record<(typeof DOCUMENT_METADATA_COLUMNS)[number]["label"], ReactNode> = {
         Type: doc.file_type ?? EMPTY_METADATA_VALUE,
         Size: doc.size_bytes == null ? EMPTY_METADATA_VALUE : formatBytes(doc.size_bytes),
-        Version: typeof version === "number" && version > 1 ? (
+        Version: typeof version === "number" && version > 0 ? (
                 <button type="button" onClick={onOpen}
                     onPointerEnter={() => prewarmDocumentView(doc)}
                     onFocus={() => prewarmDocumentView(doc)}
@@ -382,6 +382,7 @@ export function DocTable({
                     versions: cached.versions.map((v) => v.id === versionId ? updated : v),
                 });
             });
+            await refreshCollection();
         } catch (e) {
             console.error("renameDocumentVersion failed", e);
         }
@@ -504,7 +505,7 @@ export function DocTable({
             setWarning("collection", "Folder could not be deleted. Please try again.");
         }
     }
-    function handleDocsSelected() { void refreshCollection(); }
+    async function handleDocsSelected() { await refreshCollection(); }
     async function handleRemoveDocFromFolder(docId: string) {
         const parent = docsById.get(docId)?.folder_id;
         await operations.moveDocument(docId, null);
@@ -829,7 +830,7 @@ export function DocTable({
                                     disabled={loadingParents.has(row.parentId)}
                                     onClick={() => onLoadMore?.(row.parentId)}
                                     className={pillButtonClassName("white", "sm", "ml-8")}>
-                                    {loadingParents.has(row.parentId) ? "Loadingâ€¦" : "Load more"}
+                                    {loadingParents.has(row.parentId) ? "Loading…" : "Load more"}
                                 </button>
                             </div>
                         </div>
@@ -907,8 +908,9 @@ export function DocTable({
                     }
                     const doc = row.document;
                     const docName = doc.filename;
-                    const isProcessing = doc.status === "pending" || doc.status === "processing";
-                    const isError = doc.status === "error";
+                    const isProcessing = doc.parse_state?.status === "queued" ||
+                        doc.parse_state?.status === "parsing";
+                    const isError = doc.parse_state?.status === "failed";
                     const isVersionDragOver = dragOverSurface === `version:${doc.id}`;
                     const isUploadingVersion = uploadingVersionDocIds.has(doc.id);
                     const prewarm = () => prewarmDocumentView(doc);
@@ -1208,7 +1210,6 @@ export function DocTable({
                 }}
                 onLoadVersions={loadDocumentVersions}
                 onSelectVersion={(id) => set("viewingDocVersionId", id)}
-                onDownloadDocument={downloadDoc}
                 onDownloadVersion={downloadDocVersion}
                 onRenameVersion={handleRenameVersion}
                 onDeleteVersion={handleDeleteVersion}

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queueProviderPdfAttachment = vi.hoisted(() => vi.fn());
 const lookupProviderPdfReference = vi.hoisted(() => vi.fn());
 const rehydrateProviderPdfReference = vi.hoisted(() => vi.fn());
-const getCourtlistenerOpinionStructure = vi.hoisted(() => vi.fn());
+const hasNativeOpinionStructure = vi.hoisted(() => vi.fn());
 
 vi.mock("../providerPdfLibraryBridge", () => ({
   lookupProviderPdfReference,
@@ -11,12 +11,18 @@ vi.mock("../providerPdfLibraryBridge", () => ({
   rehydrateProviderPdfReference,
 }));
 
-vi.mock("../courtlistener", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../courtlistener")>()),
-  getCourtlistenerOpinionDocumentText: () => "Opinion text",
-  getCourtlistenerOpinionStructure,
-}));
-
+vi.mock("../legalSources/courtlistener", async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import("../legalSources/courtlistener")
+  >();
+  return {
+    ...original,
+    courtlistenerLegalSourceProvider: {
+      ...original.courtlistenerLegalSourceProvider,
+      hasNativeOpinionStructure,
+    },
+  };
+});
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
   guardedRemoteFetch: (
@@ -26,16 +32,8 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 import { runLocalAssistantTools } from "./support/localAssistantTools";
-import {
-  captureCourtlistenerCase,
-  courtlistenerPdfFallback,
-  runLocalCourtlistenerTool,
-  type CourtlistenerToolState,
-} from "../chat/courtlistenerToolRunner";
+import { courtlistenerPdfRendition } from "../chat/courtlistenerToolRunner";
 import { resourceReference } from "../resourceReferences";
-import { COURTLISTENER_TOOL_NAMES } from "../chat/tools/courtlistenerTools";
-import { appendLocalPdfPinpointLinks } from "../chat/localPdfEvidenceState";
-import { toolResultText } from "../chat/toolRegistry";
 
 const fallback = {
   provider: "courtlistener",
@@ -48,37 +46,14 @@ const fallback = {
 beforeEach(() => {
   queueProviderPdfAttachment.mockReset();
   queueProviderPdfAttachment.mockResolvedValue(fallback);
-  getCourtlistenerOpinionStructure.mockReset();
-  getCourtlistenerOpinionStructure.mockReturnValue({ blocks: [] });
+  hasNativeOpinionStructure.mockReset();
+  hasNativeOpinionStructure.mockReturnValue(false);
   lookupProviderPdfReference.mockReset();
   rehydrateProviderPdfReference.mockReset();
 });
 
 describe("provider PDF consumers", () => {
-  it("keeps find-in-case hits candidate-only", async () => {
-    const state: CourtlistenerToolState = {
-      casesByClusterId: new Map([[42, {
-        clusterId: 42,
-        caseName: "Example v Example",
-        citations: ["1 F.4th 2"],
-        url: null,
-        pdfUrl: null,
-        dateFiled: null,
-        opinions: [{ id: 7 }],
-      }]]),
-    };
-    const found = await runLocalCourtlistenerTool({
-      id: "find",
-      name: COURTLISTENER_TOOL_NAMES.findInCase,
-      input: { clusterId: 42, query: "Opinion" },
-    }, state);
-    expect(found?.metadata?.evidenceRefs).toEqual([
-      expect.objectContaining({ kind: "candidate", text: "Opinion text" }),
-    ]);
-    expect(found?.evidence).toBeUndefined();
-  });
-
-  it("returns queued/ready exact states and registers provider evidence links", async () => {
+  it("returns queued/ready exact states with direct provider evidence", async () => {
     const requestReference = `mike-provider-pdf:v1:govinfo:${"1".repeat(64)}`;
     const sourceReference = `${requestReference}:${"2".repeat(64)}`;
     const handle = `mike-evidence:v1:${"3".repeat(64)}`;
@@ -93,7 +68,6 @@ describe("provider PDF consumers", () => {
         download_status: "downloaded",
         source_sha256: "2".repeat(64),
         parse_status: "ready",
-        freshness_status: "current",
         fetched_at: "2026-07-27T00:00:00.000Z",
         checked_at: "2026-07-27T00:00:00.000Z",
       },
@@ -178,8 +152,6 @@ describe("provider PDF consumers", () => {
       })
       .mockResolvedValueOnce(ready);
     rehydrateProviderPdfReference.mockResolvedValue(ready);
-    const handles = new Set<string>();
-
     const [queued] = await runLocalAssistantTools(
       "local-user",
       [
@@ -193,7 +165,6 @@ describe("provider PDF consumers", () => {
           },
         },
       ],
-      { pdfHandles: handles },
     );
     expect(JSON.parse(queued.content)).toMatchObject({
       ok: false,
@@ -214,7 +185,6 @@ describe("provider PDF consumers", () => {
           },
         },
       ],
-      { pdfHandles: handles },
     );
     const payload = JSON.parse(resolved.content);
     expect(payload).toMatchObject({
@@ -222,24 +192,22 @@ describe("provider PDF consumers", () => {
       reference_id: sourceReference,
       request_reference: requestReference,
       handle,
-      freshness_status: "current",
     });
-    expect(payload.link.href).toContain(
-      "https://www.govinfo.gov/content/pkg/example/pdf/example.pdf#page=3",
-    );
-    expect(payload.link.href).not.toContain(":~:text=");
-    expect(payload.link.href.length).toBeLessThan(200);
-    expect(payload.link.href).not.toContain("single-documents");
-    expect(handles).toContain(handle);
-
-    const linked = await appendLocalPdfPinpointLinks(
-      'The court held that "The exact governing rule applies here."',
-      "local-user",
-      handles,
-    );
-    expect(linked).toContain("www.govinfo.gov");
-    expect(linked).toContain(":~:text=");
-    expect(linked).toMatch(/(?:-,|,-)/u);
+    expect(resolved.evidence).toEqual([
+      expect.objectContaining({
+        provider: "benchmark",
+        jurisdiction: "US",
+        source_class: "legislation",
+        dataset: "govinfo",
+        span_text: expect.stringContaining("exact governing rule"),
+        external_url:
+          "https://www.govinfo.gov/content/pkg/example/pdf/example.pdf#page=3",
+        locator: { kind: "page", label: "page=3" },
+      }),
+    ]);
+    expect(payload.evidence_ids).toEqual([
+      (resolved.evidence?.[0] as { evidence_id: string }).evidence_id,
+    ]);
 
     const [rehydrated] = await runLocalAssistantTools(
       "local-user",
@@ -253,7 +221,6 @@ describe("provider PDF consumers", () => {
           },
         },
       ],
-      { pdfHandles: handles },
     );
     expect(JSON.parse(rehydrated.content).reference_id).toBe(sourceReference);
     expect(rehydrateProviderPdfReference).toHaveBeenCalledWith(
@@ -264,8 +231,7 @@ describe("provider PDF consumers", () => {
 
   it("imports a CourtListener cluster PDF only when opinion structure is flat", async () => {
     const opinion = { id: 8, text: "Opinion text" };
-    const state: CourtlistenerToolState = { casesByClusterId: new Map() };
-    const cached = captureCourtlistenerCase(state, {
+    const cached = {
       clusterId: 42,
       caseName: "Example v. State",
       citations: ["1 F.4th 2"],
@@ -273,9 +239,9 @@ describe("provider PDF consumers", () => {
       pdfUrl: "https://storage.courtlistener.com/pdf/42.pdf",
       dateFiled: "2026-01-01",
       opinions: [opinion],
-    })!;
+    };
 
-    const flatResult = await courtlistenerPdfFallback(cached, "local-user");
+    const flatResult = await courtlistenerPdfRendition(cached, "local-user");
 
     expect(queueProviderPdfAttachment).toHaveBeenCalledWith({
       provider: "courtlistener",
@@ -291,40 +257,19 @@ describe("provider PDF consumers", () => {
     });
 
     queueProviderPdfAttachment.mockClear();
-    getCourtlistenerOpinionStructure.mockReturnValue({
-      blocks: [{ origin: "native" }],
-    });
-    await courtlistenerPdfFallback(cached, "local-user");
+    hasNativeOpinionStructure.mockReturnValue(true);
+    await courtlistenerPdfRendition(cached, "local-user");
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
 
-    getCourtlistenerOpinionStructure.mockImplementation((candidate) => ({
-      blocks:
-        (candidate as { id?: number }).id === 8 ? [{ origin: "native" }] : [],
-    }));
-    const mixed = captureCourtlistenerCase(state, {
+    hasNativeOpinionStructure.mockImplementation(
+      (candidate) => (candidate as { id?: number }).id === 8,
+    );
+    const mixed = {
       ...cached,
       opinions: [opinion, { id: 10, text: "Flat sibling opinion" }],
-    })!;
-    await courtlistenerPdfFallback(mixed, "local-user");
+    };
+    await courtlistenerPdfRendition(mixed, "local-user");
     expect(queueProviderPdfAttachment).toHaveBeenCalledOnce();
-  });
-
-  it("uses the case captured by unified Read for find_in_case", async () => {
-    const state = { casesByClusterId: new Map() };
-    captureCourtlistenerCase(state, {
-      clusterId: 42,
-      caseName: "Example v. State",
-      citations: ["1 F.4th 2"],
-      opinions: [{ opinionId: 8, text: "Opinion text" }],
-    });
-    const found = await runLocalCourtlistenerTool({
-      id: "find",
-      name: COURTLISTENER_TOOL_NAMES.findInCase,
-      input: { clusterId: 42, query: "Opinion" },
-    }, state);
-
-    expect(JSON.parse(toolResultText(found!.result)))
-      .toMatchObject({ ok: true, total_matches: 1 });
   });
 
   it("keeps A2AJ links server-side without queuing PDF work", async () => {
@@ -367,7 +312,7 @@ describe("provider PDF consumers", () => {
     const fetchPayload = JSON.parse(response.content);
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
     expect(fetchPayload.url).toBeUndefined();
-    expect(fetchPayload.pdf_fallback).toBeUndefined();
+    expect(fetchPayload.pdf_rendition).toBeUndefined();
 
     const [lookupResponse] = await runLocalAssistantTools("local-user", [
       {
@@ -383,6 +328,18 @@ describe("provider PDF consumers", () => {
     const lookupPayload = JSON.parse(lookupResponse.content);
     expect(queueProviderPdfAttachment).not.toHaveBeenCalled();
     expect(lookupPayload.url).toBeUndefined();
-    expect(lookupPayload.pdf_fallback).toBeUndefined();
+    expect(lookupPayload.pdf_rendition).toBeUndefined();
+
+    const [found] = await runLocalAssistantTools("local-user", [{
+      id: "find-a2aj",
+      name: "Read",
+      input: { file_path: source, pattern: "substantive judicial language" },
+    }]);
+    expect(JSON.parse(found.content)).toMatchObject({
+      ok: true,
+      query: "substantive judicial language",
+      total_matches: 6,
+    });
+    expect(found.evidenceRefs?.[0]).toMatchObject({ kind: "candidate" });
   });
 });

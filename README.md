@@ -26,7 +26,6 @@ If `OpenLegalData`, `TableOfAuthoritiesMaker`, or
 
 ```powershell
 Copy-Item backend\.env.example backend\.env
-Copy-Item frontend\.env.local.example frontend\.env.local
 npm ci
 npm ci --prefix backend
 npm ci --prefix frontend
@@ -34,7 +33,7 @@ python -m venv universal-legal-pdf-engine\.venv
 .\universal-legal-pdf-engine\.venv\Scripts\python -m pip install -e .\universal-legal-pdf-engine
 ```
 
-Keep `AUTH_MODE=anonymous` and `NEXT_PUBLIC_AUTH_MODE=anonymous` for local use.
+Keep `AUTH_MODE=local` for account-free use.
 Replace `DOWNLOAD_SIGNING_SECRET` in `backend\.env`; add only the provider keys
 you use. A2AJ lookup and local Library storage do not require cloud accounts.
 

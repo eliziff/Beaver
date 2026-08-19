@@ -2,12 +2,11 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { createReadStream } from "node:fs";
 import {
-  access, copyFile, link, mkdir, open, readFile, rename, rm, stat, writeFile,
+  copyFile, link, mkdir, open, readFile, rename, rm, stat, writeFile,
 } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
 import { LEGAL_PDF_DOCUMENT_SCHEMA } from "./legalPdfProcess";
-import { LOCAL_PDF_SOURCE_SCHEMA } from "./legalPdfSourceDoc";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type JsonObject = Record<string, unknown>;
@@ -16,8 +15,8 @@ export const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
 const MAX_ARTIFACT_BYTES = 128 * 1024 * 1024;
 const PROJECTION_SCHEMA = "mike.document_projection.v1";
 const REQUIRED_ARTIFACTS = [
-  "pages", "paragraphs", "sections", "footnotes", "diagnostics", "repairs",
-  "parser_config",
+  "pages", "paragraphs", "sections", "footnotes", "tables", "images",
+  "diagnostics", "repairs",
 ] as const;
 
 export type PdfProjectionIdentity = {
@@ -68,16 +67,6 @@ function canonicalJson(value: unknown) {
   return encoded;
 }
 
-export function canonicalProjectionOptions(value: unknown) {
-  return canonical(value);
-}
-
-export function projectionKey(format: string, identity: unknown) {
-  if (!/^[a-z][a-z0-9-]{0,31}$/u.test(format))
-    throw new Error("Document projection format is invalid");
-  return sha256(canonicalJson([PROJECTION_SCHEMA, format, identity]));
-}
-
 export function pdfProjectionIdentity(identity: PdfProjectionIdentity): PdfProjectionIdentity {
   const checked = {
     documentId: boundedText(identity.documentId, "Projection document id"),
@@ -119,10 +108,6 @@ export function projectionDirectory(format: string, key: string) {
   if (!/^[a-z][a-z0-9-]{0,31}$/u.test(format) || !/^[a-f0-9]{64}$/u.test(key))
     throw new Error("Document projection key is invalid");
   return path.join(projectionRoot(), format, key.slice(0, 2), key);
-}
-
-export function projectionFormatRoot(format: string) {
-  return path.dirname(path.dirname(projectionDirectory(format, "0".repeat(64))));
 }
 
 export function pdfProjectionDirectory(identity: PdfProjectionIdentity) {
@@ -354,8 +339,7 @@ export async function publishPdfProjection(identity_: PdfProjectionIdentity) {
   const identity = pdfProjectionIdentity(identity_), directory = pdfProjectionDirectory(identity);
   const manifestPath = path.join(directory, "document.json");
   const manifestRaw = await readFile(manifestPath, "utf8"), manifest = JSON.parse(manifestRaw) as JsonObject;
-  if (manifest.schema_version !== LOCAL_PDF_SOURCE_SCHEMA ||
-      manifest.engine_schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
+  if (manifest.schema_version !== LEGAL_PDF_DOCUMENT_SCHEMA ||
       manifest.artifact_profile !== "compact-source" ||
       manifest.source_sha256 !== identity.sourceSha256 ||
       manifest.parser_version !== identity.compiler.version)
@@ -368,7 +352,7 @@ export async function publishPdfProjection(identity_: PdfProjectionIdentity) {
   for (const name of REQUIRED_ARTIFACTS) {
     const filename = artifactPath(directory, names[name]);
     artifacts[name] = { path: path.relative(directory, filename), ...await hashArtifact(filename) };
-    if (name !== "parser_config") rowCounts[name] = await validateRows(filename);
+    rowCounts[name] = await validateRows(filename);
     totalSize += artifacts[name].size;
     if (totalSize > MAX_ARTIFACT_BYTES)
       throw new Error("PDF projection artifacts exceed the size limit");
@@ -379,11 +363,6 @@ export async function publishPdfProjection(identity_: PdfProjectionIdentity) {
   ) || manifest.page_count !== rowCounts.pages) {
     throw new Error("PDF projection artifact counts do not match its manifest");
   }
-  const parserConfig = JSON.parse(await readFile(artifactPath(directory, names.parser_config), "utf8"));
-  if (parserConfig.source_sha256 !== identity.sourceSha256 ||
-      parserConfig.parser_version !== identity.compiler.version ||
-      canonicalJson(parserConfig.projection_options) !== canonicalJson(identity.options))
-    throw new Error("PDF projection compiler options do not match its identity");
   const receipt = { schema_version: PROJECTION_SCHEMA, key: pdfProjectionKey(identity), identity,
     manifest_sha256: sha256(manifestRaw), artifacts } satisfies ProjectionReceipt;
   await atomicWriteProjection(path.join(directory, "projection.json"),
@@ -415,19 +394,7 @@ export async function openPdfProjection(identity_: PdfProjectionIdentity) {
       throw new Error(`PDF projection ${name} artifact failed integrity validation`);
   }
   const manifest = JSON.parse(manifestRaw) as JsonObject;
-  const rows = new Map<string, Promise<JsonObject[]>>();
-  const readRows = (name: string) => {
-    const artifact = receipt.artifacts[name];
-    if (!artifact) return Promise.reject(new Error(`PDF projection ${name} artifact is unavailable`));
-    let pending = rows.get(name);
-    if (!pending) {
-      pending = readFile(artifactPath(directory, artifact.path), "utf8").then((raw) => raw
-        .split(/\r?\n/u).filter((line) => line.trim()).map((line) => JSON.parse(line) as JsonObject));
-      rows.set(name, pending);
-    }
-    return pending;
-  };
-  return { key: receipt.key, identity, directory, manifest, readRows };
+  return { key: receipt.key, identity, directory, manifest };
 }
 
 export async function removePdfProjection(identity: PdfProjectionIdentity) {

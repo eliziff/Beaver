@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
     chats: [] as { id: string; title: string | null }[],
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ replace: mocks.replace }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => mocks.replace,
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     BeaverApiError: mocks.BeaverApiError,
@@ -73,7 +73,7 @@ it("leaves a missing chat route", () => {
 
     renderHook(() => useAssistantChatRoute({ chatId: "chat-1" }));
 
-    expect(mocks.replace).toHaveBeenCalledWith("/assistant");
+    expect(mocks.replace).toHaveBeenCalledWith("/assistant", { replace: true });
 });
 
 it("loads one canonical standalone transcript and metadata", async () => {
@@ -132,6 +132,7 @@ it("redirects a project-bound standalone chat without loading it twice", async (
     await waitFor(() =>
         expect(mocks.replace).toHaveBeenCalledWith(
             "/projects/project-1/assistant/chat/chat-1",
+            { replace: true },
         ),
     );
     await waitFor(() =>
@@ -163,6 +164,7 @@ it("keeps a pending turn and defers project routing until it finishes", async ()
     await waitFor(() =>
         expect(mocks.replace).toHaveBeenCalledWith(
             "/projects/project-2/assistant/chat/chat-1",
+            { replace: true },
         ),
     );
 });

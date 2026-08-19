@@ -16,7 +16,7 @@ second application. Delete code before adding abstractions.
 
 ## Hard constraints
 
-- Keep anonymous local mode, cloud/Supabase mode, Hansard, legal evidence,
+- Keep account-free local mode, cloud/Supabase mode, Hansard, legal evidence,
   pinpoints, hashes, receipts, and document-version semantics.
 - Do not import Supabase, R2, heavy viewers, Authorities, graph, or tabular
   code into a route that does not use it.

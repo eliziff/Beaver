@@ -4,7 +4,7 @@ Date researched: 2026-07-26 MDT / 2026-07-27 UTC
 
 This report independently evaluates the hypotheses in
 `docs/session-compaction-and-context-efficiency.md` and the benchmark material in
-`frontend/public/mike-research-reader.html`. It does not rely on the other
+`frontend/experiments/prototypes/mike-research-reader.html`. It does not rely on the other
 research track.
 
 ## Bottom line

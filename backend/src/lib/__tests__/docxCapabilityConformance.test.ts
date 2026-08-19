@@ -5,8 +5,8 @@
  * wire": the model drafts simplified Markdown and a deterministic renderer
  * (`renderDocxMarkdown` in chat/tools/docxMarkdown.ts) converts it to DOCX;
  * source DOCX files are read back into the model-visible drafting view
- * (`extractDocxDraftingSource` in docxDraftingSource.ts, plus the numbering
- * resolver and the redline projection for the planes those flatten).
+ * (`extractDocxDraftingSource` in docxDraftingSource.ts, plus the redline
+ * projection for the plane it flattens).
  *
  * This suite pins, per feature class, what the REAL conversion functions
  * actually preserve in each direction:
@@ -14,7 +14,6 @@
  *   INGESTION  .docx  →  drafting source Markdown (the model-visible view)
  *                        + extractDocxBodyText (the accepted body text plane
  *                          find/context strings operate against)
- *                        + resolveDocxNumbering (labels mammoth drops)
  *                        + projectDocxRedline (the marked-up read mode)
  *   OUTPUT     Markdown →  renderDocxMarkdown → the produced .docx, opened
  *                        with JSZip so the class's OOXML presence is checked
@@ -41,12 +40,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
-import {
-  applyNumberingToText,
-  resolveDocxNumbering,
-} from "../docx/numbering";
 import { projectDocxRedline } from "../docx/redline";
-import { extractDocxStories } from "../docx/stories";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import { buildPathologyFixtures } from "./fixtures/docx-pathologies/generate";
 
@@ -177,12 +171,12 @@ describe("tables (merged / nested)", () => {
 });
 
 describe("auto-numbering", () => {
-  it("ingestion: labels live only in numbering.xml, recovered by the resolver", async () => {
+  it("ingestion: labels live only in numbering.xml and the drafting source renders them", async () => {
     const bytes = fixture("auto-numbered");
     const body = await extractDocxBodyText(bytes);
 
     // The numbers appear nowhere in the text planes the body flattener
-    // reads — this is exactly why the numbering resolver exists.
+    // reads — specialist numbering analysis must reconstruct them from OOXML.
     expect(body).toBe(
       "Definitions.\nAffiliate has the meaning given.\nGoverning law.",
     );
@@ -195,17 +189,6 @@ describe("auto-numbering", () => {
     // trailing period from the document text).
     expect(source.markdown).toMatch(/1\.\s+Definitions/iu);
     expect(source.markdown).toContain("Affiliate has the meaning given.");
-
-    const { labels, notes } = await resolveDocxNumbering(bytes);
-    expect([...labels.entries()]).toEqual([
-      [0, "1."],
-      [1, "(a)"],
-      [2, "2."],
-    ]);
-    expect(applyNumberingToText(body, labels)).toBe(
-      "1. Definitions.\n(a) Affiliate has the meaning given.\n2. Governing law.",
-    );
-    expect(notes).toEqual([]);
   });
 
   it("output: headings and ordered lists carry numbering properties", async () => {
@@ -262,16 +245,6 @@ describe("tracked changes", () => {
       tracked_insertions: 2,
       tracked_deletions: 1,
     });
-
-    // The story layer records the revision flags on the runs.
-    const stories = await extractDocxStories(bytes);
-    expect(stories.body[0].text).toBe("The seat of arbitration is Toronto.");
-    expect(stories.body[0].runs.find((run) => run.text === "Zurich")?.del).toBe(
-      true,
-    );
-    expect(stories.body[0].runs.find((run) => run.text === "Toronto")?.ins).toBe(
-      true,
-    );
   });
 
   it("output: Markdown carries no revision markup and records no edits", async () => {
@@ -305,15 +278,6 @@ describe("headers and footers", () => {
       "Footers are not included in the drafting source.",
     );
     expect(source.requires_review).toBe(true);
-
-    // The story layer still reads the parts the drafting view drops.
-    const stories = await extractDocxStories(bytes);
-    expect(stories.headers.map((p) => p.map((x) => x.text).join(" "))).toEqual([
-      "PRIVILEGED AND CONFIDENTIAL",
-    ]);
-    expect(stories.footers.map((p) => p.map((x) => x.text).join(" "))).toEqual([
-      "Execution version",
-    ]);
   });
 
   it("ingestion: a page-number-only footer is not a dropped-text warning", async () => {
@@ -353,10 +317,6 @@ describe("footnotes", () => {
     expect(source.markdown).not.toContain('href="#footnote-');
     expect(source.requires_review).toBe(true);
 
-    // The story layer keeps the native note ids.
-    const stories = await extractDocxStories(bytes);
-    expect([...stories.footnotes.keys()]).toEqual(["1", "2"]);
-    expect([...stories.endnotes.keys()]).toEqual(["1"]);
     expect(source.warnings).toContain("Endnotes may require manual review.");
   });
 
@@ -392,12 +352,6 @@ describe("text boxes", () => {
       "Text-box content is not included in the drafting source.",
     );
     expect(source.requires_review).toBe(true);
-
-    // The story layer reads text boxes as their own plane.
-    const stories = await extractDocxStories(bytes);
-    expect(stories.textBoxes.map((p) => p.map((x) => x.text).join(" "))).toEqual(
-      ["Draft only - not for execution."],
-    );
   });
 
   it("output: Markdown has no text-box concept, so none is authored", async () => {

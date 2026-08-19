@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { BookOpenText, History, PanelLeft, Settings, Trash2 } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
@@ -12,7 +11,7 @@ import {
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { cn } from "@/app/lib/utils";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
@@ -35,7 +34,7 @@ const NAV_ITEMS = [
     icon: TabularReviewSkeuoIcon,
   },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
-  ...(!isAnonymousMode
+  ...(!isLocalMode
     ? [{ href: "/history", label: "History", icon: History }]
     : []),
 ];
@@ -68,8 +67,8 @@ export function AppSidebar({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { chats, hasMoreChats, loadMoreChats, loadChats, deleteChat } =
     useChatHistoryContext();
-  const pathname = usePathname();
-  const router = useRouter();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   useEffect(() => {
     if (!mobileOpen) return;
     const opener =
@@ -150,7 +149,7 @@ export function AppSidebar({
     try {
       await Promise.all(uniqueIds.map((id) => deleteChat(id)));
       if (routeChatId && uniqueIds.includes(routeChatId)) {
-        router.replace("/assistant");
+        navigate("/assistant", { replace: true });
       }
     } finally {
       setSelectedChatIds(new Set());
@@ -248,7 +247,7 @@ export function AppSidebar({
         <div className="flex items-center justify-between px-2.5 py-3">
           <div className="px-2">
             <Link
-              href="/assistant"
+              to="/assistant"
               className="flex items-center gap-1.5 hover:opacity-80"
               onClick={mobileOpen ? onToggle : undefined}
             >
@@ -278,13 +277,13 @@ export function AppSidebar({
             return (
               <div key={href} className="px-2.5 py-0.5">
                 <Link
-                  href={href}
-                  onNavigate={
-                    href === "/table-of-authorities"
-                      ? onAuthoritiesNavigate
-                      : undefined
-                  }
-                  onClick={mobileOpen ? onToggle : undefined}
+                  to={href}
+                  onClick={() => {
+                    if (href === "/table-of-authorities") {
+                      onAuthoritiesNavigate?.();
+                    }
+                    if (mobileOpen) onToggle();
+                  }}
                   title={label}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
@@ -349,7 +348,7 @@ export function AppSidebar({
                         isSelectionActionOwner={
                           selectionActionChatId === chat.id
                         }
-                        href={`/assistant/chat/${chat.id}`}
+                        to={`/assistant/chat/${chat.id}`}
                         onNavigate={mobileOpen ? onToggle : undefined}
                         onClearSelection={() => {
                           setSelectedChatIds(new Set());

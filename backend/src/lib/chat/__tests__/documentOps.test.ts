@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildPptxPresentation,
   findTextMatches,
   presentationFromMarkdown,
   renderXlsxWorkbook,
@@ -76,5 +77,25 @@ describe("Write markup", () => {
       title: "Result",
       bullets: ["Motion granted"],
     }]);
+  });
+
+  it("writes an openable PPTX package with every requested slide", async () => {
+    const slides = presentationFromMarkdown([
+      "## Result",
+      "- Motion granted & costs reserved",
+      "## Next step",
+      "- Serve the order",
+    ].join("\n"));
+    const zip = await (await import("jszip")).default.loadAsync(
+      await buildPptxPresentation(slides),
+    );
+    expect(zip.file("[Content_Types].xml")).not.toBeNull();
+    expect(zip.file("ppt/presentation.xml")).not.toBeNull();
+    expect(zip.file("ppt/slides/slide1.xml")).not.toBeNull();
+    expect(zip.file("ppt/slides/slide2.xml")).not.toBeNull();
+    expect(await zip.file("ppt/slides/slide1.xml")!.async("text"))
+      .toContain("Motion granted &amp; costs reserved");
+    expect(await zip.file("ppt/slides/slide2.xml")!.async("text"))
+      .toContain("Serve the order");
   });
 });

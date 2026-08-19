@@ -30,8 +30,8 @@ describe("recordChatTurn", () => {
   it("records the turn and its generated artifacts", async () => {
     const { db, inserts } = makeDb();
     await recordChatTurn(db, base, [
-      { type: "doc_created", filename: "brief.docx", document_id: "d1" },
-      { type: "doc_edited", filename: "memo.docx", document_id: "d2" },
+      { type: "document_artifact", action: "created", filename: "brief.docx", document_id: "d1" },
+      { type: "document_artifact", action: "edited", filename: "memo.docx", document_id: "d2" },
       { type: "workflow_applied", workflow_id: "wf1", title: "Cleanup" },
     ]);
 

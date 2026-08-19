@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedToolCall } from "../llm";
+import { createBenchmarkEvidence } from "./legalEvidence";
 import {
   LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
@@ -191,6 +192,17 @@ describe("TurnToolRegistry", () => {
   });
 
   it("hides structured URLs and bounds every model-visible result", async () => {
+    const evidence = createBenchmarkEvidence({
+      jurisdiction: "CA",
+      sourceClass: "case",
+      stableSourceId: "case-1",
+      sourceText: "The appeal is allowed.",
+      spanText: "The appeal is allowed.",
+      citation: "2024 SCC 1",
+      dataset: "test",
+      locatorKind: "paragraph",
+      locatorLabel: "par1",
+    });
     const registry = new TurnToolRegistry([
       tool("structured", {
         async execute() {
@@ -201,6 +213,7 @@ describe("TurnToolRegistry", () => {
               nested: { href: "https://secret.example/link", label: "source" },
               quoted_text: "The document itself says https://public.example/",
             }),
+            evidence: [evidence],
           };
         },
       }),
@@ -223,6 +236,11 @@ describe("TurnToolRegistry", () => {
       "source_url",
       "https://secret.example/source",
     );
+    expect(batch.results[0].evidenceRefs).toEqual([expect.objectContaining({
+      handle: evidence.evidence_id,
+      text: evidence.span_text,
+      exactSha256: evidence.exact_span_sha256,
+    })]);
     expect(batch.results[1].content).toHaveLength(MAX_MODEL_TOOL_RESULT_CHARS);
     expect(batch.results[1].content).toContain("tool result truncated");
     expect(batch.results[1].status).toBe("truncated");

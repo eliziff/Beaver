@@ -19,7 +19,6 @@ interface Props {
 }
 type RosterRow = {
     email: string | null;
-    user_id?: string | null;
     display_name: string | null;
     role: "owner" | "member";
 };
@@ -84,7 +83,6 @@ export function PeopleModal({
     if (people?.owner || ownerEmail || ownerDisplayName) {
         roster.push({
             email: ownerEmail,
-            user_id: people?.owner.user_id ?? null,
             display_name: ownerDisplayName,
             role: "owner",
         });
@@ -136,6 +134,7 @@ export function PeopleModal({
                 e instanceof Error
                     ? e.message
                     : "Couldn't add the member. Try again.",
+                { cause: e },
             );
         } finally {
             setPending(null);
@@ -208,10 +207,7 @@ export function PeopleModal({
                         <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
                             {roster.map((entry) => {
                                 const entryEmail = entry.email ?? "";
-                                const rowKey =
-                                    entry.email ??
-                                    entry.user_id ??
-                                    `${entry.role}-unknown`;
+                                const rowKey = entry.email ?? entry.role;
                                 const isYou =
                                     !!normalizedCurrentUserEmail &&
                                     !!entryEmail &&

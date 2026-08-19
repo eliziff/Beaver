@@ -12,7 +12,7 @@ import {
 } from "@/app/lib/beaverApi";
 import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
 
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     fixLibraryDocxSupras: vi.fn(),
     inspectLibraryDocumentAutomation: vi.fn(),

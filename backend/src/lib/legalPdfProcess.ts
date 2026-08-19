@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -59,7 +61,6 @@ export function configuredLegalPdfLayout(
   if (requested && requested !== "local") {
     throw new Error("MIKE_PDF_LAYOUT_PROVIDER must be none, local, or mllm");
   }
-  if (env.NODE_ENV === "test" && !requested) return null;
   const root = legalPdfEngineRoot({ ...options, env });
   const platform = options?.platform ?? process.platform;
   const exists = options?.exists ?? existsSync;
@@ -158,10 +159,10 @@ export function configuredLegalPdfOcrProvider(
   const env = options?.env ?? process.env;
   const value = env.MIKE_PDF_OCR_PROVIDER?.trim();
   if (value) {
+    if (value === "none") return null;
     if (value === "kraken-lite" || value === "tesseract") return value;
-    throw new Error("MIKE_PDF_OCR_PROVIDER must be kraken-lite or tesseract");
+    throw new Error("MIKE_PDF_OCR_PROVIDER must be none, kraken-lite, or tesseract");
   }
-  if (env.NODE_ENV === "test") return null;
   const root = legalPdfEngineRoot({ ...options, env });
   const platform = options?.platform ?? process.platform;
   const [runtime, layout] = nativeLibraryNames(platform);
@@ -361,7 +362,7 @@ export function legalPdfBinary(options?: LegalPdfRuntimeOptions) {
 
 export async function runLegalPdf(
   args: string[],
-  options?: { timeoutMs?: number; signal?: AbortSignal },
+  options?: { timeoutMs?: number; signal?: AbortSignal; maxBuffer?: number },
 ) {
   const root = legalPdfEngineRoot();
   return execFileAsync(
@@ -370,10 +371,53 @@ export async function runLegalPdf(
     {
       cwd: root,
       env: process.env,
-      maxBuffer: 2 * 1024 * 1024,
+      maxBuffer: options?.maxBuffer ?? 2 * 1024 * 1024,
       timeout: options?.timeoutMs ?? 11 * 60 * 1000,
       signal: options?.signal,
       windowsHide: true,
     },
   );
+}
+
+export async function runLegalPdfContract<T>(
+  artifact: string,
+  operation: "source_doc" | "structure_lookup",
+  request: Record<string, unknown> = {},
+  options?: { signal?: AbortSignal; maxBuffer?: number },
+): Promise<T> {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "mike-legalpdf-contract-"));
+  const input = path.join(temporary, "request.json");
+  try {
+    const encoded = JSON.stringify({
+      schema_version: "legalpdf.contract-input.v1",
+      operation,
+      artifact: path.resolve(artifact),
+      ...request,
+    });
+    if (Buffer.byteLength(encoded) > 64 * 1024) {
+      throw new Error("Legal PDF contract request is too large");
+    }
+    await writeFile(input, encoded, { signal: options?.signal });
+    const { stdout } = await runLegalPdf(["contract", input], {
+      signal: options?.signal,
+      maxBuffer: options?.maxBuffer,
+    });
+    const response = JSON.parse(stdout) as {
+      schema_version?: unknown;
+      operation?: unknown;
+      result?: unknown;
+    };
+    if (
+      response.schema_version !== "legalpdf.contract-result.v1" ||
+      response.operation !== operation ||
+      !response.result ||
+      typeof response.result !== "object" ||
+      Array.isArray(response.result)
+    ) {
+      throw new Error("Legal PDF engine returned an invalid contract result");
+    }
+    return response.result as T;
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 }

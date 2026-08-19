@@ -1,116 +1,73 @@
-"use client";
 import {
     createContext,
-    type ReactNode,
     useCallback,
     useContext,
-    useEffect,
     useMemo,
     useState,
+    type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { MessageSquarePlus, Upload } from "lucide-react";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { DocTable } from "@/app/components/documents/DocTable";
-import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
-import { stageNewChatDocuments } from "@/app/components/assistant/assistantLaunch";
-import type {
-    DocTableFolder,
-    DocTableSelectionActions,
-} from "@/app/components/documents/DocTable";
-import { PageHeader } from "@/app/components/shared/PageHeader";
-import { TableToolbar } from "@/app/components/shared/TableToolbar";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import {
-    createLibraryFolder,
-    deleteLibraryFolder,
-    getLibrary,
-    moveLibraryDocument,
-    moveLibraryFolder,
-    renameLibraryDocument,
-    renameLibraryFolder,
+    DocTable,
+    type DocTableFolder,
+    type DocTableSelectionActions,
+} from "../documents/DocTable";
+import { DocumentAutomation } from "../documents/DocumentAutomation";
+import { FolderSvgIcon } from "../shared/FolderSvgIcon";
+import { PageHeader } from "../shared/PageHeader";
+import { TableToolbar } from "../shared/TableToolbar";
+import type { Document } from "../shared/types";
+import { TabPillButton } from "../ui/tab-pill-button";
+import { usePagedDirectory } from "../../hooks/usePagedDirectory";
+import {
+    directoryResource,
     retryLibraryPdfParse,
-    uploadLibraryDocument,
     type LibraryKind,
-} from "@/app/lib/beaverApi";
-import type { Document } from "@/app/components/shared/types";
-import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
-type LibraryView = { search: string };
-type LibraryViews = Record<LibraryKind, LibraryView>;
-type LibraryViewPatch =
-    | Partial<LibraryView>
-    | ((view: LibraryView) => Partial<LibraryView>);
-type LibraryWorkspaceContextValue = {
-    views: LibraryViews;
-    updateView: (kind: LibraryKind, patch: LibraryViewPatch) => void;
-};
+} from "../../lib/beaverApi";
+
 export const LIBRARY_TABS = [
     { id: "files", label: "Files" },
     { id: "templates", label: "Templates" },
 ] as const;
-export function libraryRoute(tab: (typeof LIBRARY_TABS)[number]["id"]) {
-    return tab === "files" ? "/library" : `/library/${tab}`;
+
+export const libraryRoute = (tab: LibraryKind) =>
+    tab === "files" ? "/library" : `/library/${tab}`;
+
+type LibraryViews = Record<LibraryKind, { search: string }>;
+const LibraryWorkspace = createContext<{
+    views: LibraryViews;
+    setSearch: (kind: LibraryKind, search: string) => void;
+} | null>(null);
+
+export function LibraryWorkspaceProvider({ children }: { children: ReactNode }) {
+    const [views, setViews] = useState<LibraryViews>({
+        files: { search: "" },
+        templates: { search: "" },
+    });
+    const setSearch = useCallback((kind: LibraryKind, search: string) => {
+        setViews((current) => ({
+            ...current,
+            [kind]: { ...current[kind], search },
+        }));
+    }, []);
+    const value = useMemo(() => ({ views, setSearch }), [setSearch, views]);
+    return (
+        <LibraryWorkspace.Provider value={value}>
+            {children}
+        </LibraryWorkspace.Provider>
+    );
 }
-const INITIAL_VIEWS: LibraryViews = {
-    files: { search: "" },
-    templates: { search: "" },
-};
-const LibraryWorkspaceContext =
-    createContext<LibraryWorkspaceContextValue | null>(null);
-function useLibraryWorkspace() {
-    const context = useContext(LibraryWorkspaceContext);
-    if (!context) {
-        throw new Error(
-            "useLibraryWorkspace must be used inside LibraryWorkspaceProvider",
-        );
-    }
-    return context;
-}
+
 function useStoredAction() {
     const [action, setAction] = useState<(() => void) | null>(null);
-    const onChange = useCallback(
-        (next: (() => void) | null) => setAction(() => next),
-        [],
-    );
-    return [action, onChange] as const;
+    return [
+        action,
+        useCallback((next: (() => void) | null) => setAction(() => next), []),
+    ] as const;
 }
-export function LibraryWorkspaceProvider({
-    children,
-}: {
-    children: ReactNode;
-}) {
-    const [views, setViews] = useState(INITIAL_VIEWS);
-    const updateView = useCallback((kind: LibraryKind, patch: LibraryViewPatch) => {
-        setViews((prev) => {
-            const current = prev[kind];
-            return {
-                ...prev,
-                [kind]: {
-                    ...current,
-                    ...(typeof patch === "function" ? patch(current) : patch),
-                },
-            };
-        });
-    }, []);
-    const value = useMemo(
-        () => ({ views, updateView }),
-        [views, updateView],
-    );
-    return (
-        <LibraryWorkspaceContext.Provider value={value}>
-            {children}
-        </LibraryWorkspaceContext.Provider>
-    );
-}
-export function LibraryWorkspaceLayout({ children }: { children: ReactNode }) {
-    const router = useRouter();
-    useEffect(() => {
-        for (const tab of LIBRARY_TABS) {
-            router.prefetch(libraryRoute(tab.id));
-        }
-    }, [router]);
-    return <LibraryWorkspaceProvider>{children}</LibraryWorkspaceProvider>;
-}
+
 export function LibraryCollectionPage({
     kind,
     onKindChange,
@@ -122,80 +79,81 @@ export function LibraryCollectionPage({
     onOpenInChat?: (documents: Document[]) => void;
     embedded?: boolean;
 }) {
-    const router = useRouter();
-    const { views, updateView } = useLibraryWorkspace();
-    const view = views[kind];
-    const title = kind === "files" ? "Files" : "Templates";
-    const directory = usePagedDirectory(
-        (parentId, q, cursor, signal) => getLibrary(kind, {
-            parent_id: parentId,
-            q,
-            cursor,
-        }, signal),
-        view.search,
-        [kind, view.search],
-    );
-    const [addDocumentsAction, handleAddDocumentsActionChange] =
-        useStoredAction();
-    const [createFolderAction, handleCreateFolderActionChange] =
-        useStoredAction();
-    const [selectionActions, setSelectionActions] =
+    const navigate = useNavigate();
+    const workspace = useContext(LibraryWorkspace);
+    const [localSearch, setLocalSearch] = useState("");
+    const search = workspace?.views[kind].search ?? localSearch;
+    const setSearch = (value: string) =>
+        workspace ? workspace.setSearch(kind, value) : setLocalSearch(value);
+    const [selection, setSelection] =
         useState<DocTableSelectionActions | null>(null);
-    const loading = directory.loading;
+    const [upload, setUpload] = useStoredAction();
+    const [createFolder, setCreateFolder] = useStoredAction();
+    const title = kind === "files" ? "Files" : "Templates";
+    const resource = useMemo(() => directoryResource({ library: kind }), [kind]);
+    const directory = usePagedDirectory(
+        (parentId, q, cursor, signal) =>
+            resource.list({ parent_id: parentId, q, cursor }, signal),
+        search,
+        [resource, search],
+    );
     const operations = useMemo(
         () => ({
-            uploadDocument: uploadLibraryDocument.bind(null, kind),
-            refreshCollection: (parentId?: string | null) => directory.reload(parentId),
-            createFolder: createLibraryFolder.bind(null, kind),
-            renameFolder: renameLibraryFolder.bind(null, kind),
-            deleteFolder: deleteLibraryFolder.bind(null, kind),
-            moveFolder: moveLibraryFolder.bind(null, kind),
-            moveDocument: moveLibraryDocument.bind(null, kind),
-            renameDocument: renameLibraryDocument.bind(null, kind),
+            ...resource,
+            refreshCollection: (parentId?: string | null) =>
+                directory.reload(parentId),
             retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
-        [directory.reload, kind],
+        [directory.reload, kind, resource],
     );
+
+    function openChat() {
+        const documents = selection?.selectedDocuments ?? [];
+        if (onOpenInChat) onOpenInChat(documents);
+        else {
+            stageNewChatDocuments(documents);
+            navigate("/assistant");
+        }
+    }
+
     return (
         <div className="flex h-full min-h-0 flex-col">
-            {!embedded && <PageHeader
-                breadcrumbs={[{ label: "Library" }, { label: title }]}
-                actions={[
-                    {
-                        type: "search",
-                        value: view.search,
-                        onChange: (search) => updateView(kind, { search }),
-                        placeholder: `Search ${title.toLowerCase()}...`,
-                    },
-                    {
-                        icon: <Upload className="h-3.5 w-3.5" />,
-                        label: (
-                            <span className="hidden sm:inline">
-                                Upload
-                            </span>
-                        ),
-                        title: "Upload",
-                        onClick: addDocumentsAction ?? undefined,
-                        disabled: !addDocumentsAction || loading,
-                    },
-                ]}
-            />}
+            {!embedded && (
+                <PageHeader
+                    breadcrumbs={[{ label: "Library" }, { label: title }]}
+                    actions={[
+                        {
+                            type: "search",
+                            value: search,
+                            onChange: setSearch,
+                            placeholder: `Search ${title.toLowerCase()}…`,
+                        },
+                        {
+                            icon: <Upload className="h-3.5 w-3.5" />,
+                            label: <span className="hidden sm:inline">Upload</span>,
+                            title: "Upload",
+                            onClick: upload ?? undefined,
+                            disabled: !upload || directory.loading,
+                        },
+                    ]}
+                />
+            )}
             {embedded && (
                 <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2">
                     <label className="flex h-9 min-w-0 flex-1 items-center rounded-md border border-gray-300 bg-white px-3">
                         <span className="sr-only">Search {title.toLowerCase()}</span>
                         <input
                             type="search"
-                            value={view.search}
-                            onChange={(event) => updateView(kind, { search: event.currentTarget.value })}
-                            placeholder={`Search ${title.toLowerCase()}...`}
+                            value={search}
+                            onChange={(event) => setSearch(event.currentTarget.value)}
+                            placeholder={`Search ${title.toLowerCase()}…`}
                             className="min-w-0 flex-1 bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400 sm:text-sm"
                         />
                     </label>
                     <button
                         type="button"
-                        onClick={addDocumentsAction ?? undefined}
-                        disabled={!addDocumentsAction || loading}
+                        onClick={upload ?? undefined}
+                        disabled={!upload || directory.loading}
                         className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-40"
                         aria-label="Upload"
                         title="Upload"
@@ -208,50 +166,49 @@ export function LibraryCollectionPage({
                 <TableToolbar
                     items={LIBRARY_TABS}
                     active={kind}
-                    onChange={(next) => {
-                        if (onKindChange) onKindChange(next);
-                        else router.push(libraryRoute(next));
-                    }}
+                    onChange={(next) =>
+                        onKindChange
+                            ? onKindChange(next)
+                            : navigate(libraryRoute(next))
+                    }
                     actions={
                         <div className="flex items-center gap-1.5">
                             <TabPillButton
-                                disabled={!selectionActions?.selectedCount}
-                                onClick={() => {
-                                    const documents =
-                                        selectionActions?.selectedDocuments ?? [];
-                                    if (onOpenInChat) {
-                                        onOpenInChat(documents);
-                                        return;
-                                    }
-                                    stageNewChatDocuments(
-                                        documents,
-                                    );
-                                    router.push("/assistant");
-                                }}
+                                disabled={!selection?.selectedCount}
+                                onClick={openChat}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
-                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>
-                                    {onOpenInChat ? "Open in chat" : "Open in new chat"}
+                                <span
+                                    className={
+                                        embedded ? "sr-only" : "hidden sm:inline"
+                                    }
+                                >
+                                    {onOpenInChat
+                                        ? "Open in chat"
+                                        : "Open in new chat"}
                                 </span>
                             </TabPillButton>
                             {kind === "files" && (
                                 <DocumentAutomation
-                                    document={
-                                        selectionActions?.automationDocument ??
-                                        null
-                                    }
+                                    document={selection?.automationDocument ?? null}
                                     showWhenUnavailable
                                     onDocumentChanged={
-                                        selectionActions?.onAutomationDocumentChanged
+                                        selection?.onAutomationDocumentChanged
                                     }
                                 />
                             )}
                             <TabPillButton
-                                onClick={createFolderAction ?? undefined}
-                                disabled={!createFolderAction || loading}
+                                onClick={createFolder ?? undefined}
+                                disabled={!createFolder || directory.loading}
                             >
                                 <FolderSvgIcon className="h-3.5 w-3.5" />
-                                <span className={embedded ? "sr-only" : "hidden sm:inline"}>Folder</span>
+                                <span
+                                    className={
+                                        embedded ? "sr-only" : "hidden sm:inline"
+                                    }
+                                >
+                                    Folder
+                                </span>
                             </TabPillButton>
                         </div>
                     }
@@ -260,14 +217,12 @@ export function LibraryCollectionPage({
                     scopeKey={kind}
                     documents={directory.documents}
                     folders={directory.folders as DocTableFolder[]}
-                    loading={loading}
-                    search={view.search}
+                    loading={directory.loading}
+                    search={search}
                     operations={operations}
-                    onAddDocumentsActionChange={handleAddDocumentsActionChange}
-                    onCreateFolderActionChange={
-                        handleCreateFolderActionChange
-                    }
-                    onSelectionActionsChange={setSelectionActions}
+                    onAddDocumentsActionChange={setUpload}
+                    onCreateFolderActionChange={setCreateFolder}
+                    onSelectionActionsChange={setSelection}
                     selectionFirst
                     compact={embedded}
                     emptyDropLabel={

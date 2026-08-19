@@ -9,10 +9,9 @@ export function isServerSupabaseConfigured() {
   );
 }
 
-export function isAnonymousLocalMode() {
-  return (
-    process.env.NODE_ENV !== "test" &&
-    process.env.AUTH_MODE === "anonymous" &&
-    !isServerSupabaseConfigured()
-  );
+export function isLocalRuntime() {
+  const mode = process.env.AUTH_MODE?.trim();
+  if (mode === "local") return true;
+  if (mode === "cloud") return false;
+  throw new Error("AUTH_MODE must be either local or cloud");
 }

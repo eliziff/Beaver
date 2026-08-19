@@ -2,34 +2,58 @@ import type { NormalizedToolCall } from "../../llm";
 import {
   localLibraryStore, localDocuments, localProjects,
 } from "./localDocumentFixtures";
+import { assistantTools } from "../../chat/assistantTools";
 import {
-  executeAssistantTool,
-  type AssistantToolOptions,
-} from "../../chat/assistantTools";
-import { toolResultText } from "../../chat/toolRegistry";
+  LOAD_TOOLS_NAME,
+  TurnToolRegistry,
+} from "../../chat/toolRegistry";
 
-export * from "../../chat/assistantTools";
-
-type LocalOptions = Omit<AssistantToolOptions, "documents" | "library" | "projects"> &
-  Partial<Pick<AssistantToolOptions, "documents" | "library" | "projects">>;
+type ToolOptions = Parameters<typeof assistantTools>[0];
+type LocalOptions = Partial<Omit<
+  ToolOptions,
+  | "userId"
+  | "documents"
+  | "library"
+  | "projects"
+  | "scope"
+  | "resolveArtifact"
+  | "artifactFor"
+  | "onMutationCommitted"
+>> & Partial<Pick<ToolOptions, "documents" | "library" | "projects">>;
 
 export const runLocalAssistantTools = async (
   userId: string,
   calls: NormalizedToolCall[],
   options: LocalOptions = {},
-) => Promise.all(calls.map(async (call) => {
-  const outcome = await executeAssistantTool(userId, call, {
+) => {
+  const registry = new TurnToolRegistry(assistantTools<Record<string, never>>({
+    userId,
     documents: localDocuments,
     library: localLibraryStore,
     projects: localProjects,
+    scope: "main",
+    resolveArtifact: () => undefined,
+    artifactFor: () => "",
+    onMutationCommitted: () => undefined,
     ...options,
+  }));
+  const specialists = calls.map(({ name }) => name)
+    .filter((name) => registry.specialists().includes(name));
+  if (specialists.length) {
+    await registry.run([{
+      id: "load-test-tools",
+      name: LOAD_TOOLS_NAME,
+      input: { names: [...new Set(specialists)] },
+    }], {});
+  }
+  const batch = await registry.run(calls, {});
+  return batch.results.map((result, index) => {
+    const outcome = batch.outcomes[index];
+    return {
+      ...result,
+      ...(outcome.mutated && { mutated: true }),
+      ...(outcome.events?.length && { events: outcome.events }),
+      ...(outcome.evidence?.length && { evidence: outcome.evidence }),
+    };
   });
-  return {
-    tool_use_id: call.id,
-    content: toolResultText(outcome.result),
-    ...outcome.metadata,
-    ...(outcome.mutated && { mutated: true }),
-    ...(outcome.events?.length && { events: outcome.events }),
-    ...(outcome.evidence?.length && { evidence: outcome.evidence }),
-  };
-}));
+};

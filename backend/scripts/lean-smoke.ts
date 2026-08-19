@@ -11,7 +11,7 @@
  *
  * Flat-rate surfaces only (claude -p / codex / ollama); never a metered key.
  *
- *   npx tsx scripts/lean-smoke.ts [--model claude-p:claude-sonnet-4-6]
+ *   npx tsx scripts/lean-smoke.ts [--model codex:gpt-5.6-luna]
  *                                 [--effort low]
  */
 import { spawnSync } from "node:child_process";
@@ -83,7 +83,7 @@ const PROMPT = [
 ].join("\n");
 
 async function main() {
-  const model = argument("model", "claude-p:claude-sonnet-4-6");
+  const model = argument("model", "codex:gpt-5.6-luna");
   const effort = argument("effort", "low");
   if (!process.env.LEAN_SMOKE_CHILD) {
     const dataHome = mkdtempSync(path.join(os.tmpdir(), "beaver-lean-smoke-"));
@@ -95,16 +95,12 @@ async function main() {
           ...process.env,
           LEAN_SMOKE_CHILD: "1",
           NODE_ENV: "",
-          AUTH_MODE: "anonymous",
+          AUTH_MODE: "local",
           OPEN_LEGAL_DATA_HOME: dataHome,
           MIKE_LOCAL_DATA_DIR: path.join(dataHome, "apps", "mike", "library"),
           SUPABASE_URL: "",
           SUPABASE_SECRET_KEY: "",
-          // Sealed: the mechanisms under test are the document-side thrift
-          // affordances, and the research prompt sections are dead weight here.
-          MIKE_DISABLE_RESEARCH_TOOLS: "1",
-          MIKE_DISABLE_ASK_INPUTS: "1",
-          MIKE_LLM_CONTEXT_MANIFEST_PATH: path.join(dataHome, "manifest.jsonl"),
+          MIKE_LLM_METRICS_PATH: path.join(dataHome, "llm-metrics.jsonl"),
         },
         stdio: "inherit",
         timeout: 10 * 60_000,
@@ -113,7 +109,7 @@ async function main() {
     process.exit(child.status ?? 1);
   }
 
-  const { app } = await import("../src/app");
+  const { api } = await import("../src/api");
   const request = (await import("supertest")).default;
   const { Document, Packer, Paragraph, TextRun } = await import("docx");
 
@@ -134,7 +130,7 @@ async function main() {
     ["commercial-lease.docx", lease],
     ["client-email.eml", readFileSync(EML_FIXTURE)],
   ] as [string, Buffer][]) {
-    const upload = await request(app)
+    const upload = await request(api)
       .post("/single-documents")
       .attach("file", bytes, name);
     if (upload.status !== 201)
@@ -145,7 +141,7 @@ async function main() {
     `asking ${model} (effort ${effort}) …\n`,
   );
   const started = Date.now();
-  const streamed = await request(app).post("/chat").send({
+  const streamed = await request(api).post("/chat").send({
     model,
     reasoning_effort: effort,
     expected_version: 0,
@@ -157,8 +153,8 @@ async function main() {
 
   const events = sseEvents(streamed.text);
   const calls = events
-    .filter((e) => e.type === "tool_call_start")
-    .map((e) => String(e.name ?? ""));
+    .filter((e) => e.type === "tool_activity" && e.status === "running")
+    .map((e) => String(e.tool ?? ""));
   const answer = events
     .filter((e) => e.type === "content_delta")
     .map((e) => String(e.text ?? ""))
@@ -191,13 +187,16 @@ async function main() {
   for (const [label, hit, how] of wanted)
     console.log(`  ${hit ? "YES" : "no "}  ${label}  (${how})`);
 
-  const manifestPath = process.env.MIKE_LLM_CONTEXT_MANIFEST_PATH ?? "";
-  if (manifestPath && existsSync(manifestPath)) {
-    const rows = readFileSync(manifestPath, "utf8")
+  const metricsPath = process.env.MIKE_LLM_METRICS_PATH ?? "";
+  if (metricsPath && existsSync(metricsPath)) {
+    const rows = readFileSync(metricsPath, "utf8")
       .split(/\r?\n/u)
       .filter(Boolean)
       .map((line) => JSON.parse(line));
-    const est = rows.map((r) => r.inputEstimate?.tokens ?? 0);
+    const est = rows.map((row) => Math.ceil((row.rounds ?? []).reduce(
+      (sum: number, round: Record<string, number>) => sum +
+        (round.instructionsBytes ?? 0) + (round.inputBytes ?? 0) +
+        (round.toolBytes ?? 0) + (round.toolResultBytes ?? 0), 0) / 4));
     const out = rows.reduce((s, r) => s + (r.usage?.outputTokens ?? 0), 0);
     const cacheRead = rows.reduce(
       (s, r) => s + (r.usage?.cacheReadInputTokens ?? 0),

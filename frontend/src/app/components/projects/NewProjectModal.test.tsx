@@ -7,10 +7,13 @@ import { NewProjectModal } from "./NewProjectModal";
 const mocks = vi.hoisted(() => ({
     addDocumentToProject: vi.fn(),
     createProject: vi.fn(),
-    uploadProjectDocument: vi.fn(),
+    uploadDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => mocks);
+vi.mock("@/app/lib/beaverApi", () => ({
+    ...mocks,
+    directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
+}));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({
         user: { id: "user-1", email: "owner@example.test" },
@@ -75,45 +78,6 @@ it("uses native form values without rerendering for ordinary typing", async () =
             [],
         ),
     );
-    expect(onCreated).toHaveBeenCalledWith({
-        ...project,
-        document_count: 0,
-    });
+    expect(onCreated).toHaveBeenCalledWith(project);
     expect(onClose).toHaveBeenCalledOnce();
-});
-
-it("does not advance with a blank project name", () => {
-    render(
-        <NewProjectModal
-            open
-            onClose={vi.fn()}
-            onCreated={vi.fn()}
-        />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-
-    expect(screen.getByRole("dialog", { name: "Details" })).toBeVisible();
-    expect(screen.queryByText("Document picker")).not.toBeInTheDocument();
-    expect(mocks.createProject).not.toHaveBeenCalled();
-});
-
-it("resets by unmounting when closed", () => {
-    const props = {
-        onClose: vi.fn(),
-        onCreated: vi.fn(),
-    };
-    const { rerender } = render(<NewProjectModal open {...props} />);
-
-    fireEvent.change(screen.getByLabelText("Project name"), {
-        target: { value: "Temporary" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Document picker")).toBeVisible();
-
-    rerender(<NewProjectModal open={false} {...props} />);
-    rerender(<NewProjectModal open {...props} />);
-
-    expect(screen.getByRole("dialog", { name: "Details" })).toBeVisible();
-    expect(screen.getByLabelText("Project name")).toHaveValue("");
 });

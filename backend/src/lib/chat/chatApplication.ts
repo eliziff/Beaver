@@ -40,7 +40,6 @@ import {
   resumableReadSubagents,
   type ReadSubagentEvent,
 } from "./readSubagents";
-import { currentA2AJCoveragePrompt } from "./a2ajCoveragePrompt";
 import { tabularChatContext } from "./tabularContext";
 import { safeErrorLog, safeErrorMessage } from "../safeError";
 import {
@@ -53,7 +52,7 @@ import {
 import type { DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
-import type { TabularStore } from "../tabularStore";
+import type { TabularApplication } from "../tabular/application";
 import type {
   AskInputResponseItem,
   AskInputsEvent,
@@ -174,21 +173,6 @@ type TurnFeatures = {
 
 export type ChatApplicationFeatures = {
   load(auth: AuthContext): Promise<TurnFeatures>;
-  evidence?: {
-    prepare(input: {
-      auth: AuthContext;
-      messages: ChatMessageRecord[];
-      allowedDocumentIds: ReadonlySet<string>;
-    }): Promise<{
-      prompt: string;
-      transformText(
-        text: string,
-        citations: unknown[],
-        handles: ReadonlySet<string>,
-      ): Promise<string> | string;
-      event(handles: ReadonlySet<string>): Promise<Record<string, unknown> | null>;
-    }>;
-  };
   providerSession?: {
     claim(input: {
       auth: AuthContext;
@@ -226,7 +210,7 @@ type Dependencies = {
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
-  tabular: TabularStore;
+  tabular: Pick<TabularApplication, "detail">;
   features: ChatApplicationFeatures;
 };
 
@@ -387,7 +371,7 @@ async function loadDocumentContext(
     }
     for (const event of Array.isArray(message.content)
       ? message.content as Record<string, unknown>[] : []) {
-      if (["doc_created", "doc_edited"].includes(String(event.type)) &&
+      if (event.type === "document_artifact" &&
           typeof event.document_id === "string") ids.add(event.document_id);
     }
   }
@@ -689,11 +673,6 @@ export function createChatApplication(deps: Dependencies) {
           `Model "${selectedModel}" does not support image input.`);
       }
       const features = await deps.features.load(auth);
-      const evidence = await deps.features.evidence?.prepare({
-        auth,
-        messages: rows,
-        allowedDocumentIds: context.allowed,
-      });
       const focus = [
         ...(input.displayed_doc ? [`Displayed document: ${JSON.stringify(
           context.records.get(input.displayed_doc.document_id)?.filename,
@@ -711,12 +690,10 @@ export function createChatApplication(deps: Dependencies) {
         CLIENT_WORK_PRODUCT_PRESUMPTION,
         input.subagent_mode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
-        features.includeResearchTools ? await currentA2AJCoveragePrompt() : "",
         tabular?.prompt,
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records),
         hasSpreadsheet ? SPREADSHEET_CITATION_PROMPT : "",
-        evidence?.prompt,
       ].filter(Boolean).join("\n\n");
 
       if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId });
@@ -754,8 +731,7 @@ export function createChatApplication(deps: Dependencies) {
         editMode: input.edit_mode as EditMode,
         timeZone: input.time_zone,
         entries: features.extraTools,
-        excludeToolNames: features.includeResearchTools ? undefined
-          : new Set(["search_sources", "note_up", "find_in_case", "verify_citations"]),
+        includeResearchTools: features.includeResearchTools,
         onMutationCommitted: () => queuePersist([{
           type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1,
         }]),
@@ -834,7 +810,6 @@ export function createChatApplication(deps: Dependencies) {
           messages: modelMessages,
           createTools: localTools.createTools,
           emit: sink.emit,
-          done: () => undefined,
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
           serviceTier: input.service_tier,
@@ -870,10 +845,6 @@ export function createChatApplication(deps: Dependencies) {
           onProviderContinuation: (id) => { activeContinuationId = id; },
           onProviderControl: sink.setControl,
           canRetryProviderSession: () => !localTools.mutationCommitted(),
-          transformText: evidence
-            ? (text, citations) => evidence.transformText(
-                text, citations, localTools.pdfHandles,
-              ) : undefined,
           onSubagentEvent,
         });
         activeContinuationId = result.continuationId ?? activeContinuationId;
@@ -881,12 +852,10 @@ export function createChatApplication(deps: Dependencies) {
         const events: unknown[] = result.events.filter(({ type }) =>
           !["reasoning", "error", "context_usage", "case_opinions"].includes(type));
         if (!result.fullText && !result.events.some(({ type }) => [
-          "content", "doc_created", "doc_edited", "automation_run",
+          "content", "document_artifact", "automation_run",
         ].includes(type)) && result.status !== "paused") {
           events.push({ type: "error", message: "The selected model returned no response." });
         }
-        const evidenceEvent = await evidence?.event(localTools.pdfHandles);
-        if (evidenceEvent) events.push(evidenceEvent);
         events.push({ type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 });
         await queuePersist(events, result.citations);
         if (!chat.title) {

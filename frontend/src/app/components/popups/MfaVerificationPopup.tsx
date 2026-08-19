@@ -3,6 +3,7 @@ import {
     useState,
 } from "react";
 import { Loader2 } from "lucide-react";
+import { getSupabase } from "@/app/lib/supabase";
 import { Modal } from "../modals/Modal";
 import { ModalSelect } from "../modals/ModalSelect";
 type MfaFactor = {
@@ -11,9 +12,8 @@ type MfaFactor = {
     factor_type: string;
 };
 export async function needsMfaVerification() {
-    const { supabase } = await import("@/app/lib/supabase");
     const { data, error } =
-        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
     if (error) throw error;
     return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
@@ -49,9 +49,8 @@ export function MfaVerificationPopup({
             setLoading(true);
             setError(null);
             setCode("");
-            const { supabase } = await import("@/app/lib/supabase");
             const { data, error: listError } =
-                await supabase.auth.mfa.listFactors();
+                await getSupabase().auth.mfa.listFactors();
             if (cancelled) return;
             if (listError) {
                 setError(listError.message);
@@ -73,9 +72,8 @@ export function MfaVerificationPopup({
         if (!canVerify) return;
         setVerifying(true);
         setError(null);
-        const { supabase } = await import("@/app/lib/supabase");
         const { error: verifyError } =
-            await supabase.auth.mfa.challengeAndVerify({
+            await getSupabase().auth.mfa.challengeAndVerify({
                 factorId: selectedFactorId,
                 code: code.trim(),
             });

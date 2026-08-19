@@ -2,28 +2,37 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAssistantSessionState } from "./assistantSession";
 
 vi.mock("@/app/lib/supabase", () => ({
-  supabase: {
+  getSupabase: () => ({
     auth: {
       getSession: vi.fn(async () => ({ data: { session: null } })),
     },
-  },
+  }),
 }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
   vi.resetModules();
 });
+
+async function configure(mode: "local" | "cloud") {
+  const { initializeRuntimeConfig } = await import("./runtimeConfig");
+  const config = mode === "local" ? { mode } : {
+    mode,
+    supabaseUrl: "https://example.supabase.co",
+    supabasePublishableKey: "test-key",
+  };
+  await initializeRuntimeConfig(async () => new Response(JSON.stringify(config)));
+}
 
 describe("removeProjectDocument", () => {
   it.each([
     [
-      "anonymous",
-      "http://localhost:3001/projects/matter-1/documents/document-1",
+      "local",
+      "/api/projects/matter-1/documents/document-1",
     ],
-    ["required", "http://localhost:3001/single-documents/document-1"],
-  ])("uses the %s removal route", async (authMode, expectedUrl) => {
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", authMode);
+    ["cloud", "/api/single-documents/document-1"],
+  ] as const)("uses the %s removal route", async (authMode, expectedUrl) => {
+    await configure(authMode);
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
     const { removeProjectDocument } = await import("./beaverApi");
@@ -37,9 +46,29 @@ describe("removeProjectDocument", () => {
   });
 });
 
+describe("directoryResource", () => {
+  it("uses one encoded directory contract for project and library storage", async () => {
+    await configure("local");
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ items: [], next_cursor: null }),
+      { headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const { directoryResource } = await import("./beaverApi");
+
+    await directoryResource({ projectId: "matter/1" }).list({ parent_id: "folder/1" });
+    await directoryResource({ library: "files" }).list();
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/projects/matter%2F1/directory?parent_id=folder%2F1",
+      "/api/library/files",
+    ]);
+  });
+});
+
 describe("apiFetch", () => {
   it("preserves native Headers values and overrides", async () => {
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    await configure("local");
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
     const { apiFetch } = await import("./beaverApi");
@@ -56,7 +85,7 @@ describe("apiFetch", () => {
 
 describe("getChat", () => {
   it("settles work left running by an interrupted backend turn", async () => {
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    await configure("local");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [
@@ -73,7 +102,7 @@ describe("getChat", () => {
             model: "codex",
             effort: "high",
             status: "running",
-            activities: [{ id: "read-1", label: "Reading", status: "running" }],
+            activities: [{ id: "read-1", tool: "read", label: "Reading", status: "running" }],
           }],
         },
       ],
@@ -97,7 +126,7 @@ describe("getChat", () => {
   });
 
   it("keeps cancellation metadata out of assistant prose", async () => {
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    await configure("local");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [{
@@ -126,7 +155,7 @@ describe("getChat", () => {
   });
 
   it("marks a durable user turn with no response as interrupted", async () => {
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous");
+    await configure("local");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       chat: { id: "chat-1", turn_in_progress: false },
       messages: [{

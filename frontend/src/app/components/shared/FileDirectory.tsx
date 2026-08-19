@@ -1,14 +1,12 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Search, X } from "lucide-react";
 import type { Document, Folder, LibraryFolder, Project } from "./types";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { FolderSvgIcon } from "./FolderSvgIcon";
-import { SearchBar } from "@/app/components/ui/search-bar";
-import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { TabPillButton } from "@/app/components/ui/tab-pill-button";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import { buildDocumentTree } from "@/app/components/documents/documentTree";
-import { getLibrary, getProjectDirectory, listProjects } from "@/app/lib/beaverApi";
+import { directoryResource, listProjects } from "@/app/lib/beaverApi";
 import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 
@@ -40,20 +38,28 @@ export function FileDirectory({ documents = EMPTY, projectId,
     const activeTab = showTabs ? tab : "files";
     const query = search.trim();
     const libraryKind = activeTab === "templates" ? "templates" : "files";
+    const activeProjectId = projectId ?? selectedProjectId;
+    const libraryResource = useMemo(
+        () => directoryResource({ library: libraryKind }),
+        [libraryKind],
+    );
+    const projectResource = useMemo(
+        () => directoryResource({ projectId: activeProjectId }),
+        [activeProjectId],
+    );
     const library = usePagedDirectory(
-        (parentId, q, cursor, signal) => getLibrary(libraryKind,
+        (parentId, q, cursor, signal) => libraryResource.list(
             { parent_id: parentId, q, cursor }, signal),
-        query, [libraryKind, query], showTabs && activeTab !== "projects",
+        query, [libraryResource, query], showTabs && activeTab !== "projects",
     );
     const projects = usePagedQuery<Project>(
         (cursor, signal) => listProjects({ q: selectedProjectId ? "" : query, cursor }, signal),
         [query, selectedProjectId], showTabs && activeTab === "projects" && !selectedProjectId,
     );
-    const activeProjectId = projectId ?? selectedProjectId;
     const project = usePagedDirectory(
-        (parentId, q, cursor, signal) => getProjectDirectory(activeProjectId,
+        (parentId, q, cursor, signal) => projectResource.list(
             { parent_id: parentId, q, cursor }, signal),
-        query, [activeProjectId, query],
+        query, [projectResource, query],
         !!activeProjectId && (!showTabs || activeTab === "projects"),
     );
     const directory = !showTabs ? (projectId ? project : null)
@@ -71,14 +77,16 @@ export function FileDirectory({ documents = EMPTY, projectId,
 
     function toggleDocument(document: Document) {
         const next = new Map(selectedDocuments.map((item) => [item.id, item]));
-        next.has(document.id) ? next.delete(document.id) : next.set(document.id, document);
+        if (next.has(document.id)) next.delete(document.id);
+        else next.set(document.id, document);
         onChange([...next.values()]);
     }
     function toggleFolder(id: string) {
         if (!expanded.has(id)) directory?.ensureParent(id);
         setExpanded((current) => {
             const next = new Set(current);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
             return next;
         });
     }
@@ -86,7 +94,23 @@ export function FileDirectory({ documents = EMPTY, projectId,
     const projectList = showTabs && activeTab === "projects" && !selectedProjectId;
 
     return <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <SearchBar value={search} onValueChange={setSearch} placeholder="Search files" autoFocus />
+        <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-gray-700 focus-within:border-gray-500">
+            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+            <input
+                autoFocus
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
+                placeholder="Search files"
+                aria-label="Search files"
+                className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {search && <button type="button" onClick={() => setSearch("")}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                aria-label="Clear search">
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>}
+        </div>
         <div className="flex min-h-8 items-center justify-between gap-3">
             {showTabs ? <div className="flex gap-1.5">{TABS.map(([value, label]) =>
                 <TabPillButton key={value} active={value === activeTab} onClick={() => {
@@ -129,8 +153,9 @@ export function FileDirectory({ documents = EMPTY, projectId,
                     const doc = row.document;
                     return <label key={doc.id} style={style}
                         className={`flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm ${APP_SURFACE_HOVER_CLASS}`}>
-                        <CheckboxInput checked={selected.has(doc.id)} aria-label={`Select ${doc.filename}`}
-                            onChange={() => toggleDocument(doc)} />
+                        <input type="checkbox" checked={selected.has(doc.id)} aria-label={`Select ${doc.filename}`}
+                            onChange={() => toggleDocument(doc)}
+                            className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" />
                         <FileTypeIcon fileType={doc.file_type} className="h-4 w-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{doc.filename}</span></label>;
                 })}

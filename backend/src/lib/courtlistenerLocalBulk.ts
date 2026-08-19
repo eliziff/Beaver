@@ -27,7 +27,7 @@ export type LocalCourtlistenerOpinion = {
   joinedByStr: string | null;
   pageCount: number | null;
   downloadUrl: string | null;
-  localPath: string | null;
+  storagePath: string | null;
   plainText: string | null;
   html: string | null;
   htmlLawbox: string | null;
@@ -85,10 +85,6 @@ function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | nu
   return withCachedReadonlySqlite(filename, operation);
 }
 
-export function warmLocalCourtlistenerSearch() {
-  return withSearchDatabase(() => true) ?? false;
-}
-
 function nullableString(value: unknown) {
   return typeof value === "string" && value ? value : null;
 }
@@ -120,7 +116,7 @@ function opinion(row: Row): LocalCourtlistenerOpinion {
     joinedByStr: nullableString(row.joined_by_str),
     pageCount: nullableNumber(row.page_count),
     downloadUrl: nullableString(row.download_url),
-    localPath: nullableString(row.local_path),
+    storagePath: nullableString(row.local_path),
     plainText: nullableString(row.plain_text),
     html: nullableString(row.html),
     htmlLawbox: nullableString(row.html_lawbox),

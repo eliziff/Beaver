@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Document } from "../shared/types";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "../documents/documentTree";
-import { setShowAutoMode } from "./editModePreference";
+import { updateAssistantPreferences } from "./assistantPreferences";
 
 const selectedDocument: Document = {
     id: "document-1",
@@ -101,7 +101,7 @@ describe("ChatInput workflow document selection", () => {
         expect(screen.queryByRole("group", { name: "Editing mode" })).toBeNull();
         initial.unmount();
 
-        setShowAutoMode(true);
+        updateAssistantPreferences({ showAutoMode: true });
         const onSubmit = vi.fn();
         const enabled = render(<WorkflowHarness onSubmit={onSubmit} />);
         const mode = screen.getByRole("group", { name: "Editing mode" });
@@ -210,7 +210,7 @@ describe("ChatInput workflow document selection", () => {
     });
 
     it("hides context usage when the display preference is off", () => {
-        window.localStorage.setItem("beaver.showContextUsage", "false");
+        updateAssistantPreferences({ showContextUsage: false });
         render(
             <ChatInput
                 onSubmit={vi.fn()}

@@ -1,7 +1,7 @@
+import { useParams } from "react-router-dom";
 import { WorkflowDetailPage } from "@/app/components/workflows/WorkflowDetailPage";
-export default async function AssistantWorkflowPage({
-    params,
-}: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+
+export default function AssistantWorkflowPage() {
+    const { id = "" } = useParams<{ id: string }>();
     return <WorkflowDetailPage id={id} workflowType="assistant" />;
 }

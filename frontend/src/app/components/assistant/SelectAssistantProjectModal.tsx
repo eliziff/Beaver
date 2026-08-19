@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { Modal } from "../modals/Modal";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
@@ -21,7 +21,7 @@ export function SelectAssistantProjectModal({
 }: Props) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
-    const router = useRouter();
+    const navigate = useNavigate();
     const { saveChat } = useChatHistoryContext();
     useEffect(() => {
         if (!open) return;
@@ -42,7 +42,7 @@ export function SelectAssistantProjectModal({
             const chatId = await saveChat(selectedId);
             if (!chatId) return;
             onClose();
-            router.push(`/projects/${selectedId}/assistant/chat/${chatId}`);
+            navigate(`/projects/${selectedId}/assistant/chat/${chatId}`);
         } catch {
             return;
         } finally {

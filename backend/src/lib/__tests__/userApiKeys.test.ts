@@ -47,9 +47,9 @@ describe("hasEnvApiKey", () => {
         expect(hasEnvApiKey("claude")).toBe(true);
     });
 
-    it("returns true for claude when CLAUDE_API_KEY is set as fallback", () => {
+    it("ignores noncanonical Claude environment aliases", () => {
         process.env.CLAUDE_API_KEY = "sk-claude-test";
-        expect(hasEnvApiKey("claude")).toBe(true);
+        expect(hasEnvApiKey("claude")).toBe(false);
     });
 
     it("returns true for openai when OPENAI_API_KEY is set", () => {
@@ -62,12 +62,12 @@ describe("hasEnvApiKey", () => {
         expect(hasEnvApiKey("gemini")).toBe(true);
     });
 
-    it("uses the canonical DeepSeek key and the local compatibility fallback", () => {
+    it("uses only the canonical DeepSeek key", () => {
         process.env.DEEPSEEK_API_KEY = "sk-deepseek-test";
         expect(hasEnvApiKey("deepseek")).toBe(true);
         delete process.env.DEEPSEEK_API_KEY;
         process.env.DEEPSEEK_OCR_KEY = "sk-deepseek-local-test";
-        expect(hasEnvApiKey("deepseek")).toBe(true);
+        expect(hasEnvApiKey("deepseek")).toBe(false);
     });
 
     it("returns false when no env key is set for the provider", () => {

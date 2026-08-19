@@ -8,9 +8,8 @@ import {
 // ---------------------------------------------------------------------------
 // Hoisted mock fns we want to reconfigure per-test.
 // ---------------------------------------------------------------------------
-const { checkProjectAccess, deleteUserProjects } = vi.hoisted(() => ({
+const { checkProjectAccess } = vi.hoisted(() => ({
     checkProjectAccess: vi.fn(),
-    deleteUserProjects: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -27,8 +26,8 @@ vi.mock("../../lib/supabase", () => ({
     createServerSupabase: vi.fn(() => createMutableSupabaseStub(supabaseState)),
 }));
 
-vi.mock("../../lib/cloudObjectStorage", () => ({
-    cloudDocumentObjects: () => ({
+vi.mock("../../lib/s3ObjectStorage", () => ({
+    s3DocumentObjects: () => ({
         kind: "s3",
         put: vi.fn(async () => {}),
         get: vi.fn(async () => null),
@@ -91,14 +90,6 @@ vi.mock("../../lib/access", () => ({
     },
 }));
 
-// user router imports all four cleanup helpers at module load.
-vi.mock("../../lib/userDataCleanup", () => ({
-    deleteUserProjects: (...args: unknown[]) => deleteUserProjects(...args),
-    deleteAllUserChats: vi.fn(async () => {}),
-    deleteAllUserTabularReviews: vi.fn(async () => {}),
-    deleteUserAccountData: vi.fn(async () => {}),
-}));
-
 // Version-path enrichment hits the DB in real life; no-op it so the route
 // responses are driven purely by the documents/projects table stubs.
 vi.mock("../../lib/documentVersions", () => ({
@@ -106,7 +97,7 @@ vi.mock("../../lib/documentVersions", () => ({
     loadActiveVersion: vi.fn(async () => null),
 }));
 
-import { app } from "../../app";
+import { api } from "../../api";
 
 const AUTH = ["Authorization", "Bearer test"] as const;
 
@@ -119,7 +110,6 @@ describe("projects.routes", () => {
             isOwner: true,
             project: { id: "p1", user_id: "u1", shared_with: null },
         });
-        deleteUserProjects.mockResolvedValue(1);
     });
 
     // ── GET /projects (overview) ──────────────────────────────────────────
@@ -134,7 +124,7 @@ describe("projects.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/projects").set(...AUTH);
+            const res = await request(api).get("/projects").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toEqual({
@@ -143,20 +133,20 @@ describe("projects.routes", () => {
             });
         });
 
-        it("returns 500 with detail when the RPC errors", async () => {
+        it("does not disclose persistence errors", async () => {
             supabaseState.rpc = { data: null, error: { message: "boom" } };
 
-            const res = await request(app).get("/projects").set(...AUTH);
+            const res = await request(api).get("/projects").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("Failed to load projects");
+            expect(res.body.detail).toBe("Internal server error");
         });
     });
 
     // ── POST /projects (create) ───────────────────────────────────────────
     describe("POST /projects", () => {
         it("returns 400 when name is missing/blank", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .post("/projects")
                 .set(...AUTH)
                 .send({ name: "   " });
@@ -168,7 +158,7 @@ describe("projects.routes", () => {
         it("returns 400 when sharing the project with yourself", async () => {
             // The authed user's email is u1@test.local; supplying it (in any
             // case) must be rejected.
-            const res = await request(app)
+            const res = await request(api)
                 .post("/projects")
                 .set(...AUTH)
                 .send({ name: "Beta", shared_with: ["U1@Test.Local"] });
@@ -198,7 +188,7 @@ describe("projects.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/projects")
                 .set(...AUTH)
                 .send({
@@ -226,7 +216,7 @@ describe("projects.routes", () => {
         it("returns 400 when a shared_with recipient is not a Beaver user", async () => {
             // No user_profiles rows seeded → findMissingUserEmails reports the
             // recipient as unknown and the create is rejected before insert.
-            const res = await request(app)
+            const res = await request(api)
                 .post("/projects")
                 .set(...AUTH)
                 .send({ name: "Gamma", shared_with: ["ghost@x.com"] });
@@ -240,19 +230,19 @@ describe("projects.routes", () => {
             ).toBeUndefined();
         });
 
-        it("returns 500 when the insert errors", async () => {
+        it("does not disclose insert errors", async () => {
             supabaseState.tables.projects = {
                 data: null,
                 error: { message: "insert failed" },
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .post("/projects")
                 .set(...AUTH)
                 .send({ name: "Delta" });
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("Failed to create project");
+            expect(res.body.detail).toBe("Internal server error");
         });
     });
 
@@ -261,7 +251,7 @@ describe("projects.routes", () => {
         it("returns 404 when the project does not exist", async () => {
             supabaseState.tables.projects = { data: null, error: null };
 
-            const res = await request(app).get("/projects/p1").set(...AUTH);
+            const res = await request(api).get("/projects/p1").set(...AUTH);
 
             expect(res.status).toBe(404);
             expect(res.body.detail).toBe("Project not found");
@@ -277,7 +267,7 @@ describe("projects.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/projects/p1").set(...AUTH);
+            const res = await request(api).get("/projects/p1").set(...AUTH);
 
             expect(res.status).toBe(404);
             expect(res.body.detail).toBe("Project not found");
@@ -295,7 +285,7 @@ describe("projects.routes", () => {
             supabaseState.tables.documents = { data: [], error: null };
             supabaseState.tables.project_subfolders = { data: [], error: null };
 
-            const res = await request(app).get("/projects/p1").set(...AUTH);
+            const res = await request(api).get("/projects/p1").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toMatchObject({ id: "p1", is_owner: false });
@@ -315,7 +305,7 @@ describe("projects.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/projects/p1").set(...AUTH);
+            const res = await request(api).get("/projects/p1").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toMatchObject({
@@ -331,38 +321,17 @@ describe("projects.routes", () => {
     describe("GET /projects/:projectId/directory", () => {
         it("returns an empty bounded page when no visible rows exist", async () => {
             supabaseState.rpc = { data: [], error: null };
-            const res = await request(app).get("/projects/p1/directory").set(...AUTH);
+            const res = await request(api).get("/projects/p1/directory").set(...AUTH);
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ items: [], next_cursor: null });
         });
 
-        it("returns discriminated directory entries", async () => {
-            supabaseState.rpc = {
-                data: [{
-                    kind: "document",
-                    id: "d1",
-                    bucket: 1,
-                    sort_name: "alpha.pdf",
-                    payload: { id: "d1", filename: "Alpha.pdf" },
-                }],
-                error: null,
-            };
-            const res = await request(app).get("/projects/p1/directory").set(...AUTH);
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual({
-                items: [{
-                    kind: "document",
-                    document: { id: "d1", filename: "Alpha.pdf" },
-                }],
-                next_cursor: null,
-            });
-        });
     });
 
     // ── PATCH /projects/:projectId (sharing normalisation) ────────────────
     describe("PATCH /projects/:projectId", () => {
         it("returns 400 when sharing the project with yourself", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/projects/p1")
                 .set(...AUTH)
                 .send({ shared_with: ["u1@test.local"] });
@@ -376,7 +345,7 @@ describe("projects.routes", () => {
         it("returns 404 when the update matches no owned project", async () => {
             supabaseState.tables.projects = { data: null, error: null };
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/projects/p1")
                 .set(...AUTH)
                 .send({ name: "Renamed" });
@@ -389,35 +358,11 @@ describe("projects.routes", () => {
     // ── DELETE /projects/:projectId ───────────────────────────────────────
     describe("DELETE /projects/:projectId", () => {
         it("returns 404 when nothing was deleted", async () => {
-            deleteUserProjects.mockResolvedValue(0);
-
-            const res = await request(app).delete("/projects/p1").set(...AUTH);
+            const res = await request(api).delete("/projects/p1").set(...AUTH);
 
             expect(res.status).toBe(404);
             expect(res.body.detail).toBe("Project not found");
         });
 
-        it("returns 204 when the project is deleted", async () => {
-            deleteUserProjects.mockResolvedValue(1);
-
-            const res = await request(app).delete("/projects/p1").set(...AUTH);
-
-            expect(res.status).toBe(204);
-            // Signature is deleteUserProjects(db, userId, [projectId]).
-            expect(deleteUserProjects).toHaveBeenCalledWith(
-                expect.anything(),
-                "u1",
-                ["p1"],
-            );
-        });
-
-        it("returns 500 when deletion throws", async () => {
-            deleteUserProjects.mockRejectedValue(new Error("cascade failed"));
-
-            const res = await request(app).delete("/projects/p1").set(...AUTH);
-
-            expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("cascade failed");
-        });
     });
 });

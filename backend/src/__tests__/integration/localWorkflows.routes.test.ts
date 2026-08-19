@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../lib/localMode", () => ({
-  isAnonymousLocalMode: () => true,
+  isLocalRuntime: () => true,
 }));
 
 vi.mock("../../lib/supabase", async (importOriginal) => ({
@@ -17,33 +17,39 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
   },
 }));
 
-async function loadApp() {
+async function loadApi() {
   vi.resetModules();
-  return (await import("../../app")).app;
+  return (await import("../../api")).api;
 }
 
-beforeEach(() => {
-  vi.stubEnv("AUTH_MODE", "anonymous");
+let dataHome: string;
+
+beforeEach(async () => {
+  dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-workflows-"));
+  vi.stubEnv("AUTH_MODE", "local");
+  vi.stubEnv("MIKE_LOCAL_DATA_DIR", dataHome);
   vi.stubEnv("SUPABASE_URL", "");
   vi.stubEnv("SUPABASE_SECRET_KEY", "");
   mocks.supabaseCalls = 0;
 });
 
-afterEach(() => {
+afterEach(async () => {
+  (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
   vi.unstubAllEnvs();
   vi.resetModules();
+  await rm(dataHome, { recursive: true, force: true });
 });
 
-describe("account-free starter workflows", () => {
-  it("returns the requested bounded workflow archive without Supabase", async () => {
-    const app = await loadApp();
-    const files = [
-      { path: "contract-review/SKILL.md", content: "---\nname: contract-review\n---\n" },
-      { path: "contract-review/table-config.yaml", content: "columns_config: []\n" },
-    ];
-    const response = await request(app)
-      .post("/workflows/archive")
-      .send({ files })
+describe("account-free workflows", () => {
+  it("exports the authorized durable workflow without accepting archive files", async () => {
+    const api = await loadApi();
+    const created = await request(api).post("/workflows").send({
+      metadata: { title: "Contract review", type: "tabular" },
+      skill_md: "Review each agreement.",
+      columns_config: [{ index: 0, name: "Term", prompt: "Extract the term." }],
+    });
+    const response = await request(api)
+      .get(`/workflows/${created.body.id}/export`)
       .buffer(true)
       .parse((res, done) => {
         const chunks: Buffer[] = [];
@@ -54,46 +60,34 @@ describe("account-free starter workflows", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toMatch(/application\/zip/);
-    expect(Object.keys(zip.files).filter((path) => !zip.files[path].dir)).toEqual(
-      files.map(({ path }) => path),
-    );
-    await Promise.all(
-      files.map(async ({ path, content }) =>
-        expect(await zip.file(path)!.async("text")).toBe(content),
-      ),
-    );
-    expect(
-      (
-        await request(app)
-          .post("/workflows/archive")
-          .send({ files: [...files, files[0]] })
-      ).status,
-    ).toBe(400);
+    expect(Object.keys(zip.files).filter((path) => !zip.files[path].dir)).toEqual([
+      "contract-review/SKILL.md",
+      "contract-review/table-config.yaml",
+    ]);
+    expect(await zip.file("contract-review/SKILL.md")!.async("text"))
+      .toContain("Review each agreement.");
+    expect(JSON.parse(await zip.file("contract-review/table-config.yaml")!.async("text")))
+      .toMatchObject({ columns_config: [{ name: "Term" }] });
     expect(mocks.supabaseCalls).toBe(0);
   });
 
-  it("lists a small assistant and tabular set without Supabase", async () => {
-    const app = await loadApp();
+  it("lists built-in assistant and tabular workflows without Supabase", async () => {
+    const api = await loadApi();
     const [assistant, tabular, hidden] = await Promise.all([
-      request(app).get("/workflows/system?type=assistant"),
-      request(app).get("/workflows/system?type=tabular"),
-      request(app).get("/workflows/hidden"),
+      request(api).get("/workflows/system?type=assistant"),
+      request(api).get("/workflows/system?type=tabular"),
+      request(api).get("/workflows/hidden"),
     ]);
 
     expect(assistant.status).toBe(200);
-    expect(
-      assistant.body.map((workflow: { id: string }) => workflow.id),
-    ).toEqual([
-      "builtin-credit-agreement-review",
-      "builtin-draft-cp-checklist",
-      "builtin-shareholder-agreement-review",
-    ]);
-    expect(
-      tabular.body.map((workflow: { id: string }) => workflow.id),
-    ).toEqual([
-      "builtin-change-of-control-tabular-review",
-      "builtin-commercial-agreement-tabular-review",
-    ]);
+    expect(assistant.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "builtin-draft-cp-checklist" }),
+      expect.objectContaining({ id: "builtin-proofread" }),
+    ]));
+    expect(tabular.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "builtin-change-of-control-tabular-review" }),
+      expect.objectContaining({ id: "builtin-commercial-agreement-tabular-review" }),
+    ]));
     expect(
       [...assistant.body, ...tabular.body].every(
         (workflow: {
@@ -114,15 +108,12 @@ describe("account-free starter workflows", () => {
     expect(mocks.supabaseCalls).toBe(0);
   });
 
-  it("opens only local starters and keeps mutations unavailable", async () => {
-    const app = await loadApp();
-    const starter = await request(app).get(
+  it("persists custom workflows and hidden state without Supabase", async () => {
+    const api = await loadApi();
+    const starter = await request(api).get(
       "/workflows/builtin-draft-cp-checklist",
     );
-    const nonStarter = await request(app).get(
-      "/workflows/builtin-proofread",
-    );
-    const created = await request(app)
+    const created = await request(api)
       .post("/workflows")
       .send({
         metadata: { title: "Local custom workflow", type: "assistant" },
@@ -139,11 +130,31 @@ describe("account-free starter workflows", () => {
         contributors: [{ name: "Open Legal Products" }],
       },
     });
-    expect(nonStarter.status).toBe(404);
-    expect(created.status).toBe(503);
-    expect(created.body.detail).toBe(
-      "This feature requires Supabase persistence",
-    );
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    expect((await request(api).patch(`/workflows/${id}`).send({
+      metadata: { title: "Updated local workflow" },
+      skill_md: "Do the safer thing.",
+    })).body).toMatchObject({ id, metadata: { title: "Updated local workflow" },
+      skill_md: "Do the safer thing.", allow_edit: true, is_owner: true });
+    expect((await request(api).post("/workflows/hidden")
+      .send({ workflow_id: id })).status).toBe(204);
+    expect((await request(api).get("/workflows/hidden")).body).toContain(id);
+    expect((await request(api).get("/workflows?type=assistant")).body.items)
+      .toEqual([expect.objectContaining({ id })]);
+    const { runtime } = await import("../../runtime");
+    const workflowPorts = await runtime.workflows();
+    expect((await workflowPorts.repository({
+      userId: "00000000-0000-0000-0000-000000000001",
+    }).assistants()).get(id)).toEqual({
+      title: "Updated local workflow", skill_md: "Do the safer thing.",
+    });
+    expect((await request(api).delete(`/workflows/${id}`)).status).toBe(204);
+    expect((await request(api).get(`/workflows/${id}`)).status).toBe(404);
+    expect((await request(api).get("/workflows/hidden")).body).not.toContain(id);
     expect(mocks.supabaseCalls).toBe(0);
   });
 });
+import os from "node:os";
+import path from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";

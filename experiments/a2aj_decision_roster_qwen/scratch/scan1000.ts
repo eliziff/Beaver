@@ -3,7 +3,7 @@
 async function main() {
   const runner = await import("../runner.ts");
   const a2ajLocalBulk = await import("../../../backend/src/lib/a2ajLocalBulk.ts");
-  const a2aj = await import("../../../backend/src/lib/a2aj.ts");
+  const { a2ajLegalSourceProvider } = await import("../../../backend/src/lib/legalSources/a2aj.ts");
   const boundaries = await import("../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries.ts");
 
   const started = performance.now();
@@ -30,7 +30,7 @@ async function main() {
       const document = documents.get(candidate.documentId);
       if (!document) continue;
       const t0 = performance.now();
-      const source = a2ajLocalBulk.getLocalA2AJStructure(document) ?? a2aj.getA2AJDocumentSourceDoc(document);
+      const source = a2ajLocalBulk.getLocalA2AJStructure(document) ?? a2ajLegalSourceProvider.source(document);
       const t1 = performance.now();
       const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
       const structure = boundaries.analyzeOpinionStructure({

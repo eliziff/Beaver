@@ -1,7 +1,8 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearA2AJCache } from "../lib/a2aj";
+import { a2ajLegalSourceProvider } from "../lib/legalSources/a2aj";
+import { courtlistenerLegalSourceProvider } from "../lib/legalSources/courtlistener";
 import { legalLibraryRouter } from "./legalLibrary";
 
 vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
@@ -14,6 +15,7 @@ vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
 
 const searchLegalSources = vi.hoisted(() => vi.fn());
 const resolveLegalSource = vi.hoisted(() => vi.fn());
+const getUserModelSettings = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/legalSourceRegistry", async (original) => ({
   ...(await original<typeof import("../lib/legalSourceRegistry")>()),
@@ -21,23 +23,44 @@ vi.mock("../lib/legalSourceRegistry", async (original) => ({
   resolveLegalSource,
 }));
 
+vi.mock("../lib/userSettings", () => ({ getUserModelSettings }));
+
 const app = express();
 app.use(express.json());
-app.use("/library/legal", legalLibraryRouter);
+app.use("/sources", legalLibraryRouter);
 
 const originalAuthMode = process.env.AUTH_MODE;
 
 afterEach(() => {
-  clearA2AJCache();
+  a2ajLegalSourceProvider.clearCache();
   searchLegalSources.mockReset();
   resolveLegalSource.mockReset();
+  getUserModelSettings.mockReset();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   process.env.AUTH_MODE = originalAuthMode;
 });
 
 describe("legal Library viewer responses", () => {
+  it("returns CourtListener opinions through the canonical source route", async () => {
+    process.env.AUTH_MODE = "local";
+    getUserModelSettings.mockResolvedValue({ api_keys: { courtlistener: "token" } });
+    vi.spyOn(courtlistenerLegalSourceProvider, "caseOpinions").mockResolvedValue({
+      opinions: [{ opinionId: 7, text: "The court's reasons." }],
+      source: "bulk-local",
+    } as never);
+
+    const response = await request(app)
+      .get("/sources/courtlistener/42/opinions");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      opinions: [{ opinionId: 7, text: "The court's reasons." }],
+    });
+  });
+
   it("keeps Library filters and DTOs while searching through the registry", async () => {
-    process.env.AUTH_MODE = "anonymous";
+    process.env.AUTH_MODE = "local";
     searchLegalSources.mockResolvedValue({
       results: [{
         provider: "journal",
@@ -55,7 +78,7 @@ describe("legal Library viewer responses", () => {
     });
 
     const response = await request(app)
-      .get("/library/legal/search")
+      .get("/sources/search")
       .query({
         query: "registered",
         doc_type: "articles",
@@ -94,8 +117,21 @@ describe("legal Library viewer responses", () => {
     }]);
   });
 
+  it("does not expose provider failures", async () => {
+    process.env.AUTH_MODE = "local";
+    searchLegalSources.mockRejectedValue(new Error("upstream token=secret"));
+
+    const response = await request(app)
+      .get("/sources/search")
+      .query({ query: "registered", doc_type: "articles" });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ detail: "Legal source search unavailable" });
+    expect(response.text).not.toContain("secret");
+  });
+
   it("revalidates with a stable ETag without refetching the source", async () => {
-    process.env.AUTH_MODE = "anonymous";
+    process.env.AUTH_MODE = "local";
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -114,10 +150,10 @@ describe("legal Library viewer responses", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const first = await request(app)
-      .get("/library/legal/document")
+      .get("/sources/document")
       .query({ citation: "2099 SCC 3", doc_type: "cases" });
     const second = await request(app)
-      .get("/library/legal/document")
+      .get("/sources/document")
       .query({ citation: "2099 SCC 3", doc_type: "cases" })
       .set("If-None-Match", first.headers.etag);
 

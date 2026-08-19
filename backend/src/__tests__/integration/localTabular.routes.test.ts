@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../lib/localMode", () => ({
-  isAnonymousLocalMode: () => true,
+  isLocalRuntime: () => true,
 }));
 
 vi.mock("../../lib/supabase", async (importOriginal) => ({
@@ -47,26 +47,18 @@ function spreadsheetBytes(value: string) {
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
-async function loadApp() {
+async function loadApi() {
   vi.resetModules();
-  const [{ app }, graph, tabular, documents] = await Promise.all([
-    import("../../app"),
-    import("../../lib/legalKnowledgeGraphStore"),
-    import("../../lib/localTabularStore"),
-    import("../../lib/localDocumentStore"),
-  ]);
+  const { api } = await import("../../api");
   closeStores = async () => {
-    tabular.closeLocalTabularStore();
-    graph.legalKnowledgeGraphStore().close();
-    (await import("../../lib/localApplicationDatabase"))
-      .closeLocalApplicationDatabase();
+    (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
   };
-  return app;
+  return api;
 }
 
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-tabular-routes-"));
-  vi.stubEnv("AUTH_MODE", "anonymous");
+  vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", dataHome);
   vi.stubEnv(
     "MIKE_LOCAL_DATA_DIR",
@@ -100,19 +92,19 @@ afterEach(async () => {
 
 describe("account-free tabular reviews", () => {
   it("filters and paginates standalone reviews without duplicates", async () => {
-    const app = await loadApp();
+    const api = await loadApi();
     const created = await Promise.all(["Needle lease", "Employment", "Supply"].map(
-      (title) => request(app).post("/tabular-review").send({
+      (title) => request(api).post("/tabular-review").send({
         title, document_ids: [], columns_config: [],
       }),
     ));
     expect(created.every(({ status }) => status === 201)).toBe(true);
 
-    const first = await request(app).get("/tabular-review?scope=standalone&limit=2");
+    const first = await request(api).get("/tabular-review?scope=standalone&limit=2");
     expect(first.status).toBe(200);
     expect(first.body.items).toHaveLength(2);
     expect(first.body.next_cursor).toEqual(expect.any(String));
-    const second = await request(app).get(
+    const second = await request(api).get(
       `/tabular-review?scope=standalone&limit=2&cursor=${encodeURIComponent(first.body.next_cursor)}`,
     );
     expect(second.body.items).toHaveLength(1);
@@ -126,31 +118,31 @@ describe("account-free tabular reviews", () => {
       right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id))
       .map(({ id }) => id));
 
-    const filtered = await request(app).get("/tabular-review?q=NEEDLE");
+    const filtered = await request(api).get("/tabular-review?q=NEEDLE");
     expect(filtered.body.items.map(({ title }: { title: string }) => title))
       .toEqual(["Needle lease"]);
   });
 
   it("persists a project review and generated cells across restart", async () => {
-    let app = await loadApp();
-    const project = await request(app)
+    let api = await loadApi();
+    const project = await request(api)
       .post("/projects")
       .send({ name: "Lease review", practice: "Litigation" });
     expect(project.status).toBe(201);
 
-    const uploaded = await request(app)
+    const uploaded = await request(api)
       .post("/library/files/documents")
       .attach("file", spreadsheetBytes("fixture"), "lease.xlsx");
     expect(uploaded.status).toBe(201);
     expect(
       (
-        await request(app).post(
+        await request(api).post(
           `/projects/${project.body.id}/documents/${uploaded.body.id}`,
         )
       ).status,
     ).toBe(200);
 
-    const rejected = await request(app)
+    const rejected = await request(api)
       .post("/tabular-review")
       .send({
         title: "Lease terms",
@@ -162,7 +154,7 @@ describe("account-free tabular reviews", () => {
       });
     expect(rejected.status).toBe(404);
 
-    const created = await request(app)
+    const created = await request(api)
       .post("/tabular-review")
       .send({
         title: "Lease terms",
@@ -181,7 +173,7 @@ describe("account-free tabular reviews", () => {
       is_owner: true,
     });
 
-    const standalone = await request(app)
+    const standalone = await request(api)
       .post("/tabular-review")
       .send({
         title: "Standalone",
@@ -190,7 +182,7 @@ describe("account-free tabular reviews", () => {
       });
     expect(standalone.status).toBe(201);
 
-    const listed = await request(app).get(
+    const listed = await request(api).get(
       `/tabular-review?project_id=${project.body.id}`,
     );
     expect(listed.status).toBe(200);
@@ -198,7 +190,7 @@ describe("account-free tabular reviews", () => {
       created.body.id,
     ]);
 
-    const opened = await request(app).get(
+    const opened = await request(api).get(
       `/tabular-review/${created.body.id}`,
     );
     expect(opened.status).toBe(200);
@@ -206,7 +198,7 @@ describe("account-free tabular reviews", () => {
     expect(opened.body.cells).toHaveLength(1);
     expect(opened.body.cells[0].status).toBe("pending");
 
-    const updated = await request(app)
+    const updated = await request(api)
       .patch(`/tabular-review/${created.body.id}`)
       .send({
         title: "Updated lease terms",
@@ -222,16 +214,16 @@ describe("account-free tabular reviews", () => {
     });
 
     const reviewRace = await Promise.all([
-      request(app).patch(`/tabular-review/${created.body.id}`).send({
+      request(api).patch(`/tabular-review/${created.body.id}`).send({
         title: "Updated lease terms", expected_version: updated.body.updated_at,
       }),
-      request(app).patch(`/tabular-review/${created.body.id}`).send({
+      request(api).patch(`/tabular-review/${created.body.id}`).send({
         title: "Updated lease terms", expected_version: updated.body.updated_at,
       }),
     ]);
     expect(reviewRace.map(({ status }) => status).sort()).toEqual([200, 409]);
 
-    const generated = await request(app).post(
+    const generated = await request(api).post(
       `/tabular-review/${created.body.id}/generate`,
     );
     expect(generated.status).toBe(200);
@@ -241,9 +233,9 @@ describe("account-free tabular reviews", () => {
 
     closeStores?.();
     closeStores = null;
-    app = await loadApp();
+    api = await loadApi();
 
-    const persisted = await request(app).get(
+    const persisted = await request(api).get(
       `/tabular-review/${created.body.id}`,
     );
     expect(persisted.status).toBe(200);
@@ -257,21 +249,21 @@ describe("account-free tabular reviews", () => {
       },
     });
 
-    const projectAfterRestart = await request(app).get(
+    const projectAfterRestart = await request(api).get(
       `/projects/${project.body.id}`,
     );
     expect(projectAfterRestart.body).not.toHaveProperty("review_count");
 
     expect(
       (
-        await request(app)
+        await request(api)
           .post(`/tabular-review/${created.body.id}/clear-cells`)
           .send({ document_ids: [uploaded.body.id] })
       ).status,
     ).toBe(204);
     expect(
       (
-        await request(app).get(
+        await request(api).get(
           `/tabular-review/${created.body.id}`,
         )
       ).body.cells[0],
@@ -286,17 +278,17 @@ describe("account-free tabular reviews", () => {
       return { fullText: "" };
     });
     const cellRace = await Promise.all([
-      request(app).post(`/tabular-review/${created.body.id}/regenerate-cell`)
+      request(api).post(`/tabular-review/${created.body.id}/regenerate-cell`)
         .send({ document_id: uploaded.body.id, column_index: 0 }),
-      request(app).post(`/tabular-review/${created.body.id}/regenerate-cell`)
+      request(api).post(`/tabular-review/${created.body.id}/regenerate-cell`)
         .send({ document_id: uploaded.body.id, column_index: 0 }),
     ]);
     expect(cellRace.map(({ status }) => status).sort()).toEqual([200, 409]);
 
-    await request(app).post(`/tabular-review/${created.body.id}/clear-cells`)
+    await request(api).post(`/tabular-review/${created.body.id}/clear-cells`)
       .send({ document_ids: [uploaded.body.id] });
     mocks.streamChatWithTools.mockRejectedValueOnce(new Error("provider unavailable"));
-    const failedStream = await request(app).post(
+    const failedStream = await request(api).post(
       `/tabular-review/${created.body.id}/generate`,
     );
     expect(failedStream.status).toBe(200);
@@ -305,12 +297,12 @@ describe("account-free tabular reviews", () => {
 
     expect(
       (
-        await request(app).delete(
+        await request(api).delete(
           `/single-documents/${uploaded.body.id}`,
         )
       ).status,
     ).toBe(204);
-    const reviewWithoutDocument = await request(app).get(
+    const reviewWithoutDocument = await request(api).get(
       `/tabular-review/${created.body.id}`,
     );
     expect(reviewWithoutDocument.body.review.document_ids).toEqual([]);
@@ -318,21 +310,21 @@ describe("account-free tabular reviews", () => {
 
     expect(
       (
-        await request(app).delete(
-          `/legal-knowledge/projects/${project.body.id}`,
+        await request(api).delete(
+          `/projects/${project.body.id}`,
         )
       ).status,
     ).toBe(204);
     expect(
       (
-        await request(app).get(
+        await request(api).get(
           `/tabular-review?project_id=${project.body.id}`,
         )
-      ).body,
-    ).toEqual({ items: [], next_cursor: null });
+      ).status,
+    ).toBe(404);
     expect(
       (
-        await request(app).delete(
+        await request(api).delete(
           `/tabular-review/${standalone.body.id}`,
         )
       ).status,

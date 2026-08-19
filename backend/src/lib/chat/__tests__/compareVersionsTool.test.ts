@@ -10,8 +10,7 @@ let home: string | null = null;
 
 afterEach(async () => {
   try {
-    (await import("../../localApplicationDatabase"))
-      .closeLocalApplicationDatabase();
+    (await import("../../sqliteDatabase")).closeSqliteDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.OPEN_LEGAL_DATA_HOME;
@@ -35,14 +34,14 @@ const docxFrom = (paragraphs: string[]) =>
     }),
   );
 
-describe("executeCompareVersionsTool", () => {
+describe("compareDocumentVersions", () => {
   it("compares in memory unless a durable redline is requested", async () => {
     home = await mkdtemp(path.join(os.tmpdir(), "beaver-compare-tool-"));
     process.env.MIKE_LOCAL_DATA_DIR = home;
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
     const store = await import("../../__tests__/support/localDocumentFixtures");
-    const { executeCompareVersionsTool } = await import(
+    const { compareDocumentVersions } = await import(
       "../tools/compareVersionsTool"
     );
     const { localDocuments } = await import(
@@ -59,11 +58,13 @@ describe("executeCompareVersionsTool", () => {
       ]),
     });
 
-    const early = await executeCompareVersionsTool(
+    const early = await compareDocumentVersions(
       localDocuments,
       { userId },
-      "compare_versions",
-      { document_id: document.id },
+      {
+        documentId: document.id,
+        newVersionId: document.current_version_id,
+      },
     );
     expect(early).toMatchObject({ ok: false, error: "no_prior_version" });
 
@@ -77,41 +78,25 @@ describe("executeCompareVersionsTool", () => {
       ]),
     });
 
-    const reply = await executeCompareVersionsTool(
+    const versions = await store.listLocalVersions(userId, document.id);
+    const newVersionId = versions!.current_version_id;
+    const reply = await compareDocumentVersions(
       localDocuments,
       { userId },
-      "compare_versions",
-      { document_id: document.id },
+      { documentId: document.id, newVersionId },
     );
     expect(reply).toMatchObject({ ok: true });
     expect(reply?.changes_total).toBeGreaterThan(0);
     expect(reply).not.toHaveProperty("document_id");
-    const saved = await executeCompareVersionsTool(
+    const saved = await compareDocumentVersions(
       localDocuments,
       { userId },
-      "compare_versions",
-      { document_id: document.id, save_redline: true },
+      { documentId: document.id, newVersionId, saveRedline: true },
     );
     expect(String(saved?.filename)).toContain("(redline)");
-    const listed = await store.pageLocalDocuments(userId, ["file"], {
-      q: "", limit: 50, after: null,
-    });
-    expect(
-      listed.items.some((doc) => doc.id === saved?.document_id),
-    ).toBe(true);
+    expect(await localDocuments.read(
+      { userId }, String(saved?.document_id), null, false,
+    )).not.toBeNull();
   });
 
-  it("ignores foreign tool names", async () => {
-    const { executeCompareVersionsTool } = await import(
-      "../tools/compareVersionsTool"
-    );
-    const { localDocuments } = await import(
-      "../../__tests__/support/localDocumentFixtures"
-    );
-    expect(
-      await executeCompareVersionsTool(
-        localDocuments, { userId }, "library_read", {},
-      ),
-    ).toBeNull();
-  });
 });

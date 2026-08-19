@@ -1,4 +1,4 @@
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import type {
   AskInputsResponseEvent,
   CaseOpinionsEvent,
@@ -14,7 +14,7 @@ import type {
   TabularReview,
 } from "@/app/components/shared/types";
 import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+export const API_BASE = "/api";
 export class BeaverApiError extends Error {
   status: number;
   code: string | null;
@@ -33,9 +33,9 @@ export function isMfaRequiredError(error: unknown) {
   );
 }
 async function getAuthHeader(): Promise<Record<string, string>> {
-  if (isAnonymousMode) return {};
-  const { supabase } = await import("@/app/lib/supabase");
-  const { data } = await supabase.auth.getSession();
+  if (isLocalMode) return {};
+  const { getSupabase } = await import("@/app/lib/supabase");
+  const { data } = await getSupabase().auth.getSession();
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -123,7 +123,7 @@ function streamRequest(
 }
 export type Page<T> = { items: T[]; next_cursor: string | null };
 type PageQuery = { q?: string; cursor?: string | null; limit?: number };
-function pagePath(path: string, query: PageQuery & Record<string, unknown> = {}) {
+function pagePath(path: string, query: object = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined && value !== null && value !== "") {
@@ -140,9 +140,8 @@ export const listProjects = (options: PageQuery & {
 );
 export const createProject = (
   name: string, cm_number?: string, practice?: string, shared_with?: string[],
-  metadata?: Project["metadata"], notes?: string | null,
 ) => post<Project>("/projects", {
-  name, cm_number, practice, shared_with, metadata, notes,
+  name, cm_number, practice, shared_with,
 });
 export const deleteAccount = () => remove<void>("/user/account");
 export const deleteAllChats = () => remove<void>("/user/chats");
@@ -154,41 +153,24 @@ export const exportTabularReviewsData = () => apiBlobRequest("/user/tabular-revi
 export interface AuditEvent {
   id: string;
   created_at: string;
-  user_email: string | null;
   action: string;
   status: "completed" | "cancelled" | "failed";
   title: string | null;
   surface: string | null;
-  project_id: string | null;
-  chat_id: string | null;
-  document_id: string | null;
-  review_id: string | null;
-  model: string | null;
 }
 export interface AuditHistoryQuery {
   q?: string;
   action?: string;
   status?: string;
-  surface?: string;
-  from?: string;
-  to?: string;
   page?: number;
 }
-const auditQuery = (query: AuditHistoryQuery) => {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "") params.set(key, String(value));
-  }
-  const suffix = params.toString();
-  return suffix ? `?${suffix}` : "";
-};
 export const getAuditHistory = (query: AuditHistoryQuery, signal?: AbortSignal) =>
   apiRequest<{ events: AuditEvent[]; total: number; page: number; pageSize: number }>(
-    `/audit${auditQuery(query)}`,
+    pagePath("/audit", query),
     { signal },
   );
 export const exportAuditHistory = (query: AuditHistoryQuery) =>
-  apiBlobRequest(`/audit/export${auditQuery(query)}`);
+  apiBlobRequest(pagePath("/audit/export", query));
 export type DraftingDocumentType = "memo" | "factum" | "letter" | "other";
 export type DraftingCitationPlacement =
   | "footnotes"
@@ -206,7 +188,6 @@ export interface DraftingStyleSettings {
 }
 export interface UserProfile {
   displayName: string | null; organisation: string | null;
-  messageCreditsUsed: number; creditsResetDate: string; creditsRemaining: number;
   tier: string; titleModel: string; tabularModel: string;
   mfaOnLogin: boolean; legalResearchUs: boolean;
   draftingStyle: DraftingStyleSettings;
@@ -216,28 +197,21 @@ export interface UserLookupResult {
   exists: boolean; email: string; display_name: string | null;
 }
 export const launchTableOfAuthorities = () =>
-  post<{ ok: boolean; url: string; reused: boolean }>("/table-of-authorities/launch");
+  post<{ url: string }>("/table-of-authorities/launch");
 export interface ModelCatalog {
   models: {
-    slug: string; displayName: string; description?: string; defaultReasoningLevel?: string;
-    supportedReasoningLevels: { effort: string; description?: string }[];
-    visibility?: string; supportedInApi?: boolean;
+    slug: string; displayName: string; defaultReasoningLevel?: string;
+    supportedReasoningLevels: { effort: string }[];
+    supportedInApi?: boolean;
   }[];
-  source: "live" | "bundled" | "unavailable"; error?: string;
   ollama?: {
     source: "live" | "unavailable";
     models: {
       name: string; displayName: string; supportsThinking?: boolean;
     }[];
-    error?: string;
   };
   readSubagents?: {
-    available: boolean;
     serverEnabled: boolean;
-    model: string;
-    displayName: string;
-    effort: string;
-    reason?: string;
   };
 }
 export const getModelCatalog = () => apiRequest<ModelCatalog>("/models");
@@ -263,16 +237,13 @@ type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
 export const saveApiKey = (provider: ApiKeyProvider, apiKey: string | null) =>
   put<ApiKeyStatus>(`/user/api-keys/${provider}`, { api_key: apiKey });
 interface McpToolSummary {
-  id: string; toolName: string; openaiToolName: string;
-  title: string | null; description: string | null;
-  enabled: boolean; readOnly: boolean; destructive: boolean; requiresConfirmation: boolean;
-  lastSeenAt: string;
+  id: string; toolName: string; title: string | null;
+  enabled: boolean; requiresConfirmation: boolean;
 }
 export interface McpConnectorSummary {
-  id: string; name: string; transport: "streamable_http"; serverUrl: string;
-  authType: "none" | "bearer" | "oauth"; enabled: boolean; hasAuthConfig: boolean;
-  customHeaderKeys: string[]; oauthConnected: boolean; toolPolicy: Record<string, unknown>;
-  tools: McpToolSummary[]; toolCount: number; createdAt: string; updatedAt: string;
+  id: string; name: string; serverUrl: string;
+  enabled: boolean; hasAuthConfig: boolean;
+  tools: McpToolSummary[]; toolCount: number;
 }
 type McpConnectorInput = {
   name: string; serverUrl: string; bearerToken?: string | null; headers?: Record<string, string>;
@@ -303,55 +274,52 @@ export const setMcpToolEnabled = (
   `/user/mcp-connectors/${connectorId}/tools/${toolId}`, { enabled },
 );
 export const getProject = (projectId: string) => apiRequest<Project>(`/projects/${projectId}`);
-export const getProjectDirectory = (
-  projectId: string,
-  options: PageQuery & { parent_id?: string | null } = {},
-  signal?: AbortSignal,
-) => apiRequest<Page<DirectoryEntry>>(
-  pagePath(`/projects/${projectId}/directory`, options), { signal },
-);
 export const updateProject = (
   projectId: string,
   payload: Partial<Pick<
     Project,
-    "name" | "cm_number" | "practice" | "shared_with" | "metadata" | "notes"
+    "name" | "cm_number" | "practice" | "shared_with"
   >>,
 ) => patch<Project>(`/projects/${projectId}`, payload);
 export const deleteProject = (projectId: string) =>
   remove<void>(`/projects/${projectId}`);
 export interface ProjectPeople {
-  owner: { user_id: string; email: string | null; display_name: string | null };
+  owner: { email: string | null; display_name: string | null };
   members: { email: string; display_name: string | null }[];
 }
 export const getProjectPeople = (projectId: string) =>
   apiRequest<ProjectPeople>(`/projects/${projectId}/people`);
-export const createProjectFolder = (
-  projectId: string, name: string, parentFolderId?: string | null,
-) => post<Folder>(`/projects/${projectId}/folders`, {
-  name, parent_folder_id: parentFolderId ?? null,
-});
-export const renameProjectFolder = (
-  projectId: string, folderId: string, name: string,
-) => patch<Folder>(`/projects/${projectId}/folders/${folderId}`, { name });
-export const deleteProjectFolder = (projectId: string, folderId: string) =>
-  remove<void>(`/projects/${projectId}/folders/${folderId}`);
-export const moveSubfolderToFolder = (
-  projectId: string, folderId: string, parentFolderId: string | null,
-) => patch<Folder>(`/projects/${projectId}/folders/${folderId}`, {
-  parent_folder_id: parentFolderId,
-});
-export const moveDocumentToFolder = (
-  projectId: string, documentId: string, folderId: string | null,
-) => patch<Document>(`/projects/${projectId}/documents/${documentId}/folder`, {
-  folder_id: folderId,
-});
-export const renameProjectDocument = (
-  projectId: string, documentId: string, filename: string,
-) => patch<Document>(`/projects/${projectId}/documents/${documentId}`, { filename });
 export type LibraryKind = "files" | "templates";
 export type DirectoryEntry =
   | { kind: "document"; document: Document }
   | { kind: "folder"; folder: LibraryFolder | Folder };
+export type DirectoryScope =
+  | { projectId: string }
+  | { library: LibraryKind };
+export function directoryResource(scope: DirectoryScope) {
+  const root = "projectId" in scope
+    ? `/projects/${encodeURIComponent(scope.projectId)}`
+    : `/library/${scope.library}`;
+  const folders = `${root}/folders`;
+  const documents = `${root}/documents`;
+  return {
+    list: (options: PageQuery & { parent_id?: string | null } = {}, signal?: AbortSignal) =>
+      apiRequest<Page<DirectoryEntry>>(pagePath(`${root}${"projectId" in scope ? "/directory" : ""}`, options), { signal }),
+    uploadDocument: (file: File) => multipartRequest<Document>(documents, file),
+    createFolder: (name: string, parentFolderId?: string | null) =>
+      post<Folder | LibraryFolder>(folders, { name, parent_folder_id: parentFolderId ?? null }),
+    renameFolder: (folderId: string, name: string) =>
+      patch<Folder | LibraryFolder>(`${folders}/${encodeURIComponent(folderId)}`, { name }),
+    deleteFolder: (folderId: string) =>
+      remove<void>(`${folders}/${encodeURIComponent(folderId)}`),
+    moveFolder: (folderId: string, parentFolderId: string | null) =>
+      patch<Folder | LibraryFolder>(`${folders}/${encodeURIComponent(folderId)}`, { parent_folder_id: parentFolderId }),
+    moveDocument: (documentId: string, folderId: string | null) =>
+      patch<Document>(`${documents}/${encodeURIComponent(documentId)}/folder`, { folder_id: folderId }),
+    renameDocument: (documentId: string, filename: string) =>
+      patch<Document>(`${documents}/${encodeURIComponent(documentId)}`, { filename }),
+  };
+}
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
 export interface LegalSourceReference {
@@ -359,7 +327,6 @@ export interface LegalSourceReference {
   provider: "a2aj" | "journal";
   doc_type: LegalDocumentType;
   citation: string;
-  language: "en" | "fr";
   dataset: string | null;
 }
 export interface LegalSourceSearchResult {
@@ -401,7 +368,6 @@ export interface LegalSourceViewerPayload {
     citation: string;
     alternateCitation: string | null;
     date: string | null;
-    dataset: string;
     url: string | null;
     language: "en" | "fr";
     pdfUrl?: string | null;
@@ -423,20 +389,15 @@ export interface LegalSourceViewerPayload {
   };
   truncated: boolean;
 }
-export const getLibrary = (kind: LibraryKind, options: PageQuery & {
-  parent_id?: string | null;
-} = {}, signal?: AbortSignal) => apiRequest<Page<DirectoryEntry>>(
-  pagePath(`/library/${kind}`, options), { signal },
-);
 export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
   post<{ status: string }>(
     `/library/${kind}/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
     {},
   );
 export const listLegalLibrary = async () =>
-  (await apiRequest<{ references: LegalSourceReference[] }>("/library/legal")).references;
+  (await apiRequest<{ references: LegalSourceReference[] }>("/sources")).references;
 export const getLegalSourceCoverage = async () =>
-  (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/library/legal/coverage")).coverage;
+  (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;
 export const searchLegalSources = async (args: {
   query: string;
   docType: LegalSearchDocumentType;
@@ -449,23 +410,21 @@ export const searchLegalSources = async (args: {
   endDate?: string;
   sortResults?: "default" | "newest_first" | "oldest_first";
 }): Promise<LegalSourceSearchResult[]> => {
-  const query = new URLSearchParams({
-    query: args.query,
-    doc_type: args.docType,
-    language: args.language ?? "en",
-  });
-  if (args.datasets?.length) query.set("dataset", args.datasets.join(","));
-  if (args.author) query.set("author", args.author);
-  if (args.journal) query.set("journal", args.journal);
-  if (args.speaker) query.set("speaker", args.speaker);
-  if (args.startDate) query.set("start_date", args.startDate);
-  if (args.endDate) query.set("end_date", args.endDate);
-  if (args.sortResults && args.sortResults !== "default") {
-    query.set("sort_results", args.sortResults);
-  }
   return (
     await apiRequest<{ results: LegalSourceSearchResult[] }>(
-      `/library/legal/search?${query}`,
+      pagePath("/sources/search", {
+        query: args.query,
+        doc_type: args.docType,
+        language: args.language ?? "en",
+        dataset: args.datasets?.join(","),
+        author: args.author,
+        journal: args.journal,
+        speaker: args.speaker,
+        start_date: args.startDate,
+        end_date: args.endDate,
+        sort_results:
+          args.sortResults === "default" ? undefined : args.sortResults,
+      }),
     )
   ).results;
 };
@@ -475,7 +434,7 @@ export const saveLegalSource = (args: {
   language?: "en" | "fr";
   dataset?: string | null;
   sourceId?: string | null;
-}) => post<LegalSourceReference>("/library/legal", {
+}) => post<LegalSourceReference>("/sources", {
   citation: args.citation,
   doc_type: args.docType,
   language: args.language ?? "en",
@@ -483,7 +442,7 @@ export const saveLegalSource = (args: {
   source_id: args.sourceId ?? undefined,
 });
 export const deleteLegalSource = async (referenceId: string): Promise<void> => {
-  const path = `/library/legal/${encodeURIComponent(referenceId)}`;
+  const path = `/sources/${encodeURIComponent(referenceId)}`;
   await remove(path);
   legalSourceDocumentRequests.delete(`${path}/document`);
 };
@@ -502,7 +461,7 @@ async function cachedLegalSourceDocument(path: string) {
   return request;
 }
 export const getLegalSourceDocument = (referenceId: string) =>
-  cachedLegalSourceDocument(`/library/legal/${encodeURIComponent(referenceId)}/document`);
+  cachedLegalSourceDocument(`/sources/${encodeURIComponent(referenceId)}/document`);
 export const getDirectLegalSourceDocument = (args: {
   provider: "a2aj" | "journal";
   citation: string;
@@ -511,97 +470,15 @@ export const getDirectLegalSourceDocument = (args: {
   language?: "en" | "fr";
   dataset?: string | null;
 }) => {
-  const query = new URLSearchParams({
+  return cachedLegalSourceDocument(pagePath("/sources/document", {
     citation: args.citation,
     provider: args.provider,
     doc_type: args.docType ?? "auto",
     language: args.language ?? "en",
-  });
-  if (args.dataset) query.set("dataset", args.dataset);
-  if (args.sourceId) query.set("source_id", args.sourceId);
-  return cachedLegalSourceDocument(`/library/legal/document?${query}`);
+    dataset: args.dataset,
+    source_id: args.sourceId,
+  }));
 }
-export interface LegalResearchProject {
-  id: string;
-  name: string;
-  order: number;
-}
-export interface LegalResearchNode {
-  id: string;
-  kind: string;
-  name: string;
-  color: string;
-}
-interface LegalSourceMark {
-  label_ids: string[];
-  note: string;
-}
-export interface LegalSourceMarking {
-  nodes: LegalResearchNode[];
-  edges: { from_node_id: string; to_node_id: string; relation: string }[];
-  mark: LegalSourceMark | null;
-}
-export const createLegalResearchProject = (name: string) =>
-  post<LegalResearchProject>("/legal-knowledge/projects", { name });
-export const getLegalSourceMarking = (
-  projectId: string,
-  sourceId: string,
-) => {
-  const query = new URLSearchParams({ source_id: sourceId });
-  return apiRequest<LegalSourceMarking>(
-    `/legal-knowledge/projects/${encodeURIComponent(projectId)}/marking?${query}`,
-  );
-};
-export const createLegalResearchLabel = (
-  projectId: string,
-  label: { name: string; color: string; parentId: string | null },
-) => post<LegalResearchNode>(
-  `/legal-knowledge/projects/${encodeURIComponent(projectId)}/nodes`,
-  { kind: "label", name: label.name, color: label.color, parent_id: label.parentId },
-);
-export const saveLegalSourceMark = (
-  projectId: string,
-  sourceId: string,
-  mark: { labelIds: string[]; note: string },
-) => put<LegalSourceMark | null>(
-  `/legal-knowledge/projects/${encodeURIComponent(projectId)}/sources/${encodeURIComponent(sourceId)}/mark`,
-  { label_ids: mark.labelIds, note: mark.note },
-);
-export const uploadLibraryDocument = (kind: LibraryKind, file: File) =>
-  multipartRequest<Document>(`/library/${kind}/documents`, file);
-export const createLibraryFolder = (
-  kind: LibraryKind,
-  name: string,
-  parentFolderId?: string | null,
-) => post<LibraryFolder>(`/library/${kind}/folders`, {
-  name, parent_folder_id: parentFolderId ?? null,
-});
-export const renameLibraryFolder = (
-  kind: LibraryKind,
-  folderId: string,
-  name: string,
-) => patch<LibraryFolder>(`/library/${kind}/folders/${folderId}`, { name });
-export const deleteLibraryFolder = (kind: LibraryKind, folderId: string) =>
-  remove<void>(`/library/${kind}/folders/${folderId}`);
-export const moveLibraryFolder = (
-  kind: LibraryKind,
-  folderId: string,
-  parentFolderId: string | null,
-) => patch<LibraryFolder>(`/library/${kind}/folders/${folderId}`, {
-  parent_folder_id: parentFolderId,
-});
-export const moveLibraryDocument = (
-  kind: LibraryKind,
-  documentId: string,
-  folderId: string | null,
-) => patch<Document>(`/library/${kind}/documents/${documentId}/folder`, {
-  folder_id: folderId,
-});
-export const renameLibraryDocument = (
-  kind: LibraryKind,
-  documentId: string,
-  filename: string,
-) => patch<Document>(`/library/${kind}/documents/${documentId}`, { filename });
 export type DeterministicDocxActionResult = {
   ok: boolean;
   document_id: string;
@@ -653,7 +530,7 @@ export const removeProjectDocument = async (
   projectId: string,
   documentId: string,
 ): Promise<void> => {
-  if (!isAnonymousMode) {
+  if (!isLocalMode) {
     await deleteDocument(documentId);
     return;
   }
@@ -703,8 +580,6 @@ export const deleteDocumentVersion = (
   deleted_version_id: string;
   current_version_id: string | null;
 }> => remove(`/single-documents/${documentId}/versions/${versionId}`);
-export const uploadProjectDocument = (projectId: string, file: File) =>
-  multipartRequest<Document>(`/projects/${projectId}/documents`, file);
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
 export const deleteDocument = (documentId: string) =>
@@ -713,9 +588,29 @@ export const downloadDocument = (
   documentId: string,
   versionId?: string | null,
 ) => apiBlobRequest(
-  `/single-documents/${documentId}/file${
-    versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""
-  }`,
+  pagePath(`/single-documents/${documentId}/file`, { version_id: versionId }),
+);
+export type SpreadsheetProjection = {
+  version_id: string;
+  sheets: Array<{
+    name: string;
+    cells: Array<{
+      address: string;
+      value: string;
+      row: number;
+      column: number;
+      rowSpan?: number;
+      columnSpan?: number;
+    }>;
+  }>;
+};
+export const getSpreadsheetProjection = (
+  documentId: string,
+  versionId?: string | null,
+) => apiRequest<SpreadsheetProjection>(
+  pagePath(`/single-documents/${encodeURIComponent(documentId)}/spreadsheet`, {
+    version_id: versionId,
+  }),
 );
 export const downloadDocumentsZip = async (documentIds: string[]): Promise<Blob> =>
   (await apiBlobRequest(
@@ -761,8 +656,8 @@ export const generateChatTitle = (chatId: string, message: string) =>
 export type CaseLawOpinion =
   CaseOpinionsEvent["case"]["opinions"][number];
 export const getCourtlistenerOpinions = async (clusterId: number) =>
-  (await post<{ opinions: CaseLawOpinion[] }>(
-    "/case-law/case-opinions", { clusterId },
+  (await apiRequest<{ opinions: CaseLawOpinion[] }>(
+    `/sources/courtlistener/${encodeURIComponent(clusterId)}/opinions`,
   )).opinions;
 type StreamCurrentTurn =
   | (Pick<Message, "content" | "files" | "workflow"> & {
@@ -829,7 +724,7 @@ export const getTabularReviewPeople = (reviewId: string) =>
 export const generateTabularColumnPrompt = (
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },
-) => post<{ prompt: string; source: "preset" | "llm" | "fallback" }>(
+) => post<{ prompt: string }>(
   "/tabular-review/prompt",
   {
     title,
@@ -840,6 +735,8 @@ export const generateTabularColumnPrompt = (
 );
 export const deleteTabularReview = (reviewId: string) =>
   remove<void>(`/tabular-review/${reviewId}`);
+export const exportTabularReview = (reviewId: string) =>
+  apiBlobRequest(`/tabular-review/${reviewId}/export`);
 export const streamTabularGeneration = (
   reviewId: string,
   options?: { model?: string; reasoningEffort?: string },
@@ -910,7 +807,7 @@ export const shareWorkflow = (
 ) => post<void>(`/workflows/${workflowId}/share`, payload);
 export const listWorkflowShares = (workflowId: string) =>
   apiRequest<{
-    id: string; shared_with_email: string; allow_edit: boolean; created_at: string;
+    id: string; shared_with_email: string;
   }[]>(`/workflows/${workflowId}/shares`);
 export const deleteWorkflowShare = (workflowId: string, shareId: string) =>
   remove<void>(`/workflows/${workflowId}/shares/${shareId}`);

@@ -1,8 +1,8 @@
 import { appUrl } from "../appRoutes";
 import type { TabularCellStore } from "./types";
-import type { TabularStore } from "../tabularStore";
+import type { TabularApplication } from "../tabular/application";
 
-type Detail = NonNullable<Awaited<ReturnType<TabularStore["detail"]>>>;
+type Detail = NonNullable<Awaited<ReturnType<TabularApplication["detail"]>>>;
 
 export function tabularChatContext(detail: Detail) {
   const documentsById = new Map(

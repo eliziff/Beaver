@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
     signOut: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ replace: mocks.replace }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => mocks.replace,
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: mocks.auth.user, signOut: mocks.signOut }),
@@ -58,7 +58,7 @@ describe("MfaLoginGate", () => {
         mocks.signOut.mockReset();
     });
 
-    it("bypasses MFA in account-free mode without loading the cloud check", () => {
+    it("bypasses MFA in local mode without loading the cloud check", () => {
         mocks.auth.user = { id: "00000000-0000-0000-0000-000000000001" };
         mocks.profile.value = { mfaOnLogin: false };
 
@@ -108,9 +108,6 @@ describe("MfaLoginGate", () => {
         );
 
         expect(screen.getByText("Protected content")).toBeInTheDocument();
-        expect(
-            window.sessionStorage.getItem("mike:mfa-verified-at"),
-        ).not.toBeNull();
     });
 
     it("signs out before returning a cancelled login to the login page", async () => {
@@ -129,7 +126,7 @@ describe("MfaLoginGate", () => {
 
         await waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
         await waitFor(() =>
-            expect(mocks.replace).toHaveBeenCalledWith("/login"),
+            expect(mocks.replace).toHaveBeenCalledWith("/login", { replace: true }),
         );
         expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     });

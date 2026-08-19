@@ -11,7 +11,8 @@ describe("shared chat lifecycle", () => {
   it("aborts a live turn only after trash commits", async () => {
     const trash = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     const repository = { trash } as unknown as ChatRepository;
-    const store = createChatStore(() => repository, async (_scope, message) => message);
+    const store = createChatStore(() => repository, async (_scope, message) => message,
+      { project: async () => false, review: async () => false });
     const controller = new AbortController();
     expect(beginChatTurn(chatId, controller)).toBe(true);
 

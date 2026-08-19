@@ -1,4 +1,4 @@
-import { createAssistantTools } from "./assistantTools";
+import { assistantTools } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
 import type { TabularCellStore, WorkflowStore } from "./types";
@@ -6,11 +6,11 @@ import type { EditMode } from "../docxTrackedChanges";
 import type { DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
+import { resourceReference } from "../resourceReferences";
+import type { ReadSubagentAssignment } from "./readSubagents";
 
 function state() {
   return {
-    courtlistener: { casesByClusterId: new Map() },
-    pdfHandles: new Set<string>(),
     edits: new Map(),
     servedDraftingCache: new Map(),
   };
@@ -28,7 +28,7 @@ export function createChatToolRunner(options: {
   projects: ProjectStore;
   workflows?: WorkflowStore;
   entries?: BeaverTool<ChatToolContext>[];
-  excludeToolNames?: ReadonlySet<string>;
+  includeResearchTools: boolean;
   editMode?: EditMode;
   timeZone?: string;
   onMutationCommitted: () => void;
@@ -39,24 +39,27 @@ export function createChatToolRunner(options: {
   let artifactNumber = 0;
   let mutationCommitted = false;
 
-  const artifactFor = (documentId: string) => {
+  const artifactFor = (documentId: string, versionId: string) => {
     const existing = artifactByDocument.get(documentId);
+    if (existing)
+      artifacts.set(existing, resourceReference.document(documentId, versionId));
     if (existing) return existing;
     const handle = `draft-${++artifactNumber}`;
-    artifacts.set(handle, documentId);
+    artifacts.set(handle, resourceReference.document(documentId, versionId));
     artifactByDocument.set(documentId, handle);
     return handle;
   };
 
   const createTools = (
     evidence: ChatToolContext["evidence"],
-    scope: "main" | "reader",
+    scope: "main" | ReadSubagentAssignment,
   ): BeaverTool<ChatToolContext>[] => {
     const turnState = scope === "main" ? main : state();
     return [
-      ...createAssistantTools<ChatToolContext>({
+      ...assistantTools<ChatToolContext>({
         userId: options.userId,
-        scope,
+        scope: scope === "main" ? "main" : "reader",
+        ...(scope === "main" ? {} : { readerAssignment: scope }),
         tabular: options.tabular,
         documentNames: options.documentNames,
         resolveArtifact: (value) => artifacts.get(value),
@@ -67,28 +70,24 @@ export function createChatToolRunner(options: {
             options.onMutationCommitted();
           }
         },
-        options: {
-          userEmail: options.userEmail,
-          ...turnState,
-          documents: options.documents,
-          library: options.library,
-          projects: options.projects,
-          workflows: options.workflows,
-          allowedDocumentIds: options.allowedDocumentIds,
-          matterId: options.projectId,
-          legalEvidence: evidence,
-          editMode: options.editMode,
-          timeZone: options.timeZone,
-        },
+        userEmail: options.userEmail,
+        ...turnState,
+        documents: options.documents,
+        library: options.library,
+        projects: options.projects,
+        workflows: options.workflows,
+        allowedDocumentIds: options.allowedDocumentIds,
+        matterId: options.projectId,
+        legalEvidence: evidence,
+        editMode: options.editMode,
+        timeZone: options.timeZone,
       }),
-      ...(options.entries ?? []).filter((entry) =>
-        !options.excludeToolNames?.has(entry.name)),
-    ].filter((entry) => !options.excludeToolNames?.has(entry.name));
+      ...(options.entries ?? []),
+    ].filter((entry) => options.includeResearchTools || !entry.research);
   };
 
   return {
     createTools,
-    pdfHandles: main.pdfHandles,
     mutationCommitted: () => mutationCommitted,
   };
 }

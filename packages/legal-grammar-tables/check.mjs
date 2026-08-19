@@ -20,6 +20,7 @@ const allowedEntryKeys = new Set([
   "provenance",
   "vectors",
 ]);
+const allowedCanonicalKeys = new Set(["lowercase", "strip", "map"]);
 
 const fail = (message) => {
   throw new Error(message);
@@ -30,6 +31,12 @@ const object = (value, label) => {
 };
 const exactKeys = (value, allowed, label) => {
   for (const key of Object.keys(value)) if (!allowed.has(key)) fail(`${label}: unknown field ${key}`);
+};
+const stringRecord = (value, label) => {
+  object(value, label);
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== "string") fail(`${label}.${key}: expected string`);
+  }
 };
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const expand = (source, defs, id) => {
@@ -59,7 +66,7 @@ if (corpus.format !== "legal-grammar-corpus:v1") fail(`unexpected corpus format 
 exactKeys(corpus, new Set(["format", "tables"]), "corpus");
 const tables = object(corpus.tables, "corpus.tables");
 const tableNames = Object.keys(tables).sort();
-if (tableNames.join(",") !== "citations,footnote-labels,pinpoints,references") {
+if (tableNames.join(",") !== "citations,footnote-labels,pinpoints,provisions,references") {
   fail(`incomplete table set: ${tableNames.join(",")}`);
 }
 
@@ -68,6 +75,7 @@ let vectors = 0;
 for (const tableName of tableNames) {
   const table = object(tables[tableName], tableName);
   exactKeys(table, allowedTableKeys, tableName);
+  if (typeof table.description !== "string" || !table.description) fail(`${tableName}: missing description`);
   const defs = object(table.defs ?? {}, `${tableName}.defs`);
   for (const [name, fragment] of Object.entries(defs)) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || typeof fragment !== "string") {
@@ -82,16 +90,26 @@ for (const tableName of tableNames) {
     if (ids.has(entry.id)) fail(`duplicate grammar id ${entry.id}`);
     ids.add(entry.id);
     if (typeof entry.pattern !== "string" || entry.pattern.length === 0) fail(`${entry.id}: empty pattern`);
-    if (typeof entry.flags !== "string" || !/^[ims]*$/.test(entry.flags)) fail(`${entry.id}: invalid flags`);
-    object(entry.canonical, `${entry.id}.canonical`);
+    if (typeof entry.flags !== "string" || !/^(?!.*(.).*\1)[ims]*$/.test(entry.flags)) fail(`${entry.id}: invalid flags`);
+    const canonical = object(entry.canonical, `${entry.id}.canonical`);
+    exactKeys(canonical, allowedCanonicalKeys, `${entry.id}.canonical`);
+    if (canonical.lowercase !== undefined && (!Array.isArray(canonical.lowercase) || canonical.lowercase.some((name) => typeof name !== "string"))) fail(`${entry.id}.canonical.lowercase: expected strings`);
+    if (canonical.strip !== undefined) stringRecord(canonical.strip, `${entry.id}.canonical.strip`);
+    if (canonical.map !== undefined) {
+      object(canonical.map, `${entry.id}.canonical.map`);
+      for (const [name, mapping] of Object.entries(canonical.map)) stringRecord(mapping, `${entry.id}.canonical.map.${name}`);
+    }
     if (typeof entry.provenance !== "string" || entry.provenance.length === 0) fail(`${entry.id}: missing provenance`);
     if (!Array.isArray(entry.vectors) || entry.vectors.length === 0) fail(`${entry.id}: missing vectors`);
+    const vectorInputs = new Set();
     for (const vector of entry.vectors) {
       object(vector, `${entry.id}.vector`);
       exactKeys(vector, new Set(["input", "groups", "canonical"]), `${entry.id}.vector`);
       if (typeof vector.input !== "string") fail(`${entry.id}: vector input must be text`);
-      if (vector.groups !== null) object(vector.groups, `${entry.id}.vector.groups`);
-      if (vector.canonical !== undefined) object(vector.canonical, `${entry.id}.vector.canonical`);
+      if (vectorInputs.has(vector.input)) fail(`${entry.id}: duplicate vector input`);
+      vectorInputs.add(vector.input);
+      if (vector.groups !== null) stringRecord(vector.groups, `${entry.id}.vector.groups`);
+      if (vector.canonical !== undefined) stringRecord(vector.canonical, `${entry.id}.vector.canonical`);
       vectors += 1;
     }
     validatePortablePattern(expand(entry.pattern, defs, entry.id), entry.id);

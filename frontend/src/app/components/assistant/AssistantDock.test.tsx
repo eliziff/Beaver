@@ -10,7 +10,6 @@ it("resizes the dock from the keyboard", () => {
             onActivateTab={vi.fn()}
             expanded
             onExpandedChange={vi.fn()}
-            inspectorContent={<p>Source inspector</p>}
         />,
     );
 
@@ -19,30 +18,6 @@ it("resizes the dock from the keyboard", () => {
 
     expect(dock).toHaveStyle({ "--assistant-dock-width": "584px" });
     expect(screen.getByText("Source")).toBeVisible();
-});
-
-it("keeps an agent visible while inspecting its sources", () => {
-    render(
-        <AssistantDock
-            tabs={[
-                { id: "sources", label: "Sources", content: null },
-                { id: "agents", label: "Agents", content: <p>Agent result</p> },
-            ]}
-            activeTabId="agents"
-            onActivateTab={vi.fn()}
-            expanded
-            onExpandedChange={vi.fn()}
-            inspectorContent={<p>Case text</p>}
-            inspectorOpen
-            onCloseInspector={vi.fn()}
-        />,
-    );
-
-    expect(screen.getByText("Agent result")).toBeVisible();
-    expect(screen.getByText("Case text")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Close sources" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Float assistant dock" }))
-        .not.toBeInTheDocument();
 });
 
 it("collapses to an expand control without discarding the dock", () => {

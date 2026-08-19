@@ -6,7 +6,6 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
 import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
-import { getA2AJDocumentSourceDoc } from "../../../backend/src/lib/a2aj";
 
 const rows = readFileSync(path.join(__dirname, "..", "seeds", "1.SCC.jsonl"), "utf8")
   .split(/\r?\n/u)

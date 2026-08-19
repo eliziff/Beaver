@@ -4,7 +4,7 @@ import {
   getLocalA2AJStructure,
 } from "../../backend/src/lib/a2ajLocalBulk";
 import { withReadonlySqlite } from "../../backend/src/lib/legalDataPath";
-import { getA2AJDocumentSourceDoc } from "../../backend/src/lib/a2aj";
+import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 
 const citation = "CITT PR-2023-044";
 const dataset = "CITT";
@@ -21,7 +21,7 @@ console.log("text length", document.text.length);
 const structure = getLocalA2AJStructure(document);
 console.log("structure summary", JSON.stringify(structure, null, 1));
 
-const source = structure ?? getA2AJDocumentSourceDoc(document);
+const source = structure ?? a2ajLegalSourceProvider.source(document);
 const blocks = source.blocks.filter((b) => b.kind === "paragraph");
 console.log("paragraph labels:", blocks.map((b) => b.label).join(","));
 

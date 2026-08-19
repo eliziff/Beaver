@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarChatItem } from "./SidebarChatItem";
@@ -29,6 +31,10 @@ const chat = {
     created_at: "2026-07-27T00:00:00Z",
 };
 
+function renderSidebar(item: ReactElement) {
+    return render(<MemoryRouter>{item}</MemoryRouter>);
+}
+
 describe("SidebarChatItem inline actions", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -36,11 +42,11 @@ describe("SidebarChatItem inline actions", () => {
     });
 
     it("renames a chat without opening a dropdown framework", async () => {
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
             />,
         );
 
@@ -70,12 +76,12 @@ describe("SidebarChatItem inline actions", () => {
     it("exposes modifier selection and a draggable selected state", () => {
         const onSelect = vi.fn();
         const onNavigate = vi.fn();
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive={false}
                 isSelected
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
                 onNavigate={onNavigate}
                 onSelect={onSelect}
             />,
@@ -94,11 +100,11 @@ describe("SidebarChatItem inline actions", () => {
     });
 
     it("warns before moving a chat to the Recycling bin", async () => {
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
             />,
         );
 
@@ -118,7 +124,7 @@ describe("SidebarChatItem inline actions", () => {
 
     it("offers to move the full current selection from its action owner", async () => {
         const onDeleteSelection = vi.fn().mockResolvedValue(undefined);
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive
@@ -126,7 +132,7 @@ describe("SidebarChatItem inline actions", () => {
                 selectedCount={3}
                 isSelectionActionOwner
                 onDeleteSelection={onDeleteSelection}
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
             />,
         );
 
@@ -148,11 +154,11 @@ describe("SidebarChatItem inline actions", () => {
 
     it("opens the shared project chooser from a stable inline action", () => {
         const onMoveToProject = vi.fn();
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
                 onMoveToProject={onMoveToProject}
             />,
         );
@@ -160,17 +166,16 @@ describe("SidebarChatItem inline actions", () => {
         const move = screen.getByRole("button", {
             name: "Move Lease review to project",
         });
-        expect(move.parentElement).toHaveClass("w-[72px]");
         fireEvent.click(move);
         expect(onMoveToProject).toHaveBeenCalledOnce();
     });
 
     it("cancels the delete warning with Escape", async () => {
-        render(
+        renderSidebar(
             <SidebarChatItem
                 chat={chat}
                 isActive
-                href="/assistant/chat/chat-1"
+                to="/assistant/chat/chat-1"
             />,
         );
         const trigger = screen.getByRole("button", {

@@ -39,7 +39,7 @@ const AGREEMENT = [
 ].join("\n");
 
 /**
- * An artifact-derived map, built the way `compileLegalPdfSourceDoc` builds
+ * An artifact-derived map, built the way the engine's `source_doc` contract builds
  * it: `anchor` carries the PDF page, `aliases` the printed label. Front
  * matter printed "i" makes PDF page 2 the sheet printed "1" — the offset a
  * table of contents silently assumes.

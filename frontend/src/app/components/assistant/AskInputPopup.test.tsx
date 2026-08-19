@@ -63,7 +63,7 @@ it("collapses the question body", async () => {
     );
 });
 
-it("keeps a multi-question prompt in one fixed panel", async () => {
+it("submits multiple answers together", async () => {
     const onSubmit = vi.fn();
     const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
         type: "ask_inputs",
@@ -87,18 +87,9 @@ it("keeps a multi-question prompt in one fixed panel", async () => {
 
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
     expect(screen.getByText("First question")).toBeInTheDocument();
-    expect(screen.getByText("Second question")).not.toBeVisible();
-    expect(document.querySelector("[data-ask-input-panel]")).toHaveClass(
-        "open:h-[min(28rem,70dvh)]",
-    );
-    expect(document.querySelector("[data-ask-input-options]")).toHaveClass(
-        "min-h-0",
-        "flex-1",
-        "overflow-y-auto",
-    );
+    expect(screen.getByText("Second question")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
-    expect(screen.getByText("Second question")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "No" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmit).toHaveBeenCalledWith(
@@ -113,7 +104,7 @@ it("keeps a multi-question prompt in one fixed panel", async () => {
     );
 });
 
-it("keeps skipped questions navigable and submits them", async () => {
+it("submits declined questions", async () => {
     const onSubmit = vi.fn();
     const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
         type: "ask_inputs",
@@ -137,13 +128,6 @@ it("keeps skipped questions navigable and submits them", async () => {
 
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
     await userEvent.click(screen.getByRole("button", { name: "Decline to answer" }));
-    await userEvent.click(
-        screen.getByRole("button", { name: "Previous question" }),
-    );
-    expect(screen.getByRole("button", { name: "Answer instead" })).toBeInTheDocument();
-    await userEvent.click(
-        screen.getByRole("button", { name: "Next question" }),
-    );
     await userEvent.click(screen.getByRole("button", { name: "Decline to answer" }));
 
     expect(onSubmit).toHaveBeenCalledWith(

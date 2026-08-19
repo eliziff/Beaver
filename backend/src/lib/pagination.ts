@@ -61,13 +61,6 @@ export function pageRequest<T extends CursorScalar[]>(
     after: decodePageCursor(query.cursor, resource, filters, shape) as T | null };
 }
 
-export function pageResult<T, R>(rows: T[], limit: number,
-  map: (row: T) => R, cursor: (row: T) => string) {
-  const items = rows.slice(0, limit).map(map);
-  return { items, next_cursor: rows.length > limit
-    ? cursor(rows[items.length - 1]) : null };
-}
-
 const canonical = (value: CursorFilters) => JSON.stringify(
   Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
 );

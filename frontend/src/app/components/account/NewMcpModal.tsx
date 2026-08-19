@@ -189,11 +189,7 @@ export function McpToolList({
             <div className="divide-y divide-gray-100">
                 {connector.tools.map((tool) => {
                     const loading = busyKey === `tool:${tool.id}`;
-                    const toolLabel =
-                        tool.title ||
-                        (onToolEnabled
-                            ? tool.toolName
-                            : tool.openaiToolName);
+                    const toolLabel = tool.title || tool.toolName;
                     const Row = onToolEnabled ? "label" : "div";
                     return (
                         <Row
@@ -204,11 +200,6 @@ export function McpToolList({
                                 <p className="truncate text-sm font-medium text-gray-800">
                                     {toolLabel}
                                 </p>
-                                {!onToolEnabled && tool.description && (
-                                    <p className="truncate text-xs text-gray-500">
-                                        {tool.description}
-                                    </p>
-                                )}
                             </div>
                             {onToolEnabled ? (
                                 <AccountToggle

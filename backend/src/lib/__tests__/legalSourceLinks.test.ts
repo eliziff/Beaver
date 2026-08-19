@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { A2AJLocatorLookup } from "../a2aj";
+import type { A2AJLocatorLookup } from "../legalSources/a2aj";
 import {
   buildA2AJPinpointUrl,
   buildLegalSourcePinpointUrl,
