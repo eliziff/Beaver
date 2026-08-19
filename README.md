@@ -27,9 +27,9 @@ through the same turn, event, evidence, and tool contracts when configured.
 ### One legal-source plane, not a set of one-off integrations
 
 Legal sources enter Beaver through one small provider contract: `search`,
-`resolve`, and `readPassage`. Current adapters cover A2AJ/CanLII data,
+`resolve`, and `readPassage`. Current adapters cover A2AJ data,
 CourtListener, The National Archives Find Case Law, GOV.UK Employment Tribunal,
-GovInfo, journal corpora, and Hansard. The registry preserves each provider's
+and GovInfo. The registry preserves each provider's
 native identifiers and structure while presenting one bounded search and exact
 passage interface to the Library, HTTP API, assistant, and authorities tools.
 
