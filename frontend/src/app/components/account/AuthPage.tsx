@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { updateUserProfile } from "@/app/lib/beaverApi";
-import { supabase } from "@/app/lib/supabase";
+import { getSupabase } from "@/app/lib/supabase";
 
 const card = "rounded-2xl border border-gray-200 bg-white p-8 shadow-sm";
 const input =
@@ -29,7 +28,7 @@ const fields = {
 } as const;
 
 export function AuthPage({ mode }: { mode: "login" | "signup" }) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { isAuthenticated, authLoading } = useAuth();
     const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -37,8 +36,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
 
     useEffect(() => {
         if (!authLoading && isAuthenticated && status !== "success")
-            router.replace("/assistant");
-    }, [authLoading, isAuthenticated, router, status]);
+            navigate("/assistant", { replace: true });
+    }, [authLoading, isAuthenticated, navigate, status]);
 
     async function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -49,19 +48,19 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         setError(null);
         try {
             if (!signup) {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { error } = await getSupabase().auth.signInWithPassword({
                     email,
                     password,
                 });
                 if (error) throw error;
-                router.push("/assistant");
+                navigate("/assistant");
                 return;
             }
             if (password !== form.get("confirmPassword"))
                 throw new Error("Passwords do not match");
             if (password.length < 6)
                 throw new Error("Password must be at least 6 characters");
-            const { data, error } = await supabase.auth.signUp({
+            const { data, error } = await getSupabase().auth.signUp({
                 email,
                 password,
             });
@@ -80,7 +79,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                     );
             }
             setStatus("success");
-            window.setTimeout(() => router.push("/assistant"), 2000);
+            window.setTimeout(() => navigate("/assistant"), 2000);
         } catch (error) {
             setError(
                 error instanceof Error
@@ -125,7 +124,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                                     ) : (
                                         <Link
                                             key={item}
-                                            href={`/${item}`}
+                                            to={`/${item}`}
                                             className="inline-flex h-6 items-center rounded-full border border-transparent px-3 text-gray-500 hover:bg-white/40 hover:text-gray-900"
                                         >
                                             {item === "login" ? "Log in" : "Sign up"}
@@ -206,13 +205,13 @@ function ExternalLink({
     children: React.ReactNode;
 }) {
     return (
-        <Link
+        <a
             href={href}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"
         >
             {children}
-        </Link>
+        </a>
     );
 }

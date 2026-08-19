@@ -423,11 +423,11 @@ The model sees only a turn-local result such as:
 ```
 
 Document/version UUIDs, resource URIs, and download URLs remain in the typed
-`doc_created` event carried by `BeaverOutcome`; they are never parsed back out
+`document_artifact` event carried by `BeaverOutcome`; they are never parsed back out
 of model-visible JSON. A turn-local handle may be passed to `Edit`;
 it is not a durable public route.
 
-The frontend renders one compact monochrome Library pill from `doc_created`.
+The frontend renders one compact monochrome Library pill from `document_artifact`.
 Selecting it opens the document in the existing Library side panel. Remove the
 duplicate download block, do not say “Downloading,” and never let the model
 construct an application URL.

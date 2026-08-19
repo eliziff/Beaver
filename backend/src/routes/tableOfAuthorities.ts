@@ -1,9 +1,8 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Router } from "express";
+import type { DocumentStore } from "../lib/documentStore";
 import { requireAuth } from "../middleware/auth";
-import { getLocalVersionFile } from "../lib/localDocumentStore";
 import {
   ensureTableOfAuthoritiesRunning,
   submitTableOfAuthoritiesDocument,
@@ -13,9 +12,10 @@ import {
   tableOfAuthoritiesUrl,
 } from "../lib/tableOfAuthorities";
 
-export const tableOfAuthoritiesRouter = Router();
+export function createTableOfAuthoritiesRouter(documents: DocumentStore) {
+const router = Router();
 
-tableOfAuthoritiesRouter.get("/status", async (_req, res) => {
+router.get("/status", async (_req, res) => {
   const directory = tableOfAuthoritiesProjectDirectory();
   res.json({
     available:
@@ -26,11 +26,11 @@ tableOfAuthoritiesRouter.get("/status", async (_req, res) => {
   });
 });
 
-tableOfAuthoritiesRouter.post("/launch", async (_req, res) => {
+router.post("/launch", async (_req, res) => {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     res.status(403).json({
       detail:
-        "The standalone Table of Authorities host is available only in local anonymous development mode.",
+        "The standalone Table of Authorities host is available only in local development mode.",
     });
     return;
   }
@@ -46,11 +46,11 @@ tableOfAuthoritiesRouter.post("/launch", async (_req, res) => {
   }
 });
 
-tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
+router.post("/jobs", requireAuth, async (req, res) => {
   if (!tableOfAuthoritiesLocalFeatureAvailable()) {
     res.status(403).json({
       detail:
-        "Table of Authorities Library submission is available only in local anonymous mode.",
+        "Table of Authorities Library submission is available only in local mode.",
     });
     return;
   }
@@ -67,11 +67,8 @@ tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const file = await getLocalVersionFile(
-      res.locals.userId as string,
-      documentId,
-      versionId || undefined,
-    );
+    const file = await documents.read({ userId: res.locals.userId as string },
+      documentId, versionId || null, false);
     if (!file) {
       res.status(404).json({ detail: "Library version not found" });
       return;
@@ -87,8 +84,8 @@ tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
     }
     res.status(202).json(
       await submitTableOfAuthoritiesDocument({
-        bytes: await readFile(file.path),
-        filename: file.version.filename,
+        bytes: file.bytes,
+        filename: file.filename,
         splitFallback: req.body?.split_fallback === "off" ? "off" : "auto",
         projectId:
           typeof req.body?.project_id === "string"
@@ -105,3 +102,6 @@ tableOfAuthoritiesRouter.post("/jobs", requireAuth, async (req, res) => {
     });
   }
 });
+
+return router;
+}

@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it } from "vitest";
 import {
     jurisdictionPreferenceForChat,
-    readJurisdictionPreference,
-} from "@/app/components/assistant/jurisdictionPreferences";
+    readAssistantPreferences,
+} from "@/app/components/assistant/assistantPreferences";
 import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 
 beforeEach(() => localStorage.clear());
@@ -42,5 +42,5 @@ it("stores multiple standing jurisdictions and can return to asking", async () =
         mode: "ask",
         jurisdictions: ["Canada"],
     });
-    expect(readJurisdictionPreference().jurisdictions).toHaveLength(2);
+    expect(readAssistantPreferences().jurisdiction.jurisdictions).toHaveLength(2);
 });

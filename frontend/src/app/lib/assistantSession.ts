@@ -1,3 +1,4 @@
+
 import type {
   AskInputsEvent,
   AskInputsResponseEvent,
@@ -5,11 +6,11 @@ import type {
   CaseCitationEvent,
   CaseOpinionsEvent,
   Citation,
-  DocumentCitation,
   EditAnnotation,
   Message,
   ToolActivitySource,
 } from "@/app/components/shared/types";
+import { z } from "zod";
 
 export const ASSISTANT_LIMITS = {
   activities: 256,
@@ -24,8 +25,6 @@ const FIELD_TEXT_LIMIT = 8_192;
 const SHORT_TEXT_LIMIT = 512;
 const COLLECTION_LIMIT = 128;
 export const ASSISTANT_GENERIC_ERROR = "Unable to get a response. Try again.";
-type CitationDisplayFields = Pick<DocumentCitation, "display_form" | "source_class" | "external_url" | "authority" | "short_authority" | "locator_separator">;
-
 export type AssistantTranscriptMessage = {
   id: string;
   role: "user" | "assistant";
@@ -75,7 +74,7 @@ export type AssistantReaderRun = {
 
 export type AssistantArtifact = {
   id: string;
-  type: "created" | "edited" | "download";
+  type: "created" | "edited";
   filename: string;
   downloadUrl: string;
   documentId?: string;
@@ -148,7 +147,7 @@ export type AssistantSessionState = {
   transcriptVersion: number;
 };
 
-type ProtocolEvent =
+export type ProtocolEvent =
   | { type: "chat_id"; chatId: string; transcriptVersion?: number }
   | { type: "transcript_version"; transcriptVersion: number }
   | { type: "content_delta"; text: string }
@@ -158,7 +157,7 @@ type ProtocolEvent =
   | { type: "content_end" }
   | { type: "reasoning"; text: string; append: boolean; done?: boolean }
   | { type: "activity"; activity: AssistantActivity }
-  | { type: "document"; activity: AssistantActivity; artifact?: AssistantArtifact }
+  | { type: "artifact"; artifact: AssistantArtifact }
   | { type: "automation"; run: AutomationRunEvent }
   | { type: "reader"; reader: AssistantReaderRun }
   | { type: "ask_inputs"; event: AskInputsEvent }
@@ -172,8 +171,6 @@ type ProtocolEvent =
   | { type: "turn_status"; status: "cancelled" | "interrupted" }
   | { type: "error"; message: string; retryable: boolean }
   | { type: "noop" };
-
-export type AssistantProtocolEvent = ProtocolEvent;
 
 export type AssistantSessionEvent =
   | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
@@ -190,505 +187,328 @@ export type AssistantSessionEvent =
   | { type: "transcript_version_changed"; transcriptVersion: number }
   | { type: "local_exchange"; user: Message; assistantText: string };
 
-type ParseResult =
-  | { ok: true; event: ProtocolEvent }
-  | { ok: false; reason: "malformed" | "unknown" | "unsafe" };
+type ParseResult = { ok: true; event: ProtocolEvent } | { ok: false };
+const shortText = z.string().max(SHORT_TEXT_LIMIT).transform((value) => value.trim());
+const fieldText = z.string().max(FIELD_TEXT_LIMIT);
+const longText = z.string().max(ASSISTANT_LIMITS.text);
+const idText = shortText.pipe(z.string().min(1));
+const countNumber = z.number().finite().nonnegative();
+const safeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const statusSchema = z.enum(["running", "completed", "error", "interrupted", "cancelled"])
+  .transform((status): AssistantActivityStatus => status === "cancelled" ? "interrupted" : status);
 
-const fail = (reason: "malformed" | "unknown" | "unsafe"): ParseResult => ({ ok: false, reason });
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === "object" && !Array.isArray(value);
-const string = (value: unknown, limit = FIELD_TEXT_LIMIT) =>
-  typeof value === "string" ? value.slice(0, limit) : "";
-const clean = (value: unknown, limit = SHORT_TEXT_LIMIT) => string(value, limit).trim();
-const finite = (value: unknown, fallback = 0) =>
-  typeof value === "number" && Number.isFinite(value) ? value : fallback;
-const safeInteger = (value: unknown) =>
-  typeof value === "number" && Number.isSafeInteger(value) && value >= 0
-    ? value
-    : undefined;
-const records = (value: unknown, limit = COLLECTION_LIMIT) =>
-  Array.isArray(value) ? value.slice(0, limit).filter(isRecord) : [];
-const strings = (value: unknown, limit = COLLECTION_LIMIT) =>
-  Array.isArray(value)
-    ? value.slice(0, limit).flatMap((item) => {
-        const parsed = clean(item);
-        return parsed ? [parsed] : [];
-      })
-    : [];
-
-function containsUnsafeKey(value: unknown, depth = 0, budget = { value: 0 }): boolean {
-  if (depth > 12 || ++budget.value > 4_096) return true;
-  if (!value || typeof value !== "object") return false;
-  return Object.keys(value).some((key) =>
-    key === "__proto__" || key === "prototype" || key === "constructor" ||
-    containsUnsafeKey((value as Record<string, unknown>)[key], depth + 1, budget));
+function bounded(value: unknown, depth = 0, budget = { value: 0 }): boolean {
+  if (depth > 12 || ++budget.value > 4_096) return false;
+  if (!value || typeof value !== "object") return true;
+  return Object.entries(value).every(([key, child]) =>
+    key !== "__proto__" && key !== "prototype" && key !== "constructor" &&
+    bounded(child, depth + 1, budget));
 }
+const boundedEvent = z.unknown().superRefine((value, context) => {
+  if (!bounded(value)) context.addIssue({ code: "custom", message: "unsafe event" });
+});
 
 export function safeAssistantUrl(
   value: unknown,
   { relative = true }: { relative?: boolean } = {},
 ): string | null {
-  const raw = clean(value, FIELD_TEXT_LIMIT);
-  if (!raw || /[\u0000-\u001f\\]/u.test(raw)) return null;
+  const raw = typeof value === "string" ? value.trim().slice(0, FIELD_TEXT_LIMIT) : "";
+  if (
+    !raw ||
+    raw.includes("\\") ||
+    Array.from(raw).some((character) => character.charCodeAt(0) <= 0x1f)
+  ) return null;
   if (relative && raw.startsWith("/") && !raw.startsWith("//")) return raw;
   try {
     const url = new URL(raw);
     return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
-
-function parseSource(value: unknown): ToolActivitySource | undefined {
-  if (!isRecord(value)) return undefined;
-  const citation = clean(value.citation);
-  if (!citation) return undefined;
-  const clusterId = safeInteger(value.clusterId);
-  const locator = clean(value.locator);
-  const quote = clean(value.quote, FIELD_TEXT_LIMIT);
-  return {
-    provider: clean(value.provider),
-    jurisdiction: clean(value.jurisdiction),
-    citation,
-    name: clean(value.name) || null,
-    dataset: clean(value.dataset),
-    url: safeAssistantUrl(value.url),
-    ...(clusterId !== undefined && { clusterId }),
-    ...(locator && { locator }),
-    ...(quote && { quote }),
-  };
-}
-
-function parseActivity(value: unknown): AssistantActivity | undefined {
-  if (!isRecord(value)) return undefined;
-  const id = clean(value.id);
-  const tool = clean(value.tool);
-  const label = clean(value.label);
-  const status = value.status;
-  if (
-    !id || !tool || !label ||
-    (status !== "running" && status !== "completed" && status !== "error" && status !== "interrupted" && status !== "cancelled")
-  ) return undefined;
-  const source = parseSource(value.source);
-  return {
-    id,
-    tool,
-    label,
-    status: status === "cancelled" ? "interrupted" : status,
-    ...(source && { source }),
-  };
-}
-
-function parseEditAnnotation(value: unknown): EditAnnotation | undefined {
-  if (!isRecord(value)) return undefined;
-  const editId = clean(value.edit_id);
-  const documentId = clean(value.document_id);
-  const versionId = clean(value.version_id);
-  const changeId = clean(value.change_id);
-  const status = value.status;
-  if (!editId || !documentId || !versionId || !changeId ||
-      (status !== "pending" && status !== "accepted" && status !== "rejected")) return undefined;
-  const diff = records(value.diff, 256).flatMap<EditAnnotation["diff"][number]>((part) => {
-    if (part.kind !== "equal" && part.kind !== "delete" && part.kind !== "insert") return [];
-    return [{ kind: part.kind, text: string(part.text, FIELD_TEXT_LIMIT) }];
-  });
-  const versionNumber = safeInteger(value.version_number);
-  return {
-    edit_id: editId,
-    document_id: documentId,
-    version_id: versionId,
-    ...(versionNumber !== undefined && { version_number: versionNumber }),
-    change_id: changeId,
-    ...(clean(value.del_w_id) && { del_w_id: clean(value.del_w_id) }),
-    ...(clean(value.ins_w_id) && { ins_w_id: clean(value.ins_w_id) }),
-    deleted_text: string(value.deleted_text),
-    inserted_text: string(value.inserted_text),
-    ...(clean(value.context_before, FIELD_TEXT_LIMIT) && { context_before: clean(value.context_before, FIELD_TEXT_LIMIT) }),
-    ...(clean(value.context_after, FIELD_TEXT_LIMIT) && { context_after: clean(value.context_after, FIELD_TEXT_LIMIT) }),
-    ...(clean(value.reason, FIELD_TEXT_LIMIT) && { reason: clean(value.reason, FIELD_TEXT_LIMIT) }),
-    diff,
-    status,
-  };
-}
-
-function citationDisplay(row: Record<string, unknown>): CitationDisplayFields {
-  const displayForm = row.display_form === "full" || row.display_form === "pinpoint" || row.display_form === "supra"
-    ? row.display_form : undefined;
-  const sourceClass = row.source_class === "case" || row.source_class === "legislation" || row.source_class === "commentary"
-    ? row.source_class : undefined;
-  const separator = row.locator_separator === " at " || row.locator_separator === ", "
-    ? row.locator_separator : undefined;
-  const externalUrl = safeAssistantUrl(row.external_url);
-  return {
-    ...(displayForm && { display_form: displayForm }),
-    ...(sourceClass && { source_class: sourceClass }),
-    ...(externalUrl && { external_url: externalUrl }),
-    ...(clean(row.authority) && { authority: clean(row.authority) }),
-    ...(clean(row.short_authority) && { short_authority: clean(row.short_authority) }),
-    ...(separator && { locator_separator: separator }),
-  };
-}
-
-function legalLocator(row: Record<string, unknown>): CitationDisplayFields & {
-  locator_kind?: "paragraph" | "page" | "section" | "footnote";
-  locator?: string | null;
-  pinpoint?: string | null;
-} {
-  const kind = row.locator_kind === "paragraph" || row.locator_kind === "page" || row.locator_kind === "section" || row.locator_kind === "footnote"
-    ? row.locator_kind : undefined;
-  return {
-    ...citationDisplay(row),
-    ...(kind && { locator_kind: kind }),
-    ...(clean(row.locator) && { locator: clean(row.locator) }),
-    ...(clean(row.pinpoint) && { pinpoint: clean(row.pinpoint) }),
-  };
-}
-
-function parseCitation(value: unknown): Citation | undefined {
-  if (!isRecord(value) || value.type !== "citation_data") return undefined;
-  const ref = safeInteger(value.ref);
-  if (ref === undefined) return undefined;
-  const quoteRows = records(value.quotes, 32);
-  if (value.kind === "case") {
-    const clusterId = safeInteger(value.cluster_id);
-    if (clusterId === undefined) return undefined;
-    return {
-      type: "citation_data", kind: "case", ref, cluster_id: clusterId,
-      ...legalLocator(value),
-      case_name: clean(value.case_name) || null,
-      citation: clean(value.citation) || null,
-      url: safeAssistantUrl(value.url),
-      pdfUrl: safeAssistantUrl(value.pdfUrl),
-      dateFiled: clean(value.dateFiled) || null,
-      quotes: quoteRows.map((quote) => ({
-        opinionId: safeInteger(quote.opinionId) ?? null,
-        type: clean(quote.type) || null,
-        author: clean(quote.author) || null,
-        quote: string(quote.quote),
-      })),
-    };
-  }
-  if (value.kind === "a2aj") {
-    return {
-      type: "citation_data", kind: "a2aj", ref, ...legalLocator(value),
-      citation: clean(value.citation) || null,
-      name: clean(value.name) || null,
-      dataset: clean(value.dataset) || null,
-      url: safeAssistantUrl(value.url),
-      quotes: quoteRows.map((quote) => ({ quote: string(quote.quote) })),
-    };
-  }
-  if (value.kind === "public_legal") {
-    const provider = value.provider;
-    const identifier = clean(value.identifier);
-    if (!identifier || (provider !== "tna" && provider !== "govuk-et" && provider !== "govinfo" && provider !== "journal")) return undefined;
-    return {
-      type: "citation_data", kind: "public_legal", ref, provider, identifier,
-      ...legalLocator(value),
-      title: clean(value.title) || null,
-      citation: clean(value.citation) || null,
-      url: safeAssistantUrl(value.url),
-      quotes: quoteRows.map((quote) => ({ quote: string(quote.quote) })),
-    };
-  }
-  if (value.kind === "tabular") {
-    const colIndex = safeInteger(value.col_index);
-    const rowIndex = safeInteger(value.row_index);
-    const reviewId = clean(value.review_id);
-    if (colIndex === undefined || rowIndex === undefined || !reviewId) return undefined;
-    return {
-      type: "citation_data", kind: "tabular", ref, review_id: reviewId,
-      col_index: colIndex, row_index: rowIndex,
-      col_name: clean(value.col_name), doc_name: clean(value.doc_name),
-      ...citationDisplay(value),
-      quotes: quoteRows.map((quote) => ({ quote: string(quote.quote) })),
-    };
-  }
-  const documentId = clean(value.document_id) || clean(value.doc_id);
-  const filename = clean(value.filename);
-  if (!documentId || !filename || (value.kind !== undefined && value.kind !== "document")) return undefined;
-  const locatorKind = value.locator_kind === "paragraph" || value.locator_kind === "page" || value.locator_kind === "section" || value.locator_kind === "footnote"
-    ? value.locator_kind : undefined;
-  const versionNumber = safeInteger(value.version_number);
-  return {
-    type: "citation_data", kind: "document", ref,
-    doc_id: clean(value.doc_id) || documentId,
-    document_id: documentId,
-    filename,
-    ...citationDisplay(value),
-    ...(clean(value.version_id) && { version_id: clean(value.version_id) }),
-    ...(versionNumber !== undefined && { version_number: versionNumber }),
-    ...(locatorKind && { locator_kind: locatorKind }),
-    ...(clean(value.locator) && { locator: clean(value.locator) }),
-    ...(clean(value.pinpoint) && { pinpoint: clean(value.pinpoint) }),
-    quotes: quoteRows.map((quote) => ({
-      ...(typeof quote.page === "number" || typeof quote.page === "string" ? { page: typeof quote.page === "string" ? clean(quote.page) : quote.page } : {}),
-      quote: string(quote.quote),
-      ...(clean(quote.sheet) && { sheet: clean(quote.sheet) }),
-      ...(clean(quote.cell) && { cell: clean(quote.cell) }),
-    })),
-  };
-}
-
+const safeUrl = z.string().max(FIELD_TEXT_LIMIT).transform((value) => safeAssistantUrl(value));
+const validUrl = safeUrl.pipe(z.string());
+const sourceSchema = z.strictObject({
+  provider: shortText.default(""), jurisdiction: shortText.default(""), citation: idText,
+  name: shortText.nullish().transform((value) => value || null),
+  dataset: shortText.default(""), url: safeUrl.nullish().transform((value) => value ?? null),
+  clusterId: safeInteger.optional(), locator: shortText.optional(), quote: fieldText.optional(),
+});
+const activityItemSchema = z.strictObject({
+  label: idText, detail: fieldText.optional(), url: safeUrl.nullish(), error: z.boolean().optional(),
+});
+const activityActionSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("document"), filename: idText }),
+  z.strictObject({ type: z.literal("reader"), readerId: idText }),
+  z.strictObject({ type: z.literal("workflow"), workflowId: idText }),
+]);
+const activityFields = {
+  id: idText, tool: idText, label: idText, status: statusSchema,
+  detail: fieldText.optional(), markdown: longText.optional(),
+  items: z.array(activityItemSchema).max(COLLECTION_LIMIT).optional(),
+  source: sourceSchema.optional(), sources: z.array(sourceSchema).max(ASSISTANT_LIMITS.citations).optional(),
+  action: activityActionSchema.optional(),
+};
+const activitySchema = z.strictObject(activityFields);
+const editAnnotationSchema = z.strictObject({
+  type: z.literal("edit_data").optional(), kind: z.literal("edit").optional(),
+  edit_id: idText, document_id: idText, version_id: idText,
+  version_number: safeInteger.optional(), change_id: idText,
+  del_w_id: shortText.optional(), ins_w_id: shortText.optional(),
+  deleted_text: fieldText.default(""), inserted_text: fieldText.default(""),
+  context_before: fieldText.optional(), context_after: fieldText.optional(), reason: fieldText.optional(),
+  diff: z.array(z.strictObject({
+    kind: z.enum(["equal", "delete", "insert"]), text: fieldText,
+  })).max(256).default([]),
+  status: z.enum(["pending", "accepted", "rejected"]),
+});
+const displayFields = {
+  display_form: z.enum(["full", "pinpoint", "supra"]).optional(),
+  source_class: z.enum(["case", "legislation", "commentary"]).optional(),
+  external_url: safeUrl.optional(), authority: shortText.optional(),
+  short_authority: shortText.optional(), locator_separator: z.enum([" at ", ", "]).optional(),
+};
+const locatorFields = {
+  ...displayFields, locator_kind: z.enum(["paragraph", "page", "section", "footnote"]).optional(),
+  locator: shortText.nullish(), pinpoint: shortText.nullish(),
+};
+const citationQuote = z.strictObject({ quote: fieldText });
+const citationSchema = z.union([
+  z.strictObject({
+    type: z.literal("citation_data"), kind: z.literal("case"), ref: safeInteger,
+    cluster_id: safeInteger, case_name: shortText.nullish(), citation: shortText.nullish(),
+    url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), dateFiled: shortText.nullish(),
+    quotes: z.array(z.strictObject({
+      opinionId: safeInteger.nullish(), type: shortText.nullish(),
+      author: shortText.nullish(), quote: fieldText,
+    })).max(32).default([]), ...locatorFields,
+  }),
+  z.strictObject({
+    type: z.literal("citation_data"), kind: z.literal("a2aj"), ref: safeInteger,
+    citation: shortText.nullish(), name: shortText.nullish(), dataset: shortText.nullish(),
+    url: safeUrl.nullish(), quotes: z.array(citationQuote).max(32).default([]), ...locatorFields,
+  }),
+  z.strictObject({
+    type: z.literal("citation_data"), kind: z.literal("public_legal"), ref: safeInteger,
+    provider: z.enum(["tna", "govuk-et", "govinfo", "journal"]), identifier: idText,
+    title: shortText.nullish(), citation: shortText.nullish(), url: safeUrl.nullish(),
+    quotes: z.array(citationQuote).max(32).default([]), ...locatorFields,
+  }),
+  z.strictObject({
+    type: z.literal("citation_data"), kind: z.literal("tabular"), ref: safeInteger,
+    review_id: idText, col_index: safeInteger, row_index: safeInteger,
+    col_name: shortText.default(""), doc_name: shortText.default(""),
+    quotes: z.array(citationQuote).max(32).default([]), ...displayFields,
+  }),
+  z.strictObject({
+    type: z.literal("citation_data"), kind: z.literal("document").optional(), ref: safeInteger,
+    document_id: idText, filename: idText,
+    version_id: shortText.optional(), version_number: safeInteger.optional(), url: safeUrl.optional(),
+    quotes: z.array(z.strictObject({
+      page: z.union([z.number().finite(), shortText]).optional(),
+      quote: fieldText, sheet: shortText.optional(), cell: shortText.optional(),
+    })).max(32).default([]), ...locatorFields,
+  }).transform((row) => ({ ...row, kind: "document" as const })),
+]).transform((citation) => citation as Citation);
+const citationListSchema = z.preprocess(
+  (value) => Array.isArray(value) ? value.slice(0, ASSISTANT_LIMITS.citations) : value,
+  z.array(z.unknown()),
+).transform((values) => values.flatMap((value) => {
+  const parsed = citationSchema.safeParse(value);
+  return parsed.success ? [parsed.data] : [];
+}));
 export function parseAssistantCitations(value: unknown): Citation[] {
-  return Array.isArray(value)
-    ? value.slice(0, ASSISTANT_LIMITS.citations).flatMap((item) => parseCitation(item) ?? [])
-    : [];
+  const parsed = citationListSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
 }
 
-function parseAskInputs(data: Record<string, unknown>) {
-  const items = records(data.items, 32).flatMap<AskInputsEvent["items"][number]>((row, index) => {
-    const id = clean(row.id) || `input-${index + 1}`;
-    const responsePrefix = clean(row.response_prefix);
-    if (row.kind === "choice") {
-      const options = records(row.options, 32).flatMap((option) => {
-        const value = clean(option.value) || clean(option.label);
-        return value ? [{ value }] : [];
-      });
-      const question = clean(row.question, FIELD_TEXT_LIMIT);
-      if (!question || !options.length) return [];
-      return [{ id, kind: "choice", question, options, allow_other: true, other_label: "Write your own answer", ...(responsePrefix && { response_prefix: responsePrefix }) }];
-    }
-    if (row.kind !== "documents") return [];
-    return [{ id, kind: "documents", document_types: strings(row.document_types, 32), ...(responsePrefix && { response_prefix: responsePrefix }) }];
-  });
-  return items.length ? ({ type: "ask_inputs", items } as const) : null;
-}
+const askItemSchema = z.union([
+  z.strictObject({
+    id: idText, kind: z.literal("choice"), question: fieldText,
+    options: z.array(z.strictObject({ value: idText })).min(1).max(32),
+    allow_other: z.boolean().optional(), other_label: shortText.optional(),
+    response_prefix: shortText.optional(),
+  }).transform((row) => ({ ...row, allow_other: true,
+    other_label: row.other_label || "Write your own answer" })),
+  z.strictObject({
+    id: idText, kind: z.literal("documents"),
+    document_types: z.array(shortText).max(32).default([]), response_prefix: shortText.optional(),
+  }),
+]);
+const askEventSchema = z.strictObject({
+  type: z.literal("ask_inputs"), items: z.array(askItemSchema).min(1).max(32),
+});
+const askResponseSchema = z.strictObject({
+  type: z.literal("ask_inputs_response"),
+  responses: z.array(z.union([
+    z.strictObject({
+      id: idText, kind: z.literal("choice"), question: shortText.default(""),
+      answer: fieldText.optional(), skipped: z.boolean().optional(),
+    }),
+    z.strictObject({
+      id: idText, kind: z.literal("documents"), filenames: z.array(shortText).max(32).default([]),
+      documents: z.array(z.strictObject({
+        document_id: idText, filename: idText,
+      })).max(32).optional(), skipped: z.boolean().optional(),
+    }),
+  ])).max(32),
+});
+const automationSchema = z.strictObject({
+  type: z.literal("automation_run"), id: shortText.optional(),
+  tool: z.enum(["create_table_of_authorities", "fix_docx_supras", "link_docx_citations"]),
+  status: shortText.default("unknown"), stage: shortText.default("Automation"),
+  progress: z.number().finite().min(0).max(100).optional(), message: fieldText.optional(),
+  counts: z.array(z.strictObject({ label: idText, value: z.number().finite() })).max(32).optional(),
+  outputs: z.array(z.strictObject({ name: idText, url: validUrl.optional() })).max(32).optional(),
+  app_url: validUrl.optional(), job_id: shortText.optional(), document_id: shortText.optional(),
+  version_id: shortText.optional(), version_number: safeInteger.nullish(), error: shortText.optional(),
+}).transform((row): AutomationRunEvent => ({
+  ...row, id: row.id || row.tool + ":" + (row.job_id || "run"),
+  ...(row.error && { error: "Automation failed." }),
+}));
+const readerSchema = z.strictObject({
+  type: z.literal("subagent_run"), id: idText,
+  agent: z.enum(["scout", "planner", "reviewer", "native"]),
+  task: longText, model: shortText, effort: shortText, status: statusSchema,
+  activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
+  output: longText.optional(), error: fieldText.optional(),
+  sources: z.array(sourceSchema).max(ASSISTANT_LIMITS.citations).default([]),
+  grounding: z.strictObject({
+    status: z.string().max(32), evidence: z.array(z.unknown()).max(COLLECTION_LIMIT),
+  }).optional(),
+}).transform(({ grounding, type: _type, ...row }): AssistantReaderRun => ({
+  ...row, ...(row.status === "error" && { error: "Reading agent failed." }),
+  verifiedPassages: grounding?.status === "passed" ? grounding.evidence.length : 0,
+}));
 
-function parseAskResponse(data: Record<string, unknown>) {
-  const responses = records(data.responses, 32).flatMap<AskInputsResponseEvent["responses"][number]>((row) => {
-    const id = clean(row.id);
-    if (!id) return [];
-    if (row.kind === "choice") return [{ id, kind: "choice", question: clean(row.question), ...(clean(row.answer, FIELD_TEXT_LIMIT) && { answer: clean(row.answer, FIELD_TEXT_LIMIT) }), ...(row.skipped === true && { skipped: true }) }];
-    if (row.kind !== "documents") return [];
-    const documents = records(row.documents, 32).flatMap((document) => {
-      const documentId = clean(document.document_id);
-      const filename = clean(document.filename);
-      return documentId && filename ? [{ document_id: documentId, filename }] : [];
-    });
-    return [{ id, kind: "documents", filenames: strings(row.filenames, 32), ...(documents.length && { documents }), ...(row.skipped === true && { skipped: true }) }];
-  });
-  return { type: "ask_inputs_response", responses } as const;
-}
-
-function count(value: number, singular: string, plural = `${singular}s`) {
-  return `${value} ${value === 1 ? singular : plural}`;
-}
-function activityStatus(streaming: boolean, error: unknown): AssistantActivityStatus {
-  return streaming ? "running" : clean(error) ? "error" : "completed";
-}
-function trackedActivity(args: {
-  id: string; tool: string; status: AssistantActivityStatus;
-  labels: [string, string, string]; detail?: string; items?: AssistantActivity["items"];
-}) {
-  return {
-    id: args.id,
-    tool: args.tool,
-    status: args.status,
-    label: args.labels[args.status === "running" ? 0 : args.status === "error" ? 1 : 2],
-    ...(args.detail && { detail: args.detail }),
-    ...(args.items?.length && { items: args.items }),
-  } satisfies AssistantActivity;
-}
-
-function parseReader(data: Record<string, unknown>): AssistantReaderRun | null {
-  const id = clean(data.id);
-  const agent = data.agent;
-  const status = data.status;
-  if (!id || (agent !== "scout" && agent !== "planner" && agent !== "reviewer" && agent !== "native") ||
-      (status !== "running" && status !== "completed" && status !== "error" && status !== "cancelled" && status !== "interrupted")) return null;
-  const grounding = isRecord(data.grounding) ? data.grounding : null;
-  const evidence = grounding && Array.isArray(grounding.evidence) ? grounding.evidence.slice(0, COLLECTION_LIMIT) : [];
-  return {
-    id, agent,
-    task: string(data.task), model: clean(data.model), effort: clean(data.effort),
-    status: status === "cancelled" ? "interrupted" : status,
-    activities: (Array.isArray(data.activities) ? data.activities : [])
-      .slice(0, ASSISTANT_LIMITS.activities)
-      .flatMap((item) => parseActivity(item) ?? []),
-    ...(clean(data.output, ASSISTANT_LIMITS.text) && { output: clean(data.output, ASSISTANT_LIMITS.text) }),
-    ...(status === "error" && { error: "Reading agent failed." }),
-    sources: (Array.isArray(data.sources) ? data.sources : []).slice(0, ASSISTANT_LIMITS.citations).flatMap((item) => parseSource(item) ?? []),
-    verifiedPassages: grounding?.status === "passed" ? evidence.length : 0,
-  };
-}
-
-function parseAutomation(data: Record<string, unknown>): AutomationRunEvent | null {
-  const tool = data.tool;
-  if (tool !== "create_table_of_authorities" && tool !== "fix_docx_supras" && tool !== "link_docx_citations") return null;
-  const id = clean(data.id) || `${tool}:${clean(data.job_id) || "run"}`;
-  const versionNumber = safeInteger(data.version_number);
-  const counts = records(data.counts, 32).flatMap((row) =>
-    clean(row.label) && typeof row.value === "number" && Number.isFinite(row.value)
-      ? [{ label: clean(row.label), value: row.value }]
-      : [],
-  );
-  const outputs = records(data.outputs, 32).flatMap((row) => {
-    const name = clean(row.name);
-    const url = safeAssistantUrl(row.url);
-    return name ? [{ name, ...(url && { url }) }] : [];
-  });
-  return {
-    type: "automation_run", id, tool,
-    status: clean(data.status) || "unknown",
-    stage: clean(data.stage) || "Automation",
-    ...(typeof data.progress === "number" && Number.isFinite(data.progress) && { progress: Math.max(0, Math.min(1, data.progress)) }),
-    ...(clean(data.message, FIELD_TEXT_LIMIT) && { message: clean(data.message, FIELD_TEXT_LIMIT) }),
-    ...(counts.length && { counts }),
-    ...(outputs.length && { outputs }),
-    ...(safeAssistantUrl(data.app_url) && { app_url: safeAssistantUrl(data.app_url)! }),
-    ...(clean(data.job_id) && { job_id: clean(data.job_id) }),
-    ...(clean(data.document_id) && { document_id: clean(data.document_id) }),
-    ...(clean(data.version_id) && { version_id: clean(data.version_id) }),
-    ...(versionNumber !== undefined && { version_number: versionNumber }),
-    ...(clean(data.error) && { error: "Automation failed." }),
-  };
-}
-
+const noop = (type: string) => z.strictObject({ type: z.literal(type) })
+  .transform((): ProtocolEvent => ({ type: "noop" }));
+const textEvent = (type: "content_delta" | "content") =>
+  z.strictObject({ type: z.literal(type), text: type === "content_delta"
+    ? z.string().max(65_536) : longText })
+    .transform((row): ProtocolEvent => type === "content_delta"
+      ? { type, text: row.text } : { type: "content_block", text: row.text });
+const relativeUrl = z.string().max(FIELD_TEXT_LIMIT)
+  .transform((value) => safeAssistantUrl(value))
+  .pipe(z.string().refine((value) => value.startsWith("/"), "relative URL required"));
+const documentArtifactSchema = z.strictObject({
+  type: z.literal("document_artifact"),
+  action: z.enum(["created", "edited"]),
+  filename: idText,
+  document_id: idText,
+  version_id: idText,
+  version_number: safeInteger.nullable(),
+  download_url: relativeUrl,
+  resource: boundedEvent.optional(),
+  edit_mode: z.enum(["manual", "auto"]).optional(),
+  annotations: z.array(editAnnotationSchema).max(256).optional(),
+}).transform((row): ProtocolEvent => ({
+  type: "artifact",
+  artifact: {
+    id: `${row.action}:${row.document_id}`,
+    type: row.action,
+    filename: row.filename,
+    downloadUrl: row.download_url,
+    documentId: row.document_id,
+    versionId: row.version_id,
+    versionNumber: row.version_number,
+    ...(row.action === "edited" && { editMode: row.edit_mode ?? "manual" }),
+    annotations: row.annotations ?? [],
+  },
+}));
+const caseCitationSchema = z.strictObject({
+  type: z.literal("case_citation"), cluster_id: safeInteger.nullish(),
+  case_name: shortText.nullish(), citation: shortText.nullish(),
+  url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), dateFiled: shortText.nullish(),
+}).transform((row): ProtocolEvent => ({ type: "case_citation", event: {
+  ...row, cluster_id: row.cluster_id ?? null, case_name: row.case_name ?? null,
+  citation: row.citation ?? null, url: row.url ?? "", dateFiled: row.dateFiled ?? null,
+}}));
+const opinionSchema = z.strictObject({
+  opinionId: safeInteger.nullish(), apiUrl: safeUrl.nullish(), type: shortText.nullish(),
+  author: shortText.nullish(), url: safeUrl.nullish(), text: longText.nullish(),
+});
+const caseOpinionsSchema = z.strictObject({
+  type: z.literal("case_opinions"), cluster_id: safeInteger,
+  case: z.strictObject({
+    id: safeInteger.nullish(), caseName: shortText.nullish(), dateFiled: shortText.nullish(),
+    citations: z.array(shortText).max(COLLECTION_LIMIT).optional(),
+    url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), opinions: z.array(opinionSchema).max(64),
+  }),
+}).transform((row): ProtocolEvent => ({ type: "case_opinions", event: {
+  ...row, case: { ...row.case, id: row.case.id ?? null,
+    opinions: row.case.opinions.map((opinion) => ({ ...opinion,
+      opinionId: opinion.opinionId ?? null, type: opinion.type ?? null,
+      author: opinion.author ?? null, url: opinion.url ?? null })) },
+}}));
+const protocolSchemas = [
+  z.strictObject({ type: z.literal("chat_id"), chatId: idText,
+    transcriptVersion: safeInteger.optional() })
+    .transform((row): ProtocolEvent => ({ type: "chat_id", chatId: row.chatId,
+      ...(row.transcriptVersion !== undefined && { transcriptVersion: row.transcriptVersion }) })),
+  z.strictObject({ type: z.literal("transcript_version"), transcriptVersion: safeInteger })
+    .transform((row): ProtocolEvent => row),
+  textEvent("content_delta"), textEvent("content"),
+  z.strictObject({ type: z.enum(["content_snapshot", "content_final"]), text: longText })
+    .transform((row): ProtocolEvent => ({ type: "content_snapshot", text: row.text,
+      final: row.type === "content_final" })),
+  noop("content_reset").transform(() => ({ type: "content_reset" as const })),
+  noop("content_block_end").transform(() => ({ type: "content_end" as const })),
+  noop("content_done"),
+  z.strictObject({ type: z.literal("reasoning_delta"), text: z.string().max(65_536) })
+    .transform((row): ProtocolEvent => ({ type: "reasoning", text: row.text, append: true })),
+  noop("reasoning_block_end").transform(() => ({ type: "reasoning" as const,
+    text: "", append: false, done: true })),
+  z.strictObject({ type: z.literal("reasoning"), text: fieldText })
+    .transform((row): ProtocolEvent => ({ type: "reasoning", text: row.text,
+      append: false, done: true })),
+  ...["thinking", "mcp_tool_start", "mcp_tool_result", "mcp_tool_call",
+    "legal_evidence_receipt", "context_checkpoint"].map(noop),
+  z.strictObject({ type: z.literal("error"), message: fieldText, retryable: z.boolean().optional() })
+    .transform((row): ProtocolEvent => row.message.trim() === "Cancelled by user."
+      ? { type: "turn_status", status: "cancelled" }
+      : { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: row.retryable !== false }),
+  z.strictObject({ type: z.literal("turn_status"),
+    status: z.enum(["cancelled", "interrupted"]) }).transform((row): ProtocolEvent => row),
+  z.strictObject({ type: z.literal("steering"), id: idText, text: fieldText })
+    .transform((row): ProtocolEvent => row),
+  z.strictObject({ type: z.literal("citations"),
+    status: z.enum(["started", "partial", "final"]).default("final"), citations: z.unknown() })
+    .transform((row): ProtocolEvent => ({ ...row, citations: parseAssistantCitations(row.citations) })),
+  askEventSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs", event })),
+  askResponseSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs_response", event })),
+  z.strictObject({ type: z.literal("tool_activity"), ...activityFields })
+    .transform(({ type: _type, ...activity }): ProtocolEvent => ({ type: "activity", activity })),
+  automationSchema.transform((run): ProtocolEvent => ({ type: "automation", run })),
+  readerSchema.transform((reader): ProtocolEvent => ({ type: "reader", reader })),
+  z.strictObject({ type: z.literal("context_usage"),
+    used_tokens: countNumber, window_tokens: z.number().finite().positive() })
+    .transform((row): ProtocolEvent => ({ type: "context_usage",
+      usedTokens: row.used_tokens, windowTokens: row.window_tokens })),
+  z.strictObject({ type: z.literal("compaction"),
+    status: z.enum(["running", "completed", "failed"]) }).transform((row): ProtocolEvent => row),
+  z.strictObject({ type: z.literal("workflow_applied"), workflow_id: idText, title: idText })
+    .transform((row): ProtocolEvent => ({ type: "activity", activity: {
+      id: "workflow:" + row.workflow_id, tool: "workflow_applied",
+      label: "Applied " + row.title, status: "completed",
+      action: { type: "workflow", workflowId: row.workflow_id },
+    }})),
+  documentArtifactSchema,
+  caseCitationSchema, caseOpinionsSchema,
+];
+const protocolSchema = boundedEvent.pipe(z.union(protocolSchemas as [
+  (typeof protocolSchemas)[number], (typeof protocolSchemas)[number],
+  ...(typeof protocolSchemas)[number][],
+]));
 export function parseAssistantProtocolEvent(value: unknown): ParseResult {
-  if (!isRecord(value)) return fail("malformed");
-  if (containsUnsafeKey(value)) return fail("unsafe");
-  const rawType = clean(value.type, 128);
-  if (!rawType) return fail("malformed");
-  if (rawType === "thinking" || rawType === "mcp_tool_start" || rawType === "mcp_tool_result" || rawType === "mcp_tool_call" || rawType === "legal_evidence_receipt" || rawType === "context_checkpoint") return { ok: true, event: { type: "noop" } };
-  const streaming = rawType.endsWith("_start");
-  const type = streaming ? rawType.slice(0, -6) : rawType;
-  if (streaming && !new Set(["doc_find", "doc_created", "doc_edited", "doc_read", "courtlistener_search_case_law", "courtlistener_get_cases", "courtlistener_find_in_case", "courtlistener_read_case", "courtlistener_verify_citations"]).has(type)) return fail("unknown");
+  const parsed = protocolSchema.safeParse(value);
+  return parsed.success ? { ok: true, event: parsed.data as ProtocolEvent } : { ok: false };
+}
 
-  if (rawType === "chat_id") {
-    const chatId = clean(value.chatId);
-    return chatId ? { ok: true, event: { type: "chat_id", chatId, ...(safeInteger(value.transcriptVersion) !== undefined && { transcriptVersion: safeInteger(value.transcriptVersion) }) } } : fail("malformed");
-  }
-  if (rawType === "transcript_version") {
-    const transcriptVersion = safeInteger(value.transcriptVersion);
-    return transcriptVersion === undefined ? fail("malformed") : { ok: true, event: { type: "transcript_version", transcriptVersion } };
-  }
-  if (rawType === "content_delta") return typeof value.text === "string" ? { ok: true, event: { type: "content_delta", text: string(value.text, 65_536) } } : fail("malformed");
-  if (rawType === "content_snapshot" || rawType === "content_final") return typeof value.text === "string" ? { ok: true, event: { type: "content_snapshot", text: string(value.text, ASSISTANT_LIMITS.text), final: rawType === "content_final" } } : fail("malformed");
-  if (rawType === "content_reset") return { ok: true, event: { type: "content_reset" } };
-  if (rawType === "content_block_end") return { ok: true, event: { type: "content_end" } };
-  if (rawType === "content_done") return { ok: true, event: { type: "noop" } };
-  if (rawType === "reasoning_delta") return typeof value.text === "string" ? { ok: true, event: { type: "reasoning", text: string(value.text, 65_536), append: true } } : fail("malformed");
-  if (rawType === "reasoning_block_end") return { ok: true, event: { type: "reasoning", text: "", append: false, done: true } };
-  if (rawType === "reasoning") return typeof value.text === "string" ? { ok: true, event: { type: "reasoning", text: string(value.text), append: false, done: true } } : fail("malformed");
-  if (rawType === "content") return typeof value.text === "string" ? { ok: true, event: { type: "content_block", text: string(value.text, ASSISTANT_LIMITS.text) } } : fail("malformed");
-  if (rawType === "error" && typeof value.message !== "string") return fail("malformed");
-  if (rawType === "error") return clean(value.message, FIELD_TEXT_LIMIT) === "Cancelled by user."
-    ? { ok: true, event: { type: "turn_status", status: "cancelled" } }
-    : { ok: true, event: { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: value.retryable !== false } };
-  if (rawType === "turn_status" && (value.status === "cancelled" || value.status === "interrupted")) return { ok: true, event: { type: "turn_status", status: value.status } };
-  if (rawType === "steering") {
-    const id = clean(value.id); const text = clean(value.text, FIELD_TEXT_LIMIT);
-    return id && text ? { ok: true, event: { type: "steering", id, text } } : fail("malformed");
-  }
-  if (rawType === "citations") {
-    if (!Array.isArray(value.citations)) return fail("malformed");
-    const status = value.status === "started" || value.status === "partial" || value.status === "final" ? value.status : "final";
-    return { ok: true, event: { type: "citations", citations: parseAssistantCitations(value.citations), status } };
-  }
-  if (rawType === "ask_inputs") {
-    const event = parseAskInputs(value);
-    return event ? { ok: true, event: { type: "ask_inputs", event } } : fail("malformed");
-  }
-  if (rawType === "ask_inputs_response") return Array.isArray(value.responses) ? { ok: true, event: { type: "ask_inputs_response", event: parseAskResponse(value) } } : fail("malformed");
-  if (rawType === "tool_activity") {
-    const activity = parseActivity(value);
-    return activity ? { ok: true, event: { type: "activity", activity } } : fail("malformed");
-  }
-  if (rawType === "automation_run") {
-    const run = parseAutomation(value);
-    return run ? { ok: true, event: { type: "automation", run } } : fail("malformed");
-  }
-  if (rawType === "subagent_run") {
-    const reader = parseReader(value);
-    return reader ? { ok: true, event: { type: "reader", reader } } : fail("malformed");
-  }
-  if (rawType === "context_usage") return typeof value.used_tokens === "number" && Number.isFinite(value.used_tokens) && typeof value.window_tokens === "number" && Number.isFinite(value.window_tokens)
-    ? { ok: true, event: { type: "context_usage", usedTokens: Math.max(0, value.used_tokens), windowTokens: Math.max(1, value.window_tokens) } }
-    : fail("malformed");
-  if (rawType === "compaction" && (value.status === "running" || value.status === "completed" || value.status === "failed")) return { ok: true, event: { type: "compaction", status: value.status } };
-  if (rawType === "workflow_applied") {
-    const workflowId = clean(value.workflow_id); const title = clean(value.title);
-    return workflowId && title ? { ok: true, event: { type: "activity", activity: { id: `workflow:${workflowId}`, tool: "workflow_applied", label: `Applied ${title}`, status: "completed", action: { type: "workflow", workflowId } } } } : fail("malformed");
-  }
+function textValue(value: unknown, limit = FIELD_TEXT_LIMIT): string {
+  return typeof value === "string" ? value.slice(0, limit) : "";
+}
 
-  if (type === "doc_read") {
-    const filename = clean(value.filename); if (!filename) return fail("malformed");
-    return { ok: true, event: { type: "document", activity: { id: `doc-read:${filename}`, tool: "doc_read", label: `${streaming ? "Reading" : "Read"} ${filename}`, status: streaming ? "running" : "completed", action: { type: "document", filename } } } };
-  }
-  if (type === "doc_find") {
-    const filename = clean(value.filename); const query = clean(value.query, FIELD_TEXT_LIMIT); if (!filename || !query) return fail("malformed");
-    const matches = Math.max(0, finite(value.total_matches));
-    return { ok: true, event: { type: "document", activity: { id: `doc-find:${filename}:${query}`, tool: "doc_find", label: `${streaming ? "Searching" : "Searched"} ${filename}`, detail: `\u201c${query}\u201d${streaming ? "" : ` \u00b7 ${count(matches, "match")}`}`, status: streaming ? "running" : "completed" } } };
-  }
-  if (type === "doc_created" || rawType === "doc_download") {
-    const filename = clean(value.filename); if (!filename) return fail("malformed");
-    const candidateUrl = safeAssistantUrl(value.download_url);
-    const downloadUrl = candidateUrl?.startsWith("/") ? candidateUrl : null;
-    const documentId = clean(value.document_id); const versionId = clean(value.version_id); const versionNumber = safeInteger(value.version_number);
-    const artifact = !streaming && downloadUrl ? { id: `created:${documentId || filename}`, type: rawType === "doc_download" ? "download" as const : "created" as const, filename, downloadUrl, ...(documentId && { documentId }), ...(versionId && { versionId }), ...(versionNumber !== undefined && { versionNumber }), annotations: [] } : undefined;
-    return { ok: true, event: { type: "document", activity: { id: `doc-created:${filename}`, tool: "doc_created", label: `${streaming ? "Creating" : "Created"} ${filename}`, status: streaming ? "running" : "completed" }, ...(artifact && { artifact }) } };
-  }
-  if (type === "doc_edited") {
-    const filename = clean(value.filename); const documentId = clean(value.document_id); if (!filename || (!streaming && !documentId)) return fail("malformed");
-    const failed = !streaming && !!clean(value.error); const status = activityStatus(streaming, value.error);
-    const candidateUrl = safeAssistantUrl(value.download_url);
-    const downloadUrl = candidateUrl?.startsWith("/") ? candidateUrl : null;
-    const versionId = clean(value.version_id); const versionNumber = safeInteger(value.version_number);
-    const annotations = records(value.annotations, 256).flatMap((item) => parseEditAnnotation(item) ?? []);
-    const artifact = !streaming && downloadUrl && documentId ? { id: `edited:${documentId}`, type: "edited" as const, filename, downloadUrl, documentId, ...(versionId && { versionId }), ...(versionNumber !== undefined && { versionNumber }), editMode: value.edit_mode === "auto" ? "auto" as const : "manual" as const, annotations } : undefined;
-    return { ok: true, event: { type: "document", activity: { id: `doc-edited:${documentId || filename}`, tool: "doc_edited", label: `${streaming ? "Editing" : failed ? "Edit failed" : "Edited"} ${filename}`, status }, ...(artifact && { artifact }) } };
-  }
-
-  const toolStatus = activityStatus(streaming, value.error);
-  if (type === "courtlistener_search_case_law") {
-    const query = clean(value.query, FIELD_TEXT_LIMIT); if (!query) return fail("malformed");
-    const results = Math.max(0, finite(value.result_count));
-    return { ok: true, event: { type: "activity", activity: trackedActivity({ id: `case-search:${query}`, tool: type, status: toolStatus, labels: ["Searching case law", "Case law search failed", "Searched case law"], detail: streaming ? `for \u201c${query}\u201d` : `${count(results, "result")} for \u201c${query}\u201d` }) } };
-  }
-  if (type === "courtlistener_get_cases") {
-    const ids = Array.isArray(value.cluster_ids) ? value.cluster_ids.slice(0, COLLECTION_LIMIT).flatMap((item) => safeInteger(item) ?? []) : [];
-    const cases = records(value.cases).flatMap((item) => {
-      const clusterId = safeInteger(item.cluster_id); if (!clusterId) return [];
-      return [{ label: [clean(item.case_name), clean(item.citation)].filter(Boolean).join(", ") || `Cluster ${clusterId}`, url: safeAssistantUrl(item.url) }];
-    });
-    const caseCount = Math.max(0, finite(value.case_count, ids.length));
-    return { ok: true, event: { type: "activity", activity: trackedActivity({ id: `cases:${ids.join(",")}`, tool: type, status: toolStatus, labels: [`Fetching ${count(caseCount, "case")}`, "Case fetch failed", `Fetched ${count(caseCount, "case")}`], items: cases }) } };
-  }
-  if (type === "courtlistener_find_in_case") {
-    const searches = records(value.searches).map((item) => ({
-      clusterId: safeInteger(item.cluster_id), query: clean(item.query, FIELD_TEXT_LIMIT), matches: Math.max(0, finite(item.total_matches)), caseName: clean(item.case_name), citation: clean(item.citation), error: !!clean(item.error),
-    })).filter((item) => item.query);
-    const clusterId = safeInteger(value.cluster_id); const query = clean(value.query, FIELD_TEXT_LIMIT);
-    if (!searches.length && clusterId === undefined) return fail("malformed");
-    const total = searches.length ? searches.reduce((sum, item) => sum + item.matches, 0) : Math.max(0, finite(value.total_matches));
-    const cases = new Set(searches.map((item) => item.clusterId ?? `${item.caseName}|${item.citation}`)).size;
-    const target = searches.length ? `${count(searches.length, "search")} in ${count(cases, "case")}` : ([clean(value.case_name), clean(value.citation)].filter(Boolean).join(", ") || `cluster ${clusterId}`);
-    return { ok: true, event: { type: "activity", activity: trackedActivity({ id: searches.length ? "case-find:batch" : `case-find:${clusterId}:${query}`, tool: type, status: toolStatus, labels: [`${searches.length ? "Running" : "Searching"} ${target}`, "Case searches failed", `${searches.length ? "Ran" : "Searched"} ${target}`], detail: streaming ? undefined : count(total, "match"), items: searches.map((item) => ({ label: `\u201c${item.query}\u201d in ${[item.caseName, item.citation].filter(Boolean).join(", ") || `cluster ${item.clusterId}`}`, detail: count(item.matches, "match"), error: item.error })) }) } };
-  }
-  if (type === "courtlistener_read_case") {
-    const clusterId = safeInteger(value.cluster_id); if (clusterId === undefined) return fail("malformed");
-    const target = [clean(value.case_name), clean(value.citation)].filter(Boolean).join(", ") || `cluster ${clusterId}`;
-    const opinions = Math.max(0, finite(value.opinion_count));
-    return { ok: true, event: { type: "activity", activity: trackedActivity({ id: `case-read:${clusterId}`, tool: type, status: toolStatus, labels: [`Reading ${target}`, `Read failed ${target}`, `Read ${target}`], detail: opinions ? count(opinions, "opinion") : undefined }) } };
-  }
-  if (type === "courtlistener_verify_citations") {
-    const total = Math.max(0, finite(value.citation_count)); const matches = Math.max(0, finite(value.match_count));
-    return { ok: true, event: { type: "activity", activity: trackedActivity({ id: "case-verify", tool: type, status: toolStatus, labels: [`Verifying ${count(total, "citation")}`, "Citation verification failed", `Verified ${count(total, "citation")}`], detail: streaming ? undefined : count(matches, "match") }) } };
-  }
-  if (rawType === "case_citation") {
-    const clusterId = safeInteger(value.cluster_id);
-    const event: CaseCitationEvent = { type: "case_citation", cluster_id: clusterId ?? null, case_name: clean(value.case_name) || null, citation: clean(value.citation) || null, url: safeAssistantUrl(value.url) ?? "", pdfUrl: safeAssistantUrl(value.pdfUrl), dateFiled: clean(value.dateFiled) || null };
-    return { ok: true, event: { type: "case_citation", event } };
-  }
-  if (rawType === "case_opinions") {
-    const clusterId = safeInteger(value.cluster_id); if (clusterId === undefined || !isRecord(value.case)) return fail("malformed");
-    const row = value.case;
-    const opinions = records(row.opinions, 64).map((opinion) => ({ opinionId: safeInteger(opinion.opinionId) ?? null, apiUrl: safeAssistantUrl(opinion.apiUrl), type: clean(opinion.type) || null, author: clean(opinion.author) || null, url: safeAssistantUrl(opinion.url), text: clean(opinion.text, ASSISTANT_LIMITS.text) || null, html: null }));
-    const event: CaseOpinionsEvent = { type: "case_opinions", cluster_id: clusterId, case: { id: safeInteger(row.id) ?? null, caseName: clean(row.caseName) || null, dateFiled: clean(row.dateFiled) || null, citations: strings(row.citations), url: safeAssistantUrl(row.url), pdfUrl: safeAssistantUrl(row.pdfUrl), opinions } };
-    return { ok: true, event: { type: "case_opinions", event } };
-  }
-  return fail("unknown");
+function cleanValue(value: unknown, limit = SHORT_TEXT_LIMIT): string {
+  return textValue(value, limit).trim();
 }
 
 function emptyAssistant(id: string, turnId?: string): AssistantMessageState {
@@ -697,25 +517,30 @@ function emptyAssistant(id: string, turnId?: string): AssistantMessageState {
 
 function sanitizeFiles(value: Message["files"]) {
   return (value ?? []).slice(0, 64).flatMap((file) => {
-    const filename = clean(file?.filename);
-    return filename ? [{ filename, ...(clean(file.document_id) && { document_id: clean(file.document_id) }) }] : [];
+    const filename = cleanValue(file?.filename);
+    const documentId = cleanValue(file.document_id);
+    return filename ? [{ filename, ...(documentId && { document_id: documentId }) }] : [];
   });
 }
 
 function userMessage(message: Message, fallbackId: string): UserMessageState {
   const files = sanitizeFiles(message.files);
-  const workflow = message.workflow && clean(message.workflow.id) && clean(message.workflow.title)
-    ? { id: clean(message.workflow.id), title: clean(message.workflow.title) } : undefined;
+  const workflowId = cleanValue(message.workflow?.id);
+  const workflowTitle = cleanValue(message.workflow?.title);
+  const workflow = workflowId && workflowTitle ? { id: workflowId, title: workflowTitle } : undefined;
+  const model = cleanValue(message.model);
+  const reasoningEffort = cleanValue(message.reasoningEffort);
+  const turnId = cleanValue(message.turnId);
   return {
-    id: clean(message.id) || fallbackId,
+    id: cleanValue(message.id) || fallbackId,
     role: "user",
-    content: string(message.content, ASSISTANT_LIMITS.text),
+    content: textValue(message.content, ASSISTANT_LIMITS.text),
     ...(files.length && { files }),
     ...(workflow && { workflow }),
-    ...(clean(message.model) && { model: clean(message.model) }),
-    ...(clean(message.reasoningEffort) && { reasoningEffort: clean(message.reasoningEffort) }),
+    ...(model && { model }),
+    ...(reasoningEffort && { reasoningEffort }),
     ...(message.editMode === "manual" || message.editMode === "auto" ? { editMode: message.editMode } : {}),
-    ...(clean(message.turnId) && { turnId: clean(message.turnId) }),
+    ...(turnId && { turnId }),
   };
 }
 
@@ -814,7 +639,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       return { ...message, contentOpen: false, activities: upsertById(message.activities, activity, ASSISTANT_LIMITS.activities) };
     });
   }
-  if (event.type === "activity" || event.type === "document") {
+  if (event.type === "activity") {
     return updateAssistant(state, (message) => ({
       ...message,
       contentOpen: false,
@@ -823,9 +648,12 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
         event.activity,
         ASSISTANT_LIMITS.activities,
       ),
-      ...(event.type === "document" && event.artifact ? { artifacts: upsertById(message.artifacts, event.artifact, ASSISTANT_LIMITS.artifacts) } : {}),
     }));
   }
+  if (event.type === "artifact") return updateAssistant(state, (message) => ({
+    ...message,
+    artifacts: upsertById(message.artifacts, event.artifact, ASSISTANT_LIMITS.artifacts),
+  }));
   if (event.type === "automation") return updateAssistant(state, (message) => ({ ...message, contentOpen: false, automations: upsertById(message.automations, event.run, ASSISTANT_LIMITS.activities) }));
   if (event.type === "reader") {
     const task = event.reader.task.replace(/\s+/gu, " ").trim().slice(0, 100);
@@ -834,7 +662,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       label: event.reader.status === "running" ? `Waiting for reading agent: ${task}` : event.reader.status === "error" ? "Reading agent failed" : event.reader.status === "interrupted" ? `Reading agent interrupted: ${task}` : `Reading agent completed: ${task}`,
       status: event.reader.status,
       ...(event.reader.output && { markdown: event.reader.output, sources: event.reader.sources }),
-      ...(event.reader.verifiedPassages && { detail: count(event.reader.verifiedPassages, "verified passage") }),
+      ...(event.reader.verifiedPassages && { detail: `${event.reader.verifiedPassages} verified passage${event.reader.verifiedPassages === 1 ? "" : "s"}` }),
       action: { type: "reader", readerId: event.reader.id },
     };
     const next = updateAssistant(state, (message) => ({ ...message, contentOpen: false, activities: upsertById(message.activities.filter((entry) => entry.tool !== "reasoning"), activity, ASSISTANT_LIMITS.activities) }));
@@ -888,7 +716,7 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
       next = { ...next, messages: [...next.messages, userMessage({ role: "user", content: typeof message.content === "string" ? message.content : "", files: message.files ?? undefined, workflow: message.workflow ?? undefined, turnId: message.turn_id }, `user:${index}`)] };
       return;
     }
-    const assistant = emptyAssistant(clean(message.id) || `assistant:${index}`, clean(message.turn_id));
+    const assistant = emptyAssistant(cleanValue(message.id) || `assistant:${index}`, cleanValue(message.turn_id));
     next = { ...next, messages: [...next.messages, assistant] };
     const rawEvents = Array.isArray(message.content) ? message.content : [];
     for (const raw of rawEvents) {
@@ -897,7 +725,7 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
     }
     const citations = parseAssistantCitations(message.citations);
     if (citations.length) next = applyProtocol(next, { type: "citations", citations, status: "final" });
-    if (!rawEvents.length && typeof message.content === "string" && message.content) next = applyProtocol(next, { type: "content_snapshot", text: string(message.content, ASSISTANT_LIMITS.text), final: true });
+    if (!rawEvents.length && typeof message.content === "string" && message.content) next = applyProtocol(next, { type: "content_snapshot", text: textValue(message.content, ASSISTANT_LIMITS.text), final: true });
     next = updateAssistant(next, (current) => current.id === assistant.id ? { ...current, turnComplete: message.turn_complete } : current);
   });
   if (!event.active) {

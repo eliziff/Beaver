@@ -1,368 +1,290 @@
-"use client";
-import {
-    use,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Upload } from "lucide-react";
-import { deleteChat } from "@/app/lib/beaverApi";
-import { isAnonymousMode } from "@/app/lib/authMode";
-import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
-import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import {
-    ChatView,
-    type ChatViewHandle,
-} from "@/app/components/assistant/ChatView";
-import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
-import { useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
-import { useProjectFiles } from "@/app/components/projects/useProjectFiles";
-import { PageHeader } from "@/app/components/shared/PageHeader";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { ChatView, type ChatViewHandle } from "@/app/components/assistant/ChatView";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
+import { Modal } from "@/app/components/modals/Modal";
+import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
+import { DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
+import { useProjectFiles } from "@/app/components/projects/useProjectFiles";
+import { useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
+import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { PageHeader } from "@/app/components/shared/PageHeader";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
-interface Props {
-    params: Promise<{ id: string; chatId: string }>;
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
+import { isLocalMode } from "@/app/lib/authMode";
+import { deleteChat } from "@/app/lib/beaverApi";
+
+export default function ProjectAssistantChatPage() {
+  const { id = "", chatId = "" } = useParams<{ id: string; chatId: string }>();
+  return <ProjectAssistantChat key={chatId} projectId={id} chatId={chatId} />;
 }
-function AssistantGreeting({ username }: { username: string }) {
-    return (
-        <div className="flex items-center justify-center gap-3">
-            <BeaverIcon size={28} />
-            <h1 className="text-center font-serif text-3xl font-light text-gray-900">
-                Hi, {username}
-            </h1>
-        </div>
-    );
-}
-export default function ProjectAssistantChatPage({ params }: Props) {
-    const { id: projectId, chatId } = use(params);
-    return (
-        <ProjectAssistantChat key={chatId} projectId={projectId} chatId={chatId} />
-    );
-}
-function ProjectAssistantChat({
-    projectId,
-    chatId,
-}: {
-    projectId: string;
-    chatId: string;
-}) {
-    const router = useRouter();
-    const { setSidebarOpen } = useSidebar();
-    const { user } = useAuth();
-    const { profile } = useUserProfile();
-    const {
-        createChat,
-        creatingChat,
-        project,
-        refreshProject,
-        setOwnerOnlyAction,
-    } = useProjectWorkspace();
-    const projectFiles = useProjectFiles();
-    const username =
-        profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
-    const [deletingChat, setDeletingChat] = useState(false);
-    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [projectModalOpen, setProjectModalOpen] = useState(false);
-    const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const chatViewRef = useRef<ChatViewHandle>(null);
-    const { renameChat: renameChatInHistory } = useChatHistoryContext();
-    const {
-        state: session,
-        actions,
-        chatTitle,
-        chatOwnerId,
-        chatLoaded,
-        changeProject,
-    } = useAssistantChatRoute({ chatId, projectId });
-    const { messages } = session;
-    const projectMutationSignature = useMemo(() => {
-        const created: string[] = [];
-        const editedPerDoc: Record<string, number> = {};
-        for (const message of messages) {
-            if (message.role !== "assistant") continue;
-            for (const artifact of message.artifacts) {
-                if (artifact.type === "created" && artifact.documentId) {
-                    created.push(
-                        `${artifact.documentId}:${artifact.versionId ?? ""}:${artifact.filename}`,
-                    );
-                } else if (artifact.type === "edited" && artifact.documentId) {
-                    editedPerDoc[artifact.documentId] = Math.max(
-                        editedPerDoc[artifact.documentId] ?? 0,
-                        artifact.versionNumber ?? 0,
-                    );
-                }
-            }
-        }
-        if (created.length === 0 && Object.keys(editedPerDoc).length === 0) {
-            return "";
-        }
-        return [
-            `created=${created.sort().join(",")}`,
-            `edited=${Object.entries(editedPerDoc)
-                .map(([id, version]) => `${id}=${version}`)
-                .sort()
-                .join(",")}`,
-        ].join("|");
-    }, [messages]);
-    useEffect(() => {
-        setSidebarOpen(false);
-    }, [setSidebarOpen]);
-    useEffect(() => {
-        if (projectMutationSignature) void refreshProject().catch(() => {});
-    }, [projectMutationSignature, refreshProject]);
-    function handleDeleteChat() {
-        if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
-            setOwnerOnlyAction("delete this chat");
-            return;
-        }
-        setDeleteConfirmOpen(true);
+
+function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId: string }) {
+  const navigate = useNavigate();
+  const { setSidebarOpen } = useSidebar();
+  const { user } = useAuth();
+  const { profile } = useUserProfile();
+  const workspace = useProjectWorkspace();
+  const files = useProjectFiles();
+  const history = useChatHistoryContext();
+  const route = useAssistantChatRoute({ chatId, projectId });
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [chatActionBusy, setChatActionBusy] = useState(false);
+  const [chatActionError, setChatActionError] = useState<string | null>(null);
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const chat = useRef<ChatViewHandle>(null);
+  const { messages } = route.state;
+  const username = profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
+  const documentRevision = messages.flatMap((message) =>
+    message.role === "assistant" ? message.artifacts.map(({ versionId }) => versionId) : [],
+  ).join("|");
+
+  useEffect(() => setSidebarOpen(false), [setSidebarOpen]);
+  useEffect(() => {
+    if (documentRevision) void workspace.refreshProject().catch(() => undefined);
+  }, [documentRevision, workspace.refreshProject]);
+
+  function requireOwner(action: string) {
+    if (!route.chatOwnerId || !user?.id || route.chatOwnerId === user.id) return true;
+    workspace.setOwnerOnlyAction(action);
+    return false;
+  }
+
+  async function removeChat() {
+    setChatActionBusy(true);
+    setChatActionError(null);
+    try {
+      await deleteChat(chatId);
+      navigate(`/projects/${projectId}/assistant`);
+    } catch {
+      setChatActionError("The chat could not be moved to the Recycling bin.");
+    } finally {
+      setChatActionBusy(false);
     }
-    async function confirmDeleteChat() {
-        setDeletingChat(true);
-        try {
-            await deleteChat(chatId);
-            setDeleteConfirmOpen(false);
-            router.push(`/projects/${projectId}/assistant`);
-        } finally {
-            setDeletingChat(false);
-        }
+  }
+
+  async function submitRename() {
+    const title = renameValue.trim();
+    if (!title || title === route.chatTitle) return setRenameOpen(false);
+    setChatActionBusy(true);
+    setChatActionError(null);
+    try {
+      await history.renameChat(chatId, title);
+      setRenameOpen(false);
+    } catch {
+      setChatActionError("The chat could not be renamed.");
+    } finally {
+      setChatActionBusy(false);
     }
-    async function handleRenameChat() {
-        if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
-            setOwnerOnlyAction("rename this chat");
-            return;
-        }
-        const nextTitle = window.prompt(
-            "Rename chat",
-            chatTitle ?? "Untitled New Chat",
-        );
-        const trimmed = nextTitle?.trim();
-        if (!trimmed || trimmed === chatTitle) return;
-        await renameChatInHistory(chatId, trimmed);
+  }
+
+  async function upload(uploaded: File[]) {
+    if (!uploaded.length) return;
+    setUploading(true);
+    try {
+      await files.uploadFiles(uploaded);
+    } catch (error) {
+      console.error("Upload failed", error);
+    } finally {
+      setUploading(false);
+      if (uploadInput.current) uploadInput.current.value = "";
     }
-    async function uploadFiles(files: File[]) {
-        if (files.length === 0) return;
-        setUploading(true);
-        try {
-            await projectFiles.uploadFiles(files);
-        } catch (error) {
-            console.error("Upload failed:", error);
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-    }
-    async function handleDeleteDoc(documentId: string) {
-        await projectFiles.deleteDocument(documentId);
-        chatViewRef.current?.closeDocument(documentId);
-    }
-    function handleChatDrop(event: React.DragEvent) {
-        event.preventDefault();
-        const documentId = event.dataTransfer.getData(
-            "application/mike-doc",
-        );
-        const document = project?.documents?.find(
-            (item) => item.id === documentId,
-        );
-        if (document) chatViewRef.current?.attachDocument(document);
-    }
-    function openProjectPicker() {
-        if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
-            setOwnerOnlyAction("change this chat's project");
-            return;
-        }
-        setProjectModalOpen(true);
-    }
-    return (
-        <div className="flex h-full flex-col">
-            <PageHeader
-                shrink
-                breadcrumbs={[
-                    {
-                        label: "Projects",
-                        onClick: () => router.push("/projects"),
-                    },
-                    project
-                        ? {
-                              label: project.name,
-                              onClick: () =>
-                                  router.push(`/projects/${projectId}/assistant`),
-                              title: "Back to project",
-                          }
-                        : {
-                              loading: true,
-                              skeletonClassName: "w-32",
-                              onClick: () =>
-                                  router.push(`/projects/${projectId}/assistant`),
-                              title: "Back to project",
-                          },
-                    chatLoaded
-                        ? { label: chatTitle ?? "Untitled New Chat" }
-                        : {
-                              loading: true,
-                              skeletonClassName: "w-40",
-                          },
-                ]}
-                actions={[
-                    {
-                        onClick: openProjectPicker,
-                        icon: (
-                            <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                        ),
-                        label: (
-                            <span className="hidden max-w-40 truncate sm:inline">
-                                {project?.name ?? "Project"}
-                            </span>
-                        ),
-                        title: "Change project",
-                    },
-                    {
-                        type: "new",
-                        onClick: () => void createChat(),
-                        loading: creatingChat,
-                        title: "New chat",
-                    },
-                    {
-                        onClick: () => void handleRenameChat(),
-                        label: "Rename",
-                        title: "Rename chat",
-                    },
-                    {
-                        onClick: handleDeleteChat,
-                        disabled: deletingChat,
-                        label: deletingChat ? "Deleting\u2026" : "Delete",
-                        title: "Delete chat",
-                    },
-                ]}
+  }
+
+  const projectPath = `/projects/${projectId}/assistant`;
+  return (
+    <div className="flex h-full flex-col">
+      <PageHeader
+        shrink
+        breadcrumbs={[
+          { label: "Projects", onClick: () => navigate("/projects") },
+          workspace.project
+            ? { label: workspace.project.name, onClick: () => navigate(projectPath), title: "Back to project" }
+            : { loading: true, skeletonClassName: "w-32", onClick: () => navigate(projectPath) },
+          route.chatLoaded
+            ? { label: route.chatTitle ?? "Untitled New Chat" }
+            : { loading: true, skeletonClassName: "w-40" },
+        ]}
+        actions={[
+          {
+            onClick: () => requireOwner("change this chat's project") && setProjectDialogOpen(true),
+            icon: <FolderSvgIcon className="size-3.5" />,
+            label: <span className="hidden max-w-40 truncate sm:inline">{workspace.project?.name ?? "Project"}</span>,
+            title: "Change project",
+          },
+          { type: "new", onClick: () => void workspace.createChat(), loading: workspace.creatingChat, title: "New chat" },
+          {
+            onClick: () => {
+              if (!requireOwner("rename this chat")) return;
+              setRenameValue(route.chatTitle ?? "Untitled New Chat");
+              setRenameOpen(true);
+            },
+            label: "Rename",
+            title: "Rename chat",
+          },
+          {
+            onClick: () => requireOwner("delete this chat") && setDeleteOpen(true),
+            label: "Delete",
+            title: "Delete chat",
+          },
+        ]}
+      />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden border-t">
+        <aside
+          id="project-chat-explorer"
+          className={`absolute inset-y-0 left-0 z-40 w-64 flex-col border-r bg-white shadow-lg ${explorerOpen ? "flex" : "hidden"} md:relative md:z-auto md:flex md:shadow-none`}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            void upload(Array.from(event.dataTransfer.files));
+          }}
+        >
+          <header className="flex h-10 items-center justify-between border-b px-3 text-xs">
+            Explorer
+            <span className="flex gap-1">
+              <input
+                ref={uploadInput}
+                type="file"
+                accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+                multiple
+                className="hidden"
+                onChange={(event) => void upload(Array.from(event.currentTarget.files ?? []))}
+              />
+              <button type="button" disabled={uploading} onClick={() => uploadInput.current?.click()} aria-label="Upload documents" className="rounded p-1">
+                {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+              </button>
+              <button type="button" onClick={() => setExplorerOpen(false)} aria-label="Close explorer" className="rounded px-1 text-lg md:hidden">×</button>
+            </span>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ProjectExplorer
+              documents={workspace.project?.documents ?? []}
+              folders={workspace.project?.folders ?? []}
+              selectedDocId={selectedDocument}
+              onDocClick={(document) => {
+                chat.current?.openDocument(document);
+                setExplorerOpen(false);
+              }}
+              onCreateFolder={files.createFolder}
+              onRenameFolder={files.renameFolder}
+              onDeleteFolder={files.deleteFolder}
+              onDeleteDoc={async (id) => {
+                await files.deleteDocument(id);
+                chat.current?.closeDocument(id);
+              }}
+              documentRemovalMode={isLocalMode ? "detach" : "delete"}
+              onMoveDoc={files.moveDocument}
+              onMoveFolder={files.moveFolder}
             />
-            <div className="relative flex min-h-0 flex-1 overflow-hidden border-t border-gray-200">
-                <div
-                    id="project-chat-explorer"
-                    className={`absolute inset-y-0 left-0 z-40 w-64 flex-col border-r border-gray-200 bg-white shadow-lg ${mobileExplorerOpen ? "flex" : "hidden"} md:relative md:z-auto md:flex md:shadow-none`}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        void uploadFiles(Array.from(event.dataTransfer.files));
-                    }}
-                >
-                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-200 px-3">
-                        <span className="text-xs text-gray-700">Explorer</span>
-                        <div className="flex items-center gap-1">
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
-                                multiple
-                                className="hidden"
-                                onChange={(event) =>
-                                    void uploadFiles(
-                                        Array.from(event.target.files ?? []),
-                                    )
-                                }
-                            />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={uploading}
-                                title="Upload documents"
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"                            >
-                                {uploading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Upload className="h-3.5 w-3.5" />
-                                )}
-                            </button>
-                            <button type="button" onClick={() => setMobileExplorerOpen(false)} title="Close explorer" className="rounded px-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden">×</button>
-                        </div>
-                    </div>
-                    <div className="relative h-full flex-1 overflow-y-auto">
-                        <ProjectExplorer
-                            documents={project?.documents ?? []}
-                            folders={project?.folders ?? []}
-                            selectedDocId={selectedDocId}
-                            onDocClick={(document) => {
-                                chatViewRef.current?.openDocument(document);
-                                setMobileExplorerOpen(false);
-                            }}
-                            onCreateFolder={projectFiles.createFolder}
-                            onRenameFolder={projectFiles.renameFolder}
-                            onDeleteFolder={projectFiles.deleteFolder}
-                            onDeleteDoc={handleDeleteDoc}
-                            documentRemovalMode={
-                                isAnonymousMode ? "detach" : "delete"
-                            }
-                            onMoveDoc={projectFiles.moveDocument}
-                            onMoveFolder={projectFiles.moveFolder}
-                        />
-                    </div>
-                </div>
-                <div
-                    className="relative min-w-0 flex-1"
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={handleChatDrop}
-                >
-                    <button
-                        type="button"
-                        aria-controls="project-chat-explorer"
-                        aria-expanded={mobileExplorerOpen}
-                        onClick={() => setMobileExplorerOpen(true)}
-                        className="absolute left-2 top-2 z-20 inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 shadow-sm md:hidden"
-                    >
-                        <FolderSvgIcon className="h-3.5 w-3.5" />
-                        Files
-                    </button>
-                    <ChatView
-                        ref={chatViewRef}
-                        chatId={chatId}
-                        session={session}
-                        handleChat={actions.handleChat}
-                        cancel={actions.cancel}
-                        onRejectedTurnRestored={actions.clearRejectedTurn}
-                        onRetryRejectedTurn={() => void actions.retryRejectedTurn()}
-                        projectId={projectId}
-                        projectName={project?.name}
-                        projectCmNumber={project?.cm_number}
-                        useDisplayedDocumentContext
-                        onActiveDocumentChange={setSelectedDocId}
-                    />
-                    {!chatLoaded ? (
-                        <div className="absolute inset-0 z-40 space-y-4 bg-white px-8 py-8">
-                            <div className="ml-auto h-12 w-3/5 rounded-2xl bg-gray-100" />
-                            <div className="h-3 w-full rounded bg-gray-200" />
-                            <div className="h-3 w-4/6 rounded bg-gray-200" />
-                        </div>
-                    ) : messages.length === 0 ? (
-                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center pb-24">
-                            <AssistantGreeting username={username} />
-                        </div>
-                    ) : null}
-                </div>
+          </div>
+        </aside>
+        <main
+          className="relative min-w-0 flex-1"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            const id = event.dataTransfer.getData(DOCUMENT_DRAG_TYPE);
+            const document = workspace.project?.documents?.find((item) => item.id === id);
+            if (document) chat.current?.attachDocument(document);
+          }}
+        >
+          <button
+            type="button"
+            aria-controls="project-chat-explorer"
+            aria-expanded={explorerOpen}
+            onClick={() => setExplorerOpen(true)}
+            className="absolute left-2 top-2 z-20 flex h-8 items-center gap-1 rounded border bg-white px-2 text-xs md:hidden"
+          >
+            <FolderSvgIcon className="size-3.5" /> Files
+          </button>
+          <ChatView
+            ref={chat}
+            chatId={chatId}
+            session={route.state}
+            handleChat={route.actions.handleChat}
+            cancel={route.actions.cancel}
+            onRejectedTurnRestored={route.actions.clearRejectedTurn}
+            onRetryRejectedTurn={() => void route.actions.retryRejectedTurn()}
+            projectId={projectId}
+            projectName={workspace.project?.name}
+            projectCmNumber={workspace.project?.cm_number}
+            useDisplayedDocumentContext
+            onActiveDocumentChange={setSelectedDocument}
+          />
+          {!route.chatLoaded ? (
+            <p role="status" className="absolute inset-0 z-40 grid place-items-center bg-white text-sm text-gray-500">Loading conversation…</p>
+          ) : !messages.length ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-3 pb-24">
+              <BeaverIcon size={28} /><h1 className="font-serif text-3xl font-light">Hi, {username}</h1>
             </div>
-            <ChatDeleteWarning
-                open={deleteConfirmOpen}
-                busy={deletingChat}
-                onCancel={() => setDeleteConfirmOpen(false)}
-                onConfirm={() => void confirmDeleteChat()}
-            />
-            <SelectAssistantProjectModal
-                open={projectModalOpen}
-                onClose={() => setProjectModalOpen(false)}
-                chatTitle={chatTitle}
-                currentLocation={project?.name}
-                currentProjectId={projectId}
-                onSelectProject={changeProject}
-            />
-        </div>
-    );
+          ) : null}
+        </main>
+      </div>
+      <SelectAssistantProjectModal
+        open={projectDialogOpen}
+        onClose={() => setProjectDialogOpen(false)}
+        chatTitle={route.chatTitle}
+        currentLocation={workspace.project?.name}
+        currentProjectId={projectId}
+        onSelectProject={route.changeProject}
+      />
+      <Modal
+        open={renameOpen}
+        onClose={() => { if (!chatActionBusy) setRenameOpen(false); }}
+        size="sm"
+        className="!h-fit"
+        breadcrumbs={["Rename chat"]}
+        cancelAction={{
+          label: "Cancel",
+          onClick: () => setRenameOpen(false),
+          disabled: chatActionBusy,
+        }}
+        primaryAction={{
+          label: chatActionBusy ? "Saving…" : "Save",
+          onClick: () => void submitRename(),
+          disabled: chatActionBusy || !renameValue.trim(),
+        }}
+      >
+        <form
+          className="pb-5"
+          onSubmit={(event) => { event.preventDefault(); void submitRename(); }}
+        >
+          <label className="mb-2 block text-sm font-medium text-gray-700" htmlFor="project-chat-title">
+            Chat name
+          </label>
+          <ModalTextInput
+            id="project-chat-title"
+            autoFocus
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+          />
+        </form>
+      </Modal>
+      <ChatDeleteWarning
+        open={deleteOpen}
+        busy={chatActionBusy}
+        onCancel={() => { if (!chatActionBusy) setDeleteOpen(false); }}
+        onConfirm={() => void removeChat()}
+      />
+      <WarningPopup
+        open={!!chatActionError}
+        message={chatActionError}
+        onClose={() => setChatActionError(null)}
+      />
+    </div>
+  );
 }

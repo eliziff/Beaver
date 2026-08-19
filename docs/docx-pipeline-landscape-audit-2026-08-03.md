@@ -31,9 +31,9 @@ usually "steal one proven mechanism as a **supplement**" or "**ignore**".
 | --- | --- | --- |
 | Ingest | `extractDocxDraftingSource` (`docxDraftingSource.ts`) | mammoth (npm `1.9.0`) → simplified HTML (`beaver-precedent-html-v1`); warnings per drop class. |
 | Ingest | `extractDocxBodyText` / `extractDocxBodyStructure` (`docxTrackedChanges.ts`) | Own OOXML walk → accepted-view text + native table-coordinate plane. |
-| Ingest | `resolveDocxNumbering` + `applyNumberingToText` (`docx/numbering.ts`) | Reconstructs the `1.` / `(a)` labels that live only in `numbering.xml`. |
+| Experimental analysis | `resolveDocxNumbering` + `applyNumberingToText` (`backend/experiments/docx-analysis/numbering.ts`) | Reconstructs the `1.` / `(a)` labels that live only in `numbering.xml`; retained outside production because it has no product caller. |
 | Ingest | `projectDocxRedline` (`docx/redline.ts`) | CriticMarkup read mode: `{++ins++}`, `{--del--}`, `{>>comment<<}`, `[ink]`. |
-| Ingest | `extractDocxStories` (`docx/stories.ts`) | Every part (body, notes, headers, footers, text boxes) with per-run redline state. |
+| Experimental analysis | `extractDocxStories` (`backend/experiments/docx-analysis/stories.ts`) | Audits every part (body, notes, headers, footers, text boxes) with per-run redline state; retained outside production because it has no product caller. |
 | Ingest | `scanDocxPathology` (`docx/pathology.ts`) | Pre-extraction counters + routing notes (unicode traps, redline-likely, text boxes). |
 | Output | `parseDocxMarkdown` + `renderDocxMarkdown` (`chat/tools/docxMarkdown.ts`) | Custom simplified-markdown grammar → the `docx` npm package (`9.7.1`). |
 | Edit | `applyTrackedEdits` / `insertTrackedBlocks` / `resolveTrackedChange` (`docxTrackedChanges.ts`) | Deterministic find/context/exact-offset anchors → native `<w:ins>`/`<w:del>`; typed refusals on ambiguity. |

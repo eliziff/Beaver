@@ -1,49 +1,32 @@
 import { randomUUID } from "node:crypto";
 import { docxToPdf } from "./convert";
-import type {
-  DocumentAggregate,
-  DocumentRepository,
-  StoredDocumentVersion,
-} from "./documentRepository";
-import {
-  contentTypeForDocumentType,
-  shouldConvertToPdf,
-  validateDocumentFile,
-} from "./documentTypes";
-import type {
-  AssistantEdit,
-  DocumentContent,
-  DocumentProvenance,
-  DocumentScope,
-  DocumentStore,
-  DocumentVersion,
-  StoredAssistantEdit,
-} from "./documentStore";
-import { DocumentStoreError } from "./documentStore";
+import type { DocumentAggregate, DocumentRepository,
+  StoredDocumentVersion } from "./documentRepository";
+import { contentTypeForDocumentType, shouldConvertToPdf,
+  validateDocumentFile } from "./documentTypes";
+import type { DocumentContent, DocumentProvenance, DocumentScope,
+  DocumentStore, DocumentVersion, StoredAssistantEdit } from "./documentStore";
+import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { sha256 } from "./hash";
 import { countLegalPdfPages } from "./legalPdfSourceDoc";
-import type { LibraryKind } from "./normalize";
-import {
-  MAX_OBJECT_SIZE_BYTES,
-  SIGNED_GET_TTL_SECONDS,
-  type ObjectStorage,
-  versionStorageKey,
-} from "./storage";
+import { normalizeDocumentMetadata, normalizeDocumentNotes,
+  type LibraryKind } from "./normalize";
+import { MAX_OBJECT_SIZE_BYTES, SIGNED_GET_TTL_SECONDS, type ObjectStorage,
+  versionStorageKey } from "./storage";
 
 class DocumentWriteConflict extends Error {}
 
 const safeFilename = (value: string) => {
   const filename = [...value.trim().replace(/[\uD800-\uDFFF]/gu, "�")
     .replace(/[\x00-\x1F\x7F/\\]/gu, "_")].slice(0, 200).join("");
-  if (!filename) throw new DocumentStoreError(400, "filename is required");
+  if (!filename) throw new ApplicationError(400, "filename is required");
   return filename;
 };
 
 const checkBytes = (bytes: Buffer) => {
-  if (bytes.byteLength > MAX_OBJECT_SIZE_BYTES) {
-    throw new DocumentStoreError(413, "Document exceeds the maximum object size");
-  }
+  if (bytes.byteLength > MAX_OBJECT_SIZE_BYTES)
+    throw new ApplicationError(413, "Document exceeds the maximum object size");
 };
 
 const validateUpload = (filename: string, fileType: string, bytes: Buffer) => {
@@ -51,31 +34,21 @@ const validateUpload = (filename: string, fileType: string, bytes: Buffer) => {
   const name = safeFilename(filename);
   const validated = validateDocumentFile(name, bytes);
   if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
-    throw new DocumentStoreError(400,
+    throw new ApplicationError(400,
       validated.ok ? "Filename and document type do not match" : validated.error);
   }
   return { filename: name, fileType: validated.fileType };
 };
 
 const responseVersion = (version: StoredDocumentVersion): DocumentVersion => ({
-  id: version.id,
-  version_number: version.versionNumber,
-  source: version.source,
-  created_at: version.createdAt,
-  filename: version.filename,
-  file_type: version.fileType,
-  size_bytes: version.sizeBytes,
-  page_count: version.pageCount,
+  id: version.id, version_number: version.versionNumber, source: version.source,
+  created_at: version.createdAt, filename: version.filename, file_type: version.fileType,
+  size_bytes: version.sizeBytes, page_count: version.pageCount,
   source_sha256: version.sourceSha256,
-  provenance: version.provenance
-    ? {
-        schema_version: version.provenance.schemaVersion,
-        actor: version.provenance.actor,
-        action: version.provenance.action,
-        parent_version_id: version.provenance.parentVersionId,
-        change_count: version.provenance.changeCount,
-      }
-    : undefined,
+  provenance: version.provenance ? { schema_version: version.provenance.schemaVersion,
+    actor: version.provenance.actor, action: version.provenance.action,
+    parent_version_id: version.provenance.parentVersionId,
+    change_count: version.provenance.changeCount } : undefined,
   deleted_at: null,
 });
 
@@ -84,23 +57,15 @@ const responseDocument = (aggregate: DocumentAggregate) => {
   if (!version) throw new Error("Document has no active version");
   const document = aggregate.document;
   return {
-    id: document.id,
-    user_id: document.userId,
-    project_id: document.projectId,
+    id: document.id, user_id: document.userId, project_id: document.projectId,
     library_kind: document.libraryKind,
     library_folder_id: document.projectId ? null : document.folderId,
-    folder_id: document.folderId,
-    filename: version.filename,
-    file_type: version.fileType,
-    size_bytes: version.sizeBytes,
-    page_count: version.pageCount,
-    source_sha256: version.sourceSha256,
-    status: document.status,
+    folder_id: document.folderId, filename: version.filename, file_type: version.fileType,
+    size_bytes: version.sizeBytes, page_count: version.pageCount,
+    source_sha256: version.sourceSha256, status: document.status,
     current_version_id: document.currentVersionId,
-    active_version_number: version.versionNumber,
-    created_at: document.createdAt,
-    updated_at: document.updatedAt,
-    metadata: document.metadata ?? {},
+    active_version_number: version.versionNumber, created_at: document.createdAt,
+    updated_at: document.updatedAt, metadata: document.metadata ?? {},
     notes: document.notes ?? null,
   };
 };
@@ -109,6 +74,10 @@ function activeVersion(aggregate: DocumentAggregate, requested?: string | null) 
   const id = requested || aggregate.document.currentVersionId;
   return aggregate.versions.find((version) => version.id === id) ?? null;
 }
+
+const objectKeys = (version: StoredDocumentVersion) =>
+  [version.blobKey, version.pdfBlobKey, ...version.cleanupKeys]
+    .filter((key): key is string => !!key);
 
 function editedFilename(version: StoredDocumentVersion) {
   const name = version.filename.trim() || "Untitled document.docx";
@@ -123,10 +92,8 @@ async function pageCount(fileType: string, bytes: Buffer) {
   return fileType === "pdf" ? countLegalPdfPages(bytes).catch(() => null) : null;
 }
 
-function provenanceWithEdits(
-  provenance: DocumentProvenance | undefined,
-  edits: StoredAssistantEdit[],
-) {
+function provenanceWithEdits(provenance: DocumentProvenance | undefined,
+  edits: StoredAssistantEdit[]) {
   return provenance && {
     ...provenance,
     changeCount: (provenance.changeCount ?? provenance.trackedEdits?.length ?? 0) + edits.length,
@@ -134,27 +101,25 @@ function provenanceWithEdits(
   };
 }
 
-export function createDocumentApplication(
-  repository: DocumentRepository,
-  objects: ObjectStorage,
-): DocumentStore {
-  const cleanup = async (
-    scope: DocumentScope,
-    documentId: string,
-    versionId: string,
-    keys: string[],
-  ) => {
+export function createDocumentApplication(repository: DocumentRepository,
+  objects: ObjectStorage): DocumentStore {
+  const removeObjects = async (scope: DocumentScope, keys: string[]) =>
+    Promise.all([...new Set(keys)].map(async (key) => {
+      try { await objects.remove(key); }
+      catch (error) { await repository.recordOrphan(scope, key).catch((recordError) => {
+        throw new AggregateError([error, recordError], "Document object cleanup recording failed");
+      }); }
+    }));
+  const cleanup = async (scope: DocumentScope, documentId: string,
+    versionId: string, keys: string[]) => {
     const unique = [...new Set(keys.filter(Boolean))];
     if (!unique.length) return;
     await Promise.all(unique.map((key) => objects.remove(key)));
     await repository.clearCleanup(scope, documentId, versionId, unique);
   };
 
-  const compensate = async (
-    scope: DocumentScope,
-    key: string,
-    cause: unknown,
-  ): Promise<never> => {
+  const compensate = async (scope: DocumentScope, key: string,
+    cause: unknown): Promise<never> => {
     try {
       await objects.remove(key);
     } catch (cleanupError) {
@@ -170,44 +135,21 @@ export function createDocumentApplication(
     throw cause;
   };
 
-  const makeVersion = async (input: {
-    scope: DocumentScope;
-    documentId: string;
-    versionId?: string;
-    versionNumber: number;
-    source: string;
-    filename: string;
-    fileType: string;
-    bytes: Buffer;
-    provenance?: DocumentProvenance;
-    edits?: StoredAssistantEdit[];
-  }) => {
+  const makeVersion = async (input: { scope: DocumentScope; documentId: string;
+    versionId?: string; versionNumber: number; source: string; filename: string;
+    fileType: string; bytes: Buffer; provenance?: DocumentProvenance;
+    edits?: StoredAssistantEdit[] }) => {
     const id = input.versionId ?? randomUUID();
     const { filename, fileType } = validateUpload(
       input.filename, input.fileType, input.bytes,
     );
-    const sourceSha256 = sha256(input.bytes);
-    const blobKey = versionStorageKey(
-      input.scope.userId,
-      input.documentId,
-      id,
-      sourceSha256,
-      filename,
-    );
+    const sourceSha256 = sha256(input.bytes), blobKey = versionStorageKey(
+      input.scope.userId, input.documentId, id, sourceSha256, filename);
     const version: StoredDocumentVersion = {
-      id,
-      documentId: input.documentId,
-      versionNumber: input.versionNumber,
-      source: input.source,
-      createdAt: new Date().toISOString(),
-      filename,
-      fileType,
-      sizeBytes: input.bytes.byteLength,
-      pageCount: await pageCount(fileType, input.bytes),
-      sourceSha256,
-      blobKey,
-      pdfBlobKey: fileType === "pdf" ? blobKey : null,
-      cleanupKeys: [],
+      id, documentId: input.documentId, versionNumber: input.versionNumber,
+      source: input.source, createdAt: new Date().toISOString(), filename, fileType,
+      sizeBytes: input.bytes.byteLength, pageCount: await pageCount(fileType, input.bytes),
+      sourceSha256, blobKey, pdfBlobKey: fileType === "pdf" ? blobKey : null, cleanupKeys: [],
       provenance: input.edits
         ? provenanceWithEdits(input.provenance, input.edits)
         : input.provenance,
@@ -216,11 +158,8 @@ export function createDocumentApplication(
     return version;
   };
 
-  const ensurePdf = async (
-    scope: DocumentScope,
-    aggregate: DocumentAggregate,
-    version: StoredDocumentVersion,
-  ) => {
+  const ensurePdf = async (scope: DocumentScope, aggregate: DocumentAggregate,
+    version: StoredDocumentVersion) => {
     if (version.pdfBlobKey || !shouldConvertToPdf(version.fileType)) return version;
     const source = await objects.get(version.blobKey);
     if (!source) return version;
@@ -234,13 +173,8 @@ export function createDocumentApplication(
       return version;
     }
     const digest = sha256(pdf);
-    const key = versionStorageKey(
-      scope.userId,
-      aggregate.document.id,
-      `${version.id}-pdf`,
-      digest,
-      `${version.filename}.pdf`,
-    );
+    const key = versionStorageKey(scope.userId, aggregate.document.id,
+      `${version.id}-pdf`, digest, `${version.filename}.pdf`);
     await objects.put(key, pdf, "application/pdf");
     let updated;
     try {
@@ -265,99 +199,97 @@ export function createDocumentApplication(
     return { ...version, pdfBlobKey: key };
   };
 
-  const selectedVersion = async (
-    scope: DocumentScope,
-    aggregate: DocumentAggregate,
-    requested: string | null,
-    preferPdf: boolean,
-  ) => {
+  const selectedVersion = async (scope: DocumentScope, aggregate: DocumentAggregate,
+    requested: string | null, preferPdf: boolean) => {
     const selected = activeVersion(aggregate, requested);
     if (!selected) return null;
     const version = preferPdf ? await ensurePdf(scope, aggregate, selected) : selected;
     const usePdf = preferPdf && !!version.pdfBlobKey && shouldConvertToPdf(version.fileType);
-    return {
-      version,
-      key: usePdf ? version.pdfBlobKey! : version.blobKey,
-      fileType: usePdf ? "pdf" : version.fileType,
-      filename: editedFilename(version),
-    };
+    return { version, key: usePdf ? version.pdfBlobKey! : version.blobKey,
+      fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
-  const content = async (
-    scope: DocumentScope,
-    aggregate: DocumentAggregate,
-    requested: string | null,
-    preferPdf: boolean,
-  ): Promise<DocumentContent | null> => {
+  const content = async (scope: DocumentScope, aggregate: DocumentAggregate,
+    requested: string | null, preferPdf: boolean): Promise<DocumentContent | null> => {
     const selected = await selectedVersion(scope, aggregate, requested, preferPdf);
     if (!selected) return null;
     const bytes = await objects.get(selected.key);
-    return bytes && {
-      bytes,
-      localPath: objects.localPath?.(selected.key),
-      version: responseVersion(selected.version),
-      filename: selected.filename,
-      fileType: selected.fileType,
-      hasPdfRendition: !!selected.version.pdfBlobKey,
-    };
+    return bytes && { bytes, version: responseVersion(selected.version),
+      filename: selected.filename, fileType: selected.fileType,
+      hasPdfRendition: !!selected.version.pdfBlobKey };
   };
 
-  const add = async (
-    scope: DocumentScope,
-    aggregate: DocumentAggregate,
-    file: { filename: string; fileType: string; bytes: Buffer },
-    input?: {
-      source?: string;
-      provenance?: DocumentProvenance;
-      edits?: StoredAssistantEdit[];
-    },
-  ) => {
-    const version = await makeVersion({
-      scope,
-      documentId: aggregate.document.id,
+  const add = async (scope: DocumentScope, aggregate: DocumentAggregate,
+    file: { filename: string; fileType: string; bytes: Buffer }, input?: {
+      source?: string; provenance?: DocumentProvenance; edits?: StoredAssistantEdit[] }) => {
+    const version = await makeVersion({ scope, documentId: aggregate.document.id,
       versionNumber: Math.max(...aggregate.versions.map(({ versionNumber }) => versionNumber)) + 1,
       source: input?.source ?? "user_upload",
-      provenance: input?.provenance,
-      edits: input?.edits,
-      ...file,
+      provenance: input?.provenance, edits: input?.edits, ...file,
     });
     let result: Awaited<ReturnType<DocumentRepository["insertVersion"]>>;
     try {
       result = await repository.insertVersion(scope, aggregate.document.id, {
         expectedCurrentVersionId: aggregate.document.currentVersionId,
-        version,
-        edits: input?.edits,
-      });
+        version, edits: input?.edits });
     } catch (error) {
       return compensate(scope, version.blobKey, error);
     }
-    if (result !== "created") {
-      await compensate(scope, version.blobKey,
-        new DocumentWriteConflict(result));
-    }
+    if (result !== "created") await compensate(scope, version.blobKey,
+      new DocumentWriteConflict(result));
     return version;
+  };
+
+  const replace = async (scope: DocumentScope, documentId: string,
+    current: StoredDocumentVersion, input: {
+      filename: string; fileType: string; bytes: Buffer; pageCount: number | null;
+      provenance?: DocumentProvenance | null; createdAt?: string; edits?: StoredAssistantEdit[];
+      resolveEdit?: { id: string; status: StoredAssistantEdit["status"] };
+    }) => {
+    checkBytes(input.bytes);
+    const digest = sha256(input.bytes), key = versionStorageKey(
+      scope.userId, documentId, current.id, digest, input.filename);
+    await objects.put(key, input.bytes, contentTypeForDocumentType(input.fileType));
+    const oldKeys = objectKeys(current).filter((value) => value !== key);
+    const next: StoredDocumentVersion = { ...current, filename: input.filename,
+      fileType: input.fileType, sizeBytes: input.bytes.byteLength, pageCount: input.pageCount,
+      sourceSha256: digest, blobKey: key, pdfBlobKey: input.fileType === "pdf" ? key : null,
+      cleanupKeys: oldKeys, provenance: input.provenance === null
+        ? undefined : input.provenance ?? current.provenance,
+      createdAt: input.createdAt ?? current.createdAt };
+    let result;
+    try {
+      result = await repository.updateVersion(scope, documentId, {
+        versionId: current.id, expectedBlobKey: current.blobKey,
+        update: { filename: next.filename, fileType: next.fileType,
+          sizeBytes: next.sizeBytes, pageCount: next.pageCount,
+          sourceSha256: digest, blobKey: key, pdfBlobKey: next.pdfBlobKey,
+          cleanupKeys: oldKeys, provenance: input.provenance,
+          ...(input.createdAt ? { createdAt: input.createdAt } : {}) },
+        edits: input.edits, resolveEdit: input.resolveEdit,
+      });
+    } catch (error) { await compensate(scope, key, error); }
+    if (result !== "updated") await compensate(scope, key,
+      new DocumentWriteConflict("Document version conflict"));
+    await cleanup(scope, documentId, current.id, oldKeys);
+    return next;
   };
 
   const application: DocumentStore = {
     async resumeCleanup() {
-      for (const key of await repository.pendingOrphans()) {
+      for (const key of await repository.pendingOrphans("system")) {
         try {
           await objects.remove(key);
-          await repository.clearOrphan(key);
+          await repository.clearOrphan("system", key);
         } catch (error) {
           console.error("[document-cleanup] orphan retry failed", {
             key, error: error instanceof Error ? error.name : "unknown",
           });
         }
       }
-      for (const pending of await repository.pendingCleanup()) {
+      for (const pending of await repository.pendingCleanup("system")) {
         try {
-          await cleanup(
-            pending.scope,
-            pending.documentId,
-            pending.versionId,
-            pending.keys,
-          );
+          await cleanup(pending.scope, pending.documentId, pending.versionId, pending.keys);
         } catch (error) {
           console.error("[document-cleanup] retry failed", {
             documentId: pending.documentId,
@@ -368,72 +300,82 @@ export function createDocumentApplication(
       }
     },
 
+    async metadata(scope, documentId, owner = false) {
+      const aggregate = await repository.get(scope, documentId, owner);
+      return aggregate ? responseDocument(aggregate) : null;
+    },
+
     async create(scope, input) {
-      const libraryKind = (input.libraryKind ?? "file") as LibraryKind;
-      const projectId = input.projectId ?? null;
-      const folderId = input.folderId ?? null;
-      const authorization = await repository.authorizeCreate(scope, {
-        projectId,
-        libraryKind,
-        folderId,
-      });
+      const libraryKind = (input.libraryKind ?? "file") as LibraryKind,
+        projectId = input.projectId ?? null, folderId = input.folderId ?? null;
+      const authorization = await repository.authorizeCreate(
+        scope, { projectId, libraryKind, folderId });
       if (authorization !== "ok") {
-        if (authorization === "folder-unavailable") {
-          throw new DocumentStoreError(409, "Project folders are unavailable");
-        }
-        throw new DocumentStoreError(404,
+        if (authorization === "folder-unavailable")
+          throw new ApplicationError(409, "Project folders are unavailable");
+        throw new ApplicationError(404,
           authorization === "project-missing" ? "Project not found" : "Folder not found");
       }
       const documentId = randomUUID();
-      const version = await makeVersion({
-        scope,
-        documentId,
-        versionNumber: 1,
+      const version = await makeVersion({ scope, documentId, versionNumber: 1,
         source: input.provenance?.action === "created" ? "generated" : "upload",
-        filename: input.filename,
-        fileType: input.fileType,
-        bytes: input.bytes,
+        filename: input.filename, fileType: input.fileType, bytes: input.bytes,
         provenance: input.provenance,
       });
-      const now = version.createdAt;
+      const now = version.createdAt, document = {
+        id: documentId, userId: scope.userId, projectId, libraryKind, folderId,
+        status: "ready", currentVersionId: version.id, createdAt: now, updatedAt: now,
+        metadata: {}, notes: null,
+      };
       try {
-        await repository.create(scope, {
-          document: {
-            id: documentId,
-            userId: scope.userId,
-            projectId,
-            libraryKind,
-            folderId,
-            status: "ready",
-            currentVersionId: version.id,
-            createdAt: now,
-            updatedAt: now,
-            metadata: {},
-            notes: null,
-          },
-          version,
-        });
+        await repository.create(scope, { document, version });
       } catch (error) {
         await compensate(scope, version.blobKey, error);
       }
-      const aggregate = await repository.get(scope, documentId)
-        ?? { document: {
-          id: documentId, userId: scope.userId, projectId, libraryKind, folderId,
-          status: "ready", currentVersionId: version.id, createdAt: now, updatedAt: now,
-        }, versions: [version], edits: [], isOwner: true };
-      return responseDocument(aggregate);
+      return responseDocument({ document, versions: [version], edits: [], isOwner: true });
     },
 
     async deleteDocument(scope, documentId) {
       const aggregate = await repository.get(scope, documentId, true);
       if (!aggregate) return false;
-      const keys = aggregate.versions.flatMap((version) => [
-        version.blobKey,
-        version.pdfBlobKey,
-        ...version.cleanupKeys,
-      ]).filter((key): key is string => !!key);
-      await Promise.all([...new Set(keys)].map((key) => objects.remove(key)));
-      return repository.deleteDocument(scope, documentId);
+      const keys = aggregate.versions.flatMap(objectKeys);
+      if (!await repository.deleteDocument(scope, documentId)) return false;
+      await removeObjects(scope, keys);
+      return true;
+    },
+
+    async deleteUserDocuments(scope, input) {
+      const ids = await repository.deletionIds(scope, input.projectIds, input.includeOwned);
+      const deleted = await Promise.all(ids.map((id) => application.deleteDocument(scope, id)));
+      if (deleted.some((ok) => !ok)) throw new Error("Document deletion was incomplete");
+      if (!input.purgeObjects) return ids.length;
+      let cursor: string | null = null;
+      do {
+        const page = await objects.list(scope.userId, { cursor });
+        await Promise.all(page.keys.map((key) => objects.remove(key)));
+        cursor = page.cursor;
+      } while (cursor);
+      return ids.length;
+    },
+
+    async relocate(scope, documentId, input) {
+      const result = await repository.relocate(scope, documentId, input);
+      if (result !== "moved") return { status: result };
+      const aggregate = await repository.get(scope, documentId, input.owner);
+      return aggregate
+        ? { status: "moved", document: responseDocument(aggregate) }
+        : { status: "missing" };
+    },
+
+    async updateMetadata(scope, documentId, input) {
+      if (!await repository.updateMetadata(scope, documentId, {
+        ...(input.metadata !== undefined
+          ? { metadata: normalizeDocumentMetadata(input.metadata) } : {}),
+        ...(input.notes !== undefined
+          ? { notes: normalizeDocumentNotes(input.notes) } : {}),
+      })) return null;
+      const aggregate = await repository.get(scope, documentId, true);
+      return aggregate ? responseDocument(aggregate) : null;
     },
 
     async files(scope, documentIds) {
@@ -535,55 +477,16 @@ export function createDocumentApplication(
           edit.status === "pending" &&
           [edit.delWId, edit.insWId].filter((id): id is string => !!id)
             .some((id) => !retainedIds.has(id)))) {
-        throw new DocumentStoreError(
+        throw new ApplicationError(
           409,
           "A later same-turn edit overlaps an earlier tracked change; split it into a new turn so every accept/reject receipt remains valid",
         );
       }
-      checkBytes(input.bytes);
       const filename = safeFilename(input.filename);
-      const digest = sha256(input.bytes);
-      const key = versionStorageKey(scope.userId, documentId, current.id, digest, filename);
-      await objects.put(key, input.bytes, contentTypeForDocumentType("docx"));
-      const oldKeys = [current.blobKey, current.pdfBlobKey, ...current.cleanupKeys]
-        .filter((value): value is string => !!value && value !== key);
-      const next = {
-        ...current,
-        filename,
-        fileType: "docx",
-        sizeBytes: input.bytes.byteLength,
-        pageCount: null,
-        sourceSha256: digest,
-        blobKey: key,
-        pdfBlobKey: null,
-        cleanupKeys: oldKeys,
-        provenance: provenanceWithEdits(current.provenance, edits),
-      };
-      let result;
-      try {
-        result = await repository.updateVersion(scope, documentId, {
-          versionId: current.id,
-          expectedBlobKey: current.blobKey,
-          update: {
-            filename,
-            fileType: "docx",
-            sizeBytes: input.bytes.byteLength,
-            pageCount: null,
-            sourceSha256: digest,
-            blobKey: key,
-            pdfBlobKey: null,
-            cleanupKeys: oldKeys,
-            provenance: next.provenance,
-          },
-          edits,
-        });
-      } catch (error) {
-        await compensate(scope, key, error);
-      }
-      if (result !== "updated") {
-        await compensate(scope, key, new Error("Document version conflict"));
-      }
-      await cleanup(scope, documentId, current.id, oldKeys);
+      const next = await replace(scope, documentId, current, {
+        filename, fileType: "docx", bytes: input.bytes, pageCount: null,
+        provenance: provenanceWithEdits(current.provenance, edits), edits,
+      });
       return { status: "committed" as const, version: responseVersion(next), edits };
     },
 
@@ -629,47 +532,9 @@ export function createDocumentApplication(
         file.filename, file.fileType, file.bytes,
       );
       if (target.fileType !== fileType) return { status: "type-mismatch" as const };
-      const digest = sha256(file.bytes);
-      const key = versionStorageKey(scope.userId, documentId, target.id, digest, filename);
-      await objects.put(key, file.bytes, contentTypeForDocumentType(fileType));
-      const oldKeys = [target.blobKey, target.pdfBlobKey, ...target.cleanupKeys]
-        .filter((value): value is string => !!value && value !== key);
-      const updated: StoredDocumentVersion = {
-        ...target,
-        filename,
-        sizeBytes: file.bytes.byteLength,
-        pageCount: await pageCount(fileType, file.bytes),
-        sourceSha256: digest,
-        blobKey: key,
-        pdfBlobKey: fileType === "pdf" ? key : null,
-        cleanupKeys: oldKeys,
-        provenance: undefined,
-        createdAt: new Date().toISOString(),
-      };
-      let result;
-      try {
-        result = await repository.updateVersion(scope, documentId, {
-          versionId,
-          expectedBlobKey: target.blobKey,
-          update: {
-            filename: updated.filename,
-            sizeBytes: updated.sizeBytes,
-            pageCount: updated.pageCount,
-            sourceSha256: digest,
-            blobKey: key,
-            pdfBlobKey: updated.pdfBlobKey,
-            cleanupKeys: oldKeys,
-            provenance: null,
-            createdAt: updated.createdAt,
-          },
-        });
-      } catch (error) {
-        await compensate(scope, key, error);
-      }
-      if (result !== "updated") {
-        await compensate(scope, key, new Error("Document version conflict"));
-      }
-      await cleanup(scope, documentId, versionId, oldKeys);
+      const updated = await replace(scope, documentId, target, { filename, fileType,
+        bytes: file.bytes, pageCount: await pageCount(fileType, file.bytes),
+        createdAt: new Date().toISOString(), provenance: null });
       return { status: "replaced" as const, version: responseVersion(updated) };
     },
 
@@ -685,14 +550,14 @@ export function createDocumentApplication(
       const currentVersionId = aggregate.document.currentVersionId === versionId
         ? remaining[0]?.id ?? ""
         : aggregate.document.currentVersionId;
-      await Promise.all([...new Set([
-        target.blobKey,
-        target.pdfBlobKey,
-        ...target.cleanupKeys,
-      ].filter((key): key is string => !!key))].map((key) => objects.remove(key)));
       return await repository.deleteVersion(
-        scope, documentId, versionId, currentVersionId,
-      ) ? { status: "deleted" as const, currentVersionId } : { status: "missing" as const };
+        scope, documentId, { versionId, nextCurrentVersionId: currentVersionId,
+          expectedCurrentVersionId: aggregate.document.currentVersionId,
+          expectedBlobKey: target.blobKey, expectedPdfBlobKey: target.pdfBlobKey,
+          expectedCleanupKeys: target.cleanupKeys },
+      ) ? (await removeObjects(scope, objectKeys(target)),
+          { status: "deleted" as const, currentVersionId })
+        : { status: "missing" as const };
     },
 
     async resolveEdit(scope, documentId, editId, mode) {
@@ -709,7 +574,7 @@ export function createDocumentApplication(
             editStatus: edit.status,
             versionId: current.id,
             versionNumber: current.versionNumber,
-            downloadUrl: `/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
+            downloadUrl: `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
           }
         : { status: "conflict" as const, editStatus: edit.status };
       const ids = [edit.delWId, edit.insWId].filter((id): id is string => !!id);
@@ -718,46 +583,24 @@ export function createDocumentApplication(
       if (!source) return { status: "invalid" as const };
       const resolved = await resolveTrackedChange(source, ids, mode);
       if (!resolved.found) return { status: "invalid" as const };
-      const digest = sha256(resolved.bytes);
-      const key = versionStorageKey(
-        scope.userId, documentId, current.id, digest, current.filename,
-      );
-      await objects.put(key, resolved.bytes, contentTypeForDocumentType(current.fileType));
-      const oldKeys = [current.blobKey, current.pdfBlobKey, ...current.cleanupKeys]
-        .filter((value): value is string => !!value && value !== key);
-      let result;
       try {
-        result = await repository.updateVersion(scope, documentId, {
-          versionId: current.id,
-          expectedBlobKey: current.blobKey,
-          update: {
-            blobKey: key,
-            pdfBlobKey: null,
-            sourceSha256: digest,
-            sizeBytes: resolved.bytes.byteLength,
-            cleanupKeys: oldKeys,
-            provenance: current.provenance && {
-              ...current.provenance,
-              trackedEdits: current.provenance.trackedEdits?.map((stored) =>
-                stored.id === editId ? { ...stored, status: desired } : stored),
-            },
-          },
-          resolveEdit: { id: editId, status: desired },
-        });
+        await replace(scope, documentId, current, { filename: current.filename,
+          fileType: current.fileType, bytes: resolved.bytes, pageCount: current.pageCount,
+          provenance: current.provenance && { ...current.provenance,
+            trackedEdits: current.provenance.trackedEdits?.map((stored) =>
+              stored.id === editId ? { ...stored, status: desired } : stored) },
+          resolveEdit: { id: editId, status: desired } });
       } catch (error) {
-        await compensate(scope, key, error);
+        if (error instanceof DocumentWriteConflict)
+          return { status: "conflict" as const, editStatus: edit.status };
+        throw error;
       }
-      if (result !== "updated") {
-        await compensate(scope, key, new Error("Document version conflict"));
-        return { status: "conflict" as const, editStatus: edit.status };
-      }
-      await cleanup(scope, documentId, current.id, oldKeys);
       return {
         status: "resolved" as const,
         editStatus: desired,
         versionId: current.id,
         versionNumber: current.versionNumber,
-        downloadUrl: `/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
+        downloadUrl: `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
       };
     },
   };

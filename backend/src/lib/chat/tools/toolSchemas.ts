@@ -1,4 +1,5 @@
 import type { Tool } from "../../llm";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
 
 const object = (
   properties: Record<string, object>,
@@ -133,6 +134,7 @@ export const ADVANCED_DOCX_EDIT_TOOL: Tool = {
   inputSchema: object({
     file_path: {
       type: "string",
+      pattern: DOCUMENT_OR_DRAFT_PATTERN,
       description: "Current version-pinned DOCX resource returned by Glob.",
     },
     ops: {

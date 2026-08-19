@@ -1,5 +1,5 @@
 import { fetchLocalA2AJDocument } from "../../backend/src/lib/a2ajLocalBulk";
-import { getA2AJDocumentSourceDoc } from "../../backend/src/lib/a2aj";
+import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 
 const document = fetchLocalA2AJDocument({
   citation: "CITT PR-2023-044",
@@ -17,7 +17,7 @@ for (let i = 0; i < lines.length; i += 1) {
   }
 }
 console.log("---- total lines:", lines.length);
-const source = getA2AJDocumentSourceDoc(document);
+const source = a2ajLegalSourceProvider.source(document);
 const paragraphs = source.blocks.filter((b) => b.kind === "paragraph");
 for (const block of paragraphs) {
   const snippet = text.slice(block.start, Math.min(block.end, block.start + 90)).replace(/\n/g, "\\n");

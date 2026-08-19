@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mode = vi.hoisted(() => ({ local: vi.fn(() => false) }));
-vi.mock("../localMode", () => ({ isAnonymousLocalMode: mode.local }));
+vi.mock("../localMode", () => ({ isLocalRuntime: mode.local }));
 
 import {
   DEFAULT_DRAFTING_STYLE,

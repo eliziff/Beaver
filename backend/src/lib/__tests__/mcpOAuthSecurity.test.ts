@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   guardedRemoteFetch: vi.fn(),
   loadConnector: vi.fn(),
   validateRemoteHttpsUrl: vi.fn(),
-  validateRemoteMcpUrl: vi.fn(),
+  validateMcpUrl: vi.fn(),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/auth.js", () => ({ auth: mocks.auth }));
@@ -18,32 +18,29 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 vi.mock("../mcp/client", () => ({
-  authConfigPatch: () => ({}),
-  connectorCredentialRevision: (value: {
-    updated_at: string;
-    tool_policy?: Record<string, unknown> | null;
-  }) => {
-    const configured = value.tool_policy?.__mike_credential_epoch;
-    return typeof configured === "string" && configured
-      ? configured
-      : value.updated_at;
-  },
-  connectorCredentialsMatch: (
-    revision: string | null | undefined,
-    value: { updated_at: string; tool_policy?: Record<string, unknown> | null },
-  ) => {
-    const configured = value.tool_policy?.__mike_credential_epoch;
-    const current =
-      typeof configured === "string" && configured
-        ? configured
-        : value.updated_at;
-    return Date.parse(revision ?? "") === Date.parse(current);
-  },
-  decryptAuthConfig: () => ({}),
-  decryptString: (value: string | null) => value,
-  encryptString: (value: string) => ({ encrypted: value, iv: "iv", tag: "tag" }),
+  authHeaders: () => ({}),
+  authPatch: () => ({}),
+  boundMcpResponse: (response: Response) => response,
+  credentialFingerprint: (value: {
+    server_url: string;
+    encrypted_auth_config: string | null;
+    auth_config_iv: string | null;
+    auth_config_tag: string | null;
+  }) => JSON.stringify([
+    value.server_url, value.encrypted_auth_config, value.auth_config_iv,
+    value.auth_config_tag,
+  ]),
+  guardedMcpFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => mocks.guardedRemoteFetch(input, init, {
+    label: "MCP server URL", timeoutMs: 30_000,
+  }),
   loadConnector: mocks.loadConnector,
-  validateRemoteMcpUrl: mocks.validateRemoteMcpUrl,
+  open: (value: string | null) => value ? JSON.parse(value) : null,
+  readAuth: () => ({}),
+  seal: (value: unknown) => ({ encrypted: JSON.stringify(value), iv: "iv", tag: "tag" }),
+  validateMcpUrl: mocks.validateMcpUrl,
 }));
 
 vi.mock("../supabase", () => ({ createServerSupabase: vi.fn() }));
@@ -252,26 +249,31 @@ async function persistState(fixture: ReturnType<typeof fakeDb>, value = connecto
   await provider.saveDiscoveryState(
     discovery({ resource: value.server_url }),
   );
+  await provider.saveClientInformation({ client_id: "dynamic-client" });
   await provider.saveCodeVerifier("verifier");
   return provider.state();
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.API_PUBLIC_URL = "https://app.example";
+  process.env.PUBLIC_ORIGIN = "https://app.example";
   delete process.env.MCP_OAUTH_CLIENT_ID;
   delete process.env.MCP_OAUTH_CLIENT_SECRET;
   delete process.env.MCP_OAUTH_CONFIDENTIAL_ORIGINS;
   mocks.validateRemoteHttpsUrl.mockImplementation(async (value: string) =>
     new URL(value).toString(),
   );
-  mocks.validateRemoteMcpUrl.mockImplementation(async (value: string) =>
+  mocks.validateMcpUrl.mockImplementation(async (value: string) =>
     new URL(value).toString(),
   );
+  mocks.guardedRemoteFetch.mockResolvedValue(new Response(JSON.stringify({
+    access_token: "access-token",
+    token_type: "Bearer",
+  }), { headers: { "content-type": "application/json" } }));
 });
 
 afterEach(() => {
-  delete process.env.API_PUBLIC_URL;
+  delete process.env.PUBLIC_ORIGIN;
   delete process.env.MCP_OAUTH_CLIENT_ID;
   delete process.env.MCP_OAUTH_CLIENT_SECRET;
   delete process.env.MCP_OAUTH_CONFIDENTIAL_ORIGINS;
@@ -298,7 +300,6 @@ describe("MCP OAuth security boundary", () => {
     await expect(
       completeMcpConnectorOAuthAuthorization(state, "code", fixture.db),
     ).rejects.toThrow("invalid or expired");
-    expect(mocks.auth).toHaveBeenCalledOnce();
   });
 
   it("rejects expired state before loading a connector", async () => {
@@ -343,16 +344,17 @@ describe("MCP OAuth security boundary", () => {
       connectorId: "connector-1",
       serverUrl: "https://mcp.example/api",
       redirectUri:
-        "https://app.example/user/mcp-connectors/oauth/callback",
-      credentialRevision: initialRevision,
+        "https://app.example/api/user/mcp-connectors/oauth/callback",
+      credentialFingerprint: JSON.stringify([
+        "https://mcp.example/api", null, null, null,
+      ]),
     });
 
     mocks.loadConnector.mockResolvedValue({
       ...connector(),
-      tool_policy: {
-        __mike_credential_epoch: "2026-07-27T00:00:01.000Z",
-      },
-      updated_at: "2026-07-27T00:00:01.000Z",
+      encrypted_auth_config: "changed",
+      auth_config_iv: "iv",
+      auth_config_tag: "tag",
     });
     await expect(
       completeMcpConnectorOAuthAuthorization(state, "code", fixture.db),
@@ -363,7 +365,7 @@ describe("MCP OAuth security boundary", () => {
   it("fails closed when the exact callback URL changes", async () => {
     const fixture = fakeDb();
     const state = await persistState(fixture);
-    process.env.API_PUBLIC_URL = "https://other.example";
+    process.env.PUBLIC_ORIGIN = "https://other.example";
 
     await expect(
       completeMcpConnectorOAuthAuthorization(state, "code", fixture.db),
@@ -374,10 +376,11 @@ describe("MCP OAuth security boundary", () => {
   it("allows only one concurrent refresh to rotate stored credentials", async () => {
     const currentToken = {
       connector_id: "connector-1",
-      encrypted_access_token: "old-access",
+      id: "token-1",
+      encrypted_access_token: JSON.stringify("old-access"),
       access_token_iv: "iv",
       access_token_tag: "tag",
-      encrypted_refresh_token: "old-refresh",
+      encrypted_refresh_token: JSON.stringify("old-refresh"),
       refresh_token_iv: "iv",
       refresh_token_tag: "tag",
       token_type: "Bearer",
@@ -409,7 +412,7 @@ describe("MCP OAuth security boundary", () => {
 
     expect(results.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
     expect(results.filter(({ status }) => status === "rejected")).toHaveLength(1);
-    expect(["first-access", "second-access"]).toContain(
+    expect([JSON.stringify("first-access"), JSON.stringify("second-access")]).toContain(
       fixture.token()?.encrypted_access_token,
     );
   });
@@ -452,22 +455,21 @@ describe("MCP OAuth security boundary", () => {
     ).rejects.toThrow("blocked network address");
   });
 
-  it("locks callback token and authorization endpoints to the state snapshot", async () => {
-    const fixture = fakeDb();
-    const state = await persistState(fixture);
-    mocks.loadConnector.mockResolvedValue(connector());
-    mocks.auth.mockImplementation(async (provider: DbMcpOAuthProvider) => {
-      await expect(
-        provider.saveDiscoveryState(
-          discovery({ tokenEndpoint: "https://other.example/token" }),
-        ),
-      ).rejects.toThrow("endpoints changed");
-      return "AUTHORIZED";
-    });
-
-    await expect(
-      completeMcpConnectorOAuthAuthorization(state, "code", fixture.db),
-    ).resolves.toEqual({ userId: "user-1", connectorId: "connector-1" });
+  it("never reuses dynamic client registration across OAuth endpoints", async () => {
+    const fixture = fakeDb({ token: {
+      id: "token-1",
+      connector_id: "connector-1",
+      client_id: "dynamic-client",
+      resource: "https://mcp.example/api",
+      authorization_server: "https://auth.example/",
+      token_endpoint: "https://auth.example/token",
+      updated_at: initialRevision,
+    } });
+    const provider = new DbMcpOAuthProvider(fixture.db, connector(), "authorize");
+    await provider.saveDiscoveryState(discovery({
+      tokenEndpoint: "https://auth.example/other-token",
+    }));
+    await expect(provider.clientInformation()).resolves.toBeUndefined();
   });
 
   it("accepts only the exact discovered authorization redirect", async () => {
@@ -531,7 +533,7 @@ describe("MCP OAuth security boundary", () => {
     mocks.guardedRemoteFetch.mockImplementationOnce(
       async (_input, init, policy) => {
         expect(init?.signal).toBe(controller.signal);
-        expect(policy).toMatchObject({ timeoutMs: 15_000 });
+        expect(policy).toMatchObject({ timeoutMs: 30_000 });
         throw new DOMException("aborted", "AbortError");
       },
     );

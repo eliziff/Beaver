@@ -24,7 +24,6 @@ interface Props {
     onClose: () => void;
     onLoadVersions: (docId: string) => Promise<void> | void;
     onSelectVersion: (versionId: string, label: string) => void;
-    onDownloadDocument: (docId: string) => Promise<void> | void;
     onDownloadVersion: (docId: string, versionId: string, filename: string) => Promise<void> | void;
     onRenameVersion: (docId: string, versionId: string, filename: string) => Promise<void> | void;
     onDeleteVersion: (docId: string, versionId: string) => Promise<void> | void;

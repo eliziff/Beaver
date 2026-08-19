@@ -3,14 +3,12 @@ import {
     render,
     screen,
     waitFor,
-    within,
 } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Workflow } from "../shared/types";
 import { WorkflowList } from "./WorkflowList";
 
 const mocks = vi.hoisted(() => ({
-    anonymous: false,
     deleteWorkflow: vi.fn(),
     hideWorkflow: vi.fn(),
     listWorkflows: vi.fn(),
@@ -20,13 +18,8 @@ const mocks = vi.hoisted(() => ({
     unhideWorkflow: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: mocks.push }),
-}));
-vi.mock("@/app/lib/authMode", () => ({
-    get isAnonymousMode() {
-        return mocks.anonymous;
-    },
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => mocks.push,
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     deleteWorkflow: mocks.deleteWorkflow,
@@ -71,7 +64,6 @@ const workflow = (
     }) satisfies Workflow;
 
 beforeEach(() => {
-    mocks.anonymous = false;
     mocks.deleteWorkflow.mockReset().mockResolvedValue(undefined);
     mocks.hideWorkflow.mockReset().mockResolvedValue(undefined);
     mocks.unhideWorkflow.mockReset().mockResolvedValue(undefined);
@@ -84,7 +76,6 @@ beforeEach(() => {
     mocks.listHiddenWorkflows.mockResolvedValue([]);
     mocks.listSystemWorkflows.mockReset().mockResolvedValue([]);
 });
-
 it("filters loaded workflows and opens the selected one", async () => {
     render(<WorkflowList />);
 
@@ -97,7 +88,6 @@ it("filters loaded workflows and opens the selected one", async () => {
     fireEvent.click(await screen.findByText("Review leases"));
     expect(screen.getByText("Using Review leases")).toBeInTheDocument();
 });
-
 it("uses workflow capabilities for row and bulk actions", async () => {
     mocks.listWorkflows.mockResolvedValue({ items: [
         workflow("owned", "Owned workflow", "assistant", {
@@ -121,16 +111,13 @@ it("uses workflow capabilities for row and bulk actions", async () => {
     ], next_cursor: null });
     render(<WorkflowList />);
 
-    const editableRow = (await screen.findByText("Editable share")).closest(
-        ".group",
-    );
-    expect(editableRow).not.toBeNull();
-    expect(
-        within(editableRow!).queryByRole("checkbox"),
-    ).not.toBeInTheDocument();
+    await screen.findByText("Editable share");
+    expect(screen.queryByRole("checkbox", {
+        name: "Select Editable share",
+    })).not.toBeInTheDocument();
     fireEvent.change(
-        within(editableRow!).getByRole("combobox", {
-            name: "More actions",
+        screen.getByRole("combobox", {
+            name: "More actions for Editable share",
         }),
         { target: { value: "0" } },
     );
@@ -138,30 +125,20 @@ it("uses workflow capabilities for row and bulk actions", async () => {
         "/workflows/assistant/shared-edit",
     );
 
-    const readOnlyRow = screen.getByText("Read-only share").closest(".group");
     expect(
-        within(readOnlyRow!).queryByRole("combobox", {
-            name: "More actions",
+        screen.queryByRole("combobox", {
+            name: "More actions for Read-only share",
         }),
     ).not.toBeInTheDocument();
-    expect(within(readOnlyRow!).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", {
+        name: "Select Read-only share",
+    })).not.toBeInTheDocument();
 
-    const systemRow = screen.getByText("System workflow").closest(".group");
-    fireEvent.click(within(systemRow!).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("checkbox", {
+        name: "Select System workflow",
+    }));
     fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
     await waitFor(() =>
         expect(mocks.hideWorkflow).toHaveBeenCalledWith("system"),
     );
-});
-
-it("does not offer creation in account-free mode", async () => {
-    mocks.anonymous = true;
-    mocks.listWorkflows.mockResolvedValue({ items: [], next_cursor: null });
-    render(<WorkflowList />);
-
-    await screen.findByText("No workflows yet.");
-    expect(
-        screen.queryByRole("button", { name: "Create" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });

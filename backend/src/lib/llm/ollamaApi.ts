@@ -1,366 +1,67 @@
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { Ollama, type ChatResponse, type Message, type Tool } from "ollama";
-import { throwIfAborted } from "./abort";
-import type {
-  NormalizedLlmUsage,
-  NormalizedToolCall,
-  StreamChatParams,
-  StreamChatResult,
-} from "./types";
-import { toOpenAIChatTools } from "./tools";
+import { createCompatibleWireAdapter, type CompatibleMessage } from "./openaiCompatibleWire";
+import { ollamaBaseUrl } from "./ollamaModels";
+import { runProviderLoop } from "./providerLoop";
+import type { StreamChatParams, StreamChatResult, Tool } from "./types";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
-const CALL_TIMEOUT_MS = 900_000;
-const DEFAULT_NUM_CTX = 32_768;
-const CONTEXT_COMPACTION_THRESHOLD = 0.9;
-const CHARS_PER_TOKEN_ESTIMATE = 4;
-const ollamaBaseUrl = () =>
-  (process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/u, "");
-const ollamaProxyHeaders = (): Record<string, string> => {
-  const host = process.env.OLLAMA_HOST_HEADER;
-  return host ? { Host: host } : {};
+const numCtx = () => {
+  const value = Number(process.env.OLLAMA_NUM_CTX || 32_768);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 32_768;
 };
 
-async function ollamaFetch(input: string | URL | Request, init: RequestInit) {
-  const host = process.env.OLLAMA_HOST_HEADER;
-  if (!host) return fetch(input, init);
-  const url = new URL(
-    typeof input === "string" || input instanceof URL ? input : input.url,
-  );
-  return new Promise<Response>((resolve, reject) => {
-    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(
-      url,
-      {
-        method: init.method,
-        headers: { ...Object.fromEntries(new Headers(init.headers)), Host: host },
-        signal: init.signal ?? undefined,
-        ...(url.protocol === "https:" ? { servername: url.hostname } : {}),
-      },
-    );
-    const chunks: Buffer[] = [];
-    request.on("response", (response) => {
-      response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.on("end", () => resolve(new Response(Buffer.concat(chunks), {
-        status: response.statusCode ?? 500,
-        statusText: response.statusMessage,
-        headers: Object.entries(response.headers).flatMap(([name, value]) =>
-          (Array.isArray(value) ? value : value == null ? [] : [value])
-            .map((item) => [name, item] as [string, string])),
-      })));
-    });
-    request.on("error", reject);
-    request.end(typeof init.body === "string" ? init.body : undefined);
-  });
-}
-
-function ollamaClient(timeoutMs: number, signal?: AbortSignal) {
-  return new Ollama({
-    host: ollamaBaseUrl(),
-    headers: ollamaProxyHeaders(),
-    fetch: (input, init = {}) => ollamaFetch(input, {
-      ...init,
-      signal: AbortSignal.any([
-        AbortSignal.timeout(timeoutMs),
-        ...(signal ? [signal] : []),
-        ...(init.signal ? [init.signal] : []),
-      ]),
-    }),
-  });
-}
-
-export type OllamaModelCatalog = {
-  source: "live" | "unavailable";
-  models: { name: string; displayName: string; supportsThinking: boolean }[];
-  error?: string;
-};
-let modelCatalog:
-  | { expiresAt: number; value: OllamaModelCatalog }
-  | undefined;
-let modelCatalogRequest: Promise<OllamaModelCatalog> | undefined;
-
-function modelLabel(name: string) {
-  const [rawFamily, tag = ""] = name.split(":", 2);
-  const family = rawFamily.replace(/^qwen(?=\d)/iu, "Qwen ");
-  const size = /^(\d+(?:\.\d+)?)b(?:-(.+))?$/iu.exec(tag);
-  if (!size) return tag ? `${family} ${tag}` : family;
-  return `${family} ${size[1]}B${
-    size[2] ? ` (${size[2].toUpperCase()})` : ""
-  }`;
-}
-
-const configuredNames = (key: string) => [
-  ...new Set(
-    (process.env[key] ?? "")
-      .split(",")
-      .map((name) => name.trim())
-      .filter(Boolean),
-  ),
-];
-
-function configuredModels() {
-  const thinking = new Set(configuredNames("OLLAMA_THINKING_MODELS"));
-  return configuredNames("OLLAMA_MODELS").map((name) => ({
-    name,
-    displayName: modelLabel(name),
-    supportsThinking: thinking.has(name),
-  }));
-}
-
-export function configuredOllamaModelCatalog(): OllamaModelCatalog | null {
-  const models = configuredModels();
-  return models.length ? { source: "unavailable", models } : null;
-}
-
-export async function getOllamaModelCatalog(): Promise<OllamaModelCatalog> {
-  if (modelCatalog && modelCatalog.expiresAt > Date.now())
-    return modelCatalog.value;
-  const configured = configuredOllamaModelCatalog();
-  if (configured && !modelCatalog && !modelCatalogRequest)
-    modelCatalog = { value: configured, expiresAt: Date.now() - 1 };
-  modelCatalogRequest ??= (async () => {
-    try {
-      const timeout = Number(process.env.OLLAMA_CATALOG_TIMEOUT_MS) || 750;
-      const payload = await ollamaClient(timeout).list() as unknown as {
-        models?: {
-          name?: unknown;
-          model?: unknown;
-          capabilities?: unknown;
-        }[];
-      };
-      const installed = (payload.models ?? []).flatMap(
-        ({ name, model, capabilities }) => {
-          const id =
-            typeof name === "string"
-              ? name
-              : typeof model === "string"
-                ? model
-                : "";
-          return id
-            ? [{
-                name: id,
-                supportsThinking:
-                  Array.isArray(capabilities) &&
-                  capabilities.includes("thinking"),
-              }]
-            : [];
-        },
-      );
-      return {
-        source: "live",
-        models: installed
-          .sort((left, right) => left.name.localeCompare(right.name))
-          .map((model) => ({
-            ...model,
-            displayName: modelLabel(model.name),
-          })),
-      } satisfies OllamaModelCatalog;
-    } catch (error) {
-      const models = modelCatalog?.value.models.length
-        ? modelCatalog.value.models
-        : configuredModels();
-      return {
-        source: "unavailable",
-        models,
-        error: error instanceof Error ? error.message : "Ollama unavailable",
-      } satisfies OllamaModelCatalog;
-    }
-  })();
-  const value = await modelCatalogRequest;
-  modelCatalogRequest = undefined;
-  modelCatalog = {
-    value,
-    expiresAt: Date.now() + (value.source === "live" ? 30_000 : 5_000),
-  };
-  return value;
-}
-
-export function ollamaModelSlug(model: string): string | null {
-  return model.startsWith("ollama:")
-    ? model.slice("ollama:".length).trim() || null
-    : null;
-}
-
-function configuredNumCtx() {
-  const value = Number(process.env.OLLAMA_NUM_CTX || DEFAULT_NUM_CTX);
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_NUM_CTX;
-}
-
-function requestTokenEstimate(
-  messages: Message[],
-  tools: StreamChatParams["tools"],
-) {
-  return Math.ceil(
-    Buffer.byteLength(JSON.stringify({ messages, tools }), "utf8") /
-      CHARS_PER_TOKEN_ESTIMATE,
-  );
-}
-
-function compactOldToolResults(
-  messages: Message[],
-  tools: StreamChatParams["tools"],
-  numCtx: number,
-) {
-  const inputLimit = Math.floor(numCtx * CONTEXT_COMPACTION_THRESHOLD);
-  if (requestTokenEstimate(messages, tools) <= inputLimit) return;
-
-  const toolIndexes = messages.flatMap((message, index) =>
-    message.role === "tool" ? [index] : [],
-  );
-  // The newest result is the recent verbatim tail. Older tool calls remain in
-  // the transcript, so the model can re-run a compacted lookup if needed.
-  for (const index of toolIndexes.slice(0, -1)) {
-    const message = messages[index];
-    const compacted = JSON.stringify({
+function compact(messages: CompatibleMessage[], tools: Tool[]) {
+  const limit = Math.floor(numCtx() * 0.9);
+  const estimate = () => Math.ceil(Buffer.byteLength(JSON.stringify({ messages, tools })) / 4);
+  if (estimate() <= limit) return;
+  const results = messages.flatMap((message, index) => message.role === "tool" ? [index] : []);
+  for (const index of results.slice(0, -1)) {
+    const replacement = JSON.stringify({
       compacted: true,
-      tool: message.tool_name ?? "tool",
-      note: "Older tool output omitted to fit the local model context. Re-run this tool with a narrower query if needed.",
+      note: "Older tool output omitted to fit the local model context. Re-run the tool with a narrower query if needed.",
     });
-    if (message.content.length <= compacted.length) continue;
-    message.content = compacted;
-    if (requestTokenEstimate(messages, tools) <= inputLimit) return;
+    if (String(messages[index].content).length > replacement.length) messages[index].content = replacement;
+    if (estimate() <= limit) return;
   }
-
-  if (requestTokenEstimate(messages, tools) > inputLimit) {
-    throw new Error(
-      `This request is too large for the selected model's ${numCtx.toLocaleString("en-CA")}-token context. Start a new chat or choose a model with a larger context window.`,
-    );
-  }
+  throw new Error(
+    `This request is too large for the selected model's ${numCtx().toLocaleString("en-CA")}-token context. Start a new chat or choose a model with a larger context window.`,
+  );
 }
 
-function thinkingLevel(
-  params: StreamChatParams,
-): false | "low" | "medium" | "high" {
-  if (!params.enableThinking) return false;
+function mapError(error: unknown) {
+  const status = (error as { status?: unknown }).status;
+  const payload = (error as { error?: unknown }).error;
+  if (typeof status === "number") {
+    const detail = typeof payload === "object" && payload && "error" in payload
+      ? String((payload as { error: unknown }).error) : error instanceof Error ? error.message : "";
+    return Object.assign(new Error(
+      `Desktop Ollama failed (HTTP ${status})${detail ? `: ${detail.replace(/\s+/gu, " ").trim().slice(0, 500)}` : ""}. Retry the request.`,
+      { cause: error },
+    ), { status });
+  }
+  return new Error(
+    `Desktop Ollama is unreachable at ${ollamaBaseUrl()}. Start Ollama on the desktop and try again.`,
+    { cause: error },
+  );
+}
+
+export function streamOllama(params: StreamChatParams): Promise<StreamChatResult> {
+  const model = params.model.startsWith("ollama:") ? params.model.slice(7).trim() : "";
+  if (!model) throw new Error(`Not an ollama model: ${params.model}`);
   const effort = params.reasoningEffort?.toLowerCase();
-  if (effort === "max") return "high";
-  if (effort === "low" || effort === "medium" || effort === "high")
-    return effort;
-  return false;
-}
-
-export async function streamOllama(
-  params: StreamChatParams,
-): Promise<StreamChatResult> {
-  const slug = ollamaModelSlug(params.model);
-  if (!slug) throw new Error(`Not an ollama model: ${params.model}`);
-  const { callbacks = {}, runTools, tools = [] } = params;
-  const numCtx = configuredNumCtx();
-  const maxIter = params.maxIterations;
-
-  // Images are not carried over this transport (fails closed).
-  const messages: Message[] = [
-    { role: "system", content: params.systemPrompt },
-    ...params.messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-  ];
-
-  let fullText = "";
-  let callCounter = 0;
-  const callNames = new Map<string, string>();
-  const usage: NormalizedLlmUsage = {
-    inputTokens: 0,
-    outputTokens: 0,
-    reasoningTokens: null,
-    cacheReadInputTokens: null,
-    cacheWriteInputTokens: null,
-  };
-
-  for (let iter = 0; maxIter === undefined || iter < maxIter; iter++) {
-    throwIfAborted(params.abortSignal);
-    const activeTools = params.resolveTools?.() ?? tools;
-    compactOldToolResults(messages, activeTools, numCtx);
-    let reply: ChatResponse;
-    try {
-      reply = await ollamaClient(CALL_TIMEOUT_MS, params.abortSignal).chat({
-        model: slug,
-        messages,
-        tools: toOpenAIChatTools(activeTools) as Tool[],
-        stream: false,
-        think: thinkingLevel(params),
-        options: { temperature: 0, num_ctx: numCtx },
-      });
-    } catch (error) {
-      if (params.abortSignal?.aborted) throw error;
-      const status = (error as { status_code?: unknown }).status_code;
-      const detail = (error as { error?: unknown }).error;
-      if (typeof status === "number") {
-        const safeDetail = typeof detail === "string"
-          ? detail.replace(/\s+/gu, " ").trim().slice(0, 500)
-          : "";
-        throw new Error(
-          `Desktop Ollama failed (HTTP ${status})${safeDetail ? `: ${safeDetail}` : ""}. Retry the request. If it keeps failing, choose another tool-capable model.`,
-          { cause: error },
-        );
-      }
-      if (error instanceof SyntaxError) {
-        throw new Error(
-          "Desktop Ollama returned an unreadable response. Retry the request.",
-          { cause: error },
-        );
-      }
-      throw new Error(
-        `Desktop Ollama is unreachable at ${ollamaBaseUrl()}. Start Ollama on the desktop and try again.`,
-        { cause: error },
-      );
-    }
-    const message = reply.message;
-
-    usage.inputTokens = (usage.inputTokens ?? 0) + (reply.prompt_eval_count ?? 0);
-    usage.outputTokens = (usage.outputTokens ?? 0) + (reply.eval_count ?? 0);
-    callbacks.onContextUsage?.({
-      usedTokens: reply.prompt_eval_count ?? 0,
-      contextWindowTokens: numCtx,
-    });
-
-    if (message.thinking) {
-      callbacks.onReasoningDelta?.(message.thinking);
-      callbacks.onReasoningBlockEnd?.();
-    }
-
-    if (message.content) {
-      fullText += message.content;
-      callbacks.onContentDelta?.(message.content);
-      callbacks.onContentBlockEnd?.();
-    }
-
-    const toolCalls: NormalizedToolCall[] = [];
-    for (const raw of message.tool_calls ?? []) {
-      const name = String(raw.function?.name ?? "");
-      if (!name) continue;
-      const rawArguments = raw.function?.arguments;
-      const input = rawArguments && typeof rawArguments === "object"
-        ? rawArguments as Record<string, unknown>
-        : {};
-      callCounter += 1;
-      const id = `call_${callCounter}`;
-      callNames.set(id, name);
-      const call: NormalizedToolCall = { id, name, input };
-      callbacks.onToolCallStart?.(call);
-      toolCalls.push(call);
-    }
-
-    const results = toolCalls.length && runTools
-      ? await runTools(toolCalls)
-      : [];
-    throwIfAborted(params.abortSignal);
-    if (results.some((result) => result.terminal)) break;
-    const steering = params.takeSteering?.() ?? [];
-    if (!results.length && !steering.length) break;
-    messages.push(message);
-    for (const result of results) {
-      messages.push({
-        role: "tool",
-        tool_name: callNames.get(result.tool_use_id) ?? result.tool_use_id,
-        content: result.content,
-      });
-    }
-    for (const steer of steering) {
-      messages.push({ role: "user", content: steer.text });
-    }
+  if (params.enableThinking && effort && !["low", "medium", "high"].includes(effort)) {
+    throw new Error(`Unsupported Ollama reasoning effort: ${params.reasoningEffort}`);
   }
-
-  return { fullText, usage };
+  return runProviderLoop(params, createCompatibleWireAdapter(params, {
+    apiKey: "ollama",
+    baseURL: `${ollamaBaseUrl()}/v1`,
+    model,
+    provider: "ollama",
+    maxTokens: 32_768,
+    headers: process.env.OLLAMA_HOST_HEADER ? { Host: process.env.OLLAMA_HOST_HEADER } : undefined,
+    request: {
+      temperature: 0,
+      ...(!params.enableThinking ? { reasoning_effort: "none" } : effort ? { reasoning_effort: effort } : {}),
+    },
+    prepareMessages: compact,
+    mapError,
+  }));
 }

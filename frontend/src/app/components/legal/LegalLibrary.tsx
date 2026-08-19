@@ -1,7 +1,5 @@
-"use client";
 import { type FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "react-router-dom";
 import {
     ExternalLink,
     LibraryBig,
@@ -21,7 +19,6 @@ import {
     type LegalSourceReference,
     type LegalSourceSearchResult,
 } from "@/app/lib/beaverApi";
-import { LegalSourceMarkingPanel } from "./LegalSourceMarkingPanel";
 import {
     legalSourceKindLabel,
     LegalSourceViewer,
@@ -72,6 +69,26 @@ function savedSourceKey(source: {
     return JSON.stringify([source.provider, source.dataset, source.citation]);
 }
 
+function SearchSnippet({ children }: { children: string }) {
+    let emphasized = false;
+    return children.split(/(<\/?em>)/giu).map((part, index) => {
+        if (/^<em>$/iu.test(part)) {
+            emphasized = true;
+            return null;
+        }
+        if (/^<\/em>$/iu.test(part)) {
+            emphasized = false;
+            return null;
+        }
+        const text = part.replace(/<[^>]*>/gu, "");
+        return emphasized ? (
+            <mark key={index} className="rounded-sm bg-yellow-100 px-0.5 text-inherit">
+                {text}
+            </mark>
+        ) : text;
+    });
+}
+
 export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
     const [references, setReferences] = useState<LegalSourceReference[] | null>(
         null,
@@ -113,9 +130,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
             (!jurisdiction || item.jurisdictionCode === jurisdiction) &&
             (!sourceKind || item.sourceKind === sourceKind),
     );
-    const selectedDatasets = dataset
-        ? [dataset]
-        : availableSources.map((item) => item.dataset);
+    const selectedDatasets = dataset ? [dataset] : undefined;
     const savedSources = new Set(references?.map(savedSourceKey));
     async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -465,14 +480,14 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                                 )}
                                                 {result.snippet && (
                                                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">
-                                                        {result.snippet}
+                                                        <SearchSnippet>{result.snippet}</SearchSnippet>
                                                     </p>
                                                 )}
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
                                                 {result.provider !== "hansard" && (
                                                     <Link
-                                                        href={directSourceHref(result)}
+                                                        to={directSourceHref(result)}
                                                         className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
                                                     >
                                                         View
@@ -540,7 +555,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                         >
                                             <LibraryBig className="h-4 w-4 shrink-0 text-brand" />
                                             <Link
-                                                href={href}
+                                                to={href}
                                                 className="min-w-0 flex-1"
                                             >
                                                 <p className="truncate text-sm font-medium text-gray-900">
@@ -593,49 +608,21 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
         </div>
     );
 }
-export function LegalLibrarySourcePage({
-    markingId,
-    ...viewerProps
-}: LegalSourceViewerProps & { markingId?: string }) {
-    const router = useRouter();
-    const [markingOpen, setMarkingOpen] = useState(false);
+export function LegalLibrarySourcePage(viewerProps: LegalSourceViewerProps) {
+    const navigate = useNavigate();
     return (
         <div className="flex h-full min-h-0 flex-col">
             <PageHeader
                 breadcrumbs={[
                     {
                         label: "Sources",
-                        onClick: () => router.push("/sources"),
+                        onClick: () => navigate("/sources"),
                     },
                     { label: "Source" },
                 ]}
-                actions={
-                    markingId
-                        ? [
-                              {
-                                  label: markingOpen ? "Close" : "Mark",
-                                  title: markingOpen
-                                      ? "Close source marks"
-                                      : "Mark source",
-                                  onClick: () =>
-                                      setMarkingOpen((open) => !open),
-                              },
-                          ]
-                        : undefined
-                }
             />
-            <div className="relative flex min-h-0 flex-1">
-                <div className="min-h-0 min-w-0 flex-1">
-                    <LegalSourceViewer {...viewerProps} />
-                </div>
-                {markingId && markingOpen && (
-                    <aside
-                        aria-label="Project source marks"
-                        className="absolute inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-gray-200 bg-gray-50 p-3 md:static md:z-0 md:w-80 md:max-w-none"
-                    >
-                        <LegalSourceMarkingPanel sourceId={markingId} />
-                    </aside>
-                )}
+            <div className="min-h-0 min-w-0 flex-1">
+                <LegalSourceViewer {...viewerProps} />
             </div>
         </div>
     );

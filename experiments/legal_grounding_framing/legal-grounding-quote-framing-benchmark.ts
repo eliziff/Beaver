@@ -39,7 +39,7 @@ import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
 } from "../../backend/src/lib/courtlistenerLocalBulk";
-import { verifyCourtlistenerCitations } from "../../backend/src/lib/courtlistener";
+import { verifyCourtlistenerCitations } from "../../backend/src/lib/legalSources/courtlistener";
 import {
   citationLookupKey,
   citationsInText,

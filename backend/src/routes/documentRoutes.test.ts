@@ -64,7 +64,7 @@ function fixture() {
 }
 
 describe("canonical document routes", () => {
-  beforeEach(() => process.env.AUTH_MODE = "anonymous");
+  beforeEach(() => process.env.AUTH_MODE = "local");
 
   it("owns collection paging and upload validation", async () => {
     const { app, library, documents } = fixture();
@@ -100,6 +100,35 @@ describe("canonical document routes", () => {
       expect.anything(), "d1", "v1", true, "inline",
     );
     expect((await request(app).get("/single-documents/d1/url")).status).toBe(404);
+  });
+
+  it("serves a bounded spreadsheet projection with merged-cell coordinates", async () => {
+    const { app, documents } = fixture();
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([["Merged heading", ""], ["A", "B"]]);
+    sheet["!merges"] = [XLSX.utils.decode_range("A1:B1")];
+    XLSX.utils.book_append_sheet(workbook, sheet, "Review");
+    vi.mocked(documents.read).mockResolvedValueOnce({
+      bytes: Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })),
+      version: { ...version, file_type: "xlsx", filename: "review.xlsx" },
+      filename: "review.xlsx",
+      fileType: "xlsx",
+      hasPdfRendition: false,
+    });
+    const response = await request(app).get(
+      "/single-documents/d1/spreadsheet?version_id=v1",
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.body).toMatchObject({
+      version_id: "v1",
+      sheets: [{ name: "Review", cells: [
+        { address: "A1", value: "Merged heading", row: 1, column: 1, columnSpan: 2 },
+        { address: "A2", value: "A", row: 2, column: 1 },
+        { address: "B2", value: "B", row: 2, column: 2 },
+      ] }],
+    });
   });
 
   it("redirects an authorized cloud download without caching it", async () => {

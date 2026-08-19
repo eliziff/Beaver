@@ -1,18 +1,13 @@
 import {
-  A2AJ_JURISDICTIONS,
-  fetchA2AJDocument,
-  getA2AJDocumentSourceDoc,
-  getA2AJLookupDocument,
-  lookupA2AJLocator,
+  a2ajLegalSourceProvider,
   type A2AJLocatorLookup,
-} from "../../a2aj";
+} from "../../legalSources/a2aj";
 import {
   bakedCrossReferenceGraph,
   bakedSkeleton,
 } from "../../legalStructureSidecar";
 import { readSection, skeletonSubtreeLabels } from "../../legalTextSkeleton";
 import { parseResourceReference } from "../../resourceReferences";
-import { sourceDocBlockText, type SourceDocBlock } from "../../sourceDoc";
 import { createA2AJLookupEvidence } from "../legalEvidence";
 
 export function a2ajLookupEvidenceBlocks(
@@ -20,57 +15,9 @@ export function a2ajLookupEvidenceBlocks(
   sourceClass: "case" | "legislation",
 ) {
   if (lookup.status !== "found" || !lookup.block) return [];
-  const document = getA2AJLookupDocument(lookup);
-  const visible = [
-    { role: "selected" as const, block: lookup.block },
-    ...lookup.before.map((block) => ({ role: "context" as const, block })),
-    ...lookup.after.map((block) => ({ role: "context" as const, block })),
-  ];
-  const seen = new Set<string>();
-  return visible.flatMap(({ role, block }) => {
-    const contained = document?.blocks.filter(
-      (candidate) =>
-        candidate.kind === block.kind &&
-        candidate.start >= block.start &&
-        candidate.end <= block.end,
-    ) ?? [];
-    const units = block.kind === "section" && contained.length > 1
-      ? contained.filter(
-          (candidate) => !contained.some(
-            (child) =>
-              child !== candidate &&
-              child.start >= candidate.start &&
-              child.end <= candidate.end &&
-              (child.start > candidate.start || child.end < candidate.end),
-          ),
-        )
-      : contained.length
-        ? contained
-        : [block];
-    return units.flatMap((unit: SourceDocBlock & { text?: string }) => {
-      if (unit.kind === "footnote") return [];
-      const key = `${unit.kind}:${unit.start}:${unit.end}`;
-      if (seen.has(key)) return [];
-      seen.add(key);
-      const text = document
-        ? sourceDocBlockText(document, unit)
-        : unit.text ?? block.text;
-      if (!text.trim()) return [];
-      const childLookup: A2AJLocatorLookup = {
-        ...lookup,
-        requested: {
-          kind: unit.kind,
-          locator: unit.label,
-          label: unit.label,
-        },
-        matches: [unit.label],
-        block: { ...unit, text },
-        before: [],
-        after: [],
-      };
-      const receipt = createA2AJLookupEvidence(childLookup, sourceClass);
-      return receipt ? [{ role, lookup: childLookup, receipt }] : [];
-    });
+  return a2ajLegalSourceProvider.lookupBlocks(lookup).flatMap(({ role, lookup }) => {
+    const receipt = createA2AJLookupEvidence(lookup, sourceClass);
+    return receipt ? [{ role, lookup, receipt }] : [];
   });
 }
 
@@ -78,10 +25,6 @@ export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
 
 const MAX_REFERENCE_SECTIONS = 50;
 const MAX_REFERENCE_TEXT_CHARS = 32_000;
-export const A2AJ_REFERENCE_NEIGHBORHOOD_ENABLED =
-  !process.env.MIKE_RETRIEVAL_EXPERIMENT?.trim() ||
-  process.env.MIKE_RETRIEVAL_EXPERIMENT === "h4-legal-grep";
-
 export async function readA2AJReferenceNeighborhood(
   lookup: A2AJLocatorLookup,
   direction: A2AJReferenceDirection,
@@ -100,14 +43,13 @@ export async function readA2AJReferenceNeighborhood(
     !lookup.block ||
     lookup.requested.kind !== "section"
   ) return empty();
-  const document = await fetchA2AJDocument({
+  const document = await a2ajLegalSourceProvider.document({
     citation: lookup.citation,
     docType: "laws",
     language: lookup.language,
-    maxChars: 1,
     signal,
   });
-  const source = document ? getA2AJDocumentSourceDoc(document) : null;
+  const source = document ? a2ajLegalSourceProvider.source(document) : null;
   if (!source) return empty(["reference graph source unavailable"]);
   const skeleton = await bakedSkeleton(source.text, source.id, {
     recoverExtraction: false,
@@ -163,7 +105,7 @@ export async function readA2AJReferenceNeighborhood(
     unique.length > selected.length ? "sections" : null;
   const omitted = unique.slice(selected.length);
   for (const label of selected) {
-    const related = await lookupA2AJLocator({
+    const related = await a2ajLegalSourceProvider.lookup({
       citation: lookup.citation,
       docType: "laws",
       language: lookup.language,
@@ -256,8 +198,8 @@ export function assistantToolActivityLabel(
     const province = (suffix ?? collection?.slice(0, 2)) === "YK"
       ? "YT"
       : suffix ?? collection?.slice(0, 2);
-    const place = province && province in A2AJ_JURISDICTIONS
-      ? A2AJ_JURISDICTIONS[province as keyof typeof A2AJ_JURISDICTIONS]
+    const place = province && province in a2ajLegalSourceProvider.jurisdictions
+      ? a2ajLegalSourceProvider.jurisdictions[province as keyof typeof a2ajLegalSourceProvider.jurisdictions]
       : jurisdiction;
     const labels: Record<string, string> = {
       case: "case law",

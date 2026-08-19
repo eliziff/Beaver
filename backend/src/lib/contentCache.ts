@@ -1,93 +1,75 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { mikeLocalDataHome } from "./legalDataPath";
-import { devLog } from "./chat/types";
-import { sha256 } from "./hash";
+type Entry = {
+  expires: number;
+  bytes: number;
+  value: Promise<unknown>;
+};
 
-/**
- * Content-addressed keyed cache (evaluation-context plan §12 — the
- * "downloaded authority" family; DocumentProjectionService covers document
- * family). Key = caller-chosen request identity + version, scoped so
- * matter-scoped material is never shared across scopes. TTL bounds
- * staleness for sources that can change (consolidated statutes, search
- * results); immutable authorities may omit it. Cache failures fall back
- * to a real fetch; correctness never depends on a hit.
- */
-
-const cacheRoot = () => path.join(mikeLocalDataHome(), "content-cache");
-
-const scopeDir = (kind: string, scope: string) =>
-  path.join(
-    cacheRoot(),
-    kind.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 40),
-    `${scope.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 40)}-${sha256(scope).slice(0, 8)}`,
-  );
-
-type Entry = { at: number; key: string; value: unknown };
-
-// Oversized bodies (bulk PDFs rendered to text) stay uncached; the cache
-// is for the frequent small-to-medium authority payloads.
+const entries = new Map<string, Entry>();
 const MAX_ENTRY_BYTES = 2_000_000;
+const MAX_CACHE_BYTES = 32_000_000;
+let cachedBytes = 0;
 
+function remove(key: string) {
+  const entry = entries.get(key);
+  if (!entry) return;
+  cachedBytes -= entry.bytes;
+  entries.delete(key);
+}
+
+function trim() {
+  while (cachedBytes > MAX_CACHE_BYTES) {
+    const oldest = entries.keys().next().value as string | undefined;
+    if (!oldest) return;
+    remove(oldest);
+  }
+}
+
+/** Bounded, process-local cache for public provider responses. */
 export async function cachedContent<T>(params: {
   scope: string;
   kind: string;
   key: string;
   version: number;
-  /** Milliseconds an entry stays fresh; omit for immortal entries. */
   ttlMs?: number;
   produce: () => Promise<T>;
 }): Promise<T> {
-  const { scope, kind, key, version, ttlMs, produce } = params;
-  // Consumer tests stub fetch and assert call sequences; a persistent
-  // cache would swallow those calls. The cache's own tests opt back in.
-  if (
-    process.env.NODE_ENV === "test" &&
-    process.env.MIKE_CONTENT_CACHE_IN_TESTS !== "1"
-  ) {
-    return produce();
+  const key = JSON.stringify([
+    params.scope, params.kind, params.key, params.version,
+  ]);
+  const hit = entries.get(key);
+  if (hit && hit.expires > Date.now()) {
+    entries.delete(key);
+    entries.set(key, hit);
+    return structuredClone(await hit.value) as T;
   }
-  const file = path.join(
-    scopeDir(kind, scope),
-    `${sha256(key)}.v${version}.json`,
-  );
-  try {
-    const entry = JSON.parse(await fs.readFile(file, "utf8")) as Entry;
-    if (
-      entry.key === key &&
-      (ttlMs === undefined || Date.now() - entry.at < ttlMs)
-    ) {
-      devLog(`[content-cache] hit ${kind} sha256=${sha256(key).slice(0, 12)}`);
-      return entry.value as T;
-    }
-  } catch {
-    // Miss or unreadable entry: fall through to a real produce.
-  }
-  const value = await produce();
-  try {
-    const serialized = JSON.stringify({
-      at: Date.now(),
-      key,
-      value,
-    } satisfies Entry);
-    if (serialized.length <= MAX_ENTRY_BYTES) {
-      await fs.mkdir(path.dirname(file), { recursive: true });
-      // Write-then-rename so a concurrent reader never sees a torn entry.
-      const tmp = `${file}.${process.pid}.tmp`;
-      await fs.writeFile(tmp, serialized);
-      await fs.rename(tmp, file);
-    }
-  } catch {
-    // Cache write failures never affect the produced result.
-  }
-  return value;
-}
+  remove(key);
 
-/** Delete one kind's entries, or the entire content cache when omitted. */
-export async function clearContentCache(kind?: string): Promise<void> {
-  const target =
-    kind === undefined
-      ? cacheRoot()
-      : path.join(cacheRoot(), kind.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 40));
-  await fs.rm(target, { recursive: true, force: true });
+  const value = Promise.resolve().then(params.produce);
+  const entry: Entry = {
+    expires: Infinity,
+    bytes: 0,
+    value,
+  };
+  entries.set(key, entry);
+  try {
+    const resolved = await value;
+    if (entries.get(key) !== entry) return resolved;
+    try {
+      const serialized = JSON.stringify(resolved);
+      entry.bytes = Buffer.byteLength(serialized);
+      entry.value = Promise.resolve(JSON.parse(serialized));
+    } catch {
+      remove(key);
+      return resolved;
+    }
+    entry.expires = params.ttlMs === undefined
+      ? Infinity
+      : Date.now() + params.ttlMs;
+    if (entry.bytes > MAX_ENTRY_BYTES) remove(key);
+    else { cachedBytes += entry.bytes; trim(); }
+    return resolved;
+  } catch (error) {
+    if (entries.get(key) === entry) remove(key);
+    throw error;
+  }
 }

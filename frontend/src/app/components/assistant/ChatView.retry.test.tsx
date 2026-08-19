@@ -12,10 +12,10 @@ const mocks = vi.hoisted(() => ({
     loadChats: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ replace: vi.fn() }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => vi.fn(),
 }));
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     getChat: mocks.getChat,
     streamChat: mocks.streamChat,

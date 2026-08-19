@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "react-router-dom";
 import { type Dispatch, type SetStateAction } from "react";
 import { Plus } from "lucide-react";
 import type { Project, TabularReview } from "@/app/components/shared/types";
@@ -55,7 +54,7 @@ export function TabularReviewsTable({
     onDeleteReview: (review: TabularReview) => Promise<void> | void;
     loading?: boolean;
 }) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const showProject = projects !== undefined;
     const projectNameById = projects
         ? new Map(projects.map((project) => [project.id, project.name]))
@@ -154,7 +153,7 @@ export function TabularReviewsTable({
                             <TableRow
                                 key={review.id}
                                 selected={selection.selected.has(review.id)}
-                                onClick={() => router.push(href)}
+                                onClick={() => navigate(href)}
                                 className={rowPadding}
                             >
                                 <TablePrimaryCell
@@ -166,8 +165,7 @@ export function TabularReviewsTable({
                                     checkboxTitle={`Select ${review.title ?? "Untitled Review"}`}
                                     label={
                                         <Link
-                                            href={href}
-                                            prefetch
+                                            to={href}
                                             onClick={(event) =>
                                                 event.stopPropagation()
                                             }

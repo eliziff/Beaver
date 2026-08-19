@@ -45,7 +45,7 @@ import {
     type AssistantSessionState,
     type AssistantTurnOptions,
 } from "@/app/lib/assistantSession";
-import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
@@ -64,7 +64,7 @@ import {
     type ReadSubagentSource,
 } from "./ReadSubagentDock";
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
-import { useReadSubagentPreference } from "./readSubagentPreferences";
+import { useAssistantPreferences } from "./assistantPreferences";
 interface Props {
     chatId?: string | null;
     session: AssistantSessionState;
@@ -199,7 +199,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
 ) {
     const { messages, rejectedTurn } = session;
     const isResponseLoading = session.run !== null;
-    const readSubagents = useReadSubagentPreference();
+    const [{ readSubagents }] = useAssistantPreferences();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
@@ -424,7 +424,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     : t,
             ),
         );
-        invalidateDocxBytes(args.documentId);
+        invalidateDocumentFile(args.documentId);
     };
     const patchTab = (
         tabId: string,

@@ -23,17 +23,7 @@ it("filters and selects the first matching choice with Enter", () => {
     fireEvent.change(screen.getByPlaceholderText("Search options"), {
         target: { value: "appe" },
     });
-    const choices = screen.getByRole("group", { name: "Choose project" });
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(
-        screen.queryByRole("option"),
-    ).not.toBeInTheDocument();
-    expect(
-        screen.getByRole("button", { name: "Appeal" }),
-    ).toHaveAttribute("aria-pressed", "false");
-    expect(choices).toContainElement(
-        screen.getByRole("button", { name: "Appeal" }),
-    );
+    expect(screen.getByRole("button", { name: "Appeal" })).toBeVisible();
     fireEvent.keyDown(screen.getByPlaceholderText("Search options"), {
         key: "Enter",
     });

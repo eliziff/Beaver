@@ -29,6 +29,229 @@ real HTTP, provider, MCP, legal-read, artifact-write/edit, and in-memory compare
 paths. The remaining tranches below are further contraction work, not blockers
 for this delivered wave.
 
+## 2026-08-18 clean-room reset
+
+The final ceiling is now **70,000 nonblank production lines**. Upstream Mike is
+a comparison point, not an architectural authority: inherited duplication is
+in scope. The implementation rule is stricter than the earlier tranche plan:
+
+- product behavior exists once in an application operation;
+- SQLite and Supabase/Postgres modules contain persistence mechanics only;
+- local/cloud selection happens once at composition and is never exposed to a
+  route, tool, component, or application operation;
+- there are no legacy exports, aliases, dual reads, compatibility DTOs,
+  fallback implementations, or transitional modules; and
+- each replacement converts every caller and deletes the displaced system in
+  the same change.
+
+The working-tree receipt when this reset was adopted was **96,512** lines, so
+the remaining contraction requirement was **16,512** lines. Legal skeleton,
+grammar, document-fidelity, and exact-evidence kernels remain protected by the
+corpus and byte-fidelity rules below; the target must be met by removing
+architecture, not degrading output.
+
+### Migration effort is not a design constraint
+
+Beaver has no users, so the cost of converting the repository is never a reason
+to preserve a worse architecture. Approved replacements may change every
+caller, route, schema, fixture, and deployment file required to make the new
+design the only design. Implementation proceeds as one vertical replacement:
+
+- define the smallest final contract;
+- convert every production caller and both persistence encodings to it;
+- convert or deliberately discard unsupported development data with an
+  explicit, repository-local one-shot command when preserving that data is
+  useful;
+- prove the final public behavior and protected fidelity contracts; and
+- delete the displaced code, tests, dependency, configuration, and converter
+  before the replacement closes.
+
+No migration framework, deprecation period, legacy import, runtime feature
+flag, compatibility DTO, dual read/write, or fallback implementation may remain
+in production. Git is the rollback mechanism. The only exception begins after
+Beaver publishes its first supported persistent-data version; before that
+release, current schemas and fixtures are rewritten in place.
+
+### One static application origin
+
+Replace the Next/OpenNext frontend runtime only through a capability-complete,
+parity-gated conversion to a Vite-built React application, one explicit React
+Router table, and one hardened public Express boundary. This is server
+consolidation, not blind deletion. Next was a reasonable upstream choice and
+must remain until every live responsibility it currently owns has an explicit,
+tested destination.
+
+Express is the application origin. In local mode it serves the compiled static
+assets and the history fallback alongside `/api`; in cloud deployment the same
+origin may cache those immutable assets at any CDN while routing `/api` to
+horizontally scalable Express instances. Physical deployment may differ, but
+the browser sees one origin and application code contains no API-base or CORS
+topology branches.
+
+The replacement must:
+
+- inventory and convert every current route, redirect, deep link, loading/error
+  state, authentication callback, and lazy bundle before deleting Next;
+- retain Supabase bearer authentication initially rather than inventing a
+  cookie/session/CSRF system in the same refactor;
+- remove `next`, `@opennextjs/cloudflare`, `eslint-config-next`, Next scripts,
+  configuration, generated types, rewrites, and server/client component rules;
+- remove normal-operation CORS and `NEXT_PUBLIC_API_BASE_URL`; use relative API
+  paths from the one origin;
+- keep static assets provider-neutral: Express, Cloudflare, S3, or another CDN
+  may serve identical build output;
+- preserve keyboard/focus semantics, route-level code splitting, direct URL
+  reloads, abortable streams, and every current screen; and
+- land no dual frontend, redirect shim, compatibility router, or fallback Next
+  build. Every route and caller moves in the same replacement; Git is the
+  rollback mechanism.
+
+Promotion requires a mechanically complete current-route inventory, frontend
+unit/type/build gates, ChromeDriver navigation of every route and representative
+deep links, local smoke, cloud static/API routing smoke, CSP verification, and
+proof that the built browser bundle contains no server credential. Expected
+net contraction: **2,000–4,000 production lines** plus removal of the Next and
+OpenNext dependency trees.
+
+#### Why Mike's frontend server existed
+
+Mike's public history contains no architecture decision record for Next. Its
+first public repository import (`d9690965`) already included Next, OpenNext,
+Express, Supabase, and S3-compatible storage. Next was nevertheless a sensible
+default: it supplied file-system and nested routing, dynamic paths, client
+navigation and prefetch, route splitting, metadata, fonts/images, redirects,
+rewrites, error/loading conventions, and a production build. OpenNext made that
+build deployable to Cloudflare Workers. The refactor must preserve those useful
+responsibilities rather than treating their framework as proof that they are
+unnecessary.
+
+The replacement decision rests on an audit of upstream Mike `8c678e65` and the
+current Beaver tree:
+
+- upstream contains 138 explicitly client-side App Router files;
+- there are no frontend route handlers, Server Actions, `"use server"`, Next
+  middleware, request cookies/headers, server-session authorization, or
+  request-time database reads;
+- Next is not a BFF that aggregates or authorizes Express operations;
+- the browser obtains Supabase authentication and calls Express with a bearer
+  token and separately configured public API base; and
+- Next's live work is routing/navigation, static metadata/assets, client bundle
+  construction, redirects/rewrites, and deployment.
+
+Next remains justified if the complete inventory discovers live request-time
+rendering, server-only data/secrets, an HttpOnly-cookie BFF, frontend
+authorization, per-request personalization, ISR/edge HTML, or an image
+transformation service. Discovery of one of those is a stop condition: design
+its explicit destination before deleting Next. No such capability is currently
+present.
+
+#### Final browser/server topology
+
+```text
+browser
+  |-- /assets/*  -> immutable Vite output (Express or CDN cache)
+  |-- app paths  -> index.html history fallback
+  `-- /api/*     -> stateless Express -> operations -> data ports
+                                            |-- SQLite/files
+                                            `-- Postgres/S3
+```
+
+In local mode one Express process serves the compiled assets and API. In cloud
+deployment a reverse proxy or CDN may answer immutable asset requests and route
+`/api` to horizontally scalable Express instances under the same hostname.
+That physical optimization is deployment configuration, not a second product
+runtime. The identical Vite output must work from Express, Cloudflare, S3, R2,
+or another ordinary static cache.
+
+React remains for chat streaming, document work, tables, selections, uploads,
+and multi-panel workflows. It is a browser UI library, not an application
+server. React Router owns one explicit route manifest. Native HTML and CSS own
+ordinary controls and layout. PDF.js, ExcelJS, DOCX rendering, and other heavy
+capabilities load only from routes that use them. Do not add a global state
+framework, CSS-in-JS, animation framework, component megasuite, or JavaScript
+layout engine during this replacement.
+
+#### Enterprise responsibilities transferred to Express
+
+Next cannot be removed until the final Express boundary proves all live server
+responsibilities:
+
+- hashed assets receive immutable cache headers; `index.html` does not;
+- the history fallback applies only to eligible `GET`/`HEAD` navigations after
+  API, health, download, and real-file routes, so unknown API/asset paths never
+  become successful HTML;
+- every retained redirect and rewrite, including document display/evidence and
+  any live sitemap behavior, has an explicit route;
+- API authentication and resource authorization remain authoritative;
+- bounded bodies, rate limits, cancellation, request IDs, safe errors, SSE,
+  uploads/downloads, MIME, ranges, and content disposition remain correct;
+- one tested policy owns CSP, HSTS on HTTPS, frame restrictions,
+  `X-Content-Type-Options`, referrer policy, and permissions policy;
+- service-role/signing/provider/storage credentials, private environment data,
+  filesystem paths, and source maps stay out of public assets/responses;
+- forwarded scheme/IP values are trusted only from configured proxies; and
+- cloud instances remain stateless above data ports. Durable turn/retry state
+  cannot exist only in the process holding an SSE connection.
+
+Supabase bearer authentication remains during this tranche. An HttpOnly-cookie
+session/CSRF redesign would be a separate trust-boundary change and must not be
+smuggled into the frontend-runtime replacement.
+
+#### Mandatory capability ledger
+
+Freeze a machine-readable ledger before implementation. Every row ends as
+**preserved**, **replaced**, or **deleted as proven dead**. An unexplained row
+blocks Next deletion.
+
+| Existing responsibility | Canonical destination | Proof |
+| --- | --- | --- |
+| pages, layouts, route groups, dynamic parameters | one React Router manifest and nested shells | every route works through client navigation and direct reload |
+| `next/navigation` and `next/link` | React Router | back/forward, queries, hashes, replace, and guarded redirects |
+| root/account redirects and not-found handling | router or explicit Express response | correct destination and externally visible status/location |
+| rewrites and stable document/evidence URLs | explicit Express routes | auth, headers, stream/range behavior, and URL parity |
+| metadata, icons, manifest, Open Graph/Twitter | static HTML/public assets | built HTML contains the approved complete metadata |
+| `next/font` | checked-in licensed WOFF2 and `@font-face` | no build network fetch and stable primary-screen metrics |
+| `next/image` | dimensioned native images | no broken asset, layout shift, or material byte regression |
+| `next/dynamic` and route splitting | lazy/dynamic Vite imports | heavy viewers/editors absent from unrelated entry chunks |
+| loading/error/global-error files | route loading and error boundaries | recoverable/fatal failures and retry work |
+| build environment validation | one strict public-config schema | missing values fail; secret-shaped values are rejected |
+| OpenNext build/preview/deploy | provider-neutral `dist/` routing | local/cloud serve byte-identical assets and deep links |
+| Next response/cache behavior | Express/proxy policy | deployed cache, compression, CSP, MIME, and fallback tests |
+
+The inventory includes all URL constructors, authentication callbacks, loading
+and error states, static/dynamic paths, redirects, deep links emitted into DOCX
+or evidence receipts, and routes reachable only through projects, workflows,
+tabular reviews, Settings, or Table of Authorities. A filename scan alone is
+not complete.
+
+#### Replacement and promotion
+
+1. Freeze the ledger, build manifest, response headers, cold/warm timings,
+   memory, and bundle sizes.
+2. Convert every route and Next navigation/image/font/dynamic import at its
+   caller; add no compatibility wrappers.
+3. Move retained redirects, rewrites, static serving, and deep-link fallback to
+   Express with HTTP/security tests.
+4. Make browser API calls relative to one origin, then delete the public API
+   base and normal-operation CORS.
+5. Convert local, container, and cloud deployment to the same static artifact
+   and `/api` contract.
+6. Delete Next/OpenNext, their scripts/config/types/directives, and obsolete
+   tests in the same slice. No static-Next fallback or alternate router remains.
+
+Temporary coexistence is permitted only in the uncommitted implementation
+worktree. No checkpoint, release, or final commit may contain two runnable
+frontends.
+
+Promotion additionally requires ChromeDriver to exercise every route by client
+transition and clean reload at supported laptop/desktop widths; auth and
+cross-owner failures to disclose nothing; local/cloud routing smoke; deployed
+security/cache/MIME/fallback checks; a secret/source-map bundle scan; route
+chunk proof for heavy dependencies; and measured startup, paint, navigation,
+and memory against the frozen Next build. A material regression must be fixed
+or justified by a concrete correctness/security improvement. Line reduction is
+a result, not permission to weaken this ledger.
+
 ## Outcome
 
 Keep Beaver's current capabilities while replacing parallel implementations
@@ -52,8 +275,7 @@ This is not a formatting pass. Success requires all of the following:
 - a new provider, tool, document operation, or storage-backed feature has one
   obvious implementation and test path; and
 - authored backend plus frontend production source falls from **118,190**
-  lines to no more than the pinned upstream Mike baseline of **91,699** lines,
-  with a design target of **87,000 or fewer**.
+  lines to **70,000 or fewer**.
 
 The hard ceiling is a deliverable, not an invitation to code-golf. If a line
 does not disappear because its responsibility remains genuinely unique, the
@@ -79,11 +301,73 @@ authored production source.
 | Upstream Mike frontend production | 193 | 51,951 |
 | **Upstream Mike production total** | **269** | **91,699** |
 
+### Live execution receipt — 2026-08-18
+
+The current uncommitted integration tree measures **80,034 nonblank authored
+production lines**. This is 38,156 fewer than the frozen Beaver baseline,
+11,665 fewer than pinned upstream Mike, and 10,034 above the final ceiling.
+The receipt uses `node scripts/measure-source.mjs` and the same exclusions as
+the baseline; moving prototypes to experiments or changing formatting does not
+count as contraction.
+
+| Current tree | Files | Lines |
+| --- | ---: | ---: |
+| Backend production | 194 | 55,622 |
+| Frontend production | 194 | 24,412 |
+| **Production total** | **388** | **80,034** |
+| Backend tests/helpers | 180 | 54,038 |
+| Frontend tests/helpers | 83 | 12,281 |
+| **Production + tests** | **651** | **146,353** |
+
+Completed and focused-verified architecture in this tree includes:
+
+- one Vite/React Router browser application and one same-origin Express
+  boundary, with Next, OpenNext, Wrangler, normal-operation CORS, and public
+  API-base configuration removed;
+- one application operation layer over thin SQLite/Postgres and filesystem/S3
+  adapters for documents, projects, chats, tabular work, and account behavior;
+- one MCP-shaped tool registry and assistant execution boundary, native
+  Claude/Codex MCP transport, and one provider loop used recursively by read
+  agents;
+- one legal-source registry with direct A2AJ, CourtListener, journal, TNA,
+  GOV.UK Employment Tribunal, and GovInfo adapters rather than provider-family
+  facades;
+- one bounded DOCX session/index, one local application database, one document
+  projection authority, and typed evidence receipts;
+- the official MCP TypeScript SDK as the connector transport and OAuth
+  orchestrator, replacing Beaver's duplicate protocol machinery;
+- PostalMime as the bounded RFC 5322/MIME parser, replacing 188 lines of
+  handwritten MIME state while retaining Beaver's size, nesting, charset,
+  attachment, and safe-text limits;
+- one compact, strictly validated workflow HTTP boundary, 321 lines smaller
+  than the displaced route and without raw database-error disclosure; and
+- zero known production dependency vulnerabilities after in-range updates to
+  `fast-uri`, `hono`, and `ip-address` (`npm audit --omit=dev`).
+
+Focused verification currently passing includes the backend and frontend
+production builds, Vite route/build guards, assistant/registry contracts,
+provider and evidence contracts, MCP/auth contracts, DOCX fidelity suites,
+workflow local behavior, MIME unit and end-to-end projection behavior, and the
+Express static/security boundary. These receipts are intermediate: the full
+release matrix and corpus-scale grammar gates remain mandatory before the
+single final commit.
+
+Chat/runtime contraction and the standalone grammar corpus have since closed:
+the chat tree is 2,513 lines smaller than `HEAD`, and the complete 64-entry,
+252-vector grammar is wired into Beaver, the PDF parser, and Table of
+Authorities with the full output corpora byte-identical. Three isolated
+tranches remain in progress: readable frontend component convergence,
+ordinary resource/application cleanup, and replacement of Beaver's duplicate
+PDF artifact lookup with the engine-owned contract. Their code is included in
+subsequent live line counts; their final receipts are not claimed until their
+gates finish.
+
 The comparison is deliberately unfavorable to Beaver in one respect: Beaver's
 frontend is already 17,814 lines smaller than upstream, while its backend is
-44,305 lines larger. The contraction therefore has to remove at least 26,491
-net production lines to reach upstream and about 31,190 to reach the design
-target. The backend is the primary opportunity.
+44,305 lines larger. From the frozen baseline, the 70,000-line harness requires
+48,190 net production lines of real contraction. Upstream is a comparison, not
+a stopping point; both inherited frontend code and Beaver backend architecture
+remain in scope. The live receipt is remeasured after each coherent slice.
 
 The largest current production concentrations are evidence of responsibilities
 that accumulated together, not file-size offenses by themselves:
@@ -868,7 +1152,7 @@ canonical contracts. Audit remaining large/backend modules for a second
 implementation rather than splitting them. Run the full local/cloud,
 fidelity, security, performance, and release matrix.
 
-Final design target: **87,000 or fewer production lines** and a lower total
+Final design target: **70,000 or fewer production lines** and a lower total
 authored production-plus-test count than the 190,274-line baseline.
 
 If a phase misses its cumulative target, the next phase begins by publishing
@@ -1050,8 +1334,7 @@ readers, the architecture has regressed.
 
 The refactor is complete only when:
 
-- production source is at most 91,699 lines and preferably at most 87,000 by
-  the frozen metric;
+- production source is at most 70,000 lines by the frozen metric;
 - total authored production-plus-test source is below 190,274 with every
   deleted test invariant mapped to retained contract coverage;
 - one assistant runner, tool registry, event contract, and frontend reducer

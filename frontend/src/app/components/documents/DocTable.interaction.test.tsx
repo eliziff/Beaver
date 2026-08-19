@@ -12,7 +12,7 @@ import { CHAT_DOCUMENT_DRAG_TYPE } from "./documentTree";
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: { id: "local-user" } }),
 }));
-vi.mock("@/app/lib/authMode", () => ({ isAnonymousMode: true }));
+vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
 const sidePanelRender = vi.hoisted(() => vi.fn());
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({

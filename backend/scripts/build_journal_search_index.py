@@ -16,7 +16,6 @@ from open_legal_data_bridge import data_root
 def default_source() -> Path:
     configured = (
         os.environ.get("MIKE_PUBLIC_ENDPOINT_DB", "").strip()
-        or os.environ.get("ALR_PUBLIC_ENDPOINT_DB", "").strip()
     )
     return (
         Path(configured).expanduser()

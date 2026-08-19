@@ -1,195 +1,115 @@
-import {
-    createContext,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
-} from "react";
-import { usePathname } from "next/navigation";
-import { useAuth } from "@/app/contexts/AuthContext";
-import {
-    createChat,
-    deleteChat,
-    listChats,
-    renameChat,
-} from "@/app/lib/beaverApi";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
+import { createChat, deleteChat, listChats, renameChat } from "@/app/lib/beaverApi";
 import type { Chat, Message } from "@/app/components/shared/types";
-interface ChatHistoryContextType {
-    chats: Chat[] | null;
-    hasMoreChats: boolean;
-    loadChats: () => Promise<void>;
-    loadMoreChats: () => void;
-    saveChat: (projectId?: string) => Promise<string | null>;
-    renameChat: (chatId: string, title: string) => Promise<void>;
-    stagePendingChatMessage: (chatId: string, message: Message) => void;
-    peekPendingChatMessage: (chatId: string) => Message | null;
-    claimPendingChatMessage: (chatId: string) => Message | null;
-    replaceChatId: (
-        oldChatId: string,
-        newChatId: string,
-        title?: string,
-    ) => void;
-    setChatTurnInProgress: (chatId: string, active: boolean) => void;
-    deleteChat: (chatId: string) => Promise<void>;
-}
-const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(
-    undefined,
-);
-const INITIAL_CHAT_LIMIT = 20;
-const CHAT_LIMIT_INCREMENT = 10;
+import { useAuth } from "./AuthContext";
+
+type Context = {
+  chats: Chat[] | null;
+  hasMoreChats: boolean;
+  loadChats: () => Promise<void>;
+  loadMoreChats: () => void;
+  saveChat: (projectId?: string) => Promise<string | null>;
+  renameChat: (id: string, title: string) => Promise<void>;
+  deleteChat: (id: string) => Promise<void>;
+  stagePendingChatMessage: (id: string, message: Message) => void;
+  peekPendingChatMessage: (id: string) => Message | null;
+  claimPendingChatMessage: (id: string) => Message | null;
+  replaceChatId: (oldId: string, newId: string, title?: string) => void;
+  setChatTurnInProgress: (id: string, active: boolean) => void;
+};
+
+const ChatHistoryContext = createContext<Context | null>(null);
+const INITIAL_LIMIT = 20;
+
 export function ChatHistoryProvider({ children }: { children: ReactNode }) {
-    const { user } = useAuth();
-    const pathname = usePathname();
-    const displaysAssistantHistory =
-        pathname === null ||
-        pathname === "/assistant" ||
-        pathname.startsWith("/assistant/");
-    const [chats, setChats] = useState<Chat[] | null>(null);
-    const [chatLimit, setChatLimit] = useState(INITIAL_CHAT_LIMIT);
-    const [hasMoreChats, setHasMoreChats] = useState(false);
-    const pendingChatMessageRef = useRef<{
-        chatId: string;
-        message: Message;
-    } | null>(null);
-    const actions = useMemo(() => {
-        const loadChats = async () => {
-            if (!user) {
-                setChats([]);
-                setHasMoreChats(false);
-                return;
-            }
-            try {
-                const data = await listChats({ limit: chatLimit + 1 });
-                setChats(data.slice(0, chatLimit));
-                setHasMoreChats(data.length > chatLimit);
-            } catch {}
-        };
-        return {
-            loadChats,
-            loadMoreChats: () =>
-                setChatLimit((prev) => prev + CHAT_LIMIT_INCREMENT),
-            saveChat: async (projectId?: string): Promise<string | null> => {
-                try {
-                    const { id } = await createChat(
-                        projectId ? { project_id: projectId } : undefined,
-                    );
-                    const newChat: Chat = {
-                        id,
-                        project_id: projectId ?? null,
-                        tabular_review_id: null,
-                        user_id: user?.id ?? "",
-                        title: null,
-                        created_at: new Date().toISOString(),
-                    };
-                    setChats((prev) => [newChat, ...(prev ?? [])]);
-                    return id;
-                } catch {
-                    return null;
-                }
-            },
-            renameChat: async (chatId: string, title: string) => {
-                setChats((prev) =>
-                    (prev ?? []).map((chat) =>
-                        chat.id === chatId ? { ...chat, title } : chat,
-                    ),
-                );
-                try {
-                    await renameChat(chatId, title);
-                } catch {
-                    void loadChats();
-                }
-            },
-            deleteChat: async (chatId: string) => {
-                setChats((prev) =>
-                    (prev ?? []).filter((chat) => chat.id !== chatId),
-                );
-                try {
-                    await deleteChat(chatId);
-                } catch {
-                    void loadChats();
-                }
-            },
-            replaceChatId: (
-                oldChatId: string,
-                newChatId: string,
-                title?: string,
-            ) => {
-                if (!oldChatId || !newChatId || oldChatId === newChatId) return;
-                setChats((prev) => {
-                    if (!prev) return prev;
-                    const seen = new Set<string>();
-                    return prev
-                        .map((chat) =>
-                            chat.id === oldChatId
-                                ? {
-                                      ...chat,
-                                      id: newChatId,
-                                      title: title ?? chat.title,
-                                  }
-                                : chat,
-                        )
-                        .filter((chat) => {
-                            if (seen.has(chat.id)) return false;
-                            seen.add(chat.id);
-                            return true;
-                        });
-                });
-            },
-            setChatTurnInProgress: (chatId: string, active: boolean) => {
-                setChats((prev) =>
-                    prev?.map((chat) =>
-                        chat.id === chatId
-                            ? { ...chat, turn_in_progress: active }
-                            : chat,
-                    ) ?? prev,
-                );
-            },
-            stagePendingChatMessage: (chatId: string, message: Message) => {
-                pendingChatMessageRef.current = { chatId, message };
-            },
-            peekPendingChatMessage: (chatId: string) =>
-                pendingChatMessageRef.current?.chatId === chatId
-                    ? pendingChatMessageRef.current.message
-                    : null,
-            claimPendingChatMessage: (chatId: string) => {
-                if (pendingChatMessageRef.current?.chatId !== chatId) {
-                    return null;
-                }
-                const { message } = pendingChatMessageRef.current;
-                pendingChatMessageRef.current = null;
-                return message;
-            },
-        };
-    }, [chatLimit, user]);
-    useEffect(() => {
-        if (!user) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- clear chat state on logout inside the effect that loads chats
-            setChats([]);
-            setChatLimit(INITIAL_CHAT_LIMIT);
-            setHasMoreChats(false);
-            return;
-        }
-        if (!displaysAssistantHistory) return;
-        void actions.loadChats();
-    }, [actions, displaysAssistantHistory, user]);
-    const value = useMemo(
-        () => ({ chats, hasMoreChats, ...actions }),
-        [actions, chats, hasMoreChats],
-    );
-    return (
-        <ChatHistoryContext.Provider value={value}>
-            {children}
-        </ChatHistoryContext.Provider>
-    );
-}
-export function useChatHistoryContext() {
-    const context = useContext(ChatHistoryContext);
-    if (!context) {
-        throw new Error(
-            "useChatHistoryContext must be used within a ChatHistoryProvider",
-        );
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const [chats, setChats] = useState<Chat[] | null>(null);
+  const [limit, setLimit] = useState(INITIAL_LIMIT);
+  const [hasMoreChats, setHasMore] = useState(false);
+  const pending = useRef<{ id: string; message: Message } | null>(null);
+
+  const loadChats = useCallback(async () => {
+    if (!user) {
+      setChats([]);
+      setHasMore(false);
+      return;
     }
-    return context;
+    try {
+      const rows = await listChats({ limit: limit + 1 });
+      setChats(rows.slice(0, limit));
+      setHasMore(rows.length > limit);
+    } catch {
+      // Retain the last usable list on a transient refresh failure.
+    }
+  }, [limit, user]);
+
+  useEffect(() => {
+    if (!user) {
+      setChats([]);
+      setLimit(INITIAL_LIMIT);
+      setHasMore(false);
+    } else if (pathname === "/assistant" || pathname.startsWith("/assistant/")) {
+      void loadChats();
+    }
+  }, [limit, pathname, user]);
+
+  const saveChat = useCallback(async (projectId?: string) => {
+    try {
+      const { id } = await createChat(projectId ? { project_id: projectId } : undefined);
+      setChats((current) => [{
+        id,
+        project_id: projectId ?? null,
+        user_id: user?.id ?? "",
+        title: null,
+        created_at: new Date().toISOString(),
+      }, ...(current ?? [])]);
+      return id;
+    } catch {
+      return null;
+    }
+  }, [user?.id]);
+  const claimPendingChatMessage = useCallback((id: string) => {
+    if (pending.current?.id !== id) return null;
+    const message = pending.current.message;
+    pending.current = null;
+    return message;
+  }, []);
+  const setChatTurnInProgress = useCallback((id: string, active: boolean) => setChats((current) =>
+    current?.map((chat) => chat.id === id ? { ...chat, turn_in_progress: active } : chat) ?? null), []);
+
+  const value: Context = {
+    chats,
+    hasMoreChats,
+    loadChats,
+    loadMoreChats: () => setLimit((current) => current + 10),
+    saveChat,
+    renameChat: async (id, title) => {
+      setChats((current) => current?.map((chat) => chat.id === id ? { ...chat, title } : chat) ?? []);
+      try { await renameChat(id, title); } catch { await loadChats(); }
+    },
+    deleteChat: async (id) => {
+      setChats((current) => current?.filter((chat) => chat.id !== id) ?? []);
+      try { await deleteChat(id); } catch { await loadChats(); }
+    },
+    stagePendingChatMessage: (id, message) => { pending.current = { id, message }; },
+    peekPendingChatMessage: (id) => pending.current?.id === id ? pending.current.message : null,
+    claimPendingChatMessage,
+    replaceChatId: (oldId, newId, title) => setChats((current) => {
+      const unique = new Map((current ?? []).map((chat) => {
+        const next = chat.id === oldId ? { ...chat, id: newId, title: title ?? chat.title } : chat;
+        return [next.id, next];
+      }));
+      return [...unique.values()];
+    }),
+    setChatTurnInProgress,
+  };
+  return <ChatHistoryContext.Provider value={value}>{children}</ChatHistoryContext.Provider>;
+}
+
+export function useChatHistoryContext() {
+  const value = useContext(ChatHistoryContext);
+  if (!value) throw new Error("useChatHistoryContext must be used within ChatHistoryProvider");
+  return value;
 }

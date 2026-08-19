@@ -1,20 +1,19 @@
 "use client";
 import { useState } from "react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { useQuickActionsPreference } from "@/app/components/assistant/quickActionsPreferences";
+import { QUICK_ACTIONS, useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 export default function FeaturesPage() {
     const { profile, updateLegalResearchUs } = useUserProfile();
-    const { visibleActions, showAllQuickActions, hideAllQuickActions } =
-        useQuickActionsPreference();
+    const [preferences, savePreferences] = useAssistantPreferences();
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [pendingUs, setPendingUs] = useState<boolean | null>(null);
     const usEnabled = pendingUs ?? profile?.legalResearchUs ?? true;
-    const quickActionsEnabled = Object.values(visibleActions).some(Boolean);
+    const quickActionsEnabled = Object.values(preferences.quickActions).some(Boolean);
     const handleUpdateLegalResearch = async (enabled: boolean) => {
         if (saving) return;
         setSaveError(null);
@@ -43,13 +42,11 @@ export default function FeaturesPage() {
                         <AccountToggle
                             checked={quickActionsEnabled}
                             size="md"
-                            onChange={(checked) => {
-                                if (checked) {
-                                    showAllQuickActions();
-                                } else {
-                                    hideAllQuickActions();
-                                }
-                            }}
+                            onChange={(checked) => savePreferences({
+                                quickActions: Object.fromEntries(
+                                    QUICK_ACTIONS.map(({ id }) => [id, checked]),
+                                ) as typeof preferences.quickActions,
+                            })}
                         />
                     </div>
             </AccountSection>

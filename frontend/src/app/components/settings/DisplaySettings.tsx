@@ -1,13 +1,10 @@
 "use client";
 
 import { AccountToggle } from "@/app/(pages)/account/AccountToggle";
-import {
-    setShowContextUsage,
-    useShowContextUsage,
-} from "@/app/components/assistant/displayPreferences";
+import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 
 export function DisplaySettings() {
-    const showContextUsage = useShowContextUsage();
+    const [preferences, savePreferences] = useAssistantPreferences();
     return (
         <div className="flex items-center justify-between gap-4">
             <div>
@@ -17,8 +14,8 @@ export function DisplaySettings() {
                 </p>
             </div>
             <AccountToggle
-                checked={showContextUsage}
-                onChange={setShowContextUsage}
+                checked={preferences.showContextUsage}
+                onChange={(showContextUsage) => savePreferences({ showContextUsage })}
                 size="md"
                 ariaLabel="Show context usage"
             />

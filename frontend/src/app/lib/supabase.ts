@@ -1,8 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
-export { isAnonymousMode } from "./authMode";
-const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://anonymous.invalid";
-const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
-    "anonymous-public-key";
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getRuntimeConfig } from "@/app/lib/runtimeConfig";
+
+let client: SupabaseClient | undefined;
+
+export function getSupabase(): SupabaseClient {
+    const config = getRuntimeConfig();
+    if (config.mode !== "cloud") {
+        throw new Error("Supabase is unavailable in local mode");
+    }
+    return (client ??= createClient(
+        config.supabaseUrl,
+        config.supabasePublishableKey,
+    ));
+}

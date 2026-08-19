@@ -901,22 +901,18 @@
         },
         {
           "id": "pinpoint.para.toa",
-          "pattern": "\\bparas?(?:graphs?)?\\.?\\s*(?<values>{{pin_seq_toa}})",
+          "pattern": "\\bparas?(?:graphs?)?\\.?\\s*({{pin_seq_toa}})",
           "flags": "i",
           "canonical": {},
-          "provenance": "toa_maker.py:145 (_PAR_RE). Dialect vs splitter: no ¶, 'to' and bare dashes join a list, ranges are separator-joined rather than item-internal. The source group is positional; named 'values' added (beaver) without changing match semantics.",
+          "provenance": "toa_maker.py:150 (_PAR_RE), moved verbatim with its positional capture.",
           "vectors": [
             {
               "input": "at paras 23 to 27",
-              "groups": {
-                "values": "23 to 27"
-              }
+              "groups": {}
             },
             {
               "input": "at para 38",
-              "groups": {
-                "values": "38"
-              }
+              "groups": {}
             },
             {
               "input": "see ¶ 12 above",
@@ -971,22 +967,18 @@
         },
         {
           "id": "pinpoint.section.toa",
-          "pattern": "\\b(?:s(?:ection)?s?|ss?\\.?|rules?|rr?\\.?|arts?\\.?|articles?)\\s*(?<values>{{pin_seq_toa}})",
+          "pattern": "\\b(?:s(?:ection)?s?|ss?\\.?|rules?|rr?\\.?|arts?\\.?|articles?)\\s*({{pin_seq_toa}})",
           "flags": "i",
           "canonical": {},
-          "provenance": "toa_maker.py:146-149 (_SECTION_RE). Dialect vs splitter: spells out s/section/sections, has no 'subsection'; positional group in source, named 'values' added (beaver).",
+          "provenance": "toa_maker.py:151-154 (_SECTION_RE), moved verbatim with its positional capture.",
           "vectors": [
             {
               "input": "Ibid, s 49.2.",
-              "groups": {
-                "values": "49.2"
-              }
+              "groups": {}
             },
             {
               "input": "s 672.54(a) applies",
-              "groups": {
-                "values": "672.54(a)"
-              }
+              "groups": {}
             },
             {
               "input": "DOLA, supra note 13, subsection 4(4).",
@@ -1033,27 +1025,170 @@
         },
         {
           "id": "pinpoint.page.toa",
-          "pattern": "\\bat\\s+(?:(?:pp?|pages?)\\.?\\s*)?(?<values>{{pin_seq_toa}})",
+          "pattern": "\\bat\\s+(?:(?:pp?|pages?)\\.?\\s*)?({{pin_seq_toa}})",
           "flags": "i",
           "canonical": {},
-          "provenance": "toa_maker.py:150 (_PAGE_RE). Dialect vs splitter: period after the alternation and the following space optional, so 'at p.5' matches here only; positional group in source, named 'values' added (beaver).",
+          "provenance": "toa_maker.py:155 (_PAGE_RE), moved verbatim with its positional capture.",
           "vectors": [
             {
               "input": "Wills, supra note 2 at 826 [emphasis added].",
-              "groups": {
-                "values": "826"
-              }
+              "groups": {}
             },
             {
               "input": "at p.5 works in this dialect",
-              "groups": {
-                "values": "5"
-              }
+              "groups": {}
             },
             {
               "input": "we met at noon",
               "groups": null
             }
+          ]
+        }
+      ]
+    },
+    "provisions": {
+      "description": "Provision-reference grammar moved verbatim from Beaver's legalReferenceGrammar.ts. These patterns identify provision pointers and their external-instrument context; they do not derive document structure.",
+      "defs": {
+        "provision_word_en": "(?:sub-?section|section|paragraph|subparagraph|clause|subclause|item|article|part|division|schedule|definition)",
+        "provision_word_fr": "(?:sous-alinéas?|alinéas?|paragraphes?|articles?|sous-divisions?|divisions?|parties?|annexes?)",
+        "numeric_label": "\\d{1,4}[A-Za-z]?(?:\\.\\d{1,4}[A-Za-z]?)*(?:\\s?\\([^\\s()]{1,12}\\))*",
+        "sub_only_label": "(?:\\([^\\s()]{1,12}\\))+",
+        "roman_label": "[IVXLCDM]{1,7}"
+      },
+      "entries": [
+        {
+          "id": "provision.ref.en.anchored",
+          "pattern": "{{provision_word_en}}s?\\s+((?:\\d+[A-Za-z]?(?:\\.\\d+)*)?(?:\\s?\\([^\\s()]{1,12}\\))*)",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts PROVISION_REF, moved verbatim.",
+          "vectors": [
+            { "input": "Subsection 5(1)", "groups": {} },
+            { "input": "clause 5(1)(b)(ii)", "groups": {} },
+            { "input": "ordinary prose", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.ref.fr.anchored",
+          "pattern": "{{provision_word_fr}}\\s+((?:\\d+(?:\\.\\d+)*[A-Za-z]?)?(?:\\s?(?:\\([^\\s()]{1,12}\\)|[a-zà-ÿ]{1,4}\\)))*)",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts FR_PROVISION_REF, moved verbatim.",
+          "vectors": [
+            { "input": "le paragraphe 193(2)", "groups": {} },
+            { "input": "alinéa b)", "groups": {} },
+            { "input": "ordinary prose", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.reference.numeric",
+          "pattern": "\\b({{provision_word_en}})(s)?\\s+(?:({{numeric_label}})|({{sub_only_label}}))",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts REFERENCE_RE, moved verbatim.",
+          "vectors": [
+            { "input": "under Section 5.3", "groups": {} },
+            { "input": "paragraph (b) above", "groups": {} },
+            { "input": "this section hereof", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.reference.roman",
+          "pattern": "\\b(article|articles|part|parts|division|divisions)\\s+({{roman_label}})\\b",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts ROMAN_REFERENCE_RE, moved verbatim.",
+          "vectors": [
+            { "input": "set forth in Article VI", "groups": {} },
+            { "input": "Section IV", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.leading-subdivision",
+          "pattern": "^\\s*\\([a-z0-9]{1,4}\\)",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts isExternalReference leading-subdivision trim, moved verbatim.",
+          "vectors": [
+            { "input": "(d) of the Exchange Act", "groups": {} },
+            { "input": "of this Agreement", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.following",
+          "pattern": "^(?:of|to|under)\\s+(\\w+)",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts isExternalReference owner match, moved verbatim.",
+          "vectors": [
+            { "input": "of the Income Tax Act", "groups": {} },
+            { "input": "hereof", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.instrument-lead",
+          "pattern": "\\b(?:code|act|regulations?|rules?|statutes?|laws?|chapter|title|ordinance|directive|treaty|convention|constitution)\\s*$",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts INSTRUMENT_LEAD, moved verbatim.",
+          "vectors": [
+            { "input": "Exchange Act", "groups": {} },
+            { "input": "this Agreement", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.list-continuation",
+          "pattern": "^(?:\\s*(?:,|and|or|through)\\s*\\d[\\w.()-]*)+",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts LIST_CONTINUATION, moved verbatim.",
+          "vectors": [
+            { "input": " and 906 of the Sarbanes-Oxley Act", "groups": {} },
+            { "input": " of this Agreement", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.hyphenated-number",
+          "pattern": "^-\\s?\\d",
+          "flags": "",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts hyphenated subdivision test, moved verbatim.",
+          "vectors": [
+            { "input": "-4(b)(2)", "groups": {} },
+            { "input": " of this Agreement", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.thereof",
+          "pattern": "^\\s*thereof\\b",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts thereof test, moved verbatim.",
+          "vectors": [
+            { "input": " thereof", "groups": {} },
+            { "input": " hereof", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.external.list-owner",
+          "pattern": "^\\s*(?:of|under)\\s+(\\w+)",
+          "flags": "i",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts list-owner match, moved verbatim.",
+          "vectors": [
+            { "input": " of the Sarbanes-Oxley Act", "groups": {} },
+            { "input": " to be satisfied", "groups": null }
+          ]
+        },
+        {
+          "id": "provision.label.fr-unclosed",
+          "pattern": "(?<!\\()([a-zà-ÿ]{1,4})\\)",
+          "flags": "",
+          "canonical": {},
+          "provenance": "backend legalReferenceGrammar.ts compactLabelFr repair, moved verbatim.",
+          "vectors": [
+            { "input": "42a)(i)", "groups": {} },
+            { "input": "42(a)(i)", "groups": null }
           ]
         }
       ]

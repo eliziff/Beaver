@@ -3,7 +3,7 @@
 #
 # Local-machine mirror of .github/workflows/e2e.yml: starts the Supabase CLI
 # stack (Docker), resets its disposable database, loads backend/schema.sql,
-# points backend/.env and frontend/.env.local at the local stack, then runs
+# points backend/.env at the local stack, then runs
 # `npx playwright test`.
 #
 # Usage, from the repo root:
@@ -14,9 +14,8 @@
 # Playwright — playwright.config.ts uses this in the backend webServer command
 # so a plain `npm run test:e2e` also boots against a ready local stack.
 #
-# The first run rewrites the Supabase lines in your env files; the previous
-# (e.g. hosted) versions are kept once as .env.hosted.bak / .env.local.hosted.bak.
-# Restore those backups to point back at the hosted project.
+# The first run rewrites the Supabase lines in backend/.env; the previous
+# hosted values are kept once as .env.hosted.bak.
 set -euo pipefail
 
 SETUP_ONLY=0
@@ -27,7 +26,6 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND="$ROOT/backend"
-FRONTEND="$ROOT/frontend"
 
 if ! docker info >/dev/null 2>&1; then
     echo "Docker is not running — start it first (open -a Docker) and retry." >&2
@@ -71,7 +69,9 @@ set_kv() {
 [ -f .env ] || cp .env.example .env
 [ -f .env.hosted.bak ] || cp .env .env.hosted.bak
 set_kv .env SUPABASE_URL "$API_URL"
+set_kv .env SUPABASE_PUBLISHABLE_KEY "$ANON_KEY"
 set_kv .env SUPABASE_SECRET_KEY "$SERVICE_KEY"
+set_kv .env AUTH_MODE cloud
 # The suite fires well over the backend's default 300-requests/15-min general
 # cap in one run; once tripped every call 429s and profile/list waits time out.
 # Same overrides CI uses — e2e is not testing throttling.
@@ -81,12 +81,6 @@ set_kv .env RATE_LIMIT_CHAT_CREATE_MAX 100000
 set_kv .env RATE_LIMIT_UPLOAD_MAX 100000
 set_kv .env RATE_LIMIT_EXPORT_MAX 100000
 set_kv .env RATE_LIMIT_DATA_DELETE_MAX 100000
-
-touch "$FRONTEND/.env.local"
-[ -f "$FRONTEND/.env.local.hosted.bak" ] || cp "$FRONTEND/.env.local" "$FRONTEND/.env.local.hosted.bak"
-set_kv "$FRONTEND/.env.local" NEXT_PUBLIC_SUPABASE_URL "$API_URL"
-set_kv "$FRONTEND/.env.local" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY "$ANON_KEY"
-set_kv "$FRONTEND/.env.local" NEXT_PUBLIC_API_BASE_URL "http://localhost:3001"
 
 echo "Local stack ready: $API_URL (db: ${DB_URL%%\?*})"
 

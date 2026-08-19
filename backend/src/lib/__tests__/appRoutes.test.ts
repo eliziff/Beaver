@@ -14,7 +14,7 @@ describe("appUrl", () => {
       appUrl({ kind: "library-document", projectId: "matter-1" }),
     ).toBe("/projects/matter-1");
     expect(appUrl({ kind: "legal-source", id: "source-1" })).toBe(
-      "/library/legal/source-1",
+      "/sources/source-1",
     );
     expect(appUrl({ kind: "authorities", jobId: "job-1" })).toBe(
       "/table-of-authorities?job=job-1",

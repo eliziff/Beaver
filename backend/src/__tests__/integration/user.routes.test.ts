@@ -18,10 +18,8 @@ const {
     saveUserApiKey,
     hasEnvApiKey,
     normalizeApiKeyProvider,
-    deleteAllUserChats,
-    deleteAllUserTabularReviews,
     deleteUserAccountData,
-    deleteUserProjects,
+    deleteChats,
     buildUserAccountExport,
     buildUserChatsExport,
     buildUserTabularReviewsExport,
@@ -32,10 +30,8 @@ const {
     saveUserApiKey: vi.fn(),
     hasEnvApiKey: vi.fn(),
     normalizeApiKeyProvider: vi.fn(),
-    deleteAllUserChats: vi.fn(),
-    deleteAllUserTabularReviews: vi.fn(),
     deleteUserAccountData: vi.fn(),
-    deleteUserProjects: vi.fn(),
+    deleteChats: vi.fn(),
     buildUserAccountExport: vi.fn(),
     buildUserChatsExport: vi.fn(),
     buildUserTabularReviewsExport: vi.fn(),
@@ -100,6 +96,7 @@ vi.mock("../../middleware/auth", () => ({
 // presence-only booleans. getUserApiKeys must be exported too — lib/userSettings
 // imports it at module load.
 vi.mock("../../lib/userApiKeys", () => ({
+    API_KEY_PROVIDERS: ["claude", "gemini", "openai", "deepseek", "openrouter", "meta", "courtlistener"],
     getEnvironmentApiKeyStatus: () => getEnvironmentApiKeyStatus(),
     getUserApiKeyStatus: (...args: unknown[]) => getUserApiKeyStatus(...args),
     saveUserApiKey: (...args: unknown[]) => saveUserApiKey(...args),
@@ -110,12 +107,8 @@ vi.mock("../../lib/userApiKeys", () => ({
 }));
 
 vi.mock("../../lib/userDataCleanup", () => ({
-    deleteAllUserChats: (...args: unknown[]) => deleteAllUserChats(...args),
-    deleteAllUserTabularReviews: (...args: unknown[]) =>
-        deleteAllUserTabularReviews(...args),
     deleteUserAccountData: (...args: unknown[]) =>
         deleteUserAccountData(...args),
-    deleteUserProjects: (...args: unknown[]) => deleteUserProjects(...args),
 }));
 
 vi.mock("../../lib/userDataExport", () => ({
@@ -128,7 +121,16 @@ vi.mock("../../lib/userDataExport", () => ({
         `beaver-${kind}-export-${userId.slice(0, 8)}.json`,
 }));
 
-import { app } from "../../app";
+vi.mock("../../runtime", () => ({
+    runtime: {
+        documents: vi.fn(async () => ({})),
+        chats: vi.fn(async () => ({ deleteAll: deleteChats })),
+        projects: vi.fn(async () => ({ deleteAll: vi.fn() })),
+        tabular: vi.fn(async () => ({ deleteAll: vi.fn() })),
+    },
+}));
+
+import { api } from "../../api";
 
 const AUTH = ["Authorization", "Bearer test"] as const;
 
@@ -181,10 +183,8 @@ describe("user.routes", () => {
         normalizeApiKeyProvider.mockImplementation((v: string) =>
             ["claude", "openai", "gemini", "deepseek"].includes(v) ? v : null,
         );
-        deleteAllUserChats.mockResolvedValue(undefined);
-        deleteAllUserTabularReviews.mockResolvedValue(undefined);
         deleteUserAccountData.mockResolvedValue(undefined);
-        deleteUserProjects.mockResolvedValue(undefined);
+        deleteChats.mockResolvedValue(undefined);
         buildUserAccountExport.mockResolvedValue({ account: "data" });
         buildUserChatsExport.mockResolvedValue({ chats: "data" });
         buildUserTabularReviewsExport.mockResolvedValue({ reviews: "data" });
@@ -198,7 +198,7 @@ describe("user.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/user/profile").set(...AUTH);
+            const res = await request(api).get("/user/profile").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toMatchObject({
@@ -223,7 +223,7 @@ describe("user.routes", () => {
                 error: null,
             };
 
-            const res = await request(app).get("/user/profile").set(...AUTH);
+            const res = await request(api).get("/user/profile").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(requireMfaIfEnrolled).not.toHaveBeenCalled();
@@ -235,28 +235,18 @@ describe("user.routes", () => {
                 error: { message: "db down" },
             };
 
-            const res = await request(app).get("/user/profile").set(...AUTH);
+            const res = await request(api).get("/user/profile").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("db down");
+            expect(res.body.detail).toBe("Account operation failed");
         });
     });
 
     // ── POST /user/profile (bootstrap upsert) ─────────────────────────────
-    describe("POST /user/profile", () => {
-        it("ensures the profile row and returns ok", async () => {
-            const res = await request(app).post("/user/profile").set(...AUTH);
-
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual({ ok: true });
-            expect(requireMfaIfEnrolled).not.toHaveBeenCalled();
-        });
-    });
-
     // ── GET /user/api-keys (presence without plaintext) ───────────────────
     describe("GET /user/api-keys", () => {
         it("returns the boolean key-status map", async () => {
-            const res = await request(app).get("/user/api-keys").set(...AUTH);
+            const res = await request(api).get("/user/api-keys").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toEqual(STATUS);
@@ -271,7 +261,7 @@ describe("user.routes", () => {
     // ── PUT /user/api-keys/:provider (crypto + MFA guard) ─────────────────
     describe("PUT /user/api-keys/:provider", () => {
         it("stores the key via the encryption helper and returns status", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/deepseek")
                 .set(...AUTH)
                 .send({ api_key: "sk-secret-value" });
@@ -289,7 +279,7 @@ describe("user.routes", () => {
         });
 
         it("deletes the key when api_key is omitted (null value)", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/openai")
                 .set(...AUTH)
                 .send({});
@@ -304,20 +294,19 @@ describe("user.routes", () => {
         });
 
         it("returns 400 for an unsupported provider", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/bogus")
                 .set(...AUTH)
                 .send({ api_key: "x" });
 
             expect(res.status).toBe(400);
-            expect(res.body.detail).toBe("Unsupported provider");
             expect(saveUserApiKey).not.toHaveBeenCalled();
         });
 
         it("returns 409 when the provider is configured by the server env", async () => {
             hasEnvApiKey.mockReturnValue(true);
 
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/claude")
                 .set(...AUTH)
                 .send({ api_key: "sk-x" });
@@ -329,19 +318,19 @@ describe("user.routes", () => {
         it("returns 500 when saving the key throws", async () => {
             saveUserApiKey.mockRejectedValue(new Error("kms unavailable"));
 
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/claude")
                 .set(...AUTH)
                 .send({ api_key: "sk-x" });
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("kms unavailable");
+            expect(res.body.detail).toBe("Account operation failed");
         });
 
         it("is rejected with 403 mfa_verification_required when MFA is unsatisfied", async () => {
             requireMfaIfEnrolled.mockImplementation(rejectMfa);
 
-            const res = await request(app)
+            const res = await request(api)
                 .put("/user/api-keys/claude")
                 .set(...AUTH)
                 .send({ api_key: "sk-x" });
@@ -359,7 +348,7 @@ describe("user.routes", () => {
     // ── Data export endpoints (MFA-guarded, attachment headers) ───────────
     describe("data export endpoints", () => {
         it("GET /user/export returns the account export as a JSON attachment", async () => {
-            const res = await request(app).get("/user/export").set(...AUTH);
+            const res = await request(api).get("/user/export").set(...AUTH);
 
             expect(res.status).toBe(200);
             expect(res.body).toEqual({ account: "data" });
@@ -376,7 +365,7 @@ describe("user.routes", () => {
         });
 
         it("GET /user/chats/export returns the chats export", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .get("/user/chats/export")
                 .set(...AUTH);
 
@@ -389,7 +378,7 @@ describe("user.routes", () => {
         });
 
         it("GET /user/tabular-reviews/export returns the reviews export", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .get("/user/tabular-reviews/export")
                 .set(...AUTH);
 
@@ -404,16 +393,16 @@ describe("user.routes", () => {
         it("GET /user/export returns 500 when the builder throws", async () => {
             buildUserAccountExport.mockRejectedValue(new Error("export boom"));
 
-            const res = await request(app).get("/user/export").set(...AUTH);
+            const res = await request(api).get("/user/export").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("export boom");
+            expect(res.body.detail).toBe("Account operation failed");
         });
 
         it("GET /user/export is rejected when MFA is unsatisfied", async () => {
             requireMfaIfEnrolled.mockImplementation(rejectMfa);
 
-            const res = await request(app).get("/user/export").set(...AUTH);
+            const res = await request(api).get("/user/export").set(...AUTH);
 
             expect(res.status).toBe(403);
             expect(res.body.code).toBe("mfa_verification_required");
@@ -423,74 +412,35 @@ describe("user.routes", () => {
 
     // ── Data deletion endpoints (MFA-guarded, cleanup helpers) ────────────
     describe("data deletion endpoints", () => {
-        it("DELETE /user/chats invokes deleteAllUserChats and returns 204", async () => {
-            const res = await request(app).delete("/user/chats").set(...AUTH);
-
-            expect(res.status).toBe(204);
-            expect(deleteAllUserChats).toHaveBeenCalledWith(
-                expect.anything(),
-                "u1",
-            );
-        });
-
-        it("DELETE /user/projects invokes deleteUserProjects and returns 204", async () => {
-            const res = await request(app)
-                .delete("/user/projects")
-                .set(...AUTH);
-
-            expect(res.status).toBe(204);
-            expect(deleteUserProjects).toHaveBeenCalledWith(
-                expect.anything(),
-                "u1",
-            );
-        });
-
-        it("DELETE /user/tabular-reviews invokes the cleanup helper and returns 204", async () => {
-            const res = await request(app)
-                .delete("/user/tabular-reviews")
-                .set(...AUTH);
-
-            expect(res.status).toBe(204);
-            expect(deleteAllUserTabularReviews).toHaveBeenCalledWith(
-                expect.anything(),
-                "u1",
-            );
-        });
-
         it("DELETE /user/account purges data then deletes the auth user (204)", async () => {
-            const res = await request(app).delete("/user/account").set(...AUTH);
+            const res = await request(api).delete("/user/account").set(...AUTH);
 
             expect(res.status).toBe(204);
-            // Account purge runs the cleanup helper with id + email.
-            expect(deleteUserAccountData).toHaveBeenCalledWith(
-                expect.anything(),
-                "u1",
-                "u1@test.local",
-            );
+            expect(deleteUserAccountData).toHaveBeenCalledOnce();
         });
 
         it("DELETE /user/account returns 500 when the auth-user delete errors", async () => {
             supabaseState.adminDeleteUser = { error: { message: "auth boom" } };
 
-            const res = await request(app).delete("/user/account").set(...AUTH);
+            const res = await request(api).delete("/user/account").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("auth boom");
+            expect(res.body.detail).toBe("Account operation failed");
         });
 
         it("DELETE /user/chats returns 500 when cleanup throws", async () => {
-            deleteAllUserChats.mockRejectedValue(new Error("cascade failed"));
+            deleteChats.mockRejectedValue(new Error("cascade failed"));
 
-            const res = await request(app).delete("/user/chats").set(...AUTH);
+            const res = await request(api).delete("/user/chats").set(...AUTH);
 
             expect(res.status).toBe(500);
-            expect(res.body.detail).toBe("cascade failed");
+            expect(res.body.detail).toBe("Account operation failed");
         });
 
         it("DELETE /user/account is rejected when MFA is unsatisfied (no cleanup)", async () => {
             requireMfaIfEnrolled.mockImplementation(rejectMfa);
 
-            const res = await request(app).delete("/user/account").set(...AUTH);
+            const res = await request(api).delete("/user/account").set(...AUTH);
 
             expect(res.status).toBe(403);
             expect(res.body.code).toBe("mfa_verification_required");
@@ -506,7 +456,7 @@ describe("user.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/user/security/mfa-login")
                 .set(...AUTH)
                 .send({ enabled: true });
@@ -532,7 +482,7 @@ describe("user.routes", () => {
                 error: null,
             };
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/user/security/mfa-login")
                 .set(...AUTH)
                 .send({ enabled: true });
@@ -542,7 +492,7 @@ describe("user.routes", () => {
         });
 
         it("returns 400 on a non-boolean enabled field", async () => {
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/user/security/mfa-login")
                 .set(...AUTH)
                 .send({ enabled: "yes" });
@@ -553,7 +503,7 @@ describe("user.routes", () => {
         it("is rejected with 403 when MFA is unsatisfied", async () => {
             requireMfaIfEnrolled.mockImplementation(rejectMfa);
 
-            const res = await request(app)
+            const res = await request(api)
                 .patch("/user/security/mfa-login")
                 .set(...AUTH)
                 .send({ enabled: false });

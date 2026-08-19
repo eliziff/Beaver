@@ -1,4 +1,3 @@
-import { createWriteStream } from "node:fs";
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -26,23 +25,9 @@ import {
 } from "../lib/llm/codex";
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
-const liveStreams = new WeakMap<Response, ReturnType<typeof createWriteStream>>();
-
 function writeSse(res: Response, payload: unknown) {
   if (res.destroyed || res.writableEnded) return;
-  const line = `data: ${JSON.stringify(payload)}\n\n`;
-  const path = process.env.MIKE_LLM_RAW_SSE_PATH;
-  if (path) {
-    let stream = liveStreams.get(res);
-    if (!stream) {
-      stream = createWriteStream(path, { flags: "a" });
-      liveStreams.set(res, stream);
-      res.once("close", () => stream!.end());
-      res.once("finish", () => stream!.end());
-    }
-    stream.write(line);
-  }
-  res.write(line);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
 function startSse(res: Response) {
@@ -164,9 +149,6 @@ export function createChatRouter(
     const controller = new AbortController();
     let claimedChatId: string | null = null;
     req.once("aborted", () => controller.abort());
-    res.once("close", () => {
-      if (!res.writableEnded) controller.abort();
-    });
     try {
       res.json(await application.compact(scope, {
         chatId: req.params.chatId,
@@ -237,9 +219,6 @@ export function createChatRouter(
     let claimedChatId: string | null = null;
     let started = false;
     req.once("aborted", () => controller.abort());
-    res.once("close", () => {
-      if (!res.writableEnded) controller.abort();
-    });
     const sink: EventSink = {
       claim(chatId) {
         if (!beginChatTurn(chatId, controller)) return false;

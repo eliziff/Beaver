@@ -1,42 +1,46 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
+import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import {
   contentTypeForDocumentType,
+  isSpreadsheetDocumentType,
   validateDocumentFile,
 } from "../lib/documentTypes";
 import type {
   DocumentContent,
-  DocumentScope,
   DocumentStore,
 } from "../lib/documentStore";
-import { DocumentStoreError } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
-import {
-  encodePageCursor,
-  pageRequest,
-  PageCursorError,
-} from "../lib/pagination";
+import { encodePageCursor, pageRequest } from "../lib/pagination";
 import { buildContentDisposition } from "../lib/storage";
 import { singleFileUpload } from "../lib/upload";
+import { documentProjectionService } from "../lib/documentProjectionService";
 
-class DocumentRequestError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-const reject = (status: number, detail: string): never => {
-  throw new DocumentRequestError(status, detail);
-};
-
-const scope = (res: Response): DocumentScope => ({
-  userId: res.locals.userId as string,
-  userEmail: res.locals.userEmail as string | undefined,
-});
+const scope = applicationScope;
 
 const versionId = (req: Request) =>
   typeof req.query.version_id === "string" ? req.query.version_id : null;
+
+const evidenceHandle = (req: Request) => !Object.hasOwn(req.query, "evidence")
+  ? undefined
+  : typeof req.query.evidence === "string" && req.query.evidence.trim()
+    ? req.query.evidence.trim() : null;
+
+const html = (value: unknown) => String(value).replace(/[&<>"']/gu, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+})[character]!);
+
+async function evidence<T extends { documentId: string; versionId: string }>(
+  documentId: string, file: DocumentContent, load: () => Promise<T>,
+) {
+  try {
+    const receipt = await load();
+    if (receipt.documentId !== documentId || receipt.versionId !== file.version.id)
+      throw new Error("Evidence source mismatch");
+    return receipt;
+  } catch { return reject(410, "Evidence is no longer available"); }
+}
 
 const filename = (req: Request, original: string) =>
   typeof req.body?.filename === "string" && req.body.filename.trim()
@@ -51,21 +55,7 @@ function validatedFileType(name: string, bytes: Buffer) {
 function documentRoute(
   handler: (req: Request, res: Response) => Promise<unknown>,
 ) {
-  return asyncRoute(async (req, res) => {
-    try {
-      await handler(req, res);
-    } catch (error) {
-      if (error instanceof DocumentRequestError ||
-          error instanceof DocumentStoreError ||
-          error instanceof PageCursorError) {
-        return void res.status(
-          error instanceof PageCursorError ? 400 : error.status,
-        ).json({ detail: error.message });
-      }
-      console.error("[documents] operation failed", error);
-      res.status(500).json({ detail: "Document operation failed" });
-    }
-  });
+  return asyncRoute(handler);
 }
 
 function sendContent(res: Response, content: DocumentContent,
@@ -127,6 +117,47 @@ export function createDocumentsRouter(
     });
   }));
 
+  router.get("/:documentId/spreadsheet", documentRoute(async (req, res) => {
+    const file = await documents.read(
+      scope(res), req.params.documentId, versionId(req), false,
+    ) ?? reject(404, "Document not found");
+    if (!isSpreadsheetDocumentType(file.fileType)) {
+      return reject(400, "Document is not a spreadsheet");
+    }
+    const projection = await documentProjectionService.read({
+      documentId: req.params.documentId,
+      versionId: file.version.id,
+      filename: file.filename,
+      fileType: file.fileType,
+      sourceSha256: file.version.source_sha256,
+      bytes: file.bytes,
+    });
+    if (projection.kind !== "spreadsheet-grid") {
+      return reject(422, "Spreadsheet could not be displayed");
+    }
+    const sheets = new Map<string, Array<{
+      address: string; value: string; row: number; column: number;
+      rowSpan?: number; columnSpan?: number;
+    }>>();
+    for (const cell of projection.grid.tableCells) {
+      const values = sheets.get(cell.tableName) ?? [];
+      values.push({
+        address: cell.address,
+        value: cell.displayValue,
+        row: cell.row,
+        column: cell.column,
+        ...(cell.rowSpan ? { rowSpan: cell.rowSpan } : {}),
+        ...(cell.columnSpan ? { columnSpan: cell.columnSpan } : {}),
+      });
+      sheets.set(cell.tableName, values);
+    }
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({
+      version_id: file.version.id,
+      sheets: [...sheets].map(([name, cells]) => ({ name, cells })),
+    });
+  }));
+
   router.post(
     "/",
     singleFileUpload("file"),
@@ -166,10 +197,46 @@ export function createDocumentsRouter(
     res.status(204).send();
   }));
 
+  router.get("/:documentId/evidence-view", documentRoute(async (req, res) => {
+    const handle = evidenceHandle(req) ?? reject(400, "version_id and evidence are required");
+    const requested = versionId(req) ?? reject(400, "version_id and evidence are required");
+    const file = await documents.read(scope(res), req.params.documentId, requested, false)
+      ?? reject(404, "Document not found");
+    if (file.fileType.toLowerCase() !== "pdf") reject(404, "Document not found");
+    const source = await documentProjectionService.publishPdf(
+      file.bytes, file.version.source_sha256,
+    );
+    const receipt = await evidence(req.params.documentId, file, () =>
+      documentProjectionService.rehydratePdfLink(source, handle));
+    const query = new URLSearchParams({ version_id: file.version.id,
+      evidence: handle, rendition: "pdf" });
+    const page = receipt.pageNumbers[0];
+    const original = `/api/single-documents/${encodeURIComponent(req.params.documentId)}/file?${query}` +
+      (page ? `#page=${page}` : "");
+    const pages = receipt.pages.map((item) =>
+      `<article id="page=${item.pageNumber}"><h2>Page ${item.pageNumber}</h2><p>${html(item.blockText)}</p></article>`,
+    ).join("");
+    const name = html(file.filename);
+    res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff", "Content-Security-Policy":
+      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
+    res.send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${name} — verified evidence</title><style>body{margin:auto;max-width:52rem;padding:1rem;font:1rem/1.6 Georgia,serif}article{margin:1rem 0;padding:1rem;border-left:.3rem solid #c8102e;background:#f7f5f2}p{white-space:pre-wrap}a{color:#8b0d24}</style><h1>${name}</h1><a href="${html(original)}">Open the receipt-bound original PDF</a><main>${pages}</main></html>`);
+  }));
+
   router.get("/:documentId/file", documentRoute(async (req, res) => {
     const rendition = req.query.rendition;
     if (rendition !== undefined && rendition !== "pdf") {
       reject(400, "rendition must be pdf");
+    }
+    const handle = evidenceHandle(req);
+    if (handle === null) reject(400, "Invalid evidence handle");
+    if (handle) {
+      const file = await documents.read(
+        scope(res), req.params.documentId, versionId(req), rendition === "pdf",
+      ) ?? reject(404, "Document not found");
+      const source = await documentProjectionService.publishPdf(file.bytes);
+      await evidence(req.params.documentId, file, () =>
+        documentProjectionService.verifyPdfEvidence(source, handle));
     }
     await sendDownload(
       documents, req, res, rendition === "pdf",

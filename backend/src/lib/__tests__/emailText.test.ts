@@ -8,10 +8,10 @@ import { extractEmailText, parseEmail } from "../emailText";
 const eml = (lines: string[]) => Buffer.from(lines.join("\r\n"), "utf8");
 
 describe("parseEmail", () => {
-  it("rejoins quoted-printable soft breaks that split a number", () => {
+  it("rejoins quoted-printable soft breaks that split a number", async () => {
     // The failure this whole module exists for: a soft break lands mid-digit,
     // so an undecoded read sees $85,0 and $47,00 instead of the real amounts.
-    const message = parseEmail(
+    const message = await parseEmail(
       eml([
         "From: Rachel <rachel@example.com>",
         "Subject: Financial notes",
@@ -30,8 +30,8 @@ describe("parseEmail", () => {
     expect(message.abstentions).toEqual([]);
   });
 
-  it("decodes encoded-word headers", () => {
-    const message = parseEmail(
+  it("decodes encoded-word headers", async () => {
+    const message = await parseEmail(
       eml([
         "From: =?utf-8?B?TWFyZ2FyZXQgQmVsbG1vcmU=?= <m@example.com>",
         "Subject: =?utf-8?Q?Additional_Information_=E2=80=94_Huang=2DWhitfield?=",
@@ -45,8 +45,8 @@ describe("parseEmail", () => {
     expect(message.headers.get("from")).toContain("Margaret Bellmore");
   });
 
-  it("prefers the plain-text rendition of a multipart/alternative", () => {
-    const message = parseEmail(
+  it("prefers the plain-text rendition of a multipart/alternative", async () => {
+    const message = await parseEmail(
       eml([
         "From: a@example.com",
         "Subject: Both",
@@ -66,8 +66,8 @@ describe("parseEmail", () => {
     expect(message.body).toBe("Plain rendition");
   });
 
-  it("falls back to stripped HTML when there is no plain part", () => {
-    const message = parseEmail(
+  it("falls back to stripped HTML when there is no plain part", async () => {
+    const message = await parseEmail(
       eml([
         "From: a@example.com",
         "Content-Type: text/html; charset=utf-8",
@@ -80,8 +80,8 @@ describe("parseEmail", () => {
     expect(message.body).not.toContain("<");
   });
 
-  it("names attachments instead of inlining them", () => {
-    const message = parseEmail(
+  it("names attachments instead of inlining them", async () => {
+    const message = await parseEmail(
       eml([
         "From: a@example.com",
         'Content-Type: multipart/mixed; boundary="X"',
@@ -107,7 +107,7 @@ describe("parseEmail", () => {
     });
   });
 
-  it("decodes base64 text and a historical charset", () => {
+  it("decodes base64 text and a historical charset", async () => {
     const latin1 = Buffer.concat([
       Buffer.from(
         [
@@ -121,9 +121,9 @@ describe("parseEmail", () => {
       // "Fee: 5000 EUR — café" in latin-1 (0xE9 = é)
       Buffer.from([0x63, 0x61, 0x66, 0xe9]),
     ]);
-    expect(parseEmail(latin1).body).toContain("café");
+    expect((await parseEmail(latin1)).body).toContain("café");
 
-    const b64 = parseEmail(
+    const b64 = await parseEmail(
       eml([
         "From: a@example.com",
         "Content-Type: text/plain; charset=utf-8",
@@ -135,13 +135,13 @@ describe("parseEmail", () => {
     expect(b64.body).toBe("Retainer is $10,000.");
   });
 
-  it("abstains rather than guessing when the bytes are not an email", () => {
-    const message = parseEmail(Buffer.from("Just some loose prose.", "utf8"));
+  it("abstains rather than guessing when the bytes are not an email", async () => {
+    const message = await parseEmail(Buffer.from("Just some loose prose.", "utf8"));
     expect(message.abstentions[0]).toMatchObject({ reason: "not_an_email" });
   });
 
-  it("reports an unsupported transfer encoding as a typed abstention", () => {
-    const message = parseEmail(
+  it("reports an unsupported transfer encoding as a typed abstention", async () => {
+    const message = await parseEmail(
       eml([
         "From: a@example.com",
         "Content-Type: text/plain; charset=utf-8",
@@ -158,8 +158,8 @@ describe("parseEmail", () => {
 });
 
 describe("extractEmailText", () => {
-  it("puts provenance headers above the body and flags what is missing", () => {
-    const text = extractEmailText(
+  it("puts provenance headers above the body and flags what is missing", async () => {
+    const text = await extractEmailText(
       eml([
         "From: Rachel <rachel@example.com>",
         "To: Margaret <m@example.com>",
@@ -204,9 +204,7 @@ describe("email documents in the library", () => {
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
     const store = await import("./support/localDocumentFixtures");
-    const { extractDocument } = await import(
-      "./support/localAssistantTools"
-    );
+    const { extractDocument } = await import("../chat/assistantTools");
     const { localDocuments } = await import("./support/localDocumentFixtures");
 
     const document = await store.createLocalDocument({
@@ -236,7 +234,6 @@ describe("email documents in the library", () => {
     expect(extracted?.text).toContain("$85,000");
     expect(extracted?.text).not.toContain("$85,0=");
     expect(extracted?.text).toContain("Subject: Down payment");
-    (await import("../localApplicationDatabase"))
-      .closeLocalApplicationDatabase();
+    (await import("../sqliteDatabase")).closeSqliteDatabase();
   });
 });

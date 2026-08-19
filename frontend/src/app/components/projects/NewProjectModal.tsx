@@ -1,288 +1,131 @@
 import { useRef, useState } from "react";
 import { Upload, User, X } from "lucide-react";
-import {
-    addDocumentToProject,
-    createProject,
-    uploadProjectDocument,
-} from "@/app/lib/beaverApi";
-import { FileDirectory } from "../shared/FileDirectory";
-import { AddUserInput } from "../shared/AddUserInput";
-import type { Document, Project } from "../shared/types";
-import type { UserLookupResult } from "@/app/lib/beaverApi";
+import { addDocumentToProject, createProject, directoryResource,
+    type UserLookupResult } from "@/app/lib/beaverApi";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { Modal } from "../modals/Modal";
-import { ModalFieldLabel } from "../modals/ModalFieldLabel";
-import { ModalTextInput } from "../modals/ModalTextInput";
+import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
+import { AddUserInput } from "../shared/AddUserInput";
+import { FileDirectory } from "../shared/FileDirectory";
+import type { Document, Project } from "../shared/types";
 import { ProjectPracticeField } from "./ProjectPracticeField";
-interface Props {
-    open: boolean;
-    onClose: () => void;
-    onCreated: (project: Project) => void;
-}
+
+type Props = { open: boolean; onClose: () => void; onCreated: (project: Project) => void };
+
 export function NewProjectModal({ open, ...props }: Props) {
-    if (!open) return null;
-    return <OpenNewProjectModal {...props} />;
+    return open ? <OpenNewProjectModal {...props} /> : null;
 }
-function OpenNewProjectModal({
-    onClose,
-    onCreated,
-}: Omit<Props, "open">) {
+
+function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     const [step, setStep] = useState<"details" | "documents">("details");
     const [practice, setPractice] = useState("");
-    const [sharedUsers, setSharedUsers] = useState<UserLookupResult[]>([]);
-    const [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
-    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState<UserLookupResult[]>([]);
+    const [documents, setDocuments] = useState<Document[]>([]);
+    const [files, setFiles] = useState<File[]>([]);
+    const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
     const [error, setError] = useState("");
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const { user } = useAuth();
-    const ownEmail = user?.email?.trim().toLowerCase() ?? null;
+    const fileInput = useRef<HTMLInputElement>(null);
+    const ownEmail = useAuth().user?.email?.trim().toLowerCase();
     const formId = "new-project-modal-form";
-    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const files = Array.from(e.target.files ?? []);
-        e.target.value = "";
-        if (!files.length) return;
-        setPendingFiles((prev) => [...prev, ...files.filter((f) => !prev.some((p) => p.name === f.name))]);
-    }
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-        const form = new FormData(e.currentTarget);
+
+    async function submit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
         const name = String(form.get("name") ?? "").trim();
-        const cmNumber = String(form.get("cmNumber") ?? "").trim();
-        const practice = String(form.get("practice") ?? "").trim();
-        const submitter = (e.nativeEvent as SubmitEvent)
-            .submitter as HTMLButtonElement | null;
         if (!name) return;
-        if (submitter?.value !== "create-project") {
+        if (step === "details") {
             setStep("documents");
             return;
         }
-        setLoading(true);
+        const cm = String(form.get("cmNumber") ?? "").trim();
+        const area = practice.trim();
+        setStatus("loading");
         setError("");
         try {
-            const project = await createProject(
-                name,
-                cmNumber || undefined,
-                practice && practice !== "Other"
-                    ? practice
-                    : undefined,
-                sharedUsers
-                    .map((user) => user.email)
-                    .filter((email) => email !== ownEmail),
-            );
+            const project = await createProject(name, cm || undefined,
+                area || undefined,
+                users.map(({ email }) => email).filter((email) => email !== ownEmail));
+            const projectFiles = directoryResource({ projectId: project.id });
             await Promise.all([
-                ...selectedDocuments.map((document) =>
-                    addDocumentToProject(project.id, document.id).catch(() => {}),
-                ),
-                ...pendingFiles.map((f) => uploadProjectDocument(project.id, f).catch(() => {})),
+                ...documents.map(({ id }) => addDocumentToProject(project.id, id).catch(() => {})),
+                ...files.map((file) => projectFiles.uploadDocument(file).catch(() => {})),
             ]);
-            onCreated({
-                ...project,
-                document_count: selectedDocuments.length + pendingFiles.length,
-            });
+            onCreated(project);
             onClose();
-        } catch (err: unknown) {
-            setError((err as Error).message || "Failed to create project");
-        } finally {
-            setLoading(false);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : "Failed to create project");
+            setStatus("error");
         }
     }
-    function validateShareUser(email: string) {
-        if (ownEmail && email === ownEmail) {
-            return "You cannot share a project with yourself.";
-        }
-        if (
-            sharedUsers.some(
-                (user) => user.email.trim().toLowerCase() === email,
-            )
-        ) {
-            return `${email} already has access.`;
-        }
-        return null;
+    function addFiles(event: React.ChangeEvent<HTMLInputElement>) {
+        const added = Array.from(event.target.files ?? []);
+        event.target.value = "";
+        setFiles((current) => [...current, ...added.filter((file) =>
+            !current.some(({ name }) => name === file.name))]);
     }
-    function handleAddShareUser(user: UserLookupResult) {
-        setSharedUsers((prev) => [
-            ...prev,
-            {
-                ...user,
-                email: user.email.trim().toLowerCase(),
-            },
-        ]);
+    function validateUser(email: string) {
+        if (email === ownEmail) return "You cannot share a project with yourself.";
+        return users.some((user) => user.email.trim().toLowerCase() === email)
+            ? `${email} already has access.` : null;
     }
-    function handleRemoveShareUser(email: string) {
-        setSharedUsers((prev) =>
-            prev.filter((user) => user.email !== email),
-        );
-    }
-    return (
-        <Modal
-            open
-            onClose={onClose}
-            breadcrumbs={[
-                "Projects",
-                "New project",
-                step === "details" ? "Details" : "Add Documents",
-            ]}
-            secondaryAction={
-                step === "documents"
-                    ? {
-                          label: `Upload${pendingFiles.length > 0 ? ` (${pendingFiles.length})` : ""}`,
-                          icon: <Upload className="h-3.5 w-3.5" />,
-                          onClick: () => fileInputRef.current?.click(),
-                          disabled: loading,
-                      }
-                    : undefined
-            }
-            cancelAction={
-                step === "documents"
-                    ? {
-                          label: "Back",
-                          onClick: () => setStep("details"),
-                          disabled: loading,
-                      }
-                    : undefined
-            }
-            primaryAction={{
-                label:
-                    step === "details"
-                        ? "Next"
-                        : loading
-                          ? "Creating…"
-                          : "Create project",
-                type: "submit",
-                form: formId,
-                name: "modalAction",
-                value: step === "details" ? "next" : "create-project",
-                disabled: loading,
-            }}
-        >
-            <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-            />
-            <form
-                id={formId}
-                onSubmit={handleSubmit}
-                className="flex flex-col flex-1 min-h-0"
-            >
-                <input type="hidden" name="practice" value={practice} />
-                <div
-                    hidden={step !== "details"}
-                    className="space-y-6"
-                >
-                        <div>
-                            <ModalFieldLabel htmlFor="new-project-name">
-                                Project name
-                            </ModalFieldLabel>
-                            <ModalTextInput
-                                id="new-project-name"
-                                name="name"
-                                type="text"
-                                placeholder="Add project name"
-                                variant="minimal"
-                                required
-                                autoFocus
-                            />
-                        </div>
-                        <div>
-                            <ModalFieldLabel htmlFor="new-project-cm-number">
-                                CM number
-                            </ModalFieldLabel>
-                            <ModalTextInput
-                                id="new-project-cm-number"
-                                name="cmNumber"
-                                type="text"
-                                placeholder="Add a CM number..."
-                                variant="minimal"
-                                className="text-xl text-gray-600"
-                            />
-                        </div>
-                        <div>
-                            <ModalFieldLabel htmlFor="new-project-practice">
-                                Practice
-                            </ModalFieldLabel>
-                            <ProjectPracticeField
-                                id="new-project-practice"
-                                value={practice}
-                                onChange={setPractice}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <ModalFieldLabel as="p">
-                                Share with
-                            </ModalFieldLabel>
-                            <AddUserInput
-                                onAdd={handleAddShareUser}
-                                validateEmail={validateShareUser}
-                                placeholder="Add colleagues by email..."
-                            />
-                            {sharedUsers.length > 0 && (
-                                <ul className="space-y-1 pt-1">
-                                    {sharedUsers.map((entry) => {
-                                        const displayName =
-                                            entry.display_name?.trim();
-                                        const primary = displayName || "User";
-                                        const initial = displayName
-                                            ?.charAt(0)
-                                            .toUpperCase();
-                                        return (
-                                            <li
-                                                key={entry.email}
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-100/70"
-                                            >
-                                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
-                                                    {initial ? (
-                                                        <span className="font-serif text-[11px] leading-none">
-                                                            {initial}
-                                                        </span>
-                                                    ) : (
-                                                        <User className="h-2.5 w-2.5" />
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-xs text-gray-800">
-                                                        {primary}
-                                                        <span className="text-gray-400">
-                                                            {" "}
-                                                            · {entry.email}
-                                                        </span>
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleRemoveShareUser(
-                                                            entry.email,
-                                                        )
-                                                    }
-                                                    className="self-center inline-flex items-center rounded-full px-2 py-1 text-xs text-gray-500 hover:text-red-600"
-                                                    aria-label={`Remove ${entry.email}`}
-                                                >
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            )}
-                        </div>
-                    </div>
-                {step === "documents" && (
-                    <div className="flex min-h-0 flex-1 flex-col">
-                        <FileDirectory
-                            selectedDocuments={selectedDocuments}
-                            onChange={setSelectedDocuments}
-                            showTabs
-                        />
-                    </div>
-                )}
-                {error && (
-                    <p className="mt-3 text-sm text-red-500">{error}</p>
-                )}
-            </form>
-        </Modal>
-    );
+    const loading = status === "loading";
+    return <Modal open onClose={onClose}
+        breadcrumbs={["Projects", "New project", step === "details" ? "Details" : "Add Documents"]}
+        secondaryAction={step === "documents" ? { label: `Upload${files.length ? ` (${files.length})` : ""}`,
+            icon: <Upload className="h-3.5 w-3.5" />, onClick: () => fileInput.current?.click(),
+            disabled: loading } : undefined}
+        cancelAction={step === "documents"
+            ? { label: "Back", onClick: () => setStep("details"), disabled: loading } : undefined}
+        primaryAction={{ label: step === "details" ? "Next" : loading ? "Creating…" : "Create project",
+            type: "submit", form: formId, disabled: loading }}>
+        <input ref={fileInput} type="file" multiple className="hidden" onChange={addFiles} />
+        <form id={formId} onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+            <div hidden={step !== "details"} className="space-y-6">
+                <div>
+                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-name">Project name</label>
+                    <input className={MODAL_INPUT_CLASS} id="new-project-name" name="name"
+                        placeholder="Add project name" required autoFocus />
+                </div>
+                <div>
+                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-cm-number">CM number</label>
+                    <input className={`${MODAL_INPUT_CLASS} text-xl text-gray-600`}
+                        id="new-project-cm-number" name="cmNumber" placeholder="Add a CM number…" />
+                </div>
+                <div>
+                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-practice">Practice</label>
+                    <ProjectPracticeField id="new-project-practice" value={practice}
+                        onChange={setPractice} />
+                </div>
+                <div className="space-y-2">
+                    <p className={MODAL_LABEL_CLASS}>Share with</p>
+                    <AddUserInput placeholder="Add colleagues by email..." validateEmail={validateUser}
+                        onAdd={(user) => setUsers((current) => [...current,
+                            { ...user, email: user.email.trim().toLowerCase() }])} />
+                    {!!users.length && <ul className="space-y-1 pt-1">
+                        {users.map((user) => <li key={user.email}
+                            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100/70">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm">
+                                {user.display_name?.trim()
+                                    ? <span className="font-serif text-[11px] leading-none">{user.display_name.trim().charAt(0).toUpperCase()}</span>
+                                    : <User className="h-2.5 w-2.5" aria-hidden="true" />}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">
+                                {user.display_name?.trim() || "User"} · {user.email}
+                            </span>
+                            <button type="button" aria-label={`Remove ${user.email}`}
+                                onClick={() => setUsers((current) => current.filter(
+                                    ({ email }) => email !== user.email))}
+                                className="rounded-full p-1 text-gray-500 hover:text-red-600">
+                                <X className="h-3 w-3" />
+                            </button>
+                        </li>)}
+                    </ul>}
+                </div>
+            </div>
+            {step === "documents" && <div className="flex min-h-0 flex-1 flex-col">
+                <FileDirectory selectedDocuments={documents}
+                    onChange={setDocuments} showTabs />
+            </div>}
+            {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
+        </form>
+    </Modal>;
 }

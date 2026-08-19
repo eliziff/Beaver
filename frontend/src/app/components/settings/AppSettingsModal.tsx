@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import {
     useId,
     useRef,
@@ -12,9 +12,9 @@ import { Modal } from "@/app/components/modals/Modal";
 import { ApiKeySettings } from "./ApiKeySettings";
 import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 import { SubagentSettings } from "./SubagentSettings";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
-import { useActivityDetail } from "@/app/components/assistant/activityDisplayPreference";
+import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { EditModeSettings } from "./EditModeSettings";
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
 import { DisplaySettings } from "./DisplaySettings";
@@ -29,7 +29,7 @@ export function AppSettingsModal({
     open: boolean;
     onClose: () => void;
 }) {
-    const activity = useActivityDetail();
+    const [preferences, savePreferences] = useAssistantPreferences();
     const [selectedTab, setSelectedTab] = useState<SettingsTab>("General");
     const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
     const idPrefix = useId();
@@ -86,15 +86,14 @@ export function AppSettingsModal({
                             </span>
                         </span>
                         <select
-                            value={activity.detail}
+                            value={preferences.activityDetail}
                             onChange={(event) =>
-                                activity.setDetail(
+                                savePreferences({ activityDetail:
                                     event.currentTarget.value as
                                         | "auto"
                                         | "standard"
                                         | "tools"
-                                        | "trace",
-                                )
+                                        | "trace" })
                             }
                             className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                         >
@@ -131,9 +130,9 @@ export function AppSettingsModal({
             breadcrumbs={["Settings"]}
             size="xl"
             headerAction={
-                !isAnonymousMode ? (
+                !isLocalMode ? (
                     <Link
-                        href="/account"
+                        to="/account"
                         onClick={onClose}
                         className="text-xs font-medium text-gray-600 hover:text-gray-900"
                     >

@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { ReadSubagentDock } from "./ReadSubagentDock";
-import { ReadSubagentTabs } from "./ReadSubagentTabs";
 
 const completedPanel = {
     type: "subagent_run" as const,
@@ -58,32 +57,16 @@ it("opens the exact source metadata attached by the backend", async () => {
     );
 });
 
-it("marks a settled agent with a neutral done state", () => {
+it("shows live reading activity", async () => {
     render(
-        <ReadSubagentTabs
-            groups={[{ id: "1", label: "Agent 1", panels: [completedPanel] }]}
-            activeId="1"
-            onActivate={vi.fn()}
+        <ReadSubagentDock
+            panels={[runningPanel]}
             onClose={vi.fn()}
             onSourceClick={vi.fn()}
+            embedded
         />,
     );
 
-    expect(screen.getByTitle("Done")).toHaveClass("bg-gray-400");
-});
-
-it("shows live activity on the agent tab and current trace", async () => {
-    render(
-        <ReadSubagentTabs
-            groups={[{ id: "1", label: "Agent 1", panels: [runningPanel] }]}
-            activeId="1"
-            onActivate={vi.fn()}
-            onClose={vi.fn()}
-            onSourceClick={vi.fn()}
-        />,
-    );
-
-    expect(screen.getByTitle("Working")).toBeVisible();
     await userEvent.click(screen.getByText("1 tool call"));
     expect(screen.getAllByLabelText("Working")).toHaveLength(1);
     expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1...")).toBeVisible();

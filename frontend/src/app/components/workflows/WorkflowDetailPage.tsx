@@ -1,15 +1,15 @@
-"use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { Play, Plus, Users } from "lucide-react";
 import {
-    deleteWorkflow, deleteWorkflowShare, getWorkflow, listWorkflowShares,
+    apiBlobRequest, deleteWorkflow, deleteWorkflowShare, getWorkflow, listWorkflowShares,
     lookupUserByEmail, shareWorkflow, updateWorkflow, type ProjectPeople,
 } from "@/app/lib/beaverApi";
 import type { ColumnConfig, Workflow } from "../shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { isLocalMode } from "@/app/lib/authMode";
+import { downloadBlob } from "@/app/lib/download";
 import { AddColumnModal } from "../tabular/AddColumnModal";
 import { formatLabel } from "../tabular/columnFormat";
 import { PeopleModal } from "../modals/PeopleModal";
@@ -29,7 +29,6 @@ import { TabPillButton } from "../ui/tab-pill-button";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 import { UseWorkflowModal } from "./UseWorkflowModal";
 import { WFColumnViewModal } from "./WFColumnViewModal";
-import { downloadWorkflowZip } from "./workflowZipExport";
 
 interface Props { id: string; workflowType: Workflow["metadata"]["type"] }
 type WorkflowModal = "details" | "share" | "use" | "delete" | null;
@@ -37,7 +36,7 @@ const NAME_COLUMN = "w-[332px] shrink-0";
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export function WorkflowDetailPage({ id, workflowType }: Props) {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const [workflow, setWorkflow] = useState<Workflow | null>();
@@ -54,7 +53,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         setUiState((current) => ({ ...current, ...patch }));
     const { save, selectedColumns, columnModal, modal, sharedWith, deleting } = ui;
     const readOnly = (workflow?.is_system ?? false) || workflow?.allow_edit === false;
-    const canShare = !readOnly && (workflow?.is_owner ?? true);
+    const canShare = !isLocalMode && !readOnly && (workflow?.is_owner ?? true);
     const prompt = workflow?.skill_md ?? "";
     const columns = workflow?.columns_config ?? [];
     const activeColumn = columnModal === "new" ? null : columnModal;
@@ -84,11 +83,10 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
                 display_name: found?.exists === true ? found.display_name : null };
         }));
         return { owner: {
-                user_id: user?.id ?? workflow?.user_id ?? "",
                 email: user?.email ?? null,
                 display_name: profile?.displayName ?? null,
             }, members };
-    }, [id, profile?.displayName, user?.email, user?.id, workflow?.user_id]);
+    }, [id, profile?.displayName, user?.email]);
 
     async function changeSharedWith(next: string[]) {
         const emails = [...new Set(next.map(normalizeEmail).filter(Boolean))];
@@ -167,7 +165,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         try {
             await deleteWorkflow(id);
             setUi({ deleting: "complete" });
-            setTimeout(() => router.push("/workflows"), 600);
+            setTimeout(() => navigate("/workflows"), 600);
         } catch {
             setUi({ deleting: "idle" });
         }
@@ -182,7 +180,10 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
 
     const menuItems: HeaderActionsMenuItem[] = workflow ? [
         { label: "Download workflow",
-            onSelect: () => void downloadWorkflowZip(workflow, prompt, columns),
+            onSelect: () => void apiBlobRequest(
+                `/workflows/${encodeURIComponent(workflow.id)}/export`,
+            ).then(({ blob, filename }) =>
+                downloadBlob(blob, filename ?? "workflow.zip")),
         },
         { label: "View and Edit details", onSelect: () => setUi({ modal: "details" }) },
         ...(!readOnly ? [{
@@ -222,7 +223,7 @@ export function WorkflowDetailPage({ id, workflowType }: Props) {
         <div className="flex h-full flex-col">
             <PageHeader shrink breadcrumbs={[
                     { label: "Workflows",
-                        onClick: () => router.push("/workflows"),
+                        onClick: () => navigate("/workflows"),
                         title: "Back to Workflows",
                     },
                     workflow

@@ -111,7 +111,11 @@ export function AssistantSidePanel({
             )}
         >
             <div className="flex items-start gap-2 border-b border-gray-300 bg-gray-100 p-2">
-                <div className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto">
+                <div
+                    role="tablist"
+                    aria-label="Open sources"
+                    className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto"
+                >
                     {tabs.map((tab) => {
                         const isActive = tab.id === active.id;
                         const showVersionBadge =
@@ -123,33 +127,40 @@ export function AssistantSidePanel({
                         return (
                             <div
                                 key={tab.id}
-                                onClick={() => onActivateTab(tab.id)}
                                 className={cn(
-                                    "group flex h-8 w-40 flex-none cursor-pointer select-none items-center gap-1.5 rounded-md border px-2",
+                                    "group flex h-8 w-40 flex-none select-none items-center rounded-md border",
                                     isActive
                                         ? "border-gray-400 bg-white text-gray-900"
                                         : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white",
                                 )}
                             >
-                                <span
-                                    className="min-w-0 flex-1 truncate text-xs font-medium"
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isActive}
+                                    aria-controls={`source-panel-${tab.id}`}
+                                    onClick={() => onActivateTab(tab.id)}
+                                    className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch px-2 text-left"
                                     title={title}
                                 >
-                                    {title}
-                                </span>
-                                {showVersionBadge && (
-                                    <span
-                                        className={cn(
-                                            "inline-flex shrink-0 items-center rounded border px-1 py-px text-[9px] font-medium",
-                                            isActive
-                                                ? "border-gray-200 bg-white text-gray-600"
-                                                : "border-gray-300 bg-white/70 text-gray-500",
-                                        )}
-                                    >
-                                        V{tab.versionNumber}
+                                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                        {title}
                                     </span>
-                                )}
+                                    {showVersionBadge && (
+                                        <span
+                                            className={cn(
+                                                "inline-flex shrink-0 items-center rounded border px-1 py-px text-[9px] font-medium",
+                                                isActive
+                                                    ? "border-gray-200 bg-white text-gray-600"
+                                                    : "border-gray-300 bg-white/70 text-gray-500",
+                                            )}
+                                        >
+                                            V{tab.versionNumber}
+                                        </span>
+                                    )}
+                                </button>
                                 <button
+                                    type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onCloseTab(tab.id);
@@ -235,6 +246,8 @@ export function AssistantSidePanel({
                     return (
                         <div
                             key={tab.id}
+                            id={`source-panel-${tab.id}`}
+                            role="tabpanel"
                             className={cn(
                                 "absolute inset-0",
                                 tab.kind === "automation" ||

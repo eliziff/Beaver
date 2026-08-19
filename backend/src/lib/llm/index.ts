@@ -1,5 +1,5 @@
-import { appendContextManifest, buildContextManifest } from "./contextManifest";
-import { requireApiKey } from "./apiKeys";
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
 import { providerForModel } from "./models";
 import type {
   Provider,
@@ -11,9 +11,6 @@ import type {
 export * from "./types";
 export * from "./models";
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const META_BASE_URL = "https://api.meta.ai/v1";
-
 async function streamProvider(
   provider: Provider,
   params: StreamChatParams,
@@ -22,24 +19,12 @@ async function streamProvider(
     case "claude":
       return (await import("./claude")).streamClaude(params);
     case "openai":
-      return (await import("./openai")).streamOpenAI(params);
+      return (await import("./openai")).streamResponses(params, "openai");
     case "deepseek":
       return (await import("./deepseek")).streamDeepSeek(params);
     case "openrouter":
-    case "meta": {
-      const isOpenRouter = provider === "openrouter";
-      return (await import("./openai")).streamResponsesApi(params, {
-        baseURL: isOpenRouter ? OPENROUTER_BASE_URL : META_BASE_URL,
-        provider: isOpenRouter ? "OpenRouter" : "Meta",
-        apiKey: requireApiKey(
-          isOpenRouter ? params.apiKeys?.openrouter : params.apiKeys?.meta,
-          isOpenRouter ? ["OPENROUTER_API_KEY"] : ["META_API_KEY", "MODEL_API_KEY"],
-          isOpenRouter ? "OpenRouter" : "Meta",
-        ),
-        persistent: false,
-        defaultReasoningEffort: "medium",
-      });
-    }
+    case "meta":
+      return (await import("./openai")).streamResponses(params, provider);
     case "codex":
       return (await import("./codex")).streamCodex(params);
     case "claude-p":
@@ -55,77 +40,27 @@ export async function streamChatWithTools(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
   const provider = providerForModel(params.model);
-  const startedAt = performance.now();
-  const startedAtIso = new Date().toISOString();
-  let firstContentAt: number | null = null;
-  let streamedOutputBytes = 0;
-  // Progressive disclosure mutates the caller's active array between tool
-  // iterations. Telemetry describes the first request, so retain that exact
-  // schema inventory rather than observing the expanded array after return.
-  const manifestParams: StreamChatParams = {
-    ...params,
-    tools:
-      provider === "codex" && params.staticTools
-        ? [...params.staticTools]
-        : params.tools
-          ? [...params.tools]
-          : params.tools,
-  };
-  const measuredParams: StreamChatParams = {
-    ...params,
-    callbacks: {
-      ...params.callbacks,
-      onContentDelta(text) {
-        if (text && firstContentAt === null) firstContentAt = performance.now();
-        streamedOutputBytes += Buffer.byteLength(text);
-        params.callbacks?.onContentDelta?.(text);
-      },
-    },
-  };
-
-  try {
-    const result = await streamProvider(provider, measuredParams);
-    const finishedAt = performance.now();
-    await recordManifest({
-      params: manifestParams,
-      provider,
-      startedAt: startedAtIso,
-      firstContentLatencyMs:
-        firstContentAt === null ? null : firstContentAt - startedAt,
-      totalLatencyMs: finishedAt - startedAt,
-      outputBytes: Buffer.byteLength(result.fullText),
-      status: "completed",
-      result,
-    });
-    return result;
-  } catch (error) {
-    const finishedAt = performance.now();
-    await recordManifest({
-      params: manifestParams,
-      provider,
-      startedAt: startedAtIso,
-      firstContentLatencyMs:
-        firstContentAt === null ? null : firstContentAt - startedAt,
-      totalLatencyMs: finishedAt - startedAt,
-      outputBytes: streamedOutputBytes,
-      status:
-        params.abortSignal?.aborted ||
-        (error as { name?: unknown })?.name === "AbortError"
-          ? "aborted"
-          : "error",
-    });
-    throw error;
-  }
+  const result = await streamProvider(provider, params);
+  await appendMetrics(result);
+  return result;
 }
 
-async function recordManifest(
-  args: Parameters<typeof buildContextManifest>[0],
-): Promise<void> {
+let metricsQueue = Promise.resolve();
+async function appendMetrics(result: StreamChatResult) {
+  const filename = process.env.MIKE_LLM_METRICS_PATH?.trim();
+  if (!filename) return;
+  const line = `${JSON.stringify({
+    usage: result.usage ?? null,
+    rounds: result.contextRounds ?? [],
+  })}\n`;
+  const write = metricsQueue.then(async () => {
+    await mkdir(path.dirname(filename), { recursive: true });
+    await appendFile(filename, line, { encoding: "utf8", mode: 0o600 });
+  });
+  metricsQueue = write.catch(() => undefined);
   try {
-    await appendContextManifest(buildContextManifest(args));
-  } catch (error) {
-    console.warn("[llm-context-manifest] Could not append telemetry.", error);
-  }
+    await write;
+  } catch { console.warn("[llm] Could not append local metrics."); }
 }
 
 export async function completeText(params: {
@@ -150,4 +85,4 @@ export async function completeText(params: {
 }
 
 export const getOllamaModelCatalog = async () =>
-  (await import("./ollamaApi")).getOllamaModelCatalog();
+  (await import("./ollamaModels")).getOllamaModelCatalog();

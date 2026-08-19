@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { Project, TabularReview } from "@/app/components/shared/types";
 import { TabularReviewsTable } from "./TabularReviewsTable";
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: vi.fn() }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => vi.fn(),
+    Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (
+        <a href={to} {...props}>{children}</a>
+    ),
 }));
 
 const review: TabularReview = {

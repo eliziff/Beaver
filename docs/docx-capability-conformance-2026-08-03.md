@@ -27,6 +27,8 @@ every class:
 ```
 backend/src/lib/__tests__/docxCapabilityConformance.test.ts  (20 tests)
 npx vitest run src/lib/__tests__/docxCapabilityConformance.test.ts   # from backend/
+backend/experiments/docx-analysis/  (specialist numbering/story analysis)
+npx vitest run --config experiments/vitest.config.mts experiments/docx-analysis
 ```
 
 Every class row below is backed by an ingestion test (what the model sees) and
@@ -41,9 +43,9 @@ opening the package with JSZip).
 | --- | --- | --- |
 | `extractDocxDraftingSource` | `backend/src/lib/docxDraftingSource.ts` | The drafting-source Markdown (`pandoc-markdown-v1`): the precedent view the model reads. Pandoc-based (gfm); omits images, headers/footers, comments, embedded objects with warnings; footnotes round-trip as `[^N]` markers natively. Styles are auto-patched for Pandoc heading recognition (Normal default, lowercase heading names, outline levels). |
 | `extractDocxBodyText` | `backend/src/lib/docxTrackedChanges.ts` | Accepted-view body text (insertions in, deletions out), newline-joined. The plane `find` / `context_before` / `context_after` strings match against. |
-| `resolveDocxNumbering` + `applyNumberingToText` | `backend/src/lib/docx/numbering.ts` | Renders the labels ("1.", "(a)") that live only in `numbering.xml` and that no extractor synthesizes, aligned to `extractDocxBodyText` paragraph indexes. |
+| `resolveDocxNumbering` + `applyNumberingToText` | `backend/experiments/docx-analysis/numbering.ts` | Experimental specialist analysis that renders the labels ("1.", "(a)") living only in `numbering.xml`, aligned to `extractDocxBodyText` paragraph indexes. It has no production caller. |
 | `projectDocxRedline` | `backend/src/lib/docx/redline.ts` | The marked-up read mode: `{++ins++}`, `{--del--}`, `{>>author: comment<<}`, `[ink]`. Deliberately NOT the drafting default. |
-| `extractDocxStories` | `backend/src/lib/docx/stories.ts` | Every story part (body, footnotes, endnotes, headers, footers, text boxes) with per-run redline state — the audit surface. |
+| `extractDocxStories` | `backend/experiments/docx-analysis/stories.ts` | Experimental audit of every story part (body, footnotes, endnotes, headers, footers, text boxes) with per-run redline state. It has no production caller. |
 
 **OUTPUT — Markdown → `.docx`**
 

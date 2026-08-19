@@ -1,12 +1,9 @@
-"use client";
-
 import {
     useCallback,
-    useEffect,
     useState,
 } from "react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { isAnonymousMode } from "@/app/lib/authMode";
+import { isLocalMode } from "@/app/lib/authMode";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import {
     DocTable,
@@ -22,7 +19,6 @@ export function ProjectDocumentsView() {
     const {
         projectId,
         project,
-        prefetchProjectSections,
         search,
         setAddDocumentsHeaderAction,
         setOwnerOnlyAction,
@@ -33,9 +29,6 @@ export function ProjectDocumentsView() {
     >(null);
     const [selectionActions, setSelectionActions] =
         useState<DocTableSelectionActions | null>(null);
-    useEffect(() => {
-        if (!projectLoading) prefetchProjectSections();
-    }, [projectLoading, prefetchProjectSections]);
     const files = useProjectFiles();
     const { documents, folders, operations } = files;
     const handleCreateFolderActionChange = useCallback(
@@ -73,7 +66,7 @@ export function ProjectDocumentsView() {
                                   ]
                                 : []),
                             {
-                                label: isAnonymousMode ? "Remove" : "Delete",
+                                label: isLocalMode ? "Remove" : "Delete",
                                 onSelect: () => void selectionActions.onDelete(),
                             },
                         ]}
@@ -131,7 +124,7 @@ export function ProjectDocumentsView() {
                 }
                 onOwnerOnlyAction={setOwnerOnlyAction}
                 documentRemovalMode={
-                    isAnonymousMode ? "detach" : "delete"
+                    isLocalMode ? "detach" : "delete"
                 }
                 hasMoreParents={files.hasMoreParents}
                 loadingParents={files.loadingParents}

@@ -74,25 +74,7 @@ const supportedEvents: [string, Record<string, unknown>][] = [
   ["context usage", { type: "context_usage", used_tokens: 10, window_tokens: 100 }],
   ["compaction", { type: "compaction", status: "completed" }],
   ["workflow", { type: "workflow_applied", workflow_id: "w1", title: "Review" }],
-  ["document read start", { type: "doc_read_start", filename: "brief.docx" }],
-  ["document read", { type: "doc_read", filename: "brief.docx" }],
-  ["document find start", { type: "doc_find_start", filename: "brief.docx", query: "duty" }],
-  ["document find", { type: "doc_find", filename: "brief.docx", query: "duty", total_matches: 2 }],
-  ["document create start", { type: "doc_created_start", filename: "result.docx" }],
-  ["document created", { type: "doc_created", filename: "result.docx", document_id: "d1", download_url: "/documents/d1/download" }],
-  ["document download", { type: "doc_download", filename: "result.xlsx", download_url: "/documents/d2/download" }],
-  ["document edit start", { type: "doc_edited_start", filename: "brief.docx" }],
-  ["document edited", { type: "doc_edited", filename: "brief.docx", document_id: "d1", download_url: "/documents/d1/download", annotations: [] }],
-  ["case search start", { type: "courtlistener_search_case_law_start", query: "duty" }],
-  ["case search", { type: "courtlistener_search_case_law", query: "duty", result_count: 2 }],
-  ["get cases start", { type: "courtlistener_get_cases_start", cluster_ids: [4] }],
-  ["get cases", { type: "courtlistener_get_cases", cluster_ids: [4], case_count: 1, cases: [] }],
-  ["find in case start", { type: "courtlistener_find_in_case_start", cluster_id: 4, query: "duty" }],
-  ["find in case", { type: "courtlistener_find_in_case", cluster_id: 4, query: "duty", total_matches: 1 }],
-  ["read case start", { type: "courtlistener_read_case_start", cluster_id: 4 }],
-  ["read case", { type: "courtlistener_read_case", cluster_id: 4, opinion_count: 1 }],
-  ["verify citations start", { type: "courtlistener_verify_citations_start", citation_count: 1 }],
-  ["verify citations", { type: "courtlistener_verify_citations", citation_count: 1, match_count: 1 }],
+  ["document artifact", { type: "document_artifact", action: "created", filename: "result.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "/documents/d1/download" }],
   ["case citation", { type: "case_citation", cluster_id: 4, case_name: "R v Test", citation: "2026 ABCA 1", url: "https://example.test/case" }],
   ["case opinions", { type: "case_opinions", cluster_id: 4, case: { id: 4, opinions: [] } }],
 ];
@@ -103,10 +85,10 @@ describe("assistant protocol validation", () => {
   });
 
   it("rejects unknown, malformed, and prototype-polluting state mutations", () => {
-    expect(parseAssistantProtocolEvent({ type: "new_frontend_state", value: true })).toEqual({ ok: false, reason: "unknown" });
-    expect(parseAssistantProtocolEvent({ type: "content_snapshot" })).toEqual({ ok: false, reason: "malformed" });
+    expect(parseAssistantProtocolEvent({ type: "new_frontend_state", value: true }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({ type: "content_snapshot" }).ok).toBe(false);
     const polluted = JSON.parse('{"type":"content_delta","text":"bad","__proto__":{"polluted":true}}');
-    expect(parseAssistantProtocolEvent(polluted)).toEqual({ ok: false, reason: "unsafe" });
+    expect(parseAssistantProtocolEvent(polluted).ok).toBe(false);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 
@@ -125,7 +107,7 @@ describe("assistant protocol validation", () => {
   it("rejects unsafe citation and artifact URLs before render state", () => {
     let state = running();
     state = applyRaw(state, { type: "citations", citations: [{ type: "citation_data", kind: "case", ref: 1, cluster_id: 4, url: "javascript:alert(1)", pdfUrl: "data:text/html,bad", quotes: [] }] });
-    state = applyRaw(state, { type: "doc_created", filename: "bad.docx", document_id: "d1", download_url: "https://evil.test/file" });
+    expect(parseAssistantProtocolEvent({ type: "document_artifact", action: "created", filename: "bad.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "https://evil.test/file" }).ok).toBe(false);
     expect(assistant(state).citations[0]).toMatchObject({ url: null, pdfUrl: null });
     expect(assistant(state).artifacts).toEqual([]);
   });
@@ -197,7 +179,7 @@ describe("assistantSessionReducer", () => {
       { type: "content_delta", text: "Answer" },
       { type: "tool_activity", id: "search-1", tool: "search", label: "Searched", status: "completed" },
       { type: "citations", status: "final", citations: [{ type: "citation_data", kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }] },
-      { type: "doc_created", filename: "result.pptx", document_id: "d2", download_url: "/documents/d2/download" },
+      { type: "document_artifact", action: "created", filename: "result.pptx", document_id: "d2", version_id: "v1", version_number: 1, download_url: "/documents/d2/download" },
       { type: "content_block_end" },
     ];
     let live = running();

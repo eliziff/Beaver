@@ -43,7 +43,9 @@ function cacheCatalog(value: ModelCatalog) {
             STORAGE_KEY,
             JSON.stringify({ catalog: value }),
         );
-    } catch {}
+    } catch {
+        // Storage can be unavailable in private browsing or hardened contexts.
+    }
 }
 export function getSessionModelCatalog() {
     return catalog;
@@ -66,12 +68,10 @@ export function preloadModelCatalog() {
             }
             return catalog;
         })
-        .catch((error: unknown) => {
+        .catch(() => {
             refreshedAt = Date.now();
             catalog ??= {
-                source: "unavailable",
                 models: [],
-                error: error instanceof Error ? error.message : String(error),
             };
             return catalog;
         })

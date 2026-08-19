@@ -12,7 +12,10 @@ vi.mock("../../src/lib/llm", async (importOriginal) => ({
   streamChatWithTools: llm.streamChatWithTools,
 }));
 
-import type { A2AJDocument, A2AJLocatorLookup } from "../../src/lib/a2aj";
+import type {
+  A2AJDocument,
+  A2AJLocatorLookup,
+} from "../../src/lib/legalSources/a2aj";
 import { fnv1a64 } from "../../../experiments/legal_grounding_framing/legalClaimLint";
 import { createLegalEvidenceCitations } from "../../src/lib/chat/citations";
 import {
@@ -328,7 +331,7 @@ describe("provisional legal evidence contract", () => {
     const [citation] = createLegalEvidenceCitations(state);
     expect(citation).toMatchObject({
       locator: "par10-par12",
-      pinpoint: "paras. 10–12",
+      pinpoint: "paras 10–12",
     });
     expect(String(citation.url)).toMatch(/#par10:~:text=[^,]+,[^,]+$/u);
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
     parseAsync: vi.fn(),
     renderDocument: vi.fn(),
-    useFetchDocxBytes: vi.fn(),
+    useDocumentFile: vi.fn(),
     withBrokenImage: false,
     withTrackedChanges: false,
 }));
@@ -20,8 +20,8 @@ vi.mock("docx-preview", () => ({
     renderDocument: mocks.renderDocument,
 }));
 
-vi.mock("@/app/hooks/useFetchDocxBytes", () => ({
-    useFetchDocxBytes: mocks.useFetchDocxBytes,
+vi.mock("@/app/hooks/useDocumentFile", () => ({
+    useDocumentFile: mocks.useDocumentFile,
 }));
 
 vi.mock("./PdfView", () => ({
@@ -57,10 +57,9 @@ describe("DocxView", () => {
         );
         vi.stubGlobal("cancelAnimationFrame", vi.fn());
 
-        mocks.useFetchDocxBytes.mockReturnValue({
+        mocks.useDocumentFile.mockReturnValue({
             // Fresh buffer per test so the parsed-document cache is cold.
-            bytes: new ArrayBuffer(8),
-            downloadUrl: null,
+            result: { type: "docx", buffer: new ArrayBuffer(8) },
             loading: false,
             error: null,
         });

@@ -19,15 +19,12 @@ vi.mock("@/app/lib/beaverApi", async (importOriginal) => {
         getCourtlistenerOpinions: api.opinions,
     };
 });
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ prefetch: vi.fn(), push: vi.fn() }),
-}));
-vi.mock("./LegalSourceMarkingPanel", () => ({
-    LegalSourceMarkingPanel: ({ sourceId }: { sourceId: string }) => (
-        <div>Marks for {sourceId}</div>
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => vi.fn(),
+    Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (
+        <a href={to} {...props}>{children}</a>
     ),
 }));
-
 import {
     LegalInlineText,
     LegalSourceViewer,
@@ -253,9 +250,6 @@ describe("legal source reader", () => {
         }
         expect(container.querySelector("#legal-par1")?.tagName).toBe("SECTION");
         expect(container.querySelector("#legal-page1")?.tagName).toBe("SPAN");
-        expect(
-            container.querySelector("article")?.querySelectorAll("*"),
-        ).toHaveLength(16);
     });
 
     it("opens an internal source at the cited paragraph", async () => {
@@ -422,7 +416,7 @@ describe("legal source reader", () => {
                 type: "lead",
                 author: "Justice One",
                 url: null,
-                html: "<p>The <em>ratio</em> controls.</p><script>bad()</script>",
+                text: "The ratio controls.",
             },
             {
                 opinionId: 12,
@@ -454,12 +448,11 @@ describe("legal source reader", () => {
         await screen.findByRole("heading", {
             name: "CourtListener fixture",
         });
-        expect(container.querySelector("em")?.textContent).toBe("ratio");
-        expect(container.querySelector("script")).not.toBeInTheDocument();
+        expect(screen.getByText("The ratio controls.")).toBeVisible();
         screen.getByRole("link", { name: "Site" });
         screen.getByRole("link", { name: "PDF" });
         fireEvent.click(
-            screen.getByRole("button", {
+            screen.getByRole("tab", {
                 name: "Dissent by Justice Two",
             }),
         );
@@ -477,25 +470,12 @@ describe("legal source reader", () => {
     it("keeps saved and direct readers in the same bounded source shell", async () => {
         api.saved.mockResolvedValue(viewerPayload());
         const { rerender } = render(
-            <LegalLibrarySourcePage
-                referenceId="saved-1"
-                markingId="saved-1"
-            />,
+            <LegalLibrarySourcePage referenceId="saved-1" />,
         );
 
-        const savedTitle = await screen.findByRole("heading", {
+        await screen.findByRole("heading", {
             name: "Fixture v. Test",
         });
-        expect(savedTitle.closest(".min-h-0.min-w-0.flex-1")).not.toBeNull();
-        fireEvent.click(
-            screen.getByRole("button", { name: "Mark source" }),
-        );
-        expect(
-            screen.getByRole("complementary", {
-                name: "Project source marks",
-            }),
-        ).toHaveTextContent("Marks for saved-1");
-
         api.direct.mockResolvedValue(viewerPayload());
         rerender(
             <LegalLibrarySourcePage
@@ -506,14 +486,7 @@ describe("legal source reader", () => {
             />,
         );
         await waitFor(() => expect(api.direct).toHaveBeenCalledTimes(1));
-        expect(
-            screen.queryByRole("button", { name: "Mark source" }),
-        ).not.toBeInTheDocument();
-        expect(
-            screen.getByRole("heading", { name: "Fixture v. Test" }).closest(
-                ".min-h-0.min-w-0.flex-1",
-            ),
-        ).not.toBeNull();
+        expect(screen.getByRole("heading", { name: "Fixture v. Test" })).toBeVisible();
     });
 
     it("omits unsafe or absent source actions independently", () => {

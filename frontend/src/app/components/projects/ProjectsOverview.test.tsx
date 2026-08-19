@@ -26,9 +26,8 @@ const createdProject: Project = {
     review_count: 0,
 };
 
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push }),
-    useSearchParams: () => new URLSearchParams(),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => push,
 }));
 
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -125,7 +124,7 @@ describe("ProjectsOverview", () => {
 
     it("keeps the action slot mounted and deletes without a one-item menu", async () => {
         listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
-        const { container } = render(<ProjectsOverview />);
+        render(<ProjectsOverview />);
         const slot = screen.getByLabelText("Selected project actions");
 
         expect(slot).not.toBeNull();

@@ -1,14 +1,13 @@
 import {
   a2ajLegalSourceProvider,
   type A2AJLocatorLookup,
-} from "./a2aj";
+} from "./legalSources/a2aj";
 import { hansardLegalSourceProvider } from "./a2ajHansard";
 import {
   courtlistenerLegalSourceProvider,
-  createCourtlistenerLegalSourceProvider,
-  type CourtlistenerLegalSourceOptions,
-} from "./courtlistener";
-import { journalLegalSourceProvider } from "./journalArticles";
+  type CourtlistenerProviderOptions,
+} from "./legalSources/courtlistener";
+import { journalLegalSourceProvider } from "./legalSources/journal";
 import {
   createLegalSourceRegistry,
   type LegalSourcePassage,
@@ -29,13 +28,13 @@ import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
 import { tnaLegalSourceProvider } from "./legalSources/tna";
 
 export function createLegalSourceOperations(
-  options: { courtlistener?: CourtlistenerLegalSourceOptions } = {},
+  options: { courtlistener?: CourtlistenerProviderOptions } = {},
 ) {
   return createLegalSourceRegistry<QuoteSource, unknown>(
     [
       a2ajLegalSourceProvider,
       options.courtlistener
-        ? createCourtlistenerLegalSourceProvider(options.courtlistener)
+        ? courtlistenerLegalSourceProvider.configured(options.courtlistener)
         : courtlistenerLegalSourceProvider,
       tnaLegalSourceProvider,
       govUkEmploymentTribunalLegalSourceProvider,

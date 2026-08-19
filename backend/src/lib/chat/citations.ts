@@ -13,14 +13,6 @@ import {
   type CitationPresentation,
 } from "./citationPresentation";
 
-/** URLs of built citations, for suppressing duplicate pinpoint links. */
-export function citationUrls(citations: unknown[]): string[] {
-  return citations.flatMap((citation) => {
-    const url = (citation as { url?: unknown } | null)?.url;
-    return typeof url === "string" ? [url] : [];
-  });
-}
-
 function receiptLocator(
   entry: RegisteredEvidence,
   presentation: CitationPresentation,
@@ -116,7 +108,6 @@ export function createLegalEvidenceCitations(
           type: "citation_data" as const,
           kind: "document" as const,
           ref,
-          doc_id: receipt.stable_source_id,
           document_id: receipt.stable_source_id,
           version_id: receipt.version,
           filename: receipt.name ?? receipt.citation,
@@ -135,6 +126,27 @@ export function createLegalEvidenceCitations(
           ref,
           provider: "journal" as const,
           identifier,
+          title: receipt.name,
+          citation: receipt.citation,
+          url: presentation.passageUrl,
+          external_url: presentation.sourceUrl,
+          source_class: receipt.source_class,
+          quotes,
+          ...display,
+          ...locator,
+        }];
+      }
+      const publicProvider = receipt.provider === "benchmark"
+        ? (["tna", "govuk-et", "govinfo"] as const).find((provider) =>
+            receipt.stable_source_id.startsWith(`${provider}:`))
+        : undefined;
+      if (publicProvider) {
+        return [{
+          type: "citation_data" as const,
+          kind: "public_legal" as const,
+          ref,
+          provider: publicProvider,
+          identifier: receipt.stable_source_id.slice(publicProvider.length + 1),
           title: receipt.name,
           citation: receipt.citation,
           url: presentation.passageUrl,

@@ -50,16 +50,7 @@ export const SETTINGS_MODELS: ModelOption[] = [
         group: "Meta",
     },
 ];
-const configuredDefaultModel = process.env.NEXT_PUBLIC_DEFAULT_MODEL;
-const configuredDynamicModel =
-    configuredDefaultModel &&
-    /^(claude-p|codex|ollama):.+/u.test(configuredDefaultModel)
-        ? configuredDefaultModel
-        : null;
-export const DEFAULT_MODEL_ID =
-    configuredDynamicModel ??
-    MODELS.find((model) => model.id === configuredDefaultModel)?.id ??
-    "codex:gpt-5.6-terra";
+export const DEFAULT_MODEL_ID = "codex:gpt-5.6-terra";
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 const DESKTOP_MODELS: ModelOption[] = [
     { id: "ollama:qwen3.5:2b-q4_K_M", label: "Qwen 3.5 2B (Q4_K_M)", group: "Desktop" },
@@ -70,11 +61,13 @@ const catalogListeners = new Set<() => void>();
 let catalogRefresh: Promise<ModelCatalog> | null = null;
 function subscribeModelCatalog(listener: () => void) {
     catalogListeners.add(listener);
+    return () => catalogListeners.delete(listener);
+}
+function refreshModelCatalog() {
     catalogRefresh ??= preloadModelCatalog().finally(() => {
         catalogRefresh = null;
         catalogListeners.forEach((notify) => notify());
     });
-    return () => catalogListeners.delete(listener);
 }
 function useModelCatalog(): ModelCatalog | null {
     return useSyncExternalStore(
@@ -191,6 +184,7 @@ export function ModelToggle({
             className={className}
             detail={detail}
             onDetailClick={onDetailClick}
+            onOpen={refreshModelCatalog}
         />
     );
 }
@@ -221,6 +215,13 @@ function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
             ]
           : (selectedModel?.supportedReasoningLevels ?? []);
 }
+function defaultCodexReasoning(model: string) {
+    return model.endsWith("gpt-5.6-sol")
+        ? "low"
+        : model.endsWith("gpt-5.3-codex-spark")
+          ? "high"
+          : "medium";
+}
 function selectedReasoningEffort(
     model: string,
     value: string | undefined,
@@ -235,9 +236,14 @@ function selectedReasoningEffort(
     );
     const isMuseSpark = model.includes("muse-spark-");
     return (
-        value && efforts.some((level) => level.effort === value)
+        value && (
+            efforts.some((level) => level.effort === value) ||
+            (!catalog && model.startsWith("codex:"))
+        )
             ? value
-            : (model.startsWith("deepseek-")
+            : (model.startsWith("codex:") && !catalog
+            ? defaultCodexReasoning(model)
+            : model.startsWith("deepseek-")
             ? "high"
             : selectedDesktopModel?.supportsThinking
               ? "off"
@@ -310,7 +316,10 @@ export function ModelEffortToggle({
                 apiKeys={apiKeys}
                 className="chat-input-model-toggle"
                 detail={selectedEffort ?? "Automatic"}
-                onDetailClick={() => setEffortModel(model)}
+                onDetailClick={() => {
+                    refreshModelCatalog();
+                    setEffortModel(model);
+                }}
             />
             <SearchableChoiceModal
                 open={effortModel !== null}

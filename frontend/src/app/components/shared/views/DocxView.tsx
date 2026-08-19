@@ -4,7 +4,7 @@ import {
     renderDocument,
     type Options as DocxPreviewOptions,
 } from "docx-preview";
-import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import { useDocumentFile } from "@/app/hooks/useDocumentFile";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
@@ -175,11 +175,13 @@ export function DocxView({
         quotes,
     }));
     const quoteKey = (quotes ?? []).map((q) => q.quote).join("||");
-    const { bytes, loading, error } = useFetchDocxBytes(
+    const { result, loading, error } = useDocumentFile(
         documentId,
         versionId,
         refetchKey,
+        true,
     );
+    const bytes = result?.buffer ?? null;
     const applyQuoteHighlights = (
         containerEl: HTMLElement,
         scrollEl: HTMLElement,
@@ -278,6 +280,7 @@ export function DocxView({
                             pendingQuotes,
                         )
                     ) {
+                        // The quote helper applied the requested scroll position.
                     } else if (typeof pendingInitialScroll === "number") {
                         scrollRef.current.scrollTop = pendingInitialScroll;
                     } else {

@@ -5,6 +5,7 @@ import {
 } from "@/app/components/ui/native-action-select";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 interface Props {
+    label?: string;
     onDelete?: () => void;
     onHide?: () => void;
     onUnhide?: () => void;
@@ -21,6 +22,7 @@ interface Props {
     deleteLabel?: string;
 }
 export function RowActions({
+    label = "More actions",
     onDelete,
     onHide,
     onUnhide,
@@ -55,7 +57,7 @@ export function RowActions({
     add(deleteLabel, onDelete, deleting || deleteDisabled);
     return (
         <NativeActionSelect
-            label="More actions"
+            label={label}
             items={items}
             triggerClassName={`h-6 w-6 items-center justify-center rounded text-gray-700 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`}
         >

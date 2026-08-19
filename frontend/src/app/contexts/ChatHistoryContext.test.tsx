@@ -6,8 +6,8 @@ import {
     useChatHistoryContext,
 } from "./ChatHistoryContext";
 
-vi.mock("next/navigation", () => ({
-    usePathname: () => "/assistant",
+vi.mock("react-router-dom", () => ({
+    useLocation: () => ({ pathname: "/assistant" }),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ user: null }),

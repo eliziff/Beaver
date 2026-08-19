@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
     saveChat: vi.fn().mockResolvedValue("chat-1"),
     stagePendingChatMessage: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({
-    useRouter: () => ({ push: mocks.push }),
+vi.mock("react-router-dom", () => ({
+    useNavigate: () => mocks.push,
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({

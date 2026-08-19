@@ -3,6 +3,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
     test: {
         environment: "node",
+        env: {
+            AUTH_MODE: "cloud",
+            MIKE_PDF_LAYOUT_PROVIDER: "none",
+            MIKE_PDF_OCR_PROVIDER: "none",
+        },
         include: ["src/**/*.test.ts"],
         exclude: ["dist/**", "node_modules/**"],
         maxWorkers: 4,

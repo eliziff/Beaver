@@ -258,10 +258,14 @@ describe("remote legal-source providers", () => {
       .mockResolvedValueOnce(
         response({
           results: [
-            ...searchResponse.results.slice(0, 1),
             {
               collectionCode: "USCOURTS",
-              packageId: "USCOURTS-nyed-1_22-cv-00930",
+              packageId: "USCOURTS-cod-1_22-cv-00931",
+              title: "First matching court",
+            },
+            {
+              collectionCode: "USCOURTS",
+              packageId: "USCOURTS-nyed-1_22-cv-00931",
               title: "Same docket in another court",
             },
           ],
@@ -286,7 +290,7 @@ describe("remote legal-source providers", () => {
     ]);
     expect(document.structure.ranges.page.count).toBe(0);
     await expect(govinfo.resolve!({
-      text: "United States case 1:22-cv-00930",
+      text: "United States case 1:22-cv-00931",
       kind: "case",
     })).resolves.toEqual([]);
   });

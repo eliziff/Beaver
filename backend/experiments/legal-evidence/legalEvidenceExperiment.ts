@@ -1,18 +1,17 @@
 import crypto from "node:crypto";
 
 import {
-  getA2AJDocumentSourceDoc,
-  getA2AJLookupDocument,
+  a2ajLegalSourceProvider,
   type A2AJDocument,
   type A2AJLocatorLookup,
-} from "../../src/lib/a2aj";
+} from "../../src/lib/legalSources/a2aj";
 import {
   buildA2AJParagraphRangeUrl,
   buildA2AJPinpointUrl,
-  buildLegalSourceMultiPassageUrl,
-  formatLegalLocator,
+  buildLegalSourcePinpointUrl,
   hasCanadianDecisionLink,
   legalSourceQuoteCandidates,
+  type QuoteSource,
 } from "../../src/lib/legalSourceLinks";
 import { hasCitationInText } from "../../src/lib/citationKey";
 import {
@@ -52,6 +51,44 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "lint_gated",
   "arbitrary_source_spans",
 ] as const;
+
+function formatLegalLocator(kind: string, label: string) {
+  const value = label
+    .trim()
+    .replace(/^(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/iu, "")
+    .replace(/\s*[-\u2013\u2014]\s*/gu, "\u2013")
+    .replace(/\u2013(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/giu, "\u2013");
+  const range = value.includes("\u2013");
+  if (kind === "paragraph") return `${range ? "paras." : "para."} ${value}`;
+  if (kind === "page") return `${range ? "pp." : "p."} ${value}`;
+  if (kind === "footnote") return `${range ? "nn." : "n."} ${value}`;
+  return label;
+}
+
+function buildLegalSourceMultiPassageUrl(
+  url: string,
+  passages: Array<{
+    blockText: QuoteSource;
+    documentText?: QuoteSource;
+    quotes: string[];
+  }>,
+) {
+  const directives: string[] = [];
+  let base = url;
+  for (const passage of passages) {
+    if (!passage.quotes.length) continue;
+    const target = buildLegalSourcePinpointUrl({
+      url,
+      blockText: passage.blockText,
+      documentText: passage.documentText,
+    }, passage.quotes);
+    const marker = target?.indexOf(":~:") ?? -1;
+    if (!target || marker < 0) return null;
+    base = target.slice(0, marker);
+    directives.push(target.slice(marker + 3));
+  }
+  return directives.length ? `${base}:~:${directives.join("&")}` : url;
+}
 
 /**
  * Stage 7 frozen operating points (Frozen Hypothesis 7). Computed by
@@ -306,7 +343,7 @@ export function createA2AJDocumentEvidence(
   document: A2AJDocument,
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt {
-  const sourceText = getA2AJDocumentSourceDoc(document).text;
+  const sourceText = a2ajLegalSourceProvider.source(document).text;
   return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
@@ -334,7 +371,7 @@ export function createA2AJLookupEvidence(
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt | null {
   if (lookup.status !== "found" || !lookup.block) return null;
-  const sourceText = getA2AJLookupDocument(lookup)?.text ?? lookup.block.text;
+  const sourceText = a2ajLegalSourceProvider.source(lookup)?.text ?? lookup.block.text;
   const spanText = lookup.block.text;
   return withEvidenceId({
     provider: "a2aj",
@@ -2255,9 +2292,9 @@ export function renderLegalEvidenceAnswer(
     const passages = entries.flatMap((entry) => {
       const text = entry.receipt.span_text;
       const document = entry.document
-        ? getA2AJDocumentSourceDoc(entry.document)
+        ? a2ajLegalSourceProvider.source(entry.document)
         : entry.lookup
-          ? getA2AJLookupDocument(entry.lookup)
+          ? a2ajLegalSourceProvider.source(entry.lookup)
           : null;
       return text && document
         ? [{

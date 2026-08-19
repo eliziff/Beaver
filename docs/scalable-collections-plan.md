@@ -152,12 +152,14 @@ schema is not evidence that the query uses it.
 
 ### Local SQLite
 
-Keep local projects in `legal-knowledge.sqlite` and tabular reviews in
-`tabular.sqlite`; add page methods and matching `(scope, created_at, id)`
-indexes to their existing stores. Local custom workflows return an empty page;
-the fixed system catalogue remains fully available.
+The implemented local runtime uses one `application.sqlite` database behind
+the same application contracts as Postgres. It stores projects, tabular
+reviews, chats, custom workflows, hidden-workflow state, and Library metadata.
+Custom workflow create/edit/list/hide/delete and assistant use are available in
+account-free mode; sharing and open-source submission are cloud extensions.
+Matching scope/order indexes support keyset pages in both adapters.
 
-Store local Library metadata in `library.sqlite` tables for:
+The application database stores Library metadata for:
 
 - documents, versions, and their versioned file metadata;
 - Library folders;
@@ -165,11 +167,9 @@ Store local Library metadata in `library.sqlite` tables for:
 
 The document bytes and parse artifacts stay at their existing paths. Enable
 foreign keys, WAL, and a busy timeout. Index owner/kind/folder/order, document
-version lookup, and folder ancestry. Keep project/document membership in the
-legal-knowledge store; its page query attaches `library.sqlite` and performs a
-read-only join from the association to current document metadata. This
-preserves module ownership without copying document rows into a second
-database.
+version lookup, and folder ancestry. Project/document membership uses direct
+foreign keys in the same database; there is no attached-database join or
+duplicated document row.
 
 Create a normal FTS5 trigram table for version filenames and synchronize it
 with insert/update/delete triggers in the same transaction as version metadata.

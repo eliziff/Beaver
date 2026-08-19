@@ -1,453 +1,143 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  authPatch,
+  connectorSummary,
+  credentialFingerprint,
+  readAuth,
+  validateHeaders,
+} from "../mcp/client";
+import type { ConnectorRow, Db, OAuthTokenRow } from "../mcp/types";
 
-const mocks = vi.hoisted(() => ({
-  authConfigPatch: vi.fn(),
-  decryptAuthConfig: vi.fn(),
-  loadConnector: vi.fn(),
-  validateCustomHeaders: vi.fn(),
-  validateRemoteMcpUrl: vi.fn(),
-}));
-
-vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
-  Client: class {},
-}));
-vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
-  StreamableHTTPClientTransport: class {},
-}));
+const remote = vi.hoisted(() => ({ withRemoteMcp: vi.fn() }));
 vi.mock("../mcp/oauth", () => ({
   completeMcpConnectorOAuthAuthorization: vi.fn(),
-  deleteOAuthToken: async (connectorId: string, resource: string, db: Db) => {
-    const { error } = await db
-      .from("user_mcp_oauth_tokens")
-      .delete()
-      .eq("connector_id", connectorId)
-      .eq("resource", resource);
-    if (error) throw error;
-  },
-  DbMcpOAuthProvider: class {},
-  guardedOAuthFetch: vi.fn(),
+  deleteOAuthToken: vi.fn(),
   loadOAuthToken: vi.fn(),
-  loadOAuthTokens: vi.fn(async () => new Map()),
-  McpOAuthRequiredError: class extends Error {},
+  loadOAuthTokens: vi.fn(),
   startUserMcpConnectorOAuth: vi.fn(),
-}));
-vi.mock("../mcp/client", () => ({
-  authConfigPatch: mocks.authConfigPatch,
-  boundMcpResponse: vi.fn(),
-  decryptAuthConfig: mocks.decryptAuthConfig,
-  guardedFetch: vi.fn(),
-  headersForAuth: vi.fn(() => ({})),
-  loadConnector: mocks.loadConnector,
-  normalizeJsonSchema: vi.fn(),
-  openaiToolName: vi.fn(),
-  toConnectorSummary: (connector: Record<string, unknown>) => ({
-    id: connector.id,
-    serverUrl: connector.server_url,
-  }),
-  toolRequiresConfirmation: vi.fn(),
-  validateCustomHeaders: mocks.validateCustomHeaders,
-  validateRemoteMcpUrl: mocks.validateRemoteMcpUrl,
-}));
-vi.mock("../supabase", () => ({
-  createServerSupabase: vi.fn(),
+  withRemoteMcp: remote.withRemoteMcp,
 }));
 
-import { buildUserMcpTools, updateUserMcpConnector } from "../mcp/servers";
-import type { ConnectorRow, Db } from "../mcp/types";
+import { buildUserMcpTools, executeMcpToolCall } from "../mcp/servers";
 
-type Operation = {
-  table: string;
-  action: "update" | "delete";
-  value?: Record<string, unknown>;
-};
-
-function connector(serverUrl = "https://mcp.example/old"): ConnectorRow {
-  return {
-    id: "connector-1",
-    user_id: "user-1",
-    name: "MCP",
-    transport: "streamable_http",
-    server_url: serverUrl,
-    auth_type: "oauth",
-    enabled: true,
-    tool_policy: { existing: "keep" },
-    encrypted_auth_config: "old-encrypted-auth",
-    auth_config_iv: "old-iv",
-    auth_config_tag: "old-tag",
-    created_at: "2026-07-27T00:00:00.000Z",
-    updated_at: "2026-07-27T00:00:00.000Z",
-  };
-}
-
-function fakeDb(initial: ConnectorRow, failConnectorUpdate = false) {
-  let current = { ...initial };
-  let tools: Record<string, unknown>[] = [{ connector_id: initial.id }];
-  let oauth: Record<string, unknown>[] = [{ connector_id: initial.id }];
-  const operations: Operation[] = [];
-  const filters: Array<{ table: string; column: string; value: unknown }> = [];
-
-  const result = (
-    table: string,
-    action: "select" | "update" | "delete",
-    value?: Record<string, unknown>,
-  ) => {
-    if (action === "update" && table === "user_mcp_connectors") {
-      current = { ...current, ...value };
-    } else if (action === "delete" && table === "user_mcp_connector_tools") {
-      tools = [];
-    } else if (action === "delete" && table === "user_mcp_oauth_tokens") {
-      oauth = [];
-    }
-    const data =
-      table === "user_mcp_connectors"
-        ? [current]
-        : table === "user_mcp_connector_tools"
-          ? tools
-          : oauth;
-    return { data, error: null };
-  };
-
-  const db = {
-    from(table: string) {
-      let action: "select" | "update" | "delete" = "select";
-      let value: Record<string, unknown> | undefined;
-      const query: Record<string, any> = {
-        select: () => query,
-        eq: (column: string, filterValue: unknown) => {
-          filters.push({ table, column, value: filterValue });
-          return query;
-        },
-        in: () => query,
-        order: () => query,
-        update: (next: Record<string, unknown>) => {
-          action = "update";
-          value = next;
-          operations.push({ table, action, value: next });
-          return query;
-        },
-        delete: () => {
-          action = "delete";
-          operations.push({ table, action });
-          return query;
-        },
-        single: async () => {
-          if (
-            failConnectorUpdate &&
-            table === "user_mcp_connectors" &&
-            action === "update"
-          ) {
-            return {
-              data: null,
-              error: new Error("connector update failed"),
-            };
-          }
-          const queryResult = result(table, action, value);
-          return {
-            data: Array.isArray(queryResult.data)
-              ? queryResult.data[0]
-              : queryResult.data,
-            error: queryResult.error,
-          };
-        },
-        maybeSingle: async () => {
-          if (
-            failConnectorUpdate &&
-            table === "user_mcp_connectors" &&
-            action === "update"
-          ) {
-            return { data: null, error: null };
-          }
-          const queryResult = result(table, action, value);
-          return {
-            data: Array.isArray(queryResult.data)
-              ? queryResult.data[0]
-              : queryResult.data,
-            error: queryResult.error,
-          };
-        },
-        then: (
-          resolve: (value: {
-            data: Record<string, unknown>[];
-            error: null;
-          }) => unknown,
-          reject?: (reason: unknown) => unknown,
-        ) =>
-          Promise.resolve(result(table, action, value)).then(resolve, reject),
-      };
-      return query;
-    },
-  } as unknown as Db;
-  return { db, operations, filters, current: () => current };
-}
-
-beforeEach(() => {
-  mocks.authConfigPatch.mockReset();
-  mocks.decryptAuthConfig.mockReset();
-  mocks.loadConnector.mockReset();
-  mocks.validateCustomHeaders.mockReset();
-  mocks.validateRemoteMcpUrl.mockReset();
-  mocks.authConfigPatch.mockImplementation(
-    (config: { bearerToken?: string; headers?: Record<string, string> }) => {
-      const populated =
-        !!config.bearerToken || Object.keys(config.headers ?? {}).length > 0;
-      return populated
-        ? {
-            encrypted_auth_config: JSON.stringify(config),
-            auth_config_iv: "new-iv",
-            auth_config_tag: "new-tag",
-          }
-        : {
-            encrypted_auth_config: null,
-            auth_config_iv: null,
-            auth_config_tag: null,
-          };
-    },
-  );
-  mocks.decryptAuthConfig.mockReturnValue({
-    bearerToken: "old-bearer",
-    headers: { "X-Old": "old-secret" },
-  });
-  mocks.validateCustomHeaders.mockImplementation(
-    (headers: Record<string, unknown> | undefined) => {
-      const result: Record<string, string> = {};
-      for (const [key, value] of Object.entries(headers ?? {})) {
-        if (typeof value !== "string") throw new Error("invalid custom header");
-        result[key] = value;
-      }
-      return result;
-    },
-  );
-  mocks.validateRemoteMcpUrl.mockImplementation(async (url: string) =>
-    new URL(url).toString(),
-  );
+const connector = (patch: Partial<ConnectorRow> = {}): ConnectorRow => ({
+  id: "connector-1",
+  user_id: "user-1",
+  name: "Research",
+  transport: "streamable_http",
+  server_url: "https://mcp.example/api",
+  auth_type: "oauth",
+  enabled: true,
+  tool_policy: {},
+  encrypted_auth_config: null,
+  auth_config_iv: null,
+  auth_config_tag: null,
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  ...patch,
 });
 
-describe("MCP connector endpoint boundary", () => {
-  it("clears tools, OAuth, and auth on a same-origin path change", async () => {
-    const original = connector();
-    const { db, operations, filters } = fakeDb(original);
-    mocks.loadConnector.mockResolvedValue(original);
+afterEach(() => {
+  delete process.env.MCP_CONNECTORS_ENCRYPTION_SECRET;
+  vi.clearAllMocks();
+});
 
-    await updateUserMcpConnector(
-      "user-1",
-      original.id,
-      { serverUrl: "https://mcp.example/new" },
-      db,
-    );
-
-    expect(operations.map(({ table, action }) => `${table}:${action}`)).toEqual(
-      [
-        "user_mcp_connector_tools:delete",
-        "user_mcp_connectors:update",
-        "user_mcp_oauth_tokens:delete",
-      ],
-    );
-    expect(operations[1].value).toMatchObject({
-      server_url: "https://mcp.example/new",
-      auth_type: "none",
-      encrypted_auth_config: null,
-      tool_policy: {
-        existing: "keep",
-        __mike_endpoint_revision: expect.any(String),
-        __mike_credential_epoch: expect.any(String),
-      },
+describe("MCP connector security boundary", () => {
+  it("encrypts connector credentials and never binds them to display metadata", () => {
+    process.env.MCP_CONNECTORS_ENCRYPTION_SECRET = "test-secret-with-enough-entropy";
+    const encrypted = authPatch({
+      bearerToken: "secret-token",
+      headers: { "X-Tenant": "tenant-a" },
     });
-    expect(JSON.stringify(operations)).not.toContain("old-secret");
-    expect(JSON.stringify(operations)).not.toContain("old-bearer");
-    expect(filters).toContainEqual({
-      table: "user_mcp_oauth_tokens",
-      column: "resource",
-      value: original.server_url,
+    const row = connector(encrypted);
+    expect(JSON.stringify(encrypted)).not.toContain("secret-token");
+    expect(readAuth(row)).toEqual({
+      bearerToken: "secret-token",
+      headers: { "X-Tenant": "tenant-a" },
     });
+    expect(credentialFingerprint({ ...row, name: "Renamed", enabled: false }))
+      .toBe(credentialFingerprint(row));
+    expect(credentialFingerprint({ ...row, server_url: "https://mcp.example/v2" }))
+      .not.toBe(credentialFingerprint(row));
   });
 
-  it("applies only credentials explicitly supplied for the new endpoint", async () => {
-    const original = connector();
-    const { db, operations } = fakeDb(original);
-    mocks.loadConnector.mockResolvedValue(original);
+  it("rejects host injection and unbounded custom headers", () => {
+    expect(() => validateHeaders({ Host: "internal" })).toThrow("Invalid custom header");
+    expect(() => validateHeaders({ "Bad Header": "value" })).toThrow("Invalid custom header");
+    expect(() => validateHeaders({ "X-Large": "x".repeat(4097) })).toThrow("4096");
+    expect(() => validateHeaders(Object.fromEntries(
+      Array.from({ length: 21 }, (_, index) => [`X-${index}`, "x"]),
+    ))).toThrow("20 entries");
+  });
 
-    await updateUserMcpConnector(
-      "user-1",
-      original.id,
+  it("reports OAuth only for a token bound to the exact resource", () => {
+    const token = {
+      connector_id: "connector-1",
+      encrypted_access_token: "ciphertext",
+      resource: "https://mcp.example/other",
+    } as OAuthTokenRow;
+    expect(connectorSummary(connector(), [], token).oauthConnected).toBe(false);
+    expect(connectorSummary(connector(), [], {
+      ...token, resource: "https://mcp.example/api",
+    }).oauthConnected).toBe(true);
+  });
+
+  it("uses the SDK tool schema as the only model-visible schema gate", async () => {
+    const rows = [
       {
-        serverUrl: "https://other.example/mcp",
-        bearerToken: "new-bearer",
-        headers: { "X-New": "new-secret" },
+        openai_tool_name: "mcp_research_find_connector1",
+        tool_name: "find",
+        description: "Find cases",
+        input_schema: { type: "object", properties: { query: { type: "string" } } },
+        user_mcp_connectors: { name: "Research" },
       },
-      db,
-    );
-
-    expect(
-      operations.find(
-        ({ table, action }) =>
-          table === "user_mcp_connectors" && action === "update",
-      )?.value,
-    ).toMatchObject({
-      server_url: "https://other.example/mcp",
-      auth_type: "bearer",
-      encrypted_auth_config: JSON.stringify({
-        bearerToken: "new-bearer",
-        headers: { "X-New": "new-secret" },
-      }),
-    });
-  });
-
-  it("validates replacement credentials before mutating durable state", async () => {
-    const original = connector();
-    const { db, operations, current } = fakeDb(original);
-    mocks.loadConnector.mockResolvedValue(original);
-
-    await expect(
-      updateUserMcpConnector(
-        "user-1",
-        original.id,
-        {
-          serverUrl: "https://other.example/mcp",
-          headers: { "X-Bad": 42 },
-        },
-        db,
-      ),
-    ).rejects.toThrow("invalid custom header");
-
-    expect(operations).toEqual([]);
-    expect(current()).toEqual(original);
-  });
-
-  it("keeps old credentials and OAuth if the endpoint update fails", async () => {
-    const original = connector();
-    const { db, operations, filters, current } = fakeDb(original, true);
-    mocks.loadConnector.mockResolvedValue(original);
-
-    await expect(
-      updateUserMcpConnector(
-        "user-1",
-        original.id,
-        { serverUrl: "https://other.example/mcp" },
-        db,
-      ),
-    ).rejects.toThrow("connector changed");
-
-    expect(operations.map(({ table, action }) => `${table}:${action}`)).toEqual(
-      ["user_mcp_connector_tools:delete", "user_mcp_connectors:update"],
-    );
-    expect(filters).toEqual(
-      expect.arrayContaining([
-        {
-          table: "user_mcp_connectors",
-          column: "server_url",
-          value: original.server_url,
-        },
-        {
-          table: "user_mcp_connectors",
-          column: "updated_at",
-          value: original.updated_at,
-        },
-      ]),
-    );
-    expect(current()).toEqual(original);
-  });
-
-  it("cannot attach stale credentials after a concurrent endpoint swap", async () => {
-    const original = connector();
-    const { db, operations, current } = fakeDb(original, true);
-    mocks.loadConnector.mockResolvedValue(original);
-
-    await expect(
-      updateUserMcpConnector(
-        "user-1",
-        original.id,
-        { headers: { "X-New": "replacement" } },
-        db,
-      ),
-    ).rejects.toThrow("connector changed");
-
-    expect(operations).toHaveLength(1);
-    expect(operations[0]).toMatchObject({
-      table: "user_mcp_connectors",
-      action: "update",
-    });
-    expect(current()).toEqual(original);
-  });
-
-  it("invalidates OAuth when same-endpoint connector credentials change", async () => {
-    const original = connector();
-    const { db, operations } = fakeDb(original);
-    mocks.loadConnector.mockResolvedValue(original);
-
-    await updateUserMcpConnector(
-      "user-1",
-      original.id,
-      { headers: { "X-New": "replacement" } },
-      db,
-    );
-
-    expect(operations.map(({ table, action }) => `${table}:${action}`)).toEqual([
-      "user_mcp_connectors:update",
-      "user_mcp_oauth_tokens:delete",
-    ]);
-    expect(operations[0].value?.tool_policy).toMatchObject({
-      __mike_credential_epoch: expect.any(String),
-    });
-  });
-
-  it("does not clear state when the normalized endpoint is unchanged", async () => {
-    const original = connector();
-    const { db, operations } = fakeDb(original);
-    mocks.loadConnector.mockResolvedValue(original);
-
-    await updateUserMcpConnector(
-      "user-1",
-      original.id,
       {
-        name: "Renamed",
-        serverUrl: "https://mcp.example/old",
+        openai_tool_name: "mcp_invalid_connector1",
+        tool_name: "invalid",
+        description: "Invalid",
+        input_schema: { type: "string" },
+        user_mcp_connectors: { name: "Research" },
       },
-      db,
-    );
-
-    expect(operations).toHaveLength(1);
-    expect(operations[0]).toMatchObject({
-      table: "user_mcp_connectors",
-      action: "update",
-      value: {
-        name: "Renamed",
-        server_url: "https://mcp.example/old",
-      },
-    });
+    ];
+    const query: Record<string, unknown> = {
+      select: () => query, eq: () => query,
+      then: (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    const tools = await buildUserMcpTools("user-1", { from: () => query } as unknown as Db);
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({ name: "mcp_research_find_connector1" });
+    expect(tools[0].description).toContain("untrusted data");
   });
 
-  it("does not expose a tool cached by an older connector revision", async () => {
-    const staleTool = {
-      openai_tool_name: "mcp_stale",
-      tool_name: "stale",
-      title: "Stale",
-      description: "Old endpoint schema",
-      input_schema: { type: "object" },
-      annotations: { __mike_endpoint_revision: "old-revision" },
-      requires_confirmation: false,
-      enabled: true,
-      user_mcp_connectors: {
-        id: "connector-1",
-        user_id: "user-1",
-        name: "MCP",
-        enabled: true,
-        tool_policy: { __mike_endpoint_revision: "new-revision" },
+  it("never exposes provider error details to the model or audit log", async () => {
+    const resolved = {
+      id: "tool-1",
+      connector_id: "connector-1",
+      tool_name: "find",
+      openai_tool_name: "mcp_research_find_connector1",
+      user_mcp_connectors: connector(),
+    };
+    const auditRows: Record<string, unknown>[] = [];
+    const db = {
+      from(table: string) {
+        if (table === "user_mcp_tool_audit_logs") return {
+          insert: async (row: Record<string, unknown>) => {
+            auditRows.push(row); return { error: null };
+          },
+        };
+        const query: Record<string, unknown> = {
+          select: () => query, eq: () => query,
+          maybeSingle: async () => ({ data: resolved, error: null }),
+        };
+        return query;
       },
-    };
-    const query: Record<string, any> = {
-      select: () => query,
-      eq: () => query,
-      then: (
-        resolve: (value: { data: unknown[]; error: null }) => unknown,
-        reject?: (reason: unknown) => unknown,
-      ) =>
-        Promise.resolve({ data: [staleTool], error: null }).then(
-          resolve,
-          reject,
-        ),
-    };
-    const db = { from: () => query } as unknown as Db;
-
-    await expect(buildUserMcpTools("user-1", db)).resolves.toEqual([]);
+    } as unknown as Db;
+    remote.withRemoteMcp.mockRejectedValue(new Error("secret upstream token"));
+    const result = await executeMcpToolCall(
+      "user-1", "mcp_research_find_connector1", {}, db,
+    );
+    expect(result.content).toContain("External MCP tool call failed");
+    expect(JSON.stringify({ result, auditRows })).not.toContain("secret upstream token");
   });
 });

@@ -1,20 +1,10 @@
 export interface Folder {
   id: string;
-  project_id: string;
-  user_id: string;
   name: string;
   parent_folder_id: string | null;
-  created_at: string;
-  updated_at: string;
 }
-export interface LibraryFolder extends Omit<Folder, "project_id"> {
+export interface LibraryFolder extends Folder {
   library_kind: "file" | "template";
-}
-interface WorkMetadata {
-  jurisdiction: string | null;
-  areas_of_law: string[];
-  document_types: string[];
-  description: string | null;
 }
 export interface Project {
   id: string;
@@ -25,16 +15,10 @@ export interface Project {
   name: string;
   cm_number: string | null;
   practice: string | null;
-  metadata?: WorkMetadata;
-  notes?: string | null;
   shared_with: string[];
   created_at: string;
-  updated_at: string;
   documents?: Document[];
   folders?: Folder[];
-  document_count?: number;
-  chat_count?: number;
-  review_count?: number;
 }
 export interface Document {
   id: string;
@@ -42,46 +26,26 @@ export interface Document {
   project_id: string | null;
   folder_id?: string | null;
   library_kind?: "file" | "template";
-  library_folder_id?: string | null;
   filename: string;
   owner_email?: string | null;
   owner_display_name?: string | null;
   file_type: string | null; // pdf | docx | doc | xlsx | xlsm | xls | pptx | ppt
-  storage_path: string | null;
   pdf_storage_path: string | null;
   size_bytes: number | null;
   page_count: number | null;
-  structure_tree: unknown[] | null;
-  status: "pending" | "processing" | "ready" | "error";
-  /**
-   * Structural PDF parse lifecycle, denormalized from the durable parse
-   * job (local lane). null / absent = no parse lane (non-PDF versions,
-   * cloud lane). The original PDF remains authoritative and the compact
-   * structural source can be rebuilt from it.
-   */
-  parse_state?: {
-    status: "queued" | "parsing" | "ready" | "degraded" | "failed";
-    error: string | null;
-    attempts: number;
-    queued_at: string;
-    updated_at: string;
-    completed_at: string | null;
-    engine_status: string | null;
-    page_count: number | null;
-    diagnostic_count: number | null;
-    structural_repair_available: boolean;
-  } | null;
+    parse_state?: {
+      status: "queued" | "parsing" | "ready" | "degraded" | "failed";
+      diagnostic_count?: number;
+      error?: string;
+    } | null;
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
   active_version_number?: number | null;
-  metadata?: WorkMetadata;
-  notes?: string | null;
 }
 export interface Chat {
   id: string;
   project_id: string | null;
-  tabular_review_id: string | null;
   user_id: string;
   transcript_version?: number;
   turn_in_progress?: boolean;
@@ -91,13 +55,10 @@ export interface Chat {
   deleted_at?: string | null;
 }
 export interface EditAnnotation {
-  type?: "edit_data";
-  kind?: "edit";
   edit_id: string;
   document_id: string;
   version_id: string;
   version_number?: number | null;
-  change_id: string;
   del_w_id?: string;
   ins_w_id?: string;
   deleted_text: string;
@@ -222,7 +183,6 @@ export type CaseOpinionsEvent = {
       author: string | null;
       url: string | null;
       text?: string | null;
-      html?: string | null;
     }[];
   };
 };
@@ -275,7 +235,6 @@ export type DocumentCitation = CitationDisplay & {
   type: "citation_data";
   kind?: "document";
   ref: number;
-  doc_id: string;
   document_id: string;
   version_id?: string | null;
   version_number?: number | null;
@@ -349,12 +308,6 @@ function formatCellLocator(sheet?: string, cell?: string): string {
   if (sheet && cell) return `${sheet}!${cell}`;
   return cell ?? sheet ?? "";
 }
-function formatCellLocatorReadable(sheet?: string, cell?: string): string {
-  if (!cell) return sheet ?? "";
-  const cellWord = cell.includes(":") ? "cells" : "cell";
-  const cellPart = `${cellWord} ${cell}`;
-  return sheet ? `${sheet}, ${cellPart}` : cellPart;
-}
 function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[] {
   const rangeMatch =
     typeof entry.page === "string"
@@ -398,7 +351,7 @@ export function formatCitationPage(a: Citation): string {
   if (a.kind === "public_legal") {
     return a.title || a.identifier || "Public legal source";
   }
-  if (a.kind === "tabular") return `${a.col_name} Â· ${a.doc_name}`;
+  if (a.kind === "tabular") return `${a.col_name} · ${a.doc_name}`;
   const quotes = getDocumentCitationQuotes(a);
   if (isSpreadsheetFilename(a.filename)) {
     const cells = Array.from(
@@ -440,19 +393,18 @@ export function citationPinpoint(a: Citation): string {
     return `p. ${pages[0].replace(/\s*-\s*/gu, "\u2013")}`;
   return pages.length > 1 ? `pp. ${pages.join(", ")}` : "";
 }
-export function formatCitationQuotePage(
-  a: Citation,
-  page: number | string | undefined,  quote?: DocumentCitationQuote,
-): string {
-  if (a.kind === "public_legal") return "Source";
-  if (isDocumentCitation(a) && isSpreadsheetFilename(a.filename)) {
-    return formatCellLocatorReadable(quote?.sheet, quote?.cell);
-  }
-  return page == null ? "" : `Page ${page}`;}
-export function cleanCitationQuoteText(rawQuote: string): string {  return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
+function cleanCitationQuoteText(rawQuote: string): string {
+  return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
 }
-export function displayCitationQuote(a: Citation): string {  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {    return a.quotes      .map((q) => q.quote.replaceAll(PAGE_BREAK_SENTINEL, "..."))      .join(" / ");  }
-  return getDocumentCitationQuotes(a)    .map((q) => cleanCitationQuoteText(q.quote))    .filter(Boolean)
+export function displayCitationQuote(a: Citation): string {
+  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
+    return a.quotes
+      .map((q) => cleanCitationQuoteText(q.quote))
+      .join(" / ");
+  }
+  return getDocumentCitationQuotes(a)
+    .map((q) => cleanCitationQuoteText(q.quote))
+    .filter(Boolean)
     .join(" / ");
 }
 export type ColumnFormat =
@@ -478,20 +430,14 @@ export interface TabularReview {
   user_id: string;
   title: string | null;
   columns_config: ColumnConfig[] | null;
-  document_ids?: string[] | null;
-  workflow_id: string | null;
-  practice?: string | null;
   shared_with?: string[];
   is_owner?: boolean;
   created_at: string;
-  updated_at: string;
   document_count?: number;
-  column_count?: number;
   project_name?: string | null;
 }
 export interface TabularCell {
   id: string;
-  review_id: string;
   document_id: string;
   column_index: number;
   content: {
@@ -500,7 +446,6 @@ export interface TabularCell {
     reasoning?: string;
   } | null;
   status: "pending" | "generating" | "done" | "error";
-  created_at: string;
 }
 export interface Workflow {
   id: string;
@@ -523,7 +468,6 @@ export interface Workflow {
   skill_md: string | null;
   columns_config: ColumnConfig[] | null;
   is_system: boolean;
-  created_at: string;
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;

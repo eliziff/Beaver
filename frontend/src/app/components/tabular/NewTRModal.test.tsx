@@ -4,19 +4,21 @@ import type { Document, Project } from "../shared/types";
 import { NewTRModal } from "./NewTRModal";
 
 const mocks = vi.hoisted(() => ({
-    getProjectDirectory: vi.fn(),
+    listDirectory: vi.fn(),
+    uploadDocument: vi.fn(),
     getWorkflow: vi.fn(),
     listSystemWorkflows: vi.fn().mockResolvedValue([]),
     listWorkflows: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
     getWorkflow: mocks.getWorkflow,
-    getProjectDirectory: mocks.getProjectDirectory,
-    getLibrary: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    directoryResource: () => ({
+        list: mocks.listDirectory,
+        uploadDocument: mocks.uploadDocument,
+    }),
     listSystemWorkflows: mocks.listSystemWorkflows,
     listWorkflows: mocks.listWorkflows,
     listProjects: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
-    uploadProjectDocument: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
 
@@ -31,7 +33,7 @@ it("creates a project review with the selected project documents", async () => {
         name: "Matter",
         documents: [document],
     } as Project;
-    mocks.getProjectDirectory.mockResolvedValue({
+    mocks.listDirectory.mockResolvedValue({
         items: [{ kind: "document", document }], next_cursor: null,
     });
     const onAdd = vi.fn();
@@ -47,12 +49,10 @@ it("creates a project review with the selected project documents", async () => {
     fireEvent.change(screen.getByLabelText("Review name"), {
         target: { value: "Lease review" },
     });
-    fireEvent.click(
-        screen.getByRole("checkbox", { name: "Create under a project" }),
-    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Create under a project" }));
     fireEvent.click(screen.getByRole("option", { name: /Matter/ }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    await waitFor(() => expect(mocks.getProjectDirectory).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalled());
     await screen.findByText(document.filename);
     fireEvent.click(screen.getByRole("checkbox", {
         name: `Select ${document.filename}`,

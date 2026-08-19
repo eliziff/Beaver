@@ -1,7 +1,3 @@
-import { warmLocalA2AJSearch } from "../../a2ajLocalBulk";
-import { warmLocalHansardSearch } from "../../a2ajHansard";
-import { warmLocalCourtlistenerSearch } from "../../courtlistenerLocalBulk";
-import { warmJournalSearch } from "../../journalArticles";
 import {
   searchLegalSources,
 } from "../../legalSourceRegistry";
@@ -90,15 +86,6 @@ type CachedSearch = { expires: number; value: Record<string, unknown> };
 const searchCache = new Map<string, CachedSearch>();
 const SEARCH_CACHE_MS = 5 * 60_000;
 const MAX_SEARCH_CACHE = 128;
-
-export function warmSourceSearchIndexes() {
-  return {
-    a2aj: warmLocalA2AJSearch(),
-    courtlistener: warmLocalCourtlistenerSearch(),
-    hansard: warmLocalHansardSearch(),
-    journals: warmJournalSearch(),
-  };
-}
 
 const text = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";

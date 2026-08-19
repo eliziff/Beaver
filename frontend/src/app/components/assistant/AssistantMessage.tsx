@@ -270,7 +270,7 @@ export function AssistantMessage({
     return (
         <div style={{ minHeight }} className="w-full max-w-[46rem]">
             <div className="relative mt-2 w-full font-inter">
-                {(message.contextCompacted || message.activities.length || message.automations.length || dialogue.length || isStreaming) ? (
+                {(message.contextCompacted || message.activities.length || message.automations.length || dialogue.length || edits.length || isStreaming) ? (
                     <div className="flex flex-col gap-4">
                         {message.automations.map((run) => (
                             <AutomationRunButton key={automationRunKey(run)} run={run} onOpen={onAutomationClick ?? (() => undefined)} />

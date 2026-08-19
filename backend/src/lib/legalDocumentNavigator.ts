@@ -22,7 +22,7 @@
  *
  *   Pages are OUR OWN printed data. `[page N]` markers are emitted at a line
  *   start by the PDF and journals compilers (`legalPdfSourceDoc`,
- *   `DocumentProjectionService`, `journalArticles`); reading them back is parsing our
+ *   `DocumentProjectionService`, `legalSources/journal`); reading them back is parsing our
  *   own output, not detecting page structure in someone else's document.
  *   Nothing here infers, recovers or validates a page boundary.
  *
@@ -98,7 +98,7 @@ export function pageMapFromMarkers(text: string): PageMap {
 }
 
 /**
- * The authoritative map. `compileLegalPdfSourceDoc` already lays the engine's
+ * The authoritative map. The engine's `source_doc` contract lays its
  * page records onto the text plane and keeps both numbers — `anchor` carries
  * `page=<physical>` and `aliases` carries the printed label whenever the
  * engine's header/footer detection found one that differs. This reads that

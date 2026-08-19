@@ -1,10 +1,7 @@
-"use client";
-
 import { useDeferredValue, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { deleteWorkflow, hideWorkflow, listHiddenWorkflows, listSystemWorkflows, listWorkflows, unhideWorkflow } from "@/app/lib/beaverApi";
-import { isAnonymousMode } from "@/app/lib/authMode";
 import type { Workflow } from "../shared/types";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 import { UseWorkflowModal } from "./UseWorkflowModal";
@@ -49,8 +46,7 @@ const rank = (workflow: Workflow, hidden: Set<string>) =>
         : Number(workflow.is_owner === false);
 
 export function WorkflowList() {
-    const router = useRouter();
-    const mutationsEnabled = !isAnonymousMode;
+    const navigate = useNavigate();
     const [systemWorkflows, setSystemWorkflows] = useState<Workflow[] | null>(null);
     const [selected, setSelected] = useState<Workflow | null>(null);
     const [creating, setCreating] = useState(false);
@@ -86,7 +82,7 @@ export function WorkflowList() {
     const rows = [...(systemWorkflows ?? []), ...custom.items];
     const hidden = new Set(hiddenSystemIds);
     const canSelect = (workflow: Workflow) =>
-        mutationsEnabled && (workflow.is_system || workflow.is_owner !== false);
+        workflow.is_system || workflow.is_owner !== false;
     const visible = [...rows]
         .sort((a, b) => rank(a, hidden) - rank(b, hidden))
         .filter((workflow) => {
@@ -137,10 +133,10 @@ export function WorkflowList() {
                     type: "search", value: search, onChange: setSearch,
                     placeholder: "Search workflows\u2026",
                 },
-                mutationsEnabled ? {
+                {
                     type: "new", onClick: () => setCreating(true),
                     title: "New workflow",
-                } : null,
+                },
             ]}>
                 <h1 className="text-2xl font-medium font-serif text-gray-900">Workflows</h1>
             </PageHeader>
@@ -149,7 +145,7 @@ export function WorkflowList() {
                     setActiveTab(tab);
                     setSelectedIds([]);
                 }}
-                actions={mutationsEnabled ? (
+                actions={(
                     <span className="inline-flex h-8 w-28">
                         {selectedIds.length > 0 && (
                             <PillButton tone="white" size="sm"
@@ -160,11 +156,11 @@ export function WorkflowList() {
                             </PillButton>
                         )}
                     </span>
-                ) : undefined}
+                )}
             />
             <TableScrollArea header={
                 <TableSelectionHeader label="Name" loading={loading}
-                    selection={mutationsEnabled ? selection : undefined}
+                    selection={selection}
                     selectionLabel="Select loaded workflows"
                     widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}>
                     {COLUMNS.map(([label, className]) => (
@@ -174,7 +170,7 @@ export function WorkflowList() {
                 </TableSelectionHeader>
             }>
                 {loading ? (
-                    <TableLoadingRows selection={mutationsEnabled}
+                    <TableLoadingRows selection
                         primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                         columns={[
                             ...COLUMNS.map(([, className, lineClassName]) => ({ className, lineClassName })),
@@ -184,7 +180,7 @@ export function WorkflowList() {
                     <TableEmptyState>
                         <p className="text-sm text-gray-500">
                             {search ? "No matching workflows." : "No workflows yet."}</p>
-                        {!search && mutationsEnabled && (
+                        {!search && (
                             <PillButton tone="black" size="sm"
                                 onClick={() => setCreating(true)}
                                 className="mt-4 px-3"
@@ -200,12 +196,10 @@ export function WorkflowList() {
                             const isHidden = hidden.has(workflow.id);
                             const isSelected = selection.selected.has(workflow.id);
                             const selectable = canSelect(workflow);
-                            const canHide = mutationsEnabled && workflow.is_system;
-                            const canEdit = mutationsEnabled &&
-                                !workflow.is_system &&
+                            const canHide = workflow.is_system;
+                            const canEdit = !workflow.is_system &&
                                 workflow.allow_edit !== false;
-                            const canDelete = mutationsEnabled &&
-                                !workflow.is_system &&
+                            const canDelete = !workflow.is_system &&
                                 workflow.is_owner !== false;
                             return (
                                 <TableRow key={workflow.id}
@@ -247,6 +241,7 @@ export function WorkflowList() {
                                     >
                                         {(canHide || canEdit || canDelete) && (
                                             <RowActions
+                                                label={`More actions for ${workflow.metadata.title}`}
                                                 onUnhide={canHide && isHidden
                                                     ? () => changeHidden(
                                                         workflow.id, false)
@@ -256,7 +251,7 @@ export function WorkflowList() {
                                                         workflow.id, true)
                                                     : undefined}
                                                 onEditDetails={canEdit
-                                                    ? () => router.push(
+                                                    ? () => navigate(
                                                         workflowDetailPath(
                                                             workflow))
                                                     : undefined}
@@ -279,7 +274,7 @@ export function WorkflowList() {
                 onCreated={(workflow) => {
                     custom.setItems((current) => [workflow, ...current]);
                     setCreating(false);
-                    router.push(workflowDetailPath(workflow));
+                    navigate(workflowDetailPath(workflow));
                 }}
             />
         </div>

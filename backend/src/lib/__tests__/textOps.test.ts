@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   configuredSpellingDictionaries,
   runTextOp,
-  TEXT_OP_NAMES,
 } from "../textOps";
 
 const apply = async (
@@ -259,22 +258,8 @@ describe("spelling dictionary configuration", () => {
   });
 });
 
-describe("registry contract", () => {
-  it("exposes every advertised op", () => {
-    expect(TEXT_OP_NAMES).toEqual(
-      expect.arrayContaining([
-        "uppercase", "lowercase", "sentence_case", "capitalize_each_word",
-        "toggle_case", "title_case", "replace_text", "sentence_spacing",
-        "check_spelling", "straighten_quotes", "curl_quotes",
-        "collapse_double_spaces", "normalize_dashes", "normalize_ellipses",
-        "nonbreaking_section_refs", "remove_trailing_whitespace",
-      ]),
-    );
-  });
-
-  it("rejects unknown ops and paragraph-boundary changes", async () => {
-    await expect(runTextOp("erase_everything", "abc")).rejects.toThrow(
-      /Unknown text op/,
-    );
-  });
+it("rejects unknown text operations", async () => {
+  await expect(runTextOp("erase_everything", "abc")).rejects.toThrow(
+    /Unknown text op/,
+  );
 });

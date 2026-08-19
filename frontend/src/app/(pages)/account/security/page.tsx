@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Copy } from "lucide-react";
-import { supabase } from "@/app/lib/supabase";
+import { getSupabase } from "@/app/lib/supabase";
 import { Button } from "@/app/components/ui/button";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { Modal } from "@/app/components/modals/Modal";
@@ -35,6 +35,7 @@ const emptySetup: SetupState = {
 const errorMessage = (error: unknown, fallback = "") =>
     error instanceof Error ? error.message : fallback;
 export default function SecurityPage() {
+    const [mfaClient] = useState(() => getSupabase().auth.mfa);
     const { profile, updateMfaOnLogin } = useUserProfile();
     const [mfa, setMfa] = useState<MfaState | null>(null);
     const [setup, setSetup] = useState<SetupState | null>(null);
@@ -53,11 +54,11 @@ export default function SecurityPage() {
         setSetup((current) =>
             current ? { ...current, ...patch } : current,
         );
-    async function refreshMfaState() {
+    const refreshMfaState = useCallback(async () => {
         setStatus(null);
         const [factorResult, aalResult] = await Promise.all([
-            supabase.auth.mfa.listFactors(),
-            supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+            mfaClient.listFactors(),
+            mfaClient.getAuthenticatorAssuranceLevel(),
         ]);
         setStatus(
             aalResult.error?.message ?? factorResult.error?.message ?? null,
@@ -69,15 +70,15 @@ export default function SecurityPage() {
             sessionVerified:
                 !aalResult.error && aalResult.data.currentLevel === "aal2",
         });
-    }
+    }, [mfaClient]);
     useEffect(() => {
         void refreshMfaState();
-    }, []);
+    }, [refreshMfaState]);
     async function startEnrollment() {
         setBusyAction("setup");
         setStatus(null);
         try {
-            let { data, error } = await supabase.auth.mfa.enroll({
+            let { data, error } = await mfaClient.enroll({
                 factorType: "totp",
                 friendlyName: "Beaver",
             });
@@ -86,7 +87,7 @@ export default function SecurityPage() {
                     .toLowerCase()
                     .includes("a factor with the friendly name")
             ) {
-                const retry = await supabase.auth.mfa.enroll({
+                const retry = await mfaClient.enroll({
                     factorType: "totp",
                     friendlyName: `Beaver ${Date.now()}`,
                 });
@@ -95,7 +96,7 @@ export default function SecurityPage() {
             }
             if (error) throw error;
             if (!data) throw new Error("Failed to start MFA setup.");
-            const challenge = await supabase.auth.mfa.challenge({
+            const challenge = await mfaClient.challenge({
                 factorId: data.id,
             });
             if (challenge.error) throw challenge.error;
@@ -119,7 +120,7 @@ export default function SecurityPage() {
         if (busy) return;
         setSetup(next);
         if (!enrollment) return;
-        await supabase.auth.mfa
+        await mfaClient
             .unenroll({ factorId: enrollment.factorId })
             .catch(() => null);
         await refreshMfaState();
@@ -129,7 +130,7 @@ export default function SecurityPage() {
         setBusyAction("verify");
         setStatus(null);
         try {
-            const { error } = await supabase.auth.mfa.verify({
+            const { error } = await mfaClient.verify({
                 factorId: enrollment.factorId,
                 challengeId: enrollment.challengeId,
                 code: verificationCode.trim(),
@@ -155,7 +156,7 @@ export default function SecurityPage() {
         await runMfa(
             async () => {
                 setBusyAction("unenroll");
-                const { error } = await supabase.auth.mfa.unenroll({
+                const { error } = await mfaClient.unenroll({
                     factorId,
                 });
                 setBusyAction(null);
