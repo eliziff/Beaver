@@ -24,14 +24,15 @@ Read the announcement post: [Introducing Harvey's Legal Agent Benchmark](https:/
 
 ## Getting Started
 
-Start with the full walkthrough in **[docs/tutorial.md](docs/tutorial.md)** — it takes one realistic M&A data-room assignment end to end: setup, task inspection, agent run, scoring, report review, and comparison dashboards.
+Start with the full walkthrough in **[tutorial](../../docs/harvey-labs/design/tutorial.md)** — it takes one realistic M&A data-room assignment end to end: setup, task inspection, agent run, scoring, report review, and comparison dashboards.
 
 ## Additional Documentation
 
 | Guide | Description |
 |---|---|
-| [Architecture](docs/architecture.md) | Task model, harness, tools, adapters, reports, and sweeps |
-| [Evaluation Methodology](docs/eval-strategies.md) | All-pass rubric scoring and LLM judge behavior |
+| [Architecture](../../docs/harvey-labs/design/harness-architecture.md) | Task model, harness, tools, adapters, reports, and sweeps |
+| [Evaluation Methodology](../../docs/harvey-labs/design/evaluation-method.md) | All-pass rubric scoring and LLM judge behavior |
+| [Beaver study catalog](../../docs/harvey-labs/README.md) | Protocols, amendments, results, decisions, and reproducibility |
 | [Contributing](CONTRIBUTING.md) | Add tasks, model adapters, evaluation improvements, and docs |
 
 ## Citation

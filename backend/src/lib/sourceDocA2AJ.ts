@@ -767,7 +767,7 @@ function soleLadder(
 }
 
 /**
- * Weights for the paragraph-label chain, mirroring the universal legal PDF
+ * Weights for the paragraph-label chain, mirroring the legal PDF parser
  * engine's footnote backbone (`select_label_backbone` in
  * legalpdf_engine/footnote_pairing.py). Evidence is priced rather than gated,
  * so the spine is whichever ladder the document argues for most strongly

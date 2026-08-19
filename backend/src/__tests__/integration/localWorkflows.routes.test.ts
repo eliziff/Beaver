@@ -34,7 +34,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  (await import("../../lib/sqliteDatabase")).closeSqliteDatabase();
+  await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
   vi.unstubAllEnvs();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });

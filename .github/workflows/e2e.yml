@@ -58,6 +58,7 @@ jobs:
           API_URL=$(supabase status -o json | jq -r '.API_URL')
           PUBLISHABLE_KEY=$(supabase status -o json | jq -r '.ANON_KEY')
           SECRET_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')
+          DATABASE_URL=$(supabase status -o json | jq -r '.DB_URL')
           cp backend/.env.example backend/.env
           {
             echo 'AUTH_MODE=cloud'
@@ -67,6 +68,7 @@ jobs:
             echo "SUPABASE_URL=$API_URL"
             echo "SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
             echo "SUPABASE_SECRET_KEY=$SECRET_KEY"
+            echo "DATABASE_URL=${DATABASE_URL}?sslmode=disable"
             echo 'USER_API_KEYS_ENCRYPTION_SECRET=ci-user-api-keys-encryption-secret-0123456789abcdef'
             echo 'RATE_LIMIT_GENERAL_MAX=100000'
             echo 'RATE_LIMIT_CHAT_MAX=100000'

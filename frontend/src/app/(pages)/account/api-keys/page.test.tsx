@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import ApiKeysPage from "./page";
+import { ApiKeySettings as ApiKeysPage } from "@/app/components/settings/ApiKeySettings";
 
 const mocks = vi.hoisted(() => ({ local: true }));
 vi.mock("@/app/lib/authMode", () => ({

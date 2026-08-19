@@ -109,7 +109,7 @@ REF_SITE_RE = re.compile(r"(?<=[^\s\d])(?P<num>\d{1,3})(?=\s|$)")
 STRONG_GLUE = set(".,;:!?\"'”’)]")
 
 # Note cross-references; pattern from the engine's vendored TFP detector
-# (universal-legal-pdf-engine legalpdf/note_crossrefs.py CROSSREF_PATTERN).
+# (legal-pdf-parser legalpdf/note_crossrefs.py CROSSREF_PATTERN).
 # An unresolved cross-reference is a pairing-quality witness.
 CROSSREF_RE = re.compile(
     r"\b(?:(?:supra|infra),?\s+(?:foot)?notes?|op\.?\s*cit\.?,?\s+(?:foot)?notes?"

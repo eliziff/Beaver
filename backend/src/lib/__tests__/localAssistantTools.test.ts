@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "docx";
 import * as XLSX from "xlsx";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resourceReference } from "../resourceReferences";
 import { extractDocument } from "../chat/assistantTools";
 
@@ -24,6 +24,8 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 let temporaryDirectory: string | null = null;
+
+beforeEach(() => { process.env.AUTH_MODE = "local"; });
 
 const nativeTableBytes = () =>
   Packer.toBuffer(
@@ -119,9 +121,10 @@ async function expectReadRecipesAccepted(
 afterEach(async () => {
   try {
     const store = await import("../sqlitePersistence");
-    (await import("../sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../relationalDatabase")).closeRelationalDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  delete process.env.AUTH_MODE;
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
@@ -772,13 +775,46 @@ describe("local assistant tools", () => {
       document.id,
       document.current_version_id,
     );
-    const [listed, read] = await tools.runLocalAssistantTools("local-user", [
-      { id: "glob-library", name: "Glob", input: { pattern: "*" } },
-      { id: "read-library", name: "Read", input: { file_path: resource } },
-    ], { allowedDocumentIds: new Set() });
+    const registry = tools.localAssistantToolRegistry("local-user", {
+      allowedDocumentIds: new Set(),
+    });
+    const glob = { id: "glob-library", name: "Glob", input: { pattern: "*" } };
+    const readCall = {
+      id: "read-library", name: "Read", input: { file_path: resource },
+    };
+    const listed = (await registry.run([glob], {})).results[0];
+    expect(registry.activity(readCall)).toBe("Reading library-opinion.txt");
+    const read = (await registry.run([readCall], {})).results[0];
 
     expect(listed.content).toContain(`${resource}\tfilename=library-opinion.txt`);
     expect(read.content).toContain("Library evidence survives an empty chat focus.");
+  });
+
+  it("reports a missing PDF page before starting structural analysis", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const document = await store.createLocalDocument({
+      userId: "local-user",
+      kind: "file",
+      filename: "test.pdf",
+      bytes: await readFile(path.resolve(process.cwd(), "../e2e/fixtures/test.pdf")),
+    });
+    const tools = await import("./support/localAssistantTools");
+    const resource = resourceReference.document(
+      document.id,
+      document.current_version_id,
+    );
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "read-missing-page",
+      name: "Read",
+      input: { file_path: resource, locator_kind: "page", locator: "5" },
+    }]);
+
+    expect(JSON.parse(response.content)).toEqual({
+      ok: false,
+      error: "Page 5 does not exist in test.pdf; the PDF has 1 page.",
+    });
   });
 
   it("reads system workflow instructions in account-free mode", async () => {
@@ -851,8 +887,9 @@ describe("local assistant tools", () => {
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "call-toa",
-        name: "create_table_of_authorities",
+        name: "document_operation",
         input: {
+          action: "table_of_authorities",
           document_id: `document://${document.id}/version/${document.current_version_id}`,
           split_fallback: "auto",
         },
@@ -878,13 +915,14 @@ describe("local assistant tools", () => {
       userId: "local-user",
       kind: "file",
       filename: "factum.pdf",
-      bytes: Buffer.from("owned-pdf-bytes"),
+      bytes: await readFile(path.resolve(process.cwd(), "../e2e/fixtures/test.pdf")),
     });
     const [pdfResponse] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "call-toa-pdf",
-        name: "create_table_of_authorities",
+        name: "document_operation",
         input: {
+          action: "table_of_authorities",
           document_id: `document://${pdf.id}/version/${pdf.current_version_id}`,
           split_fallback: "off",
         },
@@ -896,7 +934,7 @@ describe("local assistant tools", () => {
       filename: "factum.pdf",
       splitFallback: "off",
     });
-    expect(submit.mock.calls[1][0].bytes.toString()).toBe("owned-pdf-bytes");
+    expect(submit.mock.calls[1][0].bytes.subarray(0, 8).toString()).toBe("%PDF-1.4");
     expect(JSON.parse(pdfResponse.content)).toMatchObject({
       ok: true,
       document_id: pdf.id,

@@ -22,6 +22,15 @@ describe("public server boundary", () => {
     expect(response.headers["content-security-policy"]).toContain(
       "default-src 'self'",
     );
+    expect(response.headers["content-security-policy"]).toContain(
+      "style-src-elem 'self' 'unsafe-inline'",
+    );
+    expect(response.headers["content-security-policy"]).toContain(
+      "script-src 'self'",
+    );
+    expect(response.headers["content-security-policy"]).not.toContain(
+      "script-src 'self' 'unsafe-inline'",
+    );
     expect(response.headers["permissions-policy"]).toContain("camera=()");
     expect(response.headers["x-powered-by"]).toBeUndefined();
   });

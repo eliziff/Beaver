@@ -166,7 +166,7 @@ api.use(
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
-    return createLibraryRouter(library, documents, runtime.modelApiKeys);
+    return createLibraryRouter(library, documents);
   }),
 );
 api.use(

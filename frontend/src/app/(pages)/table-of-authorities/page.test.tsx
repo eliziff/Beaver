@@ -30,8 +30,8 @@ function attemptFor(frame: HTMLElement) {
 function signal(
   frame: HTMLElement,
   type:
-    | "mike:table-of-authorities-ready"
-    | "mike:table-of-authorities-error",
+    | "mike:authorities-helper-ready"
+    | "mike:authorities-helper-error",
   attempt = attemptFor(frame),
   message?: string,
 ) {
@@ -139,7 +139,7 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).not.toHaveClass("invisible");
 
     fireEvent.load(frame);
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     expect(frame).not.toHaveClass("invisible");
     expect(frame).toHaveAttribute("tabindex", "0");
@@ -151,7 +151,7 @@ describe("TableOfAuthoritiesHost", () => {
 
     signal(
       frame,
-      "mike:table-of-authorities-error",
+      "mike:authorities-helper-error",
       attemptFor(frame),
       "Settings could not be loaded.",
     );
@@ -173,7 +173,7 @@ describe("TableOfAuthoritiesHost", () => {
     expect(host).toHaveAttribute("inert");
     expect(frame).toHaveAttribute("aria-hidden", "true");
 
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
     view.rerender(<TableOfAuthoritiesHost active enabled />);
 
     expect(screen.getByTitle("Table of Authorities")).toBe(frame);
@@ -197,7 +197,7 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = await screen.findByTitle("Table of Authorities");
     const source = frame.getAttribute("src");
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     view.rerender(
       <TableOfAuthoritiesHost active={false} pending enabled />,
@@ -222,7 +222,7 @@ describe("TableOfAuthoritiesHost", () => {
       ).toBe(job),
     );
     const scopedAttempt = attemptFor(frame);
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     navigation.search = "";
     view.rerender(
@@ -265,7 +265,7 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = await screen.findByTitle("Table of Authorities");
     const source = frame.getAttribute("src");
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
     view.rerender(
       <TableOfAuthoritiesHost active={false} pending enabled />,
     );
@@ -305,7 +305,7 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).not.toHaveClass("invisible");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
 
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     expect(frame).not.toHaveClass("invisible");
   });
@@ -321,7 +321,7 @@ describe("TableOfAuthoritiesHost", () => {
       ).toBe(job),
     );
     const source = frame.getAttribute("src");
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     navigation.search = "";
     view.rerender(
@@ -345,7 +345,7 @@ describe("TableOfAuthoritiesHost", () => {
     );
     const frame = await screen.findByTitle("Table of Authorities");
     const genericAttempt = attemptFor(frame);
-    signal(frame, "mike:table-of-authorities-ready");
+    signal(frame, "mike:authorities-helper-ready");
 
     const job = "b".repeat(32);
     navigation.search = `?job=${job}`;
@@ -386,10 +386,10 @@ describe("TableOfAuthoritiesHost", () => {
     expect(frame).toHaveAttribute("tabindex", "-1");
     expect(frame).not.toHaveClass("invisible");
 
-    signal(frame, "mike:table-of-authorities-ready", firstAttempt);
+    signal(frame, "mike:authorities-helper-ready", firstAttempt);
     expect(frame).toHaveAttribute("tabindex", "-1");
 
-    signal(frame, "mike:table-of-authorities-ready", secondAttempt);
+    signal(frame, "mike:authorities-helper-ready", secondAttempt);
     expect(frame).toHaveAttribute("tabindex", "0");
     expect(launchTableOfAuthorities).toHaveBeenCalledTimes(1);
   });

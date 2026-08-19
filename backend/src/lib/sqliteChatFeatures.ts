@@ -4,7 +4,7 @@ import { compactCodexSession } from "./llm/codex";
 import { providerForModel } from "./llm/models";
 import { claimProviderSession, deleteProviderSession,
   providerSessionCompatibilityKey, readProviderSession,
-  writeProviderSession } from "./sqliteProviderSessionStore";
+  writeProviderSession } from "./providerSessionStore";
 import { safeErrorLog } from "./safeError";
 
 export const sqliteChatFeatures: Partial<ChatApplicationFeatures> = {

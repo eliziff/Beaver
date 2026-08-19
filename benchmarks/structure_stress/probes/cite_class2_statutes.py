@@ -33,7 +33,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "universal-legal-pdf-engine" / "src"))
+sys.path.insert(0, str(REPO / "legal-pdf-parser" / "src"))
 import legalpdf.grammar_tables as gt  # noqa: E402
 
 CORPUS = Path.home() / "AppData" / "Local" / "ALR Quote Verifier" / "a2aj_corpus"

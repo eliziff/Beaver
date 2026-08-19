@@ -33,7 +33,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FORK = HERE.parent.parent
-ENGINE_SRC = FORK / "universal-legal-pdf-engine" / "src"
+ENGINE_SRC = FORK / "legal-pdf-parser" / "src"
 TABLES_DIR = FORK / "shared" / "grammar-tables"
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 sys.path.insert(0, str(FORK / "backend" / "scripts"))

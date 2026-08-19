@@ -154,7 +154,7 @@ async function sendViewer(
       ? a2ajPdfRenditionRequest(resolved.payload)
       : null;
   if (pdfRenditionRequest) {
-    void queueProviderPdfAttachment(pdfRenditionRequest).catch(() => undefined);
+    void queueProviderPdfAttachment(pdfRenditionRequest, userId(res)).catch(() => undefined);
   }
   if (notModified(req, resolved.etag)) {
     res.status(304).end();
@@ -317,7 +317,7 @@ legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
     void queueProviderPdfAttachment({
       ...pdfRenditionPointer,
       structureSource: "flat_text",
-    }).catch(() => undefined);
+    }, userId(res)).catch(() => undefined);
   }
   res.status(201).json(saved);
 }));
@@ -369,7 +369,7 @@ legalLibraryRouter.get("/:referenceId/pdf-status", asyncRoute(async (req, res) =
       readProviderPdfAttachmentState({
         ...pdfRendition,
         structureSource: "flat_text",
-      })),
+      }, userId(res))),
   );
 }));
 

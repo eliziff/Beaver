@@ -50,7 +50,7 @@ REFERENCE = (
     r"C:\Users\elias\Desktop\Martys Qote Verifier"
     r"\ALR-Quote-Verifier\verifier_core"
 )
-FIDELITY_ENGINE_SRC = r"..\..\universal-legal-pdf-engine\src"
+FIDELITY_ENGINE_SRC = r"..\..\legal-pdf-parser\src"
 
 # --- faithful transcription: a2aj_structure.py ------------------------
 

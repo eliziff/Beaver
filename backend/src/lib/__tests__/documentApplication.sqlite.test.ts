@@ -6,21 +6,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 let root: string | null = null;
 
 async function localStores() {
-  const [{ createDocumentApplication }, { sqliteDocumentRepository, sqliteLibraryRepository }, objects,
+  const [{ createDocumentApplication }, { documentRepository, libraryRepository }, objects,
     { createLibraryStore }] =
     await Promise.all([
-      import("../documentApplication"), import("../sqlitePersistence"),
+      import("../documentApplication"), import("../relationalRepositories"),
       import("../filesystemObjectStorage"), import("../libraryStore"),
     ]);
   const documents = createDocumentApplication(
-    sqliteDocumentRepository, objects.filesystemDocumentObjects(),
+    documentRepository, objects.filesystemDocumentObjects(),
   );
-  return { documents, library: createLibraryStore(sqliteLibraryRepository, documents) };
+  return { documents, library: createLibraryStore(libraryRepository, documents) };
 }
 
 afterEach(async () => {
-  (await import("../sqliteDatabase")).closeSqliteDatabase();
+  await (await import("../relationalDatabase")).closeRelationalDatabase();
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  delete process.env.AUTH_MODE;
   vi.resetModules();
   if (root) await rm(root, { recursive: true, force: true });
   root = null;
@@ -30,6 +31,7 @@ describe("SQLite and filesystem document adapters", () => {
   it("persist the shared lifecycle and expose library paging", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
     const { documents, library } = await localStores();
     const scope = { userId: "local-user" };
     const folder = await library.createFolder({ ...scope, kind: "file" }, "Authorities", null);
@@ -53,15 +55,16 @@ describe("SQLite and filesystem document adapters", () => {
   it("survives a repository restart", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
+    process.env.AUTH_MODE = "local";
     const first = await localStores();
     const created = await first.documents.create({ userId: "local-user" }, {
-      filename: "Record.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.4"),
+      filename: "Record.txt", fileType: "txt", bytes: Buffer.from("record"),
     });
-    (await import("../sqliteDatabase")).closeSqliteDatabase();
+    await (await import("../relationalDatabase")).closeRelationalDatabase();
     vi.resetModules();
     const second = await localStores();
     expect((await second.documents.read(
       { userId: "local-user" }, created.id, null, false,
-    ))?.bytes.toString()).toBe("%PDF-1.4");
+    ))?.bytes.toString()).toBe("record");
   });
 });

@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-02T18:08:00Z",
+  "status": "preregistered_before_calls",
+  "experiment_class": "visible-development Codex-path side run",
+  "claim_scope": "One continuous Luna trajectory on three visible Harvey LAB development tasks. Do not pool with canonical Claude-product A/B cells, unseen tasks, or differently judged scores.",
+  "parent": {
+    "generation": "v13",
+    "registration": "docs/harvey-labs/protocols/hybrid-retrieval-v13-live-registration-2026-08-02.json",
+    "score": "164/217",
+    "provider_reported_total_tokens": 2585275,
+    "upstream_score": "150/217",
+    "upstream_provider_reported_total_tokens": 1436478,
+    "diagnosis": "V13 beat isolated upstream Mike on aggregate quality and on two of three tasks, but replayed a 250k-token Tax history across ten stateless requests. Its 1.80x aggregate token ratio failed both the strict and 1.5x gates. CoC and indenture showed that the continuous architecture itself can be both accurate and economical when context remains disciplined."
+  },
+  "hypothesis": "Keep v13 unchanged except for the two context primitives used by Codex itself: one session-scoped prompt_cache_key and native standalone compaction at Codex's default threshold. This should leave CoC and indenture behavior approximately invariant, compact Tax once when it crosses the threshold, reduce transcript replay without a research/drafting handoff, and expose cache-adjusted expense without hiding logical tokens.",
+  "candidate": {
+    "generation": "v14",
+    "cli_arm": "v14",
+    "performer_model": "codex:gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "service_tier_argument": null,
+    "required_service_tier_reported": "default",
+    "replicates": 1,
+    "run_ids": {
+      "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1",
+      "tax/draft-transfer-pricing-documentation": "tax/draft-transfer-pricing-documentation/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1",
+      "capital-markets/draft-indenture-for-senior-secured-notes-offering": "capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1"
+    }
+  },
+  "candidate_environment": {
+    "MIKE_NAV_SHAPE": "address",
+    "MIKE_TOOL_SHAPE": "coding",
+    "MIKE_RETRIEVAL_EXPERIMENT": "p0-pure-coding",
+    "MIKE_MODEL_COVERAGE_ROUTING": "1",
+    "MIKE_WHOLE_READ_MAX_CHARS": "800000",
+    "MIKE_TOOL_RESULT_CAP": "51200",
+    "MIKE_TOOL_DESCRIPTION_VARIANT": "terse",
+    "MIKE_SUPPRESS_DUPLICATE_WHOLE_READS": "0",
+    "MIKE_CONTEXT_HANDOFF": "0",
+    "MIKE_CONTINUOUS_EVIDENCE": "0",
+    "MIKE_OPENAI_COMPACT_THRESHOLD": "244800",
+    "MIKE_SLA_WORKFLOW": "0",
+    "MIKE_GREENFIELD_REVIEW": "0"
+  },
+  "single_delta_from_v13": {
+    "native_compaction": {
+      "endpoint": "https://chatgpt.com/backend-api/codex/responses/compact",
+      "threshold_tokens": 244800,
+      "derivation": "Codex's default 90% threshold applied to Luna's provider-advertised 272,000-token raw context window.",
+      "history_policy": "After a nonterminal tool batch whose provider-reported request input reaches the threshold, send the complete canonical input, instructions, current tools, reasoning settings, default tier, and cache key to the native compact endpoint. Replace model-facing history with its canonical output as-is; retain the exact pre-compaction history and content-free hashes host-side.",
+      "failure_policy": "Fail the run closed on any compact error or malformed output. Do not silently prune, summarize locally, reopen drafting, or fall back to v13 replay."
+    },
+    "prompt_cache": {
+      "key_scope": "stable privacy-preserving durable-chat key; invocation-scoped UUID only for callers with no chat identity",
+      "request_scope": "same key on every normal and compact Responses request",
+      "policy": "implicit provider caching; no explicit breakpoint in this ablation",
+      "why_no_explicit_breakpoint": "The pinned Codex client uses a session key but no explicit prompt breakpoint, and Beaver has not yet measured a reusable content-block boundary that survives its request encoding without compatibility risk."
+    }
+  },
+  "external_basis": {
+    "codex_source_revision": "2b5bdcf67547860f2e5c5a605009a70026796b2b",
+    "codex_client": "https://github.com/openai/codex/blob/2b5bdcf67547860f2e5c5a605009a70026796b2b/codex-rs/core/src/client.rs",
+    "codex_compaction_schema": "https://github.com/openai/codex/blob/2b5bdcf67547860f2e5c5a605009a70026796b2b/codex-rs/codex-api/src/common.rs",
+    "openai_compaction_guide": "https://developers.openai.com/api/docs/guides/compaction",
+    "openai_prompt_caching_guide": "https://developers.openai.com/api/docs/guides/prompt-caching",
+    "observed_codex_behavior": "The pinned client uses responses_metadata.session_id as prompt_cache_key for both response and compact requests and treats compact output as the canonical replacement window."
+  },
+  "held_constant": {
+    "task_split": "visible development",
+    "base_prompt": "lean",
+    "retrieval_prompt_variant": "neutral",
+    "research_tools_disabled": true,
+    "ask_inputs_disabled": true,
+    "progressive_disclosure": true,
+    "sandbox_engine": "docker",
+    "source_selection_policy": "After a truthful Glob inventory, the model chooses complete, targeted, or mixed reads. The host applies one request-independent cumulative complete-text budget and no task classifier.",
+    "durability_policy": "Exact source bytes, extracted text, versions, hashes, pinpoints, provider receipts, tool results, pre-compaction history, compact-output hashes, and authored artifacts remain host-side. No model-facing evidence union is mounted.",
+    "forbidden_architecture": [
+      "fresh drafting agent or stage",
+      "research checkpoint",
+      "hot evidence packet",
+      "model-facing evidence union",
+      "SLA compiler/repair pass",
+      "task-specific routing or prompt text"
+    ]
+  },
+  "tasks": [
+    {
+      "task": "corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts",
+      "split_sha256": "c0d270c324eaaeb13a47eb2df309baf468270e4ca04b686e4ed27632a3d36f7d",
+      "instructions_chars": 200,
+      "instructions_sha256": "804acb88a976238cbdf65027b4c873142cfec3c84c9773992e256e40ae02c8a4",
+      "source_documents": 19,
+      "source_bundle_sha256": "f778c5ef888a841432ee70a34d1a8c0d4b0c947a0d19509b4a3834635b23f0e2"
+    },
+    {
+      "task": "tax/draft-transfer-pricing-documentation",
+      "split_sha256": "9886979ad0409f300ccb78413abc4bda020fcde1f288d879d61e59eff1c85957",
+      "instructions_chars": 202,
+      "instructions_sha256": "baa067a9d481a31b85cb9a47a3eebfbc6620e2c5cd23b87e71b2b4f1741d05b7",
+      "source_documents": 25,
+      "source_bundle_sha256": "bc8d591498a818501b7a388d5b93575c5a98f03b25edb2f009f9d166fe4a6647"
+    },
+    {
+      "task": "capital-markets/draft-indenture-for-senior-secured-notes-offering",
+      "split_sha256": "9eb0633b22a0a1e936eeba6980d7e44d23d7f89fc581dfd1697dd3420f34b62a",
+      "instructions_chars": 243,
+      "instructions_sha256": "d9b4b8460380ace783ca538f417843d2edf8f997f0ec3f622f5ea6aebf2f5675",
+      "source_documents": 14,
+      "source_bundle_sha256": "d30b7b0ad6d8c8327f80d8137d4e8c30db52816f8fdfd7b3f08f492a17a82303"
+    }
+  ],
+  "source_fingerprints": {
+    "base_commit": "f1685962b1f04dcdf65f8789c1b20555f1eab3b2",
+    "backend/scripts/lab-beaver-arm.ts": "095ac2fa5ba03fb6f827d45681c1f7e98116a7d4acb1d68d4399c60b25cdd884",
+    "backend/src/routes/chat.ts": "fc274901ba663cc4e8cb49be0dd1123c43e55c9b36fcbfbddde2c233cd9a6f44",
+    "backend/src/lib/chat/localAssistantTools.ts": "9843036c8ff1e999a645a256daa04659acb0ec29e99fc771e0f270a44f8b799d",
+    "backend/src/lib/chat/prompts.ts": "05f01db45d005d054b7d71bc3fd86d52f592fbb0b4187839d5879b0f90b99a83",
+    "backend/src/lib/chat/evidenceExposure.ts": "5ff0c262a8b06e6cd8a3edbea5d5877cee098ade6f4ae6aeadcb377dae87169e",
+    "backend/src/lib/chat/slaWorkflow.ts": "561bbedb4aa088136cbc0a5349a4146113c39cb9db37844db84934b044c35af9",
+    "backend/src/lib/llm/openai.ts": "0b223cc5aa9db6c9f534b302fc28a15303c6a1a88e51c1cbe2afb6b1bb86a5b7",
+    "backend/src/lib/llm/codexApi.ts": "556ecb4ba11140f5b620f242b757ee4141f8aea075e2271feaa65b8b55612a16",
+    "backend/src/lib/llm/contextManifest.ts": "4a0c7a7112ff49be3610cfc7efd3a4c0c074f4088fb6952fc4a613545d0bfa86",
+    "backend/src/lib/llm/types.ts": "de11bfb94009d9725f7b62ff619bd66560941163b4f71c551b9b2579745ac996",
+    "benchmarks/harvey-labs/evaluation/judge.py": "61979c7613e519fcd37ecfba8d241f979f0320e575cd7a3923c0278aa4577cb7",
+    "docs/harvey-labs/results/hybrid-retrieval-v13-adversarial-audit-2026-08-02.md": "02e9671d6c7dc01f2c4954b3bb1d6229811ad20b4d97e45a89d2ad5c47e23365"
+  },
+  "dynamic_fingerprint_policy": "Each result must preserve the exact task, source bundle, original instructions, system-prompt variants, tool-schema variants, all context/adapter harness sources, runtime configuration, provider tier, prompt-cache-key hash, and composite SHA-256 fingerprints generated by the sealed run. Uploaded document IDs make dynamic prompt hashes unknowable before launch.",
+  "launch_commands": [
+    "npx tsx scripts/lab-beaver-arm.ts --task corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts --arm v14 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id corporate-ma/analyze-change-of-control-provisions-across-targets-material-contracts/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task tax/draft-transfer-pricing-documentation --arm v14 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id tax/draft-transfer-pricing-documentation/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1",
+    "npx tsx scripts/lab-beaver-arm.ts --task capital-markets/draft-indenture-for-senior-secured-notes-offering --arm v14 --model codex:gpt-5.6-luna --effort high --retrieval-prompt neutral --run-id capital-markets/draft-indenture-for-senior-secured-notes-offering/beaver-v14-codex-gpt-5-6-luna/2026-08-02T18-10-00Z-r1"
+  ],
+  "launch_policy": "Parse this registration, recheck every listed source fingerprint, then launch the three performer calls concurrently without changing code, prompts, sources, caps, model, effort, or service tier.",
+  "validity": {
+    "outer_provider_invocations": 1,
+    "required_reported_tier": "default",
+    "required_resident_tools": [
+      "Glob",
+      "fetch_documents",
+      "Grep",
+      "Read",
+      "describe_tools"
+    ],
+    "prompt_cache": "Exactly one session strategy and one SHA-256 key receipt per run; the raw key must not be persisted.",
+    "compaction": "For every nonterminal round with provider-reported input_tokens >= 244800 and at least one tool call, exactly one valid native compact receipt must follow. No other compaction may occur. Canonical compact output must contain at least one item and be passed to the next request as-is.",
+    "forbidden_events": [
+      "content_reset",
+      "research_context_refresh",
+      "research_checkpoint_request",
+      "research_checkpoint",
+      "evidence_handoff",
+      "evidence_working_set_receipt",
+      "evidence_working_set_update"
+    ],
+    "forbidden_result_flags": [
+      "already_read",
+      "already_exposed"
+    ],
+    "required_surface": {
+      "trajectory_mode": "continuous",
+      "context_handoff": false,
+      "continuous_evidence": false,
+      "draft_handoff_mode": "none",
+      "sla_workflow": false,
+      "greenfield_review": false,
+      "whole_read_max_chars": 800000,
+      "tool_result_max_chars": 51200,
+      "suppress_duplicate_whole_reads": false,
+      "openai_compact_threshold": "244800"
+    },
+    "required_outputs": "Every requested DOCX is evaluator-readable and has an exact bytes/SHA-256 receipt from a durable authored Library artifact, not answer-text fallback."
+  },
+  "telemetry_contract": {
+    "logical_tokens": "Provider-reported input, output, and reasoning tokens remain the comparability measure; cached input is a subset of input_tokens for the Responses transport.",
+    "compaction": "Count, threshold, trigger tokens, exact request/output item counts, bytes and SHA-256 hashes, compression ratio, latency, and provider-reported usage. If compact usage is absent, add the preregistered byte/4 estimate and label token_source=context_manifest_mixed_estimate.",
+    "cache": "Record cache reads, cache writes, reporting completeness, read/write ratios, one key hash, and raw per-round usage.",
+    "expense_model": "For GPT-5.6 only, report public-API price-equivalent input at 1.0x uncached, 0.1x cached read, and 1.25x cache write plus public output price. Label it as not Codex subscription quota or billing. If cache or compact accounting is incomplete, report lower/upper bounds and no exact value.",
+    "other": "Preserve context rounds, request attempts, tool schemas, tool calls/results, cache behavior, provider request count, source coverage, duplicate/error/selection paths, authored receipts, and wall/provider/compaction latency."
+  },
+  "trace_inspection_before_scoring": [
+    "Verify all static and dynamic fingerprints, one cache-key hash, and default-tier receipts.",
+    "Verify one outer provider invocation, continuous reasoning/tool items, no hidden phase reset, and no checkpoint, handoff, union, or SLA events.",
+    "Inspect every threshold-crossing round and native compaction receipt; verify the next request uses only canonical compact output and new tail items.",
+    "Inspect cache reads/writes by round, compaction usage completeness, price-equivalent bounds, source inventory, complete-read selection responses, bounded Read/Grep continuations, duplicate reads, and tool errors.",
+    "Inspect which source documents and exact spans were exposed before authoring and whether every deliverable came from a successful authoring receipt.",
+    "Only a general structural or protocol defect may create a newly preregistered version before scoring; do not change prompts or routing for a task."
+  ],
+  "preflight": {
+    "focused_tests": "94 passed across six suites",
+    "backend_build": "passed",
+    "source_hashes_rechecked_after_tests": true
+  },
+  "judge": {
+    "model": "codex/gpt-5.6-sol",
+    "priority_class": "BelowNormal",
+    "parallel": 3,
+    "replicates": 1,
+    "temperature": null,
+    "same_configuration_for_all_candidate_outputs": true,
+    "score_only_after_structural_and_trace_validity": true
+  },
+  "comparators": {
+    "isolated_upstream_mike": {
+      "score": "150/217",
+      "provider_reported_total_tokens": 1436478
+    },
+    "v13_continuous_pure_coding": {
+      "score": "164/217",
+      "provider_reported_total_tokens": 2585275,
+      "task_scores": {
+        "change_of_control": "48/57",
+        "transfer_pricing": "41/77",
+        "indenture": "75/83"
+      }
+    },
+    "earlier_coding_finalist": {
+      "score": "95/217",
+      "provider_reported_total_tokens": 1611907,
+      "caveat": "Retained a context handoff and therefore is not as architecturally comparable as v13."
+    }
+  },
+  "acceptance_gate": {
+    "strict_win": "At least 150/217 aggregate, no task more than five points below isolated upstream, and no more than 1,436,478 aggregate logical tokens.",
+    "quality_dominant_candidate": "At least 160/217, no catastrophic task regression, and no more than 2,154,717 aggregate logical tokens (1.5x isolated upstream). This earns wider validation but is not yet a production win on three visible tasks.",
+    "v13_translation_success": "At least 160/217 and fewer logical tokens than v13, with Tax no worse than five points below upstream and CoC/indenture behaving as non-compacting controls unless their traces genuinely cross the fixed threshold.",
+    "reporting_order": "Accuracy first; then logical context/tokens, cache-adjusted API price equivalent, latency, coverage, context rounds/compaction, and tool use."
+  }
+}

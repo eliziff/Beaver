@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
-TOA_ROOT = SCRIPTS_DIR.parents[1] / "TableOfAuthoritiesMaker"
+TOA_ROOT = SCRIPTS_DIR.parents[1] / "AuthoritiesHelper"
 for root in (str(SCRIPTS_DIR), str(TOA_ROOT)):
     if root not in sys.path:
         sys.path.insert(0, root)

@@ -27,7 +27,7 @@ from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "universal-legal-pdf-engine" / "src"))
+sys.path.insert(0, str(REPO / "legal-pdf-parser" / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import legalpdf.grammar_tables as gt  # noqa: E402
 import cite_class2_statutes as c2  # noqa: E402

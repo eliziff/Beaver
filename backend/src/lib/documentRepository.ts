@@ -1,4 +1,5 @@
-import type { DocumentProvenance, DocumentScope, StoredAssistantEdit } from "./documentStore";
+import type { DocumentParseState, DocumentProvenance, DocumentScope,
+  StoredAssistantEdit } from "./documentStore";
 import type { LibraryKind } from "./normalize";
 
 export type StoredDocumentVersion = {
@@ -11,6 +12,7 @@ export type StoredDocument = {
   id: string; userId: string; projectId: string | null; libraryKind: LibraryKind;
   folderId: string | null; status: string; currentVersionId: string;
   createdAt: string; updatedAt: string; metadata?: unknown; notes?: string | null;
+  parseState?: DocumentParseState | null;
 };
 export type DocumentAggregate = {
   document: StoredDocument; versions: StoredDocumentVersion[];

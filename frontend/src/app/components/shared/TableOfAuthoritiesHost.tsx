@@ -68,7 +68,7 @@ export function TableOfAuthoritiesHost({
       // Cross-origin frames cannot expose their location; postMessage is safe.
     }
     target.postMessage(
-      { type: "mike:table-of-authorities-probe" },
+      { type: "mike:authorities-helper-probe" },
       expectedOrigin,
     );
   }, []);
@@ -88,11 +88,11 @@ export function TableOfAuthoritiesHost({
       ) {
         return;
       }
-      if (data.type === "mike:table-of-authorities-ready") {
+      if (data.type === "mike:authorities-helper-ready") {
         clearWatchdog();
         setError(null);
         setFrameReady(true);
-      } else if (data.type === "mike:table-of-authorities-error") {
+      } else if (data.type === "mike:authorities-helper-error") {
         clearWatchdog();
         setFrameReady(false);
         setError(

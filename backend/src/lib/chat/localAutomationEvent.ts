@@ -1,6 +1,5 @@
 type AutomationTool =
   | "create_table_of_authorities"
-  | "link_docx_citations"
   | "fix_docx_supras";
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row | null =>
@@ -62,12 +61,6 @@ function event(
 
 export const tableOfAuthoritiesEvent = (value: unknown, id: string) =>
   event("create_table_of_authorities", "Create book/table of authorities", [], value, id);
-
-export const citationLinkingEvent = (value: unknown, id: string) =>
-  event("link_docx_citations", "Auto-add hyperlinks to citations", [
-    ["Linked", "linked_citations"],
-    ["Unresolved", "unresolved_citations"],
-  ], value, id);
 
 export const supraFixEvent = (value: unknown, id: string) =>
   event("fix_docx_supras", "Fix supra references", [

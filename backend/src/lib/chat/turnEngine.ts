@@ -148,6 +148,7 @@ export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
   emit: (event: unknown) => void;
   addEvent: (event: AssistantEvent) => void;
+  updateActivity?(id: string, label: string): void;
 };
 
 export type ChatTurnResult = {
@@ -248,7 +249,17 @@ export async function runChatTurn(options: {
       if (activity?.status === "running") emitToolActivity({ ...activity, status });
     }
   };
-  const context: ChatToolContext = { evidence, emit, addEvent };
+  const context: ChatToolContext = {
+    evidence,
+    emit,
+    addEvent,
+    updateActivity(id, label) {
+      const activity = toolActivities.get(id);
+      if (activity?.status === "running" && label !== activity.label) {
+        emitToolActivity({ ...activity, label });
+      }
+    },
+  };
   const internalNames = new Set([
     "ask_inputs",
     LEGAL_EVIDENCE_TOOL_NAME,
@@ -812,7 +823,7 @@ export async function runChatTurn(options: {
         emit({ type: "content_reset" });
         providerResult = await provider(providerResult?.continuationId, {
           draft: rejected,
-          findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request, retrieve any missing authority passages, and finish with submit_grounded_answer. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
+          findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request and finish with submit_grounded_answer. Reuse the evidence_ids already registered in this turn; do not call Read again for them. Retrieve only genuinely missing authority passages. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
         });
         finalized = finalizeLegalEvidence(evidence, text);
       }

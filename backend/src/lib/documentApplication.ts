@@ -66,7 +66,7 @@ const responseDocument = (aggregate: DocumentAggregate) => {
     current_version_id: document.currentVersionId,
     active_version_number: version.versionNumber, created_at: document.createdAt,
     updated_at: document.updatedAt, metadata: document.metadata ?? {},
-    notes: document.notes ?? null,
+    notes: document.notes ?? null, parse_state: document.parseState ?? null,
   };
 };
 
@@ -89,7 +89,12 @@ function editedFilename(version: StoredDocumentVersion) {
 }
 
 async function pageCount(fileType: string, bytes: Buffer) {
-  return fileType === "pdf" ? countLegalPdfPages(bytes).catch(() => null) : null;
+  if (fileType !== "pdf") return null;
+  try {
+    return await countLegalPdfPages(bytes);
+  } catch {
+    throw new ApplicationError(400, "PDF is invalid or unsupported");
+  }
 }
 
 function provenanceWithEdits(provenance: DocumentProvenance | undefined,
@@ -326,6 +331,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         id: documentId, userId: scope.userId, projectId, libraryKind, folderId,
         status: "ready", currentVersionId: version.id, createdAt: now, updatedAt: now,
         metadata: {}, notes: null,
+        parseState: version.fileType === "pdf" ? { status: "queued" as const } : null,
       };
       try {
         await repository.create(scope, { document, version });

@@ -1,4 +1,3 @@
-"use client";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Trash2 } from "lucide-react";

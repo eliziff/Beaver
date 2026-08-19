@@ -115,18 +115,16 @@ it("uses workflow capabilities for row and bulk actions", async () => {
     expect(screen.queryByRole("checkbox", {
         name: "Select Editable share",
     })).not.toBeInTheDocument();
-    fireEvent.change(
-        screen.getByRole("combobox", {
-            name: "More actions for Editable share",
-        }),
-        { target: { value: "0" } },
-    );
+    fireEvent.click(screen.getByRole("button", {
+        name: "More actions for Editable share",
+    }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
     expect(mocks.push).toHaveBeenCalledWith(
         "/workflows/assistant/shared-edit",
     );
 
     expect(
-        screen.queryByRole("combobox", {
+        screen.queryByRole("button", {
             name: "More actions for Read-only share",
         }),
     ).not.toBeInTheDocument();

@@ -12,8 +12,7 @@ import {
   type LegalSourceReference,
 } from "../legalSourceRegistry";
 import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
-import { applyDocxCitationLinks } from "../docxCitationLinking";
-import { fixDocxSupraCrossReferences } from "../docxDeterministicCleanup";
+import { fixDocumentSupras } from "../docxDeterministicCleanup";
 import { lintDocxStructure } from "../docxStructuralLint";
 import {
   deleteProvisionAndRenumberSiblings,
@@ -28,7 +27,7 @@ import {
   bakedCrossReferenceGraph,
   bakedSkeleton,
 } from "../legalStructureSidecar";
-import { pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, selectPages, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
+import { pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { resolveDraftingOptions } from "../draftingStyle";
@@ -56,6 +55,8 @@ import {
   documentProjectionService,
   type PdfLocatorKind,
 } from "../documentProjectionService";
+import { countLegalPdfPages } from "../legalPdfSourceDoc";
+import { preparePdf, preparePdfPages } from "../pdfJobs";
 import {
   lookupProviderPdfReference,
   rehydrateProviderPdfReference,
@@ -119,7 +120,6 @@ import {
 } from "./courtlistenerToolRunner";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
 import {
-  citationLinkingEvent,
   supraFixEvent,
   tableOfAuthoritiesEvent,
 } from "./localAutomationEvent";
@@ -147,72 +147,44 @@ const objectSchema = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
-const documentToolSchema = (
-  name: string,
-  description: string,
-  properties: Record<string, object> = {},
-  required: string[] = [],
-  readOnly = false,
-): Tool => ({
-  name,
-  description,
-  inputSchema: objectSchema(
-    { document_id: DOCUMENT_ID_PROPERTY, ...properties },
-    ["document_id", ...required],
-  ),
-  annotations: { readOnlyHint: readOnly },
-});
-
-const DOCUMENT_TOOLS: Tool[] = [
-  documentToolSchema(
-    "update_library_metadata",
-    "Save jurisdiction, practice-area, document-type, description, and note metadata for a Library item. Only when the user asks to classify or annotate; do not invent facts.",
-    {
-      kind: { type: "string", enum: ["file", "template"] },
-      metadata: objectSchema({
-        jurisdiction: { type: "string" },
-        areas_of_law: { type: "array", items: { type: "string" } },
-        document_types: { type: "array", items: { type: "string" } },
-        description: { type: "string" },
-      }),
-      notes: { type: "string" },
+const DOCUMENT_OPERATION_TOOL: Tool = {
+  name: "document_operation",
+  description:
+    "Specialist operation on one version-pinned Library document. Actions: metadata saves user-requested classification or notes; fix_supras creates native Word supra cross-references; lint_structure reports structural defects without editing; delete_and_renumber atomically deletes one provision and closes its sibling numbering gap as tracked changes; table_of_authorities starts deterministic authorities detection for DOCX or PDF. Do not pre-compute filesystem paths.",
+  annotations: { readOnlyHint: false },
+  inputSchema: objectSchema({
+    action: {
+      type: "string",
+      enum: [
+        "metadata",
+        "fix_supras",
+        "delete_and_renumber",
+        "table_of_authorities",
+      ],
     },
-    ["kind"],
-  ),
-  documentToolSchema(
-    "link_docx_citations",
-    "Create a new Library DOCX version with verified provider links on its footnote citations. It splits and routes the footnotes itself; do not read, split, classify, or construct citation URLs before calling it.",
-  ),
-  documentToolSchema(
-    "fix_docx_supras",
-    "Turn unambiguous plain 'supra note N' numbers in a Library DOCX into native updating Word footnote cross-references. Creates a new version when it changes anything and reports ambiguous/restarted/split cases for review.",
-  ),
-  documentToolSchema(
-    "lint_docx_structure",
-    "Structural lint on a Library DOCX: broken internal cross-references, references to missing schedules/exhibits, numbering gaps and duplicates, duplicate or unused defined terms. Read-only; returns located findings plus a receipt of what was checked and abstained from.",
-    {},
-    [],
-    true,
-  ),
-  documentToolSchema(
-    "delete_and_renumber_docx",
-    "Delete one numbered provision from a Library DOCX and close that exact sibling gap as tracked changes. The server renumbers following sibling headings and every resolved internal pointer in one atomic operation. It refuses the whole mutation if the target, sequence, or any affected reference is missing, ambiguous, external, or otherwise unsafe. This is deliberately delete-and-close-gap only; it does not insert provisions or open a numbering gap.",
-    { target: {
+    document_id: DOCUMENT_ID_PROPERTY,
+    kind: { type: "string", enum: ["file", "template"] },
+    metadata: objectSchema({
+      jurisdiction: { type: "string" },
+      areas_of_law: { type: "array", items: { type: "string" } },
+      document_types: { type: "array", items: { type: "string" } },
+      description: { type: "string" },
+    }),
+    notes: { type: "string" },
+    target: {
       type: "string",
-      description: "Exact provision handle from Grep, such as '8.02' or '8.02(a)'.",
-    } },
-    ["target"],
-  ),
-  documentToolSchema(
-    "create_table_of_authorities",
-    "Submit one owned Word or PDF Library version to the authorities workflow. A PDF can create a Book of Authorities; inserting a table requires Word. Detection is deterministic first, with a bounded cached Codex splitter only for unresolved citation units. Never pass or invent filesystem paths.",
-    { split_fallback: {
-      type: "string",
-      enum: ["off", "auto"],
-      description: "Use auto for the bounded splitter only when deterministic splitting is incomplete.",
-    } },
-  ),
-];
+      description: "Exact provision handle from Grep for delete_and_renumber.",
+    },
+    split_fallback: { type: "string", enum: ["off", "auto"] },
+  }, ["action", "document_id"]),
+};
+const LINT_DOCUMENT_TOOL: Tool = {
+  name: "lint_document",
+  description:
+    "Read-only structural lint for one version-pinned Library DOCX: broken internal references, missing schedules or exhibits, numbering defects, and duplicate or unused defined terms.",
+  annotations: { readOnlyHint: true },
+  inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
+};
 
 function oneHopLegalScope(
   skeleton: AgreementSkeleton,
@@ -260,6 +232,7 @@ const trimmed = (value: unknown) =>
 
 type AssistantDocument = Record<string, unknown> & {
   id: string; filename: string; current_version_id: string; file_type: string;
+  page_count?: number | null;
 };
 
 const documentsFromPage = (items: Record<string, unknown>[]) =>
@@ -657,6 +630,7 @@ async function readNonDocumentResource(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
   workflows: WorkflowStore,
+  userId: string,
 ) {
   if (call.name !== "Read") return null;
   const requested = trimmed(args.file_path);
@@ -700,8 +674,9 @@ async function readNonDocumentResource(
   }
   try {
     const resolved = handle
-      ? await rehydrateProviderPdfReference(resource.sourceId, handle)
-      : await lookupProviderPdfReference(resource.sourceId, pdfLocatorParams(args));
+      ? await rehydrateProviderPdfReference(resource.sourceId, userId, handle)
+      : await lookupProviderPdfReference(
+          resource.sourceId, userId, pdfLocatorParams(args));
     if (resolved.availability !== "ready") {
       return result({
         ok: false,
@@ -1121,13 +1096,17 @@ async function runCodingShapeCall(
   servedDraftingCache?: Map<string, ServedDrafting>,
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
+  documentNames: Map<string, string> = new Map(),
+  progress?: (label: string) => void,
+  signal?: AbortSignal,
 ): Promise<BeaverOutcome> {
   servedDraftingCache ??= new Map();
-  const direct = await readNonDocumentResource(call, args, workflows);
+  const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
   const files = await scopedDocuments(
     scope, library, projects, 200, matterId,
   );
+  files.forEach(({ id, filename }) => documentNames.set(id, filename));
   const codingPath = (document: AssistantDocument, versionId = document.current_version_id) =>
     resourceReference.document(document.id, versionId);
   const resolvePath = (raw: string) => {
@@ -1209,6 +1188,26 @@ async function runCodingShapeCall(
       if (file.fileType.toLowerCase() !== "pdf") {
         return fail("Exact structural Read requires a PDF resource.");
       }
+      let physicalPageCount = Number.isSafeInteger(meta.page_count)
+        ? Number(meta.page_count)
+        : null;
+      if (locatorKind === "page" && !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)) {
+        if (physicalPageCount === null) {
+          try {
+            physicalPageCount = await countLegalPdfPages(file.bytes);
+          } catch {
+            return fail(
+              `${meta.filename} is not a valid readable PDF. Retrying will not help.`,
+            );
+          }
+        }
+        if (Number(locator) > physicalPageCount) {
+          return fail(
+            `Page ${locator} does not exist in ${meta.filename}; ` +
+            `the PDF has ${physicalPageCount} page${physicalPageCount === 1 ? "" : "s"}.`,
+          );
+        }
+      }
       try {
         const sourcePath = await documentProjectionService.publishPdf(
           file.bytes, file.version.source_sha256,
@@ -1227,16 +1226,71 @@ async function runCodingShapeCall(
             handle,
           );
         } else {
-          await documentProjectionService.parsePdf({
-            documentId: meta.id,
-            versionId: file.version.id,
-            sourcePath,
-            sourceSha256: file.version.source_sha256 ?? undefined,
-          });
-          lookup = await documentProjectionService.lookupPdf(
-            sourcePath,
-            pdfLocatorParams(args),
-          );
+          const locatorInput = pdfLocatorParams(args);
+          const exactPage = locatorKind === "page" &&
+            !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)
+            ? Number(locator)
+            : null;
+          if (exactPage) {
+            const contextBlocks = Math.max(0, Math.min(2,
+              Math.trunc(Number(args.context_blocks) || 0)));
+            const selectedPages = Array.from(
+              {
+                length: Math.min(physicalPageCount ?? exactPage + contextBlocks,
+                  exactPage + contextBlocks) - Math.max(1, exactPage - contextBlocks) + 1,
+              },
+              (_, index) => Math.max(1, exactPage - contextBlocks) + index,
+            );
+            const cacheKey = await preparePdfPages({
+              userId: scope.userId,
+              documentId: meta.id,
+              versionId: file.version.id,
+              sourceSha256: file.version.source_sha256,
+              pages: selectedPages,
+              signal,
+              onProgress: ({ phase }) => progress?.(
+                phase === "ocr"
+                  ? `Running OCR on page ${exactPage} of ${meta.filename}`
+                  : phase === "inspecting"
+                    ? `Inspecting page ${exactPage} of ${meta.filename}`
+                    : `Reading page ${exactPage} of ${meta.filename}`,
+              ),
+            });
+            lookup = await documentProjectionService.lookupPdf(
+              sourcePath,
+              locatorInput,
+              {
+                cacheKey,
+                documentId: meta.id,
+                versionId: file.version.id,
+                pages: selectedPages,
+              },
+            );
+          } else {
+            const cacheKey = await preparePdf({
+              userId: scope.userId,
+              documentId: meta.id,
+              versionId: file.version.id,
+              sourceSha256: file.version.source_sha256,
+              signal,
+              onProgress: ({ phase }) => progress?.(
+                phase === "ocr"
+                  ? `Running OCR on ${meta.filename}`
+                  : phase === "inspecting"
+                    ? `Inspecting ${meta.filename}`
+                    : `Reading ${meta.filename}`,
+              ),
+            });
+            lookup = await documentProjectionService.lookupPdf(
+              sourcePath,
+              locatorInput,
+              {
+                cacheKey,
+                documentId: meta.id,
+                versionId: file.version.id,
+              },
+            );
+          }
         }
         const evidence = pdfLegalEvidence(
           meta.id,
@@ -1261,18 +1315,24 @@ async function runCodingShapeCall(
       return fail(`Document resource does not exist: ${requested}`);
     }
     const mode = args.mode as "text" | "drafting" | "redline" | undefined;
-    const document = await codingDocument(
-      meta.id,
-      referencedVersion(requested),
-      mode,
-    );
+    let document;
+    try {
+      document = await codingDocument(
+        meta.id,
+        referencedVersion(requested),
+        mode,
+      );
+    } catch {
+      return fail(
+        `Could not read ${meta.filename}. The document reader failed; retrying will not help.`,
+      );
+    }
     if (!document) return fail(`File could not be read: ${requested}`);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text);
     const limit = (args.limit as number | undefined) ?? 2_000;
     const startChar = (args.start_char as number | undefined) ?? 0;
     const sectionArg = trimmed(args.section);
-    const pagesArg = trimmed(args.pages);
     const references = (args.references ?? "none") as
       "none" | "inbound" | "outbound" | "both";
     const source = (
@@ -1297,44 +1357,6 @@ async function runCodingShapeCall(
         kept,
       );
     };
-    if (pagesArg) {
-      const nonDefaultOffset =
-        Object.prototype.hasOwnProperty.call(args, "offset") &&
-        typeof args.offset === "number" &&
-        args.offset > 1;
-      if (sectionArg || nonDefaultOffset) {
-        return fail(
-          "pages cannot be combined with section or offset; choose one exact scope.",
-        );
-      }
-      const selected = selectPages(document.pages, document.text, pagesArg);
-      if (selected.status !== "ok") {
-        return fail(
-          selected.status === "empty"
-            ? "pages is required"
-            : `Page '${selected.token}' could not be resolved (${selected.lookup.status}).`,
-        );
-      }
-      const candidates = selected.pages.flatMap((page) =>
-        codingRangeLines(
-          document.text,
-          starts,
-          { start: page.start, end: page.end },
-          `=== ${meta.filename} :: pdf:${page.pdfPage ?? "?"}${
-            page.printedLabel ? ` :: printed:${page.printedLabel}` : ""
-          } ===`,
-          source(
-            page.printedLabel ?? String(page.pdfPage ?? page.ordinal),
-            "page",
-          ),
-        ),
-      );
-      return finish(
-        candidates,
-        (_kept, truncated) => truncated
-          ? "\n(Page read stopped at the tool-result limit.)" : "",
-      );
-    }
     if (references !== "none" && !sectionArg) {
       return fail("references requires an exact section handle.");
     }
@@ -2225,60 +2247,26 @@ async function saveWorkflowDocx(
 }
 
 async function runDocxWorkflow(
-  name: string,
+  action: "fix_supras" | "lint_structure",
   documents: DocumentStore,
   scope: DocumentScope,
   documentId: string,
   versionId?: string,
   turnEditState?: AssistantEditTurnState,
 ): Promise<Record<string, unknown>> {
-  const file = await activeDocx(documents, scope, documentId, versionId);
-  if (name === "link_docx_citations") {
-    return applyDocxCitationLinks({
-      documentId,
-      sourceVersionId: file.version.id,
-      filename: file.filename,
-      bytes: file.bytes,
+  if (action === "fix_supras") return fixDocumentSupras(
+    documents, scope.userId, documentId, {
       saveVersion: (input) => saveWorkflowDocx(
-        documents, scope, documentId, turnEditState, input,
-      ),
-    });
-  }
-  if (name === "lint_docx_structure") return {
+        documents, scope, documentId, turnEditState, input),
+    },
+  );
+  const file = await activeDocx(documents, scope, documentId, versionId);
+  return {
     ok: true,
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
     ...await lintDocxStructure(file.bytes),
-  };
-  const cleanup = await fixDocxSupraCrossReferences(file.bytes);
-  if (!cleanup.converted) return {
-    ok: true,
-    changed: false,
-    document_id: documentId,
-    version_id: file.version.id,
-    filename: file.filename,
-    ...cleanup,
-    bytes: undefined,
-  };
-  const filename = `${file.filename.replace(/\.docx$/iu, "")} - supras fixed.docx`;
-  const saved = await saveWorkflowDocx(documents, scope, documentId, turnEditState, {
-    sourceVersionId: file.version.id,
-    filename,
-    bytes: cleanup.bytes,
-  });
-  return {
-    ok: true,
-    action: "revised",
-    changed: true,
-    document_id: documentId,
-    version_id: saved.id,
-    version_number: saved.version_number,
-    filename: saved.filename,
-    download_url: `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(saved.id)}`,
-    annotations: [],
-    ...cleanup,
-    bytes: undefined,
   };
 }
 
@@ -2334,9 +2322,12 @@ type AssistantToolRun = (
   call: Readonly<NormalizedToolCall>,
   input: Record<string, unknown>,
   signal: AbortSignal,
+  progress?: (label: string) => void,
 ) => Promise<BeaverOutcome>;
 
-export function assistantTools<Context>(
+export function assistantTools<Context extends {
+  updateActivity?: (id: string, label: string) => void;
+}>(
   {
     userId,
     userEmail,
@@ -2367,6 +2358,7 @@ export function assistantTools<Context>(
       { title, skill_md },
     ]),
   );
+  const knownDocumentNames = new Map(documentNames);
   const persistGenerated = async (
     filename: string,
     bytes: Buffer,
@@ -2393,7 +2385,7 @@ export function assistantTools<Context>(
       download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
     });
   };
-  const coding: AssistantToolRun = async (call, args, signal) => {
+  const coding: AssistantToolRun = async (call, args, signal, progress) => {
     const sourceRead = await readLegalSourceResource(call, args, {
       userId,
       signal,
@@ -2412,6 +2404,9 @@ export function assistantTools<Context>(
       servedDraftingCache,
       availableWorkflows,
       editMode,
+      knownDocumentNames,
+      progress,
+      signal,
     );
     return output;
   };
@@ -2604,17 +2599,14 @@ export function assistantTools<Context>(
 
   const runWorkflow = documentTool(
     async (call, args, documentId) => {
-      const automationEvent = call.name === "link_docx_citations"
-        ? citationLinkingEvent
-        : call.name === "fix_docx_supras"
-          ? supraFixEvent
-          : null;
+      const action = args.action as "fix_supras" | "lint_structure";
+      const automationEvent = action === "fix_supras" ? supraFixEvent : null;
       const respond = (output: Record<string, unknown>) => withEvent(
         documentResult(output), automationEvent?.(output, call.id),
       );
       try {
         const output = await runDocxWorkflow(
-          call.name,
+          action,
           documents,
           scope,
           documentId,
@@ -2623,11 +2615,9 @@ export function assistantTools<Context>(
         );
         return respond(output);
       } catch (error) {
-        const fallback = call.name === "link_docx_citations"
-          ? "DOCX citation linking failed"
-          : call.name === "fix_docx_supras"
-            ? "DOCX supra cleanup failed"
-            : "DOCX structural lint failed";
+        const fallback = action === "fix_supras"
+          ? "DOCX supra cleanup failed"
+          : "DOCX structural lint failed";
         const message = errorText(error, fallback);
         return respond({ ok: false, error: message });
       }
@@ -2719,11 +2709,29 @@ export function assistantTools<Context>(
       ? { ...input, jurisdiction: readerAssignment.jurisdiction }
       : input, signal));
   };
-  const codingWithArtifacts: AssistantToolRun = (call, input, signal) => {
+  const documentOperation: AssistantToolRun = (call, input, signal) => {
+    switch (input.action) {
+      case "metadata":
+        if (input.kind !== "file" && input.kind !== "template")
+          return Promise.resolve(fail("metadata requires kind"));
+        return updateMetadata(call, input, signal);
+      case "fix_supras":
+        return runWorkflow(call, input, signal);
+      case "delete_and_renumber":
+        if (!trimmed(input.target))
+          return Promise.resolve(fail("delete_and_renumber requires target"));
+        return deleteAndRenumber(call, input, signal);
+      case "table_of_authorities":
+        return createAuthorities(call, input, signal);
+      default:
+        return Promise.resolve(fail("Unknown document operation"));
+    }
+  };
+  const codingWithArtifacts: AssistantToolRun = (call, input, signal, progress) => {
     const filePath = trimmed(input.file_path);
     const resolved = filePath ? resolveArtifact(filePath) : undefined;
     const args = resolved ? { ...input, file_path: resolved } : input;
-    return coding({ ...call, input: args }, args, signal);
+    return coding({ ...call, input: args }, args, signal, progress);
   };
   const isDocumentToolEvent = (event: unknown): event is {
     type: "document_artifact"; action: "created" | "edited"; document_id: string;
@@ -2733,7 +2741,7 @@ export function assistantTools<Context>(
     const raw = trimmed(value);
     const resolved = resolveArtifact(raw) ?? raw;
     const reference = parseResourceReference(resolved);
-    return documentNames?.get(reference?.kind === "document"
+    return knownDocumentNames.get(reference?.kind === "document"
       ? reference.documentId : resolved);
   };
   const documentActivity = (verb: string, toolName: string, key: string) =>
@@ -2782,8 +2790,9 @@ export function assistantTools<Context>(
     ...(policy.sequential ? { sequential: policy.sequential } : {}),
     activity: policy.activity ?? ((input) =>
       assistantToolActivityLabel(schema.name, input) ?? null),
-    async execute(input, _context, signal, call) {
-      const output = await run(call, input, signal);
+    async execute(input, context, signal, call) {
+      const output = await run(call, input, signal, (label) =>
+        context.updateActivity?.(call.id, label));
       if (legalEvidenceState)
         output.evidence?.forEach((evidence) => registerLegalEvidence(legalEvidenceState, evidence));
       if (signal.aborted && !output.mutated) {
@@ -2794,14 +2803,6 @@ export function assistantTools<Context>(
   });
 
   const [glob, grep, read, edit] = RESOURCE_TOOLS;
-  const [
-    updateMetadataSchema,
-    linkCitations,
-    fixSupras,
-    lintStructure,
-    deleteAndRenumberSchema,
-    createAuthoritiesSchema,
-  ] = DOCUMENT_TOOLS;
   const compareVersions = COMPARE_VERSIONS_TOOLS[0];
   const noteUp = CITATOR_TOOLS[0];
 
@@ -2822,12 +2823,22 @@ export function assistantTools<Context>(
     definition(WRITE_TOOL, write, { sequential: true, terminalOnCreate: true }),
     definition(SEARCH_SOURCES_TOOL, sourceSearch, { research: true, reader: ["CA", "US"] }),
     definition(noteUp, runCitator, { research: true, reader: ["CA"] }),
-    definition(updateMetadataSchema, updateMetadata, { specialist: true, sequential: true }),
-    definition(linkCitations, runWorkflow, { specialist: true, sequential: true }),
-    definition(fixSupras, runWorkflow, { specialist: true, sequential: true }),
-    definition(lintStructure, runWorkflow, { specialist: true, reader: ["CA", "US", "UK"] }),
-    definition(deleteAndRenumberSchema, deleteAndRenumber, { specialist: true, sequential: true }),
-    definition(createAuthoritiesSchema, createAuthorities, { specialist: true, sequential: true }),
+    definition(DOCUMENT_OPERATION_TOOL, documentOperation, {
+      specialist: true,
+      sequential: true,
+      activity: (input) => ({
+        metadata: "Updating Library metadata",
+        fix_supras: "Fixing supra references",
+        delete_and_renumber: "Deleting and renumbering provisions",
+        table_of_authorities: "Creating a table of authorities",
+      } as Record<string, string>)[String(input.action)] ?? "Updating document",
+    }),
+    definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
+      runWorkflow(call, { ...input, action: "lint_structure" }, signal), {
+      specialist: true,
+      reader: ["CA", "US", "UK"],
+      activity: () => "Checking document structure",
+    }),
     definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts, { specialist: true, sequential: true }),
     definition(compareVersions, compare, {
       specialist: true,

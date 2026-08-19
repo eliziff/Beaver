@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   dnsLookup: vi.fn(),
-  queuePdf: vi.fn(),
+  parsePdf: vi.fn(),
+  pdfState: vi.fn(),
   lookupPdf: vi.fn(),
   rehydratePdfLink: vi.fn(),
 }));
@@ -18,7 +19,8 @@ vi.mock("undici", async (importOriginal) => ({
 }));
 vi.mock("../documentProjectionService", () => ({
   documentProjectionService: {
-    queuePdf: mocks.queuePdf,
+    parsePdf: mocks.parsePdf,
+    pdfState: mocks.pdfState,
     lookupPdf: mocks.lookupPdf,
     rehydratePdfLink: mocks.rehydratePdfLink,
   },
@@ -32,6 +34,7 @@ const attachment = {
   filename: "decision.pdf",
 };
 let temporaryDirectory: string | null = null;
+let worker: { stop(): Promise<void> } | null = null;
 
 const digest = (bytes: Buffer) =>
   crypto.createHash("sha256").update(bytes).digest("hex");
@@ -48,7 +51,7 @@ async function waitForDownloaded(
   input = attachment,
 ) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    const state = await bridge.readProviderPdfAttachmentState(input);
+    const state = await bridge.readProviderPdfAttachmentState(input, "local-user");
     if (state?.download_status === "downloaded" && state.parse_status) return state;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -58,13 +61,20 @@ async function waitForDownloaded(
 beforeEach(async () => {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "provider-pdf-"));
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+  process.env.AUTH_MODE = "local";
   mocks.dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-  mocks.queuePdf.mockResolvedValue({ status: "ready" });
+  mocks.parsePdf.mockResolvedValue({ status: "ready", cache_key: "provider-cache" });
+  mocks.pdfState.mockImplementation(async () => mocks.parsePdf.mock.calls.length
+    ? { status: "ready", cache_key: "provider-cache" } : null);
   vi.resetModules();
 });
 
 afterEach(async () => {
+  await worker?.stop();
+  worker = null;
+  await (await import("../relationalDatabase")).closeRelationalDatabase();
   delete process.env.MIKE_LOCAL_DATA_DIR;
+  delete process.env.AUTH_MODE;
   delete process.env.GOVINFO_API_KEY;
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -74,16 +84,24 @@ afterEach(async () => {
   }
 });
 
+async function startProviderWorker(
+  bridge: typeof import("../providerPdfLibraryBridge"),
+) {
+  const { startJobWorker } = await import("../jobQueue");
+  worker = startJobWorker(bridge.providerPdfJobHandlers());
+}
+
 describe("provider PDF projection bridge", () => {
   it("queues once and durably addresses verified bytes by SHA-256", async () => {
     const bytes = Buffer.from("%PDF-1.4 provider source");
     const fetchMock = vi.fn(async () => pdfResponse(bytes));
     vi.stubGlobal("fetch", fetchMock);
     const bridge = await import("../providerPdfLibraryBridge");
+    await startProviderWorker(bridge);
 
     const [first, second] = await Promise.all([
-      bridge.queueProviderPdfAttachment(attachment),
-      bridge.queueProviderPdfAttachment(attachment),
+      bridge.queueProviderPdfAttachment(attachment, "local-user"),
+      bridge.queueProviderPdfAttachment(attachment, "local-user"),
     ]);
     expect(first?.request_reference).toBe(second?.request_reference);
 
@@ -104,8 +122,9 @@ describe("provider PDF projection bridge", () => {
     vi.stubGlobal("fetch", vi.fn(async () =>
       pdfResponse(Buffer.from("%PDF-1.4 credential test"))));
     const bridge = await import("../providerPdfLibraryBridge");
+    await startProviderWorker(bridge);
     const input = { ...attachment, url: `${attachment.url}?api_key=input-secret` };
-    await bridge.queueProviderPdfAttachment(input);
+    await bridge.queueProviderPdfAttachment(input, "local-user");
     await waitForDownloaded(bridge, input);
 
     const records = path.join(
@@ -128,11 +147,13 @@ describe("provider PDF projection bridge", () => {
     const firstBytes = Buffer.from("%PDF-1.4 first");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(firstBytes)));
     const bridge = await import("../providerPdfLibraryBridge");
-    await bridge.queueProviderPdfAttachment(attachment);
+    await startProviderWorker(bridge);
+    await bridge.queueProviderPdfAttachment(attachment, "local-user");
     const firstState = await waitForDownloaded(bridge);
 
     await expect(bridge.lookupProviderPdfReference(
       `${firstState.request_reference}:${"f".repeat(64)}`,
+      "local-user",
       { locatorKind: "page", locator: "1" },
     )).resolves.toMatchObject({ availability: "queued" });
     expect(mocks.lookupPdf).not.toHaveBeenCalled();
@@ -145,11 +166,12 @@ describe("provider PDF projection bridge", () => {
     mocks.lookupPdf.mockResolvedValue({ status: "found", evidence: { handle } });
     mocks.rehydratePdfLink.mockResolvedValue({ handle, sources: [], pages: [] });
     const bridge = await import("../providerPdfLibraryBridge");
-    await bridge.queueProviderPdfAttachment(attachment);
+    await startProviderWorker(bridge);
+    await bridge.queueProviderPdfAttachment(attachment, "local-user");
     const state = await waitForDownloaded(bridge);
 
     await expect(bridge.lookupProviderPdfReference(
-      state.source_reference!, { locatorKind: "page", locator: "1" },
+      state.source_reference!, "local-user", { locatorKind: "page", locator: "1" },
     )).resolves.toMatchObject({
       availability: "ready",
       lookup: { status: "found", evidence: { handle } },
@@ -158,6 +180,11 @@ describe("provider PDF projection bridge", () => {
     expect(mocks.lookupPdf).toHaveBeenCalledWith(
       expect.stringContaining(`${digest(bytes)}.pdf`),
       { locatorKind: "page", locator: "1" },
+      {
+        cacheKey: "provider-cache",
+        documentId: `provider-pdf-${digest(bytes).slice(0, 32)}`,
+        versionId: digest(bytes).slice(0, 32),
+      },
     );
   });
 });

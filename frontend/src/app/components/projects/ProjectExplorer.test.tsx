@@ -7,9 +7,8 @@ import { ProjectExplorer } from "./ProjectExplorer";
 
 function chooseDocumentAction(filename: string, label: string) {
   const row = screen.getByText(filename).closest("li")!;
-  const select = within(row).getByRole("combobox", { name: "More actions" });
-  const option = within(select).getByRole("option", { name: label });
-  fireEvent.change(select, { target: { value: option.getAttribute("value") } });
+  fireEvent.click(within(row).getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
 
 describe("ProjectExplorer document removal", () => {

@@ -34,11 +34,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FORK = HERE.parent.parent.parent
-ENGINE_SRC = FORK / "universal-legal-pdf-engine" / "src"
+ENGINE_SRC = FORK / "legal-pdf-parser" / "src"
 PRIVATE_SOURCES = FORK / "benchmarks" / "docx_corpus" / "private_sources"
 PATHOLOGY_DIR = FORK / "backend" / "src" / "lib" / "__tests__" / "fixtures" / "docx-pathologies"
-PILOT = FORK / "universal-legal-pdf-engine" / "_temp" / "docx_upstream_pilot"
-BENCH_OUT = FORK / "universal-legal-pdf-engine" / "benchmark-output"
+PILOT = FORK / "legal-pdf-parser" / "_temp" / "docx_upstream_pilot"
+BENCH_OUT = FORK / "legal-pdf-parser" / "benchmark-output"
 CASES_JSONL = (
     FORK / "benchmarks" / "docx_corpus" / "private_results" / "local" / "cases.private.jsonl"
 )

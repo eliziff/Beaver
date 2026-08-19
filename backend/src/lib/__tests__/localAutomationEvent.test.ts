@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  citationLinkingEvent,
   supraFixEvent,
   tableOfAuthoritiesEvent,
 } from "../chat/localAutomationEvent";
@@ -59,19 +58,6 @@ describe("localAutomationEvent", () => {
       progress: 100,
       outputs: [{ name: "Book.pdf", url: "/download/book" }],
       app_url: "/table-of-authorities?job=abc",
-    });
-  });
-
-  it("keeps failed tool receipts visible", () => {
-    expect(
-      citationLinkingEvent(
-        { ok: false, error: "No footnotes found" },
-        "call-3",
-      ),
-    ).toMatchObject({
-      type: "automation_run",
-      status: "error",
-      error: "No footnotes found",
     });
   });
 });
