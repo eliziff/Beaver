@@ -1636,9 +1636,18 @@ StructureEvidenceV1
   scope = { kind: "complete" | "excerpt", excerpt_of? }
   origins[] = { id, producer, representation, revision, authority }
   units[] = {
-    id, role: "page" | "line" | "span", parent_id?, source_order,
+    id, role: "page" | "region" | "line" | "word" | "span",
+    parent_id?, source_order,
     provider_order?, range, origin_id, page_index?, page_number?, flow_id?,
     raw_geometry?: { coordinate_space, page_width, page_height, bbox }
+    page_layout?: { column_separator? }
+    region_layout?: { kind?, member_line_ids? }
+    line_layout?: {
+      region_id?, region_type?, note_region_mode?, suppress_footnote_label?,
+      detached_references?: { note_id?, range?, selected_text?,
+                               source_line_id? }[]
+    }
+    span_style?: { font?, size?, flags?, superscript? }
   }
   native_claims[] = {
     id, kind: "paragraph" | "page" | "section" | "footnote", label,
@@ -1660,6 +1669,19 @@ text-only adapters do not create lines. An astral-character round trip is a
 mandatory contract test. IDs are stable and unique. `source_order` is
 document-global and one-based for each unit role; `provider_order` preserves a
 different upstream order rather than overwriting it.
+
+The role-specific layout blocks and every field in them are optional. Word and
+region units are likewise optional; a region's kind/membership and a line's
+region identity/type must agree when both are supplied. `page_layout` carries
+the current optional per-page column separator in that page's raw coordinate
+frame; detector use goes through the same decision-key policy. `span_style`
+preserves the font, size, flags, and superscript evidence used by heading/note
+inference.
+Line layout preserves source note-region mode, label suppression, and detached
+reference evidence; its reference ranges use the same document-global scalar
+unit and are checked/projected to line-local offsets only at the PDF seam.
+Absence means no layout claim, not an instruction to invent defaults. A
+provider with only text therefore emits none of these fields.
 
 Raw finite provider/PDF geometry is retained unchanged for projection and
 provenance. Separately, the engine derives a versioned fixed-point decision key
@@ -1714,9 +1736,9 @@ complete only for the stated provider representation and range.
 | `journal/hybrid-legacy` | Complete article; authoritative `article_pages` order/ranges and page-marker paragraph exclusions | page complete, other kinds absent; `page N15`, `section H5`, `footnote H79`, `paragraph H1` |
 | `journal/native-final-contract` | Complete article package; page/region/line order, region breaks, and native claims | page/paragraph/section complete, footnote absent for this capture; `page N1`, `paragraph N9`, `section N1` |
 | `journal/hybrid-final-contract-recovery` | Complete package with an authoritative page but no usable native regions | page complete, other kinds absent; `page N1`, `paragraph H1` |
-| `local-pdf/native-source-doc` | Complete PDF; ordered page/line/span evidence, raw geometry, source-region kinds, and exclusions | native source-region contract is complete or the core abstains from it; `page N3` |
-| `local-pdf/hybrid-source-doc` | Complete PDF; same factual units, with a native page claim and no native paragraph claim | page complete, paragraph absent; `page N1`, `paragraph H1` |
-| `local-pdf/flat-source-doc` | Complete PDF; factual units/geometry but no native semantic claim | all semantic kinds absent; `page H1`, `paragraph H5` |
+| `local-pdf/native-source-doc` | Complete PDF; ordered page/region/line/word/span evidence, optional separator/typography/pairing hints, raw geometry, source-region kinds, and exclusions | native source-region contract is complete or the core abstains from it; `page N3` |
+| `local-pdf/hybrid-source-doc` | Complete PDF; same optional factual layout evidence, with a native page claim and no native paragraph claim | page complete, paragraph absent; `page N1`, `paragraph H1` |
+| `local-pdf/flat-source-doc` | Complete PDF; optional factual layout evidence/geometry but no native semantic claim | all semantic kinds absent; `page H1`, `paragraph H5` |
 
 The separate `journal/flat-text` applicability proof is not an eighteenth
 parity row: the current local provider contract always has an authoritative
@@ -1779,7 +1801,8 @@ Before any ownership cutover, require these tests:
 
 1. Offset/schema tests cover astral Unicode round trips, empty/overlapping/out-
    of-range evidence, duplicate IDs/order, invalid coverage partitions,
-   parent containment, non-finite geometry refusal, and preservation plus
+   parent/region membership, optional separator/typography/line-hint
+   preservation, non-finite geometry refusal, and preservation plus
    deterministic decision handling for finite out-of-frame raw boxes.
 2. Geometry tests prove raw bbox preservation and decision-key determinism for
    every cached PDF/OCR artifact before fixing precision; permissible batching
