@@ -614,6 +614,16 @@ BLLA line polygons/boxes feed the same paragraph-break evidence contract as
 native PDF line geometry. BLLA does not decide that a paragraph is legally
 numbered, and its region labels do not replace the shared stream selector.
 
+OCR acceptance and OCR evidence are separate decisions. If a routed page has
+legible Kraken output that fails the product quality threshold, do not promote
+it to authoritative document text and do not discard it. Retain a compact,
+content-addressed candidate containing its text, lines/geometry, quality score,
+rejection reason, model/runtime identity, and source-page hash. That candidate
+is admissible as a Luna starting sheet and threshold-audit input, not as a
+successful OCR page. Candidate retention remains inside the global OCR cache
+cap and may be deduplicated by content; every rejected page stays counted as
+unresolved until a later accepted repair explicitly supersedes it.
+
 ## 9. Phase 4: regioning method and ontology qualification
 
 ### 9.1 Model roles
@@ -2298,6 +2308,14 @@ No stage is being called complete prematurely:
   startup, with roughly four to six hours still projected. This is progress,
   not a corpus completion claim, and the image-only 6.263 pages/s result
   remains distinct from end-to-end product throughput.
+  Separately, all 425 pages across five 85-page parts of one historical
+  English-law volume were routed, but only 185 became accepted OCR source and
+  240 remained unresolved. Manual side-by-side inspection shows the rejected
+  pages are legible, comparable eighteenth-century scans rather than blank or
+  corrupt pages. This isolates an old-type/long-s/two-column acceptance-score
+  false negative, not a routing or CUDA failure. The baseline remains
+  unchanged; after it finishes, a bounded subset must prove separate rejected-
+  candidate retention without promoting those pages or rerunning all 425.
 - The settled Kraken product binary is not yet reproducible from the checked-in
   source. Its embedded provenance pins a `kraken.rs` implementation with
   `cpu_fallback` in the request contract and provider identity; the current
