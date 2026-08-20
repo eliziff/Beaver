@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -24,8 +25,9 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = "beaver.legal-structure-corpus-registry.v1"
 SOURCE_SUFFIXES = {
-    ".csv", ".docx", ".eml", ".htm", ".html", ".json", ".jsonl",
-    ".lst", ".md", ".pdf", ".png", ".tsv", ".txt", ".xlsx", ".xml",
+    ".csv", ".db", ".docx", ".eml", ".gz", ".htm", ".html", ".json",
+    ".jsonl", ".lst", ".md", ".parquet", ".pdf", ".png", ".sqlite",
+    ".sqlite3", ".tsv", ".txt", ".xlsx", ".xml",
 }
 EXCLUDED_PARTS = {
     ".git", ".pytest_cache", ".venv", "__pycache__", "dist", "node_modules",
@@ -71,6 +73,7 @@ SPECS = [
     spec("digital-native-materialized", ".tmp/digital-native-structure-audit", "legal-pdf", "cached extraction", "frozen baseline cache", kind="cache"),
     spec("sourcedoc-a2aj-fixtures", "backend/src/lib/__tests__/fixtures/sourcedoc", "sourcedoc", "provider json", "captured provider bytes", ["numbered_units", "notes", "paragraphs", "exclusions"]),
     spec("sourcedoc-native-markup-fixtures", "backend/src/lib/__tests__/fixtures/nativemarkup", "sourcedoc", "provider json", "captured native claims"),
+    spec("sourcedoc-local-pdf-fixtures", "backend/src/lib/__tests__/fixtures/legalpdf", "sourcedoc", "Rust-projected SourceDoc json", "captured local-PDF contract"),
     spec("sourcedoc-hansard-fixture", "backend/src/lib/__tests__/fixtures/hansard", "sourcedoc", "provider json", "captured provider bytes", ["headings", "numbered_units", "paragraphs", "exclusions"]),
     spec("sourcedoc-legalbench-fixtures", "backend/src/lib/__tests__/fixtures/legalbench", "sourcedoc", "legal text json", "captured fixture", ["headings", "numbered_units", "paragraphs"]),
     spec("retrieval-citation-oracle", "backend/src/lib/__tests__/fixtures/retrieval_gate", "sourcedoc", "oracle json", "manual oracle", ["numbered_units", "notes", "exclusions"]),
@@ -89,6 +92,7 @@ SPECS = [
     spec("kraken-courtlistener-silver", "legal-pdf-parser/experiments/kraken-lite/kraken-lite-native/courtlistener-scan-silver", "ocr", "scan silver", "machine silver", ["pages", "paragraphs", "reading_order", "exclusions"]),
     spec("kraken-scan-silver", "legal-pdf-parser/experiments/kraken-lite/kraken-lite-native/scan-silver", "ocr", "scan silver", "machine silver", ["pages", "paragraphs", "reading_order", "exclusions"]),
     spec("kraken-training-data", "legal-pdf-parser/experiments/kraken-lite/kraken-lite-training-data", "ocr", "page images and truth", "frozen training data", ["pages", "paragraphs", "reading_order", "exclusions"]),
+    spec("kraken-accepted-journal-661", "legal-pdf-parser/experiments/kraken-lite/kraken-lite-student/known-good-input", "ocr", "accepted PNG/PAGE pairs", "frozen train/eval/test manifests", ["pages", "paragraphs", "reading_order", "exclusions"]),
     spec("digitalborn-external-sources", "legal-pdf-parser/experiments/digitalborn-core", "legal-pdf", "pdf manifest", "source manifest"),
     spec("ppdoc-product-smoke", "legal-pdf-parser/experiments/ppdoc-lite/product-smoke", "layout", "layout images", "product fixture", ["pages", "paragraphs", "reading_order", "exclusions"]),
     spec("cache-contract-fixture", "legal-pdf-parser/experiments/cache-contract-fidelity", "legal-pdf", "cache manifest", "cache-contract manifest", ["exclusions"]),
@@ -104,6 +108,7 @@ SPECS = [
     spec("prompt-live", "benchmarks/prompt_live", "benchmarks", "prompt fixture", "frozen fixture", ["exclusions"]),
     spec("deeplink-receipts", "benchmarks/deeplink_gate", "benchmarks", "navigation receipts", "none", ["exclusions"], applicable=False, reason="contains navigation receipts, not document source bytes"),
     spec("sourcedoc-performance-receipts", "benchmarks/sourcedoc", "sourcedoc", "timing receipts", "none", ["exclusions"], applicable=False, reason="contains timing receipts and URLs, not provider document bytes"),
+    spec("courtlistener-partial-audit", "backend/.tmp-courtlistener-corpus-audit.jsonl", "sourcedoc", "audit jsonl", "captured diagnostic output", ["exclusions"], applicable=False, reason="partial audit output, not provider input; the live opinion store is registered separately"),
     spec("trace-receipts", "benchmarks/traces", "benchmarks", "execution traces", "none", ["exclusions"], applicable=False, reason="contains execution traces, not document source bytes"),
     spec("a2aj-decision-roster", "experiments/a2aj_decision_roster_qwen", "sourcedoc", "captured A2AJ decisions", "frozen case roster", ["headings", "numbered_units", "paragraphs", "notes", "exclusions"]),
     spec("legal-compaction-cases", "experiments/legal_compaction_qwen", "sourcedoc", "captured legal decisions", "frozen case records", ["headings", "numbered_units", "paragraphs", "notes", "exclusions"]),
@@ -121,10 +126,7 @@ HISTORICAL = [
     ("historical-a2aj-cases-sweep", 330473, None),
     ("historical-a2aj-laws-sweep", 36927, None),
     ("historical-journal-sweep", 2494, None),
-    ("installed-a2aj-fulltext", 248685, None),
-    ("courtlistener-bodies", 55504, None),
     ("courtlistener-audit", 69393, None),
-    ("journal-database", 18958, 404506),
     ("canlii-case-title-index", 3538714, None),
     ("canlii-legislation-title-index", 91669, None),
 ]
@@ -238,7 +240,10 @@ def combined_file_hash(files: list[Path]) -> str | None:
     return sha256_bytes("\n".join(sorted(sha256_file(path) for path in files)).encode())
 
 
-def generic_row(item: dict[str, Any], repo_root: Path) -> dict[str, Any]:
+def generic_row(
+    item: dict[str, Any], repo_root: Path, *, measure_duplicates: bool = True,
+    count_records: bool = True,
+) -> dict[str, Any]:
     root = repo_root / item["path"]
     files = files_below(root)
     if item["kind"] == "references":
@@ -251,7 +256,7 @@ def generic_row(item: dict[str, Any], repo_root: Path) -> dict[str, Any]:
     identities = identity_files(files)
     records = 0
     for path in files:
-        if path.suffix.lower() in {".jsonl", ".lst"}:
+        if count_records and path.suffix.lower() in {".jsonl", ".lst"}:
             with path.open("rb") as source:
                 records += sum(1 for line in source if line.strip())
     units = {"files": len(files), "bytes": sum(path.stat().st_size for path in files)}
@@ -282,10 +287,127 @@ def generic_row(item: dict[str, Any], repo_root: Path) -> dict[str, Any]:
         "membership_manifest_sha256": manifest_hash(files, root),
         "identity_file_count": len(identities),
         "identity_files_sha256": combined_file_hash(identities),
-        "duplicates": duplicate_summary(files) if item["applicable"] else {
+        "duplicates": duplicate_summary(files) if item["applicable"] and measure_duplicates else {
             "groups": 0, "aliases": 0, "extra_aliases": 0, "measured": False,
         },
     }
+
+
+def sqlite_digest(database: sqlite3.Connection, queries: list[str]) -> tuple[str, list[int]]:
+    """Hash membership fields, not multi-gigabyte SQLite layout or private paths."""
+    digest = hashlib.sha256()
+    counts = []
+    for query in queries:
+        count = 0
+        for row in database.execute(query):
+            encoded = json.dumps(row, ensure_ascii=False, separators=(",", ":")).encode()
+            digest.update(len(encoded).to_bytes(8, "big"))
+            digest.update(encoded)
+            count += 1
+        counts.append(count)
+    return digest.hexdigest(), counts
+
+
+def sqlite_row(
+    corpus_id: str,
+    path: Path,
+    queries: list[str],
+    denominator_queries: dict[str, str],
+    *,
+    applicable: bool = True,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    uri = path.resolve().as_uri() + "?mode=ro"
+    with sqlite3.connect(uri, uri=True) as database:
+        membership_sha, membership_counts = sqlite_digest(database, queries)
+        schema_sha, _ = sqlite_digest(database, [
+            "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+        ])
+        denominator = {
+            name: int(database.execute(query).fetchone()[0])
+            for name, query in denominator_queries.items()
+        }
+    stat = path.stat()
+    denominator["bytes"] = stat.st_size
+    store_identity = sha256_bytes(json.dumps({
+        "membership": membership_sha,
+        "schema": schema_sha,
+        "bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }, sort_keys=True, separators=(",", ":")).encode())
+    return {
+        "id": corpus_id, "owner": "configured-local",
+        "path_identity": f"configured:{corpus_id}",
+        "input_type": "provider SQLite", "oracle": "live provider rows",
+        "applicable": applicable, "exclusion": reason,
+        "gates": ALL_GATES if applicable else [], "availability": "current",
+        "runnable_offline": applicable, "denominator": denominator,
+        "file_types": {path.suffix.lower(): 1},
+        "membership_manifest_sha256": store_identity,
+        "membership_query_rows": membership_counts,
+        "database_identity_scope": "schema, metadata/primary-key membership, byte size, and mtime; full row bytes belong to the corpus execution receipt",
+        "identity_file_count": 1, "identity_files_sha256": schema_sha,
+        "duplicates": {
+            "groups": 0, "aliases": 0, "extra_aliases": 0,
+            "measured": False,
+        },
+    }
+
+
+def installed_provider_rows() -> list[dict[str, Any]]:
+    """Inventory locally installed stores without leaking their absolute paths."""
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    user_profile = os.environ.get("USERPROFILE")
+    if not local_app_data or not user_profile:
+        return []
+    providers = Path(local_app_data) / "OpenLegalProducts/LegalData/providers"
+    candidates: list[tuple[str, Path, list[str], dict[str, str], bool, str | None]] = [
+        ("installed-a2aj-fulltext", providers / "a2aj/a2aj.sqlite", [
+            "SELECT key,value FROM meta ORDER BY key"
+        ], {"documents": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='document_count'"}, True, None),
+        ("installed-a2aj-case-search", providers / "a2aj/a2aj-cases-fulltext.sqlite", [
+            "SELECT key,value FROM meta ORDER BY key"
+        ], {"documents": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='document_count'"}, True, None),
+        ("installed-courtlistener-opinions", providers / "courtlistener/courtlistener.sqlite", [
+            "SELECT key,value FROM meta ORDER BY key"
+        ], {"documents": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='opinions_count'"}, True, None),
+        ("installed-journal-search-index", providers / "journals/public_endpoint-search.sqlite", [
+            "SELECT key,value FROM meta ORDER BY key"
+        ], {"records": "SELECT CAST(value AS INTEGER) FROM meta WHERE key='article_count'"}, False,
+         "contentless retrieval index; its source article store is registered separately"),
+    ]
+    journal_index = providers / "journals/public_endpoint-search.sqlite"
+    if journal_index.is_file():
+        with sqlite3.connect(journal_index.resolve().as_uri() + "?mode=ro", uri=True) as database:
+            source = database.execute("SELECT value FROM meta WHERE key='source_path'").fetchone()
+        if source and Path(source[0]).is_file():
+            candidates.append(("installed-journal-source", Path(source[0]), [
+                "SELECT key,value FROM export_metadata ORDER BY key",
+            ], {
+                "documents": "SELECT CAST(value AS INTEGER) FROM export_metadata WHERE key='article_count'",
+                "pages": "SELECT CAST(value AS INTEGER) FROM export_metadata WHERE key='article_page_count'",
+            }, True, None))
+    oajd = Path(user_profile) / "Desktop/Open Access Journals Database/oajd/journals.db"
+    candidates.append(("installed-journal-final-contracts", oajd, [
+        "SELECT article_id FROM article_final_contracts ORDER BY article_id"
+    ], {"documents": "SELECT count(article_id) FROM article_final_contracts"}, True, None))
+    rows = [
+        sqlite_row(corpus_id, path, queries, denominators, applicable=applicable, reason=reason)
+        for corpus_id, path, queries, denominators, applicable, reason in candidates
+        if path.is_file()
+    ]
+    packages = Path(user_profile) / "Desktop/Open Access Journals Database/data/final_contracts"
+    if packages.is_dir():
+        item = spec(
+            "installed-journal-final-contract-packages", packages.name,
+            "configured-local", "final-contract JSONL", "provider-native packages",
+        )
+        row = generic_row(
+            item, packages.parent, measure_duplicates=False, count_records=False,
+        )
+        row["path_identity"] = "configured:installed-journal-final-contract-packages"
+        rows.append(row)
+    return rows
 
 
 def ledger_rows(items: list[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
@@ -393,6 +515,22 @@ def validate_rows(rows: list[dict[str, Any]]) -> None:
             raise ValueError(f"current applicable corpus is not runnable: {row['id']}")
 
 
+def reject_private_paths(value: Any) -> None:
+    markers = [
+        item.casefold() for item in {
+            os.environ.get("USERPROFILE", ""), os.environ.get("LOCALAPPDATA", ""),
+        } if item
+    ]
+    if isinstance(value, str) and any(marker in value.casefold() for marker in markers):
+        raise ValueError("private absolute path leaked into corpus receipt")
+    if isinstance(value, dict):
+        for item in value.values():
+            reject_private_paths(item)
+    elif isinstance(value, list):
+        for item in value:
+            reject_private_paths(item)
+
+
 def make_receipt(repo_root: Path, extra_roots: list[tuple[str, Path]] = []) -> dict[str, Any]:
     ledger_specs = [item for item in SPECS if item["kind"].startswith("ledger")]
     rows = ledger_rows(ledger_specs, repo_root)
@@ -400,7 +538,9 @@ def make_receipt(repo_root: Path, extra_roots: list[tuple[str, Path]] = []) -> d
         if item not in ledger_specs:
             path = repo_root / item["path"]
             if path.exists():
-                rows.append(generic_row(item, repo_root))
+                rows.append(generic_row(
+                    item, repo_root, measure_duplicates=item["kind"] != "cache",
+                ))
     for corpus_id, path in extra_roots:
         dynamic = spec(corpus_id, ".", "configured-local", "legal documents", "configured local corpus")
         fake_root = path.parent
@@ -408,6 +548,7 @@ def make_receipt(repo_root: Path, extra_roots: list[tuple[str, Path]] = []) -> d
         row = generic_row(dynamic, fake_root)
         row["path_identity"] = f"configured:{corpus_id}"
         rows.append(row)
+    rows.extend(installed_provider_rows())
     rows.extend(historical_rows())
     registered_paths = {item["path"] for item in SPECS}
     unregistered = discover_unregistered(repo_root, registered_paths)
@@ -428,6 +569,7 @@ def make_receipt(repo_root: Path, extra_roots: list[tuple[str, Path]] = []) -> d
             "unregistered": 0,
         },
     }
+    reject_private_paths(payload)
     payload["registry_sha256"] = sha256_bytes(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode())
     return payload
 
@@ -478,6 +620,12 @@ def self_test() -> None:
     must_fail({"scope": "registry-only", "rows": [changed]}, "changed manifest passed")
     must_fail({"scope": "registry-only", "rows": [row, row]}, "duplicate ID passed")
     must_fail({"scope": "smoke", "rows": [row]}, "smoke mislabeled full passed")
+    try:
+        reject_private_paths({"path": str(Path.home() / "secret")})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("private path passed")
     print("corpus registry negative controls: PASS")
 
 
