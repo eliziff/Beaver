@@ -39,20 +39,13 @@ export default function AppShell() {
     const authoritiesActive = pathname === "/table-of-authorities";
     const capabilityUnavailable = access.capability &&
         !getRuntimeConfig().capabilities[access.capability];
-    const [authoritiesOrigin, setAuthoritiesOrigin] = useState<string | null>(null);
+    const [authoritiesVisited, setAuthoritiesVisited] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const authoritiesIntent = authoritiesOrigin === pathname;
-    const authoritiesVisible = authoritiesActive || authoritiesIntent;
-    const authoritiesMounted = authoritiesVisible;
+    const authoritiesMounted = authoritiesActive || authoritiesVisited;
 
     useEffect(() => {
-        if (authoritiesOrigin === null) return;
-        const rollback = window.setTimeout(
-            () => setAuthoritiesOrigin(null),
-            pathname === authoritiesOrigin ? 2_000 : 0,
-        );
-        return () => window.clearTimeout(rollback);
-    }, [authoritiesOrigin, pathname]);
+        if (authoritiesActive) setAuthoritiesVisited(true);
+    }, [authoritiesActive]);
 
     if (!authLoading && !isAuthenticated) {
         return <Navigate to="/login" replace />;
@@ -64,7 +57,6 @@ export default function AppShell() {
     const prepareAuthorities = () => {
         if (authoritiesActive) return;
         void import("@/app/components/shared/TableOfAuthoritiesHost");
-        setAuthoritiesOrigin(pathname);
     };
 
     return (
@@ -139,9 +131,7 @@ export default function AppShell() {
                                 </main>
                                 {authoritiesMounted && (
                                     <Suspense
-                                        fallback={
-                                            authoritiesVisible ? <AuthoritiesLoadingFrame /> : null
-                                        }
+                                        fallback={authoritiesActive ? <AuthoritiesLoadingFrame /> : null}
                                     >
                                         <TableOfAuthoritiesHost
                                             active={
@@ -149,11 +139,10 @@ export default function AppShell() {
                                                 !authLoading &&
                                                 isAuthenticated
                                             }
-                                            pending={authoritiesIntent}
                                             enabled={
                                                 !authLoading &&
                                                 isAuthenticated &&
-                                                authoritiesVisible
+                                                authoritiesMounted
                                             }
                                         />
                                     </Suspense>

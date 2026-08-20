@@ -638,7 +638,7 @@ async function readNonDocumentResource(
       const payload = {
         ok: true,
         resource: requested,
-        job: await getTableOfAuthoritiesJob(resource.id),
+        job: await getTableOfAuthoritiesJob(userId, resource.id),
       };
       const event = tableOfAuthoritiesEvent(payload, call.id);
       return {
@@ -2624,6 +2624,7 @@ export function assistantTools<Context extends {
           error: "Table of Authorities requires a Word or PDF Library version",
         });
         const job = await submitTableOfAuthoritiesDocument({
+          userId: scope.userId,
           bytes: file.bytes,
           filename: file.version.filename ?? file.filename,
           splitFallback: args.split_fallback === "off" ? "off" : "auto",

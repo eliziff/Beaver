@@ -248,7 +248,7 @@ Acceptance:
 - A missing build, occupied port, missing optional key, and failed backend each
   produce a specific diagnosis.
 - `http://127.0.0.1:3000`, backend health, Library upload, model selection,
-  effort selection, first assistant message, and Table of Authorities launch
+  effort selection, first assistant message, and the integrated Authorities workflow
   pass one automated smoke flow.
 
 ### P0.2 Frontend responsiveness and build time

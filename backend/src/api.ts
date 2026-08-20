@@ -99,9 +99,20 @@ for (const path of ["/user/account", "/user/chats", "/user/projects",
   "/user/tabular-reviews"]) api.delete(path, dataDeleteLimiter);
 api.get("/user/lookup", lookupLimiter);
 for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
-  "/user/mcp-connectors/:connectorId/refresh-tools"])
+  "/user/mcp-connectors/:connectorId/refresh-tools",
+  "/table-of-authorities/jobs"])
   api.post(path, lookupLimiter, workSlot);
 
+api.use(
+  "/table-of-authorities/workspace",
+  lookupLimiter,
+  workSlot,
+);
+api.use(
+  "/table-of-authorities",
+  lazyRouter(async () => (await import("./routes/tableOfAuthorities"))
+    .createTableOfAuthoritiesRouter(await runtime.documents())),
+);
 api.use(jsonBody);
 
 api.use(
@@ -180,12 +191,6 @@ api.use(
   "/models",
   lazyRouter(() => import("./routes/models").then((mod) => mod.modelRouter)),
 );
-api.use(
-  "/table-of-authorities",
-  lazyRouter(async () => (await import("./routes/tableOfAuthorities"))
-    .createTableOfAuthoritiesRouter(await runtime.documents())),
-);
-
 api.get("/config", (_req, res) => {
   res.json(publicRuntimeConfig());
 });
