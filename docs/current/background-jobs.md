@@ -201,5 +201,5 @@ lazy model-catalog loading, reasoning-effort display, and durable OCR progress.
 Live Luna turns through a Codex subscription read exact pages from both native
 and scanned PDFs, persisted evidence and completion state, and survived a
 backend restart without a stopped or interrupted response. Full backend and
-frontend tests, production builds, and the launcher-owned Beaver/Authorities
+frontend tests, production builds, and the single-origin Beaver/Authorities
 smoke passed before release.

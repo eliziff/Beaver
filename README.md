@@ -63,13 +63,15 @@ bounded provider.
 
 ### Reviewable tables and books of authorities
 
-[AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper)
-is a separately runnable browser application that Beaver can launch for a
-Library document. It deterministically finds citation occurrences in DOCX or
-PDF input, lets the user correct authority and pinpoint spans, resolves sources
-through shared legal data, and builds reviewable tables or tabbed books of
-authorities. Scanned authorities retain their original page images; OCR and
-passage marking are explicit, reviewable choices.
+[AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) supplies the
+single Authorities engine and workspace used both inside Beaver and in its
+standalone launcher. Beaver hosts the workspace itself and talks to the Python
+handlers through a private process channel rather than launching another web
+server. It deterministically finds citation occurrences in DOCX or PDF input,
+lets the user correct authority and pinpoint spans, resolves sources through
+shared legal data, and builds reviewable tables or tabbed books of authorities.
+Scanned authorities retain their original page images; OCR and passage marking
+are explicit, reviewable choices.
 
 The parser and Authorities application consume the same versioned legal
 grammar corpus as Beaver. The corpus is checked for schema, vector, manifest,

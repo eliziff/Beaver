@@ -5,9 +5,9 @@ import helmet from "helmet";
 import { api } from "./api";
 import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
 import { publicOrigin } from "./lib/publicOrigin";
-import { tableOfAuthoritiesUrl } from "./lib/tableOfAuthorities";
 
 const frontend = path.resolve(__dirname, "../../frontend/dist");
+const authoritiesWeb = path.resolve(__dirname, "../../AuthoritiesHelper/web");
 const config = publicRuntimeConfig();
 const cloudOrigin = config.mode === "cloud" ? publicOrigin() : null;
 const connectSrc = ["'self'"];
@@ -37,9 +37,7 @@ server.use(helmet({
       fontSrc: ["'self'", "data:"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
-      frameSrc: config.mode === "local"
-        ? ["'self'", tableOfAuthoritiesUrl()]
-        : ["'none'"],
+      frameSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "blob:"],
       objectSrc: ["'none'"],
       scriptSrc: ["'self'"],
@@ -86,6 +84,19 @@ server.use((req, res, next) => {
   }
   next();
 });
+server.use("/authorities-helper", express.static(authoritiesWeb, {
+  dotfiles: "deny",
+  index: "index.html",
+  setHeaders: (res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; " +
+      "style-src 'self'; script-src 'self'; img-src 'self' data: blob:; " +
+      "connect-src 'self'; frame-ancestors 'self'",
+    );
+  },
+}));
 server.use("/api", api);
 server.use("/api", (_req, res) => res.status(404).json({ detail: "Not found" }));
 server.use(express.static(frontend, {

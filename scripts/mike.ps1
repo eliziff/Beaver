@@ -302,12 +302,9 @@ function Assert-PortFree([string]$Name, [int]$Port) {
     }
 }
 
-function Assert-PortsFree([switch]$IncludeToa) {
+function Assert-PortsFree {
     foreach ($service in $Services) {
         Assert-PortFree $service.Name $service.Port
-    }
-    if ($IncludeToa) {
-        Assert-PortFree 'authorities-helper' 8765
     }
 }
 
@@ -327,10 +324,6 @@ function Wait-Ready(
             $response = Invoke-RestMethod -Uri $Url -TimeoutSec 3
             if ($Name -eq 'beaver' -and $response.ok -ne $true) {
                 throw 'health response did not contain ok=true'
-            }
-            if ($Name -eq 'authorities-helper' -and
-                ($response.ok -ne $true -or $response.service -ne 'authorities-helper')) {
-                throw 'status response did not identify a healthy Table of Authorities service'
             }
             return
         }
@@ -424,7 +417,7 @@ function Show-Status {
     $state = Read-State
     $owned = Get-OwnedRecords $state
     Write-Host "Launcher state: $(if ($owned) { 'running' } elseif ($state) { 'stale' } else { 'stopped' })"
-    foreach ($service in @($Services) + @([pscustomobject]@{ Name = 'authorities-helper'; Port = 8765 })) {
+    foreach ($service in $Services) {
         Write-Host ("{0}: {1}" -f $service.Name, (Format-PortOwners $service.Port))
     }
 }
@@ -508,16 +501,6 @@ function Invoke-Doctor {
             Write-Host "Table of Authorities: MISSING bootstrap.py"
             $failed = $true
         }
-        Write-Host "authorities-helper: $(Format-PortOwners 8765)"
-        $ownedPid = @($state.processes | Where-Object {
-            $_.name -eq 'authorities-helper' -and
-            (Test-ProcessIdentity ([int]$_.listenerPid) ([string]$_.listenerStartedAt))
-        } | Select-Object -ExpandProperty listenerPid)
-        $unexpected = @(Get-PortOwners 8765 | Where-Object { $_.Id -notin $ownedPid })
-        if ($unexpected) {
-            Write-Host 'ERROR: Table of Authorities port has a listener not owned by this launcher.'
-            $failed = $true
-        }
     }
     $authMode = Get-ConfigValue 'AUTH_MODE'
     $missingSupabase = @(
@@ -566,8 +549,8 @@ function Start-Stack {
     $codex = Resolve-Codex -Optional
     $legalPdfBinary = Resolve-LegalPdfBinary -Build
     [void](Get-LegalPdfRuntimeVersion $legalPdfBinary)
-    $python = if ($WithTableOfAuthorities) { Get-Python } else { $null }
-    Assert-PortsFree -IncludeToa:$WithTableOfAuthorities
+    if ($WithTableOfAuthorities) { [void](Get-Python) }
+    Assert-PortsFree
 
     $state = [pscustomobject]@{
         version = 1
@@ -600,17 +583,6 @@ function Start-Stack {
         Set-ListenerRecord $state 'beaver' 3000 $backendStart.Process
         Write-Host "Beaver ready: $($Services[0].Url)"
 
-        if ($WithTableOfAuthorities) {
-            $toaStart = Start-LoggedProcess 'authorities-helper' $python @('bootstrap.py', '--port', '8765', '--no-browser') $Toa $state
-            $launched += [pscustomobject]@{
-                Id = $toaStart.Process.Id
-                StartedAt = Get-ProcessStamp $toaStart.Process.Id
-            }
-            Add-ProcessRecord $state 'authorities-helper' 8765 $toaStart.Process $toaStart.Stdout $toaStart.Stderr
-            Wait-Ready 'authorities-helper' 'http://127.0.0.1:8765/api/status' $toaStart.Process $TimeoutSeconds
-            Set-ListenerRecord $state 'authorities-helper' 8765 $toaStart.Process
-            Write-Host 'Authorities Helper ready: http://127.0.0.1:8765/'
-        }
     }
     catch {
         $message = $_.Exception.Message
@@ -639,11 +611,7 @@ function Invoke-Smoke {
         throw 'Full smoke requires -WithTableOfAuthorities.'
     }
     $state = Read-State
-    $services = @($Services)
-    if ($WithTableOfAuthorities) {
-        $services += [pscustomobject]@{ Name = 'authorities-helper'; Port = 8765 }
-    }
-    foreach ($service in $services) {
+    foreach ($service in $Services) {
         if (-not (Test-LauncherOwnedListener $state $service.Name $service.Port)) {
             $start = '.\scripts\mike.ps1 start' +
                 $(if ($WithTableOfAuthorities) { ' -WithTableOfAuthorities' } else { '' })
@@ -665,7 +633,8 @@ function Invoke-Smoke {
         Write-Host 'SKIP Codex model catalog: Codex is not installed; another provider may be used.'
     }
     if ($WithTableOfAuthorities) {
-        $checks += [pscustomobject]@{ Name = 'authorities-helper'; Url = 'http://127.0.0.1:8765/api/status' }
+        $checks += [pscustomobject]@{ Name = 'Authorities workspace'; Url = 'http://127.0.0.1:3000/authorities-helper/' }
+        $checks += [pscustomobject]@{ Name = 'Authorities plugin'; Url = 'http://127.0.0.1:3000/api/table-of-authorities/workspace/status' }
     }
     foreach ($check in $checks) {
         try {
@@ -673,7 +642,7 @@ function Invoke-Smoke {
             if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 400) {
                 throw "HTTP $($response.StatusCode)"
             }
-            if ($check.Name -ne 'app') {
+            if ($check.Name -notin @('app', 'Authorities workspace')) {
                 $payload = $response.Content | ConvertFrom-Json
                 if ($check.Name -eq 'beaver' -and $payload.ok -ne $true) {
                     throw 'health response did not contain ok=true'
@@ -687,9 +656,9 @@ function Invoke-Smoke {
                     ($payload.source -ne 'live' -or @($payload.models).Count -eq 0)) {
                     throw 'Codex did not return a live model catalog'
                 }
-                if ($check.Name -eq 'authorities-helper' -and
+                if ($check.Name -eq 'Authorities plugin' -and
                     ($payload.ok -ne $true -or $payload.service -ne 'authorities-helper')) {
-                    throw 'Table of Authorities status was unhealthy'
+                    throw 'Authorities plugin status was unhealthy'
                 }
             }
             Write-Host "PASS $($check.Name): $($check.Url)"
