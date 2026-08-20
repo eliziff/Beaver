@@ -1975,11 +1975,18 @@ No stage is being called complete prematurely:
   to 13.16--14.80 s and invalidated enough Rust code to make quick/link builds
   take 29.85 s/159 s; it was reverted and recorded at `3cbd044`. The next
   admissible attempt must serialize typed fields directly in frozen key order,
-  not move generic value construction into a different loop.
-  A true no-edit warm `cargo quick` was 3.224 s (within p95 but not evidence of
-  the <=2 s median), while the production-feature link was 44.24 s and remains
-  red against 30 s. The latest actual source counter is under the production
-  ceiling at 125,883/125,896, but the test/authored ceilings and final
+  not move generic value construction into a different loop. That direct typed
+  serializer is now committed at `fcfb627`. It preserves the exact
+  553,317,754-byte / `ad7ebccc...ec7d` worst-case output while reducing wall
+  from 7.984 s to 5.528 s and peak working set to 466.8 MB; the 11-document
+  smoke remains exact at 474.6 pages/s. This is a real 1.44x improvement, but
+  the current two-heavy-worker schedule still projects roughly 33 s, so no
+  fresh 748-document run was spent or claimed. The measured memory now permits
+  a bounded three-heavy-worker scheduler qualification under the 2 GiB cap.
+  The latest `cargo quick` was 2.759 s (within individual p95, median unproven)
+  and the incremental production-feature build/link was 50.121 s, still red
+  against 30 s. The binary shrank to 16,556,032 bytes and whole production is
+  under its ceiling at 125,890/125,896, but the test/authored ceilings and final
   contraction targets remain red.
 - The SourceDoc compact parity ledger now covers every shipping provider: 16
   of 17 provider/mode rows are frozen from real captures, including real A2AJ
@@ -2062,9 +2069,14 @@ No stage is being called complete prematurely:
   changes pairing score 7.5 to 8.2, reclassifies page-39 lines 32–54/regions
   from body to footnote, and reduces emitted paragraphs from 1,414 to 1,391
   (89 normalized differences). This makes quantization-before-decision, not
-  comparator tolerance, a prerequisite for note/paragraph repair. At this small-document
-  prefix, end-to-end wall is 55.7 minutes; warmed larger documents amortize
-  startup, with roughly four to five hours still projected. This is progress,
+  comparator tolerance, a prerequisite for note/paragraph repair. Two later
+  documents expose a second semantic failure class: tiny round-trip geometry
+  drift swaps tied lines/regions, changing line IDs, source order, and
+  paragraph order. Therefore geometry must be canonical before every sort,
+  threshold, and sequence decision, with an explicit stable tie-break; merely
+  canonicalizing the final JSON cannot recover deterministic structure. At this small-document
+  prefix, end-to-end wall is 1 h 38 min 52 s; warmed larger documents amortize
+  startup, with roughly four to six hours still projected. This is progress,
   not a corpus completion claim, and the image-only 6.263 pages/s result
   remains distinct from end-to-end product throughput.
 - The settled Kraken product binary is not yet reproducible from the checked-in
