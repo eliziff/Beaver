@@ -1134,3 +1134,12 @@ export const journalLegalSourceProvider = Object.assign(provider, {
   lookup,
   viewer,
 });
+
+/** Temporary, read-only port oracle. Delete with this TypeScript detector. */
+export const __journalStructurePortOracle = {
+  pageBlocks,
+  finalContractSource,
+  reconstructedJournalBlocks,
+  journalSourceDoc,
+  titleAliases,
+};

@@ -1933,3 +1933,26 @@ export function compileA2AJSourceDoc(input: CompileInput): SourceDoc {
         : reconstructed,
   });
 }
+
+/** Temporary, read-only port oracle. Delete with this TypeScript detector. */
+export const __sourceStructurePortOracle = {
+  paragraphMarkers,
+  outsideExcludedRanges,
+  quotedDotProvisionStarts,
+  headingJoinedCandidates,
+  recoverHeadingJoinedMarkers,
+  recoverHeadingJoinedParagraphs,
+  spineCandidates,
+  selectSpineChain,
+  monotoneScopes,
+  contiguousScopes,
+  soleChain,
+  soleLadder,
+  endnoteShaped,
+  paragraphBlocks,
+  pageMarkers,
+  pageBlocks,
+  reporterStartPage,
+  lawSectionBlocks,
+  sectionMapBlocks,
+};
