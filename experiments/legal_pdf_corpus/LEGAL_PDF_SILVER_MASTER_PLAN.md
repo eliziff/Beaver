@@ -1928,13 +1928,14 @@ No stage is being called complete prematurely:
 
 - The whole-project source guard self-test passes. It includes untracked
   authored files inside subrepositories and `.cmd` source. On the latest dirty
-  execution slice it correctly fails all three ceilings: production 125,904
-  versus 125,896 (+8), production+tests 182,240 versus 181,886 (+354), and all
-  authored code 288,482 versus 285,654 (+2,828), plus the intentionally
+  execution slice it correctly leaves two ceilings red: production+tests
+  182,219 versus 181,886 (+333) and all authored code 288,586 versus 285,654
+  (+2,932), plus the intentionally
   unadvanced Legal PDF Parser lock. Physical diff counts inside one subrepo do
   not override this whole-project classifier. No ownership/performance slice
   is accepted until the old paths are deleted, the lock is updated, and all
-  ceilings pass; completion still requires the lower contraction targets.
+  ceilings pass; completion still requires the lower contraction targets. The
+  latest production total is under its hard ceiling at 125,883/125,896.
 - The Rust baseline harness has now hardened the full denominator: 750 audit
   records = 748 cached successes plus the two explicit ingestion failures.
   The independent resumed check passed 748/748 documents / 24,707 pages with
@@ -2001,21 +2002,42 @@ No stage is being called complete prematurely:
   at about seven minutes over roughly 29.7 GB, with a ~4 KiB phase summary and
   ~29.6 MB ignored compressed row manifest. This is an admissible red baseline
   measurement, not completion or permission to repeat the full run.
-  The one authorized full freeze is now executing that exact denominator.
-  A2AJ completed all 248,685 rows with 248,640 passes, 45 explicit
+  The one authorized full freeze completed that exact denominator. A2AJ
+  attempted all 248,685 rows with 248,640 passes, 45 explicit
   provider-unavailable failures, zero skips, and flat mode for every success.
-  CourtListener completed all 55,504 opinions with 55,503 passes, one explicit
-  provider-unavailable failure, and zero skips. Journal and the separate 6,937
-  final-contract package proof remain in progress. These failures stay in the
-  baseline; they are not removed by narrowing the selected corpus.
+  CourtListener attempted all 55,504 opinions with 55,503 passes, one explicit
+  provider-unavailable failure, zero skips, and 38,652 native / 3,260 hybrid /
+  13,591 flat successes. Journal attempted 19,185 rows: all 18,958 source
+  articles plus 227 source-orphan final-contract registrations. It produced
+  18,595 successes (10,162 native / 8,433 hybrid), retained 590 explicit
+  failures, hashed and validated all 6,937 registered packages, and accounted
+  for all 404,506 page-map rows. No provider row was skipped. The full
+  denominator is 323,374 attempts = 322,738 passes + 636 explicit failures,
+  over 30,368,316,430 source bytes and 10,338,239,008 canonical public-output
+  bytes. Its compact manifest is 29,496,144 bytes / 337 gzip parts with root
+  SHA-256 `4ac13b37...cef5f8`; the phase summary is 5,139 bytes. A separate
+  verifier checks every record, part, shard/root hash, mode/count invariant,
+  contract proof, harness identity, forbidden raw/path field, and artifact cap
+  in under three seconds without rerunning provider compilation.
+  Throughput is honestly red: 721.677 s wall, 41.822 MiB/s aggregate, with
+  A2AJ 26.210 and CourtListener 19.980 below the 50 MiB/s per-provider gate;
+  journal achieved 106.558 MiB/s. The exact baseline is valid evidence but not
+  acceptance, and must not be rerun merely to obtain a better timing number.
+  These failures stay in the baseline; they are not removed by narrowing the
+  selected corpus. This proof is committed at `8c6836e0` with its CRLF-stable
+  verifier fix at `f033f24e`.
 - The non-digital runner has verified the full local manifest and exact
   denominator of 750 documents / 86,763 physical pages. Its first CUDA product
   smoke correctly failed when all CPU execution-provider fallback was
   forbidden: the settled model has a small unavoidable CPU-node assignment.
   The exact run is now live without a rebuild using the same frozen binary and
-  model, with `fallback=cpu` explicitly enabled and identity-pinned. At the
-  latest durable product checkpoint has 464/750 document receipts. The launch
-  runner reports 461 passed and three explicit failures. At 448 documents,
+  model, with `fallback=cpu` explicitly enabled and identity-pinned. The
+  latest durable product checkpoint has 501/750 document receipts and 7,537
+  passed physical pages. The launch runner reports 498 passed and three
+  explicit failures. It routed 6,756 OCR attempts, emitted OCR on 6,325 pages,
+  and retained 431 unresolved pages with exact routing partitions. Strict
+  replay has only 56 raw-byte-exact passes, 442 launch-era raw-drift failures,
+  and the three explicit failures. At 448 documents,
   strict receipt audit showed only 56/448 raw-byte replay exact: 390 launch-era “passes”
   have `byte_identical_structure_replay=false` and therefore become raw-float
   drift failures, plus the two explicit failures. At the earlier 409-document
