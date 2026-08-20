@@ -816,3 +816,10 @@ export function lookupLegalSourceDoc(
         : "");
   return lookupSourceDocLabel(doc, kind, requestedLabel, contextBlocks);
 }
+
+/** Temporary, read-only port oracle. Delete with this TypeScript detector. */
+export const __nativeMarkupPortOracle = {
+  nativeMarkupBlocks,
+  hasGappedParagraphSpine,
+  clipParagraphsAtExcludedRanges,
+};
