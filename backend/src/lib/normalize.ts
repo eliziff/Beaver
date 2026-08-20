@@ -27,7 +27,7 @@ export function normalizeDocumentMetadata(value: unknown): DocumentMetadata {
       : null;
   const list = (input: unknown) => Array.isArray(input)
     ? [...new Set(input.filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim()).filter(Boolean))].slice(0, 20)
+        .map((item) => item.trim().slice(0, 160)).filter(Boolean))].slice(0, 20)
     : [];
   return {
     jurisdiction: text(source.jurisdiction, 160),

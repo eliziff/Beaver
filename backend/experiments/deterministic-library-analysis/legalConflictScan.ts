@@ -150,7 +150,7 @@ const excerptAt = (text: string, at: number, length: number) => {
   };
 };
 
-type SectionAt = (at: number) => string | null;
+type SectionAt = (at: number) => Promise<string | null>;
 
 /**
  * Deepest skeleton node containing an offset, as a citable label. The
@@ -164,11 +164,11 @@ type SectionAt = (at: number) => string | null;
  * (the A2AJ lane in `passageRetrieval`), and no such feed reaches this scan.
  */
 function sectionResolver(text: string): SectionAt {
-  let nodes: SkeletonNode[] | null = null;
-  return (at) => {
-    nodes ??= compileAgreementSkeleton(text).nodes;
+  let nodes: Promise<SkeletonNode[]> | null = null;
+  return async (at) => {
+    nodes ??= compileAgreementSkeleton(text).then((skeleton) => skeleton.nodes);
     let best: SkeletonNode | null = null;
-    for (const node of nodes) {
+    for (const node of await nodes) {
       if (node.start > at || at >= node.end) continue;
       if (!best || node.depth > best.depth) best = node;
     }
@@ -176,14 +176,18 @@ function sectionResolver(text: string): SectionAt {
   };
 }
 
-const noSection: SectionAt = () => null;
+const noSection: SectionAt = async () => null;
 
-const ref = (text: string, fig: Fig, sectionAt: SectionAt): FigureRef => ({
+const ref = async (
+  text: string,
+  fig: Fig,
+  sectionAt: SectionAt,
+): Promise<FigureRef> => ({
   document: fig.document,
   display: fig.raw,
   value: fig.value,
   at: fig.index,
-  section: sectionAt(fig.index),
+  section: await sectionAt(fig.index),
   ...excerptAt(text, fig.index, fig.raw.length),
 });
 
@@ -209,9 +213,9 @@ function labelBefore(
   return text.slice(floor, fig.index);
 }
 
-export function conflictScan(
+export async function conflictScan(
   documents: readonly ConflictDocument[],
-): ConflictScanReport {
+): Promise<ConflictScanReport> {
   const findings: ConflictFinding[] = [];
   const seen = new Set<string>();
   let consistent = 0;
@@ -337,8 +341,8 @@ export function conflictScan(
               `${fmt(whole.value)} × ${pct.value}% = ${fmt(expected)} ≠ ` +
               `${fmt(part.value)} stated (Δ ${fmt(Math.abs(part.value - expected))}; ` +
               `stated figures imply ${fmt(implied)}%)`,
-            part: ref(document.text, part, sectionAt),
-            whole: ref(document.text, whole, sectionAt),
+            part: await ref(document.text, part, sectionAt),
+            whole: await ref(document.text, whole, sectionAt),
             stated_percent: pct.value,
             implied_percent: Number(implied.toFixed(2)),
             expected_part: expected,
@@ -461,9 +465,11 @@ export function conflictScan(
             detail:
               `${column.map((fig) => fmt(fig.value)).join(" + ")} = ${fmt(sum)} ≠ ` +
               `${fmt(total.value)} stated total (Δ ${fmt(Math.abs(sum - total.value))})`,
-            parts: column.map((fig) => ref(document.text, fig, sectionAt)),
+            parts: await Promise.all(
+              column.map((fig) => ref(document.text, fig, sectionAt)),
+            ),
             parts_sum: sum,
-            total: ref(document.text, total, sectionAt),
+            total: await ref(document.text, total, sectionAt),
           },
           `sp:${unit}:${sum}:${total.value}`,
         );
@@ -508,8 +514,8 @@ export function conflictScan(
             `${fmt(claim.whole.value)} × ${claim.pct.value}% = ${fmt(expected)} ≠ ` +
             `${fmt(part.value)} stated (Δ ${fmt(Math.abs(part.value - expected))}; ` +
             `stated figures imply ${fmt(implied)}%)`,
-          part: ref(text, part, home.sectionAt),
-          whole: ref(
+          part: await ref(text, part, home.sectionAt),
+          whole: await ref(
             wholeHome?.text ?? "",
             claim.whole,
             wholeHome?.sectionAt ?? noSection,

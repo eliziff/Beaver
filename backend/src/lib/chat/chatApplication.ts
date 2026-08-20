@@ -17,8 +17,9 @@ import {
 } from "./prompts";
 import {
   DEFAULT_MAIN_MODEL,
+  isSupportedModel,
   modelSupportsImageInput,
-  resolveModel,
+  resolveRequestedModel,
   type LlmImage,
   type SubagentMode,
   type UserApiKeys,
@@ -64,42 +65,36 @@ import type {
 } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
 import { chatTurnWasDeleted, setChatTurnControl } from "../chatTurns";
+import { jsonRecord as asRecord } from "../value";
 
 const uuid = z.string().uuid();
-const documentReference = z.object({
-  filename: z.string().trim().min(1).max(500),
+const userMessage = z.string().trim().min(1).max(200_000);
+const documentSelection = z.object({
   document_id: z.string().trim().min(1).max(200),
 }).strict();
 const workflow = z.object({
   id: z.string().trim().min(1).max(200),
-  title: z.string().trim().min(1).max(500),
 }).strict();
 const choiceResponse = z.object({
   id: z.string().trim().min(1).max(80),
   kind: z.literal("choice"),
-  question: z.string().trim().min(1).max(2_000),
   answer: z.string().max(20_000).optional(),
-  skipped: z.boolean().optional(),
 }).strict();
 const documentResponse = z.object({
   id: z.string().trim().min(1).max(80),
   kind: z.literal("documents"),
-  filenames: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
-  documents: z.array(documentReference).max(50).optional(),
-  skipped: z.boolean().optional(),
+  documents: z.array(documentSelection).max(50).default([]),
 }).strict();
 const currentTurn = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("message"),
     turn_id: uuid.optional(),
-    content: z.string().trim().min(1).max(1_000_000),
-    files: z.array(documentReference).max(50).optional(),
+    content: userMessage,
+    files: z.array(documentSelection).max(50).optional(),
     workflow: workflow.optional(),
   }).strict(),
   z.object({
     kind: z.literal("ask_inputs_response"),
-    content: z.string().trim().min(1).max(1_000_000),
-    files: z.array(documentReference).max(50).optional(),
     responses: z.array(z.discriminatedUnion("kind", [
       choiceResponse,
       documentResponse,
@@ -113,9 +108,9 @@ export const chatTurnInputSchema = z.object({
   tabular_review_id: uuid.nullish(),
   current_turn: currentTurn,
   expected_version: z.number().int().nonnegative(),
-  model: z.string().trim().min(1).max(200).optional(),
+  model: z.string().trim().min(1).max(200)
+    .refine(isSupportedModel, "Unsupported model").optional(),
   reasoning_effort: z.string().trim().min(1).max(32).optional(),
-  service_tier: z.string().trim().min(1).max(32).optional(),
   edit_mode: z.enum(["manual", "auto"]).default("manual"),
   jurisdiction_preference: z.object({
     mode: z.enum(["ask", "presume"]),
@@ -133,8 +128,7 @@ export const chatTurnInputSchema = z.object({
       return false;
     }
   }, "time_zone is invalid").optional(),
-  displayed_doc: documentReference.optional(),
-  attached_documents: z.array(documentReference).max(50).optional(),
+  displayed_doc: documentSelection.optional(),
 }).strict().superRefine((value, context) => {
   if (value.project_id && value.tabular_review_id) {
     context.addIssue({
@@ -145,6 +139,9 @@ export const chatTurnInputSchema = z.object({
 });
 
 export type ChatTurnInput = z.infer<typeof chatTurnInputSchema>;
+type AskInputsSubmission = Extract<
+  ChatTurnInput["current_turn"], { kind: "ask_inputs_response" }
+>;
 export type AuthContext = ChatScope;
 export type EventSink = {
   claim(chatId: string): boolean;
@@ -181,7 +178,6 @@ export type ChatApplicationFeatures = {
       provider: string;
       model: string;
       reasoningEffort?: string;
-      serviceTier?: string;
       expectedVersion: number;
     }): Promise<{
       continuationId?: string;
@@ -216,10 +212,6 @@ type Dependencies = {
 
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
-
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
   if (!assistant || !Array.isArray(assistant.content)) return null;
@@ -250,7 +242,7 @@ function pendingAskInputs(messages: ChatMessageRecord[]) {
 
 function canonicalAskResponse(
   pending: AskInputsEvent,
-  submitted: AskInputsResponseRequest,
+  submitted: AskInputsSubmission,
   files: { filename: string; document_id: string }[],
 ) {
   if (submitted.responses.length !== pending.items.length) return null;
@@ -262,40 +254,21 @@ function canonicalAskResponse(
     const value = byId.get(item.id);
     if (!value || value.kind !== item.kind) return null;
     if (item.kind === "choice" && value.kind === "choice") {
-      if (value.question.trim() !== item.question) return null;
-      if (value.skipped) responses.push({
-        id: item.id, kind: "choice", question: item.question, skipped: true,
+      if (value.answer?.trim()) responses.push({
+        id: item.id, kind: "choice", answer: value.answer.trim(),
       });
-      else if (value.answer?.trim()) responses.push({
-        id: item.id, kind: "choice", question: item.question,
-        answer: value.answer.trim(),
-      });
-      else return null;
+      else responses.push({ id: item.id, kind: "choice" });
     } else if (item.kind === "documents" && value.kind === "documents") {
-      if (value.skipped) responses.push({
-        id: item.id, kind: "documents", filenames: [], documents: [], skipped: true,
-      });
-      else {
-        const ids = value.documents?.map(({ document_id }) => document_id) ?? [];
+      if (value.documents.length) {
+        const ids = value.documents.map(({ document_id }) => document_id);
         const documents = [...new Set(ids)].flatMap((id) => available.get(id) ?? []);
         if (!documents.length || documents.length !== ids.length) return null;
-        responses.push({
-          id: item.id, kind: "documents",
-          filenames: documents.map(({ filename }) => filename), documents,
-        });
-      }
+        responses.push({ id: item.id, kind: "documents", documents });
+      } else responses.push({ id: item.id, kind: "documents", documents: [] });
     }
   }
-  const lines = responses.map((item, index) => item.kind === "choice"
-    ? item.skipped ? `${index + 1}. Skipped: ${item.question}`
-      : `${index + 1}. ${item.question}\n${item.answer}`
-    : item.skipped ? `${index + 1}. Skipped document request.`
-      : `${index + 1}. Documents attached: ${item.filenames.join(", ")}`);
-  return { responses, content: `Responses to Beaver's questions:\n${lines.join("\n\n")}` };
+  return { responses };
 }
-
-const sameResponse = (left: AskInputsResponseRequest, right: AskInputsResponseRequest) =>
-  JSON.stringify(left.responses) === JSON.stringify(right.responses);
 
 function normalTurnState(messages: ChatMessageRecord[], turnId: string) {
   const user = messages.find((message) =>
@@ -315,6 +288,11 @@ function normalTurnState(messages: ChatMessageRecord[], turnId: string) {
 
 function conflict(code: string, currentVersion: number, detail = "Chat changed") {
   throw new ChatApplicationError(409, detail, code, currentVersion);
+}
+
+function requestedModel(value?: string) {
+  try { return resolveRequestedModel(value, DEFAULT_MAIN_MODEL); }
+  catch { throw new ChatApplicationError(400, "Unsupported model"); }
 }
 
 async function projectDocuments(
@@ -413,7 +391,7 @@ async function loadImages(
   records: Map<string, Record<string, unknown>>,
 ) {
   const ids = new Set(messages.flatMap((message) => (message.files ?? [])
-    .flatMap((file) => file.document_id &&
+    .flatMap((file) =>
       isImageDocumentType(String(records.get(file.document_id)?.file_type ?? ""))
       ? [file.document_id] : [])));
   if (ids.size > MAX_CHAT_IMAGES) {
@@ -431,7 +409,7 @@ async function loadImages(
 
 function imageForMessage(message: ChatMessage, images: Map<string, LlmImage>) {
   const selected = (message.files ?? []).flatMap((file) => {
-    const image = file.document_id ? images.get(file.document_id) : undefined;
+    const image = images.get(file.document_id);
     return image ? [image] : [];
   });
   return selected.length ? selected : undefined;
@@ -457,6 +435,7 @@ export function createChatApplication(deps: Dependencies) {
       signal: AbortSignal,
       claim: (chatId: string) => boolean,
     ) {
+      const model = requestedModel(input.model);
       const chat = await deps.chats.get(auth, input.chatId);
       if (!chat) throw new ChatApplicationError(404, "Chat not found");
       if (!claim(chat.id)) conflict(
@@ -464,7 +443,6 @@ export function createChatApplication(deps: Dependencies) {
         chat.transcript_version,
         "A response is already running",
       );
-      const model = resolveModel(input.model, DEFAULT_MAIN_MODEL);
       const provider = await deps.features.providerSession?.compact({
         auth,
         chatId: input.chatId,
@@ -511,6 +489,8 @@ export function createChatApplication(deps: Dependencies) {
       sink: EventSink,
       signal: AbortSignal,
     ) {
+      const selectedModel = requestedModel(input.model);
+      const responseProvider = providerForModel(selectedModel);
       let chat = input.chat_id ? await deps.chats.get(auth, input.chat_id) : null;
       if (input.chat_id && !chat) throw new ChatApplicationError(404, "Chat not found");
       if (!chat && input.expected_version !== 0) {
@@ -529,17 +509,20 @@ export function createChatApplication(deps: Dependencies) {
       const transcript = chat ? await deps.chats.transcript(auth, chat.id) : [];
       if (chat && !transcript) throw new ChatApplicationError(404, "Chat not found");
       const rows = transcript ?? [];
+      const turnFiles = input.current_turn.kind === "message"
+        ? input.current_turn.files ?? []
+        : input.current_turn.responses.flatMap((response) =>
+            response.kind === "documents" ? response.documents : []);
       const requested = [
-        ...(input.current_turn.files ?? []).map(({ document_id }) => document_id),
+        ...turnFiles.map(({ document_id }) => document_id),
         ...(input.displayed_doc ? [input.displayed_doc.document_id] : []),
-        ...(input.attached_documents ?? []).map(({ document_id }) => document_id),
       ];
       const context = await loadDocumentContext(
         deps, auth, projectId, rows, [...new Set(requested)],
       );
-      const canonicalFiles = (input.current_turn.files ?? []).map((file) => ({
+      const canonicalFiles = turnFiles.map((file) => ({
         document_id: file.document_id,
-        filename: String(context.records.get(file.document_id)?.filename ?? file.filename),
+        filename: String(context.records.get(file.document_id)?.filename),
       }));
       const tabularDetail = tabularReviewId
         ? await deps.tabular.detail(auth, tabularReviewId) : null;
@@ -547,6 +530,17 @@ export function createChatApplication(deps: Dependencies) {
         throw new ChatApplicationError(404, "Review not found");
       }
       const tabular = tabularDetail ? tabularChatContext(tabularDetail) : undefined;
+      const features = await deps.features.load(auth);
+      const submittedWorkflow = input.current_turn.kind === "message"
+        ? input.current_turn.workflow : undefined;
+      const registeredWorkflow = submittedWorkflow
+        ? features.workflows?.get(submittedWorkflow.id) : undefined;
+      if (submittedWorkflow && !registeredWorkflow) {
+        throw new ChatApplicationError(400, "Selected workflow is unavailable");
+      }
+      const canonicalWorkflow = registeredWorkflow && submittedWorkflow
+        ? { id: submittedWorkflow.id, title: registeredWorkflow.title }
+        : undefined;
       let assistant = input.current_turn.kind === "ask_inputs_response"
         ? pendingAskInputs(rows)?.assistant : undefined;
       let assistantContent = Array.isArray(assistant?.content)
@@ -563,14 +557,14 @@ export function createChatApplication(deps: Dependencies) {
           "No assistant question is available for this response");
         const canonical = canonicalAskResponse(
           pending.event,
-          { responses: input.current_turn.responses as AskInputResponseItem[] },
+          input.current_turn,
           canonicalFiles,
         );
         if (!canonical) throw new ChatApplicationError(400,
           "Response does not match the pending assistant questions");
-        if (pending.retryResponse && !sameResponse(
-          pending.retryResponse, { responses: canonical.responses },
-        )) throw new ChatApplicationError(400,
+        if (pending.retryResponse &&
+            JSON.stringify(pending.retryResponse.responses) !==
+              JSON.stringify(canonical.responses)) throw new ChatApplicationError(400,
           "Retry the same response to the assistant questions");
         if (pending.mutationCommitted) conflict(
           "chat_retry_blocked_after_mutation", chat?.transcript_version ?? 0,
@@ -578,8 +572,6 @@ export function createChatApplication(deps: Dependencies) {
         );
         if (!pending.retryResponse) assistantContent.push({
           type: "ask_inputs_response",
-          content: canonical.content,
-          files: canonicalFiles,
           responses: canonical.responses,
         });
         commit = {
@@ -598,7 +590,7 @@ export function createChatApplication(deps: Dependencies) {
           const same = prior.user.content === input.current_turn.content &&
             JSON.stringify(prior.user.files ?? []) === JSON.stringify(canonicalFiles) &&
             JSON.stringify(prior.user.workflow ?? null) ===
-              JSON.stringify(input.current_turn.workflow ?? null);
+              JSON.stringify(canonicalWorkflow ?? null);
           if (!same) throw new ChatApplicationError(400,
             "turn_id was already used for a different message");
           if (prior.completed) conflict(
@@ -632,7 +624,7 @@ export function createChatApplication(deps: Dependencies) {
             id: randomUUID(), turnId,
             content: input.current_turn.content,
             files: canonicalFiles.length ? canonicalFiles : undefined,
-            workflow: input.current_turn.workflow,
+            workflow: canonicalWorkflow,
           },
         };
       }
@@ -642,8 +634,6 @@ export function createChatApplication(deps: Dependencies) {
           id: randomUUID(), turnId, content: [], citations: [],
         };
       }
-      const selectedModel = resolveModel(input.model, DEFAULT_MAIN_MODEL);
-      const responseProvider = providerForModel(selectedModel);
       const transcriptForModel = rows
         .map((row) => row.id === assistant?.id
           ? { ...row, content: assistantContent, citations: assistantCitations }
@@ -655,7 +645,7 @@ export function createChatApplication(deps: Dependencies) {
         role: "user",
         content: input.current_turn.content,
         files: canonicalFiles,
-        workflow: input.current_turn.workflow,
+        workflow: canonicalWorkflow,
       });
       const priorEvidence = priorLegalEvidenceReceipts(rows.flatMap((row) =>
         Array.isArray(row.content) ? row.content : []));
@@ -672,14 +662,13 @@ export function createChatApplication(deps: Dependencies) {
         throw new ChatApplicationError(400,
           `Model "${selectedModel}" does not support image input.`);
       }
-      const features = await deps.features.load(auth);
       const focus = [
         ...(input.displayed_doc ? [`Displayed document: ${JSON.stringify(
           context.records.get(input.displayed_doc.document_id)?.filename,
         )}`] : []),
-        ...(input.attached_documents?.length ? [
+        ...(turnFiles.length ? [
           "User-attached documents for this turn:",
-          ...input.attached_documents.map(({ document_id }) =>
+          ...turnFiles.map(({ document_id }) =>
             `- ${JSON.stringify(context.records.get(document_id)?.filename)}`),
         ] : []),
       ];
@@ -791,7 +780,6 @@ export function createChatApplication(deps: Dependencies) {
           provider: responseProvider,
           model: selectedModel,
           reasoningEffort: input.reasoning_effort,
-          serviceTier: input.service_tier,
           expectedVersion: input.expected_version,
         }) ?? null;
       } catch (error) {
@@ -812,7 +800,6 @@ export function createChatApplication(deps: Dependencies) {
           emit: sink.emit,
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
-          serviceTier: input.service_tier,
           compactThreshold: compactionThresholdForModel(selectedModel),
           promptCacheKey: providerSession?.promptCacheKey,
           signal,
@@ -850,7 +837,7 @@ export function createChatApplication(deps: Dependencies) {
         activeContinuationId = result.continuationId ?? activeContinuationId;
         await persistence;
         const events: unknown[] = result.events.filter(({ type }) =>
-          !["reasoning", "error", "context_usage", "case_opinions"].includes(type));
+          !["reasoning", "error", "context_usage"].includes(type));
         if (!result.fullText && !result.events.some(({ type }) => [
           "content", "document_artifact", "automation_run",
         ].includes(type)) && result.status !== "paused") {
@@ -868,7 +855,6 @@ export function createChatApplication(deps: Dependencies) {
         }
         providerSession?.save(activeContinuationId, version);
         sink.emit({ type: "transcript_version", transcriptVersion: version });
-        sink.emit({ type: "content_done" });
         deps.features.audit?.(auth, {
           chatId: chat.id, projectId, title: chat.title, model: selectedModel,
           events: result.events,

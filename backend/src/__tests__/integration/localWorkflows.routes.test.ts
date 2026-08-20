@@ -68,6 +68,10 @@ describe("account-free workflows", () => {
       .toContain("Review each agreement.");
     expect(JSON.parse(await zip.file("contract-review/table-config.yaml")!.async("text")))
       .toMatchObject({ columns_config: [{ name: "Term" }] });
+    expect((await request(api).post("/workflows").send({
+      metadata: { title: "Unbounded", type: "tabular" },
+      columns_config: [{ index: 0, name: "Term", prompt: "Extract it", arbitrary: {} }],
+    })).status).toBe(400);
     expect(mocks.supabaseCalls).toBe(0);
   });
 

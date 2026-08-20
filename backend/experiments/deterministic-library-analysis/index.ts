@@ -35,7 +35,7 @@ const integer = (value: unknown, min: number, max: number, fallback: number) =>
     ? Math.max(min, Math.min(max, Math.floor(value)))
     : fallback;
 
-export function runExperimentalLibraryAnalysis(
+export async function runExperimentalLibraryAnalysis(
   name: ExperimentalLibraryAnalysis,
   args: Record<string, unknown>,
   documents: ExperimentDocument[] = [],

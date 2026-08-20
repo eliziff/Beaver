@@ -335,5 +335,3 @@ export function SpreadsheetView({
         </div>
     );
 }
-
-export default SpreadsheetView;

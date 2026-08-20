@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import JSZip from "jszip";
 
 let localData: string | null = null;
 
@@ -21,6 +22,15 @@ afterEach(async () => {
 });
 
 describe("DocumentProjectionService", () => {
+  it("rejects a compressed presentation with oversized slide XML", async () => {
+    const zip = new JSZip();
+    zip.file("ppt/slides/slide1.xml", "x".repeat(8 * 1024 * 1024 + 1));
+    const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    await expect((await service()).read({
+      documentId: "document-a", versionId: "version-1", fileType: "pptx", bytes,
+    })).rejects.toThrow("oversized slide XML");
+  });
+
   it("returns one stable SourceDoc projection", async () => {
     const projections = await service();
     const input = {

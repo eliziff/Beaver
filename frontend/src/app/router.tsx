@@ -74,14 +74,6 @@ const sourcePage: LazyRoute = async () => {
   };
 };
 
-function RouteLoading() {
-  return (
-    <p className="m-auto p-6 text-sm text-gray-500" role="status">
-      Loading…
-    </p>
-  );
-}
-
 const appRoutes: RouteObject[] = [
   route("assistant", page(() => import("@/app/(pages)/assistant/page"))),
   route(
@@ -174,10 +166,12 @@ const appRoutes: RouteObject[] = [
   }),
 ];
 
-export const routes: RouteObject[] = [{
+const routes: RouteObject[] = [{
   Component: Root,
   ErrorBoundary: RouteError,
-  HydrateFallback: RouteLoading,
+  HydrateFallback: () => (
+    <p className="m-auto p-6 text-sm text-gray-500" role="status">Loading…</p>
+  ),
   children: [
     { index: true, element: <Navigate to="/assistant" replace /> },
     route("login", page(() => import("@/app/login/page"))),

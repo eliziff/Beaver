@@ -33,7 +33,6 @@ export function SubagentSettings() {
     const capability = catalog?.readSubagents;
     const loading = !catalog;
     const models = (catalog?.models ?? [])
-        .filter((model) => model.supportedInApi !== false)
         .map((model) => ({
             id: `codex:${model.slug}`,
             label: model.displayName,

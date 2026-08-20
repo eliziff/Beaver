@@ -36,6 +36,8 @@ const SIDE_PADDING = 20;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
+const MAX_PDF_IMAGE_PIXELS = 40_000_000;
+const MAX_PDF_PAGES = 2_000;
 const PDF_VIEWER_ERROR =
     "Unable to open this PDF. The file may be invalid or unsupported.";
 const clampZoom = (value: number) =>
@@ -375,9 +377,16 @@ export function PdfView({
             if (cancelled) return;
             const pdf = await lib.getDocument({
                 data: new Uint8Array(result.buffer.slice(0)),
+                isEvalSupported: false,
+                maxImageSize: MAX_PDF_IMAGE_PIXELS,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,
             }).promise;
             if (cancelled) return;
+            if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 ||
+                pdf.numPages > MAX_PDF_PAGES) {
+                await pdf.destroy();
+                throw new Error("PDF page count exceeds the viewer limit");
+            }
             pdfRef.current = pdf;
             setNumPages(pdf.numPages);
             await renderPdf(quoteList);

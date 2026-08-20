@@ -19,8 +19,9 @@ server, build-time public environment file, CORS path, or alternate API URL.
 ## Model-dependent cases
 
 The suite is useful without a paid model key. Tests that require generation
-skip unless the repository has an `ANTHROPIC_API_KEY` Actions secret. Fork pull
-requests never receive that secret, so they run the deterministic remainder.
+skip unless a maintainer starts the workflow manually and the repository has
+an `ANTHROPIC_API_KEY` Actions secret. Pull requests run only the deterministic
+remainder so changed code cannot read the provider credential.
 
 Add the optional secret under **Settings > Secrets and variables > Actions**,
 or with:

@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { getModelCatalog } from "@/app/lib/beaverApi";
-import { resetModelCatalogSession } from "@/app/lib/modelCatalog";
 import { ModelEffortToggle } from "./ModelToggle";
 
 vi.mock("@/app/lib/beaverApi", () => ({ getModelCatalog: vi.fn() }));
@@ -9,7 +8,6 @@ const getCatalog = vi.mocked(getModelCatalog);
 
 beforeEach(() => {
   localStorage.clear();
-  resetModelCatalogSession();
   getCatalog.mockReset();
   getCatalog.mockResolvedValue({
     source: "live",

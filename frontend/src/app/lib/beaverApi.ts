@@ -1,28 +1,29 @@
 import { isLocalMode } from "@/app/lib/authMode";
 import type {
-  AskInputsResponseEvent,
-  CaseOpinionsEvent,
   Chat,
   ColumnConfig,
   Document,
   Folder,
   LibraryFolder,
-  Message,
   Project,
   TabularCell,
   Workflow,
   TabularReview,
 } from "@/app/components/shared/types";
 import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
-export const API_BASE = "/api";
+const API_BASE = "/api";
+const segment = (value: string | number) => encodeURIComponent(String(value));
 export class BeaverApiError extends Error {
   status: number;
   code: string | null;
-  constructor(args: { message: string; status: number; code?: string | null }) {
+  details: Record<string, unknown> | null;
+  constructor(args: { message: string; status: number; code?: string | null;
+    details?: Record<string, unknown> | null }) {
     super(args.message);
     this.name = "BeaverApiError";
     this.status = args.status;
     this.code = args.code ?? null;
+    this.details = args.details ?? null;
   }
 }
 export function isMfaRequiredError(error: unknown) {
@@ -39,7 +40,7 @@ async function getAuthHeader(): Promise<Record<string, string>> {
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
-export async function apiFetch(path: string, init: RequestInit = {}) {
+async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers({
     Accept: "application/json",
     ...(await getAuthHeader()),
@@ -71,10 +72,13 @@ export async function apiBlobRequest(path: string, init?: RequestInit) {
 async function toApiError(response: Response) {
   const text = await response.text();
   try {
-    const parsed = JSON.parse(text) as { detail?: unknown; code?: unknown };
+    const value: unknown = JSON.parse(text);
+    const parsed = value && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown> : {};
     return new BeaverApiError({
       status: response.status,
       code: typeof parsed.code === "string" ? parsed.code : null,
+      details: parsed,
       message:
         typeof parsed.detail === "string" && parsed.detail
           ? parsed.detail
@@ -110,7 +114,9 @@ function multipartRequest<T>(
 }
 function streamRequest(
   path: string, body: unknown,
-  options?: { signal?: AbortSignal; accept?: string },
+  options?: {
+    signal?: AbortSignal; accept?: string; allowStatuses?: number[];
+  },
 ) {
   return apiFetch(path, {
     ...mutationInit("POST", body),
@@ -119,6 +125,11 @@ function streamRequest(
       Accept: options?.accept ?? "application/json",
     },
     signal: options?.signal,
+  }).then(async (response) => {
+    if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
+      throw await toApiError(response);
+    }
+    return response;
   });
 }
 export type Page<T> = { items: T[]; next_cursor: string | null };
@@ -202,7 +213,6 @@ export interface ModelCatalog {
   models: {
     slug: string; displayName: string; defaultReasoningLevel?: string;
     supportedReasoningLevels: { effort: string }[];
-    supportedInApi?: boolean;
   }[];
   ollama?: {
     source: "live" | "unavailable";
@@ -217,7 +227,7 @@ export interface ModelCatalog {
 export const getModelCatalog = () => apiRequest<ModelCatalog>("/models");
 export const getUserProfile = () => apiRequest<UserProfile>("/user/profile");
 export const lookupUserByEmail = (email: string) =>
-  apiRequest<UserLookupResult>(`/user/lookup?email=${encodeURIComponent(email)}`);
+  apiRequest<UserLookupResult>(`/user/lookup?email=${segment(email)}`);
 export const updateUserProfile = (
   payload: Partial<Pick<UserProfile,
     "displayName" | "organisation" | "titleModel" | "tabularModel" | "legalResearchUs" | "draftingStyle">>,
@@ -235,7 +245,7 @@ type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
   sources?: Partial<Record<ApiKeyProvider, ApiKeySource>>;
 };
 export const saveApiKey = (provider: ApiKeyProvider, apiKey: string | null) =>
-  put<ApiKeyStatus>(`/user/api-keys/${provider}`, { api_key: apiKey });
+  put<ApiKeyStatus>(`/user/api-keys/${segment(provider)}`, { api_key: apiKey });
 interface McpToolSummary {
   id: string; toolName: string; title: string | null;
   enabled: boolean; requiresConfirmation: boolean;
@@ -251,44 +261,44 @@ type McpConnectorInput = {
 export const listMcpConnectors = () =>
   apiRequest<McpConnectorSummary[]>("/user/mcp-connectors");
 export const getMcpConnector = (connectorId: string) =>
-  apiRequest<McpConnectorSummary>(`/user/mcp-connectors/${connectorId}`);
+  apiRequest<McpConnectorSummary>(`/user/mcp-connectors/${segment(connectorId)}`);
 export const createMcpConnector = (payload: McpConnectorInput) =>
   post<McpConnectorSummary>("/user/mcp-connectors", payload);
 export const updateMcpConnector = (
   connectorId: string, payload: Partial<McpConnectorInput> & { enabled?: boolean },
-) => patch<McpConnectorSummary>(`/user/mcp-connectors/${connectorId}`, payload);
+) => patch<McpConnectorSummary>(`/user/mcp-connectors/${segment(connectorId)}`, payload);
 export const deleteMcpConnector = (connectorId: string) =>
-  remove<void>(`/user/mcp-connectors/${connectorId}`);
+  remove<void>(`/user/mcp-connectors/${segment(connectorId)}`);
 export const refreshMcpConnectorTools = (connectorId: string) =>
-  post<McpConnectorSummary>(`/user/mcp-connectors/${connectorId}/refresh-tools`);
+  post<McpConnectorSummary>(`/user/mcp-connectors/${segment(connectorId)}/refresh-tools`);
 export const startMcpConnectorOAuth = (connectorId: string) =>
   post<{
     authorizationUrl: string | null;
     alreadyAuthorized: boolean;
-  }>(`/user/mcp-connectors/${connectorId}/oauth/start`);
+  }>(`/user/mcp-connectors/${segment(connectorId)}/oauth/start`);
 export const setMcpToolEnabled = (
   connectorId: string,
   toolId: string,
   enabled: boolean,
 ) => patch<McpConnectorSummary>(
-  `/user/mcp-connectors/${connectorId}/tools/${toolId}`, { enabled },
+  `/user/mcp-connectors/${segment(connectorId)}/tools/${segment(toolId)}`, { enabled },
 );
-export const getProject = (projectId: string) => apiRequest<Project>(`/projects/${projectId}`);
+export const getProject = (projectId: string) => apiRequest<Project>(`/projects/${segment(projectId)}`);
 export const updateProject = (
   projectId: string,
   payload: Partial<Pick<
     Project,
     "name" | "cm_number" | "practice" | "shared_with"
   >>,
-) => patch<Project>(`/projects/${projectId}`, payload);
+) => patch<Project>(`/projects/${segment(projectId)}`, payload);
 export const deleteProject = (projectId: string) =>
-  remove<void>(`/projects/${projectId}`);
+  remove<void>(`/projects/${segment(projectId)}`);
 export interface ProjectPeople {
   owner: { email: string | null; display_name: string | null };
   members: { email: string; display_name: string | null }[];
 }
 export const getProjectPeople = (projectId: string) =>
-  apiRequest<ProjectPeople>(`/projects/${projectId}/people`);
+  apiRequest<ProjectPeople>(`/projects/${segment(projectId)}/people`);
 export type LibraryKind = "files" | "templates";
 export type DirectoryEntry =
   | { kind: "document"; document: Document }
@@ -298,7 +308,7 @@ export type DirectoryScope =
   | { library: LibraryKind };
 export function directoryResource(scope: DirectoryScope) {
   const root = "projectId" in scope
-    ? `/projects/${encodeURIComponent(scope.projectId)}`
+    ? `/projects/${segment(scope.projectId)}`
     : `/library/${scope.library}`;
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
@@ -309,15 +319,15 @@ export function directoryResource(scope: DirectoryScope) {
     createFolder: (name: string, parentFolderId?: string | null) =>
       post<Folder | LibraryFolder>(folders, { name, parent_folder_id: parentFolderId ?? null }),
     renameFolder: (folderId: string, name: string) =>
-      patch<Folder | LibraryFolder>(`${folders}/${encodeURIComponent(folderId)}`, { name }),
+      patch<Folder | LibraryFolder>(`${folders}/${segment(folderId)}`, { name }),
     deleteFolder: (folderId: string) =>
-      remove<void>(`${folders}/${encodeURIComponent(folderId)}`),
+      remove<void>(`${folders}/${segment(folderId)}`),
     moveFolder: (folderId: string, parentFolderId: string | null) =>
-      patch<Folder | LibraryFolder>(`${folders}/${encodeURIComponent(folderId)}`, { parent_folder_id: parentFolderId }),
+      patch<Folder | LibraryFolder>(`${folders}/${segment(folderId)}`, { parent_folder_id: parentFolderId }),
     moveDocument: (documentId: string, folderId: string | null) =>
-      patch<Document>(`${documents}/${encodeURIComponent(documentId)}/folder`, { folder_id: folderId }),
+      patch<Document>(`${documents}/${segment(documentId)}/folder`, { folder_id: folderId }),
     renameDocument: (documentId: string, filename: string) =>
-      patch<Document>(`${documents}/${encodeURIComponent(documentId)}`, { filename }),
+      patch<Document>(`${documents}/${segment(documentId)}`, { filename }),
   };
 }
 export type LegalDocumentType = "cases" | "laws" | "articles";
@@ -391,7 +401,7 @@ export interface LegalSourceViewerPayload {
 }
 export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
   post<{ status: string }>(
-    `/library/${kind}/documents/${encodeURIComponent(documentId)}/actions/retry-pdf-parse`,
+    `/library/${kind}/documents/${segment(documentId)}/actions/retry-pdf-parse`,
     {},
   );
 export const listLegalLibrary = async () =>
@@ -442,7 +452,7 @@ export const saveLegalSource = (args: {
   source_id: args.sourceId ?? undefined,
 });
 export const deleteLegalSource = async (referenceId: string): Promise<void> => {
-  const path = `/sources/${encodeURIComponent(referenceId)}`;
+  const path = `/sources/${segment(referenceId)}`;
   await remove(path);
   legalSourceDocumentRequests.delete(`${path}/document`);
 };
@@ -450,6 +460,7 @@ const legalSourceDocumentRequests = new Map<
   string,
   Promise<LegalSourceViewerPayload>
 >();
+export const clearApiCaches = () => legalSourceDocumentRequests.clear();
 async function cachedLegalSourceDocument(path: string) {
   const cached = legalSourceDocumentRequests.get(path);
   if (cached) return cached;
@@ -457,11 +468,14 @@ async function cachedLegalSourceDocument(path: string) {
     cache: "default",
   });
   legalSourceDocumentRequests.set(path, request);
-  request.catch(() => legalSourceDocumentRequests.delete(path));
+  void request.finally(() => {
+    if (legalSourceDocumentRequests.get(path) === request)
+      legalSourceDocumentRequests.delete(path);
+  }).catch(() => undefined);
   return request;
 }
 export const getLegalSourceDocument = (referenceId: string) =>
-  cachedLegalSourceDocument(`/sources/${encodeURIComponent(referenceId)}/document`);
+  cachedLegalSourceDocument(`/sources/${segment(referenceId)}/document`);
 export const getDirectLegalSourceDocument = (args: {
   provider: "a2aj" | "journal";
   citation: string;
@@ -493,11 +507,11 @@ export type DeterministicDocxActionResult = {
 };
 export const inspectLibraryDocumentAutomation = (documentId: string) =>
   apiRequest<{ supra_references: boolean }>(
-    `/library/files/documents/${encodeURIComponent(documentId)}/automation`,
+    `/library/files/documents/${segment(documentId)}/automation`,
   );
 export const fixLibraryDocxSupras = (documentId: string) =>
   post<DeterministicDocxActionResult>(
-    `/library/files/documents/${encodeURIComponent(documentId)}/actions/fix-supras`,
+    `/library/files/documents/${segment(documentId)}/actions/fix-supras`,
   );
 export type TableOfAuthoritiesJob = {
   id: string;
@@ -521,7 +535,7 @@ export const submitLibraryDocumentToAuthorities = (
 export const addDocumentToProject = (
   projectId: string,
   documentId: string,
-) => post<Document>(`/projects/${projectId}/documents/${documentId}`);
+) => post<Document>(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
 export const removeProjectDocument = async (
   projectId: string,
   documentId: string,
@@ -530,7 +544,7 @@ export const removeProjectDocument = async (
     await deleteDocument(documentId);
     return;
   }
-  await remove(`/projects/${projectId}/documents/${documentId}`);
+  await remove(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
 };
 export interface DocumentVersion {
   id: string;
@@ -544,13 +558,13 @@ export interface DocumentVersion {
 export const listDocumentVersions = (documentId: string): Promise<{
   current_version_id: string | null;
   versions: DocumentVersion[];
-}> => apiRequest(`/single-documents/${documentId}/versions`);
+}> => apiRequest(`/single-documents/${segment(documentId)}/versions`);
 export const uploadDocumentVersion = (
   documentId: string,
   file: File,
   filename?: string,
 ) => multipartRequest<DocumentVersion>(
-  `/single-documents/${documentId}/versions`, file, { filename },
+  `/single-documents/${segment(documentId)}/versions`, file, { filename },
 );
 export const replaceDocumentVersionFile = (
   documentId: string,
@@ -558,7 +572,7 @@ export const replaceDocumentVersionFile = (
   file: File,
   filename?: string,
 ) => multipartRequest<DocumentVersion>(
-  `/single-documents/${documentId}/versions/${versionId}/file`,
+  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}/file`,
   file,
   { method: "PUT", filename },
 );
@@ -567,7 +581,7 @@ export const renameDocumentVersion = (
   versionId: string,
   filename: string | null,
 ) => patch<DocumentVersion>(
-  `/single-documents/${documentId}/versions/${versionId}`, { filename },
+  `/single-documents/${segment(documentId)}/versions/${segment(versionId)}`, { filename },
 );
 export const deleteDocumentVersion = (
   documentId: string,
@@ -575,16 +589,26 @@ export const deleteDocumentVersion = (
 ): Promise<{
   deleted_version_id: string;
   current_version_id: string | null;
-}> => remove(`/single-documents/${documentId}/versions/${versionId}`);
+}> => remove(`/single-documents/${segment(documentId)}/versions/${segment(versionId)}`);
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
 export const deleteDocument = (documentId: string) =>
-  remove<void>(`/single-documents/${documentId}`);
+  remove<void>(`/single-documents/${segment(documentId)}`);
 export const downloadDocument = (
   documentId: string,
   versionId?: string | null,
 ) => apiBlobRequest(
-  pagePath(`/single-documents/${documentId}/file`, { version_id: versionId }),
+  pagePath(`/single-documents/${segment(documentId)}/file`, { version_id: versionId }),
+);
+type DocumentEditResolution = {
+  status?: "accepted" | "rejected";
+  version_id: string | null;
+  download_url: string | null;
+};
+export const resolveDocumentEdit = (
+  documentId: string, editId: string, verb: "accept" | "reject",
+) => post<DocumentEditResolution>(
+  `/single-documents/${segment(documentId)}/edits/${segment(editId)}/${verb}`,
 );
 export type SpreadsheetProjection = {
   version_id: string;
@@ -604,7 +628,7 @@ export const getSpreadsheetProjection = (
   documentId: string,
   versionId?: string | null,
 ) => apiRequest<SpreadsheetProjection>(
-  pagePath(`/single-documents/${encodeURIComponent(documentId)}/spreadsheet`, {
+  pagePath(`/single-documents/${segment(documentId)}/spreadsheet`, {
     version_id: versionId,
   }),
 );
@@ -622,47 +646,48 @@ export const listChats = (options?: {
   tabular_review_id?: string;
 }) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}));
 export const listProjectChats = (projectId: string) =>
-  apiRequest<Chat[]>(`/projects/${projectId}/chats`);
+  apiRequest<Chat[]>(`/projects/${segment(projectId)}/chats`);
 export const getChat = (chatId: string) =>
-  apiRequest<{ chat: Chat; messages: AssistantTranscriptMessage[] }>(`/chat/${chatId}`);
+  apiRequest<{ chat: Chat; messages: AssistantTranscriptMessage[] }>(`/chat/${segment(chatId)}`);
 export const renameChat = (chatId: string, title: string) =>
-  patch<void>(`/chat/${chatId}`, { title });
+  patch<void>(`/chat/${segment(chatId)}`, { title });
 export const updateChatProject = (
   chatId: string,
   projectId: string | null,
 ) => patch<{ id: string; title: string | null; project_id: string | null }>(
-  `/chat/${chatId}`, { project_id: projectId },
+  `/chat/${segment(chatId)}`, { project_id: projectId },
 );
-export const deleteChat = (chatId: string) => remove<void>(`/chat/${chatId}`);
+export const deleteChat = (chatId: string) => remove<void>(`/chat/${segment(chatId)}`);
 export const listDeletedChats = () => apiRequest<Chat[]>("/chat/recycling-bin");
-export const restoreChat = (chatId: string) => post<void>(`/chat/${chatId}/restore`);
+export const restoreChat = (chatId: string) => post<void>(`/chat/${segment(chatId)}/restore`);
 export const permanentlyDeleteChat = (chatId: string) =>
-  remove<void>(`/chat/${chatId}/permanent`);
+  remove<void>(`/chat/${segment(chatId)}/permanent`);
 export const stopChat = (chatId: string) =>
-  post<{ stopped: boolean }>(`/chat/${chatId}/stop`);
+  post<{ stopped: boolean }>(`/chat/${segment(chatId)}/stop`);
 export const steerChat = (chatId: string, id: string, text: string) =>
-  post<{ steered: true }>(`/chat/${chatId}/steer`, { id, text });
+  post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text });
 export const compactChat = (chatId: string, model: string) =>
   post<{ compacted: true; transcriptVersion?: number }>(
-    `/chat/${chatId}/compact`,
+    `/chat/${segment(chatId)}/compact`,
     { model },
   );
 export const generateChatTitle = (chatId: string, message: string) =>
-  post<{ title: string }>(`/chat/${chatId}/generate-title`, { message });
-export type CaseLawOpinion =
-  CaseOpinionsEvent["case"]["opinions"][number];
-export const getCourtlistenerOpinions = async (clusterId: number) =>
-  (await apiRequest<{ opinions: CaseLawOpinion[] }>(
-    `/sources/courtlistener/${encodeURIComponent(clusterId)}/opinions`,
-  )).opinions;
+  post<{ title: string }>(`/chat/${segment(chatId)}/generate-title`, { message });
 type StreamCurrentTurn =
-  | (Pick<Message, "content" | "files" | "workflow"> & {
-      kind: "message"; turn_id?: string;
-    })
-  | (Pick<Message, "content" | "files"> & {
+  | {
+      kind: "message";
+      turn_id?: string;
+      content: string;
+      files?: { document_id: string }[];
+      workflow?: { id: string };
+    }
+  | {
       kind: "ask_inputs_response";
-      responses: AskInputsResponseEvent["responses"];
-    });
+      responses: (
+        | { id: string; kind: "choice"; answer?: string }
+        | { id: string; kind: "documents"; documents: { document_id: string }[] }
+      )[];
+    };
 export const streamChat = (payload: {
   current_turn: StreamCurrentTurn;
   expected_version: number;
@@ -681,12 +706,13 @@ export const streamChat = (payload: {
   subagent_effort?: string;
   activity_detail?: "auto" | "standard" | "tools" | "trace";
   time_zone?: string;
-  displayed_doc?: { filename: string; document_id: string };
-  attached_documents?: { filename: string; document_id: string }[];
+  displayed_doc?: { document_id: string };
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;
-  return streamRequest("/chat", body, { signal, accept: "text/event-stream" });
+  return streamRequest("/chat", body, {
+    signal, accept: "text/event-stream", allowStatuses: [409],
+  });
 };
 export const listTabularReviews = (options: PageQuery & {
   project_id?: string | null;
@@ -703,7 +729,7 @@ export const createTabularReview = (payload: {
 }) => post<TabularReview>("/tabular-review", payload);
 export const getTabularReview = (reviewId: string) =>
   apiRequest<{ review: TabularReview; cells: TabularCell[]; documents: Document[] }>(
-    `/tabular-review/${reviewId}`,
+    `/tabular-review/${segment(reviewId)}`,
   );
 export const updateTabularReview = (
   reviewId: string,
@@ -714,9 +740,9 @@ export const updateTabularReview = (
     project_id?: string | null;
     shared_with?: string[];
   },
-) => patch<TabularReview>(`/tabular-review/${reviewId}`, payload);
+) => patch<TabularReview>(`/tabular-review/${segment(reviewId)}`, payload);
 export const getTabularReviewPeople = (reviewId: string) =>
-  apiRequest<ProjectPeople>(`/tabular-review/${reviewId}/people`);
+  apiRequest<ProjectPeople>(`/tabular-review/${segment(reviewId)}/people`);
 export const generateTabularColumnPrompt = (
   title: string,
   options?: { format?: string; documentName?: string; tags?: string[] },
@@ -730,13 +756,13 @@ export const generateTabularColumnPrompt = (
   },
 );
 export const deleteTabularReview = (reviewId: string) =>
-  remove<void>(`/tabular-review/${reviewId}`);
+  remove<void>(`/tabular-review/${segment(reviewId)}`);
 export const exportTabularReview = (reviewId: string) =>
-  apiBlobRequest(`/tabular-review/${reviewId}/export`);
+  apiBlobRequest(`/tabular-review/${segment(reviewId)}/export`);
 export const streamTabularGeneration = (
   reviewId: string,
   options?: { model?: string; reasoningEffort?: string },
-) => streamRequest(`/tabular-review/${reviewId}/generate`, {
+) => streamRequest(`/tabular-review/${segment(reviewId)}/generate`, {
   model: options?.model,
   reasoning_effort: options?.reasoningEffort,
 });
@@ -749,14 +775,14 @@ export const regenerateTabularCell = (
   summary: string;
   flag: "green" | "grey" | "yellow" | "red";
   reasoning: string;
-}> => post(`/tabular-review/${reviewId}/regenerate-cell`, {
+}> => post(`/tabular-review/${segment(reviewId)}/regenerate-cell`, {
   document_id: documentId,
   column_index: columnIndex,
   model: options?.model,
   reasoning_effort: options?.reasoningEffort,
 });
 export const clearTabularCells = (reviewId: string, documentIds: string[]) =>
-  post<void>(`/tabular-review/${reviewId}/clear-cells`, {
+  post<void>(`/tabular-review/${segment(reviewId)}/clear-cells`, {
     document_ids: documentIds,
   });
 export const listSystemWorkflows = (type?: Workflow["metadata"]["type"]) =>
@@ -767,7 +793,7 @@ export const listWorkflows = (options: PageQuery & {
   pagePath("/workflows", options), { signal },
 );
 export const getWorkflow = (workflowId: string) =>
-  apiRequest<Workflow>(`/workflows/${workflowId}`);
+  apiRequest<Workflow>(`/workflows/${segment(workflowId)}`);
 export const createWorkflow = (payload: {
   metadata: {
     title: string;
@@ -789,21 +815,21 @@ export const updateWorkflow = (
     skill_md?: string;
     columns_config?: ColumnConfig[];
   },
-) => patch<Workflow>(`/workflows/${workflowId}`, payload);
+) => patch<Workflow>(`/workflows/${segment(workflowId)}`, payload);
 export const deleteWorkflow = (workflowId: string) =>
-  remove<void>(`/workflows/${workflowId}`);
+  remove<void>(`/workflows/${segment(workflowId)}`);
 export const listHiddenWorkflows = () => apiRequest<string[]>("/workflows/hidden");
 export const hideWorkflow = (workflowId: string) =>
   post<void>("/workflows/hidden", { workflow_id: workflowId });
 export const unhideWorkflow = (workflowId: string) =>
-  remove<void>(`/workflows/hidden/${workflowId}`);
+  remove<void>(`/workflows/hidden/${segment(workflowId)}`);
 export const shareWorkflow = (
   workflowId: string,
   payload: { emails: string[]; allow_edit: boolean },
-) => post<void>(`/workflows/${workflowId}/share`, payload);
+) => post<void>(`/workflows/${segment(workflowId)}/share`, payload);
 export const listWorkflowShares = (workflowId: string) =>
   apiRequest<{
     id: string; shared_with_email: string;
-  }[]>(`/workflows/${workflowId}/shares`);
+  }[]>(`/workflows/${segment(workflowId)}/shares`);
 export const deleteWorkflowShare = (workflowId: string, shareId: string) =>
-  remove<void>(`/workflows/${workflowId}/shares/${shareId}`);
+  remove<void>(`/workflows/${segment(workflowId)}/shares/${segment(shareId)}`);

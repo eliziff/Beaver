@@ -2,6 +2,7 @@ import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch, normalizeRemoteHttpsUrl } from "../remoteUrlSafety";
 import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
 import type { NativeMarkupRef } from "../sourceDocNativeMarkup";
+import { jsonRecord as objectValue } from "../value";
 import type { LegalSourceProvider } from ".";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -38,10 +39,7 @@ export type RemoteLegalSourceProvider = LegalSourceProvider<
   RemoteLegalSourceNative
 >;
 
-export const objectValue = (value: unknown): JsonObject | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonObject
-    : null;
+export { objectValue };
 
 export const arrayValue = (value: unknown): unknown[] =>
   value === undefined || value === null

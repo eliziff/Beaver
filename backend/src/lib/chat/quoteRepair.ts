@@ -1,4 +1,5 @@
 import { tokenizeSourceText } from "../sourceDoc";
+import { escapeRegExp as escapeRegex } from "../text";
 
 /**
  * Deterministic near-miss repair for failed quotation claims, ported in
@@ -16,21 +17,20 @@ const TOKEN_RE = /\p{L}[\p{L}\p{N}'’‐-―-]*|\p{N}+/gu;
 const MIN_COPY_TOKENS = 8;
 const MIN_COPY_CHARS = 51;
 const COPY_SEED_CHARS = 25;
+const MAX_MARKED_QUOTE_CHARS = 4_000;
+const MAX_MARKED_QUOTE_EDITS = 4;
+const MAX_FUZZY_SOURCE_CHARS = 50_000;
 
 type SpanToken = { norm: string; start: number; end: number };
-
-function normToken(raw: string): string {
-  return raw
-    .replace(/[‘’‚′]/gu, "'")
-    .replace(/[–—−‐-―]/gu, "-")
-    .toLowerCase();
-}
 
 function tokenizeWithOffsets(text: string): SpanToken[] {
   const tokens: SpanToken[] = [];
   for (const match of text.matchAll(TOKEN_RE)) {
     tokens.push({
-      norm: normToken(match[0]),
+      norm: match[0]
+        .replace(/[‘’‚′]/gu, "'")
+        .replace(/[–—−‐-―]/gu, "-")
+        .toLowerCase(),
       start: match.index,
       end: match.index + match[0].length,
     });
@@ -159,13 +159,10 @@ function markedQuotes(text: string): MarkedQuote[] {
   return quotes;
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
 function alteredQuotePattern(quote: string) {
+  if (quote.length > MAX_MARKED_QUOTE_CHARS) return null;
   const edits = [...quote.matchAll(/\[[^\]\r\n]+\]|\u2026|\.{3}/gu)];
-  if (!edits.length) return null;
+  if (!edits.length || edits.length > MAX_MARKED_QUOTE_EDITS) return null;
   let cursor = 0;
   let pattern = "";
   let literal = "";
@@ -200,6 +197,7 @@ export function sourceSupportsMarkedQuote(quote: string, source: string) {
   const available = representation(source);
   if (!expected) return false;
   if (available.includes(expected)) return true;
+  if (available.length > MAX_FUZZY_SOURCE_CHARS) return false;
   return alteredQuotePattern(expected)?.test(available) === true;
 }
 

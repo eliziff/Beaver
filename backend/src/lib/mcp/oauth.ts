@@ -132,8 +132,6 @@ async function validateDiscovery(state: OAuthDiscoveryState, serverUrl: string):
   return { authorizationServer, authorizationEndpoint, tokenEndpoint, registrationEndpoint };
 }
 
-const sameBinding = (a: Binding, b: Binding) => JSON.stringify(a) === JSON.stringify(b);
-
 function configuredClient(serverUrl: string, binding?: Binding) {
   const clientId = process.env.MCP_OAUTH_CLIENT_ID?.trim();
   if (!clientId || !binding) return undefined;
@@ -173,11 +171,14 @@ export async function deleteOAuthToken(connectorId: string, db: Db) {
   if (error) throw error;
 }
 
-function secretPatch(name: string, value?: string | null) {
+const secretContext = (connector: ConnectorRow, name: string) =>
+  `${connector.user_id}\0${connector.id}\0${name}`;
+
+function secretPatch(connector: ConnectorRow, name: string, value?: string | null) {
   if (!value) return {
     [`encrypted_${name}`]: null, [`${name}_iv`]: null, [`${name}_tag`]: null,
   };
-  const encrypted = seal(value);
+  const encrypted = seal(value, secretContext(connector, name));
   return {
     [`encrypted_${name}`]: encrypted.encrypted,
     [`${name}_iv`]: encrypted.iv,
@@ -222,7 +223,8 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
 
   async saveDiscoveryState(state: OAuthDiscoveryState) {
     const binding = await validateDiscovery(state, this.connector.server_url);
-    if (this.lockedBinding && !sameBinding(this.lockedBinding, binding)) {
+    if (this.lockedBinding &&
+        JSON.stringify(this.lockedBinding) !== JSON.stringify(binding)) {
       throw new Error("OAuth discovery endpoints changed.");
     }
     this.discovery = state;
@@ -246,7 +248,8 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
         row.authorization_server !== this.binding.authorizationServer ||
         row.token_endpoint !== this.binding.tokenEndpoint) return undefined;
     this.tokenRevision = row.updated_at;
-    const clientSecret = open<string>(row.encrypted_client_secret, row.client_secret_iv, row.client_secret_tag);
+    const clientSecret = open<string>(row.encrypted_client_secret, row.client_secret_iv,
+      row.client_secret_tag, secretContext(this.connector, "client_secret"));
     return { client_id: row.client_id, ...(clientSecret ? { client_secret: clientSecret } : {}) };
   }
 
@@ -257,9 +260,9 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     await this.writeToken({
       connector_id: this.connector.id,
       client_id: info.client_id,
-      ...secretPatch("client_secret", clientSecret),
-      ...secretPatch("access_token"),
-      ...secretPatch("refresh_token"),
+      ...secretPatch(this.connector, "client_secret", clientSecret),
+      ...secretPatch(this.connector, "access_token"),
+      ...secretPatch(this.connector, "refresh_token"),
       token_type: null, scope: null, expires_at: null,
       authorization_server: this.binding.authorizationServer,
       token_endpoint: this.binding.tokenEndpoint,
@@ -273,9 +276,11 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     if (!row?.encrypted_access_token || row.resource !== this.connector.server_url ||
         (this.binding && (row.authorization_server !== this.binding.authorizationServer ||
           row.token_endpoint !== this.binding.tokenEndpoint))) return undefined;
-    const access = open<string>(row.encrypted_access_token, row.access_token_iv, row.access_token_tag);
+    const access = open<string>(row.encrypted_access_token, row.access_token_iv,
+      row.access_token_tag, secretContext(this.connector, "access_token"));
     if (!access) return undefined;
-    const refresh = open<string>(row.encrypted_refresh_token, row.refresh_token_iv, row.refresh_token_tag);
+    const refresh = open<string>(row.encrypted_refresh_token, row.refresh_token_iv,
+      row.refresh_token_tag, secretContext(this.connector, "refresh_token"));
     const expiry = row.expires_at ? Date.parse(row.expires_at) : NaN;
     this.tokenRevision = row.updated_at;
     return {
@@ -296,7 +301,8 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     if (this.connector.auth_type !== "oauth" || config.bearerToken) {
       const updatedAt = new Date().toISOString();
       const { data, error } = await this.db.from("user_mcp_connectors").update({
-        auth_type: "oauth", ...authPatch({ headers: config.headers }), updated_at: updatedAt,
+        auth_type: "oauth", ...authPatch({ headers: config.headers }, this.connector),
+        updated_at: updatedAt,
       }).eq("id", this.connector.id).eq("user_id", this.connector.user_id)
         .eq("server_url", this.connector.server_url).eq("updated_at", this.connector.updated_at)
         .select("*").maybeSingle();
@@ -306,13 +312,14 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     }
     await this.writeToken({
       connector_id: this.connector.id,
-      ...secretPatch("access_token", tokens.access_token),
-      ...(tokens.refresh_token === undefined ? {} : secretPatch("refresh_token", tokens.refresh_token)),
+      ...secretPatch(this.connector, "access_token", tokens.access_token),
+      ...(tokens.refresh_token === undefined ? {}
+        : secretPatch(this.connector, "refresh_token", tokens.refresh_token)),
       token_type: tokens.token_type ?? "Bearer",
       scope: tokens.scope ?? scope() ?? null,
       expires_at: expiresIn === null ? null : new Date(Date.now() + expiresIn * 1000).toISOString(),
       client_id: client?.client_id ?? null,
-      ...secretPatch("client_secret", configured ? undefined
+      ...secretPatch(this.connector, "client_secret", configured ? undefined
         : "client_secret" in (client ?? {}) && typeof client?.client_secret === "string"
           ? client.client_secret : undefined),
       authorization_server: this.binding.authorizationServer,
@@ -348,7 +355,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
       codeVerifier,
       discovery: this.discovery,
     };
-    const encrypted = seal(state);
+    const encrypted = seal(state, `oauth-state\0${sha256(this.stateToken)}`);
     const { error } = await this.db.from("user_mcp_oauth_states").insert({
       user_id: state.userId, connector_id: state.connectorId,
       state_hash: sha256(this.stateToken),
@@ -474,7 +481,8 @@ export async function completeMcpConnectorOAuthAuthorization(
   db: Db = createServerSupabase(),
 ) {
   const row = await consumeState(state, db);
-  const config = open<StoredState>(row.encrypted_state_config, row.state_config_iv, row.state_config_tag);
+  const config = open<StoredState>(row.encrypted_state_config, row.state_config_iv,
+    row.state_config_tag, `oauth-state\0${sha256(state)}`);
   if (!config || config.userId !== row.user_id || config.connectorId !== row.connector_id ||
       config.redirectUri !== redirectUri()) throw new Error("OAuth state is invalid or expired.");
   const connector = await loadConnector(config.userId, config.connectorId, db);

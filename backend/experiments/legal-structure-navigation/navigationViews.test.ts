@@ -27,17 +27,18 @@ const TEXT = [
 
 describe("experimental navigation views", () => {
   const pages = pageMapFromMarkers(TEXT);
-  const skeleton = compileAgreementSkeleton(TEXT, "fixture");
-  const graph = crossReferenceGraph(TEXT, "fixture", { skeleton });
 
-  it("joins offsets and pages back to structural handles", () => {
+  it("joins offsets and pages back to structural handles", async () => {
+    const skeleton = await compileAgreementSkeleton(TEXT, "fixture");
     expect(pageSchemes(pages)).toEqual({ pdfPages: true, printedLabels: true });
     expect(pageAt(pages, TEXT.indexOf("2.02 Renewal"))?.ordinal).toBe(2);
     expect(pageSections(skeleton, pages.pages[1]).starts.map(({ label }) => label))
       .toEqual(["art2", "sec2.01", "sec2.02"]);
   });
 
-  it("summarizes tree and graph relationships without changing them", () => {
+  it("summarizes tree and graph relationships without changing them", async () => {
+    const skeleton = await compileAgreementSkeleton(TEXT, "fixture");
+    const graph = await crossReferenceGraph(TEXT, "fixture", { skeleton });
     expect(nodeNeighbourhood(skeleton, "sec2.01")?.siblings.map(({ label }) => label))
       .toEqual(["sec2.02"]);
     expect(nodeLinks(graph, "sec2.01").incoming).toHaveLength(3);

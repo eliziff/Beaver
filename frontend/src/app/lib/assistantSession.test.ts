@@ -9,6 +9,7 @@ import {
   safeAssistantUrl,
   type AssistantMessageState,
   type AssistantSessionState,
+  type AssistantTranscriptMessage,
 } from "./assistantSession";
 
 const user: Message = { id: "user-1", role: "user", content: "Research this" };
@@ -51,32 +52,21 @@ const supportedEvents: [string, Record<string, unknown>][] = [
   ["content final", { type: "content_final", text: "a" }],
   ["content reset", { type: "content_reset" }],
   ["content block end", { type: "content_block_end" }],
-  ["content done", { type: "content_done" }],
   ["durable content", { type: "content", text: "a" }],
   ["reasoning delta", { type: "reasoning_delta", text: "thinking" }],
   ["reasoning end", { type: "reasoning_block_end" }],
-  ["durable reasoning", { type: "reasoning", text: "thought" }],
-  ["thinking", { type: "thinking" }],
-  ["MCP start", { type: "mcp_tool_start" }],
-  ["MCP result", { type: "mcp_tool_result" }],
-  ["MCP call", { type: "mcp_tool_call" }],
-  ["evidence receipt", { type: "legal_evidence_receipt" }],
-  ["context checkpoint", { type: "context_checkpoint" }],
   ["error", { type: "error", message: "provider details", retryable: true }],
-  ["turn status", { type: "turn_status", status: "interrupted" }],
+  ["turn status", { type: "turn_status", status: "cancelled" }],
   ["steering", { type: "steering", id: "s1", text: "Focus on Alberta" }],
-  ["citations", { type: "citations", status: "final", citations: [] }],
+  ["citations", { type: "citations", citations: [] }],
   ["ask inputs", { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which?", options: [{ value: "A" }] }] }],
-  ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", question: "Which?", answer: "A" }] }],
+  ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "A" }] }],
   ["tool activity", { type: "tool_activity", id: "tool-1", tool: "search", label: "Searching", status: "running" }],
   ["automation", { type: "automation_run", id: "auto-1", tool: "create_table_of_authorities", status: "running", stage: "Scanning" }],
-  ["reader", { type: "subagent_run", id: "reader-1", agent: "scout", task: "Read", model: "local", effort: "low", status: "running", activities: [], sources: [] }],
+  ["reader", { type: "subagent_run", id: "reader-1", task: "Read", status: "running", activities: [], sources: [] }],
   ["context usage", { type: "context_usage", used_tokens: 10, window_tokens: 100 }],
   ["compaction", { type: "compaction", status: "completed" }],
-  ["workflow", { type: "workflow_applied", workflow_id: "w1", title: "Review" }],
   ["document artifact", { type: "document_artifact", action: "created", filename: "result.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "/documents/d1/download" }],
-  ["case citation", { type: "case_citation", cluster_id: 4, case_name: "R v Test", citation: "2026 ABCA 1", url: "https://example.test/case" }],
-  ["case opinions", { type: "case_opinions", cluster_id: 4, case: { id: 4, opinions: [] } }],
 ];
 
 describe("assistant protocol validation", () => {
@@ -94,11 +84,12 @@ describe("assistant protocol validation", () => {
 
   it("bounds collections and only permits safe URL protocols", () => {
     const citations = Array.from({ length: ASSISTANT_LIMITS.citations + 20 }, (_, ref) => ({
-      type: "citation_data", kind: "document", ref, document_id: `d${ref}`,
+      kind: "document", ref, document_id: `d${ref}`,
       filename: `${ref}.docx`, quotes: [], url: "javascript:alert(1)",
     }));
     expect(parseAssistantCitations(citations)).toHaveLength(ASSISTANT_LIMITS.citations);
     expect(safeAssistantUrl("javascript:alert(1)")).toBeNull();
+    expect(safeAssistantUrl("https://user:secret@example.test/")).toBeNull();
     expect(safeAssistantUrl("//evil.test/file")).toBeNull();
     expect(safeAssistantUrl("/documents/d1/download")).toBe("/documents/d1/download");
     expect(safeAssistantUrl("https://example.test/case")).toBe("https://example.test/case");
@@ -106,14 +97,30 @@ describe("assistant protocol validation", () => {
 
   it("rejects unsafe citation and artifact URLs before render state", () => {
     let state = running();
-    state = applyRaw(state, { type: "citations", citations: [{ type: "citation_data", kind: "case", ref: 1, cluster_id: 4, url: "javascript:alert(1)", pdfUrl: "data:text/html,bad", quotes: [] }] });
+    state = applyRaw(state, { type: "citations", citations: [{ kind: "a2aj", ref: 1, citation: "Example", url: "javascript:alert(1)", quotes: [] }] });
     expect(parseAssistantProtocolEvent({ type: "document_artifact", action: "created", filename: "bad.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "https://evil.test/file" }).ok).toBe(false);
-    expect(assistant(state).citations[0]).toMatchObject({ url: null, pdfUrl: null });
+    expect(assistant(state).citations[0]).toMatchObject({ url: null });
     expect(assistant(state).artifacts).toEqual([]);
   });
 });
 
 describe("assistantSessionReducer", () => {
+  it("discards transcript attachments without durable document identities", () => {
+    const malformed = {
+      id: "user-1",
+      role: "user",
+      content: "Review this",
+      files: [
+        { filename: "record.pdf", document_id: "document-1" },
+        { filename: "orphan.pdf" },
+      ],
+    } as unknown as AssistantTranscriptMessage;
+
+    expect(createAssistantSessionState({ messages: [malformed] }).messages[0]).toMatchObject({
+      files: [{ filename: "record.pdf", document_id: "document-1" }],
+    });
+  });
+
   it("upserts one activity row through running, completed, error, and interruption", () => {
     let state = running();
     state = applyRaw(state, { type: "tool_activity", id: "stable", tool: "search", label: "Searching", status: "running" });
@@ -145,7 +152,7 @@ describe("assistantSessionReducer", () => {
     expect(state.run?.status).toBe("paused");
     expect(state.pendingInput?.event.items[0].id).toBe("q1");
 
-    state = applyRaw(state, { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", question: "Which court?", answer: "ABCA" }] });
+    state = applyRaw(state, { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "ABCA" }] });
     expect(state.run?.status).toBe("running");
     expect(state.pendingInput).toBeNull();
     expect(assistant(state).activities[0]).toMatchObject({ status: "completed", label: "Asked for input" });
@@ -157,7 +164,7 @@ describe("assistantSessionReducer", () => {
 
   it("isolates reader output from main response text while sharing activity status", () => {
     let state = running();
-    state = applyRaw(state, { type: "subagent_run", id: "reader-1", agent: "scout", task: "Read the record", model: "local", effort: "low", status: "completed", output: "reader-only result", activities: [{ id: "r-tool", tool: "read", label: "Read", status: "completed" }], sources: [] });
+    state = applyRaw(state, { type: "subagent_run", id: "reader-1", task: "Read the record", status: "completed", output: "reader-only result", activities: [{ id: "r-tool", tool: "read", label: "Read", status: "completed" }], sources: [] });
     expect(assistantText(state)).toBe("");
     expect(assistant(state).activities).toEqual([expect.objectContaining({ id: "reader:reader-1", status: "completed", markdown: "reader-only result" })]);
     expect(state.readers[0].activities).toEqual([expect.objectContaining({ id: "r-tool", status: "completed" })]);
@@ -178,7 +185,7 @@ describe("assistantSessionReducer", () => {
     const rawEvents = [
       { type: "content_delta", text: "Answer" },
       { type: "tool_activity", id: "search-1", tool: "search", label: "Searched", status: "completed" },
-      { type: "citations", status: "final", citations: [{ type: "citation_data", kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }] },
+      { type: "citations", citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }] },
       { type: "document_artifact", action: "created", filename: "result.pptx", document_id: "d2", version_id: "v1", version_number: 1, download_url: "/documents/d2/download" },
       { type: "content_block_end" },
     ];

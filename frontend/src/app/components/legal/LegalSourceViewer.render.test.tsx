@@ -1,11 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegalSourceViewerPayload } from "@/app/lib/beaverApi";
 
 const api = vi.hoisted(() => ({
     direct: vi.fn(),
     saved: vi.fn(),
-    opinions: vi.fn(),
 }));
 const scrollIntoView = vi.fn();
 
@@ -16,7 +15,6 @@ vi.mock("@/app/lib/beaverApi", async (importOriginal) => {
         ...original,
         getDirectLegalSourceDocument: api.direct,
         getLegalSourceDocument: api.saved,
-        getCourtlistenerOpinions: api.opinions,
     };
 });
 vi.mock("react-router-dom", () => ({
@@ -180,12 +178,20 @@ describe("legal source reader", () => {
     beforeEach(() => {
         api.direct.mockReset();
         api.saved.mockReset();
-        api.opinions.mockReset();
         scrollIntoView.mockReset();
         Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
             configurable: true,
             value: scrollIntoView,
         });
+    });
+
+    it("treats provider anchor labels as data, not regular expressions", async () => {
+        const untrusted = viewerPayload();
+        untrusted.structure.blocks[1].label = "par(";
+        api.direct.mockResolvedValue(untrusted);
+        render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" />);
+        expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
+            .toBeInTheDocument();
     });
 
     it("renders continuous semantic content without paragraph navigation", async () => {
@@ -407,64 +413,6 @@ describe("legal source reader", () => {
             "href",
             "https://example.test/case",
         );
-    });
-
-    it("uses the same reader for CourtListener opinions", async () => {
-        api.opinions.mockResolvedValue([
-            {
-                opinionId: 11,
-                type: "lead",
-                author: "Justice One",
-                url: null,
-                text: "The ratio controls.",
-            },
-            {
-                opinionId: 12,
-                type: "dissent",
-                author: "Justice Two",
-                url: null,
-                text: "The dissenting reasons.",
-            },
-        ]);
-
-        const caseTab = {
-            kind: "case" as const,
-            id: "case:999" as const,
-            chatId: "chat-1",
-            clusterId: 999,
-            caseName: "CourtListener fixture",
-            citation: "999 F.4th 1",
-            url: "https://www.courtlistener.com/opinion/999",
-            dateFiled: "2099-01-02",
-            pdfUrl: "https://www.courtlistener.com/pdf/999",
-        };
-        const { container, unmount } = render(
-            <LegalSourceViewer
-                caseTab={caseTab}
-                compact
-            />,
-        );
-
-        await screen.findByRole("heading", {
-            name: "CourtListener fixture",
-        });
-        expect(screen.getByText("The ratio controls.")).toBeVisible();
-        screen.getByRole("link", { name: "Site" });
-        screen.getByRole("link", { name: "PDF" });
-        fireEvent.click(
-            screen.getByRole("tab", {
-                name: "Dissent by Justice Two",
-            }),
-        );
-        await screen.findByText("The dissenting reasons.");
-        expect(api.direct).not.toHaveBeenCalled();
-        expect(api.opinions).toHaveBeenCalledWith(999);
-        unmount();
-        render(<LegalSourceViewer caseTab={caseTab} compact />);
-        await screen.findByRole("heading", {
-            name: "CourtListener fixture",
-        });
-        expect(api.opinions).toHaveBeenCalledTimes(1);
     });
 
     it("keeps saved and direct readers in the same bounded source shell", async () => {

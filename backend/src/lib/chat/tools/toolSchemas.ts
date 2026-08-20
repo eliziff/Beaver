@@ -47,7 +47,6 @@ export const ASK_INPUTS_TOOL: Tool = {
           maxItems: 8,
           items: { type: "string" },
         },
-        response_prefix: { type: "string" },
       }, ["id", "kind"]),
     },
   }, ["items"]),

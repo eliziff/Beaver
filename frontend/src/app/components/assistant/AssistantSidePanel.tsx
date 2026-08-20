@@ -8,7 +8,6 @@ import type {
 } from "../shared/types";
 import {
     LegalSourceViewer,
-    type CaseTab,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
@@ -51,7 +50,6 @@ type AutomationMenuTab = {
 export type AssistantDocumentTab = DocumentTab | CitationTab | EditTab;
 export type AssistantSidePanelTab =
     | AssistantDocumentTab
-    | CaseTab
     | LegalSourceTab
     | AutomationTab
     | AutomationMenuTab;
@@ -70,17 +68,6 @@ interface Props {
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
     embedded?: boolean;
-}
-function tabTitle(tab: AssistantSidePanelTab): string {
-    if (tab.kind === "automation-menu") return "Automations";
-    if (tab.kind === "automation") return "Automation";
-    if (tab.kind === "case") {
-        return tab.caseName || tab.citation || "Case";
-    }
-    if (tab.kind === "legal") {
-        return tab.name || tab.citation;
-    }
-    return tab.filename;
 }
 export function AssistantSidePanel({
     tabs,
@@ -123,7 +110,10 @@ export function AssistantSidePanel({
                             Number.isFinite(tab.versionNumber) &&
                             (tab.versionNumber ?? 0) >
                                 (tab.kind === "edit" ? 0 : 1);
-                        const title = tabTitle(tab);
+                        const title = tab.kind === "automation-menu" ? "Automations"
+                            : tab.kind === "automation" ? "Automation"
+                            : tab.kind === "legal" ? tab.name || tab.citation
+                            : tab.filename;
                         return (
                             <div
                                 key={tab.id}
@@ -197,9 +187,6 @@ export function AssistantSidePanel({
                         }
                         if (tab.kind === "automation") {
                             return <AutomationRunPanel run={tab.run} />;
-                        }
-                        if (tab.kind === "case") {
-                            return <LegalSourceViewer caseTab={tab} compact />;
                         }
                         if (tab.kind === "legal") {
                             return <LegalSourceViewer {...tab} compact />;

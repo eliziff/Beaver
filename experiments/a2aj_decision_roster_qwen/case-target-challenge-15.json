@@ -1,0 +1,1332 @@
+{
+  "format": "a2aj-case-target-challenge-v1",
+  "created_utc": "2026-08-20T15:05:00.000Z",
+  "seed": 20260820,
+  "requested_pairs": 15,
+  "selection": {
+    "algorithm": "seed-lineage-plus-source-evidence-freeze-v1",
+    "purpose": "v13 final-legal-quality challenge cell; no validator-stage scoring",
+    "one_full_citing_decision_per_call": true,
+    "one_target_per_call": true,
+    "target_decision_text_included": false,
+    "source_audit_seed": 20260819,
+    "source_pair_seed": 20260820,
+    "frozen_pair_keys_sha256": "a32528fa316682fa1649b9711eb9a91ea8b4e98cb8ad67ced4c0addd082929fc"
+  },
+  "category_counts": {
+    "multi_opinion_or_partial_join": 5,
+    "attribution_trap": 5,
+    "ordinary_control": 5
+  },
+  "dataset_counts": {
+    "BCCA": 1,
+    "BCSC": 1,
+    "CART": 1,
+    "CHRT": 1,
+    "CIRB": 1,
+    "FC": 1,
+    "FCA": 1,
+    "FPSLREB": 1,
+    "NSCA": 1,
+    "ONCA": 1,
+    "SCC": 2,
+    "SST": 1,
+    "TCC": 1,
+    "YKCA": 1
+  },
+  "pairs": [
+    {
+      "challenge_id": "multi-01",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 190426,
+      "source": {
+        "dataset": "SCC",
+        "citation": "2021 SCC 26",
+        "name": "R. v. Chouhan",
+        "date": "2021-06-25",
+        "language": "en",
+        "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18932/index.do"
+      },
+      "target": {
+        "document_id": 196690,
+        "citation": "[1991] 1 S.C.R. 509",
+        "citation_aliases": [
+          "[1991] 1 SCR 509",
+          "[1991] 1 RCS 509"
+        ],
+        "name": "R. v. Sherratt"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "8c91148c5a78eb7da702df4a1f14acb9afed74da8e306680f988656d043423ca",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 190426
+        },
+        "source_chars": 306876,
+        "source_text_sha256": "bd793622dd0d6e0ce1777393af924f5fd5fd08a23d80818dd2e2ffafb92eceaf",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 37748,
+            "end_exclusive": 37767,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 37428,
+              "end_exclusive": 38187,
+              "quote": "case against him was not so overwhelming that any other verdict would have been impossible to obtain.\nCases Cited\nBy Moldaver and Brown JJ.\nApplied: R. v. Find, 2001 SCC 32, [2001] 1 S.C.R. 863; R. v. Barton, 2019 SCC 33, [2019] 2 S.C.R. 579; R. v. Dineley, 2012 SCC 58, [2012] 3 S.C.R. 272; considered: R. v. Sherratt, [1991] 1 S.C.R. 509; R. v. Kokopenace, 2015 SCC 28, [2015] 2 S.C.R. 398; referred to: Cloutier v. The Queen, [1979] 2 S.C.R. 709; R. v. Yumnu, 2010 ONCA 637, 260 C.C.C. (3d) 421; R. v. O’Coigly, [1798] 26 Howell’s State Trials 1191; R. v. Barrow, [1987] 2 S.C.R. 694; R. v. Yumnu, 2012 SCC 73, [2012] 3 S.C.R. 777; R. v. Pizzacalla (1991), 5 O.R. (3d) 783; R. v. Gayle (2001), 54 O.R. (3d) 36; R. v. Cornell, 2017 YKCA 12, 353 C.C.C. (3d) ",
+              "sha256": "2891151fba494ee33537a2dbfcdda623e00840eda47aef13c7510e3da901f1cf"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 40743,
+            "end_exclusive": 40762,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 40423,
+              "end_exclusive": 41182,
+              "quote": " 110 O.R. (3d) 536; Wildman v. The Queen, [1984] 2 S.C.R. 311; R. v. Bickford (1989), 51 C.C.C. (3d) 181; Wright v. Hale (1860), 6 H. & N. 227, 158 E.R. 94.\nBy Martin J.\nReferred to: R. v. Williams, [1998] 1 S.C.R. 1128; R. v. Barton, 2019 SCC 33, [2019] 2 S.C.R. 579; R. v. Gladue, [1999] 1 S.C.R. 688; R. v. Sherratt, [1991] 1 S.C.R. 509; R. v. Bain, [1992] 1 S.C.R. 91; R. v. Brown (2006), 219 O.A.C. 26; R. v. Spence, 2005 SCC 71, [2005] 3 S.C.R. 458; R. v. Kokopenace, 2015 SCC 28, [2015] 2 S.C.R. 398; R. v. St-Cloud, 2015 SCC 27, [2015] 2 S.C.R. 328; R. v. S. (R.D.), [1997] 3 S.C.R. 484; R. v. Hall, 2002 SCC 64, [2002] 3 S.C.R. 309; R. v. Nguyen (1997), 97 B.C.A.C. 86; R. v. Grant, 2009 SCC 32, [2009] 2 S.C.R. 353; R. v. Parks (1993), 15 O.R. (3d) ",
+              "sha256": "bc0559f822662202601323cb75815a2b42062f2bbee1548da4aadc34d7500eef"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 43750,
+            "end_exclusive": 43769,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 43430,
+              "end_exclusive": 44189,
+              "quote": ".R. 837; Quebec (Attorney General) v. Canada (Attorney General), 2015 SCC 14, [2015] 1 S.C.R. 693; Ferrel v. Ontario, [1998] 42 O.R. (3d) 97.\nBy Abella J. (dissenting in part)\nR. v. Kokopenace, 2015 SCC 28, [2015] 2 S.C.R. 398; R. v. Williams, [1998] 1 S.C.R. 1128; R. v. Parks (1993), 15 O.R. (3d) 324; R. v. Sherratt, [1991] 1 S.C.R. 509; Regents of the University of California v. Bakke, 438 U.S. 265 (1978); Tran v. Canada (Public Safety and Emergency Preparedness), 2017 SCC 50, [2017] 2 S.C.R. 289; Application under s. 83.28 of the Criminal Code (Re), 2004 SCC 42, [2004] 2 S.C.R. 248; Wildman v. The Queen, [1984] 2 S.C.R. 311; Angus v. Sun Alliance Insurance Co., [1988] 2 S.C.R. 256; Wright v. Hale (1860), 6 H. & N. 227, 158 E.R. 94; Peel (Police) ",
+              "sha256": "a1c2307f45023c43f0e74ec58395478120d637e3a7e238c5bf4417100a1cfa50"
+            }
+          },
+          {
+            "id": "tm4",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 45633,
+            "end_exclusive": 45652,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 45313,
+              "end_exclusive": 46072,
+              "quote": " SCC 9, [2021] 1 S.C.R. 101.\nBy Côté J. (dissenting)\nFrank v. Canada (Attorney General), 2019 SCC 1, [2019] 1 S.C.R. 3; Mansell v. The Queen (1857), 8 E.L. & Bl. 54, 120 E.R. 20; Morin v. The Queen, (1890) 18 S.C.R. 407; McLean v. The King, [1933] S.C.R. 688; Cloutier v. The Queen, [1979] 2 S.C.R. 709; R. v. Sherratt, [1991] 1 S.C.R. 509; R. v. Bain, [1992] 1 S.C.R. 91; R. v. Davey, 2012 SCC 75, [2012] 3 S.C.R. 828; Attorney-General v. De Keyser’s Royal Hotel, [1920] A.C. 508; Gray v. Reg. (1844), 11 Cl. & Fin. 427, 8 E.R. 1164; R. v. Craig, 2019 ONSC 6732, 449 C.R.R. (2d) 1; R. v. Turpin, [1989] 1 S.C.R. 1296; R. v. Lee, [1989] 2 S.C.R. 1384; R. v. Stillman, 2019 SCC 40, [2019] 3 S.C.R. 144; R. v. Kokopenace, 2015 SCC 28, [2015] 2 S.C.R. 398; R. v.",
+              "sha256": "0b5db53aa0796c812f5b788745262bad945442015e683f448c98e31db3823a21"
+            }
+          },
+          {
+            "id": "tm5",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 67353,
+            "end_exclusive": 67372,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 67033,
+              "end_exclusive": 67792,
+              "quote": " stand aside prospective jurors (s. 633). This stand‑aside power allows the trial judge to direct that a prospective juror will not sit on the jury unless there are too few other jurors fit to serve.\n[12] These in‑court procedures emerged in their modern forms in the 16th and 17th centuries in England (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 523). As L’Heureux‑Dubé J. explained in Sherratt, their development was “neither fortuitous nor arbitrary” but rather emerged gradually over hundreds of years to support the purposes of the institution of the jury (p. 523). By fostering the independence, impartiality, and representativeness of the jury, the selection process ensures that the jury remains “an excellent fact finder”, that it acts as “the consci",
+              "sha256": "5b83907420ffae9667538d6ffb2008d9b1fb3e13f82b19d6d7d7ba459c565ea6"
+            }
+          },
+          {
+            "id": "tm6",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 158292,
+            "end_exclusive": 158311,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 157972,
+              "end_exclusive": 158731,
+              "quote": "fly on some of the considerations that are relevant in interpreting the scope of stand asides and challenges for cause.\n[113] With respect to the stand-aside power, I would caution against placing undue weight on the principle of random selection. Randomness plays a key role in the selection of juries (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 525) and can be a means to advance jury representativeness and impartiality. However, randomness is neither an end in itself (R. v. Bain, [1992] 1 S.C.R. 91, at p. 114, per Gonthier J. (dissenting); R. v. Brown (2006), 219 O.A.C. 26, at para. 25) nor a freestanding constitutional imperative. The jury selection system is not and has never been one of pure random selection: challenges for cause, the Crown’s for",
+              "sha256": "cc405b4c2c8fb74dad078e0780444d0803df3b8632d2cde4d0540b0bc6d3ffbd"
+            }
+          },
+          {
+            "id": "tm7",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 197036,
+            "end_exclusive": 197055,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 196716,
+              "end_exclusive": 197475,
+              "quote": "n diversity cannot realistically be mirrored on every jury, trial judges can use the legislative tools that they have been given in Bill C-75 to actively promote jury diversity on a case by case basis. The goal is the selection of a “representative cross-section of society, honestly and fairly chosen” (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 524). Actively promoting jury diversity is not reverse discrimination, it is reversing discrimination. As Blackmun J. famously observed in Regents of the University of California v. Bakke, 438 U.S. 265 (1978), at p. 407, “to get beyond racism, we must first take account of race”.\n[165] But while I agree with the majority that the safeguards in the jury selection system after Bill C-75 make the repeal of perem",
+              "sha256": "15e347a34522fc2059ae0df9798c15fb72660cb78d30bec2faca8d408076602d"
+            }
+          },
+          {
+            "id": "tm8",
+            "kind": "citation",
+            "quote": "[1991] 1 S.C.R. 509",
+            "start": 247708,
+            "end_exclusive": 247727,
+            "citation_key": "19911scr509",
+            "context": {
+              "start": 247388,
+              "end_exclusive": 248147,
+              "quote": "hallenge, he found that it could be negated only by a clear legislative provision and that the accused, when erroneously denied a peremptory challenge, was automatically entitled to ask for a new trial without having to prove prejudice, because there was “préjudice de droit” (pp. 721 and 724).\n[240] In R. v. Sherratt, [1991] 1 S.C.R. 509, L’Heureux-Dubé J. found that\nperemptory challenges are justified on a number of grounds. The accused may, for example, not have sufficient information to challenge for cause a member of the panel he/she feels should be excluded. Peremptory challenges can also, in certain circumstances, produce a more representative jury depending upon both the nature of the community and the accused. Challenges of this nature also ",
+              "sha256": "15a53962126f073bf1b305f873cb94b7af2bdeb2d08bbe4448599cb10b1ec534"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Joint Reasons for Judgment: (paras. 1 to 104)",
+            "start": 1441,
+            "end_exclusive": 1486,
+            "sha256": "9443dabe3d73bc863a47d0f4e87f43653bf6e6aaa1b8e506437d8fdd3a3c71cd"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 105 to 123)",
+            "start": 1535,
+            "end_exclusive": 1574,
+            "sha256": "6e148d8e0df86f8998b50a7c9c99e253c6ef1e945dc2a1a50aa93cbd534712d8"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 124 to 147)",
+            "start": 1627,
+            "end_exclusive": 1666,
+            "sha256": "40f36e21adeefc07529a37f6eebc1bf343e6650451226465fd7cbd40169111cc"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Dissenting Reasons: (paras. 221 to 317)",
+            "start": 1733,
+            "end_exclusive": 1772,
+            "sha256": "4da89af15cbe663cd7a688b9db3342c0edf90b650a112a783a2b40a81c2ef0d5"
+          }
+        ],
+        "source_text_review_note": "Four substantive opinion blocks; Sherratt is discussed in the lead, concurring, and dissenting reasons."
+      }
+    },
+    {
+      "challenge_id": "multi-02",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 193954,
+      "source": {
+        "dataset": "SCC",
+        "citation": "2020 SCC 32",
+        "name": "Quebec (Attorney General) v. 9147-0732 Québec inc.",
+        "date": "2020-11-05",
+        "language": "en",
+        "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18529/index.do"
+      },
+      "target": {
+        "document_id": 191310,
+        "citation": "[1985] 1 S.C.R. 295",
+        "citation_aliases": [
+          "[1985] 1 SCR 295",
+          "[1985] 1 RCS 295"
+        ],
+        "name": "R. v. Big M Drug Mart Ltd."
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "4d247015547019505ae43b45bf3c890228718b73ecc3ab172d5f6359bc2bbb42",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 193954
+        },
+        "source_chars": 137850,
+        "source_text_sha256": "b1e57181d19b33cdfde635308b6777b6f629dbfa64fc57d67fc398092c0d15ab",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 17828,
+            "end_exclusive": 17847,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 17508,
+              "end_exclusive": 18267,
+              "quote": " English law and on the Civil Code of Québec. In this case, it is unnecessary to consider questions relating to the proper approach to constitutional interpretation or the place of international law and comparative law in that approach any further.\nCases Cited\nBy Brown and Rowe JJ.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295; considered: Reference re Public Service Employee Relations Act (Alta.), [1987] 1 S.C.R. 313; referred to: Irwin Toy Ltd. v. Quebec (Attorney General), [1989] 1 S.C.R. 927; R. v. Poulin, 2019 SCC 47; R. v. CIP Inc., [1992] 1 S.C.R. 843; R. v. Grant, 2009 SCC 32, [2009] 2 S.C.R. 353; Caron v. Alberta, 2015 SCC 56, [2015] 3 S.C.R. 511; British Columbia (Attorney General) v. Canada (Attorney General), [1994] 2 S.C.R. 4",
+              "sha256": "0e982c3b35d8298d1992a89d84947b92aaef3ab8916ec080b24ccbc9252bcf00"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 19519,
+            "end_exclusive": 19538,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 19199,
+              "end_exclusive": 19958,
+              "quote": "19 SCC 1, [2019] 1 S.C.R. 3; Canadian Egg Marketing Agency v. Richardson, [1998] 3 S.C.R. 157; R. v. Oakes, [1986] 1 S.C.R. 103; R. v. Smith (Edward Dewey), [1987] 1 S.C.R. 1045; Suresh v. Canada (Minister of Citizenship and Immigration), 2002 SCC 1, [2002] 1 S.C.R. 3.\nBy Abella J.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295; referred to: R. v. Smith (Edward Dewey), [1987] 1 S.C.R. 1045; R. v. Lyons, [1987] 2 S.C.R. 309; R. v. Luxton, [1990] 2 S.C.R. 711; Steele v. Mountain Institution, [1990] 2 S.C.R. 1385; R. v. Goltz, [1991] 3 S.C.R. 485; R. v. Morrisey, 2000 SCC 39, [2000] 2 S.C.R. 90; R. v. Latimer, 2001 SCC 1, [2001] 1 S.C.R. 3; R. v. Ferguson, 2008 SCC 6, [2008] 1 S.C.R. 96; R. v. Nur, 2015 SCC 15, [2015] 1 S.C.R. 773; R. v. Lloy",
+              "sha256": "7a3fdb14c009ddbfba239743dfb51c670c7909e7e374cc964b05df6295eef5f9"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 34761,
+            "end_exclusive": 34780,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 34441,
+              "end_exclusive": 35200,
+              "quote": "dienne ” (2013), 61 S.C.L.R. (2d) 191, at pp. 192-93.\n[4] We also make a preliminary and more general point on constitutional interpretation. Our colleague Abella J. applies the primacy of constitutional text and considerations of purpose in accordance with the purposive approach adopted in R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295, at p. 344, recently affirmed in R. v. Poulin, 2019 SCC 47, at para. 32. In doing so, however, she makes several remarks which risk minimizing the primordial significance assigned by this Court’s jurisprudence to constitutional text in undertaking purposive interpretation.\n[5] Having regard to the decision under appeal, that of the Quebec Court of Appeal, we find Justice Chamberland’s dissenting reasons difficult to",
+              "sha256": "10512460c0f9316688778af3118f2c637c73e345b18f4a66238f5ea2556bcb79"
+            }
+          },
+          {
+            "id": "tm4",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 79341,
+            "end_exclusive": 79360,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 79021,
+              "end_exclusive": 79780,
+              "quote": "IP Inc., [1992] 1 S.C.R. 843, at p. 852).\n[68] Unlike the approach applied by the majority of the Court of Appeal, with respect, determining the scope requires first determining the purpose of the right. A Charter right must be interpreted “by an analysis of the purpose of [the] guarantee” (R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295, at p. 344 (emphasis deleted); Hunter v. Southam Inc., [1984] 2 S.C.R. 145, at pp. 155-57; see also Peter W. Hogg, Constitutional Law of Canada (5th ed. Supp.), at s. 36.8(c)). Big M Drug Mart provides the definitive account of this approach:\n. . . the proper approach to the definition of the rights and freedoms guaranteed by the Charter was a purposive one. The meaning of a right or freedom guaranteed by the Charte",
+              "sha256": "1d787f8a318dab0813dd6423bf219bd18e32f2c74dbcd8b9bafa53ba4018274e"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Joint Reasons for Judgment: (paras. 1 to 48)",
+            "start": 1150,
+            "end_exclusive": 1194,
+            "sha256": "468fd3e207d7d990cf5df6143a98a061de12b723d03a4e22f5c105e0165b6bdd"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 49 to 137)",
+            "start": 1265,
+            "end_exclusive": 1303,
+            "sha256": "2fc116df70bdccabf1e086664db97d5f3897dabc2d925bdc28c64eb960370ad2"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 138 to 142)",
+            "start": 1355,
+            "end_exclusive": 1394,
+            "sha256": "4b2ab4113421d515960a8620dcc1011b13250735d5924c0baad3d95378e72085"
+          }
+        ],
+        "source_text_review_note": "Three same-result opinions with issue-specific joinders; Big M appears in the lead and concurring reasons."
+      }
+    },
+    {
+      "challenge_id": "multi-03",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 7330,
+      "source": {
+        "dataset": "BCCA",
+        "citation": "2014 BCCA 146",
+        "name": "R. v. Gould",
+        "date": "2014-04-14",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/CA/14/01/2014BCCA0146.htm"
+      },
+      "target": {
+        "document_id": 189816,
+        "citation": "[1982] 1 S.C.R. 41",
+        "citation_aliases": [
+          "[1982] 1 SCR 41",
+          "[1982] 1 RCS 41"
+        ],
+        "name": "Korponay v. Attorney General of Canada"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "1d95a0e7c87395de9895a45780973d88ef33c386f5043d57aa3ff0008c6203fb",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 7330
+        },
+        "source_chars": 45173,
+        "source_text_sha256": "734e3e36193c6660a3e5b18736086e96ffa17fff0fa26d9c560e4cb810da2a90",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1982] 1 S.C.R. 41",
+            "start": 19767,
+            "end_exclusive": 19785,
+            "citation_key": "19821scr41",
+            "context": {
+              "start": 19447,
+              "end_exclusive": 20205,
+              "quote": "f s. 561 was not met. The issue on re-election is whether the events establish that Mr. Porisky had in some other ad hoc procedure waived his right to the procedural safeguard in s. 561 or to a jury trial.\n[30] The requirements of a valid waiver were comprehensively addressed in Korponay v. Attorney General of Canada, [1982] 1 S.C.R. 41, 65 C.C.C. (2d) 65. Justice Lamer, for the Court, said at pp. 49-50:\nIndeed the Court is saying in Park that the validity of such a waiver, and I should add that that is so of any waiver, is dependent upon it being clear and unequivocal that the person is waiving the procedural safeguard and is doing so with full knowledge of the rights the procedure was enacted to protect and of the effect the waiver will have on t",
+              "sha256": "417c46e704090727eb6296b23b86f361cbf157da4d6465f7919f3771c08f8dea"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "[1982] 1 S.C.R. 41",
+            "start": 41702,
+            "end_exclusive": 41720,
+            "citation_key": "19821scr41",
+            "context": {
+              "start": 41382,
+              "end_exclusive": 42140,
+              "quote": " being asked to \"elect again\" or confirm his desire to have a trial by jury, which had been supplanted by the deemed election resulting from his non-appearance at jury selection.\n[67] This is not a case where the Crown must establish a waiver of the procedural steps considered in Korponay v. Canada (Attorney General), [1982] 1 S.C.R. 41, where the Court considered the effect of a failure to put the re-election in the then-mandatory terms of the Criminal Code. There is no suggestion that the failure to comply with any procedural requirement other than verbal confirmation of the re-election was material in this case.\n[68] In Korponay, of course it was the form of re-election, the words used, that was material. The Court held, at 50 - 51:\nThe procedur",
+              "sha256": "bcb68d4c7c68f5d87f653ae92d43267a086f0c3930c110d3ea0a26dba694486a"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Reasons for Judgment of the Honourable Madam Justice Saunders:",
+            "start": 3011,
+            "end_exclusive": 3073,
+            "sha256": "91812296f3a25e19b1c87a5625510df402f18b5347df8262cf770ce8a27bbe7a"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Dissenting Reasons for Judgment of the Honourable Mr. Justice Willcock:",
+            "start": 32844,
+            "end_exclusive": 32915,
+            "sha256": "9b98e22df7b78f8a576807415fdf975cf92fa35a294e80751a158884ae8a96da"
+          }
+        ],
+        "source_text_review_note": "Express majority and dissent; each opinion discusses Korponay."
+      }
+    },
+    {
+      "challenge_id": "multi-04",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 112050,
+      "source": {
+        "dataset": "FCA",
+        "citation": "2007 FCA 24",
+        "name": "Khosa v. Canada (Citizenship and Immigration)",
+        "date": "2007-01-30",
+        "language": "en",
+        "url": "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/35449/index.do"
+      },
+      "target": {
+        "document_id": 190532,
+        "citation": "[2002] 1 S.C.R. 84",
+        "citation_aliases": [
+          "2002 SCC 3",
+          "[2002] 1 SCR 84",
+          "2002 CSC 3",
+          "[2002] 1 RCS 84"
+        ],
+        "name": "Chieu v. Canada (Minister of Citizenship and Immigration)"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "67b11f16d8597c347149099590c88d7d990a444152b6a3fbd862abf1c23f761f",
+        "source_lineage": {
+          "kind": "seeded_full_corpus_keyword_scan",
+          "seed": 20260820,
+          "query": "dataset=FCA AND text contains DISSENTING REASONS",
+          "document_id": 112050
+        },
+        "source_chars": 44551,
+        "source_text_sha256": "e069328c493ce08123d3d561be5b7e244bd9680b4bd5df7c5172d3d2b2ba79ff",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[2002] 1 S.C.R. 84",
+            "start": 3571,
+            "end_exclusive": 3589,
+            "citation_key": "20021scr84",
+            "context": {
+              "start": 3251,
+              "end_exclusive": 4009,
+              "quote": " tribunal” that may exist when a tribunal exercises its powers. The paradigm exists in this case with the Board hearing testimony, weighing evidence, and applying legal tests to determine whether it will exercise its relief granting power under the Act.\n[6] In Chieu v. Canada (Minister of Citizenship and Immigration), [2002] 1 S.C.R. 84, at paragraph 26, the Supreme Court found that in appeals under s. 70(1)(b) of the former Immigration Act which granted some persons the right to appeal removal orders made against them “on the ground that, having regard to all the circumstances of the case, the person should not be removed from Canada”, the Board “is not involved in a managing or supervisory function, but in adjudicating the rights of individuals v",
+              "sha256": "0e8d3da20f16d82e0fef45ef9d6f7eb2dca43619ea8a1c9014c347d1c9c144ca"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "[2002] 1 S.C.R. 84",
+            "start": 27297,
+            "end_exclusive": 27315,
+            "citation_key": "20021scr84",
+            "context": {
+              "start": 26977,
+              "end_exclusive": 27735,
+              "quote": "iness. Here, the IAD was called upon to consider, in light of the circumstances of the case, the factors developed in Ribic v. Canada (Minister of Employment and Immigration), [1985] I.A.D.D. No. 4 (QL), subsequently confirmed by the Supreme Court of Canada in Chieu v. Canada (Minister of Citizenship and Immigration), [2002] 1 S.C.R. 84, in order to determine whether it should exercise its discretion to grant an exemption on compassionate and humanitarian considerations having regard to the appellant’s inadmissibility for serious criminality. These are factors that the IAD itself has developed and has been applying for over fifteen years (Chieu at paragraph 41).\n[38] The third factor, the purpose of the legislation, reflects the intent of Parliamen",
+              "sha256": "396f9e7ec38f4d380390f76349b6582451fe7dfc1c17dc683263405034a7000f"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.",
+            "start": 522,
+            "end_exclusive": 558,
+            "sha256": "0427dfe5b3572e777f1a25e1336979be2d73c107cf851709ce16ddceeea26d1e"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "DISSENTING REASONS BY: DESJARDINS J.A.",
+            "start": 588,
+            "end_exclusive": 626,
+            "sha256": "dd5dfbb74a6fea7de876a5c284c613770fa129286e37aade4af470ac60e2a1a1"
+          }
+        ],
+        "source_text_review_note": "Express majority and dissent that each characterize Chieu while disagreeing on review and disposition."
+      }
+    },
+    {
+      "challenge_id": "multi-05",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 225088,
+      "source": {
+        "dataset": "YKCA",
+        "citation": "2015 YKCA 17",
+        "name": "R. v. Dickson",
+        "date": "2015-10-08",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/CA/15/YK/2015YKCA0017.htm"
+      },
+      "target": {
+        "document_id": 196235,
+        "citation": "2010 SCC 6",
+        "citation_aliases": [
+          "[2010] 1 SCR 206",
+          "2010 CSC 6",
+          "[2010] 1 RCS 206"
+        ],
+        "name": "R. v. Nasogaluak"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "d5e4ea03584f6711951fab72fb0a157b65af1f103a615fab1ff5e6c3a1bad179",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 225088
+        },
+        "source_chars": 35113,
+        "source_text_sha256": "78e7b75e3a18e31f88112abf4bd3fda379ceecdd5d422258abd8e6e97cd9f273",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2010 SCC 6",
+            "start": 27623,
+            "end_exclusive": 27633,
+            "citation_key": "2010scc6",
+            "context": {
+              "start": 27303,
+              "end_exclusive": 28053,
+              "quote": " a sentence that fell within the range of acceptable sentences for this offence and offender. The defence cited numerous decisions of the Yukon Territorial Court in which sentences under a year were imposed in similar circumstances. Defence counsel further relies on the comments of Justice Labelle in R. v. Nasogaluak, 2010 SCC 6 at para. 44, in which he stated:\nBut it must be remembered that, while courts should pay heed to these ranges, they are guidelines rather than hard and fast rules. A judge can order a sentence outside that range as long as it is in accordance with the principles and objectives of sentencing. Thus, a sentence falling outside the regular range of appropriate sentences is not necessarily unfit.\n[35] In R. v. M. (C.A.),",
+              "sha256": "7ce19d77b0b2d34c6376310c4f02331dc01e9e23145a6fab6201b1a8d3e36144"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "2010 SCC 6",
+            "start": 33372,
+            "end_exclusive": 33382,
+            "citation_key": "2010scc6",
+            "context": {
+              "start": 33052,
+              "end_exclusive": 33802,
+              "quote": ". Bernier, 2003 BCCA 134, this Court addressed the matter of ranges and concluded that \"[t]hey are general guidelines, not hard and fast categories\" and \"do not preclude lesser or greater sentences, if the circumstances or the applicable principles in the particular case warrant\" (para. 105; see also R. v. Nasogaluak, 2010 SCC 6 at para. 44). While acknowledging that \"ranges\" may be helpful in making submissions on sentencing, Madam Justice Newbury observed that their usefulness \"will always be limited by the countervailing consideration that in Canada, each case must still be assessed on its own facts and that as also noted in M. (C.A.), '... the search for a single appropriate sentence for a similar offender and a similar crime will frequ",
+              "sha256": "8072d06e49279c2c8d5dfe4631e2a21a34e4aea21b96eb449092eeea6ff13390"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Reasons for Judgment of the Honourable Madam Justice Fenlon:",
+            "start": 1815,
+            "end_exclusive": 1875,
+            "sha256": "398b17fe7a761b8854fca8a8b451b0e135a7f7ade8cc0a5b3a326d82f0a1b76d"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Reasons for Judgment of the Honourable Madam Justice D. Smith:",
+            "start": 30568,
+            "end_exclusive": 30630,
+            "sha256": "a7bfd1037c907eedd7aa257db88a557e36b2345578e1db1f561ee96c461a0f8f"
+          }
+        ],
+        "source_text_review_note": "Lead and separate reasons; both use Nasogaluak in resolving the sentencing issue."
+      }
+    },
+    {
+      "challenge_id": "attribution-01",
+      "challenge_category": "attribution_trap",
+      "document_id": 109485,
+      "source": {
+        "dataset": "FC",
+        "citation": "2007 FC 971",
+        "name": "Pfizer Canada Inc. v. Apotex Inc.",
+        "date": "2007-09-27",
+        "language": "en",
+        "url": "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/54370/index.do"
+      },
+      "target": {
+        "document_id": 113763,
+        "citation": "2007 FCA 153",
+        "citation_aliases": [
+          "2007 CAF 153"
+        ],
+        "name": "Abbott Laboratories v. Canada (Health)"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "2458ebbd4b9f897dc7969515d3a5e701726c4574d99c38e9caa9c6c0a8d64c36",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 1454
+        },
+        "source_chars": 104357,
+        "source_text_sha256": "3619c93ea19ea138de5b0f8a8441f2bf76305f77825bf27564a40510b47522a0",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2007 FCA 153",
+            "start": 24372,
+            "end_exclusive": 24384,
+            "citation_key": "2007fca153",
+            "context": {
+              "start": 24052,
+              "end_exclusive": 24804,
+              "quote": "obabilities standard, I conclude that the applicants have met their burden to demonstrate that this allegation is unsubstantiated.\nVALIDITY\nBurden of Proof\n[44] The issue of burden of proof and presumption of validity was recently dealt with by the Court of Appeal in Abbott Laboratories v. Canada (Minister of Health), 2007 FCA 153, [2007] F.C.J. No. 543 [Abbott Laboratories 2007]. In that case the Court of Appeal found at paragraph 9 that “[i]t is now beyond debate that an applicant for a prohibition order under the NOC Regulations bears the burden of establishing its entitlement to the order” [emphasis added]. With respect to the presumption of validity that emanates from subsection 43(2) of the Act, the Court of Appeal went on to state:\n10 ",
+              "sha256": "590993ce32a0bf93e2364d1a82d5adadd02ce83046a55fd4bcad5b0497532b14"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "2007 FCA 153",
+            "start": 88419,
+            "end_exclusive": 88431,
+            "citation_key": "2007fca153",
+            "context": {
+              "start": 88099,
+              "end_exclusive": 88851,
+              "quote": "t.\n[132] The respondent refers to the Supreme Court of Canada decision in Hoffman-La Roche & Co Ltd. v. Commissioner of Patents [1955] S.C.R. 414, 23 C.P.R. 1 at para. 5 (S.C.C.) [Hoffman], cited positively by the Federal Court in Abbott Laboratories v. Canada 2005 FC 1332, 45 C.P.R. (4th) 81 at para. 58 (F.C.), aff’d 2007 FCA 153 at paras. 11-14 [Abbott Laboratories 2005]. As was noted by this Court in Abbott Laboratories 2005 at para. 76, the Hoffman case stands for the principle that “one cannot obtain a patent on an old product even by use of a new process”. This however is not what the applicants did in their application for the ‘466 Patent. It is not a new process for an old product they discovered but an entirely new use.\n[133] The res",
+              "sha256": "016b880fd9197cd66a4da2bc4a28c8f6aaae52113a85b12fedea7ec63d738e97"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_voice",
+            "quote": "The issue of burden of proof and presumption of validity was recently dealt with by the Court of Appeal in Abbott Laboratories v. Canada (Minister of Health), 2007 FCA 153",
+            "start": 24213,
+            "end_exclusive": 24384,
+            "sha256": "bea4c4019498f5efdd1915713979fc2dbe7626b57ab3966399b46fbfdaf2473b"
+          },
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "2007 FCA 153 at paras. 11-14 [Abbott Laboratories 2005]",
+            "start": 88419,
+            "end_exclusive": 88474,
+            "sha256": "5ca731e09950efa3475f58cadb7e99df26c2d16a33926badce188cf2b41f0855"
+          }
+        ],
+        "source_text_review_note": "The court uses the target for one proposition while a party invokes it for a different patent proposition."
+      }
+    },
+    {
+      "challenge_id": "attribution-02",
+      "challenge_category": "attribution_trap",
+      "document_id": 123916,
+      "source": {
+        "dataset": "NSCA",
+        "citation": "2018 NSCA 53",
+        "name": "Piper v. Piper",
+        "date": "2018-06-20",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nsca/en/item/311752/index.do"
+      },
+      "target": {
+        "document_id": 192670,
+        "citation": "2014 SCC 53",
+        "citation_aliases": [
+          "[2014] 2 SCR 633",
+          "2014 CSC 53",
+          "[2014] 2 RCS 633"
+        ],
+        "name": "Sattva Capital Corp. v. Creston Moly Corp."
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "41ce7aedc79b9fa73398d94d16eeff0841fa290a73b454b34f7bf0829dcf8005",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 1700
+        },
+        "source_chars": 57006,
+        "source_text_sha256": "d6ae2db76a6b7b421e3a84dd72362da3f4b3e234cde86b9d826ae39ae36b5821",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2014 SCC 53",
+            "start": 46327,
+            "end_exclusive": 46338,
+            "citation_key": "2014scc53",
+            "context": {
+              "start": 46007,
+              "end_exclusive": 46758,
+              "quote": "ar.\n[80] Ms. Piper also asserts the judge erred in limiting her analysis to the written terms of the draft CRO. By doing so, she failed to consider relevant evidence of the surrounding circumstances and the objective intentions of the parties. Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:\n[43] Justice Cormier committed an error of mixed fact and law when she misapprehended the law of contractual interpretation. She misdirected herself when she stated: “If the plain wording of the document reveals a clear and unambiguous intent it is not necessary to go further. Indeed, once that has been done, it may not be possible to have recourse outside the document, either to ",
+              "sha256": "5a76bedf8bb79ead0e1da094b2216e3b7ea8c550a76fd006587d6c66799d96c7"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:",
+            "start": 46251,
+            "end_exclusive": 46374,
+            "sha256": "3de50ff28a62473b3341068c0ea5ad6d425d1464dbe742a1c6864bb15d6dc993"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "I note that Sattva does not apply to determine whether a contract exists",
+            "start": 46980,
+            "end_exclusive": 47052,
+            "sha256": "adbae995673f40f4a44574b9ded6bdcde4d5b4cdd68f85781a50ec85daa24053"
+          }
+        ],
+        "source_text_review_note": "A party's quoted characterization is immediately limited by the current court."
+      }
+    },
+    {
+      "challenge_id": "attribution-03",
+      "challenge_category": "attribution_trap",
+      "document_id": 67832,
+      "source": {
+        "dataset": "CHRT",
+        "citation": "2021 CHRT 18",
+        "name": "Carter v. Attorney General of Canada",
+        "date": "2021-04-29",
+        "language": "en",
+        "url": "https://decisions.chrt-tcdp.gc.ca/chrt-tcdp/decisions/en/item/497684/index.do"
+      },
+      "target": {
+        "document_id": 68517,
+        "citation": "2014 CHRT 3",
+        "citation_aliases": [
+          "2014 TCDP 3"
+        ],
+        "name": "Carter v. Fisheries and Oceans Canada"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "fc386c4a8986fcd29e500eb547610a2ffdd9119c51ad82efe1b91d7d8a4294f0",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 4537
+        },
+        "source_chars": 6189,
+        "source_text_sha256": "a92f49d65373e1f9bffeb3c0574e69cab9e0a1052208a3d7f24337406c02e5e4",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2014 CHRT 3",
+            "start": 1112,
+            "end_exclusive": 1123,
+            "citation_key": "2014chrt3",
+            "context": {
+              "start": 792,
+              "end_exclusive": 1543,
+              "quote": "s filed with the Canadian Human Rights Commission (the “Commission”) on June 3, 2011. The complaint was forwarded to the Canadian Human Rights Tribunal (“CHRT” or “Tribunal”) on July 31, 2012, and the matter was assigned to Member Luftig.\n[2] In the course of case management, Member Luftig issued four interim rulings: 2014 CHRT 3; 2014 CHRT 23; 2015 CHRT 13; and, 2016 CHRT 6 (collectively, the “Rulings”).\n[3] The inquiry finally went to hearing on August 15, 2016. For reasons not relevant to this ruling, Mr. Carter decided to withdraw his complaint on August 26, 2016. The inquiry was never finished and there was no necessity for Member Luftig to render a final merits decision.\n[4] However, the file at the Tribunal was never closed because Mr",
+              "sha256": "7087c108b89e25cd409a1284647613b6e03938d4a67ceb947edf0542552e5397"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "2014 CHRT 3",
+            "start": 2814,
+            "end_exclusive": 2825,
+            "citation_key": "2014chrt3",
+            "context": {
+              "start": 2494,
+              "end_exclusive": 3245,
+              "quote": "matter.\n[7] Member Luftig agreed to recuse herself from this file and I have taken it upon myself, as Chairperson of the CHRT, to render this ruling and bring this complaint to a close.\nII. Position of the Parties\n[8] Mr. Carter’s main objection has been the disclosure of certain medical information in Tribunal ruling 2014 CHRT 3. In section 1 of paragraph 9, Member Luftig described some details of Mr. Carter’s medical condition (the “Medical Information”) that formed part of his complaint. Mr. Carter contends that some of the Medical Information was confidential and he wished it to be cloaked under a confidentiality order of the Tribunal. He further contends that some of the Medical Information is simply incorrect.\n[9] In its original submi",
+              "sha256": "8c0f56af4e5f3c10ad9cd3b4be047513f3e05cfe6e2d1f6f349c3d4632e58595"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "2014 CHRT 3",
+            "start": 4138,
+            "end_exclusive": 4149,
+            "citation_key": "2014chrt3",
+            "context": {
+              "start": 3818,
+              "end_exclusive": 4569,
+              "quote": "February 12, 2021 that he no longer wishes to have anonymity. He does, however, still wish to have the Medical Information remain confidential.\n[11] The Commission did not provide supplemental submissions.\nIII. Decision\n[12] Having reviewed the materials in this case, I concur that the Medical Information contained in 2014 CHRT 3 is not necessary for the public’s ability to understand the essence of this complaint and this proceeding.\n[13] The openness and transparency of legal proceedings is a well-established principle in Canada (Toronto Star Newspapers Ltd. vs. Ontario, 2005 SCC 41 at para 4). As indicated in section 52(1) of the Canadian Human Rights Act, R.S.C 1985, c. H-6 (“the Act”), human rights hearings are intended to be public. Ho",
+              "sha256": "868a6540979661b3c1518c8308ab294496f0f02f8d83058464fb697906dc7629"
+            }
+          },
+          {
+            "id": "tm4",
+            "kind": "citation",
+            "quote": "2014 CHRT 3",
+            "start": 5086,
+            "end_exclusive": 5097,
+            "citation_key": "2014chrt3",
+            "context": {
+              "start": 4766,
+              "end_exclusive": 5517,
+              "quote": "sk that the disclosure of personal information will cause undue hardship to the persons involved. This must be however balanced with the societal interest that the inquiry be conducted in public.\n[14] With the consent of Mr. Carter and Respondent counsel, I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced with the following sentence: “The Complainant has a medical condition which he states is a disability under the Act.”\n[15] Subject to the aforementioned change, the Rulings will be translated into the second Official Language and will be posted on the Tribunal website in due course, thus forming a part of the permanent record of this Tribunal. All information contained in the file pertaining t",
+              "sha256": "1b42948a4c1dcf08a47c5aa6db6510f3a74242cf69f591c91f054ff035db3dcb"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "Member Luftig issued four interim rulings: 2014 CHRT 3",
+            "start": 1069,
+            "end_exclusive": 1123,
+            "sha256": "f64ab49630bd6fa3099971a3ef8431b38bd4fcc55bbde92e55a0cdf71fee722c"
+          },
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "Mr. Carter’s main objection has been the disclosure of certain medical information in Tribunal ruling 2014 CHRT 3",
+            "start": 2712,
+            "end_exclusive": 2825,
+            "sha256": "3df407e481573b9c5d603310d1f0556d50fefa3b62f356d5930074484a9cb62e"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "I concur that the Medical Information contained in 2014 CHRT 3 is not necessary",
+            "start": 4087,
+            "end_exclusive": 4166,
+            "sha256": "30c595098fee1ccc5c19cccf7f386a9b948608f33b4d3de9270d2b0a9bccbad6"
+          }
+        ],
+        "source_text_review_note": "The same prior ruling appears as procedural history, a party objection, and the deciding member's conclusion."
+      }
+    },
+    {
+      "challenge_id": "attribution-04",
+      "challenge_category": "attribution_trap",
+      "document_id": 68919,
+      "source": {
+        "dataset": "CIRB",
+        "citation": "2005 CAPPRT 050",
+        "name": "Petch",
+        "date": "2006-01-23",
+        "language": "en",
+        "url": "https://decisia.lexum.com/cirb-ccri/saa-lsa/en/item/8104/index.do"
+      },
+      "target": {
+        "document_id": 68923,
+        "citation": "1998 CAPPRT 028",
+        "citation_aliases": [
+          "1998 TCRPAP 028"
+        ],
+        "name": "Writers' Union of Canada"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "8682fc1d8f6a7d1199db9aaef4ecf69d6920ed9f63133b898724df169bc34941",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 2179
+        },
+        "source_chars": 69217,
+        "source_text_sha256": "89b56755a411cac20268a54aa7dc8ae940372f5f3e24182b233bb29de006c7dd",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 28989,
+            "end_exclusive": 29004,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 28669,
+              "end_exclusive": 29424,
+              "quote": "consistency with a contract between an artist and a producer, but it shall not be applied so as to deprive an artist of a right or benefit under the contract that is more favourable to the artist than is provided for under the agreement.\n[60] The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:\nUnder the Status of the Artist Act regime, artists retain control over the decision whether to accept a commission from a producer or to allow a particular producer to use one of their works. The artist remains free to negotiate individual contracts above the minimum, but no producer may offer less than the terms set out in the scale agreement to which the producer and the artists' association have ",
+              "sha256": "8b86cb24fdd8d8493b5854c77cd4caacec9b75492697e2386159ce0715adaf98"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 37409,
+            "end_exclusive": 37424,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 37089,
+              "end_exclusive": 37844,
+              "quote": " has been the subject of close interest since the statute's coming into force in 1995. The Tribunal has had opportunities to consider and comment on the interrelations of these two statutes in previous decisions. The relationship has always been viewed as a complementary one, as set out in The Writers Union of Canada, 1998 CAPPRT 028:\n[57] In the Tribunal's view, the Status of the Artist Act was intended to complement and supplement the regime provided in the Copyright Act. It is intended to do so by providing artists with an additional mechanism to obtain compensation for their work, thereby enhancing and promoting artists' freedom of choice as to how they will exploit the fruits of their creative talents.\n[58] The statute must be given an inte",
+              "sha256": "87f76e36f6336cb4fbb5711703e1f36f3c34a1ed7a1a4839bcbe5a91ef954051"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 38993,
+            "end_exclusive": 39008,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 38673,
+              "end_exclusive": 39428,
+              "quote": " consent to include in a collective agreement.\n[79] The right to use an existing work is a service that the artist, who holds the copyright in that work, may provide to a producer. Representing artists' interests in this fundamental socio-economic right is an appropriate activity for a certified artists' association. [1998 CAPPRT 028, paragraph 61]\n[80] Both scale agreements specify that copyright remains vested with the writer (Article A5 in the 1988-91 Agreement [extended to 1998] and Article C3 in the 1998-2000 Agreement.) The scale agreements then provide the mechanism through which the CBC acquires licenses for certain uses of the writer's work upon the payment of the prescribed fee, including the right to distribute to third parties.\n[81] ",
+              "sha256": "047b805e2222909ec3a41e10c3713b91a90677a9c5e5eb25e2ad374fd177f13d"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:",
+            "start": 28912,
+            "end_exclusive": 29021,
+            "sha256": "5854879285b5b5068c1650aacf42dbaf257a6908d3d17a45c1a6582fba64ec0e"
+          },
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "The relationship has always been viewed as a complementary one, as set out in The Writers Union of Canada, 1998 CAPPRT 028:",
+            "start": 37302,
+            "end_exclusive": 37425,
+            "sha256": "2ef7a8477b02c62f4d3e9a58a17743dc60cd10162bcd4279ff186cb5190680c8"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "In the instant case, the Tribunal finds the dispute",
+            "start": 39805,
+            "end_exclusive": 39856,
+            "sha256": "bbba4ce5395d8548a6914befbf5f2696ed55b09254c3c2e1d4acf4bffbd7694d"
+          }
+        ],
+        "source_text_review_note": "Prior reasons are quoted twice around party submissions before the Tribunal states its own application."
+      }
+    },
+    {
+      "challenge_id": "attribution-05",
+      "challenge_category": "attribution_trap",
+      "document_id": 220204,
+      "source": {
+        "dataset": "TCC",
+        "citation": "2005 TCC 703",
+        "name": "Doyon v. M.N.R.",
+        "date": "2005-11-04",
+        "language": "en",
+        "url": "https://decision.tcc-cci.gc.ca/tcc-cci/decisions/en/item/26958/index.do"
+      },
+      "target": {
+        "document_id": 111733,
+        "citation": "2002 FCA 394",
+        "citation_aliases": [
+          "2002 CAF 394"
+        ],
+        "name": "Jaillet v. Canada (Minister of national revenue)"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "864a5c289790ce9c2677fb5df2099d92f5200200559e1b6647b873b5d011a2cb",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 346
+        },
+        "source_chars": 9561,
+        "source_text_sha256": "3b3767165a690bbf76009dbfcb382c5840115d521c6611c8f98bed0aad2d0860",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2002 FCA 394",
+            "start": 7117,
+            "end_exclusive": 7129,
+            "citation_key": "2002fca394",
+            "context": {
+              "start": 6797,
+              "end_exclusive": 7549,
+              "quote": "loyees. The concept of control is the key test used in measuring the extent of the relationship. However, as our brother Décary J.A. said in Charbonneau v. Canada (Minister of National Revenue - M.N.R.), [1996] F.C.J. No. 1337, [1996] 207 N.R. 299, followed in Jaillet v. Canada (Minister of National Revenue - M.N.R.), 2002 FCA 394, control of the result and control of the worker should not be confused. At paragraph 10 of the decision, he wrote:\nIt is indeed rare for a person to give out work and not to ensure that the work is performed in accordance with his or her requirements and at the locations agreed upon. Monitoring the result must not be confused with controlling the worker.\n[14] I find that in this case, there is no serious indication",
+              "sha256": "a508a862ece6201f081e67c4037167a6cccd5e4bc4e2b296eff3ef446a27fdc4"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "followed in Jaillet v. Canada (Minister of National Revenue - M.N.R.), 2002 FCA 394",
+            "start": 7046,
+            "end_exclusive": 7129,
+            "sha256": "ff9de59ab06f7d884d4e2efa9b55df32213b5b8aa320f06361ffbc910608f69b"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "I find that in this case, there is no serious indication that there was a control on the worker.",
+            "start": 7493,
+            "end_exclusive": 7589,
+            "sha256": "1af46add7d5bb1171c5f4ec1fd8339ebc72e4296e08903f42deed588ea91c5aa"
+          }
+        ],
+        "source_text_review_note": "The target is nested inside a quotation from another appellate judgment, followed by the current court's finding."
+      }
+    },
+    {
+      "challenge_id": "control-01",
+      "challenge_category": "ordinary_control",
+      "document_id": 18750,
+      "source": {
+        "dataset": "BCSC",
+        "citation": "2013 BCSC 1099",
+        "name": "0915406 B.C. Ltd. v. 0834618 B.C. Ltd.",
+        "date": "2013-06-21",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/SC/13/10/2013BCSC1099.htm"
+      },
+      "target": {
+        "document_id": 191307,
+        "citation": "[1976] 1 SCR 319",
+        "citation_aliases": [
+          "[1976] 1 RCS 319"
+        ],
+        "name": "H.F. Clarke Limited v. Thermidaire Corp. Ltd."
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "f6727024a49afd20d14d745cd8cd10b3f7eb28705fd2445edaf3d05c5e5ba5c1",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 378
+        },
+        "source_chars": 61152,
+        "source_text_sha256": "c3f0965ea090f2ab85afbee910f4fbb2f35ae61c4903bb071b2029a81cf141a0",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1976] 1 SCR 319",
+            "start": 45153,
+            "end_exclusive": 45169,
+            "citation_key": "19761scr319",
+            "context": {
+              "start": 44833,
+              "end_exclusive": 45589,
+              "quote": "n the event of the seller's default, and it did not allege any failure to mitigate.\n[101] I agree that 388 is entitled to damages in accordance with this provision. A liquidated damages clause is enforceable provided it is a genuine pre-estimate of damage and not a penalty: see HF Clarke Ltd. v Thermidaire Corp. Ltd., [1976] 1 SCR 319 at 327.\n[102] There are no facts alleged by 083 to suggest that the amount of liquidated damages in this case is a penalty. Moreover, there is evidence that 388's actual damages are within the range of the amount stipulated in the contract as a pre-estimate of damage. The Property was appraised at $4.388 M as of February 22, 2013, which shows a loss of $282,000. Absent an enforceable liquidated damages clause, a pla",
+              "sha256": "777c7f60813f87a29609cd98d688411025e958ce1a850ccf02abb19468dc7acb"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "A liquidated damages clause is enforceable provided it is a genuine pre-estimate of damage and not a penalty: see HF Clarke Ltd. v Thermidaire Corp. Ltd., [1976] 1 SCR 319 at 327.",
+            "start": 44998,
+            "end_exclusive": 45177,
+            "sha256": "92bac6ff69a2fa5339bb847c08c0af8c63d63d00e4a95d2f160689145a626311"
+          }
+        ],
+        "source_text_review_note": "Single-judge, direct statement and application of the target rule."
+      }
+    },
+    {
+      "challenge_id": "control-02",
+      "challenge_category": "ordinary_control",
+      "document_id": 66893,
+      "source": {
+        "dataset": "CART",
+        "citation": "2024 CART 36",
+        "name": "Ibekwe v Minister of Public Safety and Emergency Preparedness",
+        "date": "2024-11-05",
+        "language": "en",
+        "url": "https://decisions.cart-crac.gc.ca/cart-crac/cart-crac/en/item/521009/index.do"
+      },
+      "target": {
+        "document_id": 117159,
+        "citation": "2022 FCA 105",
+        "citation_aliases": [
+          "2022 CAF 105"
+        ],
+        "name": "Canada (Attorney General) v. Chu"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "f4f76a8466ff4d93d53c63e33a8b85a99e33c53c1d2bb2933c8cc8031f0f215c",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 60
+        },
+        "source_chars": 4046,
+        "source_text_sha256": "7ede14c5e2647e27150d924cb3918cf38a13311f406fa8321685cb3776083f0f",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2022 FCA 105",
+            "start": 2892,
+            "end_exclusive": 2904,
+            "citation_key": "2022fca105",
+            "context": {
+              "start": 2572,
+              "end_exclusive": 3324,
+              "quote": " liability”.\n[9] As a result, I cannot cancel the Notice due to the Applicant’s mistake.\nII. Amount of the Penalty [10] The Applicant requested that I reduce the penalty amount because she cannot afford it. She said that amount of the penalty is more than she earns in one year.\n[11] In Canada (Attorney General) v Chu, 2022 FCA 105 at para 7, the Federal Court of Appeal wrote that once the Tribunal has determined that there was a violation of subsection 16(1) of the HA Act, “the role of the Tribunal [is] limited to determining whether the penalty was established according to the Regulations.” This means that if I determine that the penalty was properly calculated, I cannot reduce it.\n[12] In this case, the reason the amount of the penalty was ",
+              "sha256": "0c70f0ab14cc3889a969fd5c80af1a4f9eb6d076febd1e2485c9e3be08a24b50"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "In Canada (Attorney General) v Chu, 2022 FCA 105 at para 7",
+            "start": 2856,
+            "end_exclusive": 2914,
+            "sha256": "980f9af9ff4ab7d37f89ccc02c839f3501a6d6f2690ea00e31f8a26a15cabc62"
+          }
+        ],
+        "source_text_review_note": "Short tribunal decision applying a binding limit on its remedial authority."
+      }
+    },
+    {
+      "challenge_id": "control-03",
+      "challenge_category": "ordinary_control",
+      "document_id": 202094,
+      "source": {
+        "dataset": "SST",
+        "citation": "2015 SSTGDIS 147",
+        "name": "MB v Minister of Employment and Social Development",
+        "date": "2015-11-03",
+        "language": "en",
+        "url": "https://decisions.sst-tss.gc.ca/sst-tss/cppd-rpci/en/item/503543/index.do"
+      },
+      "target": {
+        "document_id": 112500,
+        "citation": "2001 FCA 248",
+        "citation_aliases": [
+          "2001 CAF 248"
+        ],
+        "name": "Villani v. Canada (Attorney General)"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "28500d22fdf3fd7302410784b083f6dcae7a8e58144b0bd35eab0826206da540",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 112
+        },
+        "source_chars": 26680,
+        "source_text_sha256": "2fd437e1dc29a8046793e138d0175cfcc1a9d187763bb123c4e54233c5f37d75",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2001 FCA 248",
+            "start": 14205,
+            "end_exclusive": 14217,
+            "citation_key": "2001fca248",
+            "context": {
+              "start": 13885,
+              "end_exclusive": 14637,
+              "quote": "e psychological condition which would preclude her from suitable work.\nAnalysis [29] The Appellant must prove on a balance of probabilities that she had a severe and prolonged disability on or before December 31, 2014.\nSevere [30] The severe criterion must be assessed in a real world context (Villani v. Canada (A.G.), 2001 FCA 248). This means that when deciding whether a person’s disability is severe, the Tribunal must keep in mind factors such as age, level of education, language proficiency, and past work and life experience.\n[31] In order to analyze the Appellant’s capacity to work, the Tribunal will look at the Appellant’s circumstances and her medical condition. The Tribunal wishes to emphasize that the severe criterion refers to the ca",
+              "sha256": "56b6cc72ae2a9d04a5056618772aaa07af15d3e54cb6073301f656d7bfb86033"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "2001 FCA 248",
+            "start": 20854,
+            "end_exclusive": 20866,
+            "citation_key": "2001fca248",
+            "context": {
+              "start": 20534,
+              "end_exclusive": 21286,
+              "quote": " at law school in England. Still, the question remains: Was the Appellant incapable regularly of pursuing any gainful occupation on or before her MQP date of December 31, 2014? In order to make this assessment, the Tribunal must look at the Appellant’s circumstances in a “real world” context (Villani v. Canada (A.G.), 2001 FCA 248)\n[38] The Tribunal finds the Appellant was only 37-years-old on her MQP date. The Tribunal further recognizes the Appellant has a good education. Nevertheless, the Appellant’s life experience with cerebral palsy, chronic pain, anxiety, and a major depressive disorder are important considerations in assessing her capacity to work. Was the Appellant incapable regularly of pursuing any gainful occupation on or before h",
+              "sha256": "ce1926a7d51d078916878ffe4b31fb215ad552f380687da48b6e34f8e0970191"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "The severe criterion must be assessed in a real world context (Villani v. Canada (A.G.), 2001 FCA 248).",
+            "start": 14116,
+            "end_exclusive": 14219,
+            "sha256": "9b762c983d5a1b9a626e8c7bfb4355ec312cba3716010d68539fee2477d9dfb8"
+          }
+        ],
+        "source_text_review_note": "Routine tribunal use of the standard Villani real-world test."
+      }
+    },
+    {
+      "challenge_id": "control-04",
+      "challenge_category": "ordinary_control",
+      "document_id": 121168,
+      "source": {
+        "dataset": "FPSLREB",
+        "citation": "2019 FPSLREB 31",
+        "name": "Burt v. Deputy Minister of Veterans Affairs",
+        "date": "2019-03-12",
+        "language": "en",
+        "url": "https://decisions.fpslreb-crtespf.gc.ca/fpslreb-crtespf/d/en/item/407678/index.do"
+      },
+      "target": {
+        "document_id": 121892,
+        "citation": "2014 PSST 5",
+        "citation_aliases": [
+          "2014 TDFP 5"
+        ],
+        "name": "Makoundi v. Deputy Minister of Transport, Infrastructure and Communities"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "ca0953dab4ba32838cfeff19666190868193225cfc2bc1b59f63c4cca674af12",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 2266
+        },
+        "source_chars": 61354,
+        "source_text_sha256": "6388d4a93e8af22a305972838ad70467e209747f6a43df2b563338cbb2dd2e74",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2014 PSST 5",
+            "start": 59144,
+            "end_exclusive": 59155,
+            "citation_key": "2014psst5",
+            "context": {
+              "start": 58824,
+              "end_exclusive": 59575,
+              "quote": "e assessment was completed on September 17, 2015, and the IRAA of Mr. Carter for May 6, 2015, to February 22, 2016, was posted on February 5, 2016.\n131 Whether an error constitutes an abuse of authority depends on its nature and seriousness; see Makoundi v. Deputy Minister of Transport, Infrastructure and Communities, 2014 PSST 5 at para. 22. In my view, the errors and omissions that arose during the course of the appointment process (the lack of transparency and the delays), while improper, are not serious enough on their own to constitute an abuse of authority. While delays arose in carrying out the assessment and in publishing the notice of the appointment on an acting basis, the assessment was completed on September 17, 2015, and the not",
+              "sha256": "b557b1b9216e1b110e5455847c1479e1ff5128d7fb88f318a9a16fd817f1f997"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "Whether an error constitutes an abuse of authority depends on its nature and seriousness; see Makoundi v. Deputy Minister of Transport, Infrastructure and Communities, 2014 PSST 5 at para. 22.",
+            "start": 58976,
+            "end_exclusive": 59168,
+            "sha256": "bb1f2ae6184c8747504a7abf9e975dcdbb862ee431dae84a868aa1bdf62d3695"
+          }
+        ],
+        "source_text_review_note": "Single adjudicator states the target rule and applies it in the next sentence."
+      }
+    },
+    {
+      "challenge_id": "control-05",
+      "challenge_category": "ordinary_control",
+      "document_id": 153903,
+      "source": {
+        "dataset": "ONCA",
+        "citation": "2025 ONCA 336",
+        "name": "Elzayat v. Rogers Communications",
+        "date": "2025-04-29",
+        "language": "en",
+        "url": "https://coadecisions.ontariocourts.ca/coa/coa/en/item/23252/index.do"
+      },
+      "target": {
+        "document_id": 164379,
+        "citation": "2021 ONCA 364",
+        "citation_aliases": [],
+        "name": "Hillmount Capital Inc. v. Pizale"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "892fcda3179894ee8e1270c2deabbcec6dd6ae22d302ec1b91af9d4adca770c9",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 2328
+        },
+        "source_chars": 3533,
+        "source_text_sha256": "e9cea9feefab9b79e7f0259b106b7204497a332c7e06db15533248963b83a529",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2021 ONCA 364",
+            "start": 2675,
+            "end_exclusive": 2688,
+            "citation_key": "2021onca364",
+            "context": {
+              "start": 2355,
+              "end_exclusive": 3108,
+              "quote": " that required the transcript for its adjudication.\n[4] A panel reviewing a discretionary order of a single judge does so on a deferential basis. A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364, 462 D.L.R. (4th) 228, at para. 18.\n[5] We see no such error. Roberts J.A. reviewed the relevant factors and reached a reasonable result.\n[6] The appellant has provided, for this motion, both detailed written submissions and a further affidavit that elaborate on why he wants the transcript. The reasons he advances as to why the transcript is needed are not materially different than those that Roberts J.A. considered",
+              "sha256": "2bcf54a4cdcb36eeb0e9ded653275783931142df6e54f4641cae1317a1f86c61"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364",
+            "start": 2501,
+            "end_exclusive": 2688,
+            "sha256": "9833609fb5e0b2b2b9af63b8d4566b767d6b3ae857e43e6f480b17d7d68caeef"
+          }
+        ],
+        "source_text_review_note": "Short unanimous panel decision applying an ordinary deferential review rule."
+      }
+    }
+  ]
+}

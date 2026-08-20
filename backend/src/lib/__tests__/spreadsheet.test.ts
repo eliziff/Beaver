@@ -24,6 +24,14 @@ function fixtureWorkbook() {
 }
 
 describe("spreadsheetToLLMStructure", () => {
+  it("bounds workbook rendering complexity", async () => {
+    const workbook = XLSX.utils.book_new();
+    for (let index = 0; index < 257; index += 1)
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[index]]), `S${index}`);
+    const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    await expect(spreadsheetToLLMStructure(bytes)).rejects.toThrow("too many sheets");
+  });
+
   it("keeps a compact projection backed by exact native cells", async () => {
     const structure = await spreadsheetToLLMStructure(fixtureWorkbook());
 
@@ -61,7 +69,7 @@ describe("spreadsheetToLLMStructure", () => {
 
   it("makes the typed sheet grid addressable without exposing its inventory", async () => {
     const structure = await spreadsheetToLLMStructure(fixtureWorkbook());
-    const skeleton = compileAgreementSkeleton(structure.text, "workbook", {
+    const skeleton = await compileAgreementSkeleton(structure.text, "workbook", {
       tableCells: structure.tableCells,
       recoverExtraction: false,
     });

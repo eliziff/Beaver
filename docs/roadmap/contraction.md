@@ -1164,15 +1164,16 @@ grammar consumer, runs every table vector in each runtime, fails on missing or
 extra entries and byte drift, and differentially compares match spans against
 the displaced implementations before those implementations are deleted.
 
-Current state: `packages/legal-grammar-tables/grammar-corpus.json` has 64
-entries and 252 vectors, and its packaged Legal PDF Parser copy is
-byte-identical. Rust deterministic citation splitting consumes the corpus;
-TypeScript currently consumes mainly its provision grammar. Complete the
-consumer wiring, including typed citation/pinpoint spans as collision evidence
-inside the shared structure engine. Eyecite and other mature grammars may be
-used as provenance-bearing source/oracle material for measured missing
-dialects in the universal corpus, but not as a second shipping resolver,
-grammar runtime, or citation AST.
+Current state: `packages/legal-grammar-tables/grammar-corpus.json` has 72
+entries and 296 vectors, and its Legal PDF Parser and Authorities Helper copies
+are byte-identical. Rust deterministic splitting, backend TypeScript citation
+scanning, and Authorities Helper consume the corpus. The eight US full/short
+reporter, journal, and law families are a runtime-free snapshot of pinned
+eyecite 2.7.8/reporters-db 3.2.66 sources, guarded by exact-span catalogue,
+provider-census, full-text precision, public-consumer, and 37,000-input latency
+checks. Eyecite remains an authoring/differential oracle, not a second shipping
+resolver, grammar runtime, or citation AST. Continue the remaining typed
+citation/pinpoint-span wiring inside the shared structure engine.
 
 Cumulative production target: **93,500 or fewer**.
 

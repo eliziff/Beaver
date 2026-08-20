@@ -3,6 +3,7 @@ import {
     redactSensitiveText,
     safeErrorLog,
     safeErrorMessage,
+    safePublicErrorMessage,
 } from "../safeError";
 
 describe("safe errors", () => {
@@ -17,6 +18,16 @@ describe("safe errors", () => {
             token: "token: abcdef123456",
             secret: "secret is abcdef123456",
             authorization: "authorization: abcdef123456",
+            bearer: "Bearer eyJabc.def.ghi123",
+            basic: "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+            awsKey: "request AKIAIOSFODNN7EXAMPLE failed",
+            github: "token ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+            jwt: "failed eyJabc.def.ghi123 request",
+            query: "https://example.test/cb?access_token=secret123&state=ok",
+            signedUrl: "https://s3.test/file?X-Amz-Credential=AKIA123%2Fscope&X-Amz-Signature=deadbeef",
+            json: '{"api_key":"custom-provider-secret"}',
+            punctuated: "api_key: abc/DEF+ghi==",
+            userInfo: "postgres://beaver:password123@db.example.test/beaver",
             shortValue: "token: abc",
             openai: "request failed for sk-abc123def456ghi789 today",
             anthropic: "used sk-ant-api03-abc123def456",
@@ -41,6 +52,16 @@ describe("safe errors", () => {
             token: "token: [redacted]",
             secret: "secret is [redacted]",
             authorization: "authorization: [redacted]",
+            bearer: "Bearer [redacted]",
+            basic: "Authorization: [redacted]",
+            awsKey: "request [redacted] failed",
+            github: "token [redacted]",
+            jwt: "failed [redacted] request",
+            query: "https://example.test/cb?access_token=[redacted]&state=ok",
+            signedUrl: "https://s3.test/file?X-Amz-Credential=[redacted]&X-Amz-Signature=[redacted]",
+            json: '{"api_key":"[redacted]"}',
+            punctuated: "api_key: [redacted]",
+            userInfo: "postgres://[redacted]@db.example.test/beaver",
             shortValue: "token: abc",
             openai: "request failed for [redacted] today",
             anthropic: "used [redacted]",
@@ -108,5 +129,25 @@ describe("safe errors", () => {
             missingStack: undefined,
             plain: { name: null, message: "plain failure" },
         });
+    });
+
+    it("keeps production logs bounded and free of stack or line injection", () => {
+        const prior = process.env.NODE_ENV;
+        process.env.NODE_ENV = "production";
+        try {
+            expect(safeErrorLog(new Error("first\nforged log line"))).toEqual({
+                name: "Error", message: "first forged log line", stack: undefined,
+            });
+            expect(safeErrorLog("first\nforged log line").message)
+                .toBe("first forged log line");
+            expect(safeErrorMessage("x".repeat(10_000))).toHaveLength(8_192);
+            expect(safePublicErrorMessage(
+                new Error("relation user_api_keys does not exist"),
+                "Account operation failed",
+            )).toBe("Account operation failed");
+        } finally {
+            if (prior === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = prior;
+        }
     });
 });

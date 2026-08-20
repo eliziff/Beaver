@@ -1,4 +1,5 @@
-import { compileNativeMarkupSourceDoc, lookupLegalSourceDoc } from "../sourceDocNativeMarkup";
+import { lookupLegalSourceDoc } from "../sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -121,11 +122,12 @@ async function fetchGovInfoCase(
     identity: result.packageId,
     title,
     url,
-    structure: compileNativeMarkupSourceDoc({
+    structure: await deriveNativeMarkupSourceDoc({
       provider: "govinfo",
       id: result.packageId,
       url,
       text,
+      scope: { kind: "excerpt", excerptOf: result.packageId },
     }),
     attachments: pdfAttachment(body),
   };

@@ -35,8 +35,8 @@ const GUARANTEE = {
 };
 
 describe("termDriftReport", () => {
-  it("flags divergent shared definitions with a located first difference", () => {
-    const report = termDriftReport([CREDIT, GUARANTEE]);
+  it("flags divergent shared definitions with a located first difference", async () => {
+    const report = await termDriftReport([CREDIT, GUARANTEE]);
     const businessDay = report.shared.find((row) => row.term === "Business Day");
     expect(businessDay?.status).toBe("divergent");
     expect(businessDay?.divergence?.documents).toEqual([
@@ -48,32 +48,32 @@ describe("termDriftReport", () => {
     expect(report.shared[0].term).toBe("Business Day");
   });
 
-  it("reports identical shared definitions as consistent across glyphs", () => {
+  it("reports identical shared definitions as consistent across glyphs", async () => {
     const straightQuotes = {
       name: "b.txt",
       text:
         '"Material Adverse Effect" means a material adverse effect on the ' +
         "business,  assets or condition of the Borrower.",
     };
-    const report = termDriftReport([CREDIT, straightQuotes]);
+    const report = await termDriftReport([CREDIT, straightQuotes]);
     const mae = report.shared.find((row) => row.term === "Material Adverse Effect");
     expect(mae?.status).toBe("consistent");
   });
 
-  it("anchors definitions to skeleton section labels", () => {
-    const report = termDriftReport([CREDIT, GUARANTEE]);
+  it("anchors definitions to skeleton section labels", async () => {
+    const report = await termDriftReport([CREDIT, GUARANTEE]);
     const mae = report.shared.find((row) => row.term === "Material Adverse Effect");
     expect(mae?.definitions[0].sectionLabel).toBe("sec1.01");
   });
 
-  it("surfaces terms used in a document that defines them nowhere", () => {
+  it("surfaces terms used in a document that defines them nowhere", async () => {
     const notice = {
       name: "notice.txt",
       text:
         "“Draw Notice” means a notice of borrowing delivered under the " +
         "Credit Agreement.",
     };
-    const report = termDriftReport([CREDIT, notice]);
+    const report = await termDriftReport([CREDIT, notice]);
     const gap = report.importedUses.find(
       (row) => row.term === "Draw Notice" && row.usedIn === "credit-agreement.txt",
     );
@@ -82,7 +82,7 @@ describe("termDriftReport", () => {
     expect(gap?.occurrences).toBe(1);
   });
 
-  it("keeps cross-reference bodies out of the divergence comparison", () => {
+  it("keeps cross-reference bodies out of the divergence comparison", async () => {
     const pointer = {
       name: "p.txt",
       text: '"Reference Rate" has the meaning assigned thereto in Section 9.1.',
@@ -95,7 +95,7 @@ describe("termDriftReport", () => {
       name: "b.txt",
       text: '"Reference Rate" means the rate published each Thursday by the Registrar.',
     };
-    const report = termDriftReport([pointer, tuesday, thursday]);
+    const report = await termDriftReport([pointer, tuesday, thursday]);
     const row = report.shared.find((r) => r.term === "Reference Rate");
     expect(row?.status).toBe("divergent");
     expect(row?.divergence?.documents).toEqual(["a.txt", "b.txt"]);
@@ -104,15 +104,15 @@ describe("termDriftReport", () => {
     );
   });
 
-  it("reports no row when every definition of a term is a cross-reference", () => {
-    const report = termDriftReport([
+  it("reports no row when every definition of a term is a cross-reference", async () => {
+    const report = await termDriftReport([
       { name: "p.txt", text: '"Reference Rate" has the meaning set forth in Section 4.2.' },
       { name: "q.txt", text: '"Reference Rate" shall have the meaning given to it in Schedule B.' },
     ]);
     expect(report.shared.find((r) => r.term === "Reference Rate")).toBeUndefined();
   });
 
-  it("treats a body cut before its list as truncation, not drift", () => {
+  it("treats a body cut before its list as truncation, not drift", async () => {
     const stem = {
       name: "stem.txt",
       text: '"Excluded Asset" means each of the following:\n\n(a) the Norwood parcel.',
@@ -123,25 +123,25 @@ describe("termDriftReport", () => {
         '"Excluded Asset" means each of the following: (a) the Norwood parcel, ' +
         "and (b) the Kestrel licence.",
     };
-    const report = termDriftReport([stem, full]);
+    const report = await termDriftReport([stem, full]);
     expect(report.shared.find((r) => r.term === "Excluded Asset")?.status).toBe(
       "consistent",
     );
   });
 
-  it("still flags a shorter body that closed its own sentence", () => {
+  it("still flags a shorter body that closed its own sentence", async () => {
     const short = { name: "s.txt", text: '"Cure Period" means ten Business Days.' };
     const long = {
       name: "l.txt",
       text: '"Cure Period" means ten Business Days, extended by any Standstill Period.',
     };
-    const report = termDriftReport([short, long]);
+    const report = await termDriftReport([short, long]);
     expect(report.shared.find((r) => r.term === "Cure Period")?.status).toBe(
       "divergent",
     );
   });
 
-  it("suppresses imported uses in a document that expressly incorporates definitions", () => {
+  it("suppresses imported uses in a document that expressly incorporates definitions", async () => {
     const master = {
       name: "master.txt",
       text: '"Collateral Pool" means the assets pledged under Schedule 2.',
@@ -157,23 +157,23 @@ describe("termDriftReport", () => {
       name: "plain.txt",
       text: "The Collateral Pool remains unencumbered.",
     };
-    const suppressed = termDriftReport([master, cert]);
+    const suppressed = await termDriftReport([master, cert]);
     expect(suppressed.importedUses).toHaveLength(0);
     expect(suppressed.suppressedImportedUses).toBe(1);
 
-    const reported = termDriftReport([master, plain]);
+    const reported = await termDriftReport([master, plain]);
     expect(reported.importedUses[0]?.usedIn).toBe("plain.txt");
     expect(reported.suppressedImportedUses).toBe(0);
   });
 
-  it("counts in-document duplicate definitions instead of dropping them", () => {
+  it("counts in-document duplicate definitions instead of dropping them", async () => {
     const doubled = {
       name: "d.txt",
       text:
         "“Business Day” means one thing.\n\n" +
         "“Business Day” means another thing entirely.",
     };
-    const report = termDriftReport([doubled, GUARANTEE]);
+    const report = await termDriftReport([doubled, GUARANTEE]);
     const row = report.shared.find((r) => r.term === "Business Day");
     expect(row?.definitions.find((d) => d.document === "d.txt")?.duplicatesInDocument).toBe(1);
   });

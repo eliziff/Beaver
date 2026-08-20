@@ -21,6 +21,8 @@
  *   node harness.mjs manifest --needs-llm --seed 123 --sample-size 15000 --scope ALL
  *   node harness.mjs dashboard [--port 8796] [--frontend-url http://127.0.0.1:3000]
  *   node harness.mjs poolworkers | poolbatch | stageprofile | diffclaims
+ *   node harness.mjs prompt-compare pairs.json --compare --arms baseline=a.outputs.jsonl,... --out runs/comparison --call-ledger runs/model-call-ledger.jsonl
+ *   node harness.mjs target-analyze run.receipts.jsonl pairs.json
  *   node harness.mjs noopmeasure
  *
  * All subprocesses inherit stdio and propagate exit codes.
@@ -28,6 +30,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 
@@ -49,6 +52,11 @@ const COMMANDS = {
   poolbatch: { script: "scratch/poolbatch.ts", forward: false },
   stageprofile: { script: "scratch/stageprofile.ts", forward: false },
   diffclaims: { script: "scratch/diffclaims.ts", forward: false },
+  "gold-eval": { script: "scratch/silver_case_target_eval.ts", forward: false },
+  "prompt-compare": { script: "scratch/silver_case_target_eval.ts", forward: false },
+  "repair-eval": { script: "scratch/case_target_repair_eval.ts", forward: false },
+  "target-revalidate": { script: "scratch/revalidate_case_target_run.ts", forward: false },
+  "target-analyze": { script: "scratch/analyze_case_target_run.ts", forward: false },
   noopmeasure: { script: "scratch/noopmeasure.ts", forward: false },
   poolmeasure: { script: "scratch/poolmeasure.ts", forward: false },
 };
@@ -63,7 +71,12 @@ function resolveLoaderUrl() {
   return null;
 }
 
-const [command, ...rest] = process.argv.slice(2);
+const [command, ...rawRest] = process.argv.slice(2);
+const belowNormal = rawRest.includes("--below-normal");
+const rest = rawRest.filter((arg) => arg !== "--below-normal");
+if (belowNormal && process.platform === "win32") {
+  os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL);
+}
 const entry = COMMANDS[command];
 if (!entry) {
   console.error(`usage: node harness.mjs <command> [args...]`);

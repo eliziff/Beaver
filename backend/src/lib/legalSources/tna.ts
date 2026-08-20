@@ -2,11 +2,8 @@ import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
 import { sha256 } from "../hash";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
-import { lookupLegalSourceDoc } from "../sourceDocNativeMarkup";
-import {
-  compileNativeMarkupSourceDoc,
-  nativeMarkupCitedRefs,
-} from "../sourceDocNativeMarkup";
+import { lookupLegalSourceDoc, nativeMarkupCitedRefs } from "../sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
 import type { LegalSourceReference } from ".";
 import { sourceDocPassages } from "./sourceDocPassages";
 import {
@@ -37,6 +34,10 @@ const parser = new XMLParser({
   removeNSPrefix: true,
   trimValues: true,
 });
+const parseXml = (xml: string) => {
+  if (/<!DOCTYPE(?:\s|>)/iu.test(xml)) throw new Error("TNA XML contains a forbidden DOCTYPE");
+  return parser.parse(xml);
+};
 
 const citationFrom = (value: string) =>
   value.match(CITATION)?.[0].replace(/\s+/gu, " ").trim() ?? "";
@@ -93,7 +94,7 @@ async function searchTnaCase(text: string, signal?: AbortSignal) {
     court,
     per_page: "50",
   });
-  const root = objectValue(parser.parse(await fetchXml(
+  const root = objectValue(parseXml(await fetchXml(
     `${ORIGIN}/atom.xml?${query}`,
     "application/atom+xml, application/xml",
     signal,
@@ -150,7 +151,7 @@ async function fetchTnaCase(
     identity: result.citation,
     title: result.title,
     url,
-    structure: compileNativeMarkupSourceDoc({
+    structure: await deriveNativeMarkupSourceDoc({
       provider: "tna",
       id: result.citation,
       url,

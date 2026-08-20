@@ -11,14 +11,15 @@ import { DatabaseSync } from "node:sqlite";
 import { constants, setPriority } from "node:os";
 
 import {
-  compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
 } from "../src/lib/sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../src/lib/sourceDocStructureHost";
 import type {
   SourceDoc,
   SourceDocBlock,
   SourceDocLocatorKind,
 } from "../src/lib/sourceDoc";
+import { shutdownSourceStructureEngine } from "../src/lib/sourceStructureEngine";
 
 const kinds: SourceDocLocatorKind[] = [
   "paragraph",
@@ -228,6 +229,7 @@ function summarize(rows: AuditRow[], total: number) {
   };
 }
 
+async function main() {
 mkdirSync(path.dirname(outputPath), { recursive: true });
 const done = completedIds();
 const database = new DatabaseSync(databasePath, { readOnly: true });
@@ -272,7 +274,7 @@ for (const raw of query.iterate()) {
   };
   let result: AuditRow;
   try {
-    const document = compileNativeMarkupSourceDoc({
+    const document = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: String(id),
       text,
@@ -316,3 +318,7 @@ const temporarySummary = `${summaryPath}.tmp`;
 writeFileSync(temporarySummary, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 renameSync(temporarySummary, summaryPath);
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+await shutdownSourceStructureEngine();
+}
+
+void main();

@@ -11,7 +11,7 @@ import {
   type SubagentMode,
   type UserApiKeys,
 } from "../llm";
-import { isAbortError } from "../llm/abort";
+import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import type { McpToolEvent } from "../mcp/types";
 import type { LocalAutomationEvent } from "./localAutomationEvent";
@@ -37,6 +37,7 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
+  modelEvidencePassage,
   registerLegalEvidence,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
@@ -73,22 +74,12 @@ import {
   estimateContextTokens,
   modelContextWindow,
 } from "../llm/contextWindow";
+import { publicAssistantEvent } from "./chatTranscript";
 
 export type AssistantEvent =
-  | { type: "reasoning"; text: string; debug?: boolean }
+  | { type: "reasoning"; text: string }
   | ({ type: "tool_activity" } & ToolActivity)
   | AskInputsEvent
-  | {
-      type: "ask_inputs_response";
-      responses: {
-        id: string;
-        kind: "choice" | "documents";
-        question?: string;
-        answer?: string;
-        filenames?: string[];
-        skipped?: boolean;
-      }[];
-    }
   | {
       type: "document_artifact";
       action: "created" | "edited";
@@ -97,16 +88,13 @@ export type AssistantEvent =
       document_id: string;
       version_id: string;
       version_number: number | null;
-      resource?: string;
       edit_mode?: "manual" | "auto";
       annotations?: EditAnnotation[];
     }
-  | { type: "workflow_applied"; workflow_id: string; title: string }
   | McpToolEvent
   | LegalEvidenceReceiptEvent
   | ReadSubagentEvent
   | LocalAutomationEvent
-  | { type: "case_opinions"; cluster_id: number; case: unknown }
   | { type: "content"; text: string }
   | { type: "steering"; id: string; text: string }
   | {
@@ -123,7 +111,6 @@ export type AssistantEvent =
       provider?: "claude" | "openai";
       payload?: Record<string, unknown>;
     }
-  | { type: "turn_status"; status: "cancelled" | "interrupted" }
   | { type: "error"; message: string };
 
 export class AssistantStreamError extends Error {
@@ -146,7 +133,6 @@ class AssistantStreamAbortError extends AssistantStreamError {
 
 export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
-  emit: (event: unknown) => void;
   addEvent: (event: AssistantEvent) => void;
   updateActivity?(id: string, label: string): void;
 };
@@ -170,13 +156,6 @@ function contentBoundarySeparator(before: string, after: string) {
     : " ";
 }
 
-function throwIfAborted(signal?: AbortSignal) {
-  if (!signal?.aborted) return;
-  const error = new Error("Stream aborted.");
-  error.name = "AbortError";
-  throw error;
-}
-
 export async function runChatTurn(options: {
   model: string;
   systemPrompt: string;
@@ -188,7 +167,6 @@ export async function runChatTurn(options: {
   emit: (event: unknown) => void;
   apiKeys?: UserApiKeys;
   reasoningEffort?: string;
-  serviceTier?: string;
   compactThreshold?: number;
   promptCacheKey?: string;
   signal?: AbortSignal;
@@ -251,7 +229,6 @@ export async function runChatTurn(options: {
   };
   const context: ChatToolContext = {
     evidence,
-    emit,
     addEvent,
     updateActivity(id, label) {
       const activity = toolActivities.get(id);
@@ -306,7 +283,7 @@ export async function runChatTurn(options: {
     emit({ type: "content_delta", text: delta });
   };
   const partialEvents = () => {
-    if (reasoning) addEvent({ type: "reasoning", text: reasoning, debug: true });
+    if (reasoning) addEvent({ type: "reasoning", text: reasoning });
     if (text) addEvent({ type: "content", text });
     reasoning = "";
   };
@@ -384,7 +361,7 @@ export async function runChatTurn(options: {
         }
       : undefined;
     const publish = (event: ReadSubagentEvent) => {
-      emit(event);
+      emit(publicAssistantEvent(event));
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
     };
@@ -467,13 +444,7 @@ export async function runChatTurn(options: {
           ok: true,
           agent: "scout",
           findings: grounding.claims,
-          evidence: grounding.evidence.map((receipt) => ({
-            evidence_id: receipt.evidence_id,
-            citation: receipt.citation,
-            name: receipt.name,
-            locator: receipt.locator,
-            exact_passage: receipt.span_text,
-          })),
+          evidence: grounding.evidence.map(modelEvidencePassage),
         }),
       };
     } catch (error) {
@@ -542,8 +513,9 @@ export async function runChatTurn(options: {
     });
     batch.evidence.forEach((receipt) => registerLegalEvidence(evidence, receipt));
     for (const event of batch.events) {
-      addEvent(event as AssistantEvent);
-      emit(event);
+      addEvent(event);
+      const visible = publicAssistantEvent(event);
+      if (visible) emit(visible);
     }
     if (batch.pause) paused = batch.pause;
     if (paused) {
@@ -561,7 +533,6 @@ export async function runChatTurn(options: {
       emit({ type: "content_snapshot", text: grounded });
       emit({
         type: "citations",
-        status: "partial",
         citations: createLegalEvidenceCitations(evidence),
       });
     }
@@ -592,12 +563,12 @@ export async function runChatTurn(options: {
       if (delta) providerActivity = true;
       if (!paused) {
         reasoning += delta;
-        emit({ type: "reasoning_delta", text: delta, debug: true });
+        emit({ type: "reasoning_delta", text: delta });
       }
     },
     onReasoningBlockEnd() {
       if (activityDetail !== "auto" && activityDetail !== "trace") return;
-      if (reasoning) addEvent({ type: "reasoning", text: reasoning, debug: true });
+      if (reasoning) addEvent({ type: "reasoning", text: reasoning });
       reasoning = "";
       if (!paused) emit({ type: "reasoning_block_end" });
     },
@@ -664,7 +635,7 @@ export async function runChatTurn(options: {
       });
     },
     onSteer(message: { id: string; text: string }) {
-      if (reasoning) addEvent({ type: "reasoning", text: reasoning, debug: true });
+      if (reasoning) addEvent({ type: "reasoning", text: reasoning });
       if (text) addEvent({ type: "content", text });
       reasoning = "";
       text = "";
@@ -687,7 +658,7 @@ export async function runChatTurn(options: {
           })),
         }),
       };
-      emit(event);
+      emit(publicAssistantEvent(event));
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
     },
@@ -743,7 +714,6 @@ export async function runChatTurn(options: {
     callbacks,
     apiKeys: options.apiKeys,
     reasoningEffort: options.reasoningEffort,
-    serviceTier: options.serviceTier,
     compactThreshold: options.compactThreshold,
     promptCacheKey: options.promptCacheKey,
     nativeSubagents: subagentMode === "native",
@@ -858,7 +828,7 @@ export async function runChatTurn(options: {
     evidence,
   };
   emit({ type: "content_final", text });
-  emit({ type: "citations", status: "final", citations });
+  emit({ type: "citations", citations });
   options.onProviderControl?.(null);
   return result;
 }

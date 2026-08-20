@@ -2,7 +2,7 @@
 
 ## Goal
 
-Derive auditable substantive opinion bodies and judge voting relationships for A2AJ decisions. Use a high-precision deterministic extractor when the source makes the answer explicit, and route only unresolved cases to the richer Luna extractor. Opinion boundaries are exact source-text offsets with verbatim anchors; paragraph ranges are derived metadata, not the extraction contract.
+Derive auditable substantive opinion bodies and judge voting relationships for A2AJ decisions. Use high-precision deterministic extraction as a local result for opinion-only runs and as an oracle/validator for semantic runs; semantic MVP cases always go to Luna Max. Opinion boundaries are exact source-text offsets with verbatim anchors; paragraph ranges are derived metadata, not the extraction contract.
 
 The experiment must remain siloed from the inflight compaction/tool-structure work. It must reuse the existing A2AJ, `SourceDoc`, lookup, locator, evidence, and SQLite machinery. It must not grow a second family of runners, watchers, caches, bridges, or generated artifacts.
 
@@ -10,9 +10,9 @@ The experiment must remain siloed from the inflight compaction/tool-structure wo
 
 1. The deterministic extractor recognizes explicit opinion ranges, author-bearing reasons headings, paragraph-start authors, BCCA joinders/signatures, and terminal disposition lines. It emits exact `[start, end)` offsets, boundary anchors, opinion alignment, and per-judge vote relationships.
 2. A result is `ready` only when every substantive opinion has an author and alignment and every discovered judge has a result side. A sole unopposed opinion is `lead`; all judges who author or join it are majority, even when the source never uses that word.
-3. `codex` normally accepts deterministic-ready cases locally and sends only `unresolved` or `unavailable` cases to Luna. `--force` is reserved for controlled cells whose input manifest was already prequalified for Luna.
+3. Opinion-only corpus runs may accept deterministic-ready cases locally. Semantic MVP runs send every frozen case to Luna Max; deterministic output remains a parallel observation and validator, never a substitute for the model's legal/semantic judgment.
 4. Luna returns strict schema `a2aj_opinion_votes`: exact disposition and boundary quotes, named or collective authors, participants and nonparticipants, result positions, and evidenced author/joinder links. Validation resolves exact offsets, enforces a substantive-length floor and non-overlap, and verifies name, vote, and opinion-link evidence.
-5. Each Luna case gets a distinct ephemeral `codex exec`. Runs use a bounded worker pool and persist the exact untruncated response before validation. Raw answers live once in an append-only `.outputs.jsonl` ledger; progress and receipts retain their hashes. Runs can resume without repeating completed document IDs.
+5. Each Luna case gets a distinct child process over the repository's existing Codex ChatGPT-subscription adapter. Runs use a bounded worker pool and persist every decoded provider event plus the exact final answer before validation. Raw answers live once in an append-only `.outputs.jsonl` ledger; progress and receipts retain their hashes. Runs can resume without repeating completed document IDs.
 6. Cold deterministic screening reads IDs from the corpus's covering dataset index and fans independent derivations across up to ten persistent child processes. Workers receive only IDs and small metadata, then batch-read and compile their own source once through the existing bulk primitive; full case text is never serialized from the main process. Screen receipts cache source length and routing, so a resumed manifest can sample the qualified cache without reparsing.
 7. The resumable audit uses the same ten-process batch pool. With a frozen full JSON or compact JSONL receipt input it source-hash checks each case and compares model output directly with the deterministic oracle for exact text boundaries, derived paragraph roles, and judge votes.
 
@@ -48,18 +48,33 @@ sitting, or an ex officio assignment.
 
 Case treatment is an empirical extension of this work, not a predetermined
 second stage. The harness must support two paired modes over identical frozen
-cases and deterministic citation candidates:
+case-target pairs and deterministic occurrence maps:
 
-1. **Combined:** one Luna call returns the opinion/vote extraction and the
-   treatment events together.
-2. **Staged:** the first call returns opinions/votes; the second receives those
-   resolved opinion records and returns the same treatment-event contract.
+1. **Combined:** one Luna call returns opinion/vote structure, shared issues,
+   opinion positions, and issue-linked treatment of the named target.
+2. **Staged:** the first call returns structure and issues; the second receives
+   those resolved records plus the full citing decision and returns the same
+   target-treatment contract.
 
-Both modes use the same model, reasoning effort, source, citation edges, and
-selection order. Compare opinion-boundary and vote accuracy, treatment label
-and evidence accuracy, cross-record coherence, schema/validation failures,
+Both modes use the same model, reasoning effort, complete citing source, named
+target, target occurrences, and selection order. Compare opinion-boundary and
+vote accuracy, shared-issue structure, judge-by-issue support, treatment label,
+issue link and evidence accuracy, cross-record coherence, schema failures,
 latency, and tokens. Preserve raw output from every call. Do not select the
 production mode until the paired results exist.
+
+The next context ablation will rerun the same frozen cases after giving the
+model source-cited characterizations of the cited cases from both later
+judicial decisions and legal journals. Keep every characterization in a
+distinct, provenance-tagged context block; do not append it to the decision
+text, convert it into a source-court holding, or use it as a validation label.
+Neither judicial nor scholarly characterizations are presumed superior. Run
+separate judicial-only, journal-only, combined, and closed-record arms where
+coverage permits, because each intervention can improve grounding while also
+changing the task through anchoring, temporal leakage, authority-side mixing,
+selection effects, and added token cost. Record the snapshot date, source
+document, author or court, exact passage, and cited-case link for every
+characterization so the context intervention itself is reproducible.
 
 ## Open-source baseline and A2AJ roster coverage
 
@@ -134,6 +149,192 @@ The screen starts with an interleaved sample from every eligible A2AJ dataset, t
 
 ## Issue, authority, and treatment utility experiment
 
+### Current MVP: one decision and one explicit target
+
+The next MVP unit is not a random citation occurrence and not an unbounded
+treatment batch. It is one frozen pair:
+
+```text
+full citing decision + one explicitly identified target decision
+```
+
+The citing decision's complete text is always model context. The manifest must
+name the target by stable citation keys and, when available, its A2AJ document
+ID. Before any call, deterministic citation resolution must find and number
+every explicit occurrence of that target in the citing decision. If the target
+cannot be resolved or does not occur, the pair fails before inference. Random
+selection may choose qualifying pairs, but the prompt never asks the model to
+choose a citation or infer which cited case is the target.
+
+One response dissects the citing decision into:
+
+```text
+opinions[]                    exact boundaries, authors, result positions
+participants[]               authorship, full joins, partial joins, result only
+case_issues[]                shared legal questions within this decision
+opinion_issue_positions[]    each opinion's answer, basis, limits, and spans
+partial_issue_joins[]        issue scope of any joins-in-part
+target_mentions[]            target occurrences, voice, opinion, and issue links
+target_treatments[]          treatment by opinion and issue, with exact evidence
+target_direct_history[]      same-litigation appellate history only
+```
+
+`case_issues` supplies the common identity needed to compare majority,
+concurrence, and dissent on the same question. Each
+`opinion_issue_position` records that opinion's answer; it does not collapse
+competing answers into one case-level holding. Judge-by-issue positions are
+then derived from authorship and full joinders. A partial joinder is accepted
+only when the response scopes it to issue IDs with evidence. Result-only
+agreement adopts no reasoning. The controlling position on an issue is derived
+from judge support for that position, so a case-level majority label cannot
+silently create a majority rationale.
+
+Every target-treatment event must link to a target mention, containing
+opinion, and one or more citing-case issue IDs. It records the target
+proposition only **as characterized by the citing opinion**. Attribution keeps
+current-court speech distinct from counsel, quotation, reported decisions,
+procedural recounting, and metadata. Treatment may differ by issue and by
+opinion. The model sees the full citing decision and declares exact treatment
+discussion spans; validation must not confine it to an arbitrary fixed-width
+citation window.
+
+The rich events are the audit record, not the inference-time payload. After
+validation, deterministic code also emits a compact `flat_treatment` edge:
+
+```text
+controlling_labels[]         issue-majority-supported treatment labels
+other_judicial_labels[]      non-controlling judicial treatment labels
+attributed_labels[]          counsel, quotation, reported, or unclear speech
+direct_history_labels[]      separate same-litigation history
+issue_slices[]               those label buckets for each local case issue
+flags                        controlling reliance/adversity/explanation,
+                             non-controlling adversity, attributed adversity,
+                             court-treatment, mention-only, direct-history
+```
+
+These are derived multi-label flags, never a model-supplied `is_good_law`
+score. Every compact value remains traceable to the rich event, exact quote,
+opinion position, and issue-support calculation. This is the small form used
+for filtering, corpus analysis, and low-token inference-time authority hints.
+
+### Authorized 15,000-call shared learning budget
+
+The frozen discovery seed is `20260820`. Its manifest contains 5,000 distinct
+citing decisions, one target per decision, across all 29 A2AJ datasets. It is
+dataset-stratified for failure discovery rather than corpus-proportional:
+3,935 targets resolve to an A2AJ decision and 1,065 are plausible external
+neutral or reporter citations. Source decisions over 400,000 characters are
+excluded. The target decision text remains absent in this arm.
+
+The authorization now caps all extraction and grading models together at
+15,000 attempted submissions. Failed transports count. A single append-only
+ledger records a carry-forward of 97 earlier attempts, every new call before
+launch, its terminal status and usage, and each run's budget check. The runner
+refuses a planned batch whose logical calls plus the adapter's one permitted
+retry per call could cross the cap. The first event from any retry is a separate
+`model_call_retry_started` ledger entry; completed receipts also report the
+retry count. Thus a reset stream consumes two submissions even though it yields
+one logical case answer.
+
+The immediate controlled cell is the 15 pairs frozen in
+`case-target-prompt-cell-15.json`: the five directly human-annotated
+development cases plus ten untouched holdouts from BCCA, BCSC, CHRT, CIRB,
+CITT, CMAC, FCA, NSPC, OHSTC, and YKCA. Compare four Luna Max prompt forms on
+the same pairs: the prior baseline, a verbose rules prompt, a concise
+principles prompt, and the concise prompt with generic examples. Grade each
+arm on the five human cases with Sol Max, then compare all four anonymized
+candidates in one Sol Max call for each holdout. Candidate order and IDs are
+blinded to prompt name. Sol Ultra was tried once and rejected by this direct
+one-response transport; it is an orchestration preset, not the adjudicator for
+this cell. Do not use the holdout to edit prompts and rerun this cell.
+
+Select an arm by evidence in this order: human-gold semantic usability and
+critical legal errors; blinded-holdout semantic usability, treatment and
+authority scores, and preferred-candidate count; then fail-closed opinion and
+target validity. Use latency and tokens to break a material quality tie. If
+the verbose arm does not produce a clear semantic gain, prefer the shorter
+arm. Deterministic salvage is reported separately and cannot convert a
+semantically wrong record into a win.
+
+Every extraction uses one isolated flat-subscription child, one case-target
+pair, and at most ten workers. The grading tools use the same one-case-per-child
+discipline. Before selecting cases or touching run outputs, the parent proves
+`auth_mode=chatgpt`, an account-bound OAuth token, and the exact
+`https://chatgpt.com/backend-api/codex` endpoint. Every child removes
+`OPENAI_API_KEY`, `CODEX_API_KEY`, and `OPENAI_BASE_URL`; an API-key route is a
+hard failure. Receipts bind the endpoint, auth mode, adapter/helper hashes, SDK
+version, and response ID. UTF-8 prompt bytes cross the Node/Python boundary as
+Base64 so nested JSON cannot reinterpret supplementary characters.
+Raw event lines, raw final answers, source and prompt hashes, usage, elapsed
+time, deterministic validation, grader output, and arm mappings are preserved
+before aggregation. Extraction remains Luna Max for every case; stronger Sol
+Max is an adjudicator, not another candidate extractor. Lower Luna effort is
+tested only after a prompt is selected.
+
+Provider events are written as they arrive. The parent computes a streaming
+SHA-256 and retains only the small preflight/completion receipts in memory; it
+does not duplicate or size-cap the event stream. A local transport check emits
+more than 16 MiB (the retired buffer limit) and must complete with every event
+observed before live cells are launched.
+
+Report whole-record success only as the strictest gate. The main yield measures
+are accepted/submitted opinion positions, partial joins, target mentions,
+treatment events, and direct-history events. Break those measures down by
+dataset, source length, resolved versus external target, occurrence count,
+attribution, treatment label, and controlling versus non-controlling opinion.
+Use disagreements and grounding failures to create review queues; do not turn
+validator survival into semantic accuracy.
+
+This is a replacement design for the sampled-two-citations semantic MVP. The
+existing 15-call run remains diagnostic evidence about the opinion and issue
+contracts, but its treatment yield is not the acceptance result for this MVP.
+The replacement schema, validator, pair manifest, local preflight, prompt
+arms, human gold, blinded comparison, and shared call ledger are implemented.
+The examples arm is the provisional MVP. It was usable on 5/5 human-reviewed
+cases, produced the strongest treatment/attribution/authority scores, and had
+the best current structural yield (14/15 opinion-valid; 10/15 fully valid).
+The concise challenger won more individual blind preferences but was usable
+on only 2/5 human cases in the repeated current run, so it is not stable enough
+to select. The next extraction experiment is not another prompt edit: audit a
+small fresh cohort with the examples arm, then test lower Luna effort against
+that same fixed cohort.
+
+A one-case app-server repair canary is diagnostic only. Same-thread validator
+feedback reduced seven linked-record errors to one but still failed; a fresh
+full-context repair emitted malformed JSON. Do not add automatic repair to the
+MVP until a new fixed canary cell shows higher whole-record validity without
+semantic regression or excessive extra tokens.
+
+### Planned context arms (do not run yet)
+
+Hold the frozen case-target pairs, schema, model, effort, and output contract
+constant while changing only the supplied context:
+
+1. **Citing decision only:** full citing decision, target identity, and
+   deterministic target-occurrence map.
+2. **Citing + target decision:** add the complete resolved target decision.
+   Preserve separate source hashes and delimiters. The response must keep
+   `target_rule_from_target_text` distinct from
+   `target_rule_as_characterized_by_citing_opinion`, so disagreement is data
+   rather than silently reconciled by the model.
+3. **Resolved authority packet:** only after arm 2 is understood, optionally
+   add complete texts of other cited decisions that the model must use to
+   explain the target's treatment. Do not dump every citation into context;
+   resolve and freeze the packet first, record omissions, and enforce a common
+   context budget across paired arms.
+4. **External characterizations:** later judicial decisions, legal journals,
+   or both, each in separate provenance-tagged blocks as already specified
+   below.
+
+Arm 2 is more than a retrieval convenience: it can correct a citing court's
+shorthand, anchor the model to the target's actual language, or distract it
+from the only question being measured--what the citing judges did with that
+target. Evaluate it as a context intervention. Score the citing-case ontology
+unchanged, then separately score characterization fidelity, treatment, tokens,
+latency, omissions, and whether the added text causes source confusion. Arm 3
+is deferred until arm 2 shows value because transitive authority packets can
+expand rapidly and change which legal problem the model solves.
+
 ### Decision after the adversarial review
 
 No public benchmark establishes the complete claim this project needs to make.
@@ -166,59 +367,71 @@ issue layer.
 
 ### Records to test
 
-#### Issue card
+#### Shared issue and opinion position
 
-An issue card belongs to one resolved opinion. It is a retrieval and reading
-unit, not a universal doctrinal node:
+An issue is shared only within one citing decision. It is not a universal
+doctrinal node. Each opinion then takes its own evidenced position on that
+issue:
 
 ```text
-local_id                 temporary ID used within one model response
-opinion_id               existing resolved opinion
-question                 normalized separately answered legal question
-answer                   the opinion's answer
-basis_and_limits[]       concise reasons and qualifications, each typed
-relation_to_disposition  dispositive | independent_alternative |
-                         non_dispositive | unclear
-discussion_spans[]       exact start/end anchors for the complete discussion
-evidence[]               exact quotes, voice, and the field/claim supported
+case_issue
+  local_id                 temporary ID within one response
+  question                 normalized legal question
+  parent_issue_id          nullable local decomposition only
+
+opinion_issue_position
+  local_id
+  case_issue_id
+  opinion_id
+  answer                   this opinion's answer
+  basis_and_limits[]       typed rule, application, qualification, exception,
+                           or independent ground
+  relation_to_disposition  dispositive | independent_alternative |
+                           non_dispositive | unclear
+  discussion_spans[]       exact complete discussion spans
+  evidence[]               exact quotes, voice, and supported field
 ```
 
-Every generated answer, basis, limit, and disposition-relation judgment must
-link to one or more evidence records. Evidence voice is one of current court,
-party, quoted authority, reported decision, procedural record, or unclear.
-At least one answer or basis span must be current-court speech. Exact
-discussion spans are the context returned to a later reader; they may overlap
-across issues and need not follow paragraph boundaries.
+Every answer, basis, limit, and disposition judgment links to evidence.
+Evidence voice is current court, party, quoted authority, reported decision,
+procedural record, or unclear. At least one answer span is current-court speech.
+Discussion spans may cross paragraphs and overlap other issues.
 
 Use this granularity rule:
 
-> Emit one card for each separately answered legal question. Keep the elements
-> of one applied test together unless the opinion gives them distinct answers
-> or independent grounds that could later be accepted, rejected, or treated
-> separately. If two independent grounds answer the same question, emit two
-> cards with the same question and different bases. Do not turn a question the
-> court expressly declines to decide into a resolved issue.
+> Create one shared issue for each legal question on which at least one opinion
+> takes a position. Keep an applied test together unless an opinion decides an
+> element or independent ground separately. Put competing majority,
+> concurrence, and dissent answers under the same issue ID. Do not convert a
+> question merely recounted, argued, or expressly left undecided into the
+> current opinion's resolved answer.
 
-Do not precompute a proposition graph. When an inference model needs a precise
-proposition, retrieve the issue card and its exact discussion span and let the
-reader formulate the proposition for the current task. This tests the intended
-use directly: for example, retrieve only issue discussions supported by the
-majority. A treatment event may link to an issue when the match is clear, but
-the link is nullable and never required to accept the treatment event.
+Do not build a cross-case proposition graph. A later reader retrieves a shared
+issue, the relevant opinion positions, and their exact spans. The target-case
+treatment link says which citing-case issue the target bears on; it does not
+claim that the local issue ID is a universal identifier.
 
-#### Citation treatment
+#### Target-case treatment
 
-Treatment remains an occurrence-level event in the citing source and its
-containing opinion. It records the target citation, treatment label and scope,
-speaker/attribution, and exact evidence. Direct appellate history remains a
-separate event family. The attribution vocabulary must cover current court,
-party, quoted source, and reported lower-court or tribunal reasoning.
+The manifest identifies exactly one target decision. Deterministic parsing
+provides stable IDs for every explicit target citation occurrence. The model
+may add exact short-form or name mentions, but must link them to that target and
+the validator preserves them as model-resolved rather than deterministically
+proven identity.
 
-An optional proposition quote is accepted only when the citing source states
-one explicitly. Treatment extraction does not hunt for a complete proposition
-scope and does not create an issue record. Case-level indicators are derived
-views over time-indexed events, never a scalar `is_good_law` fact. A case can be
-distinguished on one issue and remain useful on another.
+A treatment event links target mention IDs, containing opinion, citing-case
+issue IDs, treatment label and scope, speaker/attribution, exact evidence, and
+an optional proposition **as the citing opinion characterizes it**. Direct
+appellate history between the citing and target decisions remains separate.
+The history of the target with some third case is reported context, not direct
+history for the source-target pair.
+
+All explicit target occurrences must be accounted for, including occurrences
+in counsel submissions, quotations, metadata, or procedural history that
+produce no court treatment. Case-level indicators are derived from
+issue-specific events and judge support; there is never a scalar `is_good_law`
+field. The same target may be followed on one issue, distinguished on another,
+and criticized only in dissent.
 
 #### Judicial and scholarly characterizations
 
@@ -264,7 +477,8 @@ or validates, where mechanically possible:
 - opinion boundaries, authors, joiners, participants, and nonparticipants;
 - judge/court service-registry matches;
 - chronological eligibility for an as-of query; and
-- opinion support from explicit whole-opinion authorship and joinders.
+- judge-by-issue support from authorship, full joinders, and validated
+  issue-scoped partial joinders.
 
 The harness cannot validate entailment merely because a quote exists. It also
 cannot infer universal issue-level support from a case-level result:
@@ -279,41 +493,51 @@ cannot infer universal issue-level support from a case-level result:
 - `lead` does not mean majority;
 - a plurality or separate concurrence may support the result on another basis.
 
-Initially derive `majority_supported`, `minority_only`, `plurality_supported`,
-or `authority_ambiguous` only for the safe subset: sole unopposed reasons and
-explicit full-opinion authors/joins. Partial joins remain ambiguous until an
-observed coverage failure justifies issue-scoped join extraction.
+Derive each judge's issue position using the smallest supported rule: an author
+adopts the positions in that opinion; a full join adopts them all; a validated
+partial join adopts only its listed issue positions; result-only agreement
+adopts none. Aggregate judge support independently for each competing answer.
+Emit `majority_supported`, `unanimous`, `plurality_supported`, `minority_only`,
+`no_majority_rationale`, or `authority_ambiguous` only after that issue-level
+count. Missing or unscoped partial-join evidence stays ambiguous rather than
+being filled from the case disposition.
 
 ### Combined versus staged extraction
 
-Do not assume that opinion, issue, and treatment extraction must be one stage
-or multiple stages. Compare two frozen modes on the same sources, citation
-edges, model, effort, and selection order:
+Do not assume one or two stages is better. Compare frozen case-target pairs:
 
-1. **Combined:** one call returns opinions/votes, issue cards, and treatments.
-2. **Structure first:** the first call returns opinions/votes; one semantic
-   call over the resolved opinion text returns issue cards and treatments.
+1. **Combined:** one call reads the full citing decision and returns structure,
+   shared issues, opinion positions, partial issue joins, target mentions, and
+   issue-linked treatment.
+2. **Structure first:** call one returns opinions, participants, shared issues,
+   opinion positions, and partial joins. Call two receives the full citing
+   decision plus those resolved records and returns target mentions and the
+   identical treatment contract.
 
-Only split issues and treatment into separate semantic calls if these two modes
-expose a specific interference failure. Compare boundary/vote accuracy, issue
-recall and split/merge behavior, treatment accuracy, cross-record coherence,
-schema failures, severe errors, tokens, latency, and accepted-record yield.
-Both modes receive the same deterministically resolved, bounded citation-edge
-batch. Never truncate a large case silently; record that it exceeded the
-single-call cell and split only at an opinion or citation-edge boundary shared
-by both modes.
+Both modes receive the same full citing text, explicit target identity, and
+deterministic target-occurrence map. The staged arm is not allowed to replace
+the full decision with excerpts. Compare boundary/vote accuracy, issue recall
+and split/merge behavior, judge-by-issue support, target identity, occurrence
+coverage, issue-linked treatment, attribution, schema failures, tokens,
+latency, and accepted yield. Only add a third semantic stage if this paired
+test exposes a specific interference failure.
 
-Each case remains a distinct ephemeral `codex exec`, with up to ten cases in
-parallel and one case per worker per dispatch. Every raw response is appended
-before validation, and every run is resumable. No hot multi-case model session
-is permitted.
+Large decisions are never silently truncated. Record an over-limit pair and,
+only if needed, split on validated opinion boundaries while repeating the
+target-occurrence map and maintaining one case-level reconciliation receipt.
+
+Each case remains a distinct isolated Codex subscription process. All runs
+after the stopped 4,950-case dispatch use exactly five workers, with one case
+per worker per dispatch. Every provider
+event and final response is appended before validation, and every run is
+resumable. No hot multi-case model session is permitted.
 
 ### Luna effort and verifier experiments
 
-Luna Max is the provisional quality-first extractor for issue and treatment
-work, but it is not an oracle. Test low, high, and max independently against
-the same locked human-reviewed items. Do not show one effort's answer to
-another during scoring. Test medium only if low fails and high/max leave a
+Luna Max is the provisional extractor for every case-target MVP pair, but it is
+not an oracle. Establish the Max contract and error profile first. Test lower
+efforts only later against the same locked reviewed pairs, without showing one
+effort's answer to another. Test medium only if low fails and high/max leave a
 meaningful unresolved cost-quality question.
 
 A lower effort earns a production role only if it:
@@ -374,25 +598,33 @@ Human review has two different jobs:
 - **Blind full-opinion inventory:** list resolved issues before seeing model
   output. This is the only direct check on issue omission and split/merge error.
 
-Use sequential caps, not one large commitment:
+Use sequential caps suited to one reviewer:
 
-1. **Schema development:** 12 full decisions (six ordinary, six challenge) and
-   30 treatment contexts. Run low, high, and max independently: 126 calls.
-2. **Locked extraction pilot:** 20 probability-sampled decisions, 10 challenge
-   decisions, and 60 treatment relationships, again at the three efforts: 270
-   calls. Blindly inventory at least ten probability decisions and claim-audit
-   a broad random sample of accepted and rejected records.
-3. Re-review three decisions and ten treatment contexts later without the first
-   labels visible to detect rubric drift.
+1. **Zero-call contract:** build fixtures from existing receipts and hand-write
+   the expected case-target record for two ordinary and two multi-opinion
+   decisions. Prove validation, issue-level vote derivation, target identity,
+   and receipt recovery locally.
+2. **Max MVP:** only after separate authorization, run one Luna Max call on 15
+   frozen diverse case-target pairs. Fully inventory five decisions and
+   claim-audit a randomized spread of the remaining issue positions and
+   treatment events.
+3. **Architecture ablation:** if the combined contract is viable, use at most
+   eight locked pairs for combined versus structure-first treatment. The
+   two-stage arm costs two calls per pair; do not enlarge it before inspecting
+   all eight.
+4. **Context ablation:** on the same small locked set, compare citing-only with
+   citing-plus-target text. Add the broader authority packet or external
+   characterization arms only if the target-text arm shows useful movement.
+5. **Effort and locked pilot:** test lower Luna efforts and a larger probability
+   sample only after the Max schema, architecture, and context are fixed.
+6. Re-review three decisions and ten target-treatment claims later without the
+   first labels visible to detect rubric drift.
 
-These are model-call and human-work ceilings for separate gated phases. Review
-in batches of ten. Budget roughly 6-10 human hours for schema development and
-10-18 additional hours for the locked pilot; stop and reassess if the compact
-receipts do not make those ranges realistic. If more than two development
-decisions require changing the meaning of a field, revise the schema and freeze
-a new batch rather than enlarging the sample. Even zero severe errors in 30
-independent decisions leaves an approximate 95% upper bound near 10%; do not
-claim a tiny corpus error rate.
+Review in batches no larger than five full decisions. If more than two MVP
+decisions require changing a field's meaning, revise the schema and freeze a
+new batch rather than adding cases. Existing machine-grounded outputs can seed
+review queues, but exact anchors and cross-pass agreement do not replace the
+small blind issue inventory needed to measure omission.
 
 Predeclare severe errors:
 
@@ -596,25 +828,34 @@ are audited.
 
 ### Gated execution order
 
-1. **Zero-call feasibility:** confirm benchmark/data access, licences, citation
-   mappings, journal footnote scope, temporal fences, and leakage controls.
-2. **Schema development:** run the capped 126-call cell and revise until one
-   reviewer can apply the issue/treatment rubric consistently.
-3. **Oracle utility:** add the twelve authority-sensitive Beaver-CAN tasks and
-   a small masked-context set; run the fixed-packet representation comparison.
-4. **Locked extraction:** only if oracle records help, run the capped 270-call
-   low/high/max comparison and verifier mutation test.
-5. **Silver utility:** compare accepted Luna records with the oracle condition
-   and measure how much value extraction noise destroys.
-6. **First scale-out:** only after silver passes, extract at most 1,000 random,
-   broadly covered A2AJ decisions with random quality-control review.
-7. **External confirmation:** run the relevant COLIEE/component checks and use
-   CanLegalRAGBench only as a regression suite before making broader claims.
+1. **Zero-call case-target contract:** define the manifest, strict schema,
+   deterministic occurrence map, exact-anchor validator, issue-level vote
+   derivation, and four local fixtures. Confirm licences and temporal fences
+   for the later target-text and external-characterization arms.
+2. **Max MVP:** after separate authorization, run 15 frozen diverse pairs, one
+   full citing decision and one explicit target per call. Audit five complete
+   decisions and a randomized spread of the remaining claims.
+3. **Schema decision:** keep, simplify, or reject the ontology before any more
+   inference. Do not tune fields against a growing succession of cases.
+4. **Architecture and context ablations:** run the capped combined/staged and
+   citing-only/target-text comparisons on a small locked subset. Do not run the
+   all-authority packet yet.
+5. **Oracle utility:** add the authority-sensitive Beaver-CAN tasks and a small
+   masked-context set; compare fixed reader packets before producing large
+   semantic silver.
+6. **Locked extraction and silver utility:** only if the oracle records help,
+   test lower effort tiers, verifier mutations, and how much extraction noise
+   destroys the oracle gain.
+7. **First scale-out and external confirmation:** only after silver passes,
+   extract at most 1,000 broadly sampled pairs, then run the relevant external
+   component checks. CanLegalRAGBench remains a regression suite.
 
-Defer a global issue taxonomy, issue trees, formal argument graphs, universal
-ratio/obiter labels, per-judge issue stances, forced cross-case proposition
-alignment, a scalar good-law score, forced issue links, and whole-corpus
-extraction. Add one only when a measured failure requires it.
+Defer a global issue taxonomy, a cross-case issue tree, a formal argument graph,
+universal ratio/obiter labels, forced cross-case proposition identity, a scalar
+good-law score, and whole-corpus extraction. The MVP does require local shared
+issues, opinion-specific positions, issue-scoped partial joins, derived
+judge-by-issue support, and target-treatment links; those are not optional
+future ontology work.
 
 No metered run begins without separate explicit authorization. Durable positive
 and negative findings go in RESULTS.md; raw responses and partial results remain
@@ -755,7 +996,7 @@ Optional controls are `--model`, `--effort`, `--workers`, `--timeout-seconds`,
 workers, and 900 seconds per case. Omitting both explicit selectors retains the seeded `--seed`,
 `--sample-size`, and `--scope` path.
 
-The ignored run receipt records selection order, route, Codex CLI version,
+The ignored run receipt records selection order, route, subscription transport identity,
 model and effort, source/prompt/output hashes, elapsed time, token usage,
 normalized prediction, exact source offsets and text hashes, derived paragraph
 intersections, deterministic/mechanical comparison, and evidence IDs. The
@@ -763,14 +1004,14 @@ progress JSONL and sidecar preserve per-case partial results.
 The complete source and prompt body are not persisted; existing bounded header
 and preflight snippets remain in the receipt for audit.
 
-Each Luna case is a separate `codex exec --ephemeral` process. The runner uses
+Each Luna case is a separate ChatGPT-subscription child process. The runner uses
 an asynchronous worker pool with a default of eight and hard maximum of ten workers;
 one case is submitted to a worker at a time, and receipts are restored to the
 input order after the dispatch completes. `--workers N` may lower concurrency
 for a local smoke test but cannot raise it above ten. The `submit_roster`
 payload is also the strict `json_schema` object used by GPT Responses-style
-structured output (`name: a2aj_opinion_votes`); the same schema is written to
-the Codex `--output-schema` file and embedded in the run receipt.
+structured output (`name: a2aj_opinion_votes`); the same schema is sent as the
+subscription Responses `text.format` contract and embedded in the run receipt.
 
 For corpus-scale screens, first create a reproducible manifest:
 

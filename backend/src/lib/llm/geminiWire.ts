@@ -1,18 +1,30 @@
-import { GoogleGenAI } from "@google/genai";
 import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
+import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import { isJsonRecord } from "../value";
 
 type Part = Record<string, unknown>;
 type Content = { role: "user" | "model"; parts: Part[] };
 type Call = { name: string; providerId?: string };
 type State = { contents: Content[]; calls: Record<string, Call> };
+type GeminiClient = {
+  models: {
+    generateContentStream(request: Record<string, unknown>): Promise<AsyncIterable<unknown>>;
+  };
+};
+type GeminiConstructor = new (options: {
+  apiKey: string;
+  vertexai: boolean;
+  httpOptions: { baseUrl: string };
+}) => GeminiClient;
+const gemini = runtimeConstructor<GeminiConstructor>("@google/genai", "GoogleGenAI");
 
 const allowedSchemaKeys = new Set([
   "type", "description", "enum", "format", "items", "nullable", "properties", "required",
 ]);
 
 function schema(value: unknown, root = value, refs = new Set<string>()): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { type: "object", properties: {} };
+  if (!isJsonRecord(value)) return { type: "object", properties: {} };
   const source = value as Record<string, unknown>;
   if (typeof source.$ref === "string") {
     if (!source.$ref.startsWith("#/") || refs.has(source.$ref)) {
@@ -20,8 +32,7 @@ function schema(value: unknown, root = value, refs = new Set<string>()): Record<
     }
     let resolved: unknown = root;
     for (const key of source.$ref.slice(2).split("/").map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))) {
-      resolved = resolved && typeof resolved === "object" && !Array.isArray(resolved)
-        ? (resolved as Record<string, unknown>)[key] : null;
+      resolved = isJsonRecord(resolved) ? resolved[key] : null;
     }
     if (!resolved) throw new Error(`Unresolved Gemini schema reference: ${source.$ref}`);
     return schema(resolved, root, new Set([...refs, source.$ref]));
@@ -104,11 +115,11 @@ export function createGeminiWireAdapter(
   params: StreamChatParams,
   apiKey: string,
 ): ProviderAdapter {
-  const client = new GoogleGenAI({
+  const client = gemini.then((GoogleGenAI) => new GoogleGenAI({
     apiKey,
     vertexai: false,
     httpOptions: { baseUrl: "https://generativelanguage.googleapis.com" },
-  });
+  }));
   const initial = contents(params.messages);
   return {
     provider: "gemini",
@@ -138,16 +149,16 @@ export function createGeminiWireAdapter(
       }
       let stream: AsyncIterable<unknown>;
       try {
-        stream = await client.models.generateContentStream({
+        stream = await (await client).models.generateContentStream({
           model: params.model,
-          contents: requestContents as never,
+          contents: requestContents,
           config: {
             systemInstruction: params.systemPrompt,
             abortSignal: step.signal,
             maxOutputTokens: params.maxTokens,
-            tools: step.tools.length ? [{ functionDeclarations: declarations(step.tools) } as never] : undefined,
+            tools: step.tools.length ? [{ functionDeclarations: declarations(step.tools) }] : undefined,
             toolConfig: step.newToolNames.length ? {
-              functionCallingConfig: { mode: "ANY" as never, allowedFunctionNames: step.newToolNames },
+              functionCallingConfig: { mode: "ANY", allowedFunctionNames: step.newToolNames },
             } : undefined,
             thinkingConfig: params.enableThinking ? { includeThoughts: true } : { thinkingBudget: 0 },
           },

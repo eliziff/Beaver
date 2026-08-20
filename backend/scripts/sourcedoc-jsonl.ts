@@ -1,15 +1,16 @@
 /**
- * Persistent JSONL bridge to the shipping A2AJ compiler.
+ * Persistent JSONL bridge to the shipping shared structure engine.
  *
  * Benchmark callers must use this process instead of copying SourceDoc's
  * detector grammar into Python. One request line produces one response line.
  */
 import { createInterface } from "node:readline";
 
-import { compileA2AJSourceDoc } from "../src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../src/lib/sourceDocStructureHost";
+import { shutdownSourceStructureEngine } from "../src/lib/sourceStructureEngine";
 
 const PROTOCOL = "beaver.sourcedoc.jsonl.v1";
-const COMPILER = "compileA2AJSourceDoc";
+const COMPILER = "legal-structure";
 
 type Request = {
   id: string;
@@ -84,9 +85,9 @@ function rendition(
   return { kind, segments };
 }
 
-function compile(input: Request) {
+async function compile(input: Request) {
   const started = performance.now();
-  const doc = compileA2AJSourceDoc(input);
+  const doc = await deriveA2AJSourceDoc(input);
   const blocks = Object.fromEntries(
     (["paragraph", "page", "section"] as const).map((kind) => [
       kind,
@@ -142,22 +143,21 @@ function compile(input: Request) {
   };
 }
 
-const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
-lines.on("line", (line) => {
-  if (!line.trim()) return;
-  let id: unknown = null;
-  try {
-    const parsed = JSON.parse(line) as Record<string, unknown>;
-    id = parsed?.id;
-    process.stdout.write(`${JSON.stringify(compile(request(parsed)))}\n`);
-  } catch (error) {
-    process.stdout.write(
-      `${JSON.stringify({
-        protocol: PROTOCOL,
-        compiler: COMPILER,
-        id,
-        error: error instanceof Error ? error.message : String(error),
-      })}\n`,
-    );
+async function main() {
+  const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!line.trim()) continue;
+    let id: unknown = null;
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      id = parsed?.id;
+      process.stdout.write(`${JSON.stringify(await compile(request(parsed)))}\n`);
+    } catch (error) {
+      process.stdout.write(`${JSON.stringify({ protocol: PROTOCOL, compiler: COMPILER, id,
+        error: error instanceof Error ? error.message : String(error) })}\n`);
+    }
   }
-});
+  await shutdownSourceStructureEngine();
+}
+
+void main();

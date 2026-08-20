@@ -1,0 +1,66 @@
+{
+  "format": "a2aj-case-target-pairs-v1",
+  "selection": "Five human-reviewed development pairs plus ten untouched diverse holdouts used for the four-arm Luna Max prompt comparison. Recovered byte-for-byte in substance from the preserved case receipts after the original launch manifest was not retained.",
+  "pairs": [
+    {
+      "document_id": 109208,
+      "target": { "document_id": 79594, "citation": "2002 FCT 1272", "citation_aliases": ["2002 CFPI 1272"], "name": "Singh v. Canada (Minister of Citizenship and Immigration)" }
+    },
+    {
+      "document_id": 67037,
+      "target": { "document_id": 117931, "citation": "2014 FCA 102", "citation_aliases": ["2014 CAF 102"], "name": "Canada (Attorney General) v. Vorobyov" }
+    },
+    {
+      "document_id": 119605,
+      "target": { "document_id": 95487, "citation": "2011 FC 251", "citation_aliases": ["2011 CF 251"], "name": "Burden v. Canada (Attorney General)" }
+    },
+    {
+      "document_id": 152419,
+      "target": { "document_id": null, "citation": "(1980), 30 O.R.", "citation_aliases": [], "name": null }
+    },
+    {
+      "document_id": 153056,
+      "target": { "document_id": 191266, "citation": "[1970] S.C.R. 865", "citation_aliases": ["[1970] SCR 865", "[1970] RCS 865"], "name": "Wilson et al. v. Rowswell" }
+    },
+    {
+      "document_id": 10502,
+      "target": { "document_id": 192885, "citation": "[1994] 2 S.C.R. 490", "citation_aliases": ["[1994] 2 SCR 490", "[1994] 2 RCS 490"], "name": "Saskatchewan River Bungalows Ltd. v. Maritime Life Assurance Co." }
+    },
+    {
+      "document_id": 40897,
+      "target": { "document_id": 36970, "citation": "2010 BCSC 1855", "citation_aliases": [], "name": "R. v. Singleton" }
+    },
+    {
+      "document_id": 67827,
+      "target": { "document_id": 67818, "citation": "2021 CHRT 35", "citation_aliases": ["2021 TCDP 35"], "name": "SM, SV and JR v. Royal Canadian Mounted Police" }
+    },
+    {
+      "document_id": 69558,
+      "target": { "document_id": 68684, "citation": "2004 CIRB 290", "citation_aliases": ["2004 CCRI 290"], "name": "McRaeJackson" }
+    },
+    {
+      "document_id": 72859,
+      "target": { "document_id": 193683, "citation": "2016 SCC 38", "citation_aliases": ["[2016] 2 SCR 80", "2016 CSC 38", "[2016] 2 RCS 80"], "name": "Canada (Attorney General) v. Igloo Vikski Inc." }
+    },
+    {
+      "document_id": 75183,
+      "target": { "document_id": 191031, "citation": "[1988] 2 S.C.R. 345", "citation_aliases": ["[1988] 2 SCR 345", "[1988] 2 RCS 345"], "name": "R. v. Morin" }
+    },
+    {
+      "document_id": 116787,
+      "target": { "document_id": 81875, "citation": "2022 FC 1592", "citation_aliases": [], "name": "Khawaja v. Canada" }
+    },
+    {
+      "document_id": 128872,
+      "target": { "document_id": 195729, "citation": "[2008] 3 S.C.R. 309", "citation_aliases": ["2008 SCC 62", "[2008] 3 SCR 309", "2008 CSC 62", "[2008] 3 RCS 309"], "name": "R. v. Solowan" }
+    },
+    {
+      "document_id": 140488,
+      "target": { "document_id": 107977, "citation": "2006 FC 1332", "citation_aliases": ["2006 CF 1332"], "name": "Canadian Pacific Railway Company v. Woollard" }
+    },
+    {
+      "document_id": 225006,
+      "target": { "document_id": 190290, "citation": "2023 SCC 3", "citation_aliases": ["[2023] 1 SCR 116", "2023 CSC 3", "[2023] 1 RCS 116"], "name": "R. v. Hilbach" }
+    }
+  ]
+}

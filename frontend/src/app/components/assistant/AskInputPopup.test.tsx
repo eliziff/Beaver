@@ -46,8 +46,6 @@ it("collapses the question body", async () => {
                 kind: "choice",
                 question: "Who is this for?",
                 options: [{ value: "A client" }, { value: "The court" }],
-                allow_other: true,
-                other_label: "Someone else",
             },
         ],
     };
@@ -73,14 +71,12 @@ it("submits multiple answers together", async () => {
                 kind: "choice",
                 question: "First question",
                 options: [{ value: "Yes" }],
-                allow_other: false,
             },
             {
                 id: "two",
                 kind: "choice",
                 question: "Second question",
                 options: [{ value: "No" }],
-                allow_other: false,
             },
         ],
     };
@@ -114,14 +110,12 @@ it("submits declined questions", async () => {
                 kind: "choice",
                 question: "First question",
                 options: [{ value: "Yes" }],
-                allow_other: false,
             },
             {
                 id: "two",
                 kind: "choice",
                 question: "Second question",
                 options: [{ value: "No" }],
-                allow_other: false,
             },
         ],
     };
@@ -133,8 +127,8 @@ it("submits declined questions", async () => {
     expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
             responses: [
-                expect.objectContaining({ id: "one", skipped: true }),
-                expect.objectContaining({ id: "two", skipped: true }),
+                { id: "one", kind: "choice" },
+                { id: "two", kind: "choice" },
             ],
         }),
         expect.any(String),
@@ -154,8 +148,6 @@ it("keeps every choice reachable inside the fixed panel", () => {
                 kind: "choice",
                 question: "Choose one",
                 options,
-                allow_other: true,
-                other_label: "Something else",
             },
         ],
     };
@@ -167,7 +159,7 @@ it("keeps every choice reachable inside the fixed panel", () => {
         expect(screen.getByText(option.value)).toBeInTheDocument();
     }
     expect(
-        screen.getByRole("textbox", { name: "Something else" }),
+        screen.getByRole("textbox", { name: "Write your own answer" }),
     ).toBeInTheDocument();
     expect(choices).toHaveClass("overflow-y-auto");
     expect(choices).not.toContainElement(
@@ -184,14 +176,12 @@ it("submits a native Other answer", async () => {
             kind: "choice",
             question: "Which forum?",
             options: [{ value: "Court" }],
-            allow_other: true,
-            other_label: "Another forum",
         }],
     };
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
 
     await userEvent.type(
-        screen.getByRole("textbox", { name: "Another forum" }),
+        screen.getByRole("textbox", { name: "Write your own answer" }),
         "Tribunal",
     );
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -216,8 +206,6 @@ it("accepts a write-in answer even when the model omitted that option", async ()
             kind: "choice",
             question,
             options: [{ value: "Ontario" }],
-            allow_other: false,
-            other_label: "",
         }],
     };
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
@@ -260,7 +248,6 @@ it("submits selected documents", async () => {
         expect.objectContaining({
             responses: [
                 expect.objectContaining({
-                    filenames: ["brief.docx"],
                     documents: [
                         { document_id: "doc-1", filename: "brief.docx" },
                     ],

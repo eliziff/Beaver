@@ -112,6 +112,13 @@ class _CodexResponses:
         self.transport_retry_count = 0
 
     def create(self, **kwargs):
+        return self._create(None, **kwargs)
+
+    def create_with_event_sink(self, event_sink, **kwargs):
+        """Create a response while exposing every decoded provider event."""
+        return self._create(event_sink, **kwargs)
+
+    def _create(self, event_sink, **kwargs):
         kwargs.pop("max_output_tokens", None)
         kwargs.pop("temperature", None)
         kwargs.pop("stream", None)
@@ -135,6 +142,8 @@ class _CodexResponses:
                 # the real items arrive via response.output_item.done.
                 items = []
                 for event in stream:
+                    if event_sink is not None:
+                        event_sink(event, attempt + 1)
                     if event.type == "response.output_item.done":
                         items.append(event.item)
                     elif event.type == "response.completed":

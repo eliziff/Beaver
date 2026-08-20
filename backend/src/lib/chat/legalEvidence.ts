@@ -16,6 +16,7 @@ import {
   presentLegalEvidence,
 } from "./citationPresentation";
 import { groundedProseIntegrityErrors } from "./quoteRepair";
+import { jsonRecord as object } from "../value";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
@@ -116,6 +117,17 @@ function withEvidenceId(
   };
 }
 
+type PassageEvidence = Omit<LegalEvidenceReceipt, "evidence_id" | "source_sha256" |
+  "scope" | "exact_span_sha256" | "span_sha256" | "span_text" | "language"> & {
+    sourceText: string; spanText?: string; language?: "en" | "fr";
+  };
+function passageEvidence({ sourceText, spanText = sourceText, language = "en",
+  ...receipt }: PassageEvidence) {
+  return withEvidenceId({ ...receipt, source_sha256: sha256(sourceText), scope: "passage",
+    exact_span_sha256: sha256(spanText), span_sha256: sha256(normalizeWhitespace(spanText)),
+    span_text: spanText, language });
+}
+
 function stableA2AJSourceId(source: {
   dataset: string;
   citation: string;
@@ -135,17 +147,14 @@ export function createA2AJLookupEvidence(
 ): LegalEvidenceReceipt | null {
   if (lookup.status !== "found" || !lookup.block) return null;
   const sourceText = a2ajLegalSourceProvider.source(lookup)?.text ?? lookup.block.text;
-  return withEvidenceId({
+  return passageEvidence({
     provider: "a2aj",
     jurisdiction: "CA",
     source_class: sourceClass,
     stable_source_id: stableA2AJSourceId(lookup),
-    source_sha256: sha256(sourceText),
-    scope: "passage",
+    sourceText,
     block_id: [lookup.block.kind, lookup.block.label, lookup.block.start, lookup.block.end].join(":"),
-    exact_span_sha256: sha256(lookup.block.text),
-    span_sha256: sha256(normalizeWhitespace(lookup.block.text)),
-    span_text: lookup.block.text,
+    spanText: lookup.block.text,
     citation: lookup.citation,
     name: lookup.name,
     dataset: lookup.dataset,
@@ -172,17 +181,14 @@ export function createBenchmarkEvidence(args: {
   locatorKind?: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
 }): LegalEvidenceReceipt {
-  return withEvidenceId({
+  return passageEvidence({
     provider: "benchmark",
     jurisdiction: args.jurisdiction,
     source_class: args.sourceClass,
     stable_source_id: args.stableSourceId,
-    source_sha256: sha256(args.sourceText),
-    scope: "passage",
+    sourceText: args.sourceText,
     block_id: `${args.locatorKind ?? "section"}:${args.locatorLabel}`,
-    exact_span_sha256: sha256(args.spanText),
-    span_sha256: sha256(normalizeWhitespace(args.spanText)),
-    span_text: args.spanText,
+    spanText: args.spanText,
     citation: args.citation,
     name: args.name ?? null,
     dataset: args.dataset,
@@ -207,17 +213,14 @@ export function createLibraryEvidence(args: {
     label: string;
   };
 }): LegalEvidenceReceipt {
-  return withEvidenceId({
+  return passageEvidence({
     provider: "library",
     jurisdiction: "matter",
     source_class: "commentary",
     stable_source_id: args.documentId,
-    source_sha256: sha256(args.sourceText),
-    scope: "passage",
+    sourceText: args.sourceText,
     block_id: `chars:${args.start}-${args.end}`,
-    exact_span_sha256: sha256(args.spanText),
-    span_sha256: sha256(normalizeWhitespace(args.spanText)),
-    span_text: args.spanText,
+    spanText: args.spanText,
     citation: args.filename,
     name: args.filename,
     dataset: "library",
@@ -239,17 +242,13 @@ export function createTabularEvidence(args: {
   rowIndex: number;
   text: string;
 }): LegalEvidenceReceipt {
-  return withEvidenceId({
+  return passageEvidence({
     provider: "library",
     jurisdiction: "matter",
     source_class: "commentary",
     stable_source_id: `tabular:${args.reviewId}:${args.documentId}:${args.columnId}`,
-    source_sha256: sha256(args.text),
-    scope: "passage",
+    sourceText: args.text,
     block_id: `cell:${args.rowIndex}:${args.columnIndex}`,
-    exact_span_sha256: sha256(args.text),
-    span_sha256: sha256(normalizeWhitespace(args.text)),
-    span_text: args.text,
     citation: `${args.columnName} · ${args.documentName}`,
     name: args.documentName,
     dataset: "tabular-review",
@@ -292,19 +291,15 @@ export function attestedPassageReceipt(args: {
     : !journal && args.passage.paragraph !== null
       ? { kind: "paragraph" as const, label: `par${args.passage.paragraph}` }
       : { kind: "document" as const, label: citation };
-  return withEvidenceId({
+  return passageEvidence({
     provider: journal ? "journal" : "citator",
     jurisdiction: "CA",
     source_class: journal ? "commentary" : "case",
     stable_source_id: journal
       ? `journal:${args.passage.sourceArticleId ?? normalizeWhitespace(citation).toLowerCase()}`
       : `citator:discussion:${normalizeWhitespace(citation).toLowerCase()}`,
-    source_sha256: sha256(args.passage.text),
-    scope: "passage",
+    sourceText: args.passage.text,
     block_id: `analysis:${citation}:${locator.kind}:${locator.label}`,
-    exact_span_sha256: sha256(args.passage.text),
-    span_sha256: sha256(normalizeWhitespace(args.passage.text)),
-    span_text: args.passage.text,
     citation,
     target_citation: args.citedCitation,
     name: args.passage.citingName ?? args.passage.journalName ?? null,
@@ -330,17 +325,13 @@ export function citatorNoteUpReceipt(args: {
   };
 }): LegalEvidenceReceipt {
   const source = args.entry.citation ?? args.entry.name ?? "unknown-citing-case";
-  return withEvidenceId({
+  return passageEvidence({
     provider: "citator",
     jurisdiction: "CA",
     source_class: "case",
     stable_source_id: `citator:noteup:${normalizeWhitespace(source).toLowerCase()}`,
-    source_sha256: sha256(args.entry.excerpt),
-    scope: "passage",
+    sourceText: args.entry.excerpt,
     block_id: `noteup:${source}:${args.entry.paragraph === null ? "passage" : `para:${args.entry.paragraph}`}`,
-    exact_span_sha256: sha256(args.entry.excerpt),
-    span_sha256: sha256(normalizeWhitespace(args.entry.excerpt)),
-    span_text: args.entry.excerpt,
     citation: args.entry.citation ?? args.citedCitation,
     name: args.entry.name,
     dataset: "citator",
@@ -366,17 +357,13 @@ function createJournalEvidence(args: {
   locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   locatorLabel: string;
 }): LegalEvidenceReceipt {
-  return withEvidenceId({
+  return passageEvidence({
     provider: "journal",
     jurisdiction: "CA",
     source_class: "commentary",
     stable_source_id: `journal:${args.articleId}`,
-    source_sha256: sha256(args.text),
-    scope: "passage",
+    sourceText: args.text,
     block_id: `article:${args.articleId}:${args.locatorKind}:${args.locatorLabel}`,
-    exact_span_sha256: sha256(args.text),
-    span_sha256: sha256(normalizeWhitespace(args.text)),
-    span_text: args.text,
     citation: args.citation,
     name: args.name,
     dataset: "journal",
@@ -409,12 +396,6 @@ export function registerDocumentLegalEvidence(
   evidenceIds: readonly string[],
 ) {
   evidenceIds.forEach((evidenceId) => state.documentEvidenceIds.add(evidenceId));
-}
-
-function object(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
 }
 
 function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
@@ -457,19 +438,18 @@ export function registerPriorLegalEvidence(
   for (const receipt of receipts) registerLegalEvidence(state, receipt);
 }
 
+export const modelEvidencePassage = ({ evidence_id, citation, name, locator,
+  span_text }: LegalEvidenceReceipt) => ({
+  evidence_id, citation, name, locator, exact_passage: span_text,
+});
+
 export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt[]) {
   const passages = receipts.filter((receipt) => receipt.scope === "passage" && receipt.span_text);
   return passages.length
     ? [
         "VERIFIED EVIDENCE AVAILABLE FROM PRIOR TURNS:",
         "These exact passages and evidence_ids are already registered in this turn. Use them directly in submit_grounded_answer. Do not re-fetch them. Test each passage against the current request and omit merely related material.",
-        ...passages.map((receipt) => JSON.stringify({
-          evidence_id: receipt.evidence_id,
-          citation: receipt.citation,
-          name: receipt.name,
-          locator: receipt.locator,
-          exact_passage: receipt.span_text,
-        })),
+        ...passages.map((receipt) => JSON.stringify(modelEvidencePassage(receipt))),
       ].join("\n")
     : "";
 }

@@ -1,141 +1,152 @@
-import type JSZip from "jszip";
-import { loadZip } from "./zip";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import type JSZip from "jszip";
+import { createParser, elAttrs, elChildren, elName, getTextContent, type XNode } from "./docx/core";
+import { decodeXmlText } from "./text";
+import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "./zip";
+import { isolatedProcessEnv } from "./subprocessEnv";
 
-let _convert:
-  | ((buf: Buffer, ext: string, filter: undefined) => Promise<Buffer>)
-  | null = null;
-let _sofficeBinaryPaths: string[] | null = null;
+const MAX_OFFICE_BYTES = 100 * 1024 * 1024;
+const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
+const execute = promisify(execFile);
+let sofficeBinary: string | null | undefined;
 
-function executablePath(filePath: string) {
-  try {
-    fs.accessSync(filePath, fs.constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+function xmlElements(nodes: XNode[], wanted: string): XNode[] {
+  return nodes.flatMap((node) => [
+    ...(elName(node)?.split(":").at(-1) === wanted ? [node] : []),
+    ...xmlElements(elChildren(node), wanted),
+  ]);
 }
 
-function resolveSofficeBinaryPaths(): string[] {
-  if (_sofficeBinaryPaths) return _sofficeBinaryPaths;
+function executable(file: string) {
+  try { fs.accessSync(file, fs.constants.X_OK); return true; }
+  catch { return false; }
+}
 
-  const candidates = new Set<string>();
-  for (const envName of [
-    "SOFFICE_BINARY_PATH",
-    "LIBREOFFICE_BINARY_PATH",
-    "LIBRE_OFFICE_EXE",
-  ]) {
-    const value = process.env[envName]?.trim();
-    if (value) candidates.add(value);
-  }
-
-  // Windows binaries carry the .exe suffix, so the bare names below can
-  // never match there even when LibreOffice is installed and on PATH.
+function resolveSofficeBinary() {
+  if (sofficeBinary !== undefined) return sofficeBinary;
   const windows = process.platform === "win32";
   const names = windows ? ["soffice.exe"] : ["soffice", "libreoffice"];
-  const pathDirs = (process.env.PATH ?? "")
-    .split(path.delimiter)
-    .filter(Boolean);
-  for (const dir of pathDirs) {
-    for (const name of names) candidates.add(path.join(dir, name));
-  }
-
-  const installs = windows
-    ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]
-        .filter(Boolean)
-        .map((dir) => path.join(dir!, "LibreOffice", "program", "soffice.exe"))
-    : [
-        "/usr/bin/libreoffice",
-        "/usr/bin/soffice",
-        "/snap/bin/libreoffice",
-        "/opt/libreoffice/program/soffice",
-        "/opt/libreoffice7.6/program/soffice",
-      ];
-  for (const filePath of installs) candidates.add(filePath);
-
-  _sofficeBinaryPaths = [...candidates].filter(executablePath);
-  return _sofficeBinaryPaths;
+  const candidates = [
+    process.env.SOFFICE_BINARY_PATH,
+    process.env.LIBREOFFICE_BINARY_PATH,
+    process.env.LIBRE_OFFICE_EXE,
+    ...(process.env.PATH ?? "").split(path.delimiter)
+      .flatMap((directory) => directory ? names.map((name) => path.join(directory, name)) : []),
+    ...(windows
+      ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]
+          .flatMap((directory) => directory
+            ? [path.join(directory, "LibreOffice", "program", "soffice.exe")] : [])
+      : ["/usr/bin/libreoffice", "/usr/bin/soffice", "/snap/bin/libreoffice",
+          "/opt/libreoffice/program/soffice", "/opt/libreoffice7.6/program/soffice",
+          "/Applications/LibreOffice.app/Contents/MacOS/soffice"]),
+  ].flatMap((candidate) => candidate?.trim() ? [candidate.trim()] : []);
+  return sofficeBinary = [...new Set(candidates)].find(executable) ?? null;
 }
 
-async function getConvert() {
-  if (!_convert) {
-    const libre = await import("libreoffice-convert");
-    const convertWithOptions = libre.default.convertWithOptions.bind(
-      libre.default,
-    ) as (
-      buf: Buffer,
-      ext: string,
-      filter: undefined,
-      options: { sofficeBinaryPaths?: string[] },
-      callback?: (err: Error | null, result: Buffer) => void,
-    ) => Promise<Buffer> | void;
-    _convert = (buf, ext, filter) =>
-      new Promise<Buffer>((resolve, reject) => {
-        try {
-          const maybePromise = convertWithOptions(
-            buf,
-            ext,
-            filter,
-            { sofficeBinaryPaths: resolveSofficeBinaryPaths() },
-            (err, result) => {
-              if (err) reject(err);
-              else resolve(result);
-            },
-          );
-          if (maybePromise && typeof maybePromise.then === "function") {
-            maybePromise.then(resolve, reject);
-          }
-        } catch (err) {
-          reject(err);
-        }
-      });
-  }
-  return _convert;
-}
-
-/**
- * Some older Windows/Word archives store .docx entries with backslash
- * separators (e.g. `word\document.xml`). Mammoth and LibreOffice both look
- * up entries by exact string and miss those files, producing empty output
- * or conversion failures. Rewrite any such entries to the canonical
- * forward-slash form before handing the buffer off.
- */
-export async function normalizeDocxZipPaths(buffer: Buffer): Promise<Buffer> {
-  let zip: JSZip;
-  try {
-    zip = await loadZip(buffer);
-  } catch {
-    return buffer;
-  }
-  const renames: [string, string][] = [];
-  zip.forEach((relativePath) => {
-    if (relativePath.includes("\\")) {
-      renames.push([relativePath, relativePath.replace(/\\/g, "/")]);
+export async function assertSafeOfficeConversion(zip: JSZip) {
+  const budget = zipReadBudget(128 * 1024 * 1024);
+  for (const entry of Object.values(zip.files)) {
+    const name = entry.name.replace(/\\/gu, "/").toLowerCase();
+    if (entry.dir) continue;
+    if (name.includes("/embeddings/") || name.includes("/activex/") ||
+        name.endsWith("vbaproject.bin")) {
+      throw new Error("Office document contains an embedded object");
     }
+    if (name.endsWith(".rels")) {
+      const xml = (await readZipEntry(entry, 64 * 1024 * 1024, budget,
+        "Office XML")).toString("utf8");
+      for (const relationship of xmlElements(createParser().parse(xml) as XNode[], "Relationship")) {
+        const attrs = elAttrs(relationship);
+        const attribute = (name: string) => decodeXmlText(attrs[`@_${name}`] ?? "");
+        if (attribute("TargetMode") === "External" &&
+            (!attribute("Type").endsWith("/hyperlink") ||
+              !/^(?:https?:|mailto:)/iu.test(attribute("Target")))) {
+          throw new Error("Office document contains an active external relationship");
+        }
+      }
+    }
+    if (name === "word/document.xml") {
+      const xml = (await readZipEntry(entry, 64 * 1024 * 1024, budget,
+        "Office document XML")).toString("utf8");
+      const parsed = createParser().parse(xml) as XNode[];
+      const instructions = xmlElements(parsed, "instrText")
+        .map(getTextContent).join("").replace(/\s+/gu, "");
+      if (xmlElements(parsed, "altChunk").length ||
+          /(?:DDEAUTO|INCLUDETEXT|INCLUDEPICTURE)/iu.test(instructions)) {
+        throw new Error("Office document contains active linked content");
+      }
+    }
+  }
+}
+
+async function normalizeDocxZipPaths(buffer: Buffer): Promise<Buffer> {
+  let zip: JSZip;
+  try { zip = await loadZip(buffer); }
+  catch {
+    const ole = buffer.subarray(0, 8).equals(
+      Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    );
+    if (ole || buffer.subarray(0, 5).toString() === "{\\rtf") return buffer;
+    throw new Error("Office document archive is invalid");
+  }
+  assertBoundedZip(zip, "Office document", {
+    maxEntries: 10_000, maxExpandedBytes: MAX_EXPANDED_BYTES,
+    selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: 64 * 1024 * 1024,
+      maxBytes: 128 * 1024 * 1024, name: "XML part" },
   });
-  if (renames.length === 0) return buffer;
-  for (const [oldPath, newPath] of renames) {
-    const entry = zip.file(oldPath);
+  await assertSafeOfficeConversion(zip);
+  const actualByCanonical = new Map<string, string>();
+  for (const entry of Object.values(zip.files)) {
+    const canonical = entry.name.replace(/\\/gu, "/");
+    const prior = actualByCanonical.get(canonical);
+    if (prior && prior !== entry.name)
+      throw new Error(`Office document contains duplicate package part ${canonical}`);
+    actualByCanonical.set(canonical, entry.name);
+  }
+  const renames = [...actualByCanonical].filter(([canonical, actual]) => canonical !== actual);
+  if (!renames.length) return buffer;
+  const budget = zipReadBudget(MAX_EXPANDED_BYTES);
+  for (const [canonical, actual] of renames) {
+    const entry = zip.file(actual);
     if (!entry) continue;
-    const content = await entry.async("nodebuffer");
-    zip.remove(oldPath);
-    zip.file(newPath, content);
+    zip.file(canonical, await readZipEntry(entry, MAX_OFFICE_BYTES, budget,
+      "Office package part"));
+    zip.remove(actual);
   }
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-/**
- * Convert a DOCX/DOC buffer to PDF using LibreOffice.
- * Throws if LibreOffice is not installed or conversion fails.
- */
 export async function docxToPdf(buffer: Buffer): Promise<Buffer> {
-  if (resolveSofficeBinaryPaths().length === 0) {
-    throw new Error(
-      "LibreOffice/soffice binary was not found. Ensure Railway uses backend/nixpacks.toml or set SOFFICE_BINARY_PATH/LIBREOFFICE_BINARY_PATH.",
-    );
+  if (!buffer.length || buffer.length > MAX_OFFICE_BYTES)
+    throw new Error("Office document is empty or exceeds the conversion limit");
+  const binary = resolveSofficeBinary();
+  if (!binary) throw new Error(
+    "LibreOffice/soffice binary was not found. Ensure Railway uses backend/nixpacks.toml or set SOFFICE_BINARY_PATH/LIBREOFFICE_BINARY_PATH.",
+  );
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "beaver-soffice-"));
+  const source = path.join(temporary, "source"), output = `${source}.pdf`;
+  try {
+    await writeFile(source, await normalizeDocxZipPaths(buffer), { mode: 0o600 });
+    await execute(binary, [
+      `-env:UserInstallation=${pathToFileURL(path.join(temporary, "profile")).href}`,
+      "--headless", "--norestore", "--convert-to", "pdf:writer_pdf_Export",
+      "--outdir", temporary, source,
+    ], { cwd: temporary, env: isolatedProcessEnv(["SAL_*", "URE_*"]),
+      timeout: 3 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true });
+    const size = (await stat(output)).size;
+    if (!size || size > MAX_OFFICE_BYTES)
+      throw new Error("LibreOffice PDF output is empty or exceeds the storage limit");
+    const pdf = await readFile(output);
+    if (!pdf.subarray(0, 5).equals(Buffer.from("%PDF-")))
+      throw new Error("LibreOffice returned an invalid PDF");
+    return pdf;
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
   }
-  const convert = await getConvert();
-  const normalized = await normalizeDocxZipPaths(buffer);
-  return convert(normalized, ".pdf", undefined);
 }

@@ -153,6 +153,8 @@ export type StreamChatParams = {
   messages: LlmMessage[];
   /** Optional output cap used by one-shot callers. */
   maxTokens?: number;
+  /** Provider-enforced JSON Schema for callers that need structured output. */
+  outputSchema?: Record<string, unknown>;
   tools?: Tool[];
   /** Full catalog for provider transports that snapshot MCP tools once. */
   staticTools?: Tool[];
@@ -167,7 +169,7 @@ export type StreamChatParams = {
    * additive: when absent, `tools` behaves exactly as before.
    */
   resolveTools?: () => Tool[];
-  /** Optional explicit provider-call cap. Omit for a natural-stop agent loop. */
+  /** Optional provider-call cap. Interactive loops otherwise stop after 32 rounds. */
   maxIterations?: number;
   callbacks?: StreamCallbacks;
   runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;

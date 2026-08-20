@@ -1,54 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import type { Page } from "@/app/lib/beaverApi";
+import { usePagedChains } from "./usePagedChains";
 
 export function usePagedQuery<T>(
   load: (cursor: string | null, signal: AbortSignal) => Promise<Page<T>>,
   dependencies: readonly unknown[],
   enabled = true,
 ) {
-  const [items, setItems] = useState<T[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const [error, setError] = useState<unknown>(null);
-  const request = useRef<AbortController | null>(null);
-
-  const fetchPage = useCallback(async (cursor: string | null, append: boolean) => {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setLoading(true);
-    setError(null);
-    try {
-      const page = await load(cursor, controller.signal);
-      if (controller.signal.aborted) return;
-      setItems((current) => append ? [...current, ...page.items] : page.items);
-      setNextCursor(page.next_cursor);
-    } catch (nextError) {
-      if (!controller.signal.aborted) setError(nextError);
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (enabled) void fetchPage(null, false);
-    else {
-      request.current?.abort();
-      setItems([]);
-      setNextCursor(null);
-      setLoading(false);
-      setError(null);
-    }
-    return () => request.current?.abort();
-  }, [enabled, fetchPage]);
+  const key = "query";
+  const { chains, setChains, fetchPage } = usePagedChains(
+    (_key, cursor, signal) => load(cursor, signal),
+    dependencies,
+    key,
+    enabled,
+  );
+  const chain = chains[key];
+  const setItems = useCallback((update: T[] | ((current: T[]) => T[])) => {
+    setChains((current) => ({ ...current, [key]: {
+      ...(current[key] ?? { nextCursor: null, loading: false, error: null }),
+      items: typeof update === "function"
+        ? update(current[key]?.items ?? []) : update,
+    } }));
+  }, [setChains]);
 
   return {
-    items,
-    loading,
-    error,
-    hasMore: nextCursor !== null,
-    loadMore: () => nextCursor && fetchPage(nextCursor, true),
-    reload: () => fetchPage(null, false),
+    items: chain?.items ?? [],
+    loading: chain?.loading ?? enabled,
+    error: chain?.error ?? null,
+    hasMore: chain?.nextCursor != null,
+    loadMore: () => chain?.nextCursor && fetchPage(key, chain.nextCursor, true),
+    reload: () => fetchPage(key, null, false),
     setItems,
   };
 }

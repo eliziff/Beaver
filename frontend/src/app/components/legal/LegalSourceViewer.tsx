@@ -9,42 +9,24 @@ import {
 } from "react";
 import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
-import type { CaseCitationQuote } from "@/app/components/shared/types";
 import {
   clearDocxQuoteHighlights,
   highlightDocxQuotes,
 } from "@/app/components/shared/views/highlightDocxQuote";
 import {
-  getCourtlistenerOpinions,
   getDirectLegalSourceDocument,
   getLegalSourceDocument,
-  type CaseLawOpinion,
   type LegalDocumentType,
   type LegalSourceInlineToken,
   type LegalSourcePresentationBlock,
   type LegalSourceViewerPayload,
 } from "@/app/lib/beaverApi";
+import { safeAssistantUrl } from "@/app/lib/assistantSession";
 import { formatLongDate } from "@/app/lib/utils";
 
 type Anchor = LegalSourceViewerPayload["structure"]["blocks"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
-
-export type CaseTab = {
-  kind: "case";
-  id: `case:${number}`;
-  chatId: string;
-  clusterId: number;
-  citationRef?: number;
-  caseName: string | null;
-  citation: string | null;
-  url: string | null;
-  dateFiled: string | null;
-  pdfUrl: string | null;
-  initialLocator?: string | null;
-  quotes?: CaseCitationQuote[];
-  opinions?: CaseLawOpinion[];
-};
 
 export type LegalSourceTab = {
   kind: "legal";
@@ -73,7 +55,6 @@ export type LegalSourceViewerProps = {
   citationRef?: number;
   compact?: boolean;
   initialLocator?: string | null;
-  caseTab?: CaseTab;
 };
 
 export function legalSourceKindLabel(docType?: LegalDocumentType) {
@@ -160,24 +141,12 @@ export function buildLegalSourceViewerSlices(payload: LegalSourceViewerPayload) 
   });
 }
 
-function safeHref(value: string | null | undefined) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password
-      ? value
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function legalSourceViewerActions(metadata: Metadata) {
   return ([
     ["source", "Site", metadata.url],
     ["pdf", "PDF", metadata.pdfUrl],
   ] as const).flatMap(([kind, label, value]) => {
-    const href = safeHref(value);
+    const href = safeAssistantUrl(value, { relative: false });
     return href ? [{ kind, label, href }] : [];
   });
 }
@@ -186,7 +155,8 @@ export function LegalInlineText({ tokens }: { tokens: LegalSourceInlineToken[] }
   return tokens.map((token, index) => {
     if (token.kind === "text") return token.text;
     if (token.kind === "link") {
-      const href = token.href.startsWith("#") ? token.href : safeHref(token.href);
+      const href = token.href.startsWith("#")
+        ? token.href : safeAssistantUrl(token.href, { relative: false });
       if (!href) return token.text;
       const external = !href.startsWith("#");
       return (
@@ -216,7 +186,8 @@ function escapeRegExp(value: string) {
 
 function stripMarker(text: string, anchor: Anchor | null) {
   if (anchor?.kind === "paragraph") {
-    return text.replace(new RegExp(`^\\s*(?:\\[\\s*${anchor.label.slice(3)}\\s*\\]|${anchor.label.slice(3)}\\.)\\s*`, "u"), "");
+    const label = escapeRegExp(anchor.label.slice(3));
+    return text.replace(new RegExp(`^\\s*(?:\\[\\s*${label}\\s*\\]|${label}\\.)\\s*`, "u"), "");
   }
   if (anchor?.kind === "section") {
     const label = anchor.label.slice(3);
@@ -318,45 +289,6 @@ function PresentedBlocks({
   return nodes;
 }
 
-const opinionCache = new Map<number, CaseLawOpinion[] | Promise<CaseLawOpinion[]>>();
-function friendlyCaseError(message: string) {
-  if (message.includes("429") || /rate limit|throttled/iu.test(message)) {
-    const wait = message.match(/available in\s+(\d+)\s+seconds/iu)?.[1];
-    return `CourtListener is rate limiting requests. Please try again${
-      wait ? ` in about ${wait} seconds` : " shortly"
-    }.`;
-  }
-  if (message.includes("401") || /credentials|token|auth/iu.test(message))
-    return "CourtListener authentication is not configured correctly.";
-  return "Could not load this case from CourtListener. Please try again shortly.";
-}
-
-function opinionTypeLabel(value: string | null) {
-  if (!value) return "Opinion";
-  const type = value.replace(/^\d+/u, "").replace(/_/gu, " ").trim();
-  const compact = type.toLowerCase().replace(/\s+/gu, "");
-  if (compact === "lead") return "Lead Opinion";
-  if (/^(?:concurrentinpart|concurrenceinpart|concurinpart)$/u.test(compact))
-    return "Concurrence in part";
-  if (compact === "combined") return "Combined Opinion";
-  return type.replace(/\b\w/gu, (letter) => letter.toUpperCase());
-}
-
-function opinionTitle(opinion: Pick<CaseLawOpinion, "type" | "author">, index?: number) {
-  const type = opinion.type
-    ? opinionTypeLabel(opinion.type)
-    : `Opinion ${index ?? ""}`.trim();
-  return opinion.author ? `${type} by ${opinion.author}` : type;
-}
-
-function opinionRank(value: string | null) {
-  const type = value?.replace(/^\d+/u, "").toLowerCase() ?? "";
-  if (/lead|majority|unanimous|plurality/u.test(type)) return 0;
-  if (type.includes("concurr")) return 1;
-  if (type.includes("dissent")) return 2;
-  return type.includes("combined") ? 4 : 3;
-}
-
 function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
   const rootBox = root.getBoundingClientRect();
   const targetBox = target.getBoundingClientRect();
@@ -375,75 +307,43 @@ export function LegalSourceViewer({
   citationRef,
   compact = false,
   initialLocator,
-  caseTab,
 }: LegalSourceViewerProps) {
-  const sourceKey = caseTab?.id ?? [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
-  const suppliedOpinions = caseTab?.opinions;
-  const [result, setResult] = useState<[string, LegalSourceViewerPayload | CaseLawOpinion[] | Error]>();
+  const sourceKey = [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
+  const [result, setResult] = useState<[string, LegalSourceViewerPayload | Error]>();
   const current = result?.[0] === sourceKey ? result[1] : undefined;
-  const payload = current && !(current instanceof Error) && !Array.isArray(current) ? current : null;
-  const loadedOpinions = Array.isArray(current) ? current : undefined;
-  const cached = caseTab ? opinionCache.get(caseTab.clusterId) : undefined;
-  const opinions = caseTab
-    ? suppliedOpinions?.length ? suppliedOpinions : Array.isArray(cached) ? cached : loadedOpinions
-    : undefined;
+  const payload = current && !(current instanceof Error) ? current : null;
   const error = current instanceof Error ? current.message : null;
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [opinionId, setOpinionId] = useState<number | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const locator = normalizeLegalSourceLocator(initialLocator ?? caseTab?.initialLocator);
+  const locator = normalizeLegalSourceLocator(initialLocator);
 
   useEffect(() => {
-    if (caseTab && suppliedOpinions?.length) return;
     let live = true;
-    let request: Promise<LegalSourceViewerPayload | CaseLawOpinion[]>;
-    if (caseTab) {
-      let caseRequest = opinionCache.get(caseTab.clusterId);
-      if (!caseRequest) {
-        caseRequest = getCourtlistenerOpinions(caseTab.clusterId);
-        opinionCache.set(caseTab.clusterId, caseRequest);
-      }
-      request = Promise.resolve(caseRequest);
-    } else if (referenceId) {
-      request = getLegalSourceDocument(referenceId);
-    } else if (citation) {
-      request = getDirectLegalSourceDocument({ provider, citation, sourceId, docType, language, dataset });
-    } else {
-      request = Promise.reject(new Error("Legal source reference is missing"));
-    }
+    const request = referenceId
+      ? getLegalSourceDocument(referenceId)
+      : citation
+        ? getDirectLegalSourceDocument({ provider, citation, sourceId, docType, language, dataset })
+        : Promise.reject(new Error("Legal source reference is missing"));
     void request.then((value) => {
       if (!live) return;
-      if (caseTab && Array.isArray(value)) opinionCache.set(caseTab.clusterId, value);
       setResult([sourceKey, value]);
     }).catch((reason: unknown) => {
-      const message = reason instanceof Error
-        ? reason.message
-        : caseTab ? "Failed to load case" : "Could not load source";
-      if (live) setResult([sourceKey, new Error(caseTab ? friendlyCaseError(message) : message)]);
-      if (caseTab) opinionCache.delete(caseTab.clusterId);
+      const message = reason instanceof Error ? reason.message : "Could not load source";
+      if (live) setResult([sourceKey, new Error(message)]);
     });
     return () => { live = false; };
-  }, [caseTab, citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey, suppliedOpinions]);
+  }, [citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey]);
 
   const slices = useMemo(() => payload ? buildLegalSourceViewerSlices(payload) : [], [payload]);
   const presentation = useMemo(() => new Map(
     payload?.presentation?.segments.map((segment) => [`${segment.start}:${segment.end}`, segment.blocks]) ?? [],
   ), [payload]);
-  const orderedOpinions = useMemo(() => (opinions ?? [])
-    .map((opinion, index) => ({ opinion, index }))
-    .sort((left, right) =>
-      opinionRank(left.opinion.type) - opinionRank(right.opinion.type) ||
-      left.index - right.index), [opinions]);
-  const displayedOpinion = opinions?.find((opinion) => opinion.opinionId === opinionId)
-    ?? orderedOpinions[0]?.opinion;
-  const sourceQuotes = caseTab?.quotes ?? quotes;
-
   useLayoutEffect(() => {
-    if (!root.current || (!payload && !displayedOpinion)) return;
+    if (!root.current || !payload) return;
     clearDocxQuoteHighlights(root.current);
-    const match = highlightDocxQuotes(root.current, sourceQuotes.map(({ quote }) => quote))[quoteIndex];
+    const match = highlightDocxQuotes(root.current, quotes.map(({ quote }) => quote))[quoteIndex];
     if (match) scrollTo(root.current, match);
-  }, [displayedOpinion, payload, quoteIndex, sourceQuotes]);
+  }, [payload, quoteIndex, quotes]);
 
   useEffect(() => {
     if (!payload || !root.current) return;
@@ -456,47 +356,23 @@ export function LegalSourceViewer({
     return () => cancelAnimationFrame(frame);
   }, [locator, payload]);
 
-  if (!payload && !caseTab) {
+  if (!payload) {
     return <div className="grid h-full place-items-center p-6">
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : <ThinkingSpinner label="Loading legal source" size={24} />}
     </div>;
   }
 
-  const metadata: Metadata = payload?.metadata ?? {
-    title: caseTab?.caseName || caseTab?.citation || "Decision",
-    citation: caseTab?.citation ?? "",
-    alternateCitation: null,
-    date: caseTab?.dateFiled ?? null,
-    url: caseTab?.url ?? null,
-    pdfUrl: caseTab?.pdfUrl ?? null,
-    language: "en",
-  };
+  const metadata: Metadata = payload.metadata;
   const details = [
     metadata.title !== metadata.citation ? metadata.citation : null,
     metadata.alternateCitation,
     formatLongDate(metadata.date),
   ].filter(Boolean).join(" · ");
   const actions = legalSourceViewerActions(metadata);
-  const quoteItems = sourceQuotes.map((quote, index) => ({
+  const quoteItems = quotes.map((quote, index) => ({
     id: `legal-quote-${index}`,
     quote: quote.quote,
-    eyebrow: caseTab?.quotes?.[index] &&
-      (caseTab.quotes[index].author || caseTab.quotes[index].type)
-      ? opinionTitle(caseTab.quotes[index])
-      : null,
   }));
-  const selectQuote = (index: number) => {
-    setQuoteIndex(index);
-    const id = caseTab?.quotes?.[index]?.opinionId;
-    if (typeof id === "number") setOpinionId(id);
-  };
-  const selectOpinion = (opinion: CaseLawOpinion) => {
-    setOpinionId(opinion.opinionId);
-    const index = caseTab?.quotes?.findIndex(
-      ({ opinionId }) => opinionId === opinion.opinionId,
-    );
-    if (index !== undefined && index >= 0) setQuoteIndex(index);
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -533,45 +409,18 @@ export function LegalSourceViewer({
             quotes={quoteItems}
             currentIndex={quoteIndex}
             activeQuoteId={quoteItems[quoteIndex]?.id}
-            citationRef={citationRef ?? caseTab?.citationRef}
+            citationRef={citationRef}
             citationText={metadata.citation}
-            onSelect={(_quote, index) => selectQuote(index)}
-            onIndexChange={selectQuote}
+            onSelect={(_quote, index) => setQuoteIndex(index)}
+            onIndexChange={setQuoteIndex}
           />
-        </div>
-      )}
-      {caseTab && orderedOpinions.length > 1 && (
-        <div className="shrink-0 border-b border-gray-200 px-4 py-2">
-          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Opinions">
-          {orderedOpinions.map(({ opinion, index }) => (
-            <button
-              key={opinion.opinionId ?? index}
-              type="button"
-              role="tab"
-              aria-selected={opinion === displayedOpinion}
-              disabled={opinion.opinionId === null}
-              onClick={() => selectOpinion(opinion)}
-              className={`flex h-8 max-w-[180px] items-center rounded-md border px-3 text-[13px] ${opinion === displayedOpinion
-                ? "border-gray-400 bg-white text-gray-900"
-                : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white"} disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              <span className="truncate">{opinionTitle(opinion, index)}</span>
-            </button>
-          ))}
-          </div>
         </div>
       )}
       {payload?.truncated && <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
         This unusually long source is displayed through the first five million characters.
       </p>}
       <div ref={root} className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
-        {caseTab ? (
-          error && !opinions?.length ? <p role="alert" className="text-red-700">{error}</p>
-            : !opinions ? <ThinkingSpinner label="Loading case law" size={24} />
-              : displayedOpinion ? <OpinionBlock opinion={displayedOpinion} />
-                : <p className="mx-auto max-w-[48rem] text-sm text-gray-500">No opinions were returned for this case.</p>
-        ) : (
-          <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
+        <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
             {slices.map((slice) => {
               const page = slice.anchors.find(({ kind }) => kind === "page");
               const marker = slice.primary?.kind !== "page" && slice.primary
@@ -609,20 +458,8 @@ export function LegalSourceViewer({
                 </section>
               );
             })}
-          </article>
-        )}
+        </article>
       </div>
     </div>
-  );
-}
-
-function OpinionBlock({ opinion }: { opinion: CaseLawOpinion }) {
-  return (
-    <article className="case-opinion-content mx-auto max-w-[48rem] font-serif text-[17px] leading-7 text-gray-900">
-      <h2 className="mb-4 text-lg font-semibold">{opinionTitle(opinion)}</h2>
-      <div className="whitespace-pre-wrap">
-        {opinion.text || "No opinion text returned."}
-      </div>
-    </article>
   );
 }

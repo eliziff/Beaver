@@ -3,13 +3,6 @@ import { lookupSourceDoc, type SourceDoc, type SourceDocBlock, type SourceDocLoc
 export const SOURCE_DOC_KINDS: SourceDocLocatorKind[] = [
   "paragraph", "page", "section", "footnote",
 ];
-export const SERIALIZER_CONTRACT = JSON.stringify({
-  schema: "source-structure-parity.v1",
-  document: ["provider", "id", "status", "mode", "revision", "text"],
-  block: ["kind", "label", "start", "end", "origin", "anchor", "aliases", "parent_label"],
-  ranges: SOURCE_DOC_KINDS,
-  lookups: "every ordered block label, alias, and anchor; context=2; full materialized blocks",
-});
 export const SOURCE_DOC_BYTES_CONTRACT = JSON.stringify({
   schema: "source-doc-public-bytes.v1",
   serialization: "UTF-8 JSON.stringify(SourceDoc)",

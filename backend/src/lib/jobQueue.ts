@@ -179,19 +179,6 @@ export async function interruptJobs(groupKey: string, belowPriority: number) {
   }
 }
 
-export async function cancelJob(id: string, userId: string) {
-  const db = await relationalDatabase(), timestamp = now();
-  const row = (await db.query<{ id: string }>(sql`UPDATE application_jobs SET
-      status='cancelled',dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
-      interrupt_requested_at=${timestamp},completed_at=${timestamp},updated_at=${timestamp}
-    WHERE id=${bounded(id, 100, "Job ID")} AND user_id=${bounded(userId, 200, "Job user")}
-      AND status IN('queued','running') RETURNING id`)).rows[0];
-  if (row) for (const active of activeJobs.values()) {
-    if (active.job.id === row.id) active.controller.abort();
-  }
-  return !!row;
-}
-
 export async function getJob(id: string, userId: string) {
   const db = await relationalDatabase();
   const row = (await db.query<JobRow>(sql`SELECT * FROM application_jobs
@@ -274,7 +261,7 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
       resume = undefined;
       resolve();
     };
-    timer = setTimeout(resume, 1_000);
+    timer = setTimeout(resume, 5_000);
     timer.unref();
   });
   const execute = async (next: ApplicationJob) => {

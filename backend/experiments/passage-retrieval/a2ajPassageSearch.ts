@@ -276,7 +276,7 @@ export async function searchLocalA2AJPassages(args: {
       buildCommand(sourceDb, args.docType, args.mode),
     );
 
-  const ranked = searchPassages({
+  const ranked = await searchPassages({
     ...indexOptions,
     query,
     language,

@@ -1,4 +1,4 @@
-"""Vet every previously-flagged miss with shipping compileA2AJSourceDoc.
+"""Vet every previously-flagged miss with shipping legal-structure.
 
 This probe joins prior failure records back to corpus text and asks what the
 production compiler returns. It contains no structure grammar. Output is an

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const workspace = path.resolve(root, "../..");
 const corpusPath = path.join(root, "grammar-corpus.json");
+const eyeciteReceiptPath = path.join(root, "eyecite-us-receipt.json");
 const manifestPath = path.join(root, "manifest.json");
 const bundles = [
   path.join(workspace, "legal-pdf-parser/data/legal-grammar-tables"),
@@ -61,6 +62,15 @@ const validatePortablePattern = (source, id) => {
 
 const corpusBytes = readFileSync(corpusPath);
 if (corpusBytes.length > 512 * 1024) fail("grammar-corpus.json exceeds 512 KiB");
+const eyeciteReceipt = object(
+  JSON.parse(readFileSync(eyeciteReceiptPath)),
+  "eyecite-us-receipt",
+);
+if (eyeciteReceipt.format !== "beaver.eyecite-us-grammar-candidate.v1") fail("unexpected eyecite receipt format");
+if (eyeciteReceipt.eyecite?.version !== "2.7.8" || eyeciteReceipt.eyecite?.commit !== "09165c2d90b4295b4967b1b01b83963c37ab2a98") fail("eyecite source pin drifted");
+if (eyeciteReceipt.reporters_db?.version !== "3.2.66" || eyeciteReceipt.reporters_db?.commit !== "fad63b383b92f9446c223ddc12bf0b6fd1a6b44c") fail("reporters-db source pin drifted");
+if (eyeciteReceipt.license !== "BSD-2-Clause") fail("unexpected eyecite grammar source license");
+if (eyeciteReceipt.candidate_sha256 !== sha256(corpusBytes)) fail("eyecite receipt does not describe grammar-corpus.json");
 const corpus = object(JSON.parse(corpusBytes), "corpus");
 if (corpus.format !== "legal-grammar-corpus:v1") fail(`unexpected corpus format ${corpus.format}`);
 exactKeys(corpus, new Set(["format", "tables"]), "corpus");
@@ -113,6 +123,29 @@ for (const tableName of tableNames) {
       vectors += 1;
     }
     validatePortablePattern(expand(entry.pattern, defs, entry.id), entry.id);
+    if (!entry.id.startsWith("cite.us.")) continue;
+    let compiled;
+    try {
+      compiled = new RegExp(expand(entry.pattern, defs, entry.id), entry.flags);
+    } catch (error) {
+      fail(`${entry.id}: does not compile in JavaScript: ${error}`);
+    }
+    // The historical corpus predates a JavaScript runtime adapter and carries
+    // Unicode-boundary vectors for the Python/Rust portable expansion. The US
+    // snapshot is the first TS consumer: execute its vectors here in addition
+    // to compiling every entry, without pretending native JS \b is that older
+    // adapter's frozen Unicode word class.
+    for (const vector of entry.vectors) {
+      const match = compiled.exec(vector.input);
+      if (vector.groups === null) {
+        if (match) fail(`${entry.id}: ${JSON.stringify(vector.input)} expected no match, got ${JSON.stringify(match[0])}`);
+        continue;
+      }
+      if (!match) fail(`${entry.id}: ${JSON.stringify(vector.input)} expected a match`);
+      for (const [name, expected] of Object.entries(vector.groups)) {
+        if (match.groups?.[name] !== expected) fail(`${entry.id}: ${JSON.stringify(vector.input)} group ${name}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(match.groups?.[name])}`);
+      }
+    }
   }
 }
 

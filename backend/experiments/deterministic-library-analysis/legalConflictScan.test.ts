@@ -28,8 +28,8 @@ describe("area anchors", () => {
 });
 
 describe("conflictScan", () => {
-  it("passes a consistent part-of-whole statement silently", () => {
-    const report = conflictScan([
+  it("passes a consistent part-of-whole statement silently", async () => {
+    const report = await conflictScan([
       {
         name: "lease.txt",
         text: "Tenant leases 30,000 SF of the 120,000 SF building (25% of the building).",
@@ -39,8 +39,8 @@ describe("conflictScan", () => {
     expect(report.consistent).toBe(1);
   });
 
-  it("flags a percent that does not close against its figures", () => {
-    const report = conflictScan([
+  it("flags a percent that does not close against its figures", async () => {
+    const report = await conflictScan([
       {
         name: "note.txt",
         text: "Borrower prepaid $300,000 of the $1,000,000 principal, a 25% reduction.",
@@ -51,9 +51,9 @@ describe("conflictScan", () => {
     expect(report.findings[0].implied_percent).toBe(30);
   });
 
-  it("respects stated precision when checking percentages", () => {
+  it("respects stated precision when checking percentages", async () => {
     // 81.25% stated as 81.3% is within half a unit of the last place.
-    const report = conflictScan([
+    const report = await conflictScan([
       {
         name: "roll.txt",
         text: "84,500 SF leased of 104,000 SF (81.3% occupied).",
@@ -63,9 +63,9 @@ describe("conflictScan", () => {
     expect(report.consistent).toBe(1);
   });
 
-  it("joins an occupancy claim to a leased total stated pages apart", () => {
+  it("joins an occupancy claim to a leased total stated pages apart", async () => {
     const filler = "General provisions. ".repeat(300);
-    const report = conflictScan([
+    const report = await conflictScan([
       {
         name: "agreement.txt",
         text:
@@ -79,8 +79,8 @@ describe("conflictScan", () => {
     expect(report.findings[0].approximate).toBe(true);
   });
 
-  it("checks subtotals against stated totals", () => {
-    const report = conflictScan([
+  it("checks subtotals against stated totals", async () => {
+    const report = await conflictScan([
       {
         name: "schedule.txt",
         text:
@@ -93,8 +93,8 @@ describe("conflictScan", () => {
     expect(report.findings[0].parts_sum).toBe(750_000);
   });
 
-  it("abstains when an unaccounted figure sits between the parts and the total", () => {
-    const report = conflictScan([
+  it("abstains when an unaccounted figure sits between the parts and the total", async () => {
+    const report = await conflictScan([
       {
         name: "bid.txt",
         text:
@@ -109,8 +109,8 @@ describe("conflictScan", () => {
     ).toBeTruthy();
   });
 
-  it("does not pair figures across a labeled field boundary", () => {
-    const report = conflictScan([
+  it("does not pair figures across a labeled field boundary", async () => {
+    const report = await conflictScan([
       {
         name: "sheet.txt",
         text: "Initial advance: $2,000 Facility of record: $9,000 Stated rate: 5%",
@@ -120,8 +120,8 @@ describe("conflictScan", () => {
     expect(report.checks.percent_of_whole).toBe(0);
   });
 
-  it("ignores a percent stated too far from the pair it would restate", () => {
-    const report = conflictScan([
+  it("ignores a percent stated too far from the pair it would restate", async () => {
+    const report = await conflictScan([
       {
         name: "note.txt",
         text:
@@ -134,8 +134,8 @@ describe("conflictScan", () => {
     expect(report.checks.percent_of_whole).toBe(0);
   });
 
-  it("abstains rather than guesses when a claim has nothing to pair with", () => {
-    const report = conflictScan([
+  it("abstains rather than guesses when a claim has nothing to pair with", async () => {
+    const report = await conflictScan([
       { name: "memo.txt", text: "The property is approximately 90% leased." },
     ]);
     expect(report.findings).toHaveLength(0);
@@ -156,8 +156,8 @@ describe("conflict figure refs as citable spans", () => {
     "3.2 Parking. Tenant may use 40 stalls.",
   ].join("\n");
 
-  it("carries the enclosing section handle and the figure's offset", () => {
-    const report = conflictScan([{ name: "lease.txt", text: lease }]);
+  it("carries the enclosing section handle and the figure's offset", async () => {
+    const report = await conflictScan([{ name: "lease.txt", text: lease }]);
     expect(report.findings).toHaveLength(1);
     const { part, whole } = report.findings[0];
     // Deepest enclosing node wins: the section, not ARTICLE III.
@@ -171,8 +171,8 @@ describe("conflict figure refs as citable spans", () => {
     expect(part?.verbatim).toBe(false);
   });
 
-  it("reports a null section in unsectioned text", () => {
-    const report = conflictScan([
+  it("reports a null section in unsectioned text", async () => {
+    const report = await conflictScan([
       {
         name: "note.txt",
         text: "Borrower prepaid $300,000 of the $1,000,000 principal, a 25% reduction.",

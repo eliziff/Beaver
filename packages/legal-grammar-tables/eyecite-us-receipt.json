@@ -1,0 +1,43 @@
+{
+  "format": "beaver.eyecite-us-grammar-candidate.v1",
+  "eyecite": {
+    "version": "2.7.8",
+    "commit": "09165c2d90b4295b4967b1b01b83963c37ab2a98"
+  },
+  "reporters_db": {
+    "version": "3.2.66",
+    "commit": "fad63b383b92f9446c223ddc12bf0b6fd1a6b44c"
+  },
+  "license": "BSD-2-Clause",
+  "source_records": {
+    "reporters": 1262,
+    "journals": 798,
+    "laws": 373
+  },
+  "source_extractors": {
+    "journals": 1604,
+    "laws": 575,
+    "reporters": 4650
+  },
+  "standard_surfaces": {
+    "reporters_full": 3341,
+    "reporters_short": 3341,
+    "journals_full": 805,
+    "journals_short": 805
+  },
+  "custom_patterns": {
+    "reporters_full": 389,
+    "reporters_short": 389,
+    "journals_full": 0,
+    "journals_short": 0,
+    "laws_full": 378,
+    "laws_short": 197
+  },
+  "reporter_surfaces_sha256": "167f24a6364125cbca44f091733761315d5ed70113ff01fa19d819480c28b254",
+  "journal_surfaces_sha256": "4a774bec04c60a680deab0ebfe5a1cc6f5ff81cb12b36c27abc62bf513bbc352",
+  "custom_patterns_sha256": "5f79a6ffccb56404c7c163224dbc8bbf45ca9c25ec84490806801d1cf009d969",
+  "law_examples": 391,
+  "law_short_examples": 197,
+  "candidate_bytes": 407193,
+  "candidate_sha256": "49b0827a73566ff12c3864d756e429de0f650be71e436bf231d2072605281b5c"
+}

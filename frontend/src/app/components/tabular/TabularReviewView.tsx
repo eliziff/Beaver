@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, MessageSquare, MessageSquareX, Play, Plus, Upload, Users } from "lucide-react";
 import {
-    clearTabularCells, deleteTabularReview, getProject, getTabularReview,
+    BeaverApiError, clearTabularCells, deleteTabularReview, getProject, getTabularReview,
     getTabularReviewPeople, regenerateTabularCell,
     directoryResource, exportTabularReview, streamTabularGeneration, updateTabularReview,
     uploadStandaloneDocument,
@@ -190,17 +190,6 @@ export function TRView({ reviewId, projectId }: Props) {
         try {
             const response = await streamTabularGeneration(
                 reviewId, { model, reasoningEffort });
-            if (!response.ok) {
-                const payload = await response.json().catch(() => null);
-                const provider = payload &&
-                    ["claude", "gemini", "openai"].includes(payload.provider)
-                    ? payload.provider as ModelProvider
-                    : getModelProvider(model);
-                if (payload?.code === "missing_api_key" && provider)
-                    setUi({ missingProvider: provider });
-                throw new Error(
-                    payload?.detail ?? `Generation failed: ${response.status}`);
-            }
             if (!response.body) throw new Error("No body");
             setCells((current) => {
                 const existing = new Map(current.map((cell) =>
@@ -226,9 +215,17 @@ export function TRView({ reviewId, projectId }: Props) {
                             content: data.content, status: data.status,
                         });
                     }
-                } catch {}
+                } catch { /* Ignore malformed streamed events. */ }
             }
         } catch (error) {
+            if (error instanceof BeaverApiError &&
+                error.code === "missing_api_key") {
+                const value = error.details?.provider;
+                const provider = typeof value === "string" &&
+                    ["claude", "gemini", "openai"].includes(value)
+                    ? value as ModelProvider : getModelProvider(model);
+                if (provider) setUi({ missingProvider: provider });
+            }
             console.error("Generation failed", error);
         } finally {
             setUi({ generating: false });

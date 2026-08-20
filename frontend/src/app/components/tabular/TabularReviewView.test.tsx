@@ -48,6 +48,22 @@ vi.mock("react-router-dom", () => ({
     useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
+    BeaverApiError: class BeaverApiError extends Error {
+        status: number;
+        code: string | null;
+        details: Record<string, unknown> | null;
+        constructor(args: {
+            message: string;
+            status: number;
+            code?: string | null;
+            details?: Record<string, unknown> | null;
+        }) {
+            super(args.message);
+            this.status = args.status;
+            this.code = args.code ?? null;
+            this.details = args.details ?? null;
+        }
+    },
     clearTabularCells: vi.fn(),
     deleteTabularReview: vi.fn(),
     directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),

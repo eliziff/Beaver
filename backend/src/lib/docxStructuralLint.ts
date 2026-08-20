@@ -61,14 +61,6 @@ export type DocxStructuralLintReport = {
   notes: string[];
 };
 
-function normalizeText(value: string) {
-  return value
-    .replace(/[“”]/gu, '"')
-    .replace(/[‘’]/gu, "'")
-    .replace(/[   ]/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-}
 function paragraphTexts(documentXml: string) {
   const texts: string[] = [];
   for (const paragraph of documentXml.matchAll(PARAGRAPH_PATTERN)) {
@@ -77,7 +69,12 @@ function paragraphTexts(documentXml: string) {
     for (const text of withoutDeleted.matchAll(TEXT_PATTERN)) {
       parts.push(decodeXmlText(text[1] ?? ""));
     }
-    texts.push(normalizeText(parts.join("")));
+    texts.push(parts.join("")
+      .replace(/[“”]/gu, '"')
+      .replace(/[‘’]/gu, "'")
+      .replace(/[   ]/gu, " ")
+      .replace(/\s+/gu, " ")
+      .trim());
   }
   return texts;
 }

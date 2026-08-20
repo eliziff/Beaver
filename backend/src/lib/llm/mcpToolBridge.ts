@@ -8,6 +8,7 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { safeErrorMessage } from "../safeError";
 import type { NormalizedToolCall, NormalizedToolResult, StreamCallbacks } from "./types";
 
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -129,7 +130,7 @@ function bridgeServer(params: McpToolBridgeParams, state: BridgeState) {
       if (result.terminal) state.terminalResult = true;
       return { content: [{ type: "text", text: result.content }] };
     } catch (error) {
-      return toolError(error instanceof Error ? error.message : String(error));
+      return toolError(safeErrorMessage(error));
     }
   });
 

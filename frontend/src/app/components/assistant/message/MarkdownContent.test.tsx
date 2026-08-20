@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MarkdownContent } from "./MarkdownContent";
+import { CitationPillMarkdown, GfmMarkdown, MarkdownContent } from "./MarkdownContent";
 import type { Citation } from "../../shared/types";
 import { preprocessCitations } from "./citationUtils";
 
@@ -9,21 +9,37 @@ function renderMarkdown(text: string, inlineCitationTargets: Citation[] = []) {
         <MarkdownContent
             text={text}
             inlineCitationTargets={inlineCitationTargets}
-            caseCitations={new Map()}
-            caseOpinions={new Map()}
         />,
     );
 }
 
 describe("MarkdownContent links", () => {
+    it("does not make ungrounded subagent URLs clickable", () => {
+        render(
+            <CitationPillMarkdown
+                text="[Project](/projects/1) [Injected](https://attacker.test)"
+            />,
+        );
+
+        expect(screen.getByRole("link", { name: "Project" })).toHaveAttribute(
+            "href",
+            "/projects/1",
+        );
+        expect(screen.queryByRole("link", { name: "Injected" })).toBeNull();
+    });
+
+    it("rejects credential-bearing links in shared Markdown", () => {
+        render(<GfmMarkdown>{"[Sign in](https://user:secret@example.test/)"}</GfmMarkdown>);
+
+        expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+    });
+
     it("repairs incomplete Markdown while text is streaming", () => {
         const { container } = render(
             <MarkdownContent
                 text="This is **bold"
                 isStreaming
                 inlineCitationTargets={[]}
-                caseCitations={new Map()}
-                caseOpinions={new Map()}
             />,
         );
 
@@ -57,7 +73,6 @@ describe("MarkdownContent links", () => {
     it("keeps a verified journal page inside the citation pill", () => {
         renderMarkdown("Quoted analysis `\u00a70\u00a7`.", [
             {
-                type: "citation_data",
                 kind: "public_legal",
                 ref: 1,
                 provider: "journal",
@@ -93,7 +108,6 @@ describe("MarkdownContent links", () => {
     it("uses only the pinpoint for consecutive passages from one decision", () => {
         const citations = new Map<number, Citation>([
             [1, {
-                type: "citation_data",
                 kind: "a2aj",
                 source_class: "case",
                 ref: 1,
@@ -104,7 +118,6 @@ describe("MarkdownContent links", () => {
                 quotes: [{ quote: "First passage" }],
             }],
             [2, {
-                type: "citation_data",
                 kind: "a2aj",
                 source_class: "case",
                 ref: 2,
@@ -131,7 +144,6 @@ describe("MarkdownContent links", () => {
     it("compresses repeated legislation citations like other authorities", () => {
         const citations = new Map<number, Citation>([
             [1, {
-                type: "citation_data",
                 kind: "a2aj",
                 source_class: "legislation",
                 ref: 1,
@@ -142,7 +154,6 @@ describe("MarkdownContent links", () => {
                 quotes: [{ quote: "First provision" }],
             }],
             [2, {
-                type: "citation_data",
                 kind: "a2aj",
                 source_class: "legislation",
                 ref: 2,

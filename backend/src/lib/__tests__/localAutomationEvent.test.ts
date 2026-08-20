@@ -5,7 +5,7 @@ import {
 } from "../chat/localAutomationEvent";
 
 describe("localAutomationEvent", () => {
-  it("preserves deterministic document receipts", () => {
+  it("preserves the visible automation summary", () => {
     expect(
       supraFixEvent(
         {
@@ -24,7 +24,6 @@ describe("localAutomationEvent", () => {
       type: "automation_run",
       id: "call-1",
       status: "complete",
-      version_id: "version-2",
       counts: expect.arrayContaining([
         { label: "Found", value: 4 },
         { label: "Fixed", value: 3 },

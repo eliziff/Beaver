@@ -6,7 +6,6 @@ import {
   a2ajLegalSourceProvider,
   type A2AJViewerPayload,
 } from "../lib/legalSources/a2aj";
-import { courtlistenerLegalSourceProvider } from "../lib/legalSources/courtlistener";
 import { journalLegalSourceProvider } from "../lib/legalSources/journal";
 import {
   resolveLegalSource,
@@ -29,7 +28,6 @@ import {
   readProviderPdfAttachmentState,
   type ProviderPdfAttachment,
 } from "../lib/providerPdfLibraryBridge";
-import { getUserModelSettings } from "../lib/userSettings";
 
 export const legalLibraryRouter = Router();
 
@@ -330,27 +328,6 @@ legalLibraryRouter.get("/document", asyncRoute(async (req, res) => {
     language: language(req.query.language),
     dataset: optionalText(req.query.dataset),
     sourceId: optionalText(req.query.source_id),
-  });
-}));
-
-legalLibraryRouter.get("/courtlistener/:clusterId/opinions", asyncRoute(async (req, res) => {
-  const clusterId = Number(req.params.clusterId);
-  if (!Number.isSafeInteger(clusterId) || clusterId <= 0) {
-    reject(400, "clusterId must be a positive integer");
-  }
-  const settings = await getUserModelSettings(userId(res));
-  const fetched = await providerCall("CourtListener is unavailable", () =>
-    courtlistenerLegalSourceProvider.caseOpinions({
-      clusterId,
-      includeFullText: true,
-      maxChars: 50_000,
-      apiToken: settings.api_keys.courtlistener,
-    }));
-  res.json({
-    opinions:
-      "opinions" in fetched && Array.isArray(fetched.opinions)
-        ? fetched.opinions
-        : [],
   });
 }));
 

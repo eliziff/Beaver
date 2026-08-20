@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { apiFetch } from "@/app/lib/beaverApi";
+import { resolveDocumentEdit } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
 
@@ -35,7 +35,7 @@ function findMatch(
     );
 }
 
-export function applyOptimisticResolution(
+function applyOptimisticResolution(
     edit: EditAnnotation,
     verb: EditVerb,
 ) {
@@ -96,16 +96,11 @@ export async function resolveEdit(
         console.error("Optimistic edit update failed", error);
     }
     try {
-        const response = await apiFetch(
-            `/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,
-            { method: "POST" },
+        const result = await resolveDocumentEdit(
+            edit.document_id,
+            edit.edit_id,
+            verb,
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const result = (await response.json()) as {
-            status?: "accepted" | "rejected";
-            version_id: string | null;
-            download_url: string | null;
-        };
         const status =
             result.status ?? (verb === "accept" ? "accepted" : "rejected");
         onResolved?.({
@@ -120,7 +115,7 @@ export async function resolveEdit(
         console.error("Edit resolution failed", error);
         try {
             revert();
-        } catch {}
+        } catch { /* Preserve the original edit failure. */ }
         onError?.({
             editId: edit.edit_id,
             documentId: edit.document_id,

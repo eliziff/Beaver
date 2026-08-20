@@ -1,3 +1,5 @@
+import { safeErrorLog } from "../safeError";
+
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
 
 export type LegalSourceLocator = {
@@ -132,10 +134,6 @@ function roundRobin(groups: readonly (readonly LegalSourceSearchHit[])[], limit:
   return results;
 }
 
-function throwIfAborted(signal?: AbortSignal) {
-  signal?.throwIfAborted();
-}
-
 export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
   providers: readonly LegalSourceProvider<Artifact, Native>[],
 ) {
@@ -146,7 +144,7 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
 
   return {
     async search(request: LegalSourceSearchRequest) {
-      throwIfAborted(request.signal);
+      request.signal?.throwIfAborted();
       const selected = providers.filter(
         (provider) =>
           provider.search &&
@@ -157,14 +155,14 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
         selected.map(async (provider) => {
           try {
             const hits = await provider.search!(request);
-            throwIfAborted(request.signal);
+            request.signal?.throwIfAborted();
             return { provider: provider.id, hits };
           } catch (error) {
             if (request.signal?.aborted) throw error;
-            return {
-              provider: provider.id,
-              error: error instanceof Error ? error.message : "unavailable",
-            };
+            console.warn("[legal-source] provider unavailable", {
+              provider: provider.id, ...safeErrorLog(error),
+            });
+            return { provider: provider.id, error: "unavailable" };
           }
         }),
       );
@@ -191,7 +189,7 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
     async resolve(
       request: LegalSourceResolveRequest,
     ): Promise<LegalSourceMatchResult<LegalSourceReference>> {
-      throwIfAborted(request.signal);
+      request.signal?.throwIfAborted();
       const selected = providers.filter(
         (provider) =>
           provider.resolve && (provider.canResolve?.(request) ?? true),
@@ -200,7 +198,7 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
       const matches = (
         await Promise.all(selected.map(async (provider) => {
           const matches = await provider.resolve!(request);
-          throwIfAborted(request.signal);
+          request.signal?.throwIfAborted();
           return matches;
         }))
       ).flat();
@@ -222,13 +220,13 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
     async readPassage(
       request: LegalSourcePassageRequest,
     ): Promise<LegalSourceReadResult<Artifact, Native>> {
-      throwIfAborted(request.signal);
+      request.signal?.throwIfAborted();
       const provider = byId.get(request.source.provider);
       if (!provider?.readPassage) {
         return { status: "unsupported", providers: [request.source.provider] };
       }
       const matches = await provider.readPassage(request);
-      throwIfAborted(request.signal);
+      request.signal?.throwIfAborted();
       if (!matches.length) {
         return { status: "not_found", providers: [provider.id] };
       }

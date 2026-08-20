@@ -1,11 +1,13 @@
-export const ISSUE_EVIDENCE_VOICES = [
-  "current_court",
-  "party_submission",
-  "quoted_authority",
-  "reported_decision",
-  "procedural_record",
-  "unclear",
-] as const;
+import {
+  createTextSourceDoc,
+  sourceDocPhraseSpans,
+  sourceDocQuoteWords,
+  type SourceDoc,
+} from "../../src/lib/sourceDoc";
+import { ATTRIBUTIONS } from "./caseTreatment";
+
+// Keep issue and target evidence on one speaker/source vocabulary.
+export const ISSUE_EVIDENCE_VOICES = ATTRIBUTIONS;
 
 export const ISSUE_RELATIONS_TO_DISPOSITION = [
   "dispositive",
@@ -148,14 +150,72 @@ export type ResolvedIssueCard = Omit<
   }>;
 };
 
-function exactQuote(opinion: OpinionInput, quote: string): ExactQuote | string {
-  const relativeStart = opinion.text.indexOf(quote);
-  if (relativeStart < 0) return "quote is missing from the opinion";
-  if (opinion.text.indexOf(quote, relativeStart + 1) >= 0) {
-    return "quote is not unique in the opinion";
+export function resolveUniqueGroundedQuote(
+  text: string,
+  base: number,
+  quote: string,
+  source = createTextSourceDoc(text),
+): ExactQuote | string {
+  const relativeStart = text.indexOf(quote);
+  if (relativeStart >= 0 && text.indexOf(quote, relativeStart + 1) < 0) {
+    return { quote, start: base + relativeStart, end: base + relativeStart + quote.length };
   }
-  const start = opinion.start + relativeStart;
-  return { quote, start, end: start + quote.length };
+  const words = sourceDocQuoteWords(quote);
+  if (words.length < 4) return relativeStart < 0 ? "quote is missing" : "quote is not unique";
+  const spans = sourceDocPhraseSpans(source, words, { limit: 2 });
+  if (!spans.length) return "quote is missing";
+  if (spans.length > 1) return "quote is not unique";
+  const span = spans[0];
+  return {
+    quote: text.slice(span.start, span.end),
+    start: base + span.start,
+    end: base + span.end,
+  };
+}
+
+function exactQuote(opinion: OpinionInput, quote: string, source: SourceDoc): ExactQuote | string {
+  const resolved = resolveUniqueGroundedQuote(opinion.text, opinion.start, quote, source);
+  return typeof resolved === "string" && resolved === "quote is missing"
+    ? "quote is missing from the opinion"
+    : typeof resolved === "string" && resolved === "quote is not unique"
+      ? "quote is not unique in the opinion"
+    : resolved;
+}
+
+function quoteCandidates(opinion: OpinionInput, quote: string, source: SourceDoc): ExactQuote[] {
+  const exact: ExactQuote[] = [];
+  for (let cursor = 0; exact.length < 32;) {
+    const start = opinion.text.indexOf(quote, cursor);
+    if (start < 0) break;
+    exact.push({ quote, start: opinion.start + start, end: opinion.start + start + quote.length });
+    cursor = start + Math.max(1, quote.length);
+  }
+  if (exact.length) return exact;
+  const words = sourceDocQuoteWords(quote);
+  if (words.length < 4) return [];
+  return sourceDocPhraseSpans(source, words, { limit: 32 }).map((span) => ({
+    quote: opinion.text.slice(span.start, span.end),
+    start: opinion.start + span.start,
+    end: opinion.start + span.end,
+  }));
+}
+
+function exactDiscussionSpan(
+  opinion: OpinionInput,
+  startQuote: string,
+  endQuote: string,
+  source: SourceDoc,
+) {
+  const starts = quoteCandidates(opinion, startQuote, source);
+  const ends = quoteCandidates(opinion, endQuote, source);
+  if (!starts.length) return "start quote is missing from the opinion";
+  if (!ends.length) return "end quote is missing from the opinion";
+  const pairs = starts.flatMap((start) => ends
+    .filter((end) => end.end > start.start)
+    .map((end) => ({ start: start.start, end: end.end, start_quote: start, end_quote: end })));
+  if (!pairs.length) return "discussion ends before it starts";
+  if (pairs.length > 1) return "discussion anchor pair is not unique in the opinion";
+  return pairs[0];
 }
 
 export function resolveIssueCards(
@@ -166,6 +226,7 @@ export function resolveIssueCards(
   rejections: Array<{ issueId: string; errors: string[] }>;
 } {
   const opinionById = new Map(opinions.map((opinion) => [opinion.id, opinion]));
+  const sourceByOpinionId = new Map(opinions.map((opinion) => [opinion.id, createTextSourceDoc(opinion.text)]));
   const seenCards = new Set<string>();
   const accepted: ResolvedIssueCard[] = [];
   const rejections: Array<{ issueId: string; errors: string[] }> = [];
@@ -184,7 +245,7 @@ export function resolveIssueCards(
         return [];
       }
       evidenceIds.add(item.id);
-      const quote = exactQuote(opinion, item.quote);
+      const quote = exactQuote(opinion, item.quote, sourceByOpinionId.get(opinion.id)!);
       if (typeof quote === "string") {
         errors.push(`${item.id} ${quote}`);
         return [];
@@ -193,21 +254,13 @@ export function resolveIssueCards(
     }) : [];
 
     const discussionSpans = opinion ? card.discussion_spans.flatMap((span, index) => {
-      const startQuote = exactQuote(opinion, span.start_quote);
-      const endQuote = exactQuote(opinion, span.end_quote);
-      if (typeof startQuote === "string") errors.push(`discussion ${index + 1} start ${startQuote}`);
-      if (typeof endQuote === "string") errors.push(`discussion ${index + 1} end ${endQuote}`);
-      if (typeof startQuote === "string" || typeof endQuote === "string") return [];
-      if (endQuote.end <= startQuote.start) {
-        errors.push(`discussion ${index + 1} ends before it starts`);
+      const source = sourceByOpinionId.get(opinion.id)!;
+      const resolved = exactDiscussionSpan(opinion, span.start_quote, span.end_quote, source);
+      if (typeof resolved === "string") {
+        errors.push(`discussion ${index + 1} ${resolved}`);
         return [];
       }
-      return [{
-        start: startQuote.start,
-        end: endQuote.end,
-        start_quote: startQuote,
-        end_quote: endQuote,
-      }];
+      return [resolved];
     }) : [];
 
     const referencedEvidence = [

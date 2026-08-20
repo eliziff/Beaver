@@ -94,10 +94,6 @@ function renderHeaderBlock(headers: Map<string, string>) {
   }).join("\n");
 }
 
-function attachmentBytes(content: ArrayBuffer | Uint8Array | string) {
-  return typeof content === "string" ? Buffer.byteLength(content) : content.byteLength;
-}
-
 function staticAbstentions(bytes: Buffer) {
   const abstentions: EmailAbstention[] = [];
   for (const raw of rawHeaderValues(bytes, "content-transfer-encoding")) {
@@ -185,7 +181,8 @@ export async function parseEmail(bytes: Buffer): Promise<EmailMessage> {
     body = "";
   }
   const attachments = email.attachments.map((attachment) => {
-    const bytes = attachmentBytes(attachment.content);
+    const bytes = typeof attachment.content === "string"
+      ? Buffer.byteLength(attachment.content) : attachment.content.byteLength;
     if (bytes > MAX_PART_BYTES) {
       add(
         abstentions,

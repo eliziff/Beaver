@@ -1,18 +1,24 @@
 import type { ChatMessageRecord } from "../chatStore";
 import type { Provider, ProviderContextCheckpoint } from "../llm/types";
 import type { AskInputItem, ChatMessage } from "./types";
+import { jsonRecord as record, trimmedText as text } from "../value";
 
-const HIDDEN = new Set([
-  "pdf_evidence_handles",
-  "local_mutation_committed",
-  "local_turn_completed",
-  "research_checkpoint_receipt",
-  "context_checkpoint",
+const PUBLIC_EVENTS = new Set([
+  "ask_inputs", "ask_inputs_response", "automation_run", "compaction",
+  "content", "document_artifact", "error", "steering", "subagent_run",
+  "tool_activity", "turn_status",
 ]);
-const record = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
+export function publicAssistantEvent(value: unknown): unknown | null {
+  const event = record(value);
+  if (!event || !PUBLIC_EVENTS.has(String(event.type ?? ""))) return null;
+  if (event.type !== "subagent_run") return value;
+  return {
+    type: "subagent_run", id: event.id, task: event.task, status: event.status,
+    ...(Array.isArray(event.activities) && { activities: event.activities }),
+    ...(typeof event.output === "string" && { output: event.output }),
+    ...(Array.isArray(event.sources) && { sources: event.sources }),
+  };
+}
 
 export function visibleChatMessages<
   T extends Pick<ChatMessageRecord, "role" | "content"> &
@@ -21,7 +27,10 @@ export function visibleChatMessages<
   return messages.flatMap((message) => {
     if (message.role !== "assistant" || !Array.isArray(message.content)) return [message];
     const complete = message.content.some((value) => record(value)?.type === "local_turn_completed");
-    const content = message.content.filter((value) => !HIDDEN.has(String(record(value)?.type ?? "")));
+    const content = message.content.flatMap((value) => {
+      const visible = publicAssistantEvent(value);
+      return visible === null ? [] : [visible];
+    });
     return message.turn_id && !content.length && !complete ? [] : [{
       ...message,
       ...(message.turn_id && { turn_complete: complete }),
@@ -33,9 +42,8 @@ export function visibleChatMessages<
 const files = (value: unknown): ChatMessage["files"] => {
   const parsed = Array.isArray(value) ? value.flatMap((item) => {
     const row = record(item), filename = text(row?.filename);
-    if (!filename) return [];
     const documentId = text(row?.document_id);
-    return [{ filename, ...(documentId && { document_id: documentId }) }];
+    return filename && documentId ? [{ filename, document_id: documentId }] : [];
   }) : [];
   return parsed.length ? parsed : undefined;
 };
@@ -48,22 +56,28 @@ function responseText(value: unknown, requested: ReadonlyMap<string, AskInputIte
   const lines = Array.isArray(value) ? value.flatMap((item) => {
     const row = record(item), id = text(row?.id);
     if (!row || !id) return [];
-    if (row.skipped === true) return [`- ${id}: skipped`];
     const request = requested.get(id);
     if (row.kind === "choice") {
-      const question = request?.kind === "choice" ? request.question : text(row.question) || id;
-      return [`- ${question}: ${typeof row.answer === "string" ? row.answer : ""}`];
+      if (!text(row.answer)) return [`- ${id}: skipped`];
+      const question = request?.kind === "choice" ? request.question : id;
+      return [`- ${question}: ${text(row.answer)}`];
     }
     if (row.kind !== "documents") return [];
     const label = request?.kind === "documents" && request.document_types.length
       ? request.document_types.join(", ") : id;
     const selected = files(row.documents)?.map(({ filename }) => filename) ?? [];
-    const names = selected.length ? selected
-      : Array.isArray(row.filenames) ? row.filenames.map(text).filter(Boolean) : [];
-    return [`- Documents requested for ${label}: ${names.join(", ") || "none"}`];
+    if (!selected.length) return [`- ${id}: skipped`];
+    return [`- Documents requested for ${label}: ${selected.join(", ") || "none"}`];
   }) : [];
   return lines.length ? `[User responses to requested inputs]\n${lines.join("\n")}` : null;
 }
+
+const responseFiles = (value: unknown) => files(Array.isArray(value)
+  ? value.flatMap((item) => {
+      const row = record(item);
+      return Array.isArray(row?.documents) ? row.documents : [];
+    })
+  : []);
 
 function projectAssistant(content: unknown): ChatMessage[] {
   if (typeof content === "string") return content ? [{ role: "assistant", content }] : [];
@@ -89,10 +103,10 @@ function projectAssistant(content: unknown): ChatMessage[] {
           ? [[row.id, row as AskInputItem] as const] : [];
       }));
     } else if (event.type === "ask_inputs_response") {
-      const content = responseText(event.responses, requested) || text(event.content);
+      const content = responseText(event.responses, requested);
       if (content) {
         flush();
-        messages.push({ role: "user", content, files: files(event.files) });
+        messages.push({ role: "user", content, files: responseFiles(event.responses) });
       }
     }
   }

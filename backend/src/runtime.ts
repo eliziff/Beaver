@@ -2,6 +2,7 @@ import { createChatApplication } from "./lib/chat/chatApplication";
 import { createChatStore, type ChatScope } from "./lib/chatStore";
 import { generateChatTitle } from "./lib/chatTitle";
 import { createDocumentApplication } from "./lib/documentApplication";
+import { encryptionSecret } from "./lib/secretEncryption";
 import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
 import { createProjectStore } from "./lib/projectStore";
@@ -18,7 +19,8 @@ const persistence = lazy(async () => {
     : (await import("./lib/postgresChatFeatures")).postgresChatFeatures;
   const objects = local
     ? (await import("./lib/filesystemObjectStorage")).filesystemDocumentObjects()
-    : (await import("./lib/s3ObjectStorage")).s3DocumentObjects();
+    : await import("./lib/storage").then((storage) => storage.scopeObjectStorage(
+      storage.createS3ObjectStorage(storage.readS3Configuration()), "documents"));
   return { documents: repositories.documentRepository,
     features,
     library: repositories.libraryRepository, projects: repositories.projectRepository,
@@ -97,6 +99,8 @@ const shutdown = lazy(async () => {
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const,
   initialize: async () => {
+    if (!local) for (const name of ["USER_API_KEYS_ENCRYPTION_SECRET",
+      "MCP_CONNECTORS_ENCRYPTION_SECRET"] as const) encryptionSecret(name);
     await (await documents()).resumeCleanup();
     await jobs();
   }, chat, chats, documents,

@@ -12,7 +12,7 @@ const sourceExtensions = new Set([
   ".css", ".dart", ".erl", ".ex", ".exs", ".fs", ".fsx", ".go", ".gradle",
   ".groovy", ".h", ".hpp", ".hrl", ".html", ".java", ".js", ".jsx", ".kt",
   ".kts", ".lua", ".mjs", ".php", ".pl", ".ps1", ".py", ".r", ".rb", ".rs",
-  ".scala", ".sh", ".sql", ".svelte", ".swift", ".ts", ".tsx", ".vue", ".zig",
+  ".scala", ".sh", ".sql", ".svelte", ".swift", ".toml", ".ts", ".tsx", ".vue", ".zig",
 ]);
 const fixtureExtensions = new Set([
   ...sourceExtensions,
@@ -69,12 +69,17 @@ function authoredReceiptFromCounts(names, lineCount) {
   const tests = count("tests");
   const experiments = count("experiments");
   const tooling = count("tooling");
+  const vendor = count("vendor");
+  const generated = count("generated");
   return {
     areas,
     production,
     tests,
     productionAndTests: production + tests,
-    authored: production + tests + experiments + tooling,
+    // Count every source line in the repository-level total.  Categorising
+    // vendor/generated code remains useful, but moving maintained code there
+    // must not make the whole-project guardrail smaller.
+    authored: production + tests + experiments + tooling + vendor + generated,
   };
 }
 
@@ -93,6 +98,14 @@ if (process.argv.includes("--self-test")) {
   assert.equal(authoredCategory("vendor/example.rs"), "vendor");
   assert.equal(authoredCategory("backend/src/generated/example.ts"), "generated");
   assert.equal(sourceExtensions.has(".cmd"), true);
+  assert.equal(sourceExtensions.has(".toml"), true);
+  const relocationProof = authoredReceiptFromCounts([
+    "src/production.ts",
+    "vendor/relocated.ts",
+    "src/generated/relocated.ts",
+  ], () => 1);
+  assert.equal(relocationProof.authored, 3);
+  assert.equal(relocationProof.production, 1);
   console.log("source guardrail self-test passed");
   process.exit(0);
 }
@@ -112,11 +125,13 @@ function category(name) {
 function refLineCounts(ref, names, directory = root) {
   const counts = new Map(names.map((name) => [name, 0]));
   const pathspecs = [...sourceExtensions].map((suffix) => `:(glob)**/*${suffix}`);
-  const output = git(["grep", "-I", "-n", "-e", ".", ref, "--", ...pathspecs], directory);
+  // Ask Git for one count per blob.  Emitting every matching source line made
+  // the guard itself corpus-sized and needlessly slow.
+  const output = git(["grep", "-I", "-c", "-e", ".", ref, "--", ...pathspecs], directory);
   const prefix = `${ref}:`;
   for (const row of output.split(/\r?\n/u)) {
-    const match = row.slice(prefix.length).match(/^(.+?):\d+:/u);
-    if (match && counts.has(match[1])) counts.set(match[1], counts.get(match[1]) + 1);
+    const match = row.slice(prefix.length).match(/^(.+?):(\d+)$/u);
+    if (match && counts.has(match[1])) counts.set(match[1], Number(match[2]));
   }
   return counts;
 }
@@ -275,7 +290,7 @@ const report = {
 
 const checkIndex = process.argv.indexOf("--check");
 const budgetPath = checkIndex >= 0
-  ? path.resolve(root, process.argv[checkIndex + 1] ?? "scripts/source-budget.json")
+  ? path.resolve(root, process.argv[checkIndex + 1] ?? "scripts/legal-structure-guardrails.json")
   : null;
 const failures = [];
 if (budgetPath) {

@@ -5,7 +5,6 @@ import {
   LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry,
-  toolResultText,
   toolText,
   type BeaverTool,
 } from "./toolRegistry";
@@ -112,6 +111,28 @@ describe("TurnToolRegistry", () => {
       "slow-id",
       "fast-id",
     ]);
+  });
+
+  it("bounds parallel tool execution", async () => {
+    let active = 0, peak = 0, release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const registry = new TurnToolRegistry([tool("read", {
+      async execute() {
+        peak = Math.max(peak, ++active);
+        await gate;
+        active--;
+        return { result: toolText("ok") };
+      },
+    })]);
+    const running = registry.run(
+      Array.from({ length: 5 }, (_, index) => call(`${index}`, "read")),
+      { order: [] },
+    );
+    await Promise.resolve();
+    expect(active).toBe(4);
+    release();
+    expect((await running).results).toHaveLength(5);
+    expect(peak).toBe(4);
   });
 
   it("serializes a mixed batch and enforces pause-before-mutation", async () => {
@@ -232,7 +253,8 @@ describe("TurnToolRegistry", () => {
       nested: { label: "source" },
       quoted_text: "The document itself says https://public.example/",
     });
-    expect(payload(toolResultText(batch.outcomes[0].result))).toHaveProperty(
+    expect(payload(batch.outcomes[0].result.content[0].type === "text"
+      ? batch.outcomes[0].result.content[0].text : "")).toHaveProperty(
       "source_url",
       "https://secret.example/source",
     );

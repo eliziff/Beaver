@@ -4,46 +4,17 @@
  * free-text references require one and also recognize roman containers.
  * Structure derivation remains in legalTextSkeleton.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
-
 import { normalizeSourceDocLocator } from "./sourceDoc";
+import {
+  grammarRegExp as compileGrammarRegExp,
+  grammarSource as sourceGrammar,
+  grammarTable,
+} from "./grammarCorpus";
 
-type GrammarEntry = { id: string; pattern: string; flags: string };
-type GrammarTable = { defs: Record<string, string>; entries: GrammarEntry[] };
-const PROVISIONS = (
-  JSON.parse(
-    readFileSync(
-      path.join(
-        __dirname,
-        "../../../packages/legal-grammar-tables/grammar-corpus.json",
-      ),
-      "utf8",
-    ),
-  ) as { tables: { provisions: GrammarTable } }
-).tables.provisions;
-const PROVISION_ENTRIES = new Map(
-  PROVISIONS.entries.map((entry) => [entry.id, entry]),
-);
-const grammarSource = (id: string): string => {
-  const entry = PROVISION_ENTRIES.get(id);
-  if (!entry) throw new Error(`Missing legal grammar entry: ${id}`);
-  return entry.pattern.replace(
-    /\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g,
-    (_, name: string) => {
-      const value = PROVISIONS.defs[name];
-      if (value === undefined) {
-        throw new Error(`Missing legal grammar fragment: ${name}`);
-      }
-      return value;
-    },
-  );
-};
-const grammarRegExp = (id: string, extraFlags = "u"): RegExp => {
-  const entry = PROVISION_ENTRIES.get(id);
-  if (!entry) throw new Error(`Missing legal grammar entry: ${id}`);
-  return new RegExp(grammarSource(id), `${entry.flags}${extraFlags}`);
-};
+const PROVISIONS = grammarTable("provisions");
+const grammarSource = (id: string) => sourceGrammar("provisions", id);
+const grammarRegExp = (id: string, extraFlags = "u") =>
+  compileGrammarRegExp("provisions", id, extraFlags);
 const FR_UNCLOSED_LABEL = grammarRegExp("provision.label.fr-unclosed", "gu");
 const LEADING_SUBDIVISION = grammarRegExp(
   "provision.external.leading-subdivision",
@@ -58,7 +29,6 @@ const LIST_OWNER = grammarRegExp("provision.external.list-owner");
 /* Anchored dialect (English + French federal drafting)                */
 /* ------------------------------------------------------------------ */
 
-export const PROVISION_WORD = PROVISIONS.defs.provision_word_en;
 
 /** "Section 3", "Subsection 5(1)", "paragraph (b)", "clause 5(1)(b)(ii)". */
 export const PROVISION_REF = grammarSource("provision.ref.en.anchored");
@@ -131,7 +101,7 @@ export interface ReferenceFlanks {
  * external statutory references in US contracts are written either way
  * round. Composes `isExternalReference` rather than replacing it.
  */
-export function isExternalReferenceInContext(flanks: ReferenceFlanks): boolean {
+function isExternalReferenceInContext(flanks: ReferenceFlanks): boolean {
   if (INSTRUMENT_LEAD.test(flanks.before)) return true;
   // "Section 1.6011-4(b)(2)" — a hyphenated subdivision is Treasury
   // Regulation numbering; no contract numbers a section that way.

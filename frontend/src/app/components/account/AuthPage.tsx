@@ -22,7 +22,7 @@ const fields = {
         ["name", "Name", "text", "Your name", "optional"],
         ["organisation", "Organisation", "text", "Your organisation", "optional"],
         ["email", "Email", "email", "Enter your email"],
-        ["password", "Password", "password", "Create a password (min. 6 characters)"],
+        ["password", "Password", "password", "Create a password (min. 12 characters)"],
         ["confirmPassword", "Confirm Password", "password", "Confirm your password"],
     ],
 } as const;
@@ -58,8 +58,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
             }
             if (password !== form.get("confirmPassword"))
                 throw new Error("Passwords do not match");
-            if (password.length < 6)
-                throw new Error("Password must be at least 6 characters");
+            if (password.length < 12)
+                throw new Error("Password must be at least 12 characters");
             const { data, error } = await getSupabase().auth.signUp({
                 email,
                 password,
@@ -154,6 +154,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                                             type={type}
                                             placeholder={placeholder}
                                             required={!qualifier}
+                                            minLength={signup && (name === "password" || name === "confirmPassword") ? 12 : undefined}
+                                            autoComplete={{ email: "email", password: signup ? "new-password" : "current-password", confirmPassword: "new-password", name: "name", organisation: "organization" }[name]}
                                             className={`mt-2 ${input}`}
                                         />
                                     </label>

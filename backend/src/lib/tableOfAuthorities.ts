@@ -3,10 +3,17 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { appUrl } from "./appRoutes";
 import { isLocalRuntime } from "./localMode";
+import { bufferRemoteResponse } from "./remoteUrlSafety";
+import { isolatedProcessEnv } from "./subprocessEnv";
+import { isJsonRecord } from "./value";
 
 const DOCX_LIMIT = 64 * 1024 * 1024;
 const PDF_LIMIT = 256 * 1024 * 1024;
 const JOB_ID = /^[0-9a-f]{32}$/;
+const boundedJson = async (response: Response) => (await bufferRemoteResponse(response, {
+  label: "Authorities Helper response", maxBytes: 256 * 1024,
+  contentTypes: ["application/json"],
+})).json() as Promise<unknown>;
 
 let child: ChildProcess | null = null;
 
@@ -58,7 +65,7 @@ export async function tableOfAuthoritiesStatus() {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) return false;
-    const payload = (await response.json()) as {
+    const payload = (await boundedJson(response)) as {
       ok?: unknown;
       service?: unknown;
     };
@@ -97,11 +104,14 @@ export async function ensureTableOfAuthoritiesRunning() {
 
   if (!child || child.exitCode !== null) {
     const args = existsSync(bootstrap)
-      ? [bootstrap, "--web", "--port", String(port()), "--no-browser"]
+      ? [bootstrap, "--port", String(port()), "--no-browser"]
       : [script, "--port", String(port()), "--no-browser"];
     child = spawn(process.env.TOA_PYTHON?.trim() || "python", args, {
       cwd: directory,
-      env: process.env,
+      env: isolatedProcessEnv([
+        "TOA_*", "LEGALPDF_*", "MIKE_DOCX_*", "OPEN_LEGAL_DATA_HOME",
+        "CODEX_HOME", "TESSDATA_PREFIX", "PYTHONPATH", "VIRTUAL_ENV",
+      ]),
       stdio: "ignore",
       windowsHide: true,
     });
@@ -112,7 +122,7 @@ export async function ensureTableOfAuthoritiesRunning() {
 
   if (!(await waitUntilReady())) {
     throw new Error(
-      "Authorities Helper did not become ready. Run `python bootstrap.py --web` in AuthoritiesHelper to see its startup error.",
+      "Authorities Helper did not become ready. Run `python bootstrap.py` in AuthoritiesHelper to see its startup error.",
     );
   }
   return { url: tableOfAuthoritiesUrl(), reused: false };
@@ -123,47 +133,45 @@ function boundedText(value: unknown, maximum = 500) {
 }
 
 function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+  if (!isJsonRecord(payload)) {
     throw new Error("Authorities Helper returned an invalid job.");
   }
-  const row = payload as Record<string, unknown>;
-  const id = boundedText(row.id, 32);
+  const id = boundedText(payload.id, 32);
   if (!JOB_ID.test(id)) {
     throw new Error("Authorities Helper returned an invalid job id.");
   }
-  const files = Array.isArray(row.files)
-    ? row.files.slice(0, 50).flatMap((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
+  const files = Array.isArray(payload.files)
+    ? payload.files.slice(0, 50).flatMap((value) => {
+        if (!isJsonRecord(value)) {
           return [];
         }
-        const file = value as Record<string, unknown>;
-        const relativeUrl = boundedText(file.url, 2_000);
+        const relativeUrl = boundedText(value.url, 2_000);
         if (!relativeUrl.startsWith(`/api/jobs/${id}/files/`)) return [];
         return [
           {
-            name: boundedText(file.name, 200),
+            name: boundedText(value.name, 200),
             size:
-              typeof file.size === "number" && Number.isFinite(file.size)
-                ? Math.max(0, Math.trunc(file.size))
+              typeof value.size === "number" && Number.isFinite(value.size)
+                ? Math.max(0, Math.trunc(value.size))
                 : 0,
             url: new URL(relativeUrl, tableOfAuthoritiesUrl()).toString(),
           },
         ];
       })
     : [];
-  const projectId = boundedText(row.project_id, 80);
+  const projectId = boundedText(payload.project_id, 80);
   return {
     id,
-    state: boundedText(row.state, 40),
-    operation: boundedText(row.operation, 80),
+    state: boundedText(payload.state, 40),
+    operation: boundedText(payload.operation, 80),
     progress:
-      typeof row.progress === "number" && Number.isFinite(row.progress)
-        ? Math.min(100, Math.max(0, Math.trunc(row.progress)))
+      typeof payload.progress === "number" && Number.isFinite(payload.progress)
+        ? Math.min(100, Math.max(0, Math.trunc(payload.progress)))
         : 0,
-    message: boundedText(row.message),
-    error: boundedText(row.error, 1_000),
-    has_review: row.has_review === true,
-    split_fallback: row.split_fallback === "auto" ? "auto" : "off",
+    message: boundedText(payload.message),
+    error: boundedText(payload.error, 1_000),
+    has_review: payload.has_review === true,
+    split_fallback: payload.split_fallback === "auto" ? "auto" : "off",
     files,
     project_id: projectId,
     app_url: appUrl({
@@ -176,7 +184,7 @@ function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
 
 async function responseError(response: Response) {
   try {
-    const payload = (await response.json()) as { error?: unknown };
+    const payload = (await boundedJson(response)) as { error?: unknown };
     if (typeof payload.error === "string") return payload.error.slice(0, 500);
   } catch {
     // Fall through to a bounded status message.
@@ -228,7 +236,7 @@ export async function submitTableOfAuthoritiesDocument(params: {
     },
   );
   if (!response.ok) throw new Error(await responseError(response));
-  return normalizeJob(await response.json());
+  return normalizeJob(await boundedJson(response));
 }
 
 export async function getTableOfAuthoritiesJob(jobId: string) {
@@ -244,5 +252,5 @@ export async function getTableOfAuthoritiesJob(jobId: string) {
     },
   );
   if (!response.ok) throw new Error(await responseError(response));
-  return normalizeJob(await response.json());
+  return normalizeJob(await boundedJson(response));
 }

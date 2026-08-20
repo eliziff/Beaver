@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [main, upstream-main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
@@ -15,17 +18,18 @@ jobs:
     timeout-minutes: 30
     env:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && secrets.ANTHROPIC_API_KEY || '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm ci --prefix backend
-      - run: npm ci --prefix frontend
-      - run: npm install --no-save lightningcss --prefix frontend
+      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --prefix backend
+      - run: npm ci --ignore-scripts --prefix frontend
       - run: npx playwright install --with-deps chromium
 
       - name: Start object storage
@@ -42,9 +46,9 @@ jobs:
             AWS_DEFAULT_REGION=us-east-1 aws --endpoint-url http://localhost:9000 \
             s3 mb s3://mike
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
-          version: latest
+          version: 2.115.0
       - name: Start database
         run: |
           supabase init --force --with-vscode-settings=false || supabase init --force
@@ -62,7 +66,7 @@ jobs:
           cp backend/.env.example backend/.env
           {
             echo 'AUTH_MODE=cloud'
-            echo 'NODE_ENV=production'
+            echo 'NODE_ENV=test'
             echo 'PORT=3000'
             echo 'PUBLIC_ORIGIN=http://localhost:3000'
             echo "SUPABASE_URL=$API_URL"
@@ -70,6 +74,7 @@ jobs:
             echo "SUPABASE_SECRET_KEY=$SECRET_KEY"
             echo "DATABASE_URL=${DATABASE_URL}?sslmode=disable"
             echo 'USER_API_KEYS_ENCRYPTION_SECRET=ci-user-api-keys-encryption-secret-0123456789abcdef'
+            echo 'MCP_CONNECTORS_ENCRYPTION_SECRET=ci-mcp-connectors-encryption-secret-0123456789abcdef'
             echo 'RATE_LIMIT_GENERAL_MAX=100000'
             echo 'RATE_LIMIT_CHAT_MAX=100000'
             echo 'RATE_LIMIT_CHAT_CREATE_MAX=100000'
@@ -82,7 +87,7 @@ jobs:
             echo 'S3_ACCESS_KEY_ID=minioadmin'
             echo 'S3_SECRET_ACCESS_KEY=minioadmin'
             echo 'S3_FORCE_PATH_STYLE=true'
-            echo 'ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}'
+            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
           } >> backend/.env
 
       - run: npm run build --prefix frontend
@@ -98,7 +103,7 @@ jobs:
           exit 1
       - run: npx playwright test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: playwright-report

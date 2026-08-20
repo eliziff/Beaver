@@ -12,16 +12,15 @@ import { sha256 } from "./hash";
 import { countLegalPdfPages } from "./legalPdfSourceDoc";
 import { normalizeDocumentMetadata, normalizeDocumentNotes,
   type LibraryKind } from "./normalize";
-import { MAX_OBJECT_SIZE_BYTES, SIGNED_GET_TTL_SECONDS, type ObjectStorage,
-  versionStorageKey } from "./storage";
+import { MAX_OBJECT_SIZE_BYTES, normalizeDownloadFilename, SIGNED_GET_TTL_SECONDS,
+  type ObjectStorage, versionStorageKey } from "./storage";
+import { assertBoundedZip, loadZip } from "./zip";
 
 class DocumentWriteConflict extends Error {}
 
 const safeFilename = (value: string) => {
-  const filename = [...value.trim().replace(/[\uD800-\uDFFF]/gu, "�")
-    .replace(/[\x00-\x1F\x7F/\\]/gu, "_")].slice(0, 200).join("");
-  if (!filename) throw new ApplicationError(400, "filename is required");
-  return filename;
+  if (!value.trim()) throw new ApplicationError(400, "filename is required");
+  return normalizeDownloadFilename(value);
 };
 
 const checkBytes = (bytes: Buffer) => {
@@ -29,13 +28,27 @@ const checkBytes = (bytes: Buffer) => {
     throw new ApplicationError(413, "Document exceeds the maximum object size");
 };
 
-const validateUpload = (filename: string, fileType: string, bytes: Buffer) => {
+const ARCHIVE_TYPES = new Set(["docx", "xlsx", "xlsm", "pptx"]);
+const validateUpload = async (filename: string, fileType: string, bytes: Buffer) => {
   checkBytes(bytes);
   const name = safeFilename(filename);
   const validated = validateDocumentFile(name, bytes);
   if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
     throw new ApplicationError(400,
       validated.ok ? "Filename and document type do not match" : validated.error);
+  }
+  if (ARCHIVE_TYPES.has(validated.fileType)) {
+    try {
+      const zip = await loadZip(bytes);
+      assertBoundedZip(zip, "Office document", {
+        maxEntries: 4_096, maxExpandedBytes: 256 * 1024 * 1024,
+        selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: 64 * 1024 * 1024,
+          maxBytes: 128 * 1024 * 1024, name: "XML part" },
+      });
+    } catch {
+      throw new ApplicationError(400,
+        "Office document archive is invalid or exceeds extraction limits");
+    }
   }
   return { filename: name, fileType: validated.fileType };
 };
@@ -145,7 +158,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     fileType: string; bytes: Buffer; provenance?: DocumentProvenance;
     edits?: StoredAssistantEdit[] }) => {
     const id = input.versionId ?? randomUUID();
-    const { filename, fileType } = validateUpload(
+    const { filename, fileType } = await validateUpload(
       input.filename, input.fileType, input.bytes,
     );
     const sourceSha256 = sha256(input.bytes), blobKey = versionStorageKey(
@@ -384,8 +397,11 @@ export function createDocumentApplication(repository: DocumentRepository,
       return aggregate ? responseDocument(aggregate) : null;
     },
 
-    async files(scope, documentIds) {
+    async files(scope, documentIds, maxBytes) {
       const aggregates = await repository.getMany(scope, [...new Set(documentIds)]);
+      if (maxBytes !== undefined && aggregates.reduce((bytes, aggregate) =>
+        bytes + (activeVersion(aggregate)?.sizeBytes ?? 0), 0) > maxBytes)
+        throw new ApplicationError(413, "Selected documents exceed the archive size limit");
       const loaded = await Promise.all(aggregates.map((aggregate) =>
         content(scope, aggregate, null, false)));
       return loaded.flatMap((value) => value ? [value] : []);
@@ -534,7 +550,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       const aggregate = await repository.get(scope, documentId, true);
       const target = aggregate && activeVersion(aggregate, versionId);
       if (!aggregate || !target) return { status: "missing" as const };
-      const { filename, fileType } = validateUpload(
+      const { filename, fileType } = await validateUpload(
         file.filename, file.fileType, file.bytes,
       );
       if (target.fileType !== fileType) return { status: "type-mismatch" as const };

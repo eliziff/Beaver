@@ -8,6 +8,7 @@
   },
   "files": [
     "grammar-corpus.json",
+    "eyecite-us-receipt.json",
     "manifest.json",
     "check.mjs",
     "README.md"

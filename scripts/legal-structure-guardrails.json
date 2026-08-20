@@ -9,14 +9,14 @@
     "mike-workflows": "b45b1ba83691ab6e504c35146da0cea8e0dcbb91"
   },
   "maximums": {
-    "production": 125896,
-    "productionAndTests": 181886,
-    "authored": 285654
+    "production": 125981,
+    "productionAndTests": 181971,
+    "authored": 370212
   },
   "targets": {
-    "production": 124500,
-    "productionAndTests": 180500,
-    "authored": 284000
+    "production": 124585,
+    "productionAndTests": 180585,
+    "authored": 368558
   },
   "buildSeconds": {
     "cargoQuickWarmMedian": 2.0,

@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  buildContentDisposition,
+  downloadHeaders,
   createFilesystemObjectStorage,
   createS3ObjectStorage,
   normalizeDownloadFilename,
@@ -101,7 +101,7 @@ describe("storage boundary", () => {
     expect(() => versionStorageKey("../user", "document", "version", digest, "x"))
       .toThrow();
     expect(normalizeDownloadFilename("../Résumé\u0000.pdf")).toBe(".._Résumé_.pdf");
-    expect(buildContentDisposition("attachment", "Résumé.pdf"))
+    expect(downloadHeaders("application/pdf", "Résumé.pdf")["Content-Disposition"])
       .toContain("filename*=UTF-8''R%C3%A9sum%C3%A9.pdf");
   });
 });

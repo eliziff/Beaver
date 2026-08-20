@@ -57,7 +57,6 @@ const editEvent = (
         edit_id: "edit-1",
         document_id: "doc-1",
         version_id: "version-2",
-        change_id: "change-1",
         deleted_text: "five",
         inserted_text: "three",
         context_before: "The term is ",
@@ -115,10 +114,7 @@ describe("AssistantMessage activity", () => {
         const running = ["one", "two", "three"].map((id) => ({
             type: "subagent_run" as const,
             id,
-            agent: "scout" as const,
             task: `Distinct Canadian lane ${id}`,
-            model: "GPT-5.6 Luna",
-            effort: "high",
             status: "running" as const,
         }));
         render(
@@ -203,12 +199,33 @@ describe("AssistantMessage activity", () => {
     });
 
     it("uses only the current reasoning step in the activity label", () => {
+        let state = assistantSessionReducer(createAssistantSessionState({
+            chatId: "chat-1",
+        }), {
+            type: "run_started",
+            runId: "run-1",
+            chatId: "chat-1",
+            message: {
+                id: "user-1",
+                role: "user",
+                content: "Research this",
+            },
+        });
+        state = assistantSessionReducer(state, {
+            type: "protocol",
+            runId: "run-1",
+            chatId: "chat-1",
+            event: {
+                type: "reasoning",
+                text: "Planning targeted non-overlapping delegations\n\nAssigning authority identification tasks",
+                append: false,
+            },
+        });
+
         render(
-            <AssistantMessage
-                events={[{
-                    type: "reasoning",
-                    text: "Planning targeted non-overlapping delegations\n\nAssigning authority identification tasks",
-                }]}
+            <CanonicalAssistantMessage
+                message={state.messages.findLast((message) =>
+                    message.role === "assistant") as AssistantMessageState}
             />,
         );
 

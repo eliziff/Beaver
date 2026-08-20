@@ -1,26 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  decodePageCursor,
-  encodePageCursor,
-  pageLimit,
+  pageRequest,
+  pageResponse,
   PageCursorError,
 } from "../pagination";
 
 describe("pagination", () => {
   it("round-trips a resource-bound cursor with normalized filters", () => {
-    const cursor = encodePageCursor(
+    const cursor = pageResponse(
       "projects",
       { scope: "mine", q: "lease" },
-      ["2026-08-12T10:00:00.000Z", "project-2"],
-    );
+      { items: [], nextAfter: ["2026-08-12T10:00:00.000Z", "project-2"] },
+    ).next_cursor;
 
     expect(
-      decodePageCursor(
-        cursor,
+      pageRequest(
+        { cursor },
         "projects",
         { q: "lease", scope: "mine" },
         ["string", "string"],
-      ),
+      ).after,
     ).toEqual(["2026-08-12T10:00:00.000Z", "project-2"]);
   });
 
@@ -28,13 +27,13 @@ describe("pagination", () => {
     ["wrong resource", "workflows", { q: "lease", scope: "mine" }],
     ["changed filter", "projects", { q: "other", scope: "mine" }],
   ])("rejects a cursor with %s", (_label, resource, filters) => {
-    const cursor = encodePageCursor(
+    const cursor = pageResponse(
       "projects",
       { q: "lease", scope: "mine" },
-      ["2026-08-12T10:00:00.000Z", "project-2"],
-    );
+      { items: [], nextAfter: ["2026-08-12T10:00:00.000Z", "project-2"] },
+    ).next_cursor;
     expect(() =>
-      decodePageCursor(cursor, resource, filters, ["string", "string"]),
+      pageRequest({ cursor }, resource, filters, ["string", "string"]),
     ).toThrow(PageCursorError);
   });
 
@@ -53,23 +52,28 @@ describe("pagination", () => {
     ).toString("base64url"),
   ])("rejects malformed cursor %s", (cursor) => {
     expect(() =>
-      decodePageCursor(cursor, "projects", {}, ["string", "string"]),
+      pageRequest({ cursor }, "projects", {}, ["string", "string"]),
     ).toThrow(PageCursorError);
   });
 
   it("rejects a cursor with the wrong tuple shape", () => {
-    const cursor = encodePageCursor("projects", {}, [1, "project-2"]);
+    const cursor = pageResponse(
+      "projects", {}, { items: [], nextAfter: [1, "project-2"] },
+    ).next_cursor;
     expect(() =>
-      decodePageCursor(cursor, "projects", {}, ["string", "string"]),
+      pageRequest({ cursor }, "projects", {}, ["string", "string"]),
     ).toThrow(PageCursorError);
   });
 
   it("parses bounded limits", () => {
-    expect(pageLimit(undefined)).toBe(50);
-    expect(pageLimit("1")).toBe(1);
-    expect(pageLimit("200")).toBe(200);
+    const limit = (value: unknown) => pageRequest(
+      { limit: value }, "test", {}, [],
+    ).limit;
+    expect(limit(undefined)).toBe(50);
+    expect(limit("1")).toBe(1);
+    expect(limit("200")).toBe(200);
     for (const invalid of ["0", "201", "2.5", "x", ["20"]]) {
-      expect(() => pageLimit(invalid)).toThrow(PageCursorError);
+      expect(() => limit(invalid)).toThrow(PageCursorError);
     }
   });
 });

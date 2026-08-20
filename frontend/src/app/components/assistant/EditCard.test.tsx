@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EditAnnotation } from "../shared/types";
 
-const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
-vi.mock("@/app/lib/beaverApi", () => ({ apiFetch: mocks.apiFetch }));
+const mocks = vi.hoisted(() => ({ resolveDocumentEdit: vi.fn() }));
+vi.mock("@/app/lib/beaverApi", () => ({
+    resolveDocumentEdit: mocks.resolveDocumentEdit,
+}));
 
 import { resolveEdit } from "./EditCard";
 
@@ -10,7 +12,6 @@ const edit: EditAnnotation = {
     edit_id: "edit-1",
     document_id: "doc-1",
     version_id: "version-1",
-    change_id: "change-1",
     del_w_id: "delete-1",
     ins_w_id: "insert-1",
     deleted_text: "old",
@@ -29,13 +30,17 @@ afterEach(() => {
 
 describe("tracked change resolution", () => {
     it("reports a failed edit without changing its public state", async () => {
-        mocks.apiFetch.mockResolvedValue({ ok: false, status: 500 });
+        mocks.resolveDocumentEdit.mockRejectedValue(new Error("API error: 500"));
         const onError = vi.fn();
 
         await expect(
             resolveEdit(edit, "reject", { onError }),
         ).resolves.toBeNull();
-        expect(mocks.apiFetch).toHaveBeenCalledOnce();
+        expect(mocks.resolveDocumentEdit).toHaveBeenCalledWith(
+            "doc-1",
+            "edit-1",
+            "reject",
+        );
         expect(onError).toHaveBeenCalledWith(
             expect.objectContaining({ documentId: "doc-1" }),
         );

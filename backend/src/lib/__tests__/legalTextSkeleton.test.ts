@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   compileAgreementSkeleton,
   readContentsOutline,
   readSection,
 } from "../legalTextSkeleton";
-import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
 
 const AGREEMENT = [
   "CREDIT AGREEMENT",
@@ -32,8 +32,12 @@ const AGREEMENT = [
 ].join("\n");
 
 describe("compileAgreementSkeleton: agreement style", () => {
-  const skeleton = compileAgreementSkeleton(AGREEMENT);
-  const labels = skeleton.nodes.map((node) => node.label);
+  let skeleton: Awaited<ReturnType<typeof compileAgreementSkeleton>>;
+  let labels: string[];
+  beforeAll(async () => {
+    skeleton = await compileAgreementSkeleton(AGREEMENT);
+    labels = skeleton.nodes.map((node) => node.label);
+  });
 
   it("builds containers, sections, ladders, and schedules", () => {
     expect(labels).toContain("art1");
@@ -96,8 +100,8 @@ describe("compileAgreementSkeleton: agreement style", () => {
     expect(skeleton.crossReferences.unresolved).not.toContain("8.01(a)");
   });
 
-  it("preserves normalized ambiguity for repeated section labels", () => {
-    const repeated = compileAgreementSkeleton(
+  it("preserves normalized ambiguity for repeated section labels", async () => {
+    const repeated = await compileAgreementSkeleton(
       [
         "Section 1.01 Contents entry.",
         "Section 2.01 Another entry.",
@@ -126,13 +130,16 @@ describe("compileAgreementSkeleton: native table cells", () => {
     start: text.indexOf(value),
     end: text.indexOf(value) + value.length,
   });
-  const skeleton = compileAgreementSkeleton(text, "table-fixture", {
-    tableCells: [
-      { table: 1, row: 2, column: 2, columnSpan: 2, ...span("$15,000") },
-      { table: 1, row: 1, column: 2, ...span("1. Limit tier") },
-      { table: 1, row: 2, column: 1, ...span("Secretary") },
-      { table: 1, row: 1, column: 1, ...span("Officer") },
-    ],
+  let skeleton: Awaited<ReturnType<typeof compileAgreementSkeleton>>;
+  beforeAll(async () => {
+    skeleton = await compileAgreementSkeleton(text, "table-fixture", {
+      tableCells: [
+        { table: 1, row: 2, column: 2, columnSpan: 2, ...span("$15,000") },
+        { table: 1, row: 1, column: 2, ...span("1. Limit tier") },
+        { table: 1, row: 2, column: 1, ...span("Secretary") },
+        { table: 1, row: 1, column: 1, ...span("Officer") },
+      ],
+    });
   });
 
   it("adds table, row, and cell handles without flattening neighbouring cells", () => {
@@ -183,21 +190,21 @@ describe("compileAgreementSkeleton: native table cells", () => {
     });
   });
 
-  it("fails closed on invalid bounds and duplicate coordinates", () => {
-    expect(() =>
+  it("fails closed on invalid bounds and duplicate coordinates", async () => {
+    await expect(
       compileAgreementSkeleton(text, "bad-row", {
         tableCells: [{ table: 1, row: 0, column: 1, ...span("Officer") }],
       }),
-    ).toThrow("Invalid table-cell");
-    expect(() =>
+    ).rejects.toThrow("Invalid table-cell");
+    await expect(
       compileAgreementSkeleton(text, "duplicate-cell", {
         tableCells: [
           { table: 1, row: 1, column: 1, ...span("Officer") },
           { table: 1, row: 1, column: 1, ...span("1. Limit tier") },
         ],
       }),
-    ).toThrow("Duplicate table-cell address");
-    expect(() =>
+    ).rejects.toThrow("Duplicate table-cell address");
+    await expect(
       compileAgreementSkeleton(text, "overlapping-cell", {
         tableCells: [
           {
@@ -210,7 +217,7 @@ describe("compileAgreementSkeleton: native table cells", () => {
           { table: 1, row: 1, column: 2, ...span("1. Limit tier") },
         ],
       }),
-    ).toThrow("Overlapping table-cell address");
+    ).rejects.toThrow("Overlapping table-cell address");
   });
 });
 
@@ -222,8 +229,10 @@ describe("compileAgreementSkeleton: nested roman ladders", () => {
     "(ii) incur secured Indebtedness;",
     "(b) Ratio Basket. Subject to pro forma compliance.",
   ].join("\n");
-  const skeleton = compileAgreementSkeleton(text);
-  const labels = skeleton.nodes.map((node) => node.label);
+  let labels: string[];
+  beforeAll(async () => {
+    labels = (await compileAgreementSkeleton(text)).nodes.map((node) => node.label);
+  });
 
   it("opens a roman level under (a) and pops back for (b)", () => {
     expect(labels).toEqual([
@@ -237,7 +246,7 @@ describe("compileAgreementSkeleton: nested roman ladders", () => {
 });
 
 describe("compileAgreementSkeleton: ladder edge grammar", () => {
-  it("suffixes restarted enumerators instead of dropping them", () => {
+  it("suffixes restarted enumerators instead of dropping them", async () => {
     const text = [
       "Section 4.01 Lists.",
       "(a) first item;",
@@ -245,7 +254,7 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
       "(a) restarted first;",
       "(b) restarted second;",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const labels = skeleton.nodes.map((node) => node.label);
     expect(labels).toEqual([
       "sec4.01",
@@ -260,7 +269,7 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
     );
   });
 
-  it("marks backward enumerators as violations without corrupting the ladder", () => {
+  it("marks backward enumerators as violations without corrupting the ladder", async () => {
     const text = [
       "Section 5.01 Disorder.",
       "(a) alpha;",
@@ -268,7 +277,7 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
       "(b) backwards;",
       "(d) resumes;",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     expect(skeleton.ladder.forwardJumps).toBe(1);
     expect(skeleton.ladder.violations).toBe(1);
     const labels = skeleton.nodes.map((node) => node.label);
@@ -277,7 +286,7 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
     expect(labels).toContain("sec5.01(d)");
   });
 
-  it("continues a roman ladder across a mid-line opener (open_midcounter)", () => {
+  it("continues a roman ladder across a mid-line opener (open_midcounter)", async () => {
     const text = [
       "Section 2.05 Prepayments.",
       "(a) Voluntary Prepayments. The Borrower may prepay.",
@@ -286,7 +295,7 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
       "(iii) Insurance. Prepay on receipt.",
       "(c) Application of Prepayments.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const labels = skeleton.nodes.map((node) => node.label);
     expect(labels).toContain("sec2.05(b)(ii)");
     expect(labels).toContain("sec2.05(b)(iii)");
@@ -299,18 +308,18 @@ describe("compileAgreementSkeleton: ladder edge grammar", () => {
 // documents (69 LegalBench-RAG agreements + 6,053 A2AJ laws): +8,249 enumerator
 // nodes, and the non-subsection projection of every skeleton — container,
 // section and schedule labels, depths, spans and headings — byte-identical on
-// all 6,122, as is every compileA2AJSourceDoc block. The false-positive hunt
+// all 6,122, as is every shared-engine SourceDoc block. The false-positive hunt
 // over all 8,249 new lines, using the shared detectors (citationsInText,
 // extractAnchors, isExternalReference), flagged none.
 describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
-  it("reads a closing-paren tail ladder", () => {
+  it("reads a closing-paren tail ladder", async () => {
     const text = [
       "Section 3.01 Confidential Information.",
       "a) all technical and commercial information disclosed by either party;",
       "b) all analyses, compilations and notes prepared by the Advisors;",
       "c) the fact that discussions are taking place concerning the Purpose.",
     ].join("\n");
-    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    const labels = (await compileAgreementSkeleton(text)).nodes.map((n) => n.label);
     expect(labels).toEqual([
       "sec3.01",
       "sec3.01(a)",
@@ -319,7 +328,7 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
     ]);
   });
 
-  it("reads a dotted alpha ladder and a dotted roman ladder", () => {
+  it("reads a dotted alpha ladder and a dotted roman ladder", async () => {
     const text = [
       "Section 5.01 Obligations.",
       "a. In general. Subject to the other terms of this agreement:",
@@ -328,7 +337,7 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
       "iii. establish and maintain adequate security measures.",
       "b. Security precautions. Each of us agrees to the following.",
     ].join("\n");
-    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    const labels = (await compileAgreementSkeleton(text)).nodes.map((n) => n.label);
     expect(labels).toContain("sec5.01(a)");
     expect(labels).toContain("sec5.01(a)(i)");
     expect(labels).toContain("sec5.01(a)(iii)");
@@ -338,7 +347,7 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
   // The ladder IS the filter. `Inc.`, `No.`, `v.` and `s. 231` are the same
   // surface shape as a dotted enumerator; what they cannot do is run. No
   // token blacklist exists or is needed.
-  it("never opens a ladder on isolated abbreviations or citations", () => {
+  it("never opens a ladder on isolated abbreviations or citations", async () => {
     const text = [
       "Section 7.01 Notices.",
       "v. Smith, the arbitrator named below, shall preside.",
@@ -346,31 +355,31 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
       "c. 1985 was the year the predecessor agreement was signed.",
       "ss. 3 to 5 of the Schedule are incorporated by reference.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     expect(skeleton.nodes.map((n) => n.label)).toEqual(["sec7.01"]);
     expect(skeleton.ladder.levelOpens).toBe(0);
   });
 
-  it("requires the run to open at value 1", () => {
+  it("requires the run to open at value 1", async () => {
     const text = [
       "Section 8.01 Fragments.",
       "d. a fragment quoted out of a longer instrument;",
       "e. another fragment quoted from the same instrument;",
       "f. a third fragment, still with no opening item.",
     ].join("\n");
-    expect(compileAgreementSkeleton(text).nodes.map((n) => n.label)).toEqual([
+    expect((await compileAgreementSkeleton(text)).nodes.map((n) => n.label)).toEqual([
       "sec8.01",
     ]);
   });
 
-  it("leaves a properly bracketed document to the canonical form", () => {
+  it("leaves a properly bracketed document to the canonical form", async () => {
     const text = [
       "Section 9.01 Baskets.",
       "(a) General Basket. The Borrower may incur Indebtedness.",
       "(b) Ratio Basket. Subject to pro forma compliance.",
       "(c) Acquisition Basket. Subject to the Acquisition Conditions.",
     ].join("\n");
-    const labels = compileAgreementSkeleton(text).nodes.map((n) => n.label);
+    const labels = (await compileAgreementSkeleton(text)).nodes.map((n) => n.label);
     expect(labels).toEqual([
       "sec9.01",
       "sec9.01(a)",
@@ -382,7 +391,7 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
   // Both dialects carry only lowercase alpha/roman, so no dialect line can
   // also match a section grammar (all of which need a digit or a
   // container/schedule word). Sections cannot move; only subsections appear.
-  it("adds only subsections: the section projection is unchanged", () => {
+  it("adds only subsections: the section projection is unchanged", async () => {
     const base = [
       "ARTICLE I — DEFINITIONS",
       "Section 1.01 Defined Terms.",
@@ -398,25 +407,25 @@ describe("compileAgreementSkeleton: unbracketed enumerator dialects", () => {
       base[2],
       base[3],
     ];
-    const projection = (lines: string[]) =>
-      compileAgreementSkeleton(lines.join("\n"))
-        .nodes.filter((n) => n.kind !== "subsection")
+    const projection = async (lines: string[]) =>
+      (await compileAgreementSkeleton(lines.join("\n"))).nodes
+        .filter((n) => n.kind !== "subsection")
         .map((n) => `${n.kind}|${n.label}|${n.depth}|${n.heading}`);
-    expect(projection(withLadder)).toEqual(projection(base));
+    expect(await projection(withLadder)).toEqual(await projection(base));
     expect(
-      compileAgreementSkeleton(withLadder.join("\n")).nodes.filter(
+      (await compileAgreementSkeleton(withLadder.join("\n"))).nodes.filter(
         (n) => n.kind === "subsection",
       ),
     ).toHaveLength(3);
   });
 });
 
-// The structural gate. sourceDocA2AJ imports sourceDoc and statuteSpine and
+// The structural gate. SourceDoc and agreement structure share the Rust spine and
 // nothing else, so the A2AJ laws-and-cases compiler — the path the 225k-case
 // bulk corpus and the skeleton oracle gate travel — cannot reach the dialects
 // above. This pins that boundary behaviourally as well as by import graph.
 describe("enumerator dialects are unreachable from the A2AJ compiler", () => {
-  it("leaves compileA2AJSourceDoc's blocks free of dialect enumerators", () => {
+  it("leaves the A2AJ blocks free of dialect enumerators", async () => {
     const text = [
       "1 In this Act, “plan” means the pension plan.",
       "a. the first item of an unbracketed ladder;",
@@ -425,7 +434,7 @@ describe("enumerator dialects are unreachable from the A2AJ compiler", () => {
       "2 The plan continues under this Act.",
       "3 The board administers the plan.",
     ].join("\n");
-    const doc = compileA2AJSourceDoc({
+    const doc = await deriveA2AJSourceDoc({
       citation: "SO 2000, c 1",
       dataset: "LEGISLATION-ON",
       docType: "laws",
@@ -453,8 +462,12 @@ describe("compileAgreementSkeleton: statute style", () => {
     "9. Applications",
     "An application shall be made in writing.",
   ].join("\n");
-  const skeleton = compileAgreementSkeleton(text);
-  const labels = skeleton.nodes.map((node) => node.label);
+  let skeleton: Awaited<ReturnType<typeof compileAgreementSkeleton>>;
+  let labels: string[];
+  beforeAll(async () => {
+    skeleton = await compileAgreementSkeleton(text);
+    labels = skeleton.nodes.map((node) => node.label);
+  });
 
   it("parses Parts, integer sections, and inline first subsections", () => {
     expect(labels).toContain("part1");
@@ -467,8 +480,8 @@ describe("compileAgreementSkeleton: statute style", () => {
     expect(labels).toContain("sec9");
   });
 
-  it("keeps a lone page number out of the tree", () => {
-    const withPageNumber = compileAgreementSkeleton("23.\nSome text.");
+  it("keeps a lone page number out of the tree", async () => {
+    const withPageNumber = await compileAgreementSkeleton("23.\nSome text.");
     expect(withPageNumber.nodes).toEqual([]);
   });
 
@@ -478,7 +491,7 @@ describe("compileAgreementSkeleton: statute style", () => {
     expect(subsection.block?.text).toContain("takes effect immediately");
   });
 
-  it("keeps decimal provisions distinct from parenthetical children", () => {
+  it("keeps decimal provisions distinct from parenthetical children", async () => {
     const text = [
       "149 Previous provision.",
       "150 (1) First child of section 150.",
@@ -486,7 +499,7 @@ describe("compileAgreementSkeleton: statute style", () => {
       "150.1 A distinct provision.",
       "151 Following provision.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text, "decimal-statute", {
+    const skeleton = await compileAgreementSkeleton(text, "decimal-statute", {
       recoverExtraction: false,
     });
 
@@ -513,7 +526,7 @@ describe("compileAgreementSkeleton: statute style", () => {
 // skeleton-oracle-diff.ts against the a2aj_structure reference grammar:
 // 296/296 structured sample texts exact, 100% label recall).
 describe("compileAgreementSkeleton: corpus statute styles", () => {
-  it("indexes dotless federal heads through the spine", () => {
+  it("indexes dotless federal heads through the spine", async () => {
     const text = [
       "1 This Act may be cited as the Example Act.",
       "2 The following definitions apply in this Act.",
@@ -524,7 +537,7 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
       "(b) a Crown corporation;",
       "8 Nothing in this Act applies to the Yukon Government.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const labels = skeleton.nodes.map((node) => node.label);
     expect(labels).toContain("sec1");
     expect(labels).toContain("sec5.1");
@@ -539,14 +552,14 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
     expect(served.block?.text).toContain("Schedule I");
   });
 
-  it("indexes dot-terminated NT/PE heads where no bare marks exist", () => {
+  it("indexes dot-terminated NT/PE heads where no bare marks exist", async () => {
     const text = [
       "1. In this Act, “Registrar General” means the registrar.",
       "2. (1) A person who has adopted a child may apply.",
       "(2) The application shall be filed with the court.",
       "3. A certificate filed in the Supreme Court is proof.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const labels = skeleton.nodes.map((node) => node.label);
     expect(labels).toContain("sec1");
     expect(labels).toContain("sec2");
@@ -555,7 +568,7 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
     expect(labels).toContain("sec3");
   });
 
-  it("ignores Section-N print running heads when a spine exists", () => {
+  it("ignores Section-N print running heads when a spine exists", async () => {
     const text = [
       "1 In this Act, “plan” means the pension plan.",
       "Section 1",
@@ -563,18 +576,18 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
       "Section 2",
       "3 The board administers the plan.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const sections = skeleton.nodes.filter((node) => node.kind === "section");
     expect(sections.map((node) => node.label)).toEqual(["sec1", "sec2", "sec3"]);
   });
 
-  it("indexes a lone dotless provision excerpt via the subsection guard", () => {
+  it("indexes a lone dotless provision excerpt via the subsection guard", async () => {
     const text = [
       "164 (1) A judge may issue a warrant if satisfied that",
       "(a) the recording is obscene; or",
       "(b) the recording is an advertisement.",
     ].join("\n");
-    const skeleton = compileAgreementSkeleton(text);
+    const skeleton = await compileAgreementSkeleton(text);
     const labels = skeleton.nodes.map((node) => node.label);
     expect(labels).toContain("sec164");
     expect(labels).toContain("sec164(1)");
@@ -595,15 +608,15 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
     "2.02 Closing.  The Closing shall occur as provided in Section 2.01 and Section 1.02.   " +
     "2.03 Effective Time.  Subject to Section 2.02, the Effective Time occurs at filing.";
 
-  it("recovers headings the extractor buried mid-line", () => {
-    const labels = compileAgreementSkeleton(COLLAPSED).nodes.map((n) => n.label);
+  it("recovers headings the extractor buried mid-line", async () => {
+    const labels = (await compileAgreementSkeleton(COLLAPSED)).nodes.map((n) => n.label);
     expect(labels).toContain("sec1.01");
     expect(labels).toContain("sec2.03");
     expect(labels).toContain("art2");
   });
 
-  it("keeps offsets valid in the ORIGINAL text, not the recovered one", () => {
-    const skeleton = compileAgreementSkeleton(COLLAPSED);
+  it("keeps offsets valid in the ORIGINAL text, not the recovered one", async () => {
+    const skeleton = await compileAgreementSkeleton(COLLAPSED);
     for (const node of skeleton.nodes) {
       expect(COLLAPSED.slice(node.start, node.end)).not.toMatch(/^\s/u);
     }
@@ -612,15 +625,15 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
     expect(found.block?.text).toContain("Merger Sub shall merge");
   });
 
-  it("leaves a well-lineated document exactly as it read it", () => {
+  it("leaves a well-lineated document exactly as it read it", async () => {
     const lineated = COLLAPSED.replace(/ {2,}/gu, "\n");
-    const recovered = compileAgreementSkeleton(COLLAPSED).nodes.map((n) => n.label);
-    expect(compileAgreementSkeleton(lineated).nodes.map((n) => n.label)).toEqual(
+    const recovered = (await compileAgreementSkeleton(COLLAPSED)).nodes.map((n) => n.label);
+    expect((await compileAgreementSkeleton(lineated)).nodes.map((n) => n.label)).toEqual(
       recovered,
     );
   });
 
-  it("refuses to let a reference endorse a provision minted out of itself", () => {
+  it("refuses to let a reference endorse a provision minted out of itself", async () => {
     // "Section 9.99" exists only in prose. A segmentation that turns that
     // prose into a heading must not score for resolving the very reference
     // it was minted from.
@@ -628,11 +641,11 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
       "AGREEMENT   1.01 Term.  This is the term.   " +
       "1.02 Notices.  Notice is given as described.   " +
       "1.03 Remedies.  The Agent may act.  See also Section 9.99 for notices.";
-    const labels = compileAgreementSkeleton(prose).nodes.map((n) => n.label);
+    const labels = (await compileAgreementSkeleton(prose)).nodes.map((n) => n.label);
     expect(labels).not.toContain("sec9.99");
   });
 
-  it("will not adopt a contents page as the document's structure", () => {
+  it("will not adopt a contents page as the document's structure", async () => {
     // A contents block whose entries are space-padded, then a body whose
     // headings are not: recovery reveals only the contents, and 12 heads
     // packed into the first 1% of the document are not a structure.
@@ -643,7 +656,7 @@ describe("compileAgreementSkeleton: segmentation competition", () => {
     const contents =
       "TABLE OF CONTENTS   " +
       Array.from({ length: 12 }, (_, i) => `${i + 1}.01 Heading ${i + 1}   `).join("");
-    const labels = compileAgreementSkeleton(`${contents}${body}`).nodes.map(
+    const labels = (await compileAgreementSkeleton(`${contents}${body}`)).nodes.map(
       (n) => n.label,
     );
     expect(labels).not.toContain("sec12.01");
@@ -664,7 +677,10 @@ describe("the contents page as an outline", () => {
       "",
     );
   const DOC = `${contents}${body}`;
-  const skeleton = compileAgreementSkeleton(DOC);
+  let skeleton: Awaited<ReturnType<typeof compileAgreementSkeleton>>;
+  beforeAll(async () => {
+    skeleton = await compileAgreementSkeleton(DOC);
+  });
 
   it("keeps the inventory the span compiler refuses, with its cited pages", () => {
     const outline = skeleton.outline;
@@ -702,8 +718,8 @@ describe("the contents page as an outline", () => {
     expect(skeleton.outline!.regionEnd).toBeLessThan(contents.length);
   });
 
-  it("refuses, typed, when the document never says it has one", () => {
-    const withoutMarker = compileAgreementSkeleton(DOC.replace("TABLE OF CONTENTS", ""));
+  it("refuses, typed, when the document never says it has one", async () => {
+    const withoutMarker = await compileAgreementSkeleton(DOC.replace("TABLE OF CONTENTS", ""));
     expect(withoutMarker.outline).toBeNull();
     expect(withoutMarker.outlineRefusal).toBe("no_contents_marker");
   });
@@ -764,13 +780,13 @@ describe("compileAgreementSkeleton: single-space line joins", () => {
   // One 'page' per line, lines joined with a single space — no run to split.
   const JOINED = `AGREEMENT DATED TODAY. ${[1, 2, 3, 4, 5].map(body).join(" ")}`;
 
-  it("recovers heads that follow a sentence terminator", () => {
-    const labels = compileAgreementSkeleton(JOINED).nodes.map((n) => n.label);
+  it("recovers heads that follow a sentence terminator", async () => {
+    const labels = (await compileAgreementSkeleton(JOINED)).nodes.map((n) => n.label);
     expect(labels).toContain("sec1.01");
     expect(labels).toContain("sec5.01");
   });
 
-  it("does not mint heads out of a definitions index", () => {
+  it("does not mint heads out of a definitions index", async () => {
     // Every entry cites a section mid-sentence. None of those citations is a
     // heading, and the ones cited are real heads elsewhere — precisely the
     // shape that made the unguarded version score itself higher.
@@ -780,7 +796,7 @@ describe("compileAgreementSkeleton: single-space line joins", () => {
       '"Burdensome Condition" has the meaning set forth in Section 6.17.',
     ].join(" ");
     const doc = `AGREEMENT DATED TODAY. 1.01 Definitions. ${index} ${[6, 3].map(body).join(" ")}`;
-    const labels = compileAgreementSkeleton(doc).nodes.map((n) => n.label);
+    const labels = (await compileAgreementSkeleton(doc)).nodes.map((n) => n.label);
     expect(labels).not.toContain("sec6.16");
     expect(labels).not.toContain("sec6.17");
     expect(labels).not.toContain("sec3.11");

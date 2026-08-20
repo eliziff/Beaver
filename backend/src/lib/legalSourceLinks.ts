@@ -566,16 +566,11 @@ function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
 }
 
-/** A quote is "in" a passage when it selects exactly one span of it. */
-function quoteMatchesBlock(block: SourceDoc, quote: string) {
-  return Boolean(chooseSourceSpan(block, quote));
-}
-
 export function legalSourceQuoteMatchesBlock(
   block: QuoteSource,
   quote: string,
 ) {
-  return quoteMatchesBlock(asDoc(block), quote);
+  return Boolean(chooseSourceSpan(asDoc(block), quote));
 }
 
 function identityMatches(

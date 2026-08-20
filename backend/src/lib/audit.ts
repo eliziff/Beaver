@@ -1,4 +1,6 @@
 import type { createServerSupabase } from "./supabase";
+import { safeErrorLog } from "./safeError";
+import type { AssistantEvent } from "./chat/turnEngine";
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -36,24 +38,11 @@ export async function recordAudit(db: Db, event: AuditEventInput) {
       model: event.model ?? null,
       detail: event.detail ?? null,
     });
-    if (error) console.error("[audit] insert failed:", error.message);
+    if (error) console.error("[audit] insert failed", safeErrorLog(error));
   } catch (error) {
-    console.error(
-      "[audit] insert threw:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("[audit] insert threw", safeErrorLog(error));
   }
 }
-
-type TurnEvent = {
-  type?: string;
-  action?: string;
-  filename?: string;
-  document_id?: string;
-  title?: string;
-  workflow_id?: string;
-  copies?: Array<{ new_filename?: string; document_id?: string }>;
-};
 
 export async function recordChatTurn(
   db: Db,
@@ -66,7 +55,7 @@ export async function recordChatTurn(
     model?: string | null;
     status?: AuditStatus;
   },
-  events: unknown[] | null | undefined,
+  events: readonly AssistantEvent[] | null | undefined,
 ) {
   const surface = base.projectId ? "project" : "assistant";
   await recordAudit(db, {
@@ -74,36 +63,14 @@ export async function recordChatTurn(
     action: "chat.message",
     surface,
   });
-  for (const raw of events ?? []) {
-    const event = raw as TurnEvent;
-    if (event.type === "doc_replicated") {
-      for (const copy of event.copies ?? []) {
-        await recordAudit(db, {
-          ...base,
-          action: "document.generated",
-          surface,
-          title: copy.new_filename ?? null,
-          documentId: copy.document_id ?? null,
-        });
-      }
-      continue;
-    }
-    const action =
-      event.type === "document_artifact" && event.action === "created"
-        ? "document.generated"
-        : event.type === "document_artifact" && event.action === "edited"
-          ? "document.edited"
-          : event.type === "workflow_applied"
-            ? "workflow.applied"
-            : null;
-    if (!action) continue;
+  for (const event of events ?? []) {
+    if (event.type !== "document_artifact") continue;
     await recordAudit(db, {
       ...base,
-      action,
+      action: event.action === "created" ? "document.generated" : "document.edited",
       surface,
-      title: event.filename ?? event.title ?? null,
+      title: event.filename ?? null,
       documentId: event.document_id ?? null,
-      detail: event.workflow_id ? { workflow_id: event.workflow_id } : null,
     });
   }
 }

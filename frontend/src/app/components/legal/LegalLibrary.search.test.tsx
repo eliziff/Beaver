@@ -87,4 +87,24 @@ describe("LegalLibraryPage search", () => {
         expect(screen.getByText("privacy").tagName).toBe("MARK");
         expect(container.textContent).not.toContain("<em>");
     });
+
+    it("does not render provider-controlled non-HTTP source links", async () => {
+        api.searchLegalSources.mockResolvedValue([{
+            provider: "a2aj", doc_type: "laws", source_id: "privacy-act",
+            dataset: "federal-statutes", citation: "RSC 1985, c P-21",
+            name: "Privacy Act", date: null, url: "javascript:alert(1)",
+            snippet: null,
+        }]);
+        render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
+        await waitFor(() => expect(api.getLegalSourceCoverage).toHaveBeenCalled());
+        fireEvent.click(screen.getByRole("button", { name: "Legislation" }));
+        fireEvent.change(screen.getByPlaceholderText(
+            "Statute title, citation, or provision",
+        ), { target: { value: "privacy" } });
+        fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+        await screen.findByText("Privacy Act");
+        expect(screen.queryByRole("link", { name: "View original source" }))
+            .not.toBeInTheDocument();
+    });
 });

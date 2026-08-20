@@ -2,6 +2,12 @@
 -- public deployment has data that must be preserved.
 set search_path = public;
 create extension if not exists "pgcrypto";
+alter default privileges for role postgres in schema public
+  revoke all on tables from public,anon,authenticated;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public,anon,authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from public,anon,authenticated;
 
 -- Supabase account state. Account-free local mode never executes this section.
 create table if not exists user_profiles (
@@ -22,9 +28,9 @@ create unique index if not exists user_profiles_email_lower
   on user_profiles(lower(email)) where email is not null and btrim(email) <> '';
 
 create or replace function handle_new_user() returns trigger language plpgsql
-security definer set search_path = public as $$
+security definer set search_path = '' as $$
 begin
-  insert into user_profiles(user_id,email) values(new.id,lower(new.email))
+  insert into public.user_profiles(user_id,email) values(new.id,lower(new.email))
   on conflict(user_id) do update set email=excluded.email,updated_at=now();
   return new;
 exception when others then return new;
@@ -32,6 +38,7 @@ end $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute procedure handle_new_user();
+revoke execute on function public.handle_new_user() from public,anon,authenticated;
 
 create table if not exists user_api_keys (
   id uuid primary key default gen_random_uuid(),
@@ -250,16 +257,17 @@ create index if not exists workflow_shares_email on workflow_shares(shared_with_
 -- Supabase administration/export code also writes shared_with. Keep the
 -- indexed authorization tables synchronized without teaching every caller a
 -- second persistence protocol. Local mode does this in its transaction.
-create or replace function sync_shared_members() returns trigger language plpgsql as $$
+create or replace function sync_shared_members() returns trigger language plpgsql
+set search_path = '' as $$
 begin
   if tg_table_name = 'projects' then
-    delete from project_members where project_id=new.id;
-    insert into project_members(project_id,email)
+    delete from public.project_members where project_id=new.id;
+    insert into public.project_members(project_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
   else
-    delete from tabular_review_members where review_id=new.id;
-    insert into tabular_review_members(review_id,email)
+    delete from public.tabular_review_members where review_id=new.id;
+    insert into public.tabular_review_members(review_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
   end if;
@@ -271,6 +279,7 @@ create trigger projects_sync_members after insert or update of shared_with on pr
 drop trigger if exists reviews_sync_members on tabular_reviews;
 create trigger reviews_sync_members after insert or update of shared_with on tabular_reviews
   for each row execute procedure sync_shared_members();
+revoke execute on function public.sync_shared_members() from public,anon,authenticated;
 
 create table if not exists audit_events (
   id uuid primary key default gen_random_uuid(), user_id text not null, user_email text,
@@ -286,10 +295,10 @@ revoke all on table projects,project_members,project_subfolders,library_folders,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
   hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events
-  from anon,authenticated;
+  from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
-  from anon,authenticated;
+  from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
@@ -306,13 +315,24 @@ alter table user_mcp_oauth_tokens enable row level security;
 alter table user_mcp_oauth_states enable row level security;
 alter table user_mcp_connector_tools enable row level security;
 alter table user_mcp_tool_audit_logs enable row level security;
-
-drop policy if exists user_profiles_self on user_profiles;
-create policy user_profiles_self on user_profiles for all to authenticated
-  using(user_id=auth.uid()) with check(user_id=auth.uid());
-drop policy if exists user_api_keys_self on user_api_keys;
-create policy user_api_keys_self on user_api_keys for all to authenticated
-  using(user_id=auth.uid()) with check(user_id=auth.uid());
-drop policy if exists user_mcp_connectors_self on user_mcp_connectors;
-create policy user_mcp_connectors_self on user_mcp_connectors for all to authenticated
-  using(user_id=auth.uid()) with check(user_id=auth.uid());
+alter table projects enable row level security;
+alter table project_members enable row level security;
+alter table project_subfolders enable row level security;
+alter table library_folders enable row level security;
+alter table documents enable row level security;
+alter table document_versions enable row level security;
+alter table document_edits enable row level security;
+alter table object_cleanup enable row level security;
+alter table library_legal_sources enable row level security;
+alter table tabular_reviews enable row level security;
+alter table tabular_review_members enable row level security;
+alter table tabular_cells enable row level security;
+alter table chats enable row level security;
+alter table chat_messages enable row level security;
+alter table provider_sessions enable row level security;
+alter table application_jobs enable row level security;
+alter table workflows enable row level security;
+alter table hidden_workflows enable row level security;
+alter table workflow_shares enable row level security;
+alter table workflow_open_source_submissions enable row level security;
+alter table audit_events enable row level security;

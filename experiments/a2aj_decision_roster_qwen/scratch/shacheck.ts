@@ -5,8 +5,10 @@ import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
-import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 
+async function main() {
 const rows = readFileSync(path.join(__dirname, "..", "seeds", "1.SCC.jsonl"), "utf8")
   .split(/\r?\n/u)
   .filter((line) => line.trim())
@@ -18,7 +20,7 @@ for (const row of rows.slice(0, 3)) {
     .prepare("SELECT unofficial_text_en, citation_en, citation2_en, url_en, dataset, name_en FROM document WHERE id = ?")
     .get(row.documentId) as Record<string, unknown>;
   const raw = String(dbRow.unofficial_text_en);
-  const compiled = compileA2AJSourceDoc({
+  const compiled = await deriveA2AJSourceDoc({
     citation: String(dbRow.citation_en ?? dbRow.citation2_en ?? ""),
     docType: "cases",
     text: raw,
@@ -41,6 +43,18 @@ for (const row of rows.slice(0, 3)) {
   console.log(`  compiled:${shaCompiled.slice(0, 16)}...`);
 }
 db.close();
+}
+
+void (async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  } finally {
+    await shutdownSourceStructureEngine();
+  }
+})();
 
 
 

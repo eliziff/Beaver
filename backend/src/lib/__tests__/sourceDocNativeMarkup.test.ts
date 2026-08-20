@@ -4,11 +4,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
 import {
-  compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
   nativeMarkupCitedRefs,
+  prepareNativeMarkupSourceStructure,
   summarizeLegalSourceDoc,
 } from "../sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
+import { materializeSourceStructure } from "../sourceStructureAdapter";
 
 /**
  * Parity gates for the native-markup compiler.
@@ -173,11 +175,11 @@ function assertBaselineInvariants(doc: SourceDoc, recording: Recording) {
 }
 
 describe("parity with the frozen structure recordings", () => {
-  it("renders a real TNA judgment byte-identically (v2 + baseline invariants)", () => {
+  it("renders a real TNA judgment byte-identically (v2 + baseline invariants)", async () => {
     const source = fixture<{ citation: string; markup: string }>(
       "tna-eat-2025-1",
     );
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "tna",
       id: source.citation,
       text: "",
@@ -188,11 +190,11 @@ describe("parity with the frozen structure recordings", () => {
     assertBaselineInvariants(doc, BASELINE["tna-eat-2025-1"]);
   });
 
-  it("renders real Harvard CAP casebody HTML byte-identically (v2 + baseline invariants)", () => {
+  it("renders real Harvard CAP casebody HTML byte-identically (v2 + baseline invariants)", async () => {
     const source = fixture<{ citation: string; markup: string }>(
       "courtlistener-cap-372us335",
     );
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: source.citation,
       text: "",
@@ -203,12 +205,12 @@ describe("parity with the frozen structure recordings", () => {
     assertBaselineInvariants(doc, BASELINE["courtlistener-cap-372us335"]);
   });
 
-  it("keeps plain-text providers on the shared prose spine", () => {
+  it("keeps plain-text providers on the shared prose spine", async () => {
     const et = fixture<{ caseNumber: string; text: string }>(
       "govuk-et-kogut-2200123-2023",
     );
     assertRecording(
-      compileNativeMarkupSourceDoc({
+      await deriveNativeMarkupSourceDoc({
         provider: "govuk-et",
         id: et.caseNumber,
         text: et.text,
@@ -219,7 +221,7 @@ describe("parity with the frozen structure recordings", () => {
       "govinfo-nywd-1-22-cv-00930",
     );
     assertRecording(
-      compileNativeMarkupSourceDoc({
+      await deriveNativeMarkupSourceDoc({
         provider: "govinfo",
         id: govinfo.packageId,
         text: govinfo.text,
@@ -230,7 +232,7 @@ describe("parity with the frozen structure recordings", () => {
 });
 
 describe("native markup compilation", () => {
-  it("preserves TNA paragraph and nested section eIds", () => {
+  it("preserves TNA paragraph and nested section eIds", async () => {
     const xml = `
       <akomaNtoso>
         <judgment>
@@ -246,7 +248,7 @@ describe("native markup compilation", () => {
           </section>
         </judgment>
       </akomaNtoso>`;
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "tna",
       id: "[2024] TEST 1",
       text: "",
@@ -265,7 +267,7 @@ describe("native markup compilation", () => {
     expect(summarizeLegalSourceDoc(doc).source).toBe("native");
   });
 
-  it("uses native CourtListener pages but not arbitrary HTML p IDs", () => {
+  it("uses native CourtListener pages but not arbitrary HTML p IDs", async () => {
     const markup = `
       <article>
         <p id="Auq">Opening unnumbered opinion text.</p>
@@ -274,7 +276,7 @@ describe("native markup compilation", () => {
         <page-number label="411" citation-index="1"></page-number>
         <p id="Cys">Following reporter page passage.</p>
       </article>`;
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-1",
       text: "",
@@ -292,12 +294,12 @@ describe("native markup compilation", () => {
     );
   });
 
-  it("compiles CAP star pagination inline without breaking text flow", () => {
+  it("compiles CAP star pagination inline without breaking text flow", async () => {
     const markup =
       '<article class="opinion"><p>The sentence continues across ' +
       '<a id="p880" href="#p880" data-label="880" data-citation-index="1" class="page-label">*880</a> ' +
       "the reporter page boundary without interruption.</p></article>";
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cap-1",
       text: "",
@@ -318,8 +320,8 @@ describe("native markup compilation", () => {
     expect(lookupLegalSourceDoc(doc, "page", "p880").status).toBe("found");
   });
 
-  it("uses star-pagination text rather than its sequence number", () => {
-    const doc = compileNativeMarkupSourceDoc({
+  it("uses star-pagination text rather than its sequence number", async () => {
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "tax-court",
       text: "",
@@ -340,7 +342,7 @@ describe("native markup compilation", () => {
     expect(lookupLegalSourceDoc(doc, "page", "P2").block).toBeNull();
   });
 
-  it("keeps CAP reporter streams distinct and ignores pgmap scan coordinates", () => {
+  it("keeps CAP reporter streams distinct and ignores pgmap scan coordinates", async () => {
     const markup =
       '<article pgmap="372"><page-number label="Supp. 833" citation-index="1"></page-number>' +
       '<p>Official reporter passage.</p><page-number label="536" citation-index="2"></page-number>' +
@@ -349,7 +351,7 @@ describe("native markup compilation", () => {
       '<page-number label="Supp. 833" citation-index="1"></page-number>from the prior page.</footnote>' +
       '<footnote label="*">Reporter note <page-number label="536" citation-index="2"></page-number>' +
       "from the prior parallel page.</footnote></article>";
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cap-parallel-pages",
       text: "",
@@ -370,13 +372,13 @@ describe("native markup compilation", () => {
     expect(lookupLegalSourceDoc(doc, "page", "372").status).toBe("not_found");
   });
 
-  it("compiles CAP footnote asides to native footnote blocks", () => {
+  it("compiles CAP footnote asides to native footnote blocks", async () => {
     const markup =
       '<article class="opinion"><p>Body text with a mark' +
       '<a class="footnotemark" href="#footnote_1_2" id="ref_footnote_1_2">2</a>.</p>' +
       '<aside data-label="2" class="footnote" id="footnote_1_2">' +
       "<p>The distinctive footnote body text.</p></aside></article>";
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cap-2",
       text: "",
@@ -392,13 +394,33 @@ describe("native markup compilation", () => {
     ).toBe("found");
   });
 
-  it("uses CourtListener footnote containers and their supplied markers", () => {
+  it("preserves native EOF trim overhang publicly but gives the engine a valid range", async () => {
+    const input = {
+      provider: "courtlistener" as const,
+      id: "trim-overhang",
+      text: "",
+      markup: '<footnote label="*"><p>Symbol note.</p></footnote>',
+    };
+    const prepared = prepareNativeMarkupSourceStructure(input);
+    const materialized = materializeSourceStructure(prepared);
+    expect(prepared.text).toBe("Symbol note.");
+    expect(prepared.nativeBlocks?.[0]).toMatchObject({
+      kind: "footnote", label: "fn*", start: 0, end: prepared.text.length + 1,
+    });
+    expect(materialized.evidence.native_claims[0].range).toEqual({
+      start: 0, end: prepared.text.length,
+    });
+    const doc = await deriveNativeMarkupSourceDoc(input);
+    expect(doc.blocks.find(({ label }) => label === "fn*")?.end).toBe(doc.text.length + 1);
+  });
+
+  it("uses CourtListener footnote containers and their supplied markers", async () => {
     const markup =
       '<div id="fn_fnote1"><p>Classless ID footnote.</p></div>' +
       '<div class="fn-footnote"><p><sup>2</sup> Supplied marker footnote.</p></div>' +
       '<footnote_body><sup id="fn3">[3]</sup> Footnote-body text.</footnote_body>' +
       '<footnote label="*">Symbol note <page-number label="99"></page-number>without a main page.</footnote>';
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "courtlistener-footnote-forms",
       text: "",
@@ -420,7 +442,7 @@ describe("native markup compilation", () => {
     expect(lookupLegalSourceDoc(doc, "page", "99").status).toBe("unavailable");
   });
 
-  it("compiles TNA lvl_N levels to native section blocks", () => {
+  it("compiles TNA lvl_N levels to native section blocks", async () => {
     const markup = `
       <judgment>
         <level eId="lvl_1"><heading>Introduction</heading>
@@ -430,7 +452,7 @@ describe("native markup compilation", () => {
           <paragraph eId="para_2"><content>Background body.</content></paragraph>
         </level>
       </judgment>`;
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "tna",
       id: "[2025] TEST 2",
       text: "",
@@ -442,7 +464,7 @@ describe("native markup compilation", () => {
     expect(section.block?.text).toContain("The relevant background");
   });
 
-  it("collects TNA <ref> cited authorities as data", () => {
+  it("collects TNA <ref> cited authorities as data", async () => {
     const markup =
       '<judgment><p>As held in <ref uk:canonical="[2016] UKSC 11" uk:type="case" ' +
       'href="https://caselaw.nationalarchives.gov.uk/id/uksc/2016/11">' +
@@ -464,13 +486,13 @@ describe("native markup compilation", () => {
     expect(nativeMarkupCitedRefs("<p>no refs here</p>")).toEqual([]);
   });
 
-  it("reconstructs CourtListener pilcrow paragraphs without native locators", () => {
+  it("reconstructs CourtListener pilcrow paragraphs without native locators", async () => {
     const markup = Array.from(
       { length: 5 },
       (_, index) =>
         `<p>¶ ${index + 1} Paragraph ${index + 1} contains enough substantive judicial words for reliable structural reconstruction and repeats the court's reasoning in a complete source passage.</p>`,
     ).join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-2",
       text: "",
@@ -485,14 +507,14 @@ describe("native markup compilation", () => {
     expect(summarizeLegalSourceDoc(doc).source).toBe("flat_text");
   });
 
-  it("uses CourtListener numbered divs as native paragraphs", () => {
+  it("uses CourtListener numbered divs as native paragraphs", async () => {
     const markup = [1, 2, 3]
       .map(
         (number) =>
           `<div class="num" id="p${number}"><span class="num">${number}</span><p>Provider paragraph ${number}.</p></div>`,
       )
       .join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "courtlistener-native-paragraphs",
       text: "",
@@ -506,7 +528,7 @@ describe("native markup compilation", () => {
     });
   });
 
-  it("recovers CourtListener's exact marker variants but fences HTML footnotes", () => {
+  it("recovers CourtListener's exact marker variants but fences HTML footnotes", async () => {
     const prose =
       "contains enough substantive judicial reasoning words for reliable structural reconstruction and audit.";
     const markup = [
@@ -525,7 +547,7 @@ describe("native markup compilation", () => {
       ),
       "</div>",
     ].join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-footnote-fence",
       text: "",
@@ -549,7 +571,7 @@ describe("native markup compilation", () => {
     ).toContain("Paragraph one");
   });
 
-  it("does not bridge an absent CourtListener paragraph label", () => {
+  it("does not bridge an absent CourtListener paragraph label", async () => {
     const prose =
       "contains enough substantive judicial reasoning words for reliable structural reconstruction and audit.";
     const markup = [
@@ -559,7 +581,7 @@ describe("native markup compilation", () => {
       ),
       "</article>",
     ].join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-missing-marker",
       text: "",
@@ -576,7 +598,7 @@ describe("native markup compilation", () => {
     );
   });
 
-  it("does not promote a numeric CourtListener table to paragraphs", () => {
+  it("does not promote a numeric CourtListener table to paragraphs", async () => {
     const markup = [
       "<article>",
       ...Array.from(
@@ -586,7 +608,7 @@ describe("native markup compilation", () => {
       ),
       "</article>",
     ].join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-numeric-table",
       text: "",
@@ -596,7 +618,7 @@ describe("native markup compilation", () => {
     expect(doc.ranges.paragraph.count).toBe(0);
   });
 
-  it("preserves native paragraphs and reconstructs missing labels", () => {
+  it("preserves native paragraphs and reconstructs missing labels", async () => {
     const markup = [
       "<article>",
       '<paragraph id="para_1"><num>[1]</num><content>Paragraph 1 contains enough substantive judicial words for reliable structural reconstruction.</content></paragraph>',
@@ -607,7 +629,7 @@ describe("native markup compilation", () => {
       ),
       "</article>",
     ].join("");
-    const doc = compileNativeMarkupSourceDoc({
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "courtlistener",
       id: "cluster-partial",
       text: "",
@@ -637,8 +659,8 @@ describe("native markup compilation", () => {
     expect(summarizeLegalSourceDoc(doc).source).toBe("hybrid");
   });
 
-  it("does not invent PDF pages from page-count metadata", () => {
-    const doc = compileNativeMarkupSourceDoc({
+  it("does not invent PDF pages from page-count metadata", async () => {
+    const doc = await deriveNativeMarkupSourceDoc({
       provider: "govinfo",
       id: "USCOURTS-test",
       text: "A decision with no embedded page markers.",

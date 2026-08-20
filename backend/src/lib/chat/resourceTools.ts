@@ -33,6 +33,7 @@ export const RESOURCE_TOOLS = [
     {
       pattern: {
         type: "string",
+        maxLength: 256,
         description: 'Filename glob such as "*.docx". Defaults to "*".',
       },
     },
@@ -41,13 +42,13 @@ export const RESOURCE_TOOLS = [
     "Grep",
     "Search document text when the request depends on a saved document. Filter by one resource or a filename glob; return matching resources, counts, or bounded matching lines.",
     {
-      pattern: { type: "string", description: "Regular expression to search." },
+      pattern: { type: "string", maxLength: 256, description: "Regular expression to search." },
       path: {
         type: "string",
         pattern: DOCUMENT_RESOURCE_PATTERN,
         description: resource,
       },
-      glob: { type: "string", description: 'Filename glob such as "*.docx".' },
+      glob: { type: "string", maxLength: 256, description: 'Filename glob such as "*.docx".' },
       output_mode: {
         type: "string",
         enum: ["content", "files_with_matches", "count"],
@@ -134,14 +135,17 @@ export const RESOURCE_TOOLS = [
 ] satisfies Tool[];
 
 function globAlternatives(pattern: string): string[] {
-  const match = /\{([^{}]+)\}/u.exec(pattern);
-  if (!match?.[1].includes(",")) return [pattern];
-  const values = match[1].split(",").map((value) => value.trim());
-  return !values.length || values.length > 32 || values.some((value) => !value)
-    ? [pattern]
-    : values.flatMap((value) => globAlternatives(
-        `${pattern.slice(0, match.index)}${value}${pattern.slice(match.index + match[0].length)}`,
-      ));
+  const queue = [pattern], result: string[] = [];
+  while (queue.length) {
+    const current = queue.pop()!, match = /\{([^{}]+)\}/u.exec(current);
+    if (!match?.[1].includes(",")) { result.push(current); continue; }
+    const values = match[1].split(",").map((value) => value.trim());
+    if (values.some((value) => !value) || result.length + queue.length + values.length > 32)
+      return [pattern];
+    queue.push(...values.map((value) =>
+      `${current.slice(0, match.index)}${value}${current.slice(match.index + match[0].length)}`));
+  }
+  return result;
 }
 
 const globSource = (pattern: string) => pattern
@@ -152,7 +156,7 @@ const globSource = (pattern: string) => pattern
   .replace(/\?/gu, ".")
   .replace(/\u0000/gu, ".*");
 
-export const globPattern = (pattern = "*") => new RegExp(
-  `^(?:${globAlternatives(pattern).map(globSource).join("|")})$`,
-  "iu",
-);
+export const globPattern = (pattern = "*") => {
+  if (pattern.length > 256) throw new Error("Glob pattern exceeds 256 characters.");
+  return new RegExp(`^(?:${globAlternatives(pattern).map(globSource).join("|")})$`, "iu");
+};

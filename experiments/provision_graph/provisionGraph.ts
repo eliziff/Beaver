@@ -39,7 +39,6 @@ export interface ProvisionGraphNode {
   kind: SkeletonNodeKind;
   start: number;
 }
-
 export type ProvisionGraphEdgeKind = "parent" | "cross-reference";
 
 export interface ProvisionGraphEdge {
@@ -48,7 +47,6 @@ export interface ProvisionGraphEdge {
   kind: ProvisionGraphEdgeKind;
   refText?: string;
 }
-
 export interface ProvisionGraph {
   nodes: ProvisionGraphNode[];
   edges: ProvisionGraphEdge[];
@@ -125,12 +123,12 @@ export function extractProvisionGraph(xref: CrossReferenceGraph): ProvisionGraph
   return { nodes, edges };
 }
 
-export function compileProvisionGraph(
+export async function compileProvisionGraph(
   text: string,
   id = "",
-): { graph: ProvisionGraph; abstained: boolean; note: string | null } {
-  const skeleton = compileAgreementSkeleton(text, id);
-  const xref = crossReferenceGraph(text, id, { skeleton });
+): Promise<{ graph: ProvisionGraph; abstained: boolean; note: string | null }> {
+  const skeleton = await compileAgreementSkeleton(text, id);
+  const xref = await crossReferenceGraph(text, id, { skeleton });
   return {
     graph: extractProvisionGraph(xref),
     abstained: xref.documentAbstained,
@@ -555,24 +553,4 @@ ${truncationNote ? `<div class="truncation-note">${esc(truncationNote)}</div>` :
 <\/script>
 </body>
 </html>`;
-}
-
-// ---------------------------------------------------------------------------
-// SVG rendering (deprecated stub)
-// ---------------------------------------------------------------------------
-
-export interface GraphSvgOptions {
-  maxNodes?: number;
-  width?: number;
-  columnGap?: number;
-  nodeHeight?: number;
-  nodeGap?: number;
-  fontSize?: number;
-}
-
-export function renderProvisionGraphSvg(
-  _graph: ProvisionGraph,
-  _options: GraphSvgOptions = {},
-): string {
-  return `<!-- SVG renderer deprecated; use renderProvisionGraphHtml() for interactive Cytoscape.js output -->`;
 }

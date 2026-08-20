@@ -22,7 +22,7 @@ import {
   compactLabelFr,
   joinLocator,
 } from "./legalReferenceGrammar";
-import { crossReferenceGraph } from "./legalCrossReference";
+import { crossReferenceGraphFromSkeleton } from "./legalCrossReference";
 import {
   compileAgreementSkeleton,
   type SkeletonNode,
@@ -227,19 +227,15 @@ function splitClauses(body: string): Clause[] {
   return clauses;
 }
 
-function contextLabel(context: string | undefined): string | undefined {
-  if (!context) return undefined;
-  const match = PROVISION_REF_U.exec(context);
-  return match?.[1] ? compactLabel(match[1]) : undefined;
-}
-
 function opFromClause(
   clause: Clause,
   head: Head,
   raw: string,
 ): AmendOp | { reason: string } {
   const text = clause.text;
-  const target = joinLocator(head.label, contextLabel(clause.context));
+  const contextMatch = clause.context && PROVISION_REF_U.exec(clause.context);
+  const target = joinLocator(head.label,
+    contextMatch?.[1] ? compactLabel(contextMatch[1]) : undefined);
   const every = EVERY_RE.test(text) || undefined;
 
   const q = (index: number, source: string): string | undefined => {
@@ -555,13 +551,6 @@ export function parseAmendmentInstructions(text: string): AmendParseResult {
   return { ops, unparsed };
 }
 
-/** First quoted block: typographic-quoted multiline run, or “…” string. */
-function firstQuotedBlock(body: string): string | undefined {
-  const match = QUOTED_U.exec(body);
-  if (!match) return undefined;
-  return quotedValue(match[1], match[2], match[3], match[4]);
-}
-
 /**
  * GPO/USLM quoted blocks span paragraphs: every quoted paragraph
  * re-opens with “ and only the block's final one closes with ”. A
@@ -617,7 +606,10 @@ function maskQuotedRuns(body: string): string {
 
 /** Block after "the following:" — GPO multi-paragraph form first. */
 function quotedBlockAt(body: string): string | undefined {
-  return typographicBlock(body) ?? firstQuotedBlock(body);
+  const typographic = typographicBlock(body);
+  if (typographic) return typographic;
+  const match = QUOTED_U.exec(body);
+  return match ? quotedValue(match[1], match[2], match[3], match[4]) : undefined;
 }
 
 /**
@@ -775,13 +767,13 @@ export interface ApplyAmendOptions {
  * Apply parsed ops to source text. Every op either produces a receipt with
  * the exact spliced span or a typed failure; splices never overlap.
  */
-export function applyAmendOps(
+export async function applyAmendOps(
   sourceText: string,
   ops: AmendOp[],
   options: ApplyAmendOptions = {},
-): ApplyAmendmentsResult {
+): Promise<ApplyAmendmentsResult> {
   const compile = { recoverExtraction: options.recoverExtraction };
-  const before = compileAgreementSkeleton(sourceText, "", compile);
+  const before = await compileAgreementSkeleton(sourceText, "", compile);
   const labels = before.doc;
   const splices: Splice[] = [];
   const failures: AmendFailure[] = [];
@@ -998,7 +990,7 @@ export function applyAmendOps(
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
 
-  const after = compileAgreementSkeleton(text, "", compile);
+  const after = await compileAgreementSkeleton(text, "", compile);
   let newTextPresent = 0;
   let newTextMissing = 0;
   let oldTextGone = 0;
@@ -1178,11 +1170,11 @@ function referenceText(raw: string, rawLabel: string, locator: string): string {
  * atomic text plan. This deliberately does not imply insertion/open-gap
  * semantics: a caller needing those must use a separately specified op.
  */
-export function deleteProvisionAndRenumberSiblings(
+export async function deleteProvisionAndRenumberSiblings(
   sourceText: string,
   target: string,
   options: ApplyAmendOptions = {},
-): DeleteAndRenumberResult {
+): Promise<DeleteAndRenumberResult> {
   const failed = (
     failures: DeleteAndRenumberFailure[],
     mapping: Array<{ from: string; to: string }> = [],
@@ -1193,7 +1185,7 @@ export function deleteProvisionAndRenumberSiblings(
     failures,
     verification: { headingsRenumbered: 0, referencesUpdated: 0 },
   });
-  const skeleton = compileAgreementSkeleton(sourceText, "", {
+  const skeleton = await compileAgreementSkeleton(sourceText, "", {
     recoverExtraction: options.recoverExtraction,
   });
   const requested = target.toLowerCase().startsWith("sec")
@@ -1301,7 +1293,7 @@ export function deleteProvisionAndRenumberSiblings(
     });
   }
 
-  const graph = crossReferenceGraph(sourceText, "", { skeleton });
+  const graph = crossReferenceGraphFromSkeleton(sourceText, skeleton);
   for (const edge of graph.edges) {
     if (edge.sourceStart >= selected.start && edge.sourceEnd <= selected.end) {
       continue;
@@ -1402,7 +1394,7 @@ export function deleteProvisionAndRenumberSiblings(
   for (const splice of [...splices].sort((left, right) => right.start - left.start)) {
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
-  const after = compileAgreementSkeleton(text, "", {
+  const after = await compileAgreementSkeleton(text, "", {
     recoverExtraction: options.recoverExtraction,
   });
   const counts = new Map<string, number>();
@@ -1444,12 +1436,12 @@ function ensureBlock(text: string): string {
  * Parse + apply in one call — the rejection-sampling loop for a model
  * translating gnarly prose into ops: reject unless everything applies.
  */
-export function consolidateAmendment(
+export async function consolidateAmendment(
   sourceText: string,
   amendmentText: string,
   options: ApplyAmendOptions = {},
-): ApplyAmendmentsResult & { parse: AmendParseResult } {
+): Promise<ApplyAmendmentsResult & { parse: AmendParseResult }> {
   const parse = parseAmendmentInstructions(amendmentText);
-  const result = applyAmendOps(sourceText, parse.ops, options);
+  const result = await applyAmendOps(sourceText, parse.ops, options);
   return { ...result, parse };
 }

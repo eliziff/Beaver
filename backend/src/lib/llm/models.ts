@@ -24,7 +24,7 @@ export const META_MAIN_MODELS = ["meta/muse-spark-1.1"] as const;
  * and completions sent to it, so it is off the default picker and belongs
  * nowhere near client documents.
  */
-export const META_DIRECT_MODELS = [
+const META_DIRECT_MODELS = [
     "muse-spark-1.2",
     "muse-spark-1.1",
     "muse-spark-1.2-contributor",
@@ -76,12 +76,24 @@ export function providerForModel(model: string): Provider {
     throw new Error(`Unknown model id: ${model}`);
 }
 
+export function isSupportedModel(model: string): boolean {
+    if (ALL_MODELS.has(model)) return true;
+    return [CODEX_MODEL_PREFIX, CLAUDE_P_MODEL_PREFIX, OLLAMA_MODEL_PREFIX]
+        .some((prefix) => model.startsWith(prefix) && model.slice(prefix.length).trim().length > 0);
+}
+
 export function resolveModel(id: string | null | undefined, fallback: string): string {
-    if (id?.startsWith(CODEX_MODEL_PREFIX)) return id;
-    if (id?.startsWith(CLAUDE_P_MODEL_PREFIX)) return id;
-    if (id?.startsWith(OLLAMA_MODEL_PREFIX)) return id;
-    if (id && ALL_MODELS.has(id)) return id;
+    if (id && isSupportedModel(id)) return id;
     return fallback;
+}
+
+export function resolveRequestedModel(
+    id: string | null | undefined,
+    fallback: string,
+): string {
+    if (!id) return fallback;
+    if (isSupportedModel(id)) return id;
+    throw new Error(`Unsupported model id: ${id}`);
 }
 
 export function codexModelSlug(model: string): string | null {

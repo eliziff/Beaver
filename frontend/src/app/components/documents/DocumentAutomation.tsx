@@ -70,13 +70,10 @@ function docxRun(
                 : [],
         ),
         outputs: result.filename ? [{ name: result.filename }] : undefined,
-        document_id: result.document_id,
-        version_id: result.version_id,
     };
 }
 function authoritiesRun(
     id: string,
-    documentId: string,
     job: TableOfAuthoritiesJob,
 ): AutomationRunEvent {
     return {
@@ -94,7 +91,6 @@ function authoritiesRun(
         outputs: job.files.map(({ name, url }) => ({ name, url })),
         app_url: job.app_url,
         job_id: job.id,
-        document_id: documentId,
     };
 }
 export function DocumentAutomation({
@@ -222,14 +218,12 @@ function DocumentAutomationMenu({
             tool,
             status: "running",
             stage: automationLabel(tool),
-            document_id: document.id,
         });
         try {
             if (tool === "create_table_of_authorities") {
                 publishAutomationRun(
                     authoritiesRun(
                         runId,
-                        document.id,
                         await submitLibraryDocumentToAuthorities(
                             document.id,
                             "auto",
@@ -257,7 +251,6 @@ function DocumentAutomationMenu({
                     error instanceof Error
                         ? error.message
                         : "Automation failed.",
-                document_id: document.id,
             });
         } finally {
             setRunning(null);

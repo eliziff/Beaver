@@ -8,7 +8,7 @@
  * adds only the experiment-specific opinion-role extraction task.
  */
 
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { fork, spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -21,7 +21,6 @@ import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocument,
   fetchLocalA2AJDocumentsByIds,
-  getLocalA2AJStructure,
 } from "../../backend/src/lib/a2ajLocalBulk";
 import {
   a2ajLegalSourceProvider,
@@ -43,10 +42,13 @@ import {
   type SourceDoc,
   type SourceDocBlock,
 } from "../../backend/src/lib/sourceDoc";
+import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocStructureHost";
+import { shutdownSourceStructureEngine } from "../../backend/src/lib/sourceStructureEngine";
 import {
   citationLookupKey,
   citationsInText,
 } from "../../backend/src/lib/citationKey";
+import { citationAliasKeys } from "../../backend/src/lib/caselawCitator";
 import { classifyCitatorExcerpt } from "../../backend/src/lib/citatorExcerpts";
 import {
   analyzeOpinionStructure,
@@ -78,6 +80,16 @@ import {
   type OpinionPosition,
   type TreatmentInput,
 } from "../../backend/experiments/a2aj-decision-roster/caseTreatment";
+import {
+  footnoteReferenceContext,
+  resolveCaseTargetMvp,
+  type CaseTargetOccurrence,
+} from "../../backend/experiments/a2aj-decision-roster/caseTargetMvp";
+import {
+  CASE_TARGET_MVP_REDUCED_JSON_SCHEMA,
+  compileReducedCaseTargetSubmission,
+  type ReducedCaseTargetSubmission,
+} from "../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced";
 
 type Role = "majority" | "minority" | "concurring" | "unknown";
 type Provider = "ollama" | "luna" | "dry";
@@ -86,12 +98,21 @@ type ResultPosition = "supports_disposition" | "opposes_disposition" | "mixed" |
 type OpinionLinkRelation = "authors" | "joins" | "joins_in_part";
 type OpinionAuthorityPosition = "unanimous" | "majority" | "plurality" | "concurring" | "dissenting" | "unknown";
 
+type CaseTargetSpec = {
+  documentId: number | null;
+  citation: string;
+  citationAliases: string[];
+  name: string | null;
+  sameLitigationEligible: boolean;
+};
+
 type Candidate = {
   documentId: number;
   dataset: string;
   citation: string;
   name: string | null;
   date: string | null;
+  target?: CaseTargetSpec;
 };
 
 type MechanicalOpinion = {
@@ -128,6 +149,7 @@ type CitationEdgeCandidate = {
   contextStart: number;
   contextEnd: number;
   context: string;
+  contextSha256: string;
   excerptKind: ReturnType<typeof classifyCitatorExcerpt>["kind"];
   selectionRule: string;
 };
@@ -144,6 +166,7 @@ type CaseRecord = {
   hints: MechanicalHints;
   preflight: Preflight;
   citationEdges: CitationEdgeCandidate[];
+  targetOccurrences: CaseTargetOccurrence[];
 };
 
 type DeterministicAuditRecord = Pick<
@@ -231,24 +254,31 @@ const RUN_DIR = path.join(HERE, "runs");
 const DEFAULT_MODEL = process.env.QWEN_MODEL?.trim() || "qwen3.5:9b";
 const DEFAULT_CODEX_MODEL = "gpt-5.6-luna";
 const DEFAULT_CODEX_EFFORT = "high";
+const MVP_CODEX_MODELS = new Set([DEFAULT_CODEX_MODEL, "gpt-5.6-terra"]);
 const DEFAULT_BASE_URL = process.env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434";
 const DEFAULT_SIDECAR = path.join(RUN_DIR, "decision-roster.sqlite");
 const DEFAULT_NUM_CTX = 32_768;
 const DEFAULT_NUM_PREDICT = 4_096;
 const PROMPT_VERSION = "a2aj-opinion-v5";
 const CODEX_PROMPT_VERSION = "a2aj-opinion-codex-v6";
-const SEMANTIC_MVP_PROMPT_VERSION = "a2aj-semantic-mvp-combined-v1";
-const VALIDATOR_VERSION = "a2aj-opinion-validator-v6";
-const SEMANTIC_MVP_VALIDATOR_VERSION = "a2aj-semantic-mvp-validator-v1";
-const DETERMINISTIC_VERSION = "a2aj-opinion-deterministic-v5";
+const SEMANTIC_MVP_PROMPT_VERSION = "a2aj-semantic-mvp-combined-v2";
+const VALIDATOR_VERSION = "a2aj-opinion-validator-v7";
+const SEMANTIC_MVP_VALIDATOR_VERSION = "a2aj-semantic-mvp-validator-v2";
+export const CASE_TARGET_MVP_VALIDATOR_VERSION = "a2aj-case-target-mvp-validator-v13";
+export const CASE_TARGET_MVP_COMPILER_VERSION = "a2aj-case-target-mvp-compiler-v13";
+const CASE_TARGET_OCCURRENCE_VERSION = "a2aj-case-target-occurrences-v2";
+const DETERMINISTIC_VERSION = "a2aj-opinion-deterministic-v6";
 const RANDOM_SELECTION_VERSION = "a2aj-random-primary-key-rejection-v1";
 const RESPONSE_SCHEMA_NAME = "a2aj_opinion_votes";
 const SEMANTIC_MVP_SCHEMA_NAME = "a2aj_case_semantic_mvp";
+const CASE_TARGET_MVP_SCHEMA_NAME = "a2aj_case_target_mvp_v13";
 const SEMANTIC_MVP_CITATION_EDGES = 2;
 const MAX_LOOKUP_PARAGRAPHS = 12;
 const MAX_ATTEMPTS = 20;
-const MAX_CODEX_OUTPUT_BYTES = 16 * 1024 * 1024;
+const MAX_CODEX_STDERR_BYTES = 16 * 1024 * 1024;
 const MAX_LUNA_SOURCE_CHARS = 400_000;
+const CODEX_SUBSCRIPTION_ENDPOINT = "https://chatgpt.com/backend-api/codex";
+const CODEX_SUBSCRIPTION_HELPER = path.join(HERE, "codex_subscription_exec.py");
 
 const ROLE_KEYS: Role[] = ["majority", "minority", "concurring", "unknown"];
 const OPINION_ALIGNMENTS: OpinionAlignment[] = [
@@ -383,6 +413,15 @@ const SEMANTIC_MVP_RESPONSES_SCHEMA = {
   schema: SEMANTIC_MVP_JSON_SCHEMA,
 } as const;
 
+export const CASE_TARGET_MVP_JSON_SCHEMA = CASE_TARGET_MVP_REDUCED_JSON_SCHEMA;
+
+export const CASE_TARGET_MVP_RESPONSES_SCHEMA = {
+  type: "json_schema",
+  name: CASE_TARGET_MVP_SCHEMA_NAME,
+  strict: true,
+  schema: CASE_TARGET_MVP_JSON_SCHEMA,
+} as const;
+
 const SUBMIT_TOOL = {
   type: "function",
   function: {
@@ -416,9 +455,9 @@ const LOOKUP_TOOL = {
 const OPINION_INSTRUCTIONS = `Extract substantive judicial opinions, the disposition, and each judge's vote from this one closed-record decision.
 An opinion is a substantive body of judicial reasons. A judge name, signature, disposition-only line, "I agree", "I concur", or "concurred in by" is a vote or joinder and is never a separate opinion by itself.
 Copy a distinctive exact disposition_quote stating what the court did, or null only when no such passage can be located.
-Use one opinion object per independently reasoned body. result_position says whether that opinion supports or opposes the court's disposition, is mixed across issues, or is genuinely unclear. author_names contains only named judicial authors; use collective_author for labels such as "The Court" or "The Tribunal". Do not turn institutional labels into people. If the source does not identify an opinion's writer, leave author_names empty and collective_author null; never guess. position_evidence_quote is an exact quote supporting the result classification, or null only when the classification necessarily follows from the opinion and disposition.
+Use one opinion object per independently reasoned body. result_position says whether that opinion supports or opposes the court's disposition, is mixed across issues, or is genuinely unclear. author_names contains only named judicial authors; use collective_author for labels such as "The Court" or "The Tribunal". If a heading says the reasons are "OF THE COURT" and then lists the panel, use the collective author and leave author_names empty; the grouped panel line proves participation or joinder, not an individually identified writer. For a single-member court or tribunal, identify that sole decision-maker as author when a byline or signature ties them to the reasons or decision. Do not turn institutional labels into people. If the source does not identify an opinion's writer, leave author_names empty and collective_author null; never guess. position_evidence_quote is an exact quote supporting the result classification, or null only when the classification necessarily follows from the opinion and disposition.
 Every member of the deciding panel belongs in participants. Put a judge explicitly said not to participate only in nonparticipants. Do not include judges from cited cases, earlier motions, counsel lists, or case histories. An end-of-document signature block may corroborate an already identified author or joinder, but must not by itself become a new opinion or an otherwise unsupported panel member. panel_evidence_quote and every nonparticipant evidence_quote must be exact source text proving that status.
-Each opinion_link records authors, joins, or joins_in_part and an exact evidence quote that locally identifies that judge and the claimed relationship. Panel membership or bare agreement does not prove authorship. A signature proves authorship only when its local wording identifies the signed reasons as that judge's own. A bare agreement with the outcome, but not another opinion's reasons, is result_only=true with its own evidence quote and no opinion link. A judge who writes separate substantive reasons is not result-only. If all participating judges reach the same disposition, all have result_position=supports_disposition; never use unclear merely because the source does not use the word "majority".
+Each opinion_link records authors, joins, or joins_in_part and an exact evidence quote that locally identifies that judge and the claimed relationship. Every evidence quote is one contiguous verbatim substring: never splice a heading directly to a later judge while omitting intervening names or text. For a grouped byline or joinder, copy the whole contiguous group through that judge's name. Panel membership or bare agreement does not prove authorship. A signature proves authorship only when its local wording identifies the signed reasons as that judge's own. A bare "I agree" or "I concur" following another judge's reasons joins those reasons; record a joins link. Use result_only=true with no opinion link only when the source limits agreement to the result, outcome, disposition, or conclusion, or independently states only the order the judge would make. A judge who writes separate substantive reasons is not result-only. If all participating judges reach the same disposition, all have result_position=supports_disposition; never use unclear merely because the source does not use the word "majority".
 For each opinion copy an exact, verbatim start_quote from its first heading or substantive opening and an exact, verbatim end_quote through the terminal punctuation of its final substantive sentence. Use enough distinctive words for each quote to occur only once. Exclude panel metadata, signatures, bare joinders, solicitors, and corrections from the boundaries. Do not count character offsets; the validator resolves quotes against the source.
 Return only JSON matching the supplied schema.`;
 
@@ -432,8 +471,25 @@ The deterministic term-search preflight is only a navigation hint and is not an 
 
 const SEMANTIC_MVP_INSTRUCTIONS = `Also extract issue cards and treatment for the supplied citation-edge sample.
 ISSUE CARDS: Emit one card for each separately answered legal question in each opinion. Keep the elements of one applied test together unless the opinion gives them distinct answers or independent grounds. Do not emit questions the opinion expressly declines to decide. The question and answer are concise normalized statements, but every answer and basis or limit must cite evidence IDs. A discussion span covers the complete part of that opinion needed to understand the issue; it may cross paragraphs. Evidence quotes and span boundary quotes must be exact and unique within that opinion. Voice classifies who is speaking in the evidence. The answer itself needs current_court evidence. relation_to_disposition describes whether deciding this issue was necessary or an independent alternative ground; non_dispositive includes dicta and background.
-TREATMENT: Return exactly one treatment item for every supplied citation_edge_id, even when both event arrays are empty. Classify what the identified passage does to that cited decision, not the general relationship between the two cases. current_court means the present opinion itself adopts the characterization. Keep counsel submissions, quotations, procedural recounting, and reported decisions in their own attribution classes. Direct appellate history is separate from substantive treatment. proposition_quote is optional and only copies an expressly stated proposition; do not invent a proposition or create an issue card merely because a citation exists.
+TREATMENT: Return exactly one treatment item for every supplied citation_edge_id, even when both event arrays are empty. Classify what the identified passage does to that cited decision, not the general relationship between the two cases. current_court means the present opinion itself adopts the characterization. Keep counsel submissions, quotations, procedural recounting, and reported decisions in their own attribution classes. Direct appellate history applies only when this source decision and the cited target are themselves successive decisions in the same case; a passage merely recounting the cited authority's relationship to a third decision is not direct history for this edge. target_proposition_as_characterized is an optional concise paraphrase of the proposition this source attributes to the target; do not invent one or create an issue card merely because a citation exists.
 The citation-edge sample is deliberately incomplete. Do not add treatment records for other citations.`;
+
+const CASE_TARGET_MVP_NESTED_INSTRUCTIONS = `Extract this one closed-record citing decision and its treatment of the named target.
+
+OPINIONS: Return one opinion for each independently reasoned judicial body, with exact unique boundary quotes, named writers only when proved by exact authorship evidence, any collective author and its exact evidence, whole-opinion joiners, and whether it supports, opposes, or is mixed on the disposition. A signature, judge name, bare agreement, or disposition line is not a separate opinion. Do not list the same person as both author and joiner of one opinion. If every participating judge reaches the same result, that result is unanimous, not unknown. List every deciding participant and proved nonparticipant.
+
+ISSUES: Create one issue per legal question actually answered, never one merely argued, quoted, recounted, or left undecided. Inside each issue, group positions together only when they reach the same ultimate answer. Emit a position only for an opinion that addresses it. Give its answer, disposition relation, exact evidence, material rules/applications/qualifications, and any judge who joins only that position. At least one answer-evidence item must be the current court speaking. Do not output IDs, offsets, paragraphs, hierarchy, or discussion boundaries; the harness derives them from evidence and nesting.
+
+TARGET: Account exactly once at the root for every supplied occurrence_id. Use mention_quote only for an additional exact unique short-form or case-name mention. Classify whether the occurrence is the current court, a party submission, quoted or reported authority, procedural recounting, document metadata such as a headnote or Cases Cited list, or genuinely unclear. Repeat the same occurrence_id or exact mention_quote inside a position only when that mention concerns the position's issue. Put treatment inside that position when it bears on the issue. Use unscoped_target_treatments only for genuine treatment that cannot honestly be tied to an answered issue. Record each treatment's attribution, label, scope, exact evidence, and the target proposition only as this decision characterizes it. Direct history exists only when this source and the target are successive decisions in the same litigation. Citation alone is referred_to; applied requires use of the target proposition to decide an issue or remedy.
+
+All quotes are contiguous source text. The target's full decision is not supplied. Use only the citing decision and return only schema JSON.`;
+
+export type CaseTargetPromptVariant = "nested";
+export const CASE_TARGET_MVP_PROMPTS: Record<CaseTargetPromptVariant, { version: string; instructions: string }> = {
+  nested: { version: "a2aj-case-target-mvp-nested-v13", instructions: CASE_TARGET_MVP_NESTED_INSTRUCTIONS },
+};
+
+const CASE_TARGET_MVP_SYSTEM_PROMPT = "Closed-record legal extraction. Use only the supplied citing decision. The response schema and its nesting are authoritative; return only schema JSON.";
 
 const PREFLIGHT_TERMS: Array<{ term: string; re: RegExp }> = [
   { term: "majority", re: /\bmajority\b/iu },
@@ -495,6 +551,16 @@ async function appendJsonlBatch(file: string, events: Record<string, unknown>[])
   await appendBytes(file, `${events.map((event) => JSON.stringify({ utc: now(), ...event })).join("\n")}\n`);
 }
 
+export async function modelCallLedgerUsage(file: string) {
+  let attempted = 0;
+  await readJsonl(file, (event) => {
+    if (event.kind === "call_budget_carry_forward") attempted += Math.max(0, Number(event.attempted_calls) || 0);
+    if (event.kind === "model_call_started") attempted += 1;
+    if (event.kind === "model_call_retry_started") attempted += 1;
+  });
+  return attempted;
+}
+
 function parseIntFlag(args: Args, name: string, fallback: number) {
   const value = Number(args[name]);
   return Number.isFinite(value) ? Math.trunc(value) : fallback;
@@ -533,11 +599,11 @@ function words(value: string): string[] {
 
 function nameKey(value: string) {
   // `words()` splits dotted judicial suffixes (`J.A.`, `J.S.C.`, etc.) into
-  // single letters. Ignore every suffix component so the key remains the
+  // single letters. Ignore all initials/suffix components so the key remains the
   // judge's surname instead of collapsing an appellate panel to `a`.
-  const ignored = new Set(["a", "b", "c", "f", "j", "n", "o", "q", "s", "t", "cj", "ja", "jj", "jca", "justice"]);
+  const ignored = new Set(["cj", "ja", "jj", "jca", "justice"]);
   const surnameFirst = value.includes(",") ? value.slice(0, value.indexOf(",")) : value;
-  const tokens = words(surnameFirst).filter((token) => !ignored.has(token));
+  const tokens = words(surnameFirst).filter((token) => token.length > 1 && !ignored.has(token));
   return tokens.at(-1) ?? "";
 }
 
@@ -548,7 +614,7 @@ function judgeIdentityKey(value: string) {
   ]);
   const comma = value.indexOf(",");
   const normalized = (part: string) => words(part.normalize("NFKD").replace(/\p{M}/gu, ""))
-    .filter((token) => !ignored.has(token));
+    .filter((token) => token.length > 1 && !ignored.has(token));
   const tokens = comma >= 0
     ? [...normalized(value.slice(comma + 1)), ...normalized(value.slice(0, comma))]
     : normalized(value);
@@ -567,6 +633,11 @@ function sourceNameMatches(header: string, name: string) {
   const key = nameKey(name);
   if (key.length < 2) return false;
   return words(header).includes(key);
+}
+
+function explicitNamedAuthorshipByline(quote: string, name: string) {
+  if (!sourceNameMatches(quote, name)) return false;
+  return /(?:^|[\r\n])\s*(?:(?:reasons?|opinion)\s+(?:for\s+(?:judg(?:e)?ment|decision)|of\s+the\s+court)(?:\s+of\s+the\s+court)?|delivered)\s+by\s*:/iu.test(quote);
 }
 
 function compressNumbers(numbers: number[]): Range[] {
@@ -628,7 +699,7 @@ function extractPreflight(source: SourceDoc, paragraphs: SourceDocBlock[]): Pref
   };
 }
 
-function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges">): CitationEdgeCandidate[] {
+function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "targetOccurrences">): CitationEdgeCandidate[] {
   const currentCitationKey = citationLookupKey(record.candidate.citation);
   const bodyStart = record.paragraphs[0]?.start ?? 0;
   const candidates = citationsInText(record.source.text).flatMap((match) => {
@@ -644,6 +715,7 @@ function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges">): Ci
       contextStart,
       contextEnd,
       context,
+      contextSha256: sha256(context),
       excerptKind,
       order: sha256(`${record.sourceSha256}:${match.start}:${targetCitationKey}`),
     }];
@@ -662,8 +734,31 @@ function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges">): Ci
       contextStart: candidate.contextStart,
       contextEnd: candidate.contextEnd,
       context: candidate.context,
+      contextSha256: candidate.contextSha256,
       excerptKind: candidate.excerptKind,
       selectionRule: "prose_first_then_source_hashed_occurrence_v1",
+    }));
+}
+
+function caseTargetOccurrences(source: SourceDoc, target: CaseTargetSpec | undefined): CaseTargetOccurrence[] {
+  if (!target) return [];
+  const bodyEnd = source.blocks.filter(({ kind }) => kind === "paragraph").at(-1)?.end ?? source.text.length;
+  const targetKeys = new Set(
+    [target.citation, ...target.citationAliases]
+      .flatMap((citation) => citationAliasKeys(citation))
+      .concat([target.citation, ...target.citationAliases].map(citationLookupKey))
+      .filter(Boolean),
+  );
+  return citationsInText(source.text)
+    .filter((match) => targetKeys.has(citationLookupKey(match.text)))
+    .map((match, index) => ({
+      id: `tm${index + 1}`,
+      kind: "citation" as const,
+      quote: match.text,
+      start: match.start,
+      end: match.end,
+      citationKey: citationLookupKey(match.text),
+      linkedContext: footnoteReferenceContext(source.text, match.start, bodyEnd),
     }));
 }
 
@@ -884,6 +979,54 @@ function semanticMvpPacket(record: CaseRecord) {
   ].join("\n\n");
 }
 
+export function caseTargetMvpPacket(record: CaseRecord, variant: CaseTargetPromptVariant) {
+  if (!record.candidate.target) throw new Error("case-target MVP requires target metadata");
+  return [
+    CASE_TARGET_MVP_SYSTEM_PROMPT,
+    CASE_TARGET_MVP_PROMPTS[variant].instructions,
+    "[CITING CASE]",
+    json({
+      document_id: record.candidate.documentId,
+      dataset: record.candidate.dataset,
+      citation: record.candidate.citation,
+      name: record.candidate.name,
+      date: record.candidate.date,
+      source_sha256: record.sourceSha256,
+    }),
+    "[TARGET CASE IDENTITY — IDENTITY ONLY, NOT TARGET DECISION TEXT]",
+    json({
+      document_id: record.candidate.target.documentId,
+      citation: record.candidate.target.citation,
+      citation_aliases: record.candidate.target.citationAliases,
+      name: record.candidate.target.name,
+      same_litigation_eligible: record.candidate.target.sameLitigationEligible,
+    }),
+    "[DETERMINISTIC TARGET CITATION OCCURRENCES — ACCOUNT FOR EACH ID]",
+    json(record.targetOccurrences.map((occurrence) => ({
+      occurrence_id: occurrence.id,
+      quote: occurrence.quote,
+      start: occurrence.start,
+      end_exclusive: occurrence.end,
+      citation_key: occurrence.citationKey,
+      linked_context: occurrence.linkedContext === null ? null : {
+        kind: occurrence.linkedContext.kind,
+        quote: occurrence.linkedContext.quote,
+        start: occurrence.linkedContext.start,
+        end_exclusive: occurrence.linkedContext.end,
+      },
+    }))),
+    "[SOURCE STRUCTURE]",
+    json({
+      paragraph_index: paragraphIndex(record.paragraphs) || null,
+      paragraph_structure_available: record.paragraphs.length > 0,
+    }),
+    "[DETERMINISTIC TERM-SEARCH PREFLIGHT — NAVIGATION HINTS ONLY]",
+    json(record.preflight),
+    "[COMPLETE CITING DECISION TEXT]",
+    record.source.text,
+  ].join("\n\n");
+}
+
 function exactQuoteSpans(text: string, quote: string, limit = 3) {
   const spans: Array<{ start: number; end: number }> = [];
   let cursor = 0;
@@ -1085,7 +1228,7 @@ function normalizeSubmission(value: Record<string, unknown>, allowLegacy: boolea
   };
 }
 
-function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = false): { prediction: Prediction | null; validation: Validation } {
+export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = false): { prediction: Prediction | null; validation: Validation } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { prediction: null, validation: { ok: false, error: "extraction must be an object", next: "Submit opinions, participants, and nonparticipants." } };
   }
@@ -1100,7 +1243,7 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
   ];
   const canonicalName = (name: string) =>
     uniqueJudgeMatch(name, candidates, (candidate) => candidate) ?? name;
-  const canonicalEvidence = (rawQuote: unknown, label: string, required: boolean) => {
+  const canonicalEvidence = (rawQuote: unknown, label: string, required: boolean, preferHeader = false) => {
     if (rawQuote === null || rawQuote === undefined || rawQuote === "") {
       if (required && !normalized.legacy) errors.push(`${label} must be an exact source quote`);
       return { quote: null, start: null, end: null };
@@ -1109,7 +1252,12 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
       errors.push(`${label} must be a string or null`);
       return { quote: null, start: null, end: null };
     }
-    const spans = groundedQuoteSpans(record.source.text, rawQuote.trim(), 3);
+    let spans = groundedQuoteSpans(record.source.text, rawQuote.trim(), 3);
+    if (preferHeader && spans.length > 1) {
+      const headerEnd = record.paragraphs[0]?.start ?? record.hints.header.length;
+      const headerSpans = spans.filter(({ end }) => end <= headerEnd);
+      if (headerSpans.length >= 1) spans = [headerSpans[0]];
+    }
     if (spans.length !== 1) {
       errors.push(`${label} resolves ${spans.length} times; provide a unique exact quote`);
       return { quote: null, start: null, end: null };
@@ -1248,10 +1396,11 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
     const resultPosition = RESULT_POSITIONS.includes(row.result_position as ResultPosition)
       ? row.result_position as ResultPosition
       : null;
-    const panelEvidence = canonicalEvidence(row.panel_evidence_quote, `${submittedName || "participant"} panel_evidence_quote`, true).quote;
+    const panelEvidence = canonicalEvidence(row.panel_evidence_quote, `${submittedName || "participant"} panel_evidence_quote`, true, true).quote;
     const rawLinks = Array.isArray(row.opinion_links) ? row.opinion_links : [];
     const links: Prediction["participants"][number]["opinion_links"] = [];
     const linkKeys = new Set<string>();
+    const linkedOpinionIds = new Set<string>();
     for (const rawLink of rawLinks) {
       if (!rawLink || typeof rawLink !== "object" || Array.isArray(rawLink)) {
         errors.push(`${submittedName || "participant"} opinion link must be an object`);
@@ -1271,10 +1420,42 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
       }
       if (linkKeys.has(linkKey)) errors.push(`${submittedName || "participant"} repeats ${linkKey}`);
       else linkKeys.add(linkKey);
+      if (linkedOpinionIds.has(opinionId)) errors.push(`${submittedName || "participant"} has more than one relationship to ${opinionId || "(empty)"}`);
+      else linkedOpinionIds.add(opinionId);
       links.push({ opinion_id: opinionId, relation: relation ?? "joins_in_part", evidence_quote: evidenceQuote });
     }
-    const resultOnly = row.result_only === true;
-    const resultOnlyEvidence = canonicalEvidence(row.result_only_evidence_quote, `${submittedName || "participant"} result_only_evidence_quote`, resultOnly).quote;
+    let resultOnly = row.result_only === true;
+    const resultOnlyResolution = canonicalEvidence(
+      row.result_only_evidence_quote,
+      `${submittedName || "participant"} result_only_evidence_quote`,
+      resultOnly,
+    );
+    let resultOnlyEvidence = resultOnlyResolution.quote;
+    if (
+      resultOnly && resultOnlyEvidence &&
+      /\b(?:agree|concur)\b/iu.test(resultOnlyEvidence) &&
+      !/\b(?:agree|concur)\b[^.!?]{0,100}\b(?:result|outcome|disposition|conclusion|order)\b/iu.test(resultOnlyEvidence)
+    ) {
+      const preceding = resultOnlyResolution.start === null
+        ? []
+        : [...opinions]
+            .filter((opinion) => (
+              opinion.end_exclusive <= resultOnlyResolution.start! &&
+              resultOnlyResolution.start! - opinion.end_exclusive <= 2_000
+            ) || (
+              resultOnlyResolution.start! >= opinion.start &&
+              resultOnlyResolution.start! < opinion.end_exclusive &&
+              opinion.end_exclusive - resultOnlyResolution.start! <= 2_000
+            ))
+            .sort((left, right) => right.end_exclusive - left.end_exclusive);
+      if (!links.length && preceding.length && (preceding.length === 1 || preceding[0].end_exclusive > preceding[1].end_exclusive)) {
+        links.push({ opinion_id: preceding[0].id, relation: "joins", evidence_quote: resultOnlyEvidence });
+        resultOnly = false;
+        resultOnlyEvidence = null;
+      } else {
+        errors.push(`${submittedName || "participant"} bare agreement has no unique preceding opinion to join`);
+      }
+    }
     if (!key || seenJudges.has(key)) errors.push(`duplicate or empty judge: ${submittedName || "(empty)"}`);
     else seenJudges.add(key);
     if (!sourceNameMatches(record.source.text, submittedName)) errors.push(`judge name not found in source: ${submittedName}`);
@@ -1318,10 +1499,33 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
     });
   }
   for (const opinion of opinions) {
+    if (opinion.author_names.length || !opinion.collective_author) continue;
+    const linkedAuthors = participants.flatMap((participant) => participant.opinion_links
+      .filter((link) => link.opinion_id === opinion.id && link.relation === "authors")
+      .map((link) => ({ participant, evidence: link.evidence_quote })));
+    if (
+      !linkedAuthors.length ||
+      linkedAuthors.some(({ participant, evidence }) => !evidence || !explicitNamedAuthorshipByline(evidence, participant.name))
+    ) continue;
+    opinion.author_names = [...new Map(linkedAuthors.map(({ participant }) => [
+      judgeIdentityKey(participant.name),
+      participant.name,
+    ])).values()];
+    opinion.collective_author = null;
+    warnings.push(`${opinion.id} collective label normalized to an explicit named byline`);
+  }
+  for (const opinion of opinions) {
     for (const author of opinion.author_names) {
       const judge = uniqueJudgeMatch(author, participants, (candidate) => candidate.name);
-      if (!judge || !judge.opinion_links.some((link) => link.opinion_id === opinion.id && link.relation === "authors")) {
+      const link = judge?.opinion_links.find((candidate) => candidate.opinion_id === opinion.id && candidate.relation === "authors");
+      if (!judge || !link) {
         errors.push(`${opinion.id} author ${author} must have an authors voting record referencing that opinion`);
+      } else if (participants.length > 1 && link.evidence_quote) {
+        const spans = groundedQuoteSpans(record.source.text, link.evidence_quote, 2);
+        const nearOpening = spans.length === 1 && spans[0].end >= Math.max(0, opinion.start - 1_500) && spans[0].start <= opinion.start + 1_500;
+        if (!nearOpening && !explicitNamedAuthorshipByline(link.evidence_quote, judge.name)) {
+          errors.push(`${opinion.id} author ${author} is supported only outside the opinion opening/byline`);
+        }
       }
     }
   }
@@ -1330,6 +1534,12 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
       const opinion = opinions.find((candidate) => candidate.id === link.opinion_id);
       if (opinion && uniqueJudgeMatch(judge.name, opinion.author_names, (author) => author) === null) {
         errors.push(`${judge.name} is linked as author of ${link.opinion_id} but is not named as its author`);
+      }
+    }
+    for (const link of judge.opinion_links.filter((candidate) => candidate.relation === "joins")) {
+      const opinion = opinions.find((candidate) => candidate.id === link.opinion_id);
+      if (opinion && !opinion.collective_author && link.evidence_quote && !/\b(?:agree|concur|join|adopt)\w*\b/iu.test(link.evidence_quote)) {
+        errors.push(`${judge.name} whole-opinion joinder evidence does not state agreement or joinder`);
       }
     }
   }
@@ -1384,6 +1594,229 @@ function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy = fals
     }),
     validation: { ok: true, ...(warnings.length ? { warnings } : {}) },
   };
+}
+
+function objectRows(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    : [];
+}
+
+/** Put model opinion objects in source order before assigning internal IDs. */
+function sourceOrderedReducedOpinions(record: CaseRecord, raw: Record<string, unknown>) {
+  const submitted = objectRows(raw.opinions);
+  const anchored = submitted.map((opinion, submittedIndex) => {
+    const quote = typeof opinion.start_quote === "string" ? opinion.start_quote.trim() : "";
+    const spans = quote ? groundedQuoteSpans(record.source.text, quote, 2) : [];
+    return { opinion, submittedIndex, start: spans.length === 1 ? spans[0].start : null };
+  });
+  return anchored.every(({ start }) => start !== null)
+    ? anchored.sort((left, right) => left.start! - right.start! || left.submittedIndex - right.submittedIndex).map(({ opinion }) => opinion)
+    : submitted;
+}
+
+/** Project the nested, ID-free v13 roster into the existing grounded roster validator. */
+function reducedRosterSubmission(record: CaseRecord, raw: Record<string, unknown>) {
+  const submittedOpinions = sourceOrderedReducedOpinions(record, raw);
+  const opinions = submittedOpinions.map((opinion, index) => ({
+    id: `o${index + 1}`,
+    author_names: objectRows(opinion.named_authors).flatMap((author) =>
+      typeof author.name === "string" && author.name.trim() ? [author.name.trim()] : []
+    ),
+    collective_author: opinion.collective_author ?? null,
+    result_position: opinion.result_position,
+    position_evidence_quote: opinion.position_evidence_quote ?? null,
+    start_quote: opinion.start_quote,
+    end_quote: opinion.end_quote,
+  }));
+  const participants = objectRows(raw.participants).map((participant) => {
+    const name = typeof participant.name === "string" ? participant.name.trim() : "";
+    const links: Array<{ opinion_id: string; relation: OpinionLinkRelation; evidence_quote: unknown }> = [];
+    submittedOpinions.forEach((opinion, index) => {
+      const opinionId = `o${index + 1}`;
+      const author = uniqueJudgeMatch(name, objectRows(opinion.named_authors), (item) => String(item.name ?? ""));
+      if (author) links.push({ opinion_id: opinionId, relation: "authors", evidence_quote: author.evidence_quote });
+      const joiner = uniqueJudgeMatch(name, objectRows(opinion.whole_opinion_joiners), (item) => String(item.name ?? ""));
+      if (joiner) links.push({ opinion_id: opinionId, relation: "joins", evidence_quote: joiner.evidence_quote });
+    });
+    return {
+      name,
+      panel_evidence_quote: participant.panel_evidence_quote,
+      result_position: participant.result_position,
+      opinion_links: links,
+      result_only: participant.result_only,
+      result_only_evidence_quote: participant.result_only_evidence_quote ?? null,
+    };
+  });
+  return {
+    disposition_quote: raw.disposition_quote ?? null,
+    opinions,
+    participants,
+    nonparticipants: objectRows(raw.nonparticipants),
+  };
+}
+
+function reducedRosterContractErrors(record: CaseRecord, raw: Record<string, unknown>) {
+  const errors: string[] = [];
+  sourceOrderedReducedOpinions(record, raw).forEach((opinion, index) => {
+    const label = `opinions[${index}]`;
+    const collective = typeof opinion.collective_author === "string" ? opinion.collective_author.trim() : "";
+    const evidence = typeof opinion.collective_author_evidence_quote === "string"
+      ? opinion.collective_author_evidence_quote.trim()
+      : "";
+    if (collective) {
+      const spans = evidence ? groundedQuoteSpans(record.source.text, evidence, 2) : [];
+      if (spans.length !== 1) errors.push(`${label}.collective_author_evidence_quote must be one unique exact source quote`);
+      if (evidence && !compact(evidence).toLocaleLowerCase().includes(compact(collective).toLocaleLowerCase())) {
+        errors.push(`${label}.collective_author_evidence_quote does not identify ${collective}`);
+      }
+    } else if (opinion.collective_author_evidence_quote !== null) {
+      errors.push(`${label}.collective_author_evidence_quote must be null without a collective author`);
+    }
+    const authors = new Set(objectRows(opinion.named_authors).map((item) => judgeIdentityKey(String(item.name ?? ""))).filter(Boolean));
+    for (const joiner of objectRows(opinion.whole_opinion_joiners)) {
+      if (authors.has(judgeIdentityKey(String(joiner.name ?? "")))) {
+        errors.push(`${label} lists ${String(joiner.name ?? "(empty)")} as both author and joiner`);
+      }
+    }
+  });
+  return errors;
+}
+
+function addCompiledPartialLinks(
+  prediction: Prediction,
+  partialJoins: readonly { participant_name: string; opinion_id: string; evidence_quotes: string[] }[],
+) {
+  const participants = prediction.participants.map((participant) => {
+    const joins = partialJoins.filter((join) =>
+      uniqueJudgeMatch(join.participant_name, [participant], (candidate) => candidate.name) !== null
+    );
+    const opinionLinks = [...participant.opinion_links];
+    for (const join of joins) {
+      if (!opinionLinks.some((link) => link.opinion_id === join.opinion_id)) {
+        opinionLinks.push({
+          opinion_id: join.opinion_id,
+          relation: "joins_in_part",
+          evidence_quote: join.evidence_quotes[0] ?? null,
+        });
+      }
+    }
+    const relationship: JudgeOpinionRelationship = participant.result_only
+      ? "concurs_in_result_only"
+      : opinionLinks.some(({ relation }) => relation === "authors")
+        ? "authors"
+        : opinionLinks.some(({ relation }) => relation === "joins_in_part")
+          ? "mixed"
+          : opinionLinks.length
+            ? "joins_reasons"
+            : "unknown";
+    return {
+      ...participant,
+      opinion_links: opinionLinks,
+      relationship,
+      opinion_ids: [...new Set(opinionLinks.map(({ opinion_id }) => opinion_id))],
+    };
+  });
+  return withDerivedAuthority({ ...prediction, participants });
+}
+
+function caseTargetPanelComplete(record: CaseRecord, prediction: Prediction) {
+  const deterministicPanel = record.deterministic.status === "ready"
+    ? [...new Map(record.deterministic.panel.map((name) => [judgeIdentityKey(name), name])).values()]
+    : [];
+  if (deterministicPanel.length) {
+    return prediction.participants.length === deterministicPanel.length && deterministicPanel.every((name) =>
+      uniqueJudgeMatch(name, prediction.participants, (participant) => participant.name) !== null
+    );
+  }
+  return prediction.participants.length === 1;
+}
+
+export function validateCaseTargetSubmission(record: CaseRecord, raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    const roster = validatePrediction(record, raw);
+    return { prediction: roster.prediction, validation: roster.validation, case_target_mvp: null, compiler_errors: [] as string[] };
+  }
+  const submission = raw as Record<string, unknown>;
+  const contractErrors = reducedRosterContractErrors(record, submission);
+  const roster = validatePrediction(record, reducedRosterSubmission(record, submission));
+  if (contractErrors.length) {
+    return {
+      prediction: null,
+      validation: {
+        ok: false as const,
+        error: "opinion_extraction_invalid",
+        errors: [...new Set([...(roster.validation.errors ?? []), ...contractErrors])],
+        next: "Correct only the named source-grounding and opinion-role errors.",
+      },
+      case_target_mvp: null,
+      compiler_errors: [] as string[],
+    };
+  }
+  if (!roster.prediction) {
+    return { prediction: null, validation: roster.validation, case_target_mvp: null, compiler_errors: [] as string[] };
+  }
+  let compiled: ReturnType<typeof compileReducedCaseTargetSubmission>;
+  try {
+    compiled = compileReducedCaseTargetSubmission(
+      submission as ReducedCaseTargetSubmission,
+      {
+        sourceText: record.source.text,
+        directHistoryEligible: record.candidate.target?.sameLitigationEligible === true,
+        opinions: roster.prediction.opinions.map((opinion) => ({
+          id: opinion.id,
+          start: opinion.start,
+          end: opinion.end_exclusive,
+          text: record.source.text.slice(opinion.start, opinion.end_exclusive),
+        })),
+        participants: roster.prediction.participants.map((participant) => ({
+          name: participant.name,
+          opinion_links: participant.opinion_links.map(({ opinion_id, relation }) => ({ opinion_id, relation })),
+          result_only: participant.result_only,
+        })),
+        panelComplete: caseTargetPanelComplete(record, roster.prediction),
+        occurrences: record.targetOccurrences,
+      },
+    );
+  } catch (error) {
+    const compilerErrors = [`v13 submission shape: ${errorMessage(error)}`];
+    return { prediction: roster.prediction, validation: roster.validation, case_target_mvp: null, compiler_errors: compilerErrors };
+  }
+  const partialJoinConflicts = compiled.input.partialIssueJoins.flatMap((join) => {
+    const participant = uniqueJudgeMatch(join.participant_name, roster.prediction!.participants, (candidate) => candidate.name);
+    if (!participant) return [`partial join names unknown participant ${join.participant_name}`];
+    if (participant.result_only) return [`${participant.name} cannot be result-only and also join part of ${join.opinion_id}`];
+    return join.evidence_quotes.length > 0 && join.evidence_quotes.every((quote) => sourceNameMatches(quote, participant.name))
+      ? []
+      : [`${participant.name} partial-join evidence does not identify that judge`];
+  });
+  const compilerErrors = [...new Set([...compiled.errors, ...partialJoinConflicts])];
+  const prediction = addCompiledPartialLinks(roster.prediction, compiled.input.partialIssueJoins);
+  const resolved = resolveCaseTargetMvp({
+    ...compiled.input,
+    participants: prediction.participants.map((participant) => ({
+      name: participant.name,
+      opinion_links: participant.opinion_links.map(({ opinion_id, relation }) => ({ opinion_id, relation })),
+      result_only: participant.result_only,
+    })),
+  });
+  const errors = [...new Set([...compilerErrors, ...resolved.errors])];
+  const ok = errors.length === 0;
+  const caseTargetMvp = {
+    ...resolved,
+    ok,
+    errors,
+    compiler_errors: compilerErrors,
+    flat_treatment: {
+      ...resolved.flat_treatment,
+      status: ok ? resolved.flat_treatment.status : "partial",
+      flags: {
+        ...resolved.flat_treatment.flags,
+        aggregation_safe: ok && resolved.flat_treatment.flags.aggregation_safe,
+      },
+    },
+  };
+  return { prediction, validation: roster.validation, case_target_mvp: caseTargetMvp, compiler_errors: compilerErrors };
 }
 
 function treatmentOpinionPosition(opinion: Prediction["opinions"][number]): OpinionPosition {
@@ -1659,88 +2092,224 @@ function extractJsonObject(text: string): unknown {
   try { return JSON.parse(text.slice(start, end + 1)); } catch { return null; }
 }
 
-function codexInvocation() {
-  const override = process.env.CODEX_CMD?.trim();
-  if (override) return { command: override, prefix: [] as string[], shell: /\.cmd$/iu.test(override) };
-  const script = path.join(process.env.APPDATA || "", "npm", "node_modules", "@openai", "codex", "bin", "codex.js");
-  if (existsSync(script)) return { command: process.execPath, prefix: [script], shell: false };
-  return { command: process.platform === "win32" ? "codex.cmd" : "codex", prefix: [] as string[], shell: process.platform === "win32" };
+function validUtf8String(value: string) {
+  return Buffer.from(value, "utf8").toString("utf8");
 }
 
-function codexVersion() {
-  const invocation = codexInvocation();
-  const result = spawnSync(invocation.command, [...invocation.prefix, "--version"], {
+function unpairedSurrogateCount(value: string) {
+  let count = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xDC00 && next <= 0xDFFF) index += 1;
+      else count += 1;
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function codexSubscriptionEnvironment() {
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUNBUFFERED: "1" };
+  delete env.OPENAI_API_KEY;
+  delete env.CODEX_API_KEY;
+  delete env.OPENAI_BASE_URL;
+  return env;
+}
+
+function codexSubscriptionInvocation() {
+  if (!existsSync(CODEX_SUBSCRIPTION_HELPER)) {
+    throw new Error(`Codex subscription helper is missing: ${CODEX_SUBSCRIPTION_HELPER}`);
+  }
+  const command = process.env.PYTHON_CMD?.trim() || "python";
+  return { command, prefix: [CODEX_SUBSCRIPTION_HELPER], shell: /\.cmd$/iu.test(command) };
+}
+
+export function codexSubscriptionPreflight() {
+  const invocation = codexSubscriptionInvocation();
+  const result = spawnSync(invocation.command, [...invocation.prefix, "--preflight"], {
     encoding: "utf8",
     shell: invocation.shell,
+    env: codexSubscriptionEnvironment(),
   });
-  return result.status === 0 ? `${result.stdout ?? ""}`.trim() : null;
+  if (result.status !== 0) {
+    throw new Error(`Codex subscription preflight failed: ${`${result.stderr ?? result.stdout ?? ""}`.trim().slice(-1_000)}`);
+  }
+  let receipt: Record<string, unknown>;
+  try {
+    receipt = JSON.parse(`${result.stdout ?? ""}`.trim()) as Record<string, unknown>;
+  } catch {
+    throw new Error("Codex subscription preflight returned invalid JSON");
+  }
+  if (
+    receipt.kind !== "subscription_preflight" ||
+    receipt.endpoint !== CODEX_SUBSCRIPTION_ENDPOINT ||
+    receipt.auth_mode !== "chatgpt" ||
+    receipt.account_id_present !== true ||
+    (typeof receipt.access_token_valid_for_seconds === "number" && receipt.access_token_valid_for_seconds <= 0)
+  ) {
+    throw new Error(`Codex subscription preflight was not a valid flat-subscription receipt: ${JSON.stringify(receipt)}`);
+  }
+  return receipt;
 }
 
-function codexEvents(output: string) {
-  const events = output.split(/\r?\n/u).flatMap((line) => {
-    try { return [JSON.parse(line) as Record<string, unknown>]; } catch { return []; }
-  });
-  const started = events.find((event) => event.type === "thread.started");
-  const completed = [...events].reverse().find((event) => event.type === "turn.completed");
+function codexSubscriptionEvents(
+  events: Array<Record<string, unknown>>,
+  eventCount: number,
+  providerAttemptCount: number,
+) {
+  const preflight = events.find((event) => event.kind === "subscription_preflight");
+  const completed = [...events].reverse().find((event) => event.kind === "subscription_completed");
   return {
-    event_count: events.length,
-    thread_id: typeof started?.thread_id === "string" ? started.thread_id : null,
+    event_count: eventCount,
+    transport_retries: Math.max(
+      0,
+      providerAttemptCount - 1,
+      typeof completed?.transport_retries === "number" ? completed.transport_retries : 0,
+    ),
+    thread_id: null,
+    response_id: typeof completed?.response_id === "string" ? completed.response_id : null,
     usage: completed?.usage && typeof completed.usage === "object" ? completed.usage : null,
+    transport: {
+      endpoint: preflight?.endpoint ?? completed?.endpoint ?? null,
+      auth_mode: preflight?.auth_mode ?? completed?.auth_mode ?? null,
+      account_id_present: preflight?.account_id_present ?? null,
+      adapter_sha256: preflight?.adapter_sha256 ?? null,
+      helper_sha256: preflight?.helper_sha256 ?? null,
+      openai_sdk_version: preflight?.openai_sdk_version ?? null,
+      isolated_process: true,
+    },
+  };
+}
+
+function codexEventSummary(event: Record<string, unknown>) {
+  const providerEvent = event.kind === "subscription_provider_event" && event.event && typeof event.event === "object" && !Array.isArray(event.event)
+    ? event.event as Record<string, unknown>
+    : event;
+  const item = providerEvent.item && typeof providerEvent.item === "object" && !Array.isArray(providerEvent.item)
+    ? providerEvent.item as Record<string, unknown>
+    : null;
+  return {
+    event_type: typeof providerEvent.type === "string"
+      ? providerEvent.type
+      : typeof event.kind === "string"
+        ? event.kind
+        : "unknown",
+    attempt: typeof event.attempt === "number" ? event.attempt : null,
+    thread_id: null,
+    item_id: typeof item?.id === "string" ? item.id : null,
+    item_type: typeof item?.type === "string" ? item.type : null,
+    item_status: typeof item?.status === "string" ? item.status : null,
+    error_message: providerEvent.type === "error" && typeof providerEvent.message === "string" ? providerEvent.message : null,
+    item_error_message: item?.type === "error" && typeof item.message === "string" ? item.message : null,
+    usage: event.usage && typeof event.usage === "object" ? event.usage : null,
   };
 }
 
 type AsyncCommandResult = {
-  stdout: string;
+  stdoutSha256: string;
+  subscriptionEvents: Array<Record<string, unknown>>;
+  providerEventCount: number;
+  providerAttemptCount: number;
   stderr: string;
   status: number | null;
   error: Error | null;
 };
 
+type CodexEventHandler = (
+  event: Record<string, unknown>,
+  rawLine: string,
+) => Promise<void>;
+
 function spawnCodex(
-  invocation: ReturnType<typeof codexInvocation>,
+  invocation: ReturnType<typeof codexSubscriptionInvocation>,
   args: string[],
   input: string,
   timeoutMs: number,
+  onEvent?: CodexEventHandler,
 ): Promise<AsyncCommandResult> {
   return new Promise((resolve) => {
-    let stdout = "";
+    const stdoutHash = createHash("sha256");
+    const subscriptionEvents: Array<Record<string, unknown>> = [];
+    let providerEventCount = 0;
+    let providerAttemptCount = 0;
     let stderr = "";
     let settled = false;
     let timedOut = false;
-    let outputTooLarge = false;
+    let eventError: Error | null = null;
+    let lineBuffer = "";
+    let eventWrites = Promise.resolve();
     let timer: ReturnType<typeof setTimeout>;
     const child = spawn(invocation.command, [...invocation.prefix, ...args], {
       shell: invocation.shell,
       windowsHide: true,
+      env: codexSubscriptionEnvironment(),
     });
 
-    const finish = (status: number | null, error: Error | null = null) => {
+    const queueEvent = (line: string) => {
+      if (!line.trim()) return;
+      let event: unknown;
+      try { event = JSON.parse(line); } catch { event = { kind: "subscription_unparseable_line" }; }
+      if (!event || typeof event !== "object" || Array.isArray(event)) event = { kind: "subscription_unparseable_line" };
+      const record = event as Record<string, unknown>;
+      if (record.kind === "subscription_provider_event") {
+        providerEventCount += 1;
+        providerAttemptCount = Math.max(providerAttemptCount, Number(record.attempt) || 1);
+      }
+      if (record.kind === "subscription_preflight" || record.kind === "subscription_completed") {
+        subscriptionEvents.push(record);
+      }
+      if (!onEvent) return;
+      eventWrites = eventWrites
+        .then(() => onEvent(record, line))
+        .catch((error) => { eventError ??= error instanceof Error ? error : new Error(String(error)); });
+    };
+
+    const drainEventLines = (flush = false) => {
+      const lines = lineBuffer.split(/\r?\n/u);
+      const remainder = lines.pop() ?? "";
+      lineBuffer = flush ? "" : remainder;
+      for (const line of lines) queueEvent(line);
+      if (flush && remainder.trim()) queueEvent(remainder);
+    };
+
+    const finish = async (status: number | null, error: Error | null = null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      drainEventLines(true);
+      await eventWrites;
       const finalError = error
-        ?? (timedOut ? new Error(`Codex exec timed out after ${timeoutMs / 1_000}s`) : null)
-        ?? (outputTooLarge ? new Error(`Codex exec output exceeded ${MAX_CODEX_OUTPUT_BYTES} bytes`) : null);
-      resolve({ stdout, stderr, status, error: finalError });
+        ?? eventError
+        ?? (timedOut ? new Error(`Codex subscription call timed out after ${timeoutMs / 1_000}s`) : null);
+      resolve({
+        stdoutSha256: stdoutHash.digest("hex"),
+        subscriptionEvents,
+        providerEventCount,
+        providerAttemptCount,
+        stderr,
+        status,
+        error: finalError,
+      });
     };
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
-      if (Buffer.byteLength(stdout, "utf8") > MAX_CODEX_OUTPUT_BYTES && !outputTooLarge) {
-        outputTooLarge = true;
-        child.kill();
-      }
+      stdoutHash.update(chunk, "utf8");
+      lineBuffer += chunk;
+      drainEventLines();
     });
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
-      if (Buffer.byteLength(stderr, "utf8") > MAX_CODEX_OUTPUT_BYTES) {
-        stderr = stderr.slice(-MAX_CODEX_OUTPUT_BYTES);
+      if (Buffer.byteLength(stderr, "utf8") > MAX_CODEX_STDERR_BYTES) {
+        stderr = stderr.slice(-MAX_CODEX_STDERR_BYTES);
       }
     });
-    child.once("error", (error) => finish(null, error));
-    child.once("close", (status) => finish(status));
+    child.once("error", (error) => { void finish(null, error); });
+    child.once("close", (status) => { void finish(status); });
     timer = setTimeout(() => {
       timedOut = true;
       child.kill();
@@ -1753,79 +2322,135 @@ function spawnCodex(
   });
 }
 
+export async function runStructuredLuna(args: {
+  prompt: string;
+  schema: unknown;
+  schemaName: string;
+  responseFormat?: unknown;
+  model: string;
+  effort: string;
+  timeoutSeconds: number;
+  onEvent?: CodexEventHandler;
+}) {
+  const { prompt, schema, schemaName, responseFormat, model, effort, timeoutSeconds, onEvent } = args;
+  if (!/^[\w.:-]+$/u.test(model)) throw new Error(`invalid Codex model: ${model}`);
+  if (!["none", "low", "medium", "high", "xhigh", "max", "ultra"].includes(effort)) {
+    throw new Error(`invalid Codex effort: ${effort}`);
+  }
+  if (!/^[\w.-]+$/u.test(schemaName)) throw new Error(`invalid response schema name: ${schemaName}`);
+  const temp = await mkdtemp(path.join(os.tmpdir(), "beaver-a2aj-codex-subscription-"));
+  const answerPath = path.join(temp, "answer.json");
+  const invocation = codexSubscriptionInvocation();
+  const transportedPrompt = validUtf8String(prompt);
+  let utf8ReplacementCount = unpairedSurrogateCount(prompt);
+  const cliArgs = [
+    "--output",
+    answerPath,
+  ];
+  const requestValue = {
+    model,
+    effort,
+    prompt_base64: Buffer.from(transportedPrompt, "utf8").toString("base64"),
+    response_format: responseFormat ?? { type: "json_schema", name: schemaName, strict: true, schema },
+    prompt_cache_key: `a2aj-${sha256(`${schemaName}\0${transportedPrompt}`)}`,
+  };
+  const request = JSON.stringify(requestValue, (_key, value) => {
+    if (typeof value !== "string") return value;
+    const replacements = unpairedSurrogateCount(value);
+    utf8ReplacementCount += replacements;
+    return replacements ? validUtf8String(value) : value;
+  });
+  const started = performance.now();
+  try {
+    const result = await spawnCodex(
+      invocation,
+      cliArgs,
+      request,
+      Math.max(1, timeoutSeconds) * 1_000,
+      onEvent,
+    );
+    const answer = existsSync(answerPath) ? await readFile(answerPath, "utf8") : "";
+    return {
+      raw: answer,
+      parsed: extractJsonObject(answer),
+      stderr: result.stderr,
+      stderrSha256: sha256(result.stderr),
+      stderrBytes: Buffer.byteLength(result.stderr, "utf8"),
+      returnCode: result.status,
+      error: result.error
+        ? errorMessage(result.error)
+        : result.status === 0
+          ? null
+          : `Codex subscription child exited ${result.status ?? "without a status"}`,
+      elapsedSeconds: Math.round((performance.now() - started) / 10) / 100,
+      promptSha256: sha256(transportedPrompt),
+      promptChars: transportedPrompt.length,
+      utf8ReplacementCount,
+      outputSha256: sha256(answer),
+      stdoutSha256: result.stdoutSha256,
+      ...codexSubscriptionEvents(
+        result.subscriptionEvents,
+        result.providerEventCount,
+        result.providerAttemptCount,
+      ),
+      cli: {
+        model,
+        effort,
+        transport: "codex_chatgpt_subscription",
+        endpoint: CODEX_SUBSCRIPTION_ENDPOINT,
+        auth_mode: "chatgpt",
+        isolated_process: true,
+        output_schema: schemaName,
+        response_format: responseFormat,
+      },
+    };
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+}
+
 async function runLuna(
   prompt: string,
   model: string,
   effort: string,
   timeoutSeconds: number,
   semanticMvp = false,
+  caseTargetMvp = false,
+  directHistoryEligible = false,
+  onEvent?: CodexEventHandler,
 ) {
-  if (!/^[\w.:-]+$/u.test(model)) throw new Error(`invalid Codex model: ${model}`);
-  if (!["none", "low", "medium", "high", "xhigh", "max"].includes(effort)) {
-    throw new Error(`invalid Codex effort: ${effort}`);
+  if (semanticMvp && caseTargetMvp) throw new Error("Luna schema modes are mutually exclusive");
+  const caseTargetSchema = caseTargetMvp
+    ? structuredClone(CASE_TARGET_MVP_JSON_SCHEMA) as any
+    : null;
+  if (caseTargetSchema && !directHistoryEligible) {
+    caseTargetSchema.properties.direct_history.maxItems = 0;
   }
-  const temp = await mkdtemp(path.join(os.tmpdir(), "beaver-a2aj-codex-"));
-  const schemaPath = path.join(temp, semanticMvp ? "semantic-mvp.schema.json" : "roster.schema.json");
-  const answerPath = path.join(temp, "answer.json");
-  await writeFile(schemaPath, JSON.stringify(semanticMvp ? SEMANTIC_MVP_JSON_SCHEMA : SUBMIT_TOOL.function.parameters), "utf8");
-  const invocation = codexInvocation();
-  const cliArgs = [
-    "exec",
-    "--ephemeral",
-    "--ignore-user-config",
-    "--skip-git-repo-check",
-    "--sandbox",
-    "read-only",
-    "--color",
-    "never",
-    "--json",
-    "-C",
-    temp,
-    "-m",
+  const schema = caseTargetMvp
+    ? caseTargetSchema
+    : semanticMvp
+      ? SEMANTIC_MVP_JSON_SCHEMA
+      : SUBMIT_TOOL.function.parameters;
+  const schemaName = caseTargetMvp
+    ? CASE_TARGET_MVP_SCHEMA_NAME
+    : semanticMvp
+      ? SEMANTIC_MVP_SCHEMA_NAME
+      : RESPONSE_SCHEMA_NAME;
+  const responseFormat = caseTargetMvp
+    ? { ...CASE_TARGET_MVP_RESPONSES_SCHEMA, schema: caseTargetSchema }
+    : semanticMvp
+      ? SEMANTIC_MVP_RESPONSES_SCHEMA
+      : GPT_RESPONSES_SCHEMA;
+  return runStructuredLuna({
+    prompt,
+    schema,
+    schemaName,
+    responseFormat,
     model,
-    "-c",
-    `model_reasoning_effort="${effort}"`,
-    "--output-schema",
-    schemaPath,
-    "-o",
-    answerPath,
-    "-",
-  ];
-  const started = performance.now();
-  try {
-    const result = await spawnCodex(
-      invocation,
-      cliArgs,
-      prompt,
-      Math.max(1, timeoutSeconds) * 1_000,
-    );
-    const stdout = result.stdout;
-    const answer = existsSync(answerPath) ? await readFile(answerPath, "utf8") : "";
-    return {
-      raw: answer,
-      parsed: extractJsonObject(answer),
-      stderr: result.stderr.slice(-4_000),
-      returnCode: result.status,
-      error: result.error ? errorMessage(result.error) : null,
-      elapsedSeconds: Math.round((performance.now() - started) / 10) / 100,
-      promptSha256: sha256(prompt),
-      promptChars: prompt.length,
-      outputSha256: sha256(answer),
-      stdoutSha256: stdout ? sha256(stdout) : null,
-      ...codexEvents(stdout),
-      cli: {
-        model,
-        effort,
-        ephemeral: true,
-        ignore_user_config: true,
-        sandbox: "read-only",
-        output_schema: semanticMvp ? SEMANTIC_MVP_SCHEMA_NAME : RESPONSE_SCHEMA_NAME,
-        response_format: semanticMvp ? SEMANTIC_MVP_RESPONSES_SCHEMA : GPT_RESPONSES_SCHEMA,
-      },
-    };
-  } finally {
-    await rm(temp, { recursive: true, force: true });
-  }
+    effort,
+    timeoutSeconds,
+    onEvent,
+  });
 }
 
 async function hydratePrediction(record: CaseRecord, prediction: Prediction) {
@@ -2208,10 +2833,76 @@ async function documentIdsFromFile(file: string) {
   return parseDocumentIds(value);
 }
 
+export async function candidatesFromPairFile(file: string) {
+  const absolutePath = path.resolve(file);
+  const parsed = JSON.parse(await readFile(absolutePath, "utf8")) as unknown;
+  const rows = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as { pairs?: unknown }).pairs
+    : null;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("--pair-file must contain a nonempty pairs array");
+  }
+  const pairs = rows.map((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(`pair ${index + 1} must be an object`);
+    }
+    const row = value as Record<string, unknown>;
+    const documentId = Number(row.document_id);
+    const target = row.target;
+    if (!Number.isSafeInteger(documentId) || documentId < 1) {
+      throw new Error(`pair ${index + 1} has an invalid document_id`);
+    }
+    if (!target || typeof target !== "object" || Array.isArray(target)) {
+      throw new Error(`pair ${index + 1} has no target object`);
+    }
+    const targetRow = target as Record<string, unknown>;
+    const citation = typeof targetRow.citation === "string" ? targetRow.citation.trim() : "";
+    if (!citation || !citationLookupKey(citation)) {
+      throw new Error(`pair ${index + 1} has an invalid target citation`);
+    }
+    const targetDocumentId = targetRow.document_id === null || targetRow.document_id === undefined
+      ? null
+      : Number(targetRow.document_id);
+    if (targetDocumentId !== null && (!Number.isSafeInteger(targetDocumentId) || targetDocumentId < 1)) {
+      throw new Error(`pair ${index + 1} has an invalid target document_id`);
+    }
+    const aliases = targetRow.citation_aliases === undefined
+      ? []
+      : targetRow.citation_aliases;
+    if (!Array.isArray(aliases) || aliases.some((alias) => typeof alias !== "string" || !alias.trim())) {
+      throw new Error(`pair ${index + 1} has invalid target citation_aliases`);
+    }
+    if (targetRow.same_litigation_eligible !== undefined && typeof targetRow.same_litigation_eligible !== "boolean") {
+      throw new Error(`pair ${index + 1} has invalid target same_litigation_eligible`);
+    }
+    return {
+      documentId,
+      target: {
+        documentId: targetDocumentId,
+        citation,
+        citationAliases: [...new Set((aliases as string[]).map((alias) => alias.trim()))],
+        name: typeof targetRow.name === "string" && targetRow.name.trim() ? targetRow.name.trim() : null,
+        sameLitigationEligible: targetRow.same_litigation_eligible === true,
+      } satisfies CaseTargetSpec,
+    };
+  });
+  const uniqueSources = new Set(pairs.map(({ documentId }) => documentId));
+  if (uniqueSources.size !== pairs.length) {
+    throw new Error("--pair-file currently permits one target per citing decision");
+  }
+  const byId = new Map(candidatesByDocumentIds(pairs.map(({ documentId }) => documentId))
+    .map((candidate) => [candidate.documentId, candidate]));
+  return pairs.map(({ documentId, target }) => ({ ...byId.get(documentId)!, target }));
+}
+
 async function selectedRunCandidates(args: Args, seed: number, sampleSize: number, scope: string) {
   const direct = flag(args, "document-ids", "");
   const caseFile = flag(args, "case-file", "");
-  if (direct && caseFile) throw new Error("use either --document-ids or --case-file, not both");
+  const pairFile = flag(args, "pair-file", "");
+  if ([direct, caseFile, pairFile].filter(Boolean).length > 1) {
+    throw new Error("use only one of --document-ids, --case-file, or --pair-file");
+  }
+  if (pairFile) return candidatesFromPairFile(pairFile);
   if (direct) return candidatesByDocumentIds(parseDocumentIds(direct));
   if (caseFile) {
     return candidatesByDocumentIds(await documentIdsFromFile(caseFile));
@@ -2231,8 +2922,20 @@ export async function loadCase(candidate: Candidate): Promise<CaseRecord | null>
   return buildCaseRecord(candidate, document);
 }
 
-function buildCaseRecord(candidate: Candidate, document: A2AJDocument): CaseRecord {
-  const source = getLocalA2AJStructure(document) ?? a2ajLegalSourceProvider.source(document);
+async function compileCaseSource(document: A2AJDocument) {
+  return a2ajLegalSourceProvider.source(document) ?? deriveA2AJSourceDoc({
+    citation: document.citation,
+    docType: document.docType ?? "cases",
+    text: document.text,
+    url: document.url,
+    alternateCitation: document.alternateCitation,
+    dataset: document.dataset,
+    name: document.name,
+  });
+}
+
+async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Promise<CaseRecord> {
+  const source = await compileCaseSource(document);
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   const sourceEvidence = createA2AJDocumentEvidence(document);
   const analysis = analyzeTextOpinionStructure({
@@ -2252,8 +2955,16 @@ function buildCaseRecord(candidate: Candidate, document: A2AJDocument): CaseReco
     deterministic,
     hints: extractMechanicalHints(source, paragraphs, structure),
     preflight: extractPreflight(source, paragraphs),
-  } satisfies Omit<CaseRecord, "citationEdges">;
-  return { ...record, citationEdges: semanticMvpCitationEdges(record) };
+  } satisfies Omit<CaseRecord, "citationEdges" | "targetOccurrences">;
+  const targetOccurrences = caseTargetOccurrences(source, candidate.target);
+  if (candidate.target && targetOccurrences.length === 0) {
+    throw new Error(`target citation ${candidate.target.citation} was not found in the citing decision`);
+  }
+  return {
+    ...record,
+    citationEdges: semanticMvpCitationEdges(record),
+    targetOccurrences,
+  };
 }
 
 async function humanReference(database: InstanceType<typeof import("node:sqlite").DatabaseSync>, record: CaseRecord) {
@@ -2267,6 +2978,7 @@ async function humanReference(database: InstanceType<typeof import("node:sqlite"
 
 async function runCase(args: {
   record: CaseRecord;
+  runId: string;
   provider: Provider;
   model: string;
   effort: string;
@@ -2279,16 +2991,19 @@ async function runCase(args: {
   packetChars: number;
   progress: string;
   rawOutputs: string;
+  callLedger?: string;
   maxAttempts: number;
   forceLlm: boolean;
   semanticMvp: boolean;
+  caseTargetMvp: boolean;
+  caseTargetPrompt: CaseTargetPromptVariant;
   referenceOverride?: Reference | null;
 }) {
   const { record } = args;
   const mechanical = mechanicalReference(record);
   const reference = args.referenceOverride ?? mechanical;
   const deterministic = deterministicPrediction(record);
-  if (args.provider === "luna" && deterministic && !args.forceLlm && !args.semanticMvp) {
+  if (args.provider === "luna" && deterministic && !args.forceLlm && !args.semanticMvp && !args.caseTargetMvp) {
     const evidence = await hydratePrediction(record, deterministic);
     return {
       status: "accepted",
@@ -2332,12 +3047,114 @@ async function runCase(args: {
   let prediction: Prediction | null = null;
   let validation: Validation = { ok: false, error: "no_submission" };
   let semanticMvpResult: ReturnType<typeof validateSemanticMvp> | null = null;
+  let caseTargetMvpResult: NonNullable<ReturnType<typeof validateCaseTargetSubmission>["case_target_mvp"]> | null = null;
   let modelReceipt: Record<string, unknown> | null = null;
+  let canonicalModelOutputSha256: string | null = null;
   const rawModelOutputSha256s: string[] = [];
   if (args.provider === "luna") {
-    const prompt = args.semanticMvp ? semanticMvpPacket(record) : codexPacket(record);
-    const teacher = await runLuna(prompt, args.model, args.effort, args.timeoutSeconds, args.semanticMvp);
-    const phase = args.semanticMvp ? "semantic_mvp" : "roster";
+    const prompt = args.caseTargetMvp
+      ? caseTargetMvpPacket(record, args.caseTargetPrompt)
+      : args.semanticMvp
+        ? semanticMvpPacket(record)
+        : codexPacket(record);
+    const phase = args.caseTargetMvp ? "case_target_mvp" : args.semanticMvp ? "semantic_mvp" : "roster";
+    const callId = randomUUID();
+    if (args.callLedger) await appendJsonl(args.callLedger, {
+      kind: "model_call_started",
+      call_id: callId,
+      run_id: args.runId,
+      purpose: phase,
+      document: record.candidate.documentId,
+      citation: record.candidate.citation,
+      provider: "codex_subscription",
+      model: args.model,
+      effort: args.effort,
+      prompt_version: args.caseTargetMvp
+        ? CASE_TARGET_MVP_PROMPTS[args.caseTargetPrompt].version
+        : args.semanticMvp
+          ? SEMANTIC_MVP_PROMPT_VERSION
+          : CODEX_PROMPT_VERSION,
+      prompt_sha256: sha256(prompt),
+      prompt_chars: prompt.length,
+    });
+    let teacher: Awaited<ReturnType<typeof runLuna>>;
+    const seenProviderAttempts = new Set([1]);
+    try {
+      teacher = await runLuna(
+        prompt,
+        args.model,
+        args.effort,
+        args.timeoutSeconds,
+        args.semanticMvp,
+        args.caseTargetMvp,
+        record.candidate.target?.sameLitigationEligible === true,
+        async (event, rawLine) => {
+          const summary = codexEventSummary(event);
+          const providerAttempt = summary.attempt;
+          if (
+            args.callLedger && typeof providerAttempt === "number" && providerAttempt > 1 &&
+            !seenProviderAttempts.has(providerAttempt)
+          ) {
+            seenProviderAttempts.add(providerAttempt);
+            await appendJsonl(args.callLedger, {
+              kind: "model_call_retry_started",
+              call_id: callId,
+              run_id: args.runId,
+              purpose: phase,
+              document: record.candidate.documentId,
+              citation: record.candidate.citation,
+              provider: "codex_subscription",
+              model: args.model,
+              effort: args.effort,
+              attempt: providerAttempt,
+            });
+          }
+          await appendJsonl(args.rawOutputs, {
+            kind: "codex_event_raw",
+            document: record.candidate.documentId,
+            citation: record.candidate.citation,
+            phase,
+            provider: "luna",
+            raw_event_line: rawLine,
+          });
+          await appendJsonl(args.progress, {
+            kind: "codex_event",
+            document: record.candidate.documentId,
+            citation: record.candidate.citation,
+            phase,
+            provider: "luna",
+            ...summary,
+          });
+        },
+      );
+    } catch (error) {
+      if (args.callLedger) await appendJsonl(args.callLedger, {
+        kind: "model_call_finished",
+        call_id: callId,
+        run_id: args.runId,
+        purpose: phase,
+        document: record.candidate.documentId,
+        status: "runner_error",
+        error: errorMessage(error),
+      });
+      throw error;
+    }
+    if (args.callLedger) await appendJsonl(args.callLedger, {
+      kind: "model_call_finished",
+      call_id: callId,
+      run_id: args.runId,
+      purpose: phase,
+      document: record.candidate.documentId,
+      status: teacher.returnCode === 0 && !teacher.error ? "completed" : "failed",
+      return_code: teacher.returnCode,
+      error: teacher.error,
+      output_sha256: teacher.outputSha256,
+      stderr_sha256: teacher.stderrSha256,
+      stderr_bytes: teacher.stderrBytes,
+      elapsed_seconds: teacher.elapsedSeconds,
+      usage: teacher.usage,
+      transport_retries: teacher.transport_retries,
+    });
     rawModelOutputSha256s.push(teacher.outputSha256);
     await appendJsonl(args.rawOutputs, {
       kind: "model_output",
@@ -2347,6 +3164,16 @@ async function runCase(args: {
       provider: "luna",
       raw_model_output: teacher.raw,
       output_sha256: teacher.outputSha256,
+    });
+    await appendJsonl(args.rawOutputs, {
+      kind: "model_stderr",
+      document: record.candidate.documentId,
+      citation: record.candidate.citation,
+      phase,
+      provider: "luna",
+      raw_model_stderr: teacher.stderr,
+      stderr_sha256: teacher.stderrSha256,
+      stderr_bytes: teacher.stderrBytes,
     });
     await appendJsonl(args.progress, {
       kind: "model_output_saved",
@@ -2358,28 +3185,73 @@ async function runCase(args: {
       output_sha256: teacher.outputSha256,
       output_bytes: Buffer.byteLength(teacher.raw),
     });
-    const result = validatePrediction(record, teacher.parsed);
-    prediction = result.prediction;
-    validation = result.validation;
-    if (args.semanticMvp && prediction && teacher.parsed) {
-      semanticMvpResult = validateSemanticMvp(record, prediction, teacher.parsed);
+    const parsedRecord = teacher.parsed && typeof teacher.parsed === "object" && !Array.isArray(teacher.parsed)
+      ? teacher.parsed as Record<string, unknown>
+      : null;
+    if (args.caseTargetMvp) {
+      const result = validateCaseTargetSubmission(record, teacher.parsed);
+      prediction = result.prediction;
+      validation = result.validation;
+      caseTargetMvpResult = result.case_target_mvp;
+      const canonical = {
+        compiler_version: CASE_TARGET_MVP_COMPILER_VERSION,
+        validator_version: CASE_TARGET_MVP_VALIDATOR_VERSION,
+        source_sha256: record.sourceSha256,
+        raw_output_sha256: teacher.outputSha256,
+        prediction,
+        case_target_mvp: caseTargetMvpResult,
+        compiler_errors: result.compiler_errors,
+      };
+      canonicalModelOutputSha256 = sha256(JSON.stringify(canonical));
+      await appendJsonl(args.rawOutputs, {
+        kind: "canonical_model_output",
+        document: record.candidate.documentId,
+        citation: record.candidate.citation,
+        phase,
+        provider: "luna",
+        ...canonical,
+        canonical_output_sha256: canonicalModelOutputSha256,
+      });
+    } else {
+      const result = validatePrediction(record, teacher.parsed);
+      prediction = result.prediction;
+      validation = result.validation;
+      if (args.semanticMvp && prediction && parsedRecord) {
+        semanticMvpResult = validateSemanticMvp(record, prediction, parsedRecord);
+      }
     }
     modelReceipt = {
-      runner: "codex_exec",
-      prompt_version: args.semanticMvp ? SEMANTIC_MVP_PROMPT_VERSION : CODEX_PROMPT_VERSION,
-      validator_version: args.semanticMvp ? SEMANTIC_MVP_VALIDATOR_VERSION : VALIDATOR_VERSION,
+      runner: "codex_subscription_exec",
+      prompt_version: args.caseTargetMvp
+        ? CASE_TARGET_MVP_PROMPTS[args.caseTargetPrompt].version
+        : args.semanticMvp
+          ? SEMANTIC_MVP_PROMPT_VERSION
+          : CODEX_PROMPT_VERSION,
+      validator_version: args.caseTargetMvp
+        ? CASE_TARGET_MVP_VALIDATOR_VERSION
+        : args.semanticMvp
+          ? SEMANTIC_MVP_VALIDATOR_VERSION
+          : VALIDATOR_VERSION,
       prompt_sha256: teacher.promptSha256,
       prompt_chars: teacher.promptChars,
+      utf8_replacement_count: teacher.utf8ReplacementCount,
       output_sha256: teacher.outputSha256,
       stdout_sha256: teacher.stdoutSha256,
+      stderr_sha256: teacher.stderrSha256,
+      stderr_bytes: teacher.stderrBytes,
       return_code: teacher.returnCode,
       error: teacher.error,
       stderr: teacher.stderr,
       elapsed_seconds: teacher.elapsedSeconds,
       event_count: teacher.event_count,
+      transport_retries: teacher.transport_retries,
       thread_id: teacher.thread_id,
+      response_id: teacher.response_id,
       usage: teacher.usage,
+      transport: teacher.transport,
       cli: teacher.cli,
+      canonical_output_sha256: canonicalModelOutputSha256,
+      compiler_version: args.caseTargetMvp ? CASE_TARGET_MVP_COMPILER_VERSION : null,
     };
     attempts.push({ provider: "luna", validation, ...modelReceipt });
     await appendJsonl(args.progress, {
@@ -2391,6 +3263,7 @@ async function runCase(args: {
       tool_calls: [],
       validation,
       semantic_mvp_ok: semanticMvpResult?.ok ?? null,
+      case_target_mvp_ok: caseTargetMvpResult?.ok ?? null,
       ...modelReceipt,
     });
   } else {
@@ -2489,9 +3362,11 @@ async function runCase(args: {
   const metrics = prediction ? score(prediction, reference, paragraphNumbers(record.paragraphs)) : { reference: null };
   return {
     status: prediction
-      ? args.semanticMvp && !semanticMvpResult?.ok
-        ? "accepted_with_semantic_rejections"
-        : "accepted"
+      ? args.caseTargetMvp && !caseTargetMvpResult?.ok
+        ? "accepted_with_target_rejections"
+        : args.semanticMvp && !semanticMvpResult?.ok
+          ? "accepted_with_semantic_rejections"
+          : "accepted"
       : "rejected",
     route: args.provider,
     prediction,
@@ -2502,6 +3377,7 @@ async function runCase(args: {
     attempts,
     raw_model_output_sha256s: rawModelOutputSha256s,
     ...(semanticMvpResult ? { semantic_mvp: semanticMvpResult } : {}),
+    ...(caseTargetMvpResult ? { case_target_mvp: caseTargetMvpResult } : {}),
     ...(modelReceipt ? { model_receipt: modelReceipt } : {}),
   };
 }
@@ -2512,7 +3388,7 @@ async function mapPool<T, R>(
   fn: (item: T, index: number) => Promise<R>,
   onResult?: (result: R, index: number) => Promise<void>,
 ) {
-  const results = new Array<R>(items.length);
+  const results = onResult ? [] : new Array<R>(items.length);
   let next = 0;
   const count = Math.min(Math.max(1, Math.trunc(workerCount)), items.length);
   const worker = async () => {
@@ -2521,8 +3397,8 @@ async function mapPool<T, R>(
       next += 1;
       if (index >= items.length) return;
       const result = await fn(items[index], index);
-      results[index] = result;
       if (onResult) await onResult(result, index);
+      else results[index] = result;
     }
   };
   await Promise.all(Array.from({ length: count }, () => worker()));
@@ -2576,6 +3452,9 @@ async function dispatchLunaCase(
       citation_edges: config.semanticMvp
         ? record.citationEdges.map(({ id, citation, start, end, contextSha256 }) => ({ id, citation, start, end, context_sha256: contextSha256 }))
         : [],
+      target: config.caseTargetMvp ? record.candidate.target ?? null : null,
+      target_occurrence_version: config.caseTargetMvp ? CASE_TARGET_OCCURRENCE_VERSION : null,
+      target_occurrences: config.caseTargetMvp ? record.targetOccurrences : [],
       preflight: record.preflight,
     });
     const result = await runCase({ ...config, record, referenceOverride: null });
@@ -2671,6 +3550,14 @@ function fullCaseReceipt(
     mechanical: record.hints,
     preflight: record.preflight,
     citation_edges: record.citationEdges,
+    target: candidate.target ? {
+      document_id: candidate.target.documentId,
+      citation: candidate.target.citation,
+      citation_aliases: candidate.target.citationAliases,
+      name: candidate.target.name,
+      occurrence_version: CASE_TARGET_OCCURRENCE_VERSION,
+      occurrences: record.targetOccurrences,
+    } : null,
     judge_court_service: judgeCourtServiceReceipt(candidate, result.prediction, registry),
     ...result,
   };
@@ -2682,26 +3569,37 @@ function compactModelReceipt(value: unknown) {
   const cli = row.cli && typeof row.cli === "object" && !Array.isArray(row.cli)
     ? row.cli as Record<string, unknown>
     : null;
+  const transport = row.transport && typeof row.transport === "object" && !Array.isArray(row.transport)
+    ? row.transport as Record<string, unknown>
+    : null;
   return {
     runner: row.runner ?? null,
     prompt_version: row.prompt_version ?? null,
     validator_version: row.validator_version ?? null,
     prompt_sha256: row.prompt_sha256 ?? null,
     prompt_chars: row.prompt_chars ?? null,
+    utf8_replacement_count: row.utf8_replacement_count ?? null,
     output_sha256: row.output_sha256 ?? null,
     stdout_sha256: row.stdout_sha256 ?? null,
+    stderr_sha256: row.stderr_sha256 ?? null,
+    stderr_bytes: row.stderr_bytes ?? null,
+    stderr_tail: typeof row.stderr === "string" && row.stderr ? row.stderr.slice(-4_000) : null,
     return_code: row.return_code ?? null,
     error: row.error ?? null,
     elapsed_seconds: row.elapsed_seconds ?? null,
     event_count: row.event_count ?? null,
+    transport_retries: row.transport_retries ?? 0,
     thread_id: row.thread_id ?? null,
+    response_id: row.response_id ?? null,
     usage: row.usage ?? null,
+    transport,
     cli: cli ? {
       model: cli.model ?? null,
       effort: cli.effort ?? null,
-      ephemeral: cli.ephemeral ?? null,
-      ignore_user_config: cli.ignore_user_config ?? null,
-      sandbox: cli.sandbox ?? null,
+      transport: cli.transport ?? null,
+      endpoint: cli.endpoint ?? null,
+      auth_mode: cli.auth_mode ?? null,
+      isolated_process: cli.isolated_process ?? null,
       output_schema: cli.output_schema ?? null,
     } : null,
   };
@@ -2738,6 +3636,8 @@ function compactCaseReceipt(
     } : null,
     judge_court_service: full.judge_court_service ?? null,
     semantic_mvp: full.semantic_mvp ?? null,
+    target: full.target ?? null,
+    case_target_mvp: full.case_target_mvp ?? null,
     status: full.status ?? null,
     route: full.route ?? null,
     prediction: full.prediction ?? null,
@@ -2796,11 +3696,39 @@ async function run(args: Args) {
   if (provider !== "ollama" && provider !== "luna" && provider !== "dry")
     throw new Error("--provider must be ollama, luna, or dry");
   const semanticMvp = args["semantic-mvp"] === true || String(args["semantic-mvp"] ?? "").toLocaleLowerCase() === "true";
+  const caseTargetMvp = args["case-target-mvp"] === true || String(args["case-target-mvp"] ?? "").toLocaleLowerCase() === "true";
+  if (semanticMvp && caseTargetMvp) throw new Error("--semantic-mvp and --case-target-mvp are mutually exclusive");
   if (semanticMvp && provider !== "luna") throw new Error("--semantic-mvp requires --provider luna");
+  if (caseTargetMvp && provider !== "luna") throw new Error("--case-target-mvp requires --provider luna");
+  if (caseTargetMvp && !flag(args, "pair-file", "")) throw new Error("--case-target-mvp requires --pair-file");
+  const requestedCaseTargetPrompt = flag(args, "case-target-prompt", "nested");
+  if (!(requestedCaseTargetPrompt in CASE_TARGET_MVP_PROMPTS)) {
+    throw new Error(`--case-target-prompt must be ${Object.keys(CASE_TARGET_MVP_PROMPTS).join(", ")}`);
+  }
+  const caseTargetPrompt = requestedCaseTargetPrompt as CaseTargetPromptVariant;
   const model = flag(args, "model", provider === "luna" ? DEFAULT_CODEX_MODEL : DEFAULT_MODEL);
-  const effort = flag(args, "effort", semanticMvp ? "max" : provider === "luna" ? DEFAULT_CODEX_EFFORT : "none");
-  if (semanticMvp && model !== DEFAULT_CODEX_MODEL) throw new Error(`--semantic-mvp requires --model ${DEFAULT_CODEX_MODEL}`);
-  if (semanticMvp && effort !== "max") throw new Error("--semantic-mvp requires --effort max");
+  const richMvp = semanticMvp || caseTargetMvp;
+  const effort = flag(args, "effort", richMvp ? "max" : provider === "luna" ? DEFAULT_CODEX_EFFORT : "none");
+  if (richMvp && !MVP_CODEX_MODELS.has(model)) {
+    throw new Error(`MVP modes require --model ${[...MVP_CODEX_MODELS].join(" or ")}`);
+  }
+  if (richMvp && effort !== "max") throw new Error("MVP modes require --effort max");
+  const activePromptVersion = caseTargetMvp
+    ? CASE_TARGET_MVP_PROMPTS[caseTargetPrompt].version
+    : semanticMvp
+      ? SEMANTIC_MVP_PROMPT_VERSION
+      : CODEX_PROMPT_VERSION;
+  const activeValidatorVersion = caseTargetMvp
+    ? CASE_TARGET_MVP_VALIDATOR_VERSION
+    : semanticMvp
+      ? SEMANTIC_MVP_VALIDATOR_VERSION
+      : VALIDATOR_VERSION;
+  const activeMode = caseTargetMvp ? "case_target_mvp" : semanticMvp ? "combined_semantic_mvp" : "opinion_roster";
+  const activeResponseSchema = caseTargetMvp
+    ? CASE_TARGET_MVP_RESPONSES_SCHEMA
+    : semanticMvp
+      ? SEMANTIC_MVP_RESPONSES_SCHEMA
+      : GPT_RESPONSES_SCHEMA;
   const runId = flag(args, "run-id", provider === "dry" ? `a2aj-roster-dry-${seed}` : `a2aj-roster-${provider}-${model.replaceAll(":", "-")}-${seed}`);
   const output = flag(args, "out", path.join(RUN_DIR, `${runId}.json`));
   const progress = output.endsWith(".json")
@@ -2812,13 +3740,16 @@ async function run(args: Args) {
   const rawOutputStream = output.endsWith(".json")
     ? output.replace(/\.json$/u, ".outputs.jsonl")
     : `${output}.outputs.jsonl`;
+  const requestedCallLedger = flag(args, "call-ledger", "");
+  const callLedger = requestedCallLedger ? path.resolve(requestedCallLedger) : undefined;
+  const callBudget = callLedger ? Math.max(1, parseIntFlag(args, "call-budget", 15_000)) : null;
   const requestedReceiptMode = flag(args, "receipt-mode", "compact").toLocaleLowerCase();
   if (requestedReceiptMode !== "full" && requestedReceiptMode !== "compact") {
     throw new Error("--receipt-mode must be full or compact");
   }
   const receiptMode = requestedReceiptMode as ReceiptMode;
   const resume = args.resume === true || String(args.resume ?? "").toLocaleLowerCase() === "true";
-  const forceLlm = semanticMvp || args.force === true || String(args.force ?? "").toLocaleLowerCase() === "true";
+  const forceLlm = richMvp || args.force === true || String(args.force ?? "").toLocaleLowerCase() === "true";
   const sidecar = flag(args, "sidecar-db", DEFAULT_SIDECAR);
   const numCtx = parseIntFlag(args, "num-ctx", DEFAULT_NUM_CTX);
   const numPredict = parseIntFlag(args, "num-predict", DEFAULT_NUM_PREDICT);
@@ -2829,8 +3760,11 @@ async function run(args: Args) {
   const maxAttempts = Math.max(1, parseIntFlag(args, "max-attempts", MAX_ATTEMPTS));
   const timeoutSeconds = Math.max(1, parseIntFlag(args, "timeout-seconds", 900));
   const workers = provider === "luna"
-    ? Math.min(10, Math.max(1, parseIntFlag(args, "workers", semanticMvp ? 10 : 8)))
+    ? Math.min(10, Math.max(1, parseIntFlag(args, "workers", richMvp ? 5 : 8)))
     : 1;
+  // Fail before candidate selection or output mutation unless the exact
+  // ChatGPT-subscription endpoint and auth mode are proven.
+  const codexSubscription = provider === "luna" ? codexSubscriptionPreflight() : null;
   // Load and validate once in the parent before candidate selection or output mutation.
   const judgeRegistry = await loadJudgeRegistry(args);
   const selected = await selectedRunCandidates(args, seed, requestedSampleSize, scope);
@@ -2841,11 +3775,21 @@ async function run(args: Args) {
   const candidates = selected.filter((candidate) => !completedIds.has(candidate.documentId));
   const sampleSize = candidates.length;
   const cohortSize = selected.length;
-  const cliVersion = provider === "luna" ? codexVersion() : null;
+  const callsUsedBeforeRun = callLedger ? await modelCallLedgerUsage(callLedger) : 0;
+  const plannedAttemptCeiling = sampleSize * 2;
+  if (callLedger && callBudget !== null && callsUsedBeforeRun + plannedAttemptCeiling > callBudget) {
+    throw new Error(`call budget exceeded: ${callsUsedBeforeRun} used + ${plannedAttemptCeiling} maximum attempts planned > ${callBudget}`);
+  }
   const selection = flag(args, "document-ids", "")
     ? { kind: "document_ids", value: selected.map((candidate) => candidate.documentId) }
     : flag(args, "case-file", "")
       ? { kind: "case_file", value: path.resolve(flag(args, "case-file", "")), document_ids: selected.map((candidate) => candidate.documentId) }
+      : flag(args, "pair-file", "")
+        ? {
+            kind: "case_target_pairs",
+            value: path.resolve(flag(args, "pair-file", "")),
+            pairs: selected.map((candidate) => ({ document_id: candidate.documentId, target: candidate.target })),
+          }
       : {
           kind: "seeded_sample",
           seed,
@@ -2855,6 +3799,16 @@ async function run(args: Args) {
           algorithm: scope.toLocaleUpperCase() === "ALL" ? RANDOM_SELECTION_VERSION : "eligible_offset_draw_v1",
         };
   await mkdir(path.dirname(progress), { recursive: true });
+  if (callLedger) await mkdir(path.dirname(callLedger), { recursive: true });
+  if (callLedger) await appendJsonl(callLedger, {
+    kind: "call_budget_checked",
+    run_id: runId,
+    budget: callBudget,
+    attempted_before_run: callsUsedBeforeRun,
+    planned_calls: sampleSize,
+    planned_attempt_ceiling: plannedAttemptCeiling,
+    remaining_after_attempt_ceiling: Number(callBudget) - callsUsedBeforeRun - plannedAttemptCeiling,
+  });
   if (!resume) {
     await writeFile(progress, "", "utf8");
     await writeFile(receiptStream, "", "utf8");
@@ -2863,6 +3817,9 @@ async function run(args: Args) {
       kind: "receipt_stream_started",
       run_id: runId,
       raw_output_stream: rawOutputStream,
+      call_ledger: callLedger ?? null,
+      call_budget: callBudget,
+      call_budget_attempted_before_run: callsUsedBeforeRun,
     });
   }
   const database = await initSidecar(sidecar);
@@ -2871,7 +3828,7 @@ async function run(args: Args) {
   try {
     database.prepare("INSERT OR REPLACE INTO opinion_run VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(
       runId, now(), seed, cohortSize, scope, provider, model,
-      effort, numCtx, numPredict, provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_PROMPT_VERSION : CODEX_PROMPT_VERSION) : PROMPT_VERSION,
+      effort, numCtx, numPredict, provider === "luna" ? activePromptVersion : PROMPT_VERSION,
     );
     await appendJsonl(progress, {
       kind: "run_started",
@@ -2888,26 +3845,30 @@ async function run(args: Args) {
       seed,
       scope,
       workers,
-      dispatch: provider === "luna" ? "one-case-per-ephemeral-codex-exec" : "serial",
-      routing: semanticMvp
+      dispatch: provider === "luna" ? "one-case-per-isolated-codex-subscription-process" : "serial",
+      routing: richMvp
         ? "luna-max-all; deterministic-parallel-observation"
         : provider === "luna" && !forceLlm
           ? "deterministic-ready-local; unresolved-to-luna"
           : "forced",
-      mode: semanticMvp ? "combined_semantic_mvp" : "opinion_roster",
+      mode: activeMode,
+      case_target_prompt: caseTargetMvp ? caseTargetPrompt : null,
       receipt_mode: receiptMode,
       receipt_stream: receiptStream,
       raw_output_stream: rawOutputStream,
+      call_ledger: callLedger ?? null,
       selection,
-      codex_version: cliVersion,
-      prompt_version: provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_PROMPT_VERSION : CODEX_PROMPT_VERSION) : PROMPT_VERSION,
-      validator_version: semanticMvp ? SEMANTIC_MVP_VALIDATOR_VERSION : VALIDATOR_VERSION,
+      codex_subscription: codexSubscription,
+      prompt_version: provider === "luna" ? activePromptVersion : PROMPT_VERSION,
+      validator_version: activeValidatorVersion,
+      target_occurrence_version: caseTargetMvp ? CASE_TARGET_OCCURRENCE_VERSION : null,
       deterministic_version: DETERMINISTIC_VERSION,
       judge_service_file: judgeRegistry?.absolutePath ?? null,
       judge_service_sha256: judgeRegistry?.sha256 ?? null,
     });
     if (provider === "luna") {
       const config: LunaCaseConfig = {
+        runId,
         provider,
         model,
         effort,
@@ -2920,9 +3881,12 @@ async function run(args: Args) {
         packetChars,
         progress,
         rawOutputs: rawOutputStream,
+        callLedger,
         maxAttempts,
         forceLlm,
         semanticMvp,
+        caseTargetMvp,
+        caseTargetPrompt,
       };
       await mapPool(
         candidates,
@@ -2939,6 +3903,7 @@ async function run(args: Args) {
                 name: item.candidate.name,
                 date: item.candidate.date,
               },
+              target: item.candidate.target ?? null,
               status: item.error ?? "case_failed",
               judge_court_service: judgeCourtServiceReceipt(item.candidate, null, judgeRegistry),
             };
@@ -2973,6 +3938,7 @@ async function run(args: Args) {
               name: candidate.name,
               date: candidate.date,
             },
+            target: candidate.target ?? null,
             status: "load_failed",
             judge_court_service: judgeCourtServiceReceipt(candidate, null, judgeRegistry),
           };
@@ -3006,6 +3972,7 @@ async function run(args: Args) {
         });
         const result = await runCase({
           record,
+          runId,
           provider,
           model,
           effort,
@@ -3018,9 +3985,12 @@ async function run(args: Args) {
           packetChars,
           progress,
           rawOutputs: rawOutputStream,
+          callLedger,
           maxAttempts,
           forceLlm,
           semanticMvp,
+          caseTargetMvp,
+          caseTargetPrompt,
           referenceOverride: await humanReference(database, record),
         });
         saveCase(database, runId, record, result.prediction, result.evidence, result.reference, result.validation, result.metrics, result.status, result.route ?? provider);
@@ -3053,25 +4023,28 @@ async function run(args: Args) {
       num_ctx: numCtx,
       num_predict: numPredict,
       workers,
-      dispatch: provider === "luna" ? "one-case-per-ephemeral-codex-exec" : "serial",
-      routing: semanticMvp
+      dispatch: provider === "luna" ? "one-case-per-isolated-codex-subscription-process" : "serial",
+      routing: richMvp
         ? "luna-max-all; deterministic-parallel-observation"
         : provider === "luna" && !forceLlm
           ? "deterministic-ready-local; unresolved-to-luna"
           : "forced",
-      mode: semanticMvp ? "combined_semantic_mvp" : "opinion_roster",
-      prompt_version: provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_PROMPT_VERSION : CODEX_PROMPT_VERSION) : PROMPT_VERSION,
-      validator_version: semanticMvp ? SEMANTIC_MVP_VALIDATOR_VERSION : VALIDATOR_VERSION,
+      mode: activeMode,
+      case_target_prompt: caseTargetMvp ? caseTargetPrompt : null,
+      prompt_version: provider === "luna" ? activePromptVersion : PROMPT_VERSION,
+      validator_version: activeValidatorVersion,
+      target_occurrence_version: caseTargetMvp ? CASE_TARGET_OCCURRENCE_VERSION : null,
       deterministic_version: DETERMINISTIC_VERSION,
       judge_service_file: judgeRegistry?.absolutePath ?? null,
       judge_service_sha256: judgeRegistry?.sha256 ?? null,
-      response_schema: provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_RESPONSES_SCHEMA : GPT_RESPONSES_SCHEMA) : null,
+      response_schema: provider === "luna" ? activeResponseSchema : null,
       receipt_mode: receiptMode,
       receipt_stream: receiptStream,
       raw_output_stream: rawOutputStream,
+      call_ledger: callLedger ?? null,
       resumed: resume,
       selection,
-      codex_version: cliVersion,
+      codex_subscription: codexSubscription,
       sidecar_db: sidecar,
       base_url: baseUrl,
       host_header: hostHeader || null,
@@ -3102,25 +4075,28 @@ async function run(args: Args) {
       num_ctx: numCtx,
       num_predict: numPredict,
       workers,
-      dispatch: provider === "luna" ? "one-case-per-ephemeral-codex-exec" : "serial",
-      routing: semanticMvp
+      dispatch: provider === "luna" ? "one-case-per-isolated-codex-subscription-process" : "serial",
+      routing: richMvp
         ? "luna-max-all; deterministic-parallel-observation"
         : provider === "luna" && !forceLlm
           ? "deterministic-ready-local; unresolved-to-luna"
           : "forced",
-      mode: semanticMvp ? "combined_semantic_mvp" : "opinion_roster",
-      prompt_version: provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_PROMPT_VERSION : CODEX_PROMPT_VERSION) : PROMPT_VERSION,
-      validator_version: semanticMvp ? SEMANTIC_MVP_VALIDATOR_VERSION : VALIDATOR_VERSION,
+      mode: activeMode,
+      case_target_prompt: caseTargetMvp ? caseTargetPrompt : null,
+      prompt_version: provider === "luna" ? activePromptVersion : PROMPT_VERSION,
+      validator_version: activeValidatorVersion,
+      target_occurrence_version: caseTargetMvp ? CASE_TARGET_OCCURRENCE_VERSION : null,
       deterministic_version: DETERMINISTIC_VERSION,
       judge_service_file: judgeRegistry?.absolutePath ?? null,
       judge_service_sha256: judgeRegistry?.sha256 ?? null,
-      response_schema: provider === "luna" ? (semanticMvp ? SEMANTIC_MVP_RESPONSES_SCHEMA : GPT_RESPONSES_SCHEMA) : null,
+      response_schema: provider === "luna" ? activeResponseSchema : null,
       receipt_mode: receiptMode,
       receipt_stream: receiptStream,
       raw_output_stream: rawOutputStream,
+      call_ledger: callLedger ?? null,
       resumed: resume,
       selection,
-      codex_version: cliVersion,
+      codex_subscription: codexSubscription,
       sidecar_db: sidecar,
       base_url: baseUrl,
       host_header: hostHeader || null,
@@ -3675,7 +4651,7 @@ async function revalidateFrozenReceipts(args: Args) {
       } else if (!candidate || !document) {
         result = { status: "source_unavailable", source_hash_match: null, validation: null, prediction: null };
       } else {
-        const record = buildCaseRecord(candidate, document);
+        const record = await buildCaseRecord(candidate, document);
         const sourceHashMatch = typeof frozenSource.source_sha256 === "string"
           ? frozenSource.source_sha256 === record.sourceSha256
           : null;
@@ -3826,7 +4802,7 @@ type DeterministicAuditItem = DeterministicScreenItem & {
   frozen?: Record<string, unknown>;
 };
 
-function deterministicAuditReceipt(item: DeterministicAuditItem): Record<string, unknown> {
+async function deterministicAuditReceipt(item: DeterministicAuditItem): Promise<Record<string, unknown>> {
   if (!item.candidate || !item.document) {
     return {
       source: {
@@ -3838,7 +4814,7 @@ function deterministicAuditReceipt(item: DeterministicAuditItem): Record<string,
       legacy: item.legacy ?? null,
     };
   }
-  const source = getLocalA2AJStructure(item.document) ?? a2ajLegalSourceProvider.source(item.document);
+  const source = await compileCaseSource(item.document);
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   const { structure, deterministic } = analyzeTextOpinionStructure({
     text: source.text,
@@ -3883,11 +4859,11 @@ function deterministicAuditReceipt(item: DeterministicAuditItem): Record<string,
   };
 }
 
-function deterministicScreenEvent(item: DeterministicScreenItem): Record<string, unknown> {
+async function deterministicScreenEvent(item: DeterministicScreenItem): Promise<Record<string, unknown>> {
   if (!item.candidate || !item.candidate.citation || !item.document) {
     return { kind: "screen_case", document: item.documentId, status: "load_failed", source_chars: 0, needs_llm: false };
   }
-  const source = getLocalA2AJStructure(item.document) ?? a2ajLegalSourceProvider.source(item.document);
+  const source = await compileCaseSource(item.document);
   if (!source.text.length) {
     return {
       kind: "screen_case",
@@ -4390,18 +5366,30 @@ async function compareRuns(args: Args) {
 }
 
 async function selfTest() {
+  if (validUtf8String(`before\uD800after`) !== "before�after") {
+    throw new Error("UTF-8 transport normalization self-test failed");
+  }
   const recordText = [
     "Example Decision\nJudges\nAlpha J.; Beta J.; Gamma J.\nJoint Reasons for Judgment: (paras. 1 to 2)\nAlpha J. and Beta J.\nDissenting Reasons: (paras. 3 to 4)\nGamma J.\n",
-    "[1] Majority reasoning contains enough ordinary substantive source text to establish a reliable paragraph block for this structural self test and to exercise the canonical A2AJ paragraph compiler. The first majority proposition concerns jurisdiction and the governing statutory language.\n",
+    "[1] Majority reasoning contains enough ordinary substantive source text to establish a reliable paragraph block for this structural self test and to exercise the canonical A2AJ paragraph compiler. Applying 2098 SCC 2, the first majority proposition concerns jurisdiction and the governing statutory language.\n",
     "[2] More majority reasoning contains enough ordinary substantive source text to establish a reliable paragraph block without experiment-local paragraph parsing. The majority finally dismisses the appeal and awards ordinary costs to the respondent.\n",
+    "Beta J.: I agree.\n",
     "[3] Dissent reasoning contains enough ordinary substantive source text to establish a reliable paragraph block for this structural self test and to exercise the canonical A2AJ paragraph compiler. The dissent instead applies a different standard of review.\n",
     "[4] More dissent reasoning contains enough ordinary substantive source text to establish a reliable paragraph block without experiment-local paragraph parsing. The dissent would allow the appeal, set aside the order, and remit the matter for reconsideration.\n",
+    "Alpha J.; Beta J.; Gamma J.\n",
   ].join("");
-  const { compileA2AJSourceDoc } = await import("../../backend/src/lib/sourceDocA2AJ");
-  const source = compileA2AJSourceDoc({ citation: "2099 SCC 1", dataset: "SCC", docType: "cases", text: recordText });
+  const { deriveA2AJSourceDoc } = await import("../../backend/src/lib/sourceDocStructureHost");
+  const source = await deriveA2AJSourceDoc({ citation: "2099 SCC 1", dataset: "SCC", docType: "cases", text: recordText });
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   if (paragraphs.map((block) => block.label).join(",") !== "par1,par2,par3,par4") throw new Error(`SourceDoc self-test failed: ${paragraphs.map((block) => block.label).join(",")}`);
-  const candidate: Candidate = { documentId: 1, dataset: "SCC", citation: "2099 SCC 1", name: "Example", date: "2099-01-01" };
+  const candidate: Candidate = {
+    documentId: 1,
+    dataset: "SCC",
+    citation: "2099 SCC 1",
+    name: "Example",
+    date: "2099-01-01",
+    target: { documentId: 2, citation: "2098 SCC 2", citationAliases: [], name: "Target Example", sameLitigationEligible: false },
+  };
   const document = { docType: "cases", dataset: "SCC", citation: candidate.citation, alternateCitation: null, name: candidate.name, date: candidate.date, url: null, text: recordText, language: "en", upstreamLicense: null, structure: { status: "usable", source: "flat_text", counts: { paragraph: 4, page: 0, section: 0 } } } satisfies A2AJDocument;
   const { structure, deterministic } = analyzeTextOpinionStructure({
     text: source.text,
@@ -4420,7 +5408,15 @@ async function selfTest() {
     hints: extractMechanicalHints(source, paragraphs, structure),
     preflight: extractPreflight(source, paragraphs),
     citationEdges: [],
+    targetOccurrences: caseTargetOccurrences(source, candidate.target),
   };
+  if (record.targetOccurrences.length !== 1 || record.targetOccurrences[0].quote !== "2098 SCC 2") {
+    throw new Error(`case-target occurrence self-test failed: ${json(record.targetOccurrences)}`);
+  }
+  const targetPacket = caseTargetMvpPacket(record, "nested");
+  if (!targetPacket.includes('"occurrence_id": "tm1"') || !targetPacket.includes("[COMPLETE CITING DECISION TEXT]")) {
+    throw new Error("case-target packet self-test failed");
+  }
   const raw = {
     disposition_quote: "The majority finally dismisses the appeal and awards ordinary costs to the respondent.",
     opinions: deterministic.opinions.map((opinion) => ({
@@ -4455,6 +5451,98 @@ async function selfTest() {
     result.prediction.opinions[1].authority_position !== "dissenting"
   ) {
     throw new Error(`explicit vote counts did not derive majority/dissent: ${json(result.prediction.opinions)}`);
+  }
+  const nestedSubmission: ReducedCaseTargetSubmission = {
+    disposition_quote: raw.disposition_quote,
+    opinions: raw.opinions.map((opinion, index) => ({
+      named_authors: opinion.author_names.map((name) => ({
+        name,
+        evidence_quote: index === 0 ? "Alpha J. and Beta J." : "Dissenting Reasons: (paras. 3 to 4)\nGamma J.",
+      })),
+      collective_author: opinion.collective_author,
+      collective_author_evidence_quote: null,
+      result_position: opinion.result_position,
+      position_evidence_quote: opinion.position_evidence_quote,
+      start_quote: opinion.start_quote,
+      end_quote: opinion.end_quote,
+      whole_opinion_joiners: [],
+    })),
+    participants: raw.participants.map(({ opinion_links: _, ...participant }) => participant),
+    nonparticipants: [],
+    target_mentions: [{ occurrence_id: "tm1", mention_quote: null, voice: "current_court" }],
+    issues: [{
+      question: "Should the appeal be dismissed?",
+      answer_groups: [
+        {
+          answer: "Yes.",
+          positions: [{
+            relation_to_disposition: "dispositive",
+            answer_evidence: [{
+              quote: "The majority finally dismisses the appeal and awards ordinary costs to the respondent.",
+              voice: "current_court",
+            }],
+            basis_and_limits: [{
+              kind: "application",
+              text: "The target rule supports dismissal.",
+              evidence: [{
+                quote: "Applying 2098 SCC 2, the first majority proposition concerns jurisdiction and the governing statutory language.",
+                voice: "current_court",
+              }],
+            }],
+            partial_joins: [],
+            target_mentions: [{ occurrence_id: "tm1", mention_quote: null }],
+            target_treatments: [{
+              target_mentions: [{ occurrence_id: "tm1", mention_quote: null }],
+              attribution: "current_court",
+              label: "applied",
+              scope: "specific_proposition",
+              evidence_quote: "Applying 2098 SCC 2, the first majority proposition concerns jurisdiction and the governing statutory language.",
+              target_proposition_as_characterized: "The governing jurisdictional rule.",
+            }],
+          }],
+        },
+        {
+          answer: "No.",
+          positions: [{
+            relation_to_disposition: "dispositive",
+            answer_evidence: [{
+              quote: "The dissent would allow the appeal, set aside the order, and remit the matter for reconsideration.",
+              voice: "current_court",
+            }],
+            basis_and_limits: [],
+            partial_joins: [],
+            target_mentions: [],
+            target_treatments: [],
+          }],
+        },
+      ],
+    }],
+    unscoped_target_treatments: [],
+    direct_history: [],
+  };
+  const nested = validateCaseTargetSubmission(record, nestedSubmission);
+  if (
+    !nested.validation.ok || !nested.prediction || !nested.case_target_mvp?.ok ||
+    nested.case_target_mvp.target_treatments.length !== 1 ||
+    nested.case_target_mvp.issue_authority[0]?.status !== "authority_ambiguous" ||
+    nested.case_target_mvp.flat_treatment.flags.aggregation_safe
+  ) {
+    throw new Error(`nested v13 compilation failed: ${json(nested)}`);
+  }
+  const bareAgreement = structuredClone(raw) as Record<string, unknown>;
+  const bareOpinions = bareAgreement.opinions as Array<Record<string, unknown>>;
+  const bareParticipants = bareAgreement.participants as Array<Record<string, unknown>>;
+  bareOpinions[0].author_names = ["Alpha J."];
+  bareParticipants[1].opinion_links = [];
+  bareParticipants[1].result_only = true;
+  bareParticipants[1].result_only_evidence_quote = "Beta J.: I agree.";
+  const normalizedAgreement = validatePrediction(record, bareAgreement);
+  const normalizedBeta = normalizedAgreement.prediction?.participants.find(({ name }) => name.startsWith("Beta"));
+  if (
+    !normalizedAgreement.validation.ok || normalizedBeta?.result_only ||
+    normalizedBeta?.opinion_links[0]?.relation !== "joins"
+  ) {
+    throw new Error(`bare agreement was not deterministically normalized to a joinder: ${json({ validation: normalizedAgreement.validation, beta: normalizedBeta })}`);
   }
   const plurality = structuredClone(result.prediction);
   plurality.opinions[1].result_position = "supports_disposition";
@@ -4497,11 +5585,18 @@ async function selfTest() {
   if (!legacyResult.validation.ok || !legacyResult.prediction) throw new Error(`legacy receipt normalization failed: ${json(legacyResult.validation)}`);
   if (
     nameKey("Sharlow J.A.") !== "sharlow" ||
+    nameKey("Dawson D.J.C.A.") !== "dawson" ||
     nameKey("Chipman, J.A.") !== "chipman" ||
     nameKey("Clarke, C.J.N.S.") !== "clarke" ||
     nameKey("Feldman, Kathryn N.") !== "feldman"
   ) {
     throw new Error("dotted judicial suffixes changed judge-name identity");
+  }
+  if (
+    !explicitNamedAuthorshipByline("REASONS FOR JUDGMENT OF THE COURT BY:\nGOYETTE J.A.", "Goyette J.A.") ||
+    explicitNamedAuthorshipByline("The reasons of the Court were quoted by counsel for Goyette J.A.", "Goyette J.A.")
+  ) {
+    throw new Error("explicit named-authorship byline detection changed");
   }
   if (
     judgeIdentityKey("Feldman, Kathryn N.") !== judgeIdentityKey("Kathryn N. Feldman J.A.") ||
@@ -4524,9 +5619,7 @@ async function selfTest() {
   const unresolvedAuthor = structuredClone(raw);
   unresolvedAuthor.opinions[0].author_names = [];
   for (const participant of unresolvedAuthor.participants) {
-    for (const link of participant.opinion_links) {
-      if (link.opinion_id === "o1" && link.relation === "authors") link.relation = "joins";
-    }
+    participant.opinion_links = participant.opinion_links.filter((link) => link.opinion_id !== "o1");
   }
   if (!validatePrediction(record, unresolvedAuthor).validation.ok) {
     throw new Error("genuinely unresolved opinion authorship was rejected");
@@ -4606,6 +5699,43 @@ async function selfTest() {
   if (peak !== 10 || pooled.join(",") !== Array.from({ length: 23 }, (_, index) => index * 2).join(",")) {
     throw new Error(`parallel dispatch self-test failed: peak=${peak}`);
   }
+  const streamedPoolResults: number[] = [];
+  const retainedPoolResults = await mapPool([1, 2, 3], 2, async (value) => value * 3, async (value, index) => {
+    streamedPoolResults[index] = value;
+  });
+  if (retainedPoolResults.length || streamedPoolResults.join(",") !== "3,6,9") {
+    throw new Error("streamed pool results were retained after persistence");
+  }
+  const transportEventCount = 260;
+  const transportScript = [
+    "const emit=(value)=>process.stdout.write(JSON.stringify(value)+'\\n');",
+    "emit({kind:'subscription_preflight',endpoint:'test'});",
+    `for(let index=0;index<${transportEventCount};index+=1)emit({kind:'subscription_provider_event',event:{type:'test',payload:'x'.repeat(65536)}});`,
+    "emit({kind:'subscription_completed',response_id:'test'});",
+  ].join("");
+  let streamedTransportEvents = 0;
+  const largeTransport = await spawnCodex(
+    { command: process.execPath, prefix: ["-e", transportScript], shell: false },
+    [],
+    "",
+    30_000,
+    async () => { streamedTransportEvents += 1; },
+  );
+  if (
+    largeTransport.status !== 0 || largeTransport.error ||
+    largeTransport.providerEventCount !== transportEventCount ||
+    largeTransport.providerAttemptCount !== 1 ||
+    streamedTransportEvents !== transportEventCount + 2 ||
+    largeTransport.subscriptionEvents.length !== 2
+  ) {
+    throw new Error(`large subscription event stream was not retained without buffering: ${json({
+      status: largeTransport.status,
+      error: largeTransport.error?.message ?? null,
+      providerEventCount: largeTransport.providerEventCount,
+      streamedTransportEvents,
+      subscriptionEvents: largeTransport.subscriptionEvents.length,
+    })}`);
+  }
   if (GPT_RESPONSES_SCHEMA.type !== "json_schema" || GPT_RESPONSES_SCHEMA.strict !== true || GPT_RESPONSES_SCHEMA.name !== RESPONSE_SCHEMA_NAME) {
     throw new Error("Responses schema self-test failed");
   }
@@ -4661,6 +5791,19 @@ async function selfTest() {
   if ((compact.judge_court_service as typeof service)?.participants[1].resolution.status !== "no_match") {
     throw new Error("compact receipt dropped judge/court resolution evidence");
   }
+  const stderr = "provider traceback";
+  const compactFailure = compactModelReceipt({
+    stderr,
+    stderr_sha256: sha256(stderr),
+    stderr_bytes: Buffer.byteLength(stderr),
+  }) as Record<string, unknown>;
+  if (
+    compactFailure.stderr_tail !== stderr ||
+    compactFailure.stderr_sha256 !== sha256(stderr) ||
+    compactFailure.stderr_bytes !== Buffer.byteLength(stderr)
+  ) {
+    throw new Error("compact model receipt dropped stderr diagnostics");
+  }
   const appendTestDirectory = await mkdtemp(path.join(os.tmpdir(), "a2aj-jsonl-check-"));
   try {
     const appendTestFile = path.join(appendTestDirectory, "events.jsonl");
@@ -4668,6 +5811,16 @@ async function selfTest() {
     const appended = (await readFile(appendTestFile, "utf8")).trim().split(/\r?\n/u).map((line) => JSON.parse(line) as Record<string, unknown>);
     if (appended.length !== 32 || new Set(appended.map(({ index }) => Number(index))).size !== 32) {
       throw new Error("concurrent JSONL append lost or interleaved receipts");
+    }
+    const budgetTestFile = path.join(appendTestDirectory, "call-ledger.jsonl");
+    await writeFile(budgetTestFile, [
+      { kind: "call_budget_carry_forward", attempted_calls: 2 },
+      { kind: "model_call_started" },
+      { kind: "model_call_retry_started", attempt: 2 },
+      { kind: "model_call_finished", transport_retries: 1 },
+    ].map((value) => JSON.stringify(value)).join("\n"), "utf8");
+    if (await modelCallLedgerUsage(budgetTestFile) !== 4) {
+      throw new Error("model-call budget did not count provider retries exactly once");
     }
   } finally {
     await rm(appendTestDirectory, { recursive: true, force: true });
@@ -4710,10 +5863,10 @@ function startDeterministicScreenWorker() {
       void (async () => {
         if (!message.partFile) throw new Error("audit worker part file is required");
         const counts = emptyAuditCounts();
-        const lines = hydrateDeterministicItems(message.items!).map((item) => {
+        const lines = await mapPool(hydrateDeterministicItems(message.items!), 8, async (item) => {
           let receipt: Record<string, unknown>;
           try {
-            receipt = deterministicAuditReceipt(item);
+            receipt = await deterministicAuditReceipt(item);
           } catch (error) {
             receipt = {
               source: {
@@ -4749,22 +5902,27 @@ function startDeterministicScreenWorker() {
       return;
     }
     if (message.kind !== "screen_batch") return;
-    const events = hydrateDeterministicItems(message.items).map((item) => {
-      try {
-        return deterministicScreenEvent(item);
-      } catch (error) {
-        return {
-          kind: "screen_case",
-          document: item.documentId,
-          source: item.candidate,
-          status: "parse_failed",
-          source_chars: item.document?.text.length ?? 0,
-          parse_error: errorMessage(error),
-          needs_llm: true,
-        };
-      }
-    });
-    process.send!({ kind: "screen_result", events } satisfies ScreenWorkerReply);
+    void (async () => {
+      const events = await mapPool(hydrateDeterministicItems(message.items!), 8, async (item) => {
+        try {
+          return await deterministicScreenEvent(item);
+        } catch (error) {
+          return {
+            kind: "screen_case",
+            document: item.documentId,
+            source: item.candidate,
+            status: "parse_failed",
+            source_chars: item.document?.text.length ?? 0,
+            parse_error: errorMessage(error),
+            needs_llm: true,
+          };
+        }
+      });
+      process.send!({ kind: "screen_result", events } satisfies ScreenWorkerReply);
+    })().catch((error) => process.send!({
+      kind: "screen_result",
+      events: [{ kind: "screen_case", status: "worker_failed", parse_error: errorMessage(error), needs_llm: true }],
+    } satisfies ScreenWorkerReply));
   });
   process.send({ kind: "screen_ready" });
 }
@@ -4776,8 +5934,14 @@ const isMain =
 if (isMain && process.argv[2] === "deterministic-screen-worker") {
   startDeterministicScreenWorker();
 } else if (isMain) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
-  });
+  void (async () => {
+    try {
+      await main();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await shutdownSourceStructureEngine();
+    }
+  })();
 }

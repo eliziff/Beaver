@@ -66,14 +66,14 @@ describe("directoryResource", () => {
   });
 });
 
-describe("apiFetch", () => {
+describe("apiBlobRequest", () => {
   it("preserves native Headers values and overrides", async () => {
     await configure("local");
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const fetchMock = vi.fn(async () => new Response(new Blob(["file"])));
     vi.stubGlobal("fetch", fetchMock);
-    const { apiFetch } = await import("./beaverApi");
+    const { apiBlobRequest } = await import("./beaverApi");
 
-    await apiFetch("/health", {
+    await apiBlobRequest("/health", {
       headers: new Headers({ Accept: "text/plain", "X-Test": "kept" }),
     });
 
@@ -81,9 +81,40 @@ describe("apiFetch", () => {
     expect(headers.get("accept")).toBe("text/plain");
     expect(headers.get("x-test")).toBe("kept");
   });
+
+  it("preserves structured API failure details for streamed operations", async () => {
+    await configure("local");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      code: "missing_api_key",
+      detail: "Configure a provider",
+      provider: "openai",
+    }), { status: 401 })));
+    const { streamTabularGeneration } = await import("./beaverApi");
+
+    await expect(streamTabularGeneration("review-1")).rejects.toMatchObject({
+      name: "BeaverApiError",
+      message: "Configure a provider",
+      status: 401,
+      code: "missing_api_key",
+      details: { provider: "openai" },
+    });
+  });
 });
 
 describe("getChat", () => {
+  it("keeps crafted identifiers inside their route segment", async () => {
+    await configure("local");
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { deleteChat } = await import("./beaverApi");
+
+    await deleteChat("../user/account?confirm=true");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/chat/..%2Fuser%2Faccount%3Fconfirm%3Dtrue",
+    );
+  });
+
   it("settles work left running by an interrupted backend turn", async () => {
     await configure("local");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
@@ -97,10 +128,7 @@ describe("getChat", () => {
           content: [{
             type: "subagent_run",
             id: "scout:1",
-            agent: "scout",
             task: "Research",
-            model: "codex",
-            effort: "high",
             status: "running",
             activities: [{ id: "read-1", tool: "read", label: "Reading", status: "running" }],
           }],

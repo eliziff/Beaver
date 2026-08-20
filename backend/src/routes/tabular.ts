@@ -3,19 +3,14 @@ import { z, type ZodType } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { tabularDtos, type TabularApplication } from "../lib/tabular/application";
-import { safeErrorMessage } from "../lib/safeError";
-import { buildContentDisposition } from "../lib/storage";
+import { safePublicErrorMessage } from "../lib/safeError";
+import { downloadHeaders } from "../lib/storage";
 
 const scope = applicationScope;
 const parse = <T extends ZodType>(schema: T, value: unknown): z.output<T> =>
   schema.parse(value);
-const abortSignal = (req: Request, res: Response) => {
-  const controller = new AbortController();
-  req.once("aborted", () => controller.abort());
-  res.once("close", () => { if (!res.writableEnded) controller.abort(); });
-  return controller.signal;
-};
 const json = (
   operation: (req: Request, res: Response) => Promise<unknown>,
   status = 200,
@@ -32,16 +27,12 @@ export function createTabularRouter(app: TabularApplication) {
   router.post("/", json((req, res) => app.create(scope(res),
     parse(tabularDtos.create, req.body)), 201));
   router.post("/prompt", json((req, res) => app.prompt(scope(res),
-    parse(tabularDtos.prompt, req.body), abortSignal(req, res))));
+    parse(tabularDtos.prompt, req.body), requestAbortController(req, res).signal)));
   router.get("/:reviewId", json((req, res) => app.detail(scope(res),
     parse(tabularDtos.id, req.params.reviewId))));
   router.get("/:reviewId/export", asyncRoute(async (req, res) => {
     const file = await app.export(scope(res), parse(tabularDtos.id, req.params.reviewId));
-    res.set({
-      "Cache-Control": "private, no-store",
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": buildContentDisposition("attachment", file.filename),
-    });
+    res.set(downloadHeaders("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.filename));
     res.send(file.bytes);
   }));
   router.get("/:reviewId/people", json((req, res) => app.people(scope(res),
@@ -59,24 +50,19 @@ export function createTabularRouter(app: TabularApplication) {
   }));
   router.post("/:reviewId/regenerate-cell", json((req, res) =>
     app.regenerate(scope(res), parse(tabularDtos.id, req.params.reviewId),
-      parse(tabularDtos.regenerate, req.body), abortSignal(req, res))));
+      parse(tabularDtos.regenerate, req.body), requestAbortController(req, res).signal)));
 
   router.post("/:reviewId/generate", asyncRoute(async (req, res) => {
-    const signal = abortSignal(req, res);
+    const signal = requestAbortController(req, res).signal;
     const job = await app.generate(scope(res),
       parse(tabularDtos.id, req.params.reviewId),
       parse(tabularDtos.generate, req.body ?? {}), signal);
-    res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache",
-      Connection: "keep-alive", "X-Accel-Buffering": "no" });
-    res.flushHeaders();
-    const send = (event: unknown) => {
-      if (!signal.aborted && !res.writableEnded)
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-    };
+    startSse(res);
+    const send = (event: unknown) => { if (!signal.aborted) writeSse(res, event); };
     try { await job.run(send); }
     catch (error) {
       if (!signal.aborted) send({ type: "error",
-        message: safeErrorMessage(error, "Stream error") });
+        message: safePublicErrorMessage(error, "Generation failed. Try again.") });
     } finally {
       if (!signal.aborted && !res.writableEnded) res.write("data: [DONE]\n\n");
       if (!res.writableEnded) res.end();

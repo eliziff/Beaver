@@ -1,13 +1,18 @@
 import {
     createContext,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { isLocalMode } from "@/app/lib/authMode";
+import { clearApiCaches } from "@/app/lib/beaverApi";
+import { clearDocumentFileCache } from "@/app/hooks/useDocumentFile";
+import { clearStagedChatDocuments } from "@/app/components/assistant/assistantLaunch";
 interface User {
     id: string;
     email: string;
@@ -37,6 +42,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLocalMode ? LOCAL_USER : null,
     );
     const [authLoading, setAuthLoading] = useState(!isLocalMode);
+    const cachedUserId = useRef(user?.id ?? null);
+    const setAuthenticatedUser = useCallback((next: User | null) => {
+        if (cachedUserId.current !== next?.id) {
+            clearApiCaches();
+            clearDocumentFileCache();
+            clearStagedChatDocuments();
+            cachedUserId.current = next?.id ?? null;
+        }
+        setUser(next);
+    }, []);
     useEffect(() => {
         if (isLocalMode) return;
         let cancelled = false;
@@ -49,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 data: { subscription },
             } = supabase.auth.onAuthStateChange((_event, session) => {
                 if (cancelled) return;
-                setUser(session?.user ? toUser(session.user) : null);
+                setAuthenticatedUser(session?.user ? toUser(session.user) : null);
                 setAuthLoading(false);
             });
             unsubscribe = () => subscription.unsubscribe();
@@ -61,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             cancelled = true;
             unsubscribe?.();
         };
-    }, []);
+    }, [setAuthenticatedUser]);
     const value = useMemo(() => ({
         user,
         isAuthenticated: !!user,
@@ -70,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (isLocalMode) return;
             const { getSupabase } = await import("@/app/lib/supabase");
             await getSupabase().auth.signOut({ scope: "local" });
-            setUser(null);
+            setAuthenticatedUser(null);
         },
         updateEmail: async (email: string) => {
             if (isLocalMode) {
@@ -88,10 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (error) throw error;
             if (!data.user) throw new Error("Unable to update email");
             const nextUser = toUser(data.user);
-            setUser(nextUser);
+            setAuthenticatedUser(nextUser);
             return nextUser;
         },
-    }), [authLoading, user]);
+    }), [authLoading, setAuthenticatedUser, user]);
     return (
         <AuthContext.Provider value={value}>
             {children}

@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { zipDocumentBytes } from "./support/documentBytes";
 
 let root: string | null = null;
 
@@ -35,13 +36,14 @@ describe("SQLite and filesystem document adapters", () => {
     const { documents, library } = await localStores();
     const scope = { userId: "local-user" };
     const folder = await library.createFolder({ ...scope, kind: "file" }, "Authorities", null);
+    const bytes = await zipDocumentBytes("docx");
     const document = await documents.create(scope, {
-      filename: "Brief.docx", fileType: "docx", bytes: Buffer.from("docx"),
+      filename: "Brief.docx", fileType: "docx", bytes,
       folderId: folder!.id,
     });
     expect(document.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
-    expect((await documents.read(scope, document.id, null, false))?.bytes.toString())
-      .toBe("docx");
+    expect((await documents.read(scope, document.id, null, false))?.bytes)
+      .toEqual(bytes);
     const page = await library.page({ ...scope, kind: "file" }, {
       q: "brief", parentFolderId: folder!.id, limit: 10, after: null,
     });

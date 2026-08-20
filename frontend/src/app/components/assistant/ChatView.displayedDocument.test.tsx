@@ -221,7 +221,6 @@ describe("ChatView displayed document context", () => {
             },
             {
                 displayedDoc: {
-                    filename: "Lease.docx",
                     documentId: "document-1",
                 },
             },

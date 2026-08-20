@@ -9,6 +9,7 @@ export const ATTRIBUTIONS = [
   "quoted_authority",
   "reported_decision",
   "procedural_recounting",
+  "document_metadata",
   "unclear",
 ] as const;
 export type TreatmentAttribution = (typeof ATTRIBUTIONS)[number];
@@ -66,7 +67,7 @@ export type ModelTreatmentItem = {
     label: SubstantiveTreatmentLabel;
     scope: TreatmentScope;
     evidence_quote: string;
-    proposition_quote: string | null;
+    target_proposition_as_characterized: string | null;
   }>;
   direct_history: Array<{
     label: DirectHistoryLabel;
@@ -95,14 +96,14 @@ export const CASE_TREATMENT_ITEM_SCHEMA = {
           "label",
           "scope",
           "evidence_quote",
-          "proposition_quote",
+          "target_proposition_as_characterized",
         ],
         properties: {
           attribution: { type: "string", enum: ATTRIBUTIONS },
           label: { type: "string", enum: SUBSTANTIVE_LABELS },
           scope: { type: "string", enum: TREATMENT_SCOPES },
           evidence_quote: { type: "string" },
-          proposition_quote: { type: ["string", "null"] },
+          target_proposition_as_characterized: { type: ["string", "null"], minLength: 1 },
         },
       },
     },
@@ -118,16 +119,6 @@ export const CASE_TREATMENT_ITEM_SCHEMA = {
         },
       },
     },
-  },
-} as const;
-
-/** Strict Responses-schema contract: the model supplies judgments and quotes, never offsets. */
-export const CASE_TREATMENT_OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["treatments"],
-  properties: {
-    treatments: { type: "array", items: CASE_TREATMENT_ITEM_SCHEMA },
   },
 } as const;
 
@@ -189,7 +180,7 @@ export type AcceptedSubstantiveTreatment = AcceptedBase & {
   attribution: TreatmentAttribution;
   label: SubstantiveTreatmentLabel;
   scope: TreatmentScope;
-  proposition: ExactQuote | null;
+  proposition: string | null;
 };
 
 export type AcceptedDirectHistory = AcceptedBase & {
@@ -247,13 +238,11 @@ function resolveTreatmentItem(
 
   output.substantive.forEach((event, index) => {
     const evidence = exactQuote(input.opinion, event.evidence_quote);
-    const proposition = event.proposition_quote === null
-      ? null
-      : exactQuote(input.opinion, event.proposition_quote);
+    const proposition = event.target_proposition_as_characterized?.trim() || null;
     const reason = typeof evidence === "string"
       ? `evidence ${evidence}`
-      : typeof proposition === "string"
-        ? `proposition ${proposition}`
+      : event.target_proposition_as_characterized !== null && proposition === null
+        ? "target proposition is empty"
         : null;
     if (reason) {
       rejections.push({ kind: "substantive", index, reason });
@@ -266,7 +255,7 @@ function resolveTreatmentItem(
       label: event.label,
       scope: event.scope,
       evidence: evidence as ExactQuote,
-      proposition: proposition as ExactQuote | null,
+      proposition,
     });
   });
 
