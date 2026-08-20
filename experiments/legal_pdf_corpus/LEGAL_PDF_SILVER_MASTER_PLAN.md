@@ -2075,6 +2075,10 @@ Keep decoded-pixel warmed recognition speed, cold OCR-process speed, and
 end-to-end PDF product wall speed as separate metrics. Do not compare or merge
 CUDA and CPU accuracy/performance receipts: the settled benchmark has observed
 up to nine characters of backend drift over 438,577 truth characters. OCR
+receipts must record the execution provider that actually ran each document or
+page, including every fallback event; a requested CUDA provider plus allowed
+CPU fallback is not evidence of CUDA execution. Backend telemetry and runtime
+provider assignment must agree before a result is labeled GPU throughput. OCR
 receipts separately report physical pages, detector positives, routed
 attempts, actual OCR outputs, unresolved pages, and the exact partition
 identity; routed attempts cannot stand in for completed OCR output.
@@ -2295,7 +2299,9 @@ No stage is being called complete prematurely:
   smoke correctly failed when all CPU execution-provider fallback was
   forbidden: the settled model has a small unavoidable CPU-node assignment.
   The exact run is now live without a rebuild using the same frozen binary and
-  model, with `fallback=cpu` explicitly enabled and identity-pinned. The
+  model, with CUDA requested and `fallback=cpu` explicitly enabled and
+  identity-pinned. Because the product emits no provider-assignment or fallback
+  event, this is not yet a proven CUDA execution. The
   latest durable checkpoint has 573/750 document receipts and accounts for
   13,520 physical pages, including 203 pages in failed receipts. The launch
   runner reports 568 passes and five explicit failures. It routed 12,173 OCR
@@ -2330,7 +2336,10 @@ No stage is being called complete prematurely:
   this checkpoint, end-to-end wall is 2 h 36 min 53 s and the measured rate is
   only 1.57 physical pages/s. The remaining 177 documents contain 73,243
   pages; even with larger-document batching, the honest end-to-end estimate is
-  now 8--12 hours. The image-only 6.263 pages/s result is only an unattainable
+  now at least 8--12 hours. One 117-page commission report took 589.857 s
+  (0.20 pages/s), and a 30-second GPU sample during the next active document
+  showed 0% SM use in 29/30 samples and 3% once. Similar documents can extend
+  the run beyond 12 hours. The image-only 6.263 pages/s result is only an unattainable
   roughly 3.3-hour lower bound for remaining recognition and is not product
   throughput. This is progress, not a corpus completion claim.
   Separately, all 425 pages across five 85-page parts of one historical
@@ -2338,7 +2347,8 @@ No stage is being called complete prematurely:
   240 remained unresolved. Manual side-by-side inspection shows the rejected
   pages are legible, comparable eighteenth-century scans rather than blank or
   corrupt pages. This isolates an old-type/long-s/two-column acceptance-score
-  false negative, not a routing or CUDA failure. The baseline remains
+  false negative rather than a routing failure; the actual execution backend
+  remains unproven. The baseline remains
   unchanged; after it finishes, a bounded subset must prove separate rejected-
   candidate retention without promoting those pages or rerunning all 425.
 - The settled Kraken product binary is not yet reproducible from the checked-in
