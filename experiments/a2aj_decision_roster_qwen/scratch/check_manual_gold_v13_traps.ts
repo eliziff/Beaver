@@ -7,7 +7,7 @@ const quoteKeys = new Set(["disposition_quote", "writer_evidence_quote", "positi
 async function main() {
 const bulk = (bulkModule as any).default ?? bulkModule;
 const semantic = (semanticModule as any).default ?? semanticModule;
-const goldFile = process.argv[2] ? resolve(process.argv[2]) : new URL("./manual-case-target-gold-v13-traps.json", import.meta.url);
+const goldFile = process.argv[2] ? resolve(process.argv[2]) : new URL("../manual-case-target-gold-v13-traps.json", import.meta.url);
 const rows = JSON.parse(await readFile(goldFile, "utf8")) as Array<Record<string, any>>;
 let failures = 0;
 for (const row of rows) {

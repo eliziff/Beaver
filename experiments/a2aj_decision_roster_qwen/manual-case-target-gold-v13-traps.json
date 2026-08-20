@@ -1,0 +1,312 @@
+[
+  {
+    "document_id": 109485,
+    "citation": "2007 FC 971",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "semantic_audit": {
+      "status": "audited_corrected",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_traps",
+      "reviewer_version": "traps-audit-v1",
+      "reviewed_on": "2026-08-20",
+      "correction_summary": "Completed the pleaded patent-validity issues (disclaimer, obviousness, anticipation, claim breadth, and listing eligibility), tightened the burden evidence, expanded the operative judgment, relinked the party-submission citation to anticipation, and removed obsolete v13 null mention members."
+    },
+    "annotation": {
+      "disposition_quote": "The respondent’s motion to dismiss the within application for prohibition dated May 22, 2007 is dismissed with costs to the applicant.\nThe application is granted and the Minister of Health is prohibited from issuing a Notice of Compliance to the respondent in accordance with section 6(1) of the Patented Medicines (Notice of Compliance) Regulations, S.O.R./93-133 for sildenafil, sildenafil citrate, or for any drug for which there is a connection to the drug known as sildenafil citrate as described in section 5(1) or section 5(1.1) of the Regulations, until after the expiry of Canadian Patent No. 2,163,446.\nThe applicants are entitled to their costs on the ordinary scale to be determined by Notice of Motion, if required",
+      "opinions": [
+        {
+          "opinion_key": "o1",
+          "writer_names": ["Richard G. Mosley"],
+          "collective_writer": null,
+          "writer_evidence_quote": "PRESENT: The Honourable Mr. Justice Mosley",
+          "result_position": "supports_disposition",
+          "position_evidence_quote": "The applicants have met their legal burden to establish the validity of the ‘466 patent",
+          "start_quote": "REASONS FOR JUDGMENT AND JUDGMENT",
+          "end_quote": "If the parties cannot reach agreement on the quantum, the question of costs can be brought forward by Notice of Motion."
+        }
+      ],
+      "participants": [
+        {
+          "name": "Richard G. Mosley",
+          "panel_evidence_quote": "PRESENT: The Honourable Mr. Justice Mosley",
+          "result_position": "supports_disposition",
+          "result_evidence_quote": "The applicants have met their legal burden to establish the validity of the ‘466 patent",
+          "result_only": false,
+          "opinion_links": [
+            {"opinion_key": "o1", "relation": "authors", "issue_keys": [], "evidence_quote": "REASONS FOR JUDGMENT: MOSLEY J."}
+          ]
+        }
+      ],
+      "issues": [
+        {
+          "issue_key": "s1",
+          "question": "What burdens and patent-validity presumption govern the prohibition application?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "The applicants bear the legal burden of proving validity throughout. The respondent need only adduce evidence capable of putting invalidity in play, at which point the validity presumption is spent.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["the legal burden remains with the first person throughout the proceedings and does not shift to the second person.", "evidence which is sufficient to put the allegations of invalidity “in play” and which is not clearly incapable of establishing those allegations."]}
+              ]
+            }
+          ]
+        },
+        {
+          "issue_key": "s2",
+          "question": "Were the disclaimers relating to the patent valid?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "Yes. The applicants established that the allegation challenging the disclaimers was unsubstantiated.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["Taking the whole of the evidence into account, on the balance of probabilities standard, I conclude that the applicants have met their burden to demonstrate that this allegation is unsubstantiated."]}
+              ]
+            }
+          ]
+        },
+        {
+          "issue_key": "s3",
+          "question": "Was the patent invalid for obviousness?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "No. The applicants proved that the obviousness allegation was unsubstantiated.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["I therefore find that on the totality of the evidence the applicants have proven on a balance of probabilities that the respondent’s allegation of invalidity on the basis of obviousness is unsubstantiated."]}
+              ]
+            }
+          ]
+        },
+        {
+          "issue_key": "s4",
+          "question": "Was the patent invalid because the claimed use was only an old product or process?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "No. The patent claimed a new use of sildenafil for treating erectile dysfunction, not merely an old product or a new process for an old product.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["It is not a new process for an old product they discovered but an entirely new use."]}
+              ]
+            }
+          ]
+        },
+        {
+          "issue_key": "s5",
+          "question": "Were the claims broader than the invention made or disclosed?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "No. A skilled reader would understand the claims as treating the symptoms of erectile dysfunction, so the breadth allegation was unsubstantiated.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["I think a skilled reader would have read the Patent as indicating a treatment for ED that was curative or prophylactic in nature with regard to the symptoms of ED.", "As such, on a balance of probabilities the applicants have demonstrated that this allegation is unsubstantiated."]}
+              ]
+            }
+          ]
+        },
+        {
+          "issue_key": "s6",
+          "question": "Did the use claims fail the legislative requirements for listing on the patent register?",
+          "answer_groups": [
+            {
+              "answer_group_key": "a1",
+              "answer": "No. The claims were for the use of sildenafil as a medicine to treat erectile dysfunction; manufacturing a medicament was secondary, so the eligibility allegation failed.",
+              "positions": [
+                {"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["The use being spoken of is therefore the use of sildenafil (which is a medicine, as defined above, i.e. “a substance”) for the curative or prophylactic treatment of erectile dysfunction in man, and the manufacture of a medicament or the adaptation for oral treatment are merely secondary aspects to the essential claimed use.", "On the balance of probabilities the applicants have demonstrated that this allegation is unsubstantiated."]}
+              ]
+            }
+          ]
+        }
+      ],
+      "target_mentions": [
+        {
+          "mention_key": "m1",
+          "occurrence_id": "tm1",
+          "voice": "current_court",
+          "issue_keys": ["s1"],
+          "evidence_quote": "The issue of burden of proof and presumption of validity was recently dealt with by the Court of Appeal in Abbott Laboratories v. Canada (Minister of Health), 2007 FCA 153"
+        },
+        {
+          "mention_key": "m2",
+          "occurrence_id": "tm2",
+          "voice": "party_submission",
+          "issue_keys": ["s4"],
+          "evidence_quote": "The respondent refers to the Supreme Court of Canada decision in Hoffman-La Roche & Co Ltd. v. Commissioner of Patents [1955] S.C.R. 414, 23 C.P.R. 1 at para. 5 (S.C.C.) [Hoffman], cited positively by the Federal Court in Abbott Laboratories v. Canada 2005 FC 1332, 45 C.P.R. (4th) 81 at para. 58 (F.C.), aff’d 2007 FCA 153 at paras. 11-14 [Abbott Laboratories 2005]."
+        }
+      ],
+      "target_treatments": [
+        {
+          "mention_keys": ["m1"],
+          "issue_keys": ["s1"],
+          "attribution": "current_court",
+          "label": "applied",
+          "scope": "legal_test",
+          "evidence_quote": "In that case the Court of Appeal found at paragraph 9 that “[i]t is now beyond debate that an applicant for a prohibition order under the NOC Regulations bears the burden of establishing its entitlement to the order”",
+          "target_proposition_as_characterized": "An applicant for a prohibition order bears the burden of establishing entitlement to the order, subject to the evidentiary treatment of the validity presumption."
+        }
+      ],
+      "target_direct_history": []
+    }
+  },
+  {
+    "document_id": 123916,
+    "citation": "2018 NSCA 53",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "semantic_audit": {
+      "status": "audited_corrected",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_traps",
+      "reviewer_version": "traps-audit-v1",
+      "reviewed_on": "2026-08-20",
+      "correction_summary": "Expanded the disposition to include the remittal question and no-costs ruling, corrected Sattva's treatment from limited to distinguished because it governs interpretation rather than contract formation, and removed the obsolete v13 null mention member."
+    },
+    "annotation": {
+      "disposition_quote": "I would allow the appeal, set aside the decision and remit for determination before another judge whether there was a binding agreement and, if so, was it as stated in the draft CRO or otherwise. In these circumstances, I would decline to award costs.",
+      "opinions": [
+        {
+          "opinion_key": "o1",
+          "writer_names": ["Van den Eynden"],
+          "collective_writer": null,
+          "writer_evidence_quote": "reasons for judgment of Van den Eynden, J.A.; Hamilton and Scanlan, JJ.A. concurring",
+          "result_position": "supports_disposition",
+          "position_evidence_quote": "I would allow the appeal on the basis that the judge erred in principle by restricting her focus to the one disputed document",
+          "start_quote": "Reasons for judgment:\nOverview",
+          "end_quote": "In these circumstances, I would decline to award costs."
+        }
+      ],
+      "participants": [
+        {
+          "name": "Van den Eynden",
+          "panel_evidence_quote": "Judges:\nVan den Eynden, Hamilton and Scanlan, JJ.A.",
+          "result_position": "supports_disposition",
+          "result_evidence_quote": "Held:\nAppeal allowed, per reasons for judgment of Van den Eynden, J.A.; Hamilton and Scanlan, JJ.A. concurring",
+          "result_only": false,
+          "opinion_links": [{"opinion_key": "o1", "relation": "authors", "issue_keys": [], "evidence_quote": "reasons for judgment of Van den Eynden, J.A.; Hamilton and Scanlan, JJ.A. concurring"}]
+        },
+        {
+          "name": "Hamilton",
+          "panel_evidence_quote": "Judges:\nVan den Eynden, Hamilton and Scanlan, JJ.A.",
+          "result_position": "supports_disposition",
+          "result_evidence_quote": "Held:\nAppeal allowed, per reasons for judgment of Van den Eynden, J.A.; Hamilton and Scanlan, JJ.A. concurring",
+          "result_only": false,
+          "opinion_links": [{"opinion_key": "o1", "relation": "joins", "issue_keys": [], "evidence_quote": "Hamilton and Scanlan, JJ.A. concurring"}]
+        },
+        {
+          "name": "Scanlan",
+          "panel_evidence_quote": "Judges:\nVan den Eynden, Hamilton and Scanlan, JJ.A.",
+          "result_position": "supports_disposition",
+          "result_evidence_quote": "Held:\nAppeal allowed, per reasons for judgment of Van den Eynden, J.A.; Hamilton and Scanlan, JJ.A. concurring",
+          "result_only": false,
+          "opinion_links": [{"opinion_key": "o1", "relation": "joins", "issue_keys": [], "evidence_quote": "Hamilton and Scanlan, JJ.A. concurring"}]
+        }
+      ],
+      "issues": [
+        {
+          "issue_key": "s1",
+          "question": "Did the trial judge apply the correct framework to determine whether a binding agreement existed?",
+          "answer_groups": [{"answer_group_key": "a1", "answer": "No. The judge wrongly confined the analysis to the draft CRO instead of examining the parties' communications, so the matter had to be remitted.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["I would allow the appeal on the basis that the judge erred in principle by restricting her focus to the one disputed document"]}]}]
+        },
+        {
+          "issue_key": "s2",
+          "question": "What role does Sattva play in the contractual dispute?",
+          "answer_groups": [{"answer_group_key": "a1", "answer": "Sattva governs interpretation of contract terms, including use of the factual matrix, but does not determine whether a contract exists in the first place.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "non_dispositive", "answer_evidence_quotes": ["I note that Sattva does not apply to determine whether a contract exists, but rather to interpret the terms of the contract."]}]}]
+        }
+      ],
+      "target_mentions": [{"mention_key": "m1", "occurrence_id": "tm1", "voice": "party_submission", "issue_keys": ["s2"], "evidence_quote": "Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:"}],
+      "target_treatments": [{"mention_keys": ["m1"], "issue_keys": ["s2"], "attribution": "current_court", "label": "distinguished", "scope": "legal_test", "evidence_quote": "I note that Sattva does not apply to determine whether a contract exists, but rather to interpret the terms of the contract.", "target_proposition_as_characterized": "Sattva supports using the factual matrix to interpret a contract after existence is established; it does not resolve contract formation."}],
+      "target_direct_history": []
+    }
+  },
+  {
+    "document_id": 67832,
+    "citation": "2021 CHRT 18",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "semantic_audit": {
+      "status": "audited_corrected",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_traps",
+      "reviewer_version": "traps-audit-v1",
+      "reviewed_on": "2026-08-20",
+      "correction_summary": "Reframed and completed the publication/confidentiality issue and disposition, replaced two false substantive limited-treatment events with the direct same-file varied history event, and removed obsolete v13 null mention members."
+    },
+    "annotation": {
+      "disposition_quote": "With the consent of Mr. Carter and Respondent counsel, I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced with the following sentence: “The Complainant has a medical condition which he states is a disability under the Act.”\n[15] Subject to the aforementioned change, the Rulings will be translated into the second Official Language and will be posted on the Tribunal website in due course, thus forming a part of the permanent record of this Tribunal. All information contained in the file pertaining to Mr. Carter’s underlying medical condition will remain confidential under this order granted under s. 52 of the Act.\n[16] Upon the publication of this ruling and the Rulings, the Tribunal will close this file and advise the parties. The matter will then be closed.",
+      "opinions": [{"opinion_key": "o1", "writer_names": ["David L. Thomas"], "collective_writer": null, "writer_evidence_quote": "Member:\nDavid L. Thomas", "result_position": "supports_disposition", "position_evidence_quote": "I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced", "start_quote": "Ruling\nMember:\nDavid L. Thomas", "end_quote": "The matter will then be closed."}],
+      "participants": [{"name": "David L. Thomas", "panel_evidence_quote": "Member:\nDavid L. Thomas", "result_position": "supports_disposition", "result_evidence_quote": "I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced", "result_only": false, "opinion_links": [{"opinion_key": "o1", "relation": "authors", "issue_keys": [], "evidence_quote": "I have taken it upon myself, as Chairperson of the CHRT, to render this ruling and bring this complaint to a close."}]}],
+      "issues": [{"issue_key": "s1", "question": "What publication and confidentiality measures should apply to the prior rulings and tribunal file?", "answer_groups": [{"answer_group_key": "a1", "answer": "The identifying medical sentence in 2014 CHRT 3 is replaced; the rulings otherwise will be translated and published, the underlying medical information remains confidential, and the file will close after publication.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced with the following sentence", "Subject to the aforementioned change, the Rulings will be translated into the second Official Language and will be posted on the Tribunal website in due course", "All information contained in the file pertaining to Mr. Carter’s underlying medical condition will remain confidential under this order granted under s. 52 of the Act.", "Upon the publication of this ruling and the Rulings, the Tribunal will close this file and advise the parties."]}]}]}],
+      "target_mentions": [
+        {"mention_key": "m1", "occurrence_id": "tm1", "voice": "procedural_recounting", "issue_keys": ["s1"], "evidence_quote": "In the course of case management, Member Luftig issued four interim rulings: 2014 CHRT 3;"},
+        {"mention_key": "m2", "occurrence_id": "tm2", "voice": "party_submission", "issue_keys": ["s1"], "evidence_quote": "Mr. Carter’s main objection has been the disclosure of certain medical information in Tribunal ruling 2014 CHRT 3."},
+        {"mention_key": "m3", "occurrence_id": "tm3", "voice": "current_court", "issue_keys": ["s1"], "evidence_quote": "I concur that the Medical Information contained in 2014 CHRT 3 is not necessary"},
+        {"mention_key": "m4", "occurrence_id": "tm4", "voice": "current_court", "issue_keys": ["s1"], "evidence_quote": "I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced"}
+      ],
+      "target_treatments": [],
+      "target_direct_history": [
+        {"mention_keys": ["m3", "m4"], "label": "varied", "evidence_quote": "I hereby order that the sentence in section 1 of paragraph 9 in 2014 CHRT 3 be struck and replaced with the following sentence"}
+      ]
+    }
+  },
+  {
+    "document_id": 68919,
+    "citation": "2005 CAPPRT 050",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "semantic_audit": {
+      "status": "audited_corrected",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_traps",
+      "reviewer_version": "traps-audit-v1",
+      "reviewed_on": "2026-08-20",
+      "correction_summary": "Completed the timeliness, scale-agreement scope, fair-representation, remedy, and favourable-terms rulings; expanded both formal declarations; corrected the target-occurrence speakers and target-treatment grouping/labels; and removed obsolete v13 null mention members."
+    },
+    "annotation": {
+      "disposition_quote": "The Tribunal allows the complaint and issues a declaration that the Writers Guild of Canada breached its duty of fair representation.\nThe Tribunal declares that there were no terms in the contracts between Mr. Stephen Petch and the Canadian Broadcasting Corporation more favourable to Mr. Petch in relation to further use of the dramatic scripts than those provided for under the Agreement between the Writers Guild of Canada (or its predecessor) and the CBC.",
+      "opinions": [{"opinion_key": "o1", "writer_names": [], "collective_writer": "The Tribunal", "writer_evidence_quote": "Decision of the Tribunal:", "result_position": "supports_disposition", "position_evidence_quote": "The Tribunal allows the complaint and issues a declaration that the Writers Guild of Canada breached its duty of fair representation.", "start_quote": "Reasons for Decision", "end_quote": "In the instant case, the Tribunal declares that there were no terms specified in the complainant's contracts with the CBC concerning further use of the dramatic scripts that were more favourable than those contained in the agreement."}],
+      "participants": [
+        {"name": "John M. Moreau", "panel_evidence_quote": "Quorum: John M. Moreau, Presiding Member\nMarie Senécal-Tremblay, Member\nJohn Van Burek, Member", "result_position": "supports_disposition", "result_evidence_quote": "The Tribunal allows the complaint and issues a declaration that the Writers Guild of Canada breached its duty of fair representation.", "result_only": false, "opinion_links": [{"opinion_key": "o1", "relation": "joins", "issue_keys": [], "evidence_quote": "Quorum: John M. Moreau, Presiding Member"}]},
+        {"name": "Marie Senécal-Tremblay", "panel_evidence_quote": "Quorum: John M. Moreau, Presiding Member\nMarie Senécal-Tremblay, Member\nJohn Van Burek, Member", "result_position": "supports_disposition", "result_evidence_quote": "The Tribunal allows the complaint and issues a declaration that the Writers Guild of Canada breached its duty of fair representation.", "result_only": false, "opinion_links": [{"opinion_key": "o1", "relation": "joins", "issue_keys": [], "evidence_quote": "Marie Senécal-Tremblay, Member"}]},
+        {"name": "John Van Burek", "panel_evidence_quote": "Quorum: John M. Moreau, Presiding Member\nMarie Senécal-Tremblay, Member\nJohn Van Burek, Member", "result_position": "supports_disposition", "result_evidence_quote": "The Tribunal allows the complaint and issues a declaration that the Writers Guild of Canada breached its duty of fair representation.", "result_only": false, "opinion_links": [{"opinion_key": "o1", "relation": "joins", "issue_keys": [], "evidence_quote": "John Van Burek, Member"}]}
+      ],
+      "issues": [
+        {"issue_key": "s1", "question": "Was the complaint filed within the statutory six-month period?", "answer_groups": [{"answer_group_key": "a1", "answer": "Yes. The complaint was filed within six months of the settlement-stage events that completed the grievance process.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["the Tribunal finds that the complaint dated November 15, 2004 was properly filed within the six-month time limit as required in subsection 53(2) of the Act."]}]}]},
+        {"issue_key": "s2", "question": "Did the copyright-related dispute arise under the scale agreement and fall within the Writers Guild's exclusive bargaining authority?", "answer_groups": [{"answer_group_key": "a1", "answer": "Yes. Acquisition and distribution rights were matters of scale-agreement interpretation, and the Writers Guild was the exclusive bargaining agent for the grievance.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["the Tribunal finds the dispute concerning the acquisition and distribution of rights is a matter related to the interpretation of the scale agreement.", "the Tribunal finds that the matter falls within the ambit of the scale agreement and that the WGC is the exclusive bargaining agent to deal with any grievance arising out of the scale agreement."]}]}]},
+        {"issue_key": "s3", "question": "Did the Writers Guild breach its duty of fair representation through bad faith or arbitrary conduct?", "answer_groups": [{"answer_group_key": "a1", "answer": "It did not act in bad faith, but its failure to answer repeated information requests on a critical issue was arbitrary and breached the duty of fair representation.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["the Tribunal finds that the WGC did not act in bad faith in its representation of the complainant.", "this failure to properly address the clearly articulated concerns of the complainant, unintended as that failure may have been on the part of the WGC, nevertheless amounts in our view to arbitrary conduct."]}]}]},
+        {"issue_key": "s4", "question": "What remedy followed from the fair-representation breach?", "answer_groups": [{"answer_group_key": "a1", "answer": "Only declaratory relief was appropriate; the complainant's requested directions did not flow from the statutory breach.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["The Tribunal finds that the remedies requested by the complainant do not flow from a violation of section 35 of the Act.", "the Tribunal finds that the declaratory relief as stated above is the appropriate disposition to deal with the matters at issue."]}]}]},
+        {"issue_key": "s5", "question": "Did the contracts contain more favourable terms for further use of the scripts than the scale agreement?", "answer_groups": [{"answer_group_key": "a1", "answer": "No. The contracts did not specify more favourable terms for further use or renewal.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["there were no terms specified in the complainant's contracts with the CBC concerning further use of the dramatic scripts that were more favourable than those contained in the agreement."]}]}]}
+      ],
+      "target_mentions": [
+        {"mention_key": "m1", "occurrence_id": "tm1", "voice": "current_court", "issue_keys": ["s5"], "evidence_quote": "The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:"},
+        {"mention_key": "m2", "occurrence_id": "tm2", "voice": "current_court", "issue_keys": ["s2"], "evidence_quote": "The relationship has always been viewed as a complementary one, as set out in The Writers Union of Canada, 1998 CAPPRT 028:"},
+        {"mention_key": "m3", "occurrence_id": "tm3", "voice": "quoted_authority", "issue_keys": ["s2"], "evidence_quote": "Representing artists' interests in this fundamental socio-economic right is an appropriate activity for a certified artists' association. [1998 CAPPRT 028, paragraph 61]"}
+      ],
+      "target_treatments": [
+        {"mention_keys": ["m1"], "issue_keys": ["s5"], "attribution": "quoted_authority", "label": "explained", "scope": "legal_test", "evidence_quote": "The artist remains free to negotiate individual contracts above the minimum, but no producer may offer less than the terms set out in the scale agreement", "target_proposition_as_characterized": "Artists may negotiate terms above the scale minimum, but producers may not offer less than the scale agreement."},
+        {"mention_keys": ["m2", "m3"], "issue_keys": ["s2"], "attribution": "quoted_authority", "label": "explained", "scope": "legal_test", "evidence_quote": "The Status of the Artist Act was intended to complement and supplement the regime provided in the Copyright Act.", "target_proposition_as_characterized": "The Status of the Artist Act complements and supplements the Copyright Act and does not exclude copyright matters from collective bargaining."},
+        {"mention_keys": ["m2", "m3"], "issue_keys": ["s2"], "attribution": "current_court", "label": "applied", "scope": "legal_test", "evidence_quote": "In the instant case, the Tribunal finds the dispute concerning the acquisition and distribution of rights is a matter related to the interpretation of the scale agreement.", "target_proposition_as_characterized": "Copyright licensing and use of existing works can fall within a certified association's bargaining role under the scale agreement."}
+      ],
+      "target_direct_history": []
+    }
+  },
+  {
+    "document_id": 220204,
+    "citation": "2005 TCC 703",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "semantic_audit": {
+      "status": "audited_corrected",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_traps",
+      "reviewer_version": "traps-audit-v1",
+      "reviewed_on": "2026-08-20",
+      "correction_summary": "Removed the false current-court applied-treatment event: Jaillet appears only inside a nested reported passage, while Dussault directly applies the broader control distinction without independently attributing it to Jaillet; removed the obsolete v13 null mention member."
+    },
+    "annotation": {
+      "disposition_quote": "The appeal under subsection 103(1) of the Employment Insurance Act is allowed and the decision of December 10, 2004 by the Minister of National Revenue is vacated.",
+      "opinions": [{"opinion_key": "o1", "writer_names": ["Pierre R. Dussault"], "collective_writer": null, "writer_evidence_quote": "REASONS FOR JUDGMENT BY: The Honourable Justice Pierre R. Dussault", "result_position": "supports_disposition", "position_evidence_quote": "The appeal under subsection 103(1) of the Employment Insurance Act is allowed", "start_quote": "REASONS FOR JUDGMENT\n(Decision rendered orally from the bench on August 29, 2005 at Québec, Quebec, and revised on November 4, 2005 at Ottawa, Ontario.)", "end_quote": "The appeal under subsection 103(1) of the Employment Insurance Act is allowed and the decision of December 10, 2004 by the Minister of National Revenue is vacated."}],
+      "participants": [{"name": "Pierre R. Dussault", "panel_evidence_quote": "Judges and Taxing Officers\nPierre R. Dussault", "result_position": "supports_disposition", "result_evidence_quote": "The appeal under subsection 103(1) of the Employment Insurance Act is allowed", "result_only": false, "opinion_links": [{"opinion_key": "o1", "relation": "authors", "issue_keys": [], "evidence_quote": "REASONS FOR JUDGMENT BY: The Honourable Justice Pierre R. Dussault"}]}],
+      "issues": [{"issue_key": "s1", "question": "Was Doyon in insurable employment or in a contract for services?", "answer_groups": [{"answer_group_key": "a1", "answer": "He was not controlled in the performance of his duties and was not an employee; the relationship remained a contract for services.", "positions": [{"opinion_key": "o1", "relation_to_disposition": "dispositive", "answer_evidence_quotes": ["Mr. Doyon was not controlled in the performance of his duties, which was the mandate that he had given himself for the company."]}]}]}],
+      "target_mentions": [{"mention_key": "m1", "occurrence_id": "tm1", "voice": "reported_decision", "issue_keys": ["s1"], "evidence_quote": "followed in Jaillet v. Canada (Minister of National Revenue - M.N.R.), 2002 FCA 394, control of the result and control of the worker should not be confused."}],
+      "target_treatments": [
+        {"mention_keys": ["m1"], "issue_keys": ["s1"], "attribution": "reported_decision", "label": "followed", "scope": "legal_test", "evidence_quote": "followed in Jaillet v. Canada (Minister of National Revenue - M.N.R.), 2002 FCA 394, control of the result and control of the worker should not be confused.", "target_proposition_as_characterized": "The nested reported passage says Jaillet followed the distinction between monitoring a result and controlling a worker."}
+      ],
+      "target_direct_history": []
+    }
+  }
+]

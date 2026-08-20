@@ -13,10 +13,10 @@
     "fetch:courtlistener-bulk": "python scripts/fetch_courtlistener_bulk.py",
     "import:courtlistener-bulk": "python scripts/import_courtlistener_bulk.py",
     "build:journals-fts": "python scripts/build_journal_search_index.py",
-    "test": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-experiment-boundary.mjs && node ../scripts/check-typescript-surface.mjs && vitest run",
+    "test": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && node ../scripts/check-typescript-surface.mjs && vitest run",
     "test:stack": "bash scripts/test-stack.sh",
     "test:coverage": "vitest run --coverage",
-    "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-experiment-boundary.mjs && vitest run --config experiments/vitest.config.mts"
+    "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && vitest run --config experiments/vitest.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

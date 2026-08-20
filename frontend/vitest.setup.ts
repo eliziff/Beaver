@@ -2,7 +2,9 @@ import "@testing-library/jest-dom/vitest";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 
 await initializeRuntimeConfig(async () =>
-    new Response(JSON.stringify({ mode: "local" }), {
+    new Response(JSON.stringify({
+        mode: "local", capabilities: { connectors: false },
+    }), {
         headers: { "Content-Type": "application/json" },
     }),
 );

@@ -5,6 +5,8 @@ import {
   validateRemoteHttpsUrl,
 } from "../remoteUrlSafety";
 import { decryptSecret, encryptionSecret, encryptSecret } from "../secretEncryption";
+import { sql } from "../relational";
+import { connectorRow, one } from "./database";
 import {
   MAX_MCP_RESPONSE_BYTES,
   MAX_MCP_SSE_EVENT_BYTES,
@@ -142,10 +144,10 @@ export const guardedMcpFetch = (input: Parameters<typeof fetch>[0], init?: Param
   });
 
 export async function loadConnector(userId: string, connectorId: string, db: Db) {
-  const { data, error } = await db.from("user_mcp_connectors").select("*")
-    .eq("user_id", userId).eq("id", connectorId).single();
-  if (error) throw error;
-  return data as ConnectorRow;
+  const row = await one(sql`SELECT * FROM user_mcp_connectors
+    WHERE user_id=${userId} AND id=${connectorId}`, db);
+  if (!row) throw new Error("MCP connector not found.");
+  return connectorRow(row);
 }
 
 const hint = (annotations: Record<string, unknown> | null, name: string) =>

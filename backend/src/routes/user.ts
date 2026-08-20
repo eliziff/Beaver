@@ -8,11 +8,6 @@ import { getDraftingStyleSettings, saveDraftingStyleSettings } from "../lib/draf
 import { sha256 } from "../lib/hash";
 import { isSupportedModel, resolveModel } from "../lib/llm";
 import { isLocalRuntime } from "../lib/localMode";
-import * as mcp from "../lib/mcp/servers";
-import {
-  McpOAuthRequiredError,
-  startUserMcpConnectorOAuth,
-} from "../lib/mcp/oauth";
 import { publicOrigin } from "../lib/publicOrigin";
 import { safeErrorLog, safeErrorMessage, safePublicErrorMessage } from "../lib/safeError";
 import { createServerSupabase } from "../lib/supabase";
@@ -208,15 +203,29 @@ function endpoint(handler: Handler, errorStatus = 500) {
 function cloud(handler: Handler, errorStatus = 500) {
   return endpoint((req, res) => handler(req, res, account.db()), errorStatus);
 }
+type ConnectorHandler = (
+  req: Request, res: Response, operations: Awaited<ReturnType<typeof runtime.connectors>>,
+) => Promise<unknown>;
+function connector(handler: ConnectorHandler, errorStatus = 500) {
+  return endpoint(async (req, res) => {
+    if (!runtime.capabilities.connectors) throw new HttpError(404, "Not found");
+    return handler(req, res, await runtime.connectors());
+  }, errorStatus);
+}
 
 export const userRouter = Router();
 userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
+  if (!runtime.capabilities.connectors) {
+    res.status(404).type("text").send("Not found");
+    return;
+  }
   const nonce = randomBytes(16).toString("base64");
   try {
+    const mcp = await runtime.connectors();
     const state = parse(z.string().min(1).max(4_096), req.query.state);
     const code = parse(z.string().min(1).max(16_384), req.query.code);
     if (req.query.error) throw new Error("OAuth authorization was not completed");
-    await mcp.completeUserMcpConnectorOAuth(state, code, account.db());
+    await mcp.completeUserMcpConnectorOAuth(state, code);
     res.set("Content-Security-Policy", oauthCsp(nonce)).type("html")
       .send(oauthHtml(true, nonce));
   } catch (error) {
@@ -255,46 +264,46 @@ userRouter.put("/api-keys/:provider", requireMfaIfEnrolled,
     await account.saveApiKey(identity(res), req.params.provider, req.body),
   )));
 
-userRouter.get("/mcp-connectors", cloud(async (_req, res, db) => {
-  res.json(await mcp.listUserMcpConnectors(identity(res).userId, db!, { includeTools: false }));
+userRouter.get("/mcp-connectors", connector(async (_req, res, mcp) => {
+  res.json(await mcp.listUserMcpConnectors(identity(res).userId, { includeTools: false }));
 }));
-userRouter.get("/mcp-connectors/:connectorId", cloud(async (req, res, db) => {
-  res.json(await mcp.getUserMcpConnector(identity(res).userId, req.params.connectorId, db!));
+userRouter.get("/mcp-connectors/:connectorId", connector(async (req, res, mcp) => {
+  res.json(await mcp.getUserMcpConnector(identity(res).userId, req.params.connectorId));
 }, 404));
 userRouter.post("/mcp-connectors", requireMfaIfEnrolled,
-  cloud(async (req, res, db) => res.status(201).json(await mcp.createUserMcpConnector(
-    identity(res).userId, parse(connectorCreateInput, req.body), db!,
+  connector(async (req, res, mcp) => res.status(201).json(await mcp.createUserMcpConnector(
+    identity(res).userId, parse(connectorCreateInput, req.body),
   )), 400));
 userRouter.patch("/mcp-connectors/:connectorId", requireMfaIfEnrolled,
-  cloud(async (req, res, db) => res.json(await mcp.updateUserMcpConnector(
-    identity(res).userId, req.params.connectorId, parse(connectorPatchInput, req.body), db!,
+  connector(async (req, res, mcp) => res.json(await mcp.updateUserMcpConnector(
+    identity(res).userId, req.params.connectorId, parse(connectorPatchInput, req.body),
   )), 400));
 userRouter.delete("/mcp-connectors/:connectorId", requireMfaIfEnrolled,
-  cloud(async (req, res, db) => {
-    await mcp.deleteUserMcpConnector(identity(res).userId, req.params.connectorId, db!);
+  connector(async (req, res, mcp) => {
+    await mcp.deleteUserMcpConnector(identity(res).userId, req.params.connectorId);
     res.status(204).send();
   }));
 userRouter.post("/mcp-connectors/:connectorId/oauth/start", requireMfaIfEnrolled,
-  cloud(async (req, res, db) => res.json(await startUserMcpConnectorOAuth(
-    identity(res).userId, req.params.connectorId, db!,
+  connector(async (req, res, mcp) => res.json(await mcp.startUserMcpConnectorOAuth(
+    identity(res).userId, req.params.connectorId,
   )), 400));
 userRouter.post("/mcp-connectors/:connectorId/refresh-tools", requireMfaIfEnrolled,
-  cloud(async (req, res, db) => {
+  connector(async (req, res, mcp) => {
     try {
       res.json(await mcp.refreshUserMcpConnectorTools(
-        identity(res).userId, req.params.connectorId, db!,
+        identity(res).userId, req.params.connectorId,
       ));
     } catch (error) {
-      if (error instanceof McpOAuthRequiredError) {
+      if (error instanceof mcp.McpOAuthRequiredError) {
         throw new HttpError(401, safeErrorMessage(error), "oauth_required");
       }
       throw error;
     }
   }, 400));
 userRouter.patch("/mcp-connectors/:connectorId/tools/:toolId",
-  requireMfaIfEnrolled, cloud(async (req, res, db) => res.json(
+  requireMfaIfEnrolled, connector(async (req, res, mcp) => res.json(
     await mcp.setUserMcpToolEnabled(identity(res).userId, req.params.connectorId,
-      req.params.toolId, parse(enabledInput, req.body).enabled, db!),
+      req.params.toolId, parse(enabledInput, req.body).enabled),
   ), 400));
 
 function oauthHtml(success: boolean, nonce: string) {

@@ -1,6 +1,6 @@
-import { createServerSupabase } from "../supabase";
+import type { RelationalDatabase } from "../relational";
 
-export type Db = ReturnType<typeof createServerSupabase>;
+export type Db = RelationalDatabase;
 export type McpAuthConfig = {
   bearerToken?: string;
   headers?: Record<string, string>;
@@ -41,6 +41,7 @@ export type OAuthTokenRow = {
   client_secret_iv: string | null;
   client_secret_tag: string | null;
   resource: string | null;
+  created_at: string;
   updated_at: string;
 };
 

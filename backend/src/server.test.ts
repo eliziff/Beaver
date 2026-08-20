@@ -1,7 +1,9 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("./runtime", () => ({ runtime: { mode: "local" } }));
+vi.mock("./runtime", () => ({
+  runtime: { mode: "local", capabilities: { connectors: false } },
+}));
 
 import { api } from "./api";
 import { trustedProxyHops } from "./runtimeConfig";

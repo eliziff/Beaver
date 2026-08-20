@@ -724,3 +724,107 @@ court/tribunal controls. Use five isolated workers, grade every case with Sol
 Max, and hand-inventory five. Only after that schema choice should the combined
 versus structure-first, roster-hint, and citing-only versus
 citing-plus-target-text ablations run.
+
+## Nested v13 canary and v14 replacement (2026-08-20)
+
+The frozen v13 Luna Max canary ran five difficult case-target pairs: two
+multi-opinion/partial-join cases, two attribution traps, and one ordinary
+control. All five calls used separate flat-subscription processes and retained
+raw event streams and exact final answers. Three of five opinion records were
+valid; one target graph was wholly valid, two retained useful locally accepted
+target material, and two failed at the roster boundary. The calls used 79,904
+input tokens, 193,830 output tokens, and 177,160 reasoning tokens. Median
+latency was 764 seconds.
+
+The failures were structural rather than evidence that the ontology was too
+rich. Luna supplied additional case-name mentions itself, allowed one bad
+optional basis quote to invalidate useful positions, repeated a partial join
+for a judge who had written a position, treated an ONCA panel roster as a
+collective author, and missed otherwise exact boundary or panel text by a few
+characters. The accepted NSCA result correctly separated a party's Sattva
+submission from the court's own limitation. The SCC and YKCA outputs recovered
+multiple independently reasoned bodies and issue-specific positions.
+
+V14 removes those avoidable failure classes from the model contract:
+
+- the host registers citation and conservative case-name occurrences and Luna
+  references only supplied occurrence IDs;
+- the harness assigns all other IDs, offsets, ordering, containment, paragraph
+  views, and flat treatment families;
+- bad optional basis evidence is rejected locally without discarding the
+  grounded opinion position;
+- redundant partial joins are rejected locally;
+- a panel roster cannot be a collective author; and
+- conservative boundary-prefix/suffix recovery is separately receipted.
+
+The citing decision remains byte-for-byte and appears once in the prompt. On
+the 15-case challenge set, non-source packet material is 3,202-5,249
+characters and the structured-output schema is 7,699 characters. The prior
+pathological 11,749-character case disappeared after removing unsafe aliases,
+preflight dumps, hashes, and repeated object keys.
+
+Historical recompilation now bypasses corpus structure derivation entirely.
+It loads each decision by document ID, verifies its frozen source, panel, and
+occurrence receipts, and grounds the retained answer in memory. The five-case
+pass fell from 16.16 seconds to 483.8 ms, made zero model calls, and emitted
+five immutable canonical receipts. It reproduced the 3/5 opinion-valid result.
+Its 0/5 v14 target-valid count is not a v14 model score: the retained v13 raw
+answers contain the deliberately removed model-authored mention shape, and no
+compatibility converter was added. A fresh v14 call is the honest test.
+
+Local gates pass: 34 focused treatment/semantic/target compiler tests, the
+runner self-test, the backend TypeScript build, and all 15 human-gold records.
+The human gold now lives as three tracked experiment artifacts rather than
+ignored scratch output.
+
+## V14 live canary and v15 offline recovery (2026-08-20)
+
+The first v14 dispatch was accidentally run inside a network-restricted
+sandbox. All five isolated processes failed at the socket boundary with
+`WinError 10013`; they produced no provider answer and are excluded from model
+quality, although their five attempted submissions remain in the conservative
+ledger. The escalated rerun used Luna Max, five isolated BelowNormal workers,
+one case per process, and retained every event and raw answer.
+
+Three cases returned complete schema JSON. Two long cases, `2020 SCC 32` and
+`2018 NSCA 53`, timed out after 1,205 seconds; their provider streams and one
+retry each are retained, but they provide no semantic result. The three final
+answers were:
+
+- `2025 ONCA 336`: the model correctly left individual authorship unknown,
+  identified the three-member panel and nonparticipant motion judge, recovered
+  the disposition, and applied `2021 ONCA 364` for the review test. V14 rejected
+  only because Luna added the unsupported optional label `the panel` as a
+  collective writer. It also split the governing review test from its
+  application, where the audited gold treats them as one ultimate issue.
+- `2015 YKCA 17`: the model recovered both authored opinions, all three
+  participants, six per-opinion issue positions, both target occurrences, and
+  both treatments. V14 rejected only first-person partial-joinder evidence that
+  lay inside the joining judge's own authored reasons because the quote did not
+  repeat her name.
+- `2005 CAPPRT 050`: the collective Tribunal, three-member panel, disposition,
+  six issue records, all three target occurrences, and three treatment events
+  survived. The record remains partial because one whole optional basis has no
+  source-grounded evidence. A separate source-only audit identifies five
+  ultimate issues, treats the model's bad-faith/arbitrariness split as too fine,
+  and classifies the third occurrence as quoted authority rather than the
+  current Tribunal.
+
+V15 fixes only general validation and instruction defects. An unsupported
+collective-writer claim is dropped to unknown with a warning; it cannot turn a
+panel into an author. First-person agreement is accepted when its unique exact
+quote lies inside that participant's proved authored opinion and contains an
+agreement/joinder cue. A bad extra quote in an otherwise grounded optional
+basis becomes a warning; a basis with no valid evidence is still omitted and
+keeps the graph partial. The prompt now keeps a governing test and application
+together unless separately answered, distinguishes a citation inside quoted
+reasons from the current court's introduction, and states the `applied` versus
+`followed` distinction.
+
+Recompiling the retained answers under v15 took 407.4 ms and made zero model
+calls. It produces 3/5 opinion-valid and 2/5 whole-target-valid records: YKCA
+and ONCA are valid; CIRB remains partial for the genuine omitted basis; the two
+timeouts remain failures. The focused suite now passes 35/35, the runner
+self-test passes, and the backend TypeScript build passes. Ledger usage is 464
+attempted submissions including retries and carry-forward, leaving 14,536 of
+the authorized 15,000.

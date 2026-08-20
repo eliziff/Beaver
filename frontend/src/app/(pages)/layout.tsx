@@ -14,6 +14,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { isLocalMode } from "@/app/lib/authMode";
+import { getRuntimeConfig } from "@/app/lib/runtimeConfig";
 
 const TableOfAuthoritiesHost = lazy(() =>
     import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({
@@ -27,6 +28,7 @@ export default function AppShell() {
     const access = useMatches().reduce<{
         cloudOnly?: boolean;
         localRedirect?: string;
+        capability?: "connectors";
     }>(
         (current, match) => ({
             ...current,
@@ -35,6 +37,8 @@ export default function AppShell() {
         {},
     );
     const authoritiesActive = pathname === "/table-of-authorities";
+    const capabilityUnavailable = access.capability &&
+        !getRuntimeConfig().capabilities[access.capability];
     const [authoritiesOrigin, setAuthoritiesOrigin] = useState<string | null>(null);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const authoritiesIntent = authoritiesOrigin === pathname;
@@ -118,6 +122,15 @@ export default function AppShell() {
                                             </h1>
                                             <p className="mt-2 text-sm text-gray-500">
                                                 This feature is not available locally yet.
+                                            </p>
+                                        </div>
+                                    ) : capabilityUnavailable ? (
+                                        <div className="m-auto px-6 text-center">
+                                            <h1 className="font-serif text-2xl font-medium text-gray-900">
+                                                Unavailable in this deployment
+                                            </h1>
+                                            <p className="mt-2 text-sm text-gray-500">
+                                                This feature is disabled by the server administrator.
                                             </p>
                                         </div>
                                     ) : (

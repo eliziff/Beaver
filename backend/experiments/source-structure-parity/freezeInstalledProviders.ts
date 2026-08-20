@@ -73,6 +73,10 @@ type ManifestRecord = {
   contract_pages?: number;
   contract_alias?: boolean;
   page_rows?: number;
+  structure?: Array<[
+    SourceDocBlock["kind"], string, number, number, SourceDocBlock["origin"],
+    string | null, string | null, string[],
+  ]>;
 };
 type Counts = {
   attempted: number;
@@ -136,6 +140,7 @@ const batchSize = Math.max(1, Math.min(5_000, Number(args.get("batch") ?? 1_000)
 const limit = Math.max(0, Number(args.get("limit") ?? 0));
 const warmupRows = Math.max(0, Number(args.get("warmup-rows") ?? 25));
 const digestOnly = args.has("digest-only");
+const retainStructure = args.has("retain-structure");
 const requiredMib = Math.max(0, Number(args.get("require-mib-s") ?? 0));
 const shardCount = Math.max(1, Number(args.get("shard-count") ?? 1));
 const shardIndex = Math.max(0, Number(args.get("shard-index") ?? 0));
@@ -302,6 +307,7 @@ const adapterCodeHash = sourceDigest([
 const configHash = sha(JSON.stringify({
   baselineCommit, serializerHash, inventory, selected: [...selected].sort(),
   batchSize, limit, warmupRows, shardCount, shardIndex, providerBounds, digestOnly,
+  retainStructure,
   harnessRevision, harnessHash, adapterCodeHash, engineBinaryHash, structureInputContractHash,
   priority: "BELOW_NORMAL",
 }));
@@ -440,7 +446,12 @@ function success(provider: Provider, sourceId: string, sourceKind: string,
   return {
     v: 1, provider, source_id: sourceId, source_kind: sourceKind, ...digest,
     status: "pass", mode: sourceDocMode(doc), canonical_bytes: canonical.length,
-    canonical_sha256: sha(canonical), blocks: doc.blocks.length, ...extra,
+    canonical_sha256: sha(canonical), blocks: doc.blocks.length,
+    ...(retainStructure ? { structure: doc.blocks.map((block) => [
+      block.kind, block.label, block.start, block.end, block.origin,
+      block.parentLabel ?? null, block.anchor ?? null, block.aliases ?? [],
+    ]) } : {}),
+    ...extra,
   };
 }
 function failure(provider: ManifestRecord["provider"], sourceId: string, sourceKind: string,

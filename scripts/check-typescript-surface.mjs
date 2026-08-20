@@ -12,6 +12,7 @@ const verbose = process.argv.includes("--verbose");
 const showOneCallers = process.argv.includes("--one-callers");
 const passThroughsOnly = process.argv.includes("--pass-throughs");
 const showDuplicates = process.argv.includes("--duplicates");
+const showTestOnly = process.argv.includes("--test-only");
 const roots = [
   "backend/src",
   "backend/scripts",
@@ -44,8 +45,12 @@ const syntaxTrees = new Map([...contents].map(([file, source]) => [
   ),
 ]));
 const counts = new Map();
+const productionCounts = new Map();
 const filesByName = new Map();
 for (const [file, tree] of syntaxTrees) {
+  const relative = path.relative(repo, file);
+  const production = /^(?:backend|frontend)\\src\\/u.test(relative) &&
+    !/\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(relative);
   const seen = new Set();
   const visit = (node) => {
     const name = ts.isIdentifier(node)
@@ -56,6 +61,7 @@ for (const [file, tree] of syntaxTrees) {
         : null;
     if (name) {
       counts.set(name, (counts.get(name) ?? 0) + 1);
+      if (production) productionCounts.set(name, (productionCounts.get(name) ?? 0) + 1);
       seen.add(name);
     }
     ts.forEachChild(node, visit);
@@ -68,6 +74,7 @@ for (const [file, tree] of syntaxTrees) {
   }
 }
 const candidates = [];
+const exports = [];
 for (const [file, tree] of syntaxTrees) {
   for (const statement of tree.statements) {
     if (
@@ -84,9 +91,11 @@ for (const [file, tree] of syntaxTrees) {
           .map(({ name }) => name.text)
         : [];
     for (const name of names) {
+      const exported = { name, file: path.relative(repo, file),
+        occurrences: counts.get(name) ?? 0 };
+      exports.push(exported);
       if (filesByName.get(name)?.length === 1) {
-        const occurrences = counts.get(name) ?? 0;
-        candidates.push({ name, file: path.relative(repo, file), occurrences });
+        candidates.push(exported);
       }
     }
   }
@@ -106,6 +115,9 @@ const report = {
   nonproductionDeadCount: nonproductionDead.length,
   privateOnlyCount: privateOnly.length,
 };
+if (showTestOnly) report.testOnlyProduction = exports.filter((candidate) =>
+  isProduction(candidate) && candidate.occurrences > 1 &&
+  productionCounts.get(candidate.name) === 1);
 if (verbose) {
   report.nonproductionDead = nonproductionDead;
   report.privateOnly = privateOnly;

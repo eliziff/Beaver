@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 
@@ -25,7 +25,7 @@ type Receipt = { root: string; summary: Summary; parallel: boolean };
 const args = new Map<string, string>();
 for (let at = 2; at < process.argv.length; at += 2) {
   if (!process.argv[at]?.startsWith("--") || !process.argv[at + 1]) {
-    throw new Error("Expected --candidate <directory> [--baseline <directory>] [--only-id <id>]");
+    throw new Error("Expected --candidate <directory> [--baseline <directory>] [--only-id <id>] [--report <file>]");
   }
   args.set(process.argv[at].slice(2), process.argv[at + 1]);
 }
@@ -35,6 +35,7 @@ const baselineRoot = path.resolve(args.get("baseline") ?? path.join(
   __dirname, "results", "installed-provider-freeze-full",
 ));
 const onlyId = args.get("only-id");
+const reportPath = args.get("report");
 const hash = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
 const fail = (message: string): never => { throw new Error(message); };
 const same = (left: unknown, right: unknown, label: string) => {
@@ -163,6 +164,17 @@ const counters = { compared: 0, exact_input: 0, raw_proof_contract_mismatch: 0,
   authorized_quality_delta: 0 };
 const drift: Array<{ provider: Provider; source_id: string; old_sha256: string | null;
   new_sha256: string | null }> = [];
+type PublicDrift = {
+  provider: Provider;
+  source_id: string;
+  source_kind: string;
+  source_proof_equal: boolean;
+  structure_input_proof_equal: boolean | null;
+  structure_delta: null | { baseline_count: number; candidate_count: number;
+    first_index: number; baseline: unknown; candidate: unknown };
+  changes: Record<string, { baseline: unknown; candidate: unknown }>;
+};
+const publicDrifts: PublicDrift[] = [];
 
 function fields(row: Row, names: readonly string[]) {
   return Object.fromEntries(names.map((name) => [name, row[name] ?? null]));
@@ -170,6 +182,31 @@ function fields(row: Row, names: readonly string[]) {
 function exactPublic(provider: Provider, id: string, old: Row, fresh: Row) {
   for (const name of PUBLIC) same(old[name] ?? null, fresh[name] ?? null,
     `${provider}/${id} public ${name}`);
+}
+function publicChanges(old: Row, fresh: Row) {
+  return Object.fromEntries(PUBLIC.flatMap((name) => {
+    const baseline = old[name] ?? null, candidate = fresh[name] ?? null;
+    return JSON.stringify(baseline) === JSON.stringify(candidate)
+      ? [] : [[name, { baseline, candidate }]];
+  }));
+}
+function recordPublicDrift(provider: Provider, id: string, old: Row, fresh: Row,
+  changes: PublicDrift["changes"], pairedStructureProof: boolean) {
+  const baseline = Array.isArray(old.structure) ? old.structure : null;
+  const candidate = Array.isArray(fresh.structure) ? fresh.structure : null;
+  const first = baseline && candidate ? Array.from(
+    { length: Math.max(baseline.length, candidate.length) }, (_, index) => index,
+  ).find((index) => JSON.stringify(baseline[index]) !== JSON.stringify(candidate[index])) : undefined;
+  publicDrifts.push({ provider, source_id: id, source_kind: String(fresh.source_kind),
+    source_proof_equal: old.source_bytes === fresh.source_bytes &&
+      old.source_sha256 === fresh.source_sha256,
+    structure_input_proof_equal: pairedStructureProof
+      ? old.structure_input_sha256 === fresh.structure_input_sha256 : null,
+    structure_delta: baseline && candidate && first !== undefined ? {
+      baseline_count: baseline.length, candidate_count: candidate.length, first_index: first,
+      baseline: baseline[first] ?? null, candidate: candidate[first] ?? null,
+    } : null,
+    changes });
 }
 function journal1QualityDelta(id: string, old: Row, fresh: Row) {
   if (id !== "1") return false;
@@ -218,10 +255,16 @@ for (const provider of selected) {
       counters.structure_input_proof_unpaired += 1;
     }
     if (provider !== "journal") {
-      exactPublic(provider, id, a, b);
-      if (pairedStructureProof) same(a.structure_input_sha256, b.structure_input_sha256,
-        `${provider}/${id} structure input`);
-      counters.exact_input += 1;
+      const changes = publicChanges(a, b);
+      if (pairedStructureProof && a.structure_input_sha256 !== b.structure_input_sha256) {
+        changes.structure_input_sha256 = {
+          baseline: a.structure_input_sha256, candidate: b.structure_input_sha256,
+        };
+      }
+      if (Object.keys(changes).length) {
+        if (!reportPath) exactPublic(provider, id, a, b);
+        recordPublicDrift(provider, id, a, b, changes, pairedStructureProof);
+      } else counters.exact_input += 1;
     } else {
       same(a.page_rows ?? null, b.page_rows ?? null, `journal/${id} page rows`);
       const oldContract = fields(a, CONTRACT), newContract = fields(b, CONTRACT);
@@ -252,6 +295,47 @@ for (const provider of selected) {
 if (readdirSync(candidateRoot).some((name) => name.endsWith(".tmp")) ||
     statSync(path.join(candidateRoot, "summary.json")).size > 64 * 1024) {
   fail("Incomplete atomic receipt");
+}
+if (publicDrifts.length) {
+  const grouped = new Map<string, { count: number; ids: string[]; shape: unknown }>();
+  for (const item of publicDrifts) {
+    const blocks = item.changes.blocks;
+    const bytes = item.changes.canonical_bytes;
+    const shape = {
+      provider: item.provider,
+      source_kind: item.source_kind,
+      changed_fields: Object.keys(item.changes).sort(),
+      status: item.changes.status ?? null,
+      mode: item.changes.mode ?? null,
+      failure: item.changes.failure ?? null,
+      blocks_delta: blocks && typeof blocks.baseline === "number" &&
+        typeof blocks.candidate === "number" ? blocks.candidate - blocks.baseline : null,
+      canonical_bytes_delta: bytes && typeof bytes.baseline === "number" &&
+        typeof bytes.candidate === "number" ? bytes.candidate - bytes.baseline : null,
+      source_proof_equal: item.source_proof_equal,
+      structure_input_proof_equal: item.structure_input_proof_equal,
+    };
+    const key = JSON.stringify(shape);
+    const group = grouped.get(key) ?? { count: 0, ids: [], shape };
+    group.count += 1;
+    if (group.ids.length < 25) group.ids.push(item.source_id);
+    grouped.set(key, group);
+  }
+  const report = {
+    schema_version: "source-structure-parity-diagnostics.v1",
+    baseline_manifest_sha256: receipts.baseline.summary.manifest_root_sha256,
+    candidate_manifest_sha256: receipts.candidate.summary.manifest_root_sha256,
+    mismatches: publicDrifts.length,
+    groups: [...grouped.values()].sort((left, right) => right.count - left.count),
+    rows: publicDrifts,
+  };
+  if (reportPath) {
+    const filename = path.resolve(reportPath);
+    mkdirSync(path.dirname(filename), { recursive: true });
+    writeFileSync(filename, `${JSON.stringify(report)}\n`);
+    fail(`${publicDrifts.length} public-output mismatches; diagnostics written to ${filename}`);
+  }
+  fail(`${publicDrifts.length} public-output mismatches`);
 }
 console.log(JSON.stringify({ ok: true, ...counters,
   provider_counts: Object.fromEntries(selected.map((provider) =>

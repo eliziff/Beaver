@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Stack-level integration test: exercises the REAL Supabase stack (GoTrue auth +
@@ -14,24 +15,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const url = process.env.SUPABASE_TEST_URL;
 const serviceKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
 const anonKey = process.env.SUPABASE_TEST_ANON_KEY;
+const databaseUrl = process.env.SUPABASE_TEST_DB_URL;
 const maybeDescribe =
-    url && serviceKey && anonKey ? describe : describe.skip;
-
-// Every public table the app owns (backend/schema.sql + migrations). The
-// anon/user path must never return rows from any of these (deny-all); a
-// regression that ships a table without RLS — or with a permissive policy —
-// trips the leak sweep below. A table missing from an older local stack
-// returns an error (no rows), which never counts as a leak.
-const PUBLIC_TABLES = [
-    "application_jobs", "audit_events", "chat_messages", "chats", "document_edits",
-    "document_versions", "documents", "hidden_workflows", "library_folders",
-    "library_legal_sources", "object_cleanup", "project_members", "project_subfolders",
-    "projects", "provider_sessions", "tabular_cells", "tabular_review_members", "tabular_reviews",
-    "user_api_keys", "user_mcp_connector_tools", "user_mcp_connectors",
-    "user_mcp_oauth_states", "user_mcp_oauth_tokens",
-    "user_mcp_tool_audit_logs", "user_profiles",
-    "workflow_open_source_submissions", "workflow_shares", "workflows",
-];
+    url && serviceKey && anonKey && databaseUrl ? describe : describe.skip;
 
 maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => {
     const password = "StackTest1!";
@@ -43,6 +29,7 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
     let userB = "";
     let tokenA = "";
     let projectId = "";
+    let database: ReturnType<typeof postgres> | undefined;
 
     // A client acting as a signed-in end user (anon key + the user's JWT): this is
     // the path RLS must fence off.
@@ -53,6 +40,10 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
         });
 
     beforeAll(async () => {
+        database = postgres(
+            `${databaseUrl}${databaseUrl!.includes("?") ? "&" : "?"}sslmode=disable`,
+            { max: 1, prepare: false },
+        );
         admin = createClient(url!, serviceKey!, {
             auth: { persistSession: false, autoRefreshToken: false },
         });
@@ -94,6 +85,7 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
         if (projectId) await admin.from("projects").delete().eq("id", projectId);
         if (userA) await admin.auth.admin.deleteUser(userA);
         if (userB) await admin.auth.admin.deleteUser(userB);
+        await database?.end({ timeout: 1 });
     });
 
     it("auth contract: the access token resolves to its user (middleware path)", async () => {
@@ -134,11 +126,19 @@ maybeDescribe("Supabase stack — auth contract + RLS deny-all firewall", () => 
     });
 
     it("leak sweep: no public table returns rows to the authenticated user path", async () => {
+        const tables = await database!<{ table_name: string; rls_enabled: boolean }[]>`
+            SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind = 'r'
+            ORDER BY c.relname
+        `;
+        expect(tables.filter(({ rls_enabled }) => !rls_enabled)
+            .map(({ table_name }) => table_name)).toEqual([]);
         const client = asUser(tokenA);
         const leaks: string[] = [];
-        for (const table of PUBLIC_TABLES) {
-            const { data } = await client.from(table).select("*").limit(1);
-            if ((data ?? []).length > 0) leaks.push(table);
+        for (const { table_name } of tables) {
+            const { data } = await client.from(table_name).select("*").limit(1);
+            if ((data ?? []).length > 0) leaks.push(table_name);
         }
         // Any table returning rows to a normal user means RLS is missing or a
         // policy is permissive — the exact regression this guards against.

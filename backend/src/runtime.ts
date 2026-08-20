@@ -1,4 +1,6 @@
-import { createChatApplication } from "./lib/chat/chatApplication";
+import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
+import type { ChatToolContext } from "./lib/chat/turnEngine";
+import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope } from "./lib/chatStore";
 import { generateChatTitle } from "./lib/chatTitle";
 import { createDocumentApplication } from "./lib/documentApplication";
@@ -7,12 +9,28 @@ import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
+import { publicOrigin } from "./lib/publicOrigin";
 
 const lazy = <T>(load: () => Promise<T>) => {
   let value: Promise<T> | undefined;
   return () => value ??= load();
 };
 const local = isLocalRuntime();
+function enabled(name: string, fallback: boolean) {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} must be true or false`);
+}
+const capabilities = { connectors: enabled("MCP_CONNECTORS_ENABLED", !local) };
+const connectors = lazy(async () => {
+  if (!capabilities.connectors) throw new Error("MCP connectors are disabled.");
+  const [{ createMcpApplication }, { relationalDatabase }] = await Promise.all([
+    import("./lib/mcp/servers"), import("./lib/relationalDatabase"),
+  ]);
+  return createMcpApplication(await relationalDatabase());
+});
 const persistence = lazy(async () => {
   const repositories = await import("./lib/relationalRepositories");
   const features = local ? (await import("./lib/sqliteChatFeatures")).sqliteChatFeatures
@@ -70,17 +88,32 @@ async function modelApiKeys(userId: string) {
   ]);
   return (await getUserModelSettings(userId, createServerSupabase())).api_keys;
 }
+async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContext>[]> {
+  if (!capabilities.connectors) return [];
+  const mcp = await connectors();
+  return (await mcp.buildUserMcpTools(userId)).map<BeaverTool<ChatToolContext>>((schema) => ({
+    ...schema, activity: () => `Using ${schema.name}`,
+    async execute(input, context, signal) {
+      const { content, event } = await mcp.executeMcpToolCall(userId, schema.name, input, signal);
+      context.addEvent(event);
+      return { result: toolText(content, event.status === "error") };
+    },
+  }));
+}
 const chat = lazy(async () => {
   const [chatStore, documentStore, libraryStore, projectStore, tabularStore, ports] = await Promise.all([chats(), documents(), library(), projects(), tabular(), persistence()]);
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, tabular: tabularStore,
     features: { ...ports.features, async load(auth) {
-      const [loaded, custom, { SYSTEM_ASSISTANT_WORKFLOWS }] = await Promise.all([
-        ports.features.load?.(auth) ?? {},
+      const loadedFeatures: ReturnType<ChatApplicationFeatures["load"]> =
+        ports.features.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
+      const [loaded, custom, extraTools, { SYSTEM_ASSISTANT_WORKFLOWS }] = await Promise.all([
+        loadedFeatures,
         (await workflows()).repository(auth).assistants(),
+        connectorTools(auth.userId),
         import("./lib/systemWorkflows"),
       ]);
-      return { includeResearchTools: true, ...loaded, workflows: new Map([
+      return { ...loaded, extraTools: [...loaded.extraTools ?? [], ...extraTools], workflows: new Map([
         ...SYSTEM_ASSISTANT_WORKFLOWS.map((item) => [item.id, item] as const),
         ...custom,
       ]) };
@@ -97,11 +130,14 @@ const shutdown = lazy(async () => {
     .then(({ closeRelationalDatabase }) => closeRelationalDatabase()));
   await Promise.all(tasks);
 });
-export const runtime = { mode: local ? "local" as const : "cloud" as const,
+export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
   initialize: async () => {
-    if (!local) for (const name of ["USER_API_KEYS_ENCRYPTION_SECRET",
-      "MCP_CONNECTORS_ENCRYPTION_SECRET"] as const) encryptionSecret(name);
+    if (!local) encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
+    if (capabilities.connectors) {
+      encryptionSecret("MCP_CONNECTORS_ENCRYPTION_SECRET");
+      publicOrigin();
+    }
     await (await documents()).resumeCleanup();
     await jobs();
   }, chat, chats, documents,
-  library, projects, tabular, workflows, modelApiKeys, shutdown };
+  connectors, library, projects, tabular, workflows, modelApiKeys, shutdown };

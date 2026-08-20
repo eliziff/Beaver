@@ -29,8 +29,7 @@ type DirectHistoryLabel = (typeof DIRECT_HISTORY_LABELS)[number];
 type ResultPosition = "supports_disposition" | "opposes_disposition" | "mixed" | "unclear";
 
 export type ReducedMentionReference = {
-  occurrence_id: string | null;
-  mention_quote: string | null;
+  occurrence_id: string;
 };
 
 export type ReducedTreatment = {
@@ -93,10 +92,9 @@ const mentionReferenceSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    occurrence_id: { type: ["string", "null"], minLength: 1 },
-    mention_quote: { type: ["string", "null"], minLength: 4 },
+    occurrence_id: { type: "string", minLength: 1 },
   },
-  required: ["occurrence_id", "mention_quote"],
+  required: ["occurrence_id"],
 } as const;
 
 const exactEvidenceSchema = {
@@ -145,7 +143,7 @@ const resultPositionSchema = {
   enum: ["supports_disposition", "opposes_disposition", "mixed", "unclear"],
 } as const;
 
-/** Complete one-stage model-facing v13 roster and semantic contract. */
+/** Complete one-stage model-facing v14 roster and semantic contract. */
 export const CASE_TARGET_MVP_REDUCED_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -230,7 +228,7 @@ export const CASE_TARGET_MVP_REDUCED_JSON_SCHEMA = {
           ...mentionReferenceSchema.properties,
           voice: { type: "string", enum: ATTRIBUTIONS },
         },
-        required: ["occurrence_id", "mention_quote", "voice"],
+        required: ["occurrence_id", "voice"],
       },
     },
     issues: {
@@ -390,16 +388,18 @@ function nameKey(name: string) {
 }
 
 function referenceKind(reference: ReducedMentionReference) {
-  const supplied = Number(reference.occurrence_id !== null) + Number(reference.mention_quote !== null);
-  return supplied === 1 ? (reference.occurrence_id !== null ? "occurrence" : "quote") : null;
+  return typeof reference.occurrence_id === "string" && reference.occurrence_id.length > 0
+    ? "occurrence"
+    : null;
 }
 
 /** Assign graph IDs and containment deterministically. Invalid items are omitted and reported. */
 export function compileReducedCaseTargetSubmission(
   submission: ReducedCaseTargetSubmission,
   context: GroundedCaseTargetContext,
-): { ok: boolean; errors: string[]; input: CompiledCaseTargetMvpInput } {
+): { ok: boolean; errors: string[]; warnings: string[]; input: CompiledCaseTargetMvpInput } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const occurrenceById = new Map(context.occurrences.map((occurrence) => [occurrence.id, occurrence]));
   const mentionByKey = new Map<string, GroundedMention>();
   const mentions: GroundedMention[] = [];
@@ -414,39 +414,27 @@ export function compileReducedCaseTargetSubmission(
 
   submission.target_mentions.forEach((mention, index) => {
     const path = `target_mentions[${index}]`;
-    const kind = referenceKind(mention);
-    if (!kind) {
-      errors.push(`${path}: use exactly one occurrence_id or mention_quote`);
+    if (!referenceKind(mention)) {
+      errors.push(`${path}: occurrence_id is required`);
       return;
     }
-    let key: string;
-    let span: ExactQuote;
-    let occurrence: GroundedCaseTargetContext["occurrences"][number] | undefined;
-    if (kind === "occurrence") {
-      occurrence = occurrenceById.get(mention.occurrence_id!);
-      if (!occurrence) {
-        errors.push(`${path}: unknown occurrence ${mention.occurrence_id}`);
-        return;
-      }
-      key = `occurrence:${occurrence.id}`;
-      span = { quote: occurrence.quote, start: occurrence.start, end: occurrence.end };
-      if (seenOccurrences.has(occurrence.id)) errors.push(`${path}: duplicate occurrence ${occurrence.id}`);
-      seenOccurrences.add(occurrence.id);
-    } else {
-      const resolved = sourceQuote(mention.mention_quote!, path);
-      if (!resolved) return;
-      span = resolved;
-      key = `quote:${span.start}:${span.end}`;
+    const occurrence = occurrenceById.get(mention.occurrence_id);
+    if (!occurrence) {
+      errors.push(`${path}: unknown occurrence ${mention.occurrence_id}`);
+      return;
     }
+    const key = `occurrence:${occurrence.id}`;
+    const span: ExactQuote = { quote: occurrence.quote, start: occurrence.start, end: occurrence.end };
+    if (seenOccurrences.has(occurrence.id)) errors.push(`${path}: duplicate occurrence ${occurrence.id}`);
+    seenOccurrences.add(occurrence.id);
     if (mentionByKey.has(key)) {
       errors.push(`${path}: duplicate root target mention`);
       return;
     }
-    const anchor = occurrence?.linkedContext ?? span;
+    const anchor = occurrence.linkedContext ?? span;
     const compiled: GroundedMention = {
       id: `m${index + 1}`,
-      occurrence_id: occurrence?.id ?? null,
-      mention_quote: occurrence ? null : span.quote,
+      occurrence_id: occurrence.id,
       opinion_id: containingOpinion(context.opinions, anchor.start, anchor.end)?.id ?? null,
       voice: mention.voice,
       case_issue_ids: [],
@@ -463,17 +451,10 @@ export function compileReducedCaseTargetSubmission(
   const resolveMention = (reference: ReducedMentionReference, path: string) => {
     const kind = referenceKind(reference);
     if (!kind) {
-      errors.push(`${path}: use exactly one occurrence_id or mention_quote`);
+      errors.push(`${path}: occurrence_id is required`);
       return null;
     }
-    let key: string;
-    if (kind === "occurrence") {
-      key = `occurrence:${reference.occurrence_id}`;
-    } else {
-      const resolved = sourceQuote(reference.mention_quote!, path);
-      if (!resolved) return null;
-      key = `quote:${resolved.start}:${resolved.end}`;
-    }
+    const key = `occurrence:${reference.occurrence_id}`;
     const mention = mentionByKey.get(key) ?? null;
     if (!mention) errors.push(`${path}: target mention is not declared at the root`);
     return mention;
@@ -566,10 +547,7 @@ export function compileReducedCaseTargetSubmission(
           errors.push(`${path}: answer lacks current-court evidence`);
           return;
         }
-        const evidenceInputs = [
-          ...position.answer_evidence,
-          ...position.basis_and_limits.flatMap((basis) => basis.evidence),
-        ];
+        const evidenceInputs = position.answer_evidence;
         const candidates = context.opinions.flatMap((opinion) => {
           const resolved = evidenceInputs.map((item) =>
             resolveUniqueGroundedQuote(opinion.text, opinion.start, item.quote)
@@ -599,15 +577,33 @@ export function compileReducedCaseTargetSubmission(
           evidenceByValue.set(key, compiled);
           return compiled.id;
         };
-        let resolvedIndex = 0;
-        const answerEvidenceIds = position.answer_evidence.map((item) => addEvidence(item, resolved[resolvedIndex++]));
-        const basisAndLimits = position.basis_and_limits.map((basis, basisIndex) => ({
-          id: `${positionId}b${basisIndex + 1}`,
-          kind: basis.kind,
-          text: basis.text,
-          evidence_ids: basis.evidence.map((item) => addEvidence(item, resolved[resolvedIndex++])),
-        }));
-        const ordered = [...resolved].sort((left, right) => left.start - right.start || left.end - right.end);
+        const answerEvidenceIds = position.answer_evidence.map((item, index) => addEvidence(item, resolved[index]));
+        const basisAndLimits: ModelOpinionIssuePosition["basis_and_limits"] = [];
+        const basisEvidenceQuotes: ExactQuote[] = [];
+        position.basis_and_limits.forEach((basis, basisIndex) => {
+          const validEvidence: Array<{ item: typeof basis.evidence[number]; quote: ExactQuote }> = [];
+          basis.evidence.forEach((item, evidenceIndex) => {
+            const basisPath = `${path}.basis_and_limits[${basisIndex}].evidence[${evidenceIndex}]`;
+            const quote = resolveUniqueGroundedQuote(opinion.text, opinion.start, item.quote);
+            if (typeof quote === "string") {
+              warnings.push(`${basisPath}.quote ignored: ${quote} in ${opinion.id}`);
+              return;
+            }
+            validEvidence.push({ item, quote });
+            basisEvidenceQuotes.push(quote);
+          });
+          if (!validEvidence.length) {
+            errors.push(`${path}.basis_and_limits[${basisIndex}]: omitted because no evidence grounded to ${opinion.id}`);
+            return;
+          }
+          basisAndLimits.push({
+            id: `${positionId}b${basisAndLimits.length + 1}`,
+            kind: basis.kind,
+            text: basis.text,
+            evidence_ids: validEvidence.map(({ item, quote }) => addEvidence(item, quote)),
+          });
+        });
+        const ordered = [...resolved, ...basisEvidenceQuotes].sort((left, right) => left.start - right.start || left.end - right.end);
         positions.push({
           id: positionId,
           case_issue_id: issueId,
@@ -644,6 +640,11 @@ export function compileReducedCaseTargetSubmission(
           const participant = participantByName.get(nameKey(join.participant_name));
           if (!participant) {
             errors.push(`${joinPath}: unknown participant ${join.participant_name}`);
+            return;
+          }
+          const ownOpinion = participant.opinion_links.some(({ opinion_id }) => opinionIds.has(opinion_id));
+          if (ownOpinion) {
+            errors.push(`${joinPath}: redundant partial join; participant already has a position on issue ${issueId}`);
             return;
           }
           const evidence = sourceQuote(join.evidence_quote, `${joinPath}.evidence_quote`);
@@ -750,6 +751,7 @@ export function compileReducedCaseTargetSubmission(
   return {
     ok: uniqueErrors.length === 0,
     errors: uniqueErrors,
+    warnings: [...new Set(warnings)],
     input: {
       ...context,
       participants,
