@@ -8,20 +8,16 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import {
-  lookupSourceDoc,
-  createSourceDoc,
-  type SourceDoc,
-  type SourceDocBlock,
-  type SourceDocLocatorKind,
-} from "../../src/lib/sourceDoc";
+import { createSourceDoc, type SourceDoc } from "../../src/lib/sourceDoc";
 import { compileA2AJSourceDoc } from "../../src/lib/sourceDocA2AJ";
 import { compileNativeMarkupSourceDoc } from "../../src/lib/sourceDocNativeMarkup";
 import { journalLegalSourceProvider as journal } from "../../src/lib/legalSources/journal";
+import {
+  canonicalSourceDocBytes, SERIALIZER_CONTRACT, sourceDocMode,
+} from "./canonical";
 import rawCoverage from "./coverage.json";
 
 const FIXTURES = path.join(__dirname, "../../src/lib/__tests__/fixtures");
-const KINDS: SourceDocLocatorKind[] = ["paragraph", "page", "section", "footnote"];
 const REQUIRED_ROWS = [
   "a2aj/flat-case", "a2aj/flat-law", "a2aj/hybrid-section-map",
   "a2aj/native-section-map", "courtlistener/native-cap",
@@ -50,13 +46,6 @@ const APPLICABLE_MODES = {
   NonNullable<SourceDoc["provider"]>,
   readonly ("native" | "hybrid" | "flat")[]
 >;
-const SERIALIZER_CONTRACT = JSON.stringify({
-  schema: "source-structure-parity.v1",
-  document: ["provider", "id", "status", "mode", "revision", "text"],
-  block: ["kind", "label", "start", "end", "origin", "anchor", "aliases", "parent_label"],
-  ranges: KINDS,
-  lookups: "every ordered block label, alias, and anchor; context=2; full materialized blocks",
-});
 const LEGALPDF_BASELINE_BINARY =
   "85be89d29d6cfde928eaac66a7834d26568bbca25b467fbccf6945b1bd3075b4";
 
@@ -219,65 +208,6 @@ afterAll(() => {
   rmSync(temporary, { recursive: true, force: true });
 });
 
-function mode(doc: SourceDoc): Row["mode"] {
-  const origins = new Set(doc.blocks.map(({ origin }) => origin));
-  return origins.has("native")
-    ? origins.has("heuristic") ? "hybrid" : "native"
-    : "flat";
-}
-
-function block(value: SourceDocBlock & { text?: string }) {
-  return {
-    kind: value.kind,
-    label: value.label,
-    start: value.start,
-    end: value.end,
-    origin: value.origin,
-    anchor: value.anchor ?? null,
-    aliases: value.aliases ?? [],
-    parent_label: value.parentLabel ?? null,
-    ...(value.text === undefined ? {} : { text: value.text }),
-  };
-}
-
-function canonicalBytes(doc: SourceDoc) {
-  const requests = new Map<string, { kind: SourceDocLocatorKind; value: string }>();
-  for (const item of doc.blocks) {
-    for (const value of [item.label, ...(item.aliases ?? []), item.anchor]) {
-      if (value) requests.set(`${item.kind}\0${value}`, { kind: item.kind, value });
-    }
-  }
-  const lookups = [...requests.values()]
-    .sort((left, right) =>
-      left.kind.localeCompare(right.kind) || left.value.localeCompare(right.value),
-    )
-    .map(({ kind, value }) => {
-      const found = lookupSourceDoc(doc, kind, value, 2);
-      return {
-        kind,
-        value,
-        status: found.status,
-        requested_label: found.requestedLabel,
-        matches: found.matches,
-        block: found.block ? block(found.block) : null,
-        before: found.before.map(block),
-        after: found.after.map(block),
-      };
-    });
-  return Buffer.from(JSON.stringify({
-    schema_version: "source-structure-parity.v1",
-    provider: doc.provider,
-    id: doc.id,
-    status: doc.status,
-    mode: mode(doc),
-    revision: doc.revision,
-    text: doc.text,
-    blocks: doc.blocks.map(block),
-    ranges: Object.fromEntries(KINDS.map((kind) => [kind, doc.ranges[kind]])),
-    lookups,
-  }));
-}
-
 function capturedRows() {
   return new Map<string, SourceDoc>([
     ["a2aj/flat-case", compileA2AJSourceDoc(a2ajCase)],
@@ -353,7 +283,7 @@ test("coverage ledger cannot hide modes, synthetic rows, or missing captures", (
     .filter((name) => /^tna-.*\.json$/u.test(name));
   const tnaModes = tnaFiles.map((name) => {
     const source = fixture<{ citation: string; markup: string }>(`nativemarkup/${name}`);
-    return mode(compileNativeMarkupSourceDoc({
+    return sourceDocMode(compileNativeMarkupSourceDoc({
       provider: "tna", id: source.citation, text: "", ...source,
     }));
   });
@@ -399,10 +329,10 @@ test("real captured rows match frozen canonical public bytes", () => {
     const doc = documents.get(row.id);
     expect(doc, row.id).toBeDefined();
     expect(doc!.provider, row.id).toBe(row.provider);
-    expect(mode(doc!), row.id).toBe(row.mode);
+    expect(sourceDocMode(doc!), row.id).toBe(row.mode);
     const capture = readFileSync(path.join(FIXTURES, row.capture!));
     const captureHash = createHash("sha256").update(capture).digest("hex");
-    const bytes = canonicalBytes(doc!);
+    const bytes = canonicalSourceDocBytes(doc!);
     const baselineHash = createHash("sha256").update(bytes).digest("hex");
     observed.push(`${row.id}\t${captureHash}\t${baselineHash}\t${bytes.length}`);
     if (process.env.SOURCE_STRUCTURE_PRINT_BASELINES !== "1") {
