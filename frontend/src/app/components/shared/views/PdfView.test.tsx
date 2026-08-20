@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
     buffer: new ArrayBuffer(8),
     documentError: null as Error | null,
     hookCalls: 0,
+    numPages: 3,
     pageRequests: [] as number[],
+    pdfOptions: null as Record<string, unknown> | null,
     resize: null as ResizeObserverCallback | null,
     standardFontDataUrl: "",
 }));
@@ -24,7 +26,8 @@ vi.mock("@/app/hooks/useDocumentFile", () => ({
 
 vi.mock("./highlightQuote", () => {
     const pdf = {
-        numPages: 3,
+        get numPages() { return mocks.numPages; },
+        destroy: vi.fn(),
         getPage: async (pageNumber: number) => {
             mocks.pageRequests.push(pageNumber);
             return {
@@ -80,10 +83,14 @@ vi.mock("./highlightQuote", () => {
         STANDARD_FONT_DATA_URL: `${location.origin}/pdfjs-standard-fonts/`,
         getPdfJs: vi.fn(async () => ({
             TextLayer,
-            getDocument: ({ data, standardFontDataUrl }: {
+            getDocument: (options: {
                 data: Uint8Array;
+                isEvalSupported: boolean;
+                maxImageSize: number;
                 standardFontDataUrl: string;
             }) => {
+                const { data, standardFontDataUrl } = options;
+                mocks.pdfOptions = options;
                 mocks.standardFontDataUrl = standardFontDataUrl;
                 structuredClone(data.buffer, { transfer: [data.buffer] });
                 return {
@@ -112,7 +119,9 @@ describe("PdfView", () => {
         mocks.buffer = new ArrayBuffer(8);
         mocks.documentError = null;
         mocks.hookCalls = 0;
+        mocks.numPages = 3;
         mocks.pageRequests = [];
+        mocks.pdfOptions = null;
         mocks.resize = null;
         mocks.standardFontDataUrl = "";
         vi.stubGlobal("ResizeObserver", ResizeObserverMock);
@@ -142,6 +151,10 @@ describe("PdfView", () => {
             (page) => page.dataset.pageNumber,
         )).toEqual(["1", "2", "3"]);
         expect(new URL(mocks.standardFontDataUrl).origin).toBe(location.origin);
+        expect(mocks.pdfOptions).toMatchObject({
+            isEvalSupported: false,
+            maxImageSize: 40_000_000,
+        });
         expect(mocks.buffer.byteLength).toBe(8);
         expect(mocks.cancelled).toBeGreaterThan(0);
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
@@ -157,6 +170,16 @@ describe("PdfView", () => {
         expect(await screen.findByRole("alert")).toHaveTextContent(
             /invalid or unsupported/i,
         );
+        expect(container.querySelector("canvas")).toBeNull();
+    });
+
+    it("refuses pathological page counts before rendering", async () => {
+        mocks.numPages = 2_001;
+        const { container } = render(
+            <PdfView doc={{ document_id: "doc-1", version_id: "version-1" }} />,
+        );
+        expect(await screen.findByRole("alert")).toBeVisible();
+        expect(mocks.pageRequests).toEqual([]);
         expect(container.querySelector("canvas")).toBeNull();
     });
 

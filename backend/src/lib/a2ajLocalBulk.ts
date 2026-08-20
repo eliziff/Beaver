@@ -3,26 +3,27 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
 import { citationLookupKey } from "./citationKey";
+import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
 import {
   legalProviderDatabase,
-  withCachedReadonlySqlite,
+  withSearchReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
-import type { SourceDoc } from "./sourceDoc";
-import {
-  compileA2AJSourceDoc,
-  summarizeA2AJSourceDoc,
-} from "./sourceDocA2AJ";
+import type { A2AJStructureSummary } from "./sourceDocA2AJ";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
-const documentStructures = new WeakMap<A2AJDocument, SourceDoc>();
 const documentSectionMaps = new WeakMap<
   A2AJDocument,
   Record<string, string>
 >();
+const EMPTY_STRUCTURE: A2AJStructureSummary = {
+  status: "unavailable",
+  source: "flat_text",
+  counts: { paragraph: 0, page: 0, section: 0 },
+};
 
 export function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
@@ -48,15 +49,8 @@ function withSearchDatabase<T>(
   operation: (database: DatabaseSync) => T,
 ): T | null {
   const filename = searchDatabasePath(docType);
-  if (process.env.MIKE_A2AJ_BULK_DB?.trim()) {
-    return withReadonlySqlite(filename, operation);
-  }
-  return withCachedReadonlySqlite(filename, operation);
-}
-
-function string(row: Row, field: string) {
-  const value = row[field];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  const cache = !process.env.MIKE_A2AJ_BULK_DB?.trim();
+  return withSearchReadonlySqlite(filename, cache, operation);
 }
 
 function languageField(
@@ -106,15 +100,6 @@ function document(row: Row, language: Language): A2AJDocument | null {
   if (!text || !citation) return null;
   const docType = string(row, "doc_type") === "laws" ? "laws" : "cases";
   const mappedSections = sectionMap(row, actualLanguage);
-  const compiled = compileA2AJSourceDoc({
-    citation,
-    docType,
-    text,
-    url: languageField(row, "url", actualLanguage),
-    alternateCitation: languageField(row, "citation2", actualLanguage),
-    dataset: string(row, "dataset"),
-    name: languageField(row, "name", actualLanguage),
-  });
   const document: A2AJDocument = {
     docType,
     dataset: string(row, "dataset") ?? "",
@@ -126,15 +111,10 @@ function document(row: Row, language: Language): A2AJDocument | null {
     text,
     language: actualLanguage,
     upstreamLicense: string(row, "upstream_license"),
-    structure: summarizeA2AJSourceDoc(compiled),
+    structure: EMPTY_STRUCTURE,
   };
-  documentStructures.set(document, compiled);
   if (mappedSections) documentSectionMaps.set(document, mappedSections);
   return document;
-}
-
-export function getLocalA2AJStructure(document: A2AJDocument) {
-  return documentStructures.get(document) ?? null;
 }
 
 /**
@@ -225,14 +205,6 @@ export function getLocalA2AJSectionMap(document: A2AJDocument) {
   return documentSectionMaps.get(document) ?? null;
 }
 
-function boundedSize(
-  value: number | undefined,
-  fallback: number,
-  maximum: number,
-) {
-  return Math.max(1, Math.min(maximum, Math.trunc(value ?? fallback)));
-}
-
 function addDatasetFilter(
   filters: string[],
   values: Array<string | number>,
@@ -294,10 +266,6 @@ export function fetchLocalA2AJDocument(args: {
   });
 }
 
-function searchTokens(query: string) {
-  return query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 12) ?? [];
-}
-
 function ftsQuery(tokens: string[], searchType: "full_text" | "name") {
   const fields = searchType === "name" ? "{name_en name_fr} : " : "";
   return tokens.map((token) => `${fields}"${token}"`).join(" AND ");
@@ -309,11 +277,6 @@ function hasFts(database: DatabaseSync) {
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'document_search'",
     )
     .get();
-}
-
-function dateExpression(language: Language) {
-  const fallback = language === "en" ? "fr" : "en";
-  return `COALESCE(NULLIF(document.document_date_${language}, ''), document.document_date_${fallback}, '')`;
 }
 
 function snippet(text: string | null, tokens: string[]) {
@@ -373,7 +336,8 @@ export function searchLocalA2AJ(args: {
     const filters = dedicatedIndex ? [] : ["document.doc_type = ?"];
     const values: Array<string | number> = dedicatedIndex ? [] : [docType];
     addDatasetFilter(filters, values, args.dataset);
-    const date = dateExpression(language);
+    const date = `COALESCE(NULLIF(document.document_date_${language}, ''), document.document_date_${
+      language === "en" ? "fr" : "en"}, '')`;
     if (args.startDate?.trim()) {
       filters.push(`${date} >= ?`);
       values.push(args.startDate.trim());

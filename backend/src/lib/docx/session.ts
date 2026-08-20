@@ -5,7 +5,7 @@
  */
 
 import type JSZip from "jszip";
-import { loadZip } from "../zip";
+import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "../zip";
 import {
   type XNode,
   MAX_DRAFTING_DOCX_BYTES,
@@ -343,24 +343,6 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
   };
 }
 
-export function indexDocxParagraphs(nodes: XNode[]) {
-  const paragraphs: DocxParagraphIndex[] = [];
-  let truncated = false;
-  const collect = (node: XNode, depth: number): void => {
-    if (depth > MAX_MARKUP_DEPTH) return void (truncated = true);
-    const name = elName(node);
-    if (name === "w:p") {
-      const paragraph = indexDocxParagraph(node);
-        paragraphs.push(paragraph);
-        truncated ||= paragraph.truncated;
-    } else if (name && BLOCK_CONTAINER.test(name)) {
-      elChildren(node).forEach((child) => collect(child, depth + 1));
-    }
-  };
-  nodes.forEach((node) => collect(node, 0));
-  return { paragraphs, truncated };
-}
-
 function directChild(node: XNode, name: string) {
   return elChildren(node).find((child) => elName(child) === name);
 }
@@ -506,34 +488,18 @@ function trackedChanges(tree: XNode[]) {
 }
 
 function assertBoundedPackage(zip: JSZip) {
-  const files = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (files.length > MAX_ZIP_ENTRIES) {
-    throw new Error("DOCX contains too many package entries");
-  }
-  let expandedBytes = 0;
-  let xmlBytes = 0;
-  for (const entry of files) {
-    const size = (entry as { _data?: { uncompressedSize?: unknown } })._data
-      ?.uncompressedSize;
-    if (!Number.isSafeInteger(size) || Number(size) < 0) {
-      throw new Error("DOCX has invalid ZIP size metadata");
-    }
-    expandedBytes += Number(size);
-    if (/\.xml(?:\.rels)?$/iu.test(entry.name)) {
-      if (Number(size) > MAX_DRAFTING_XML_ENTRY_BYTES) {
-        throw new Error("DOCX contains an oversized XML part");
-      }
-      xmlBytes += Number(size);
-    }
-  }
-  if (expandedBytes > MAX_EXPANDED_BYTES || xmlBytes > MAX_XML_BYTES) {
-    throw new Error("DOCX expands beyond the read limit");
-  }
+  assertBoundedZip(zip, "DOCX", {
+    maxEntries: MAX_ZIP_ENTRIES, maxExpandedBytes: MAX_EXPANDED_BYTES,
+    selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: MAX_DRAFTING_XML_ENTRY_BYTES,
+      maxBytes: MAX_XML_BYTES, name: "XML part" },
+  });
 }
 
 class DocxSessionImpl {
   readonly paths: string[];
   private readonly names = new Map<string, string>();
+  private readonly text = new Map<string, Promise<string>>();
+  private readonly readBudget = zipReadBudget(MAX_XML_BYTES);
 
   constructor(private readonly zip: JSZip) {
     for (const entry of Object.values(zip.files)) {
@@ -555,12 +521,23 @@ class DocxSessionImpl {
   async readText(path: string): Promise<string | null> {
     const canonical = path.replace(/\\/gu, "/");
     const actual = this.names.get(canonical);
-    return actual ? this.zip.file(actual)!.async("string") : null;
+    if (!actual) return null;
+    let pending = this.text.get(actual);
+    if (!pending) {
+      pending = readZipEntry(this.zip.file(actual)!, MAX_DRAFTING_XML_ENTRY_BYTES,
+        this.readBudget, `DOCX part ${canonical}`).then((bytes) => bytes.toString("utf8"));
+      this.text.set(actual, pending);
+    }
+    return pending;
   }
 
   async readXml(path: string): Promise<XNode[] | null> {
     const xml = await this.readText(path);
-    return xml == null ? null : createParser().parse(xml) as XNode[];
+    if (xml == null) return null;
+    if (/<!DOCTYPE(?:\s|>)/iu.test(xml)) {
+      throw new Error("DOCX XML must not contain a DOCTYPE declaration");
+    }
+    return createParser().parse(xml) as XNode[];
   }
 
   async document(label = "docx"): Promise<DocxDocumentIndex> {
@@ -588,6 +565,8 @@ class DocxSessionImpl {
     const canonical = path.replace(/\\/gu, "/");
     const actual = this.names.get(canonical) ?? canonical;
     this.zip.file(actual, content);
+    if (typeof content === "string") this.text.set(actual, Promise.resolve(content));
+    else this.text.delete(actual);
     if (!this.names.has(canonical)) {
       this.names.set(canonical, actual);
       this.paths.push(canonical);

@@ -1,5 +1,4 @@
-import type JSZip from "jszip";
-import { loadZip } from "./zip";
+import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "./zip";
 import { decodeXmlText as decodeXml } from "./text";
 
 function extractTagText(xml: string, tagName: string) {
@@ -13,24 +12,24 @@ function extractTagText(xml: string, tagName: string) {
   return parts;
 }
 
-function naturalSort(a: string, b: string) {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
-
-async function readZipText(zip: JSZip, path: string) {
-  const entry = zip.file(path);
-  return entry ? entry.async("text") : null;
-}
-
 export async function extractPresentationText(buffer: Buffer) {
   const zip = await loadZip(buffer);
+  assertBoundedZip(zip, "Presentation", {
+    maxEntries: 10_000, maxExpandedBytes: 256 * 1024 * 1024,
+    selected: { test: /^ppt\/slides\/slide\d+\.xml$/iu, maxEntryBytes: 8 * 1024 * 1024,
+      maxBytes: 64 * 1024 * 1024, name: "slide XML" },
+  });
   const slidePaths = Object.keys(zip.files)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
-    .sort(naturalSort);
+    .sort((left, right) => left.localeCompare(
+      right, undefined, { numeric: true, sensitivity: "base" }));
 
   const slides: string[] = [];
+  const budget = zipReadBudget(64 * 1024 * 1024);
   for (let index = 0; index < slidePaths.length; index++) {
-    const xml = await readZipText(zip, slidePaths[index]);
+    const entry = zip.file(slidePaths[index]);
+    const xml = entry ? (await readZipEntry(entry, 8 * 1024 * 1024, budget,
+      "Presentation slide XML")).toString("utf8") : null;
     if (!xml) continue;
     const text = extractTagText(xml, "a:t")
       .map((part) => part.trim())

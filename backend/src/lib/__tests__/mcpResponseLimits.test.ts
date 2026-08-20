@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { boundMcpResponse } from "../mcp/client";
-import { MAX_MCP_RESPONSE_BYTES, MAX_MCP_SSE_EVENT_BYTES } from "../mcp/types";
+import {
+  MAX_MCP_RESPONSE_BYTES,
+  MAX_MCP_SSE_EVENT_BYTES,
+  MAX_MCP_SSE_RESPONSE_BYTES,
+} from "../mcp/types";
 
 describe("MCP response limits", () => {
   it("rejects and cancels a declared oversized JSON response", async () => {
@@ -67,5 +71,21 @@ describe("MCP response limits", () => {
     );
 
     await expect(bounded.text()).rejects.toThrow("SSE event");
+  });
+
+  it("caps the total size of an endless sequence of valid SSE events", async () => {
+    const chunk = new TextEncoder().encode(`data:${"a".repeat(64 * 1024)}\n\n`);
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+        sent += chunk.byteLength;
+        if (sent > MAX_MCP_SSE_RESPONSE_BYTES) controller.close();
+      },
+    });
+    const bounded = await boundMcpResponse(new Response(body, {
+      headers: { "content-type": "text/event-stream" },
+    }));
+    await expect(bounded.arrayBuffer()).rejects.toThrow("SSE response");
   });
 });

@@ -20,12 +20,9 @@ import {
     useAssistantPreferences,
 } from "./assistantPreferences";
 import type { Document, Message, Workflow } from "../shared/types";
-const loadNewTRModal = () => import("../tabular/NewTRModal");
-const loadSelectAssistantProjectModal = () => import("./SelectAssistantProjectModal");
-const loadNewProjectModal = () => import("../projects/NewProjectModal");
-const NewTRModal = lazy(() => loadNewTRModal().then(({ NewTRModal }) => ({ default: NewTRModal })));
-const SelectAssistantProjectModal = lazy(() => loadSelectAssistantProjectModal().then(({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal })));
-const NewProjectModal = lazy(() => loadNewProjectModal().then(({ NewProjectModal }) => ({ default: NewProjectModal })));
+const NewTRModal = lazy(() => import("../tabular/NewTRModal").then(({ NewTRModal }) => ({ default: NewTRModal })));
+const SelectAssistantProjectModal = lazy(() => import("./SelectAssistantProjectModal").then(({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal })));
+const NewProjectModal = lazy(() => import("../projects/NewProjectModal").then(({ NewProjectModal }) => ({ default: NewProjectModal })));
 type InitialModal = "project" | "newProject" | "review" | "quickActions";
 const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     Record<

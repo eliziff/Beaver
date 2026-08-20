@@ -349,22 +349,18 @@ function paragraphIndexForRange(
     return -1;
 }
 
-function preNormalize(s: string): string {
-    return s
-        .replace(/[\u2018\u2019\u2032]/g, "'")
-        .replace(/[\u201C\u201D\u2033]/g, '"')
-        .replace(/[\u2013\u2014]/g, "-")
-        .replace(/\u00A0/g, " ")
-        .replace(/\u200B/g, " ");
-}
-
 interface Normalized {
     norm: string;
     origIdx: number[];
 }
 
 export function normalizeWs(input: string): Normalized {
-    const s = preNormalize(input);
+    const s = input
+        .replace(/[\u2018\u2019\u2032]/g, "'")
+        .replace(/[\u201C\u201D\u2033]/g, '"')
+        .replace(/[\u2013\u2014]/g, "-")
+        .replace(/\u00A0/g, " ")
+        .replace(/\u200B/g, " ");
     const norm: string[] = [];
     const origIdx: number[] = [];
     let prevSpace = false;

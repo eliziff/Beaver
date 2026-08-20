@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { boundedSize as limit } from "./sqliteSearch";
 import {
   legalProviderDatabase,
-  withCachedReadonlySqlite,
+  withSearchReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
 
@@ -79,18 +80,12 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   const filename = courtlistenerLocalBulkPath();
-  if (process.env.MIKE_COURTLISTENER_BULK_DB?.trim()) {
-    return withReadonlySqlite(filename, operation);
-  }
-  return withCachedReadonlySqlite(filename, operation);
+  const cache = !process.env.MIKE_COURTLISTENER_BULK_DB?.trim();
+  return withSearchReadonlySqlite(filename, cache, operation);
 }
 
 function nullableString(value: unknown) {
   return typeof value === "string" && value ? value : null;
-}
-
-function nullableNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function cluster(row: Row): LocalCourtlistenerCluster {
@@ -114,7 +109,8 @@ function opinion(row: Row): LocalCourtlistenerOpinion {
     authorStr: nullableString(row.author_str),
     perCuriam: nullableString(row.per_curiam),
     joinedByStr: nullableString(row.joined_by_str),
-    pageCount: nullableNumber(row.page_count),
+    pageCount: typeof row.page_count === "number" && Number.isFinite(row.page_count)
+      ? row.page_count : null,
     downloadUrl: nullableString(row.download_url),
     storagePath: nullableString(row.local_path),
     plainText: nullableString(row.plain_text),
@@ -128,14 +124,6 @@ function opinion(row: Row): LocalCourtlistenerOpinion {
   };
 }
 
-function reporterKey(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/gu, "");
-}
-
-function limit(value: number | undefined, fallback: number, maximum: number) {
-  return Math.max(1, Math.min(maximum, Math.trunc(value ?? fallback)));
-}
-
 export function lookupLocalCourtlistenerCitation(args: {
   volume: string;
   reporter: string;
@@ -143,7 +131,7 @@ export function lookupLocalCourtlistenerCitation(args: {
   limit?: number;
 }): LocalCourtlistenerCluster[] | null {
   const volume = args.volume.trim();
-  const reporter = reporterKey(args.reporter);
+  const reporter = args.reporter.toLowerCase().replace(/[^a-z0-9]/gu, "");
   const page = args.page.trim();
   if (!volume || !reporter || !page) return [];
   return withDatabase((database) =>

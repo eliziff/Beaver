@@ -15,7 +15,7 @@ import {
     Wrench,
 } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
-import { apiFetch } from "@/app/lib/beaverApi";
+import { apiBlobRequest } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import {
@@ -38,14 +38,6 @@ function activityIcon(name: string) {
     if (/verify|grounded/iu.test(name)) return BadgeCheck;
     if (name === "compaction") return Minimize2;
     return Wrench;
-}
-
-function ActivityIcon({ activity }: { activity: AssistantActivity }) {
-    return createElement(activityIcon(activity.tool), {
-        size: 14,
-        strokeWidth: 1.75,
-        "aria-hidden": true,
-    });
 }
 
 export function ActivityDisclosure({
@@ -151,7 +143,9 @@ export function ActivityRow({
                 {busy ? (
                     <Loader2 size={14} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
                 ) : (
-                    <ActivityIcon activity={activity} />
+                    createElement(activityIcon(activity.tool), {
+                        size: 14, strokeWidth: 1.75, "aria-hidden": true,
+                    })
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
@@ -266,9 +260,8 @@ export function DocDownloadBlock({
         if (spinning || !href) return;
         setBusy(true);
         try {
-            const response = await apiFetch(href);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            downloadBlob(await response.blob(), filename);
+            const { blob } = await apiBlobRequest(href);
+            downloadBlob(blob, filename);
         } finally {
             setBusy(false);
         }

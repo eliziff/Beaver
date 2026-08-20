@@ -1,7 +1,7 @@
 """Structure stress sweep over every local corpus.
 
 For each document: run every grammar-table entry (prefilter-gated), invoke
-Beaver's shipping compileA2AJSourceDoc through one persistent process per
+Beaver's shipping legal-structure engine through one persistent process per
 worker, score its blocks against provider metadata where available, and
 aggregate. This harness contains no structure detector or parser grammar.
 Regex is the measured bottleneck. On the full tier, workers read their

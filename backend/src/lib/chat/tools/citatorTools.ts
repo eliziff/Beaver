@@ -6,13 +6,14 @@ import {
   type StandsForCandidate,
 } from "../../caselawCitator";
 import type { Tool } from "../../llm";
+import { safeErrorLog } from "../../safeError";
 import {
   attestedPassageReceipt,
   citatorNoteUpReceipt,
   type LegalEvidenceReceipt,
 } from "../legalEvidence";
 
-export const NOTE_UP_TOOL_NAME = "note_up";
+const NOTE_UP_TOOL_NAME = "note_up";
 
 const NOTE_UP_DESCRIPTION =
   "Trace how a Canadian decision is cited and discussed. Returns citing decisions, explanatory passages from later decisions, and relevant law-journal analysis with source citations and locators. Supports cited-paragraph and court filters. Does not assign treatment labels.";
@@ -178,10 +179,11 @@ export function executeCitatorTool(
       },
     };
   } catch (error) {
+    console.warn("[citator] lookup failed", safeErrorLog(error));
     return {
       payload: {
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: "Citator lookup failed.",
       },
     };
   }

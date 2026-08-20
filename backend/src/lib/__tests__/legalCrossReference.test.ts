@@ -34,8 +34,8 @@ const AGREEMENT = [
 const graphOf = (text: string) => crossReferenceGraph(text, "fixture");
 
 describe("crossReferenceGraph — literal edges", () => {
-  it("resolves an internal reference to the target section's span", () => {
-    const graph = graphOf(AGREEMENT);
+  it("resolves an internal reference to the target section's span", async () => {
+    const graph = await graphOf(AGREEMENT);
     const edge = graph.edges.find((e) => e.raw === "Section 6.2" && e.status === "resolved");
     expect(edge).toBeDefined();
     expect(edge!.normalizedLocator).toBe("sec6.2");
@@ -48,43 +48,43 @@ describe("crossReferenceGraph — literal edges", () => {
     expect(edge!.sourceLabel).toBe("sec6.1");
   });
 
-  it("resolves a roman container reference through the skeleton alias", () => {
-    const edge = graphOf(AGREEMENT).edges.find((e) => e.raw === "Article VII");
+  it("resolves a roman container reference through the skeleton alias", async () => {
+    const edge = (await graphOf(AGREEMENT)).edges.find((e) => e.raw === "Article VII");
     expect(edge?.status).toBe("resolved");
     expect(edge?.normalizedLocator).toBe("article vii");
     expect(edge?.targetLabel).toBe("art7");
   });
 
-  it("resolves a sub-only reference relative to the section it sits in", () => {
-    const edge = graphOf(AGREEMENT).edges.find((e) => e.raw === "clause (a)");
+  it("resolves a sub-only reference relative to the section it sits in", async () => {
+    const edge = (await graphOf(AGREEMENT)).edges.find((e) => e.raw === "clause (a)");
     expect(edge?.normalizedLocator).toBe("sec6.2(a)");
     expect(edge?.status).toBe("resolved");
     expect(edge?.targetLabel).toBe("sec6.2(a)");
   });
 
-  it("classifies a reference to another instrument as external, not unresolved", () => {
-    const edge = graphOf(AGREEMENT).edges.find((e) => e.raw === "Section 85");
+  it("classifies a reference to another instrument as external, not unresolved", async () => {
+    const edge = (await graphOf(AGREEMENT)).edges.find((e) => e.raw === "Section 85");
     expect(edge?.status).toBe("external");
     expect(edge?.reason).toBe("external_instrument");
     expect(edge?.targetLabel).toBeNull();
   });
 
-  it("marks a reference that points at its own section as a self-loop", () => {
-    const graph = graphOf(AGREEMENT);
+  it("marks a reference that points at its own section as a self-loop", async () => {
+    const graph = await graphOf(AGREEMENT);
     const selfLoops = graph.edges.filter((e) => e.selfLoop);
     expect(graph.counts.selfLoops).toBe(selfLoops.length);
     for (const edge of selfLoops) expect(edge.targetLabel).toBe(edge.sourceLabel);
   });
 
-  it("counts every edge exactly once across the five dispositions", () => {
-    const { counts, edges } = graphOf(AGREEMENT);
+  it("counts every edge exactly once across the five dispositions", async () => {
+    const { counts, edges } = await graphOf(AGREEMENT);
     expect(counts.detected).toBe(edges.length);
     expect(
       counts.resolved + counts.external + counts.unresolved + counts.abstained,
     ).toBe(counts.detected);
   });
 
-  it("does not treat a decimal provision as the child or fallback target of an integer provision", () => {
+  it("does not treat a decimal provision as the child or fallback target of an integer provision", async () => {
     const text = [
       "Section 149 Previous. Section 150 applies.",
       "Section 150.1 Distinct decimal provision.",
@@ -92,9 +92,9 @@ describe("crossReferenceGraph — literal edges", () => {
       "Section 152 Following.",
       "Section 153 Following.",
     ].join("\n\n");
-    const edge = crossReferenceGraph(text, "decimal-reference", {
+    const edge = (await crossReferenceGraph(text, "decimal-reference", {
       integrityThreshold: 0,
-    }).edges.find((candidate) => candidate.raw === "Section 150");
+    })).edges.find((candidate) => candidate.raw === "Section 150");
 
     expect(edge?.status).toBe("unresolved");
     expect(edge?.targetLabel).toBeNull();
@@ -103,8 +103,8 @@ describe("crossReferenceGraph — literal edges", () => {
 });
 
 describe("crossReferenceGraph — typed refusals", () => {
-  it("abstains wholesale when the skeleton is too thin to resolve against", () => {
-    const graph = graphOf(
+  it("abstains wholesale when the skeleton is too thin to resolve against", async () => {
+    const graph = await graphOf(
       "We may terminate under Section 4.2 and Section 9.1 at any time.",
     );
     expect(graph.documentAbstained).toBe(true);
@@ -116,26 +116,26 @@ describe("crossReferenceGraph — typed refusals", () => {
     }
   });
 
-  it("abstains when the document does not number to the referenced depth", () => {
+  it("abstains when the document does not number to the referenced depth", async () => {
     // Section 6.2 has anchored children; Section 7.3 has none, so a
     // reference to 7.3(c) says nothing about the document.
-    const edge = graphOf(
+    const edge = (await graphOf(
       `${AGREEMENT}\nSection 7.4 Notices. See Section 7.3(c) for details.\n`,
-    ).edges.find((e) => e.raw === "Section 7.3(c)");
+    )).edges.find((e) => e.raw === "Section 7.3(c)");
     expect(edge?.status).toBe("abstained");
     expect(edge?.reason).toBe("depth_not_numbered");
   });
 
-  it("reports a genuine dangling reference as unresolved", () => {
+  it("reports a genuine dangling reference as unresolved", async () => {
     // 6.2 numbers to (a)/(b); (z) is a real gap, not a detector blind spot.
-    const edge = graphOf(
+    const edge = (await graphOf(
       AGREEMENT.replace("the approvals in clause (a)", "the approvals in clause (z)"),
-    ).edges.find((e) => e.raw === "clause (z)");
+    )).edges.find((e) => e.raw === "clause (z)");
     expect(edge?.status).toBe("unresolved");
     expect(edge?.reason).toBe("no_such_provision");
   });
 
-  it("abstains rather than pick a side when a table of contents duplicates a label", () => {
+  it("abstains rather than pick a side when a table of contents duplicates a label", async () => {
     const withToc = [
       "TABLE OF CONTENTS",
       "",
@@ -143,14 +143,14 @@ describe("crossReferenceGraph — typed refusals", () => {
       "",
       AGREEMENT,
     ].join("\n");
-    const edge = crossReferenceGraph(withToc, "toc").edges.find(
+    const edge = (await crossReferenceGraph(withToc, "toc")).edges.find(
       (e) => e.raw === "Section 6.2" && e.status !== "resolved",
     );
     expect(edge?.status).toBe("abstained");
     expect(edge?.reason).toBe("ambiguous_label");
   });
 
-  it("abstains for the whole document when most accepted references still miss", () => {
+  it("abstains for the whole document when most accepted references still miss", async () => {
     // Real numbering exists, but the references address a scheme the
     // document does not use; the gate refuses rather than ship bad targets.
     const text = [
@@ -158,12 +158,12 @@ describe("crossReferenceGraph — typed refusals", () => {
       "Section 1.2 Beta. See Section 1.6, Section 1.5 and Section 1.4.",
       "Section 1.3 Gamma. Nothing further.",
     ].join("\n\n");
-    const gated = crossReferenceGraph(text, "gate");
+    const gated = await crossReferenceGraph(text, "gate");
     expect(gated.documentAbstained).toBe(true);
     expect(gated.note).toMatch(/numbering scheme/u);
     expect(gated.counts.resolved).toBe(0);
 
-    const ungated = crossReferenceGraph(text, "gate", { integrityThreshold: 0 });
+    const ungated = await crossReferenceGraph(text, "gate", { integrityThreshold: 0 });
     expect(ungated.documentAbstained).toBe(false);
     expect(ungated.counts.unresolved).toBeGreaterThan(0);
     expect(ungated.counts.integrity).toBeLessThan(0.5);
@@ -185,15 +185,15 @@ describe("crossReferenceGraph — the contents-page trap", () => {
     `${filler} governed by Section 1.01 and Section 3.01.`,
   ].join("\n");
 
-  it("abstains when every resolved target lands in a thin prefix", () => {
-    const graph = crossReferenceGraph(CONTENTS_ONLY, "toc-only");
+  it("abstains when every resolved target lands in a thin prefix", async () => {
+    const graph = await crossReferenceGraph(CONTENTS_ONLY, "toc-only");
     expect(graph.documentAbstained).toBe(true);
     expect(graph.note).toMatch(/table of contents/u);
     expect(graph.counts.resolved).toBe(0);
   });
 
-  it("says so without the gate, so the refusal is the gate's and not the resolver's", () => {
-    const ungated = crossReferenceGraph(CONTENTS_ONLY, "toc-only", {
+  it("says so without the gate, so the refusal is the gate's and not the resolver's", async () => {
+    const ungated = await crossReferenceGraph(CONTENTS_ONLY, "toc-only", {
       integrityThreshold: 0,
     });
     expect(ungated.counts.integrity).toBe(1);

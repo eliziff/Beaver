@@ -103,4 +103,5 @@ export const CLIENT_INFO = { name: "beaver", version: "1.0.0" };
 export const MCP_REQUEST_TIMEOUT_MS = 30_000;
 export const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;
 export const MAX_MCP_SSE_EVENT_BYTES = 256 * 1024;
+export const MAX_MCP_SSE_RESPONSE_BYTES = 8 * MAX_MCP_RESPONSE_BYTES;
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;

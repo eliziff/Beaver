@@ -11,7 +11,7 @@ import {
 import {
   normalizeLibraryKind,
 } from "../lib/normalize";
-import { encodePageCursor, pageRequest } from "../lib/pagination";
+import { pageRequest, pageResponse } from "../lib/pagination";
 import { singleFileUpload } from "../lib/upload";
 import {
   documentProjectionService,
@@ -86,12 +86,7 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       limit,
       after,
     });
-    res.json({
-      items: page.items,
-      next_cursor: page.nextAfter
-        ? encodePageCursor(`library/${scope.kind}`, filters, page.nextAfter)
-        : null,
-    });
+    res.json(pageResponse(`library/${scope.kind}`, filters, page));
   }));
 
   router.post(

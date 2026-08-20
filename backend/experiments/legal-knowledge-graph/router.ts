@@ -352,5 +352,3 @@ export function createLegalKnowledgeRouter(options?: {
 
   return router;
 }
-
-export const legalKnowledgeRouter = createLegalKnowledgeRouter();

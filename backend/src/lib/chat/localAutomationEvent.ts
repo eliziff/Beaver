@@ -1,10 +1,9 @@
+import { jsonRecord as row, trimmedText as text } from "../value";
+
 type AutomationTool =
   | "create_table_of_authorities"
   | "fix_docx_supras";
 type Row = Record<string, unknown>;
-const row = (value: unknown): Row | null =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const number = (value: unknown) => typeof value === "number" && Number.isFinite(value)
   ? value
   : undefined;
@@ -53,8 +52,6 @@ function event(
     status: "complete",
     ...(counts.length && { counts }),
     ...(text(result.filename) && { outputs: [{ name: text(result.filename) }] }),
-    ...Object.fromEntries(["document_id", "version_id"].flatMap((key) =>
-      text(result[key]) ? [[key, text(result[key])]] : [])),
     ...(number(result.version_number) !== undefined && { version_number: number(result.version_number) }),
   };
 }

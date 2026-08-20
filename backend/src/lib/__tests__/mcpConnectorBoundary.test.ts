@@ -4,6 +4,7 @@ import {
   connectorSummary,
   credentialFingerprint,
   readAuth,
+  requiresConfirmation,
   validateHeaders,
 } from "../mcp/client";
 import type { ConnectorRow, Db, OAuthTokenRow } from "../mcp/types";
@@ -43,18 +44,27 @@ afterEach(() => {
 });
 
 describe("MCP connector security boundary", () => {
+  it("fails closed unless an external server explicitly marks a tool read-only", () => {
+    expect(requiresConfirmation()).toBe(true);
+    expect(requiresConfirmation({ readOnlyHint: false })).toBe(true);
+    expect(requiresConfirmation({ readOnlyHint: true })).toBe(false);
+    expect(requiresConfirmation({ readOnlyHint: true, destructiveHint: true })).toBe(true);
+  });
+
   it("encrypts connector credentials and never binds them to display metadata", () => {
-    process.env.MCP_CONNECTORS_ENCRYPTION_SECRET = "test-secret-with-enough-entropy";
+    process.env.MCP_CONNECTORS_ENCRYPTION_SECRET = "test-secret-with-enough-entropy-32";
     const encrypted = authPatch({
       bearerToken: "secret-token",
       headers: { "X-Tenant": "tenant-a" },
-    });
+    }, connector());
     const row = connector(encrypted);
     expect(JSON.stringify(encrypted)).not.toContain("secret-token");
     expect(readAuth(row)).toEqual({
       bearerToken: "secret-token",
       headers: { "X-Tenant": "tenant-a" },
     });
+    expect(readAuth({ ...row, user_id: "user-2" })).toEqual({});
+    expect(readAuth({ ...row, server_url: "https://evil.example/api" })).toEqual({});
     expect(credentialFingerprint({ ...row, name: "Renamed", enabled: false }))
       .toBe(credentialFingerprint(row));
     expect(credentialFingerprint({ ...row, server_url: "https://mcp.example/v2" }))
@@ -63,7 +73,10 @@ describe("MCP connector security boundary", () => {
 
   it("rejects host injection and unbounded custom headers", () => {
     expect(() => validateHeaders({ Host: "internal" })).toThrow("Invalid custom header");
+    expect(() => validateHeaders({ "Transfer-Encoding": "chunked" })).toThrow("Invalid custom header");
+    expect(() => validateHeaders({ "X-Forwarded-For": "127.0.0.1" })).toThrow("Invalid custom header");
     expect(() => validateHeaders({ "Bad Header": "value" })).toThrow("Invalid custom header");
+    expect(() => validateHeaders({ "X-Test": "ok\r\nHost: internal" })).toThrow("valid value");
     expect(() => validateHeaders({ "X-Large": "x".repeat(4097) })).toThrow("4096");
     expect(() => validateHeaders(Object.fromEntries(
       Array.from({ length: 21 }, (_, index) => [`X-${index}`, "x"]),
@@ -139,5 +152,11 @@ describe("MCP connector security boundary", () => {
     );
     expect(result.content).toContain("External MCP tool call failed");
     expect(JSON.stringify({ result, auditRows })).not.toContain("secret upstream token");
+    remote.withRemoteMcp.mockResolvedValue({ content: "x".repeat(1024 * 1024) });
+    const oversized = await executeMcpToolCall(
+      "user-1", "mcp_research_find_connector1", {}, db,
+    );
+    expect(oversized.content).toContain("External MCP tool call failed");
+    expect(oversized.content).not.toContain("xxx");
   });
 });

@@ -8,13 +8,45 @@ import { execFileSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { DatabaseSync } from "node:sqlite";
 import {
-  fetchLocalA2AJDocumentsByIds, getLocalA2AJStructure,
+  fetchLocalA2AJDocumentsByIds, getLocalA2AJSectionMap,
 } from "../../src/lib/a2ajLocalBulk";
-import { journalLegalSourceProvider as journal } from "../../src/lib/legalSources/journal";
-import { compileNativeMarkupSourceDoc } from "../../src/lib/sourceDocNativeMarkup";
+import {
+  journalLegalSourceProvider as journal,
+} from "../../src/lib/legalSources/journal";
+import {
+  finalizeA2AJSourceStructure,
+  prepareA2AJSourceStructure,
+  type CompileInput,
+} from "../../src/lib/sourceDocA2AJ";
+import {
+  journalFinalContractSource,
+  prepareJournalSourceStructure,
+  type JournalPageRow,
+  type JournalStructureInput,
+} from "../../src/lib/sourceDocJournal";
+import {
+  prepareNativeMarkupSourceStructure,
+  type NativeMarkupSourceInput,
+} from "../../src/lib/sourceDocNativeMarkup";
+import type { SourceDoc } from "../../src/lib/sourceDoc";
+import {
+  deriveSourceStructureGraphs,
+  shutdownSourceStructureEngine,
+  sourceStructureEngineState,
+} from "../../src/lib/sourceStructureEngine";
+import { projectSourceStructure, type SourceStructureInput } from "../../src/lib/sourceStructureAdapter";
+import {
+  legalStructureBinary,
+  setBelowNormalProcessPriority,
+  type StructurePriorityReceipt,
+} from "../../src/lib/structureEngineClient";
 import {
   SOURCE_DOC_BYTES_CONTRACT, sourceDocMode, sourceDocPublicBytes,
 } from "./canonical";
+import {
+  STRUCTURE_INPUT_BYTES_CONTRACT,
+  structureInputSha256,
+} from "./structureInputProof";
 
 type Provider = "a2aj" | "courtlistener" | "journal";
 type Row = Record<string, unknown>;
@@ -26,6 +58,7 @@ type ManifestRecord = {
   source_kind: string;
   source_bytes: number;
   source_sha256: string;
+  structure_input_sha256?: string;
   status: RecordStatus;
   mode?: "native" | "hybrid" | "flat";
   canonical_bytes?: number;
@@ -64,6 +97,10 @@ type Checkpoint = {
   inventory: Inventory;
   providers: Record<Provider, Counts>;
   parts: Part[];
+  engine: { startup_ms: number; max_documents: number; max_bytes: number;
+    batches: number; documents: number; request_bytes: number;
+    materialize_ms: number; derive_ms: number; project_ms: number;
+    binary_sha256: string; capabilities: string[]; priority: StructurePriorityReceipt | null };
   complete: boolean;
 };
 type Inventory = {
@@ -79,6 +116,8 @@ type Inventory = {
   signatures: Record<Provider | "a2aj-search" | "journal-final", string>;
 };
 
+const runPriority = setBelowNormalProcessPriority();
+process.env.STRUCTURE_ENGINE_BELOW_NORMAL = "1";
 const args = new Map<string, string>();
 for (let index = 2; index < process.argv.length; index += 1) {
   const key = process.argv[index];
@@ -96,6 +135,7 @@ const output = path.resolve(args.get("output") ?? path.join(
 const batchSize = Math.max(1, Math.min(5_000, Number(args.get("batch") ?? 1_000)));
 const limit = Math.max(0, Number(args.get("limit") ?? 0));
 const warmupRows = Math.max(0, Number(args.get("warmup-rows") ?? 25));
+const digestOnly = args.has("digest-only");
 const requiredMib = Math.max(0, Number(args.get("require-mib-s") ?? 0));
 const shardCount = Math.max(1, Number(args.get("shard-count") ?? 1));
 const shardIndex = Math.max(0, Number(args.get("shard-index") ?? 0));
@@ -126,12 +166,18 @@ function journalSourcePath() {
   } finally { database.close(); }
 }
 const journalFile = journalSourcePath();
-const journalFinalFile = path.resolve(args.get("journal-final-db") ??
-  process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB ??
+const explicitJournalFinal = args.get("journal-final-db") ??
+  process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB;
+const explicitJournalRoot = args.get("journal-contract-root") ??
+  process.env.MIKE_JOURNAL_FINAL_CONTRACT_ROOT;
+if (selected.has("journal") && !limit && (!explicitJournalFinal || !explicitJournalRoot)) {
+  throw new Error("A full journal freeze requires explicit read-only contract DB and package roots");
+}
+const journalFinalFile = path.resolve(explicitJournalFinal ??
   path.join(localProviders, "journals", "journals.db"));
-const journalContractRoot = path.resolve(args.get("journal-contract-root") ??
+const journalContractRoot = path.resolve(explicitJournalRoot ??
   path.join(path.dirname(path.dirname(journalFinalFile)), "data", "final_contracts"));
-for (const filename of [a2ajFile, a2ajSearchFile, courtlistenerFile, journalFile, journalFinalFile]) {
+for (const filename of [a2ajFile, a2ajSearchFile, courtlistenerFile, journalFile]) {
   if (!existsSync(filename)) throw new Error(`Required provider store is absent: ${path.basename(filename)}`);
 }
 process.env.MIKE_A2AJ_BULK_DB = a2ajFile;
@@ -142,10 +188,10 @@ process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = journalFinalFile;
 const sha = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
 function sourceDigest(values: Array<Buffer | string>) {
   const hash = createHash("sha256");
+  const size = Buffer.allocUnsafe(8);
   let bytes = 0;
   for (const value of values) {
     const chunk = typeof value === "string" ? Buffer.from(value) : value;
-    const size = Buffer.allocUnsafe(8);
     size.writeBigUInt64LE(BigInt(chunk.length));
     hash.update(size).update(chunk);
     bytes += chunk.length;
@@ -182,7 +228,8 @@ const a2ajDb = new DatabaseSync(a2ajFile, { readOnly: true });
 const a2ajSearchDb = new DatabaseSync(a2ajSearchFile, { readOnly: true });
 const courtlistenerDb = new DatabaseSync(courtlistenerFile, { readOnly: true });
 const journalDb = new DatabaseSync(journalFile, { readOnly: true });
-const finalDb = new DatabaseSync(journalFinalFile, { readOnly: true });
+const finalDb = existsSync(journalFinalFile)
+  ? new DatabaseSync(journalFinalFile, { readOnly: true }) : null;
 const a2ajTotal = count(a2ajDb, "SELECT COUNT(*) AS count FROM document");
 const a2ajCases = count(a2ajDb, "SELECT COUNT(*) AS count FROM document WHERE doc_type='cases'");
 const a2ajLaws = count(a2ajDb, "SELECT COUNT(*) AS count FROM document WHERE doc_type='laws'");
@@ -192,10 +239,16 @@ const journalTotal = count(journalDb, "SELECT COUNT(*) AS count FROM articles");
 const journalPages = count(journalDb, "SELECT COUNT(*) AS count FROM article_pages");
 const orphanPages = count(journalDb, `SELECT COUNT(*) AS count FROM article_pages AS p
   LEFT JOIN articles AS a ON a.article_id=p.article_id WHERE a.article_id IS NULL`);
-const finalRows = finalDb.prepare("SELECT * FROM article_final_contracts ORDER BY article_id").all() as Row[];
+const finalRows = finalDb
+  ? finalDb.prepare("SELECT * FROM article_final_contracts ORDER BY article_id").all() as Row[]
+  : [];
 const articleIds = new Set((journalDb.prepare("SELECT article_id FROM articles").all() as Row[])
   .map((row) => Number(row.article_id)));
 const orphanContracts = finalRows.filter((row) => !articleIds.has(Number(row.article_id))).length;
+if (selected.has("journal") && !limit &&
+  (finalRows.length !== 6_937 || orphanContracts !== 227)) {
+  throw new Error(`Journal contract denominator drift: ${finalRows.length}/6937, ${orphanContracts}/227 orphan`);
+}
 const inventory: Inventory = {
   a2aj: { total: a2ajTotal, cases: a2ajCases, laws: a2ajLaws, derivative_cases_search: derivativeCases },
   courtlistener: { opinions: courtlistenerTotal },
@@ -208,7 +261,7 @@ const inventory: Inventory = {
     "a2aj-search": signature(a2ajSearchFile, derivativeCases),
     courtlistener: signature(courtlistenerFile, courtlistenerTotal),
     journal: signature(journalFile, journalTotal + journalPages),
-    "journal-final": signature(journalFinalFile, finalRows.length),
+    "journal-final": finalDb ? signature(journalFinalFile, finalRows.length) : sha("absent"),
   },
 };
 if (args.has("inventory")) {
@@ -234,14 +287,31 @@ const baselineCommit = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: path.resolve(__dirname, "../../.."), encoding: "utf8",
 }).trim();
 const serializerHash = sha(SOURCE_DOC_BYTES_CONTRACT);
+const structureInputContractHash = sha(STRUCTURE_INPUT_BYTES_CONTRACT);
+const harnessRevision = "batched-shared-engine-v4-structure-input-proof";
+const engineBinaryHash = sha(readFileSync(legalStructureBinary()));
+const harnessHash = sha(readFileSync(__filename));
+const adapterCodeHash = sourceDigest([
+  "../../src/lib/sourceDocA2AJ.ts", "../../src/lib/sourceDocNativeMarkup.ts",
+  "../../src/lib/sourceDocJournal.ts", "../../src/lib/sourceDocStructureHost.ts",
+  "../../src/lib/legalSources/journal.ts", "../../src/lib/sourceStructureAdapter.ts",
+  "../../src/lib/sourceStructureEngine.ts", "../../src/lib/structureWire.ts",
+  "../../src/lib/structureEngineClient.ts", "../../src/lib/sourceDoc.ts",
+  "../../src/lib/a2ajLocalBulk.ts", "../../src/lib/hash.ts", "canonical.ts",
+].map((filename) => readFileSync(path.resolve(__dirname, filename)))).source_sha256;
 const configHash = sha(JSON.stringify({
   baselineCommit, serializerHash, inventory, selected: [...selected].sort(),
-  batchSize, limit, warmupRows, shardCount, shardIndex, providerBounds,
+  batchSize, limit, warmupRows, shardCount, shardIndex, providerBounds, digestOnly,
+  harnessRevision, harnessHash, adapterCodeHash, engineBinaryHash, structureInputContractHash,
+  priority: "BELOW_NORMAL",
 }));
-mkdirSync(output, { recursive: true });
-mkdirSync(path.join(output, "parts"), { recursive: true });
+if (!digestOnly) {
+  mkdirSync(output, { recursive: true });
+  mkdirSync(path.join(output, "parts"), { recursive: true });
+}
 const checkpointFile = path.join(output, "checkpoint.json");
-const checkpoint: Checkpoint = existsSync(checkpointFile)
+let peakRssBytes = process.memoryUsage.rss();
+const checkpoint: Checkpoint = !digestOnly && existsSync(checkpointFile)
   ? JSON.parse(readFileSync(checkpointFile, "utf8")) as Checkpoint
   : {
       schema_version: "source-structure-installed-freeze.v1",
@@ -251,6 +321,10 @@ const checkpoint: Checkpoint = existsSync(checkpointFile)
       inventory,
       providers: { a2aj: emptyCounts(), courtlistener: emptyCounts(), journal: emptyCounts() },
       parts: [], complete: false,
+      engine: { startup_ms: 0, max_documents: 0, max_bytes: 0,
+        batches: 0, documents: 0, request_bytes: 0, materialize_ms: 0,
+        derive_ms: 0, project_ms: 0, binary_sha256: engineBinaryHash,
+        capabilities: [], priority: null },
     };
 if (checkpoint.config_sha256 !== configHash) {
   throw new Error("Resume refused: code, corpus signature, or run configuration changed");
@@ -270,23 +344,37 @@ function providerTotal(provider: Provider) {
   return scoped + (provider === "journal" && !limit && shardIndex === shardCount - 1
     ? orphanContracts : 0);
 }
+function wantedRows(state: Counts) {
+  const remaining = limit ? limit - state.attempted : batchSize;
+  const warm = Math.max(0, warmupRows - state.attempted);
+  return Math.min(remaining, batchSize, warm || batchSize);
+}
+function addElapsed(state: Counts, key: string, started: number) {
+  state.details[key] = (state.details[key] ?? 0) + performance.now() - started;
+}
 function commitPart(provider: Provider, records: ManifestRecord[], lastId: number, started: number) {
   if (!records.length) return;
+  const artifactStarted = performance.now();
   const body = Buffer.from(`${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
-  const compressed = gzipSync(body, { level: 6 });
+  peakRssBytes = Math.max(peakRssBytes, process.memoryUsage.rss());
   const partNumber = checkpoint.parts.length + 1;
-  const name = `${String(partNumber).padStart(6, "0")}-${provider}.jsonl.gz`;
-  const filename = path.join(output, "parts", name);
+  const stem = `${String(partNumber).padStart(6, "0")}-${provider}.jsonl`;
+  const compressed = digestOnly ? body : gzipSync(body, { level: 6 });
+  const name = digestOnly ? stem : `${stem}.gz`;
   const digest = sha(compressed);
-  if (existsSync(filename)) {
-    if (sha(readFileSync(filename)) !== digest) throw new Error(`Conflicting resume part: ${name}`);
-  } else {
-    const temporary = `${filename}.${process.pid}.tmp`;
-    writeFileSync(temporary, compressed);
-    renameSync(temporary, filename);
+  if (!digestOnly) {
+    const filename = path.join(output, "parts", name);
+    if (existsSync(filename)) {
+      if (sha(readFileSync(filename)) !== digest) throw new Error(`Conflicting resume part: ${name}`);
+    } else {
+      const temporary = `${filename}.${process.pid}.tmp`;
+      writeFileSync(temporary, compressed);
+      renameSync(temporary, filename);
+    }
   }
   const elapsed = performance.now() - started;
   const state = checkpoint.providers[provider];
+  const attemptedBefore = state.attempted;
   for (const record of records) {
     state.attempted += 1;
     state[record.status] += 1;
@@ -315,27 +403,38 @@ function commitPart(provider: Provider, records: ManifestRecord[], lastId: numbe
     }
   }
   state.elapsed_ms += elapsed;
+  const artifactElapsed = performance.now() - artifactStarted;
+  state.details.artifact_ms = (state.details.artifact_ms ?? 0) + artifactElapsed;
+  const warmArtifactRows = Math.min(records.length, Math.max(0, warmupRows - attemptedBefore));
+  state.warmup_ms += artifactElapsed * warmArtifactRows / records.length;
   state.last_id = lastId;
   checkpoint.parts.push({ name, rows: records.length, bytes: compressed.length, sha256: digest });
-  atomicJson(checkpointFile, checkpoint);
+  if (!digestOnly) atomicJson(checkpointFile, checkpoint);
   const seconds = Math.max(state.elapsed_ms - state.warmup_ms, 1) / 1_000;
   const mib = (state.source_bytes - state.warmup_bytes) / 1048576 / seconds;
-  console.log(`${provider} ${state.attempted}/${Math.min(limit || Infinity, providerTotal(provider))}` +
-    ` pass=${state.pass} failure=${state.failure} ${mib.toFixed(1)} MiB/s`);
-}
-function timedRecord(state: Counts, produce: () => ManifestRecord) {
-  const started = performance.now();
-  const record = produce();
-  const elapsed = performance.now() - started;
-  if (state.attempted + state.warmup_rows < warmupRows) {
-    state.warmup_rows += 1;
-    state.warmup_bytes += record.source_bytes;
-    state.warmup_ms += elapsed;
+  const expected = Math.min(limit || Infinity, providerTotal(provider));
+  if (state.attempted === expected || state.attempted % 1_000 < records.length) {
+    console.log(`${provider} ${state.attempted}/${expected}` +
+      ` pass=${state.pass} failure=${state.failure} ${mib.toFixed(1)} MiB/s`);
   }
-  return record;
+}
+function recordWarmup(state: Counts, records: ManifestRecord[], elapsed: number) {
+  const count = Math.min(records.length, Math.max(0, warmupRows - state.attempted));
+  if (!count) return;
+  state.warmup_rows += count;
+  state.warmup_bytes += records.slice(0, count)
+    .reduce((sum, record) => sum + record.source_bytes, 0);
+  state.warmup_ms += elapsed * count / records.length;
+}
+async function derivePreparedStructures(structures: readonly SourceStructureInput[]) {
+  const graphs = await deriveSourceStructureGraphs(structures);
+  return graphs.map(({ materialized, graph }) => ({
+    doc: projectSourceStructure(materialized, graph),
+    structure_input_sha256: structureInputSha256(materialized.evidence),
+  }));
 }
 function success(provider: Provider, sourceId: string, sourceKind: string,
-  digest: ReturnType<typeof sourceDigest>, doc: NonNullable<ReturnType<typeof getLocalA2AJStructure>>,
+  digest: ReturnType<typeof sourceDigest>, doc: SourceDoc,
   extra: Partial<ManifestRecord> = {}): ManifestRecord {
   const canonical = sourceDocPublicBytes(doc);
   return {
@@ -358,12 +457,13 @@ const A2AJ_COLUMNS = `id, doc_type, dataset, citation_en, citation_fr,
   citation2_en, citation2_fr, name_en, name_fr, document_date_en,
   document_date_fr, url_en, url_fr, unofficial_text_en, unofficial_text_fr,
   unofficial_sections_en, unofficial_sections_fr, upstream_license`;
-function runA2AJ() {
+async function runA2AJ() {
   const state = checkpoint.providers.a2aj;
+  const batchesBefore = (await sourceStructureEngineState()).batches;
   const range = providerBounds.a2aj;
   while (!limit || state.attempted < limit) {
     const batchStarted = performance.now();
-    const wanted = Math.min(batchSize, limit ? limit - state.attempted : batchSize);
+    const wanted = wantedRows(state);
     const cursor = Math.max(state.last_id, range.start - 1);
     const rows = a2ajDb.prepare(`SELECT ${A2AJ_COLUMNS} FROM document
       WHERE id > ? AND (? IS NULL OR id < ?) ORDER BY id LIMIT ?`)
@@ -383,20 +483,41 @@ function runA2AJ() {
         })) documents.set(id, value);
       }
     }
-    const records: ManifestRecord[] = [];
-    for (const row of rows) {
-      records.push(timedRecord(state, () => {
-        const digest = rowDigest([row]);
-        const id = Number(row.id);
-        const document = documents.get(id);
-        const doc = document ? getLocalA2AJStructure(document) : null;
-        return doc
-          ? success("a2aj", String(id), String(row.doc_type), digest, doc)
-          : failure("a2aj", String(id), String(row.doc_type), digest, "provider_unavailable");
-      }));
-    }
+    const available = rows.flatMap((row) => {
+      const id = Number(row.id), document = documents.get(id);
+      if (!document) return [];
+      return [{ id, input: {
+        structureDocumentId: String(id),
+        docType: document.docType ?? (row.doc_type === "laws" ? "laws" : "cases"),
+        dataset: document.dataset,
+        citation: document.citation, alternateCitation: document.alternateCitation,
+        name: document.name, url: document.url, text: document.text,
+        sectionMap: getLocalA2AJSectionMap(document),
+      } satisfies CompileInput }];
+    });
+    addElapsed(state, "prepare_ms", batchStarted);
+    const structures = available.map(({ id, input }) => ({
+      id, prepared: prepareA2AJSourceStructure(input),
+    }));
+    const deriveStarted = performance.now();
+    const derived = await derivePreparedStructures(structures.map(({ prepared }) => prepared.structure));
+    addElapsed(state, "derive_wall_ms", deriveStarted);
+    const byId = new Map(structures.map(({ id, prepared }, index) => [id, {
+      ...derived[index], doc: finalizeA2AJSourceStructure(prepared, derived[index].doc),
+    }]));
+    const recordStarted = performance.now();
+    const records = rows.map((row) => {
+      const id = Number(row.id), result = byId.get(id), digest = rowDigest([row]);
+      return result ? success("a2aj", String(id), String(row.doc_type), digest, result.doc, {
+        structure_input_sha256: result.structure_input_sha256,
+      })
+        : failure("a2aj", String(id), String(row.doc_type), digest, "provider_unavailable");
+    });
+    addElapsed(state, "record_ms", recordStarted);
+    recordWarmup(state, records, performance.now() - batchStarted);
     commitPart("a2aj", records, Number(rows.at(-1)!.id), batchStarted);
   }
+  state.details.sidecar_batches = (await sourceStructureEngineState()).batches - batchesBefore;
 }
 
 function decodeHtml(value: string) {
@@ -418,55 +539,62 @@ const COURT_MARKUP = [
   "html_with_citations", "xml_harvard", "html_columbia", "html_lawbox",
   "html_anon_2020", "html",
 ];
-function runCourtlistener() {
+async function runCourtlistener() {
   const state = checkpoint.providers.courtlistener;
+  const batchesBefore = (await sourceStructureEngineState()).batches;
   const range = providerBounds.courtlistener;
   while (!limit || state.attempted < limit) {
     const batchStarted = performance.now();
-    const wanted = Math.min(batchSize, limit ? limit - state.attempted : batchSize);
+    const wanted = wantedRows(state);
     const cursor = Math.max(state.last_id, range.start - 1);
     const rows = courtlistenerDb.prepare(`SELECT * FROM opinion
       WHERE id > ? AND (? IS NULL OR id < ?) ORDER BY id LIMIT ?`)
       .all(cursor, range.end, range.end, wanted) as Row[];
     if (!rows.length) break;
-    const records: ManifestRecord[] = [];
-    for (const row of rows) {
-      records.push(timedRecord(state, () => {
-        const digest = rowDigest([row]);
-        const id = String(row.id);
-        try {
-          const markup = COURT_MARKUP.map((field) => row[field])
-            .find((value) => typeof value === "string" && value.trim()) as string | undefined;
-          const plain = typeof row.plain_text === "string" && row.plain_text.trim()
-            ? row.plain_text : null;
-          if (!markup && !plain) {
-            return failure("courtlistener", id, "opinion", digest, "provider_unavailable");
-          }
-          // Production's markup renderer owns the output whenever it yields text.
-          // Avoid a redundant full HTML strip in that common case, but retain the
-          // exact production fallback for empty or malformed markup.
-          let doc = compileNativeMarkupSourceDoc({
-            provider: "courtlistener", id, text: markup ? "" : opinionText(plain) ?? "",
-            markup: markup ?? null,
-          });
-          if (!doc.text && markup) {
-            const text = opinionText(markup);
-            if (!text) {
-              return failure("courtlistener", id, "opinion", digest, "provider_unavailable");
-            }
-            doc = compileNativeMarkupSourceDoc({ provider: "courtlistener", id, text, markup });
-          }
-          if (!doc.text) {
-            return failure("courtlistener", id, "opinion", digest, "provider_unavailable");
-          }
-          return success("courtlistener", id, "opinion", digest, doc);
-        } catch (error) {
-          return failure("courtlistener", id, "opinion", digest, "compile_exception", error);
-        }
-      }));
+    const prepared = rows.map((row) => {
+      const id = String(row.id);
+      const markup = COURT_MARKUP.map((field) => row[field])
+        .find((value) => typeof value === "string" && value.trim()) as string | undefined;
+      const plain = typeof row.plain_text === "string" && row.plain_text.trim()
+        ? row.plain_text : null;
+      const input: NativeMarkupSourceInput | null = markup || plain ? {
+        provider: "courtlistener", id, text: markup ? "" : opinionText(plain) ?? "",
+        markup: markup ?? null,
+      } : null;
+      return { row, id, markup, digest: rowDigest([row]), input };
+    });
+    const available = prepared.filter(
+      (item): item is typeof item & { input: NativeMarkupSourceInput } => !!item.input,
+    );
+    addElapsed(state, "prepare_ms", batchStarted);
+    const structures = available.map(({ input }) => prepareNativeMarkupSourceStructure(input));
+    const deriveStarted = performance.now();
+    const derived = await derivePreparedStructures(structures);
+    const fallback = available.flatMap((item, index) => {
+      const text = !derived[index].doc.text && item.markup ? opinionText(item.markup) : null;
+      return text ? [{ index, input: { provider: "courtlistener" as const,
+        id: item.id, text, markup: item.markup } }] : [];
+    });
+    if (fallback.length) {
+      const retried = await derivePreparedStructures(fallback.map(({ input }) =>
+        prepareNativeMarkupSourceStructure(input)));
+      fallback.forEach(({ index }, at) => { derived[index] = retried[at]; });
     }
+    addElapsed(state, "derive_wall_ms", deriveStarted);
+    const byId = new Map(available.map(({ id }, index) => [id, derived[index]]));
+    const recordStarted = performance.now();
+    const records = prepared.map(({ id, digest }) => {
+      const result = byId.get(id);
+      return result?.doc.text ? success("courtlistener", id, "opinion", digest, result.doc, {
+        structure_input_sha256: result.structure_input_sha256,
+      })
+        : failure("courtlistener", id, "opinion", digest, "provider_unavailable");
+    });
+    addElapsed(state, "record_ms", recordStarted);
+    recordWarmup(state, records, performance.now() - batchStarted);
     commitPart("courtlistener", records, Number(rows.at(-1)!.id), batchStarted);
   }
+  state.details.sidecar_batches = (await sourceStructureEngineState()).batches - batchesBefore;
 }
 
 function inside(base: string, candidate: string) {
@@ -501,51 +629,58 @@ function standalonePages(sourceDir: unknown) {
       ? realCandidate : null;
   } catch { return null; }
 }
-function positiveInteger(value: unknown) {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(number) && number > 0 ? number : null;
-}
-function readFinalState(articleId: number, filename: string | null) {
-  if (!filename) return { state: "unresolved" as const, raw: null, pages: 0 };
+function readFinalState(articleId: number, filename: string | null, pageRows: JournalPageRow[]) {
+  if (!filename) return { state: "unresolved" as const, raw: null, rawSha: null,
+    pages: 0, canonical: null };
   try {
     const raw = readFileSync(filename);
-    const pages = raw.toString("utf8").split(/\r?\n/gu).filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as Row);
-    const applicable = pages.length > 0 && pages.every((page) =>
-      (!positiveInteger(page.article_id) || positiveInteger(page.article_id) === articleId) &&
-      typeof page.text === "string") && pages.some((page) => String(page.text).trim());
+    const rawSha = sha(raw);
+    const parsed = journalFinalContractSource(articleId, raw, pageRows);
     return {
-      state: applicable ? "applicable" as const : "invalid" as const,
-      raw,
-      pages: pages.length,
+      state: parsed ? "applicable" as const : "invalid" as const,
+      raw, rawSha, pages: parsed?.pages ?? 0, canonical: parsed,
     };
-  } catch { return { state: "invalid" as const, raw: null, pages: 0 }; }
+  } catch { return { state: "invalid" as const, raw: null, rawSha: null,
+    pages: 0, canonical: null }; }
 }
-function finalStates(articleId: number, registration: Row | undefined) {
-  if (!registration) return { state: "none" as const, raw: null, pages: 0 };
+function finalStates(articleId: number, registration: Row | undefined, pageRows: JournalPageRow[]) {
+  if (!registration) return { state: "none" as const, raw: null, rawSha: null,
+    pages: 0, canonical: null };
   const productionFile = registeredPages(registration.source_dir);
-  const production = readFinalState(articleId, productionFile);
-  const standaloneFile = standalonePages(registration.source_dir);
+  const production = readFinalState(articleId, productionFile, pageRows);
+  const standaloneFile = productionFile ?? standalonePages(registration.source_dir);
   const standalone = standaloneFile === productionFile
-    ? production : readFinalState(articleId, standaloneFile);
+    ? production : readFinalState(articleId, standaloneFile, pageRows);
   return { production, standalone };
 }
 function contractProof(contract: ReturnType<typeof readFinalState>, alias: boolean) {
   return {
     contract_validation: contract.state,
     contract_source_bytes: contract.raw?.length ?? 0,
-    ...(contract.raw ? { contract_source_sha256: sha(contract.raw) } : {}),
+    ...(contract.rawSha ? { contract_source_sha256: contract.rawSha } : {}),
     contract_pages: contract.pages,
     contract_alias: alias,
   };
 }
-function runJournal() {
+function publicUrl(row: Row) {
+  for (const candidate of [row.galley_url, row.url_en]) {
+    if (typeof candidate !== "string") continue;
+    try {
+      const url = new URL(candidate.trim());
+      if (url.protocol === "http:" || url.protocol === "https:") return url.toString();
+    } catch { /* Invalid provider URLs make the source unavailable. */ }
+  }
+  return null;
+}
+
+async function runJournal() {
   const state = checkpoint.providers.journal;
+  const batchesBefore = (await sourceStructureEngineState()).batches;
   const range = providerBounds.journal;
   const registrations = new Map(finalRows.map((row) => [Number(row.article_id), row]));
   while (!limit || state.attempted < limit) {
     const batchStarted = performance.now();
-    const wanted = Math.min(batchSize, limit ? limit - state.attempted : batchSize);
+    const wanted = wantedRows(state);
     const cursor = Math.max(state.last_id, range.start - 1);
     const rows = journalDb.prepare(`SELECT * FROM articles
       WHERE article_id > ? AND (? IS NULL OR article_id < ?) ORDER BY article_id LIMIT ?`)
@@ -559,46 +694,54 @@ function runJournal() {
     for (const page of pageRows) byArticle.set(Number(page.article_id), [
       ...(byArticle.get(Number(page.article_id)) ?? []), page,
     ]);
-    const records: ManifestRecord[] = [];
-    for (const row of rows) {
-      records.push(timedRecord(state, () => {
-        const id = Number(row.article_id);
-        const pages = byArticle.get(id) ?? [];
-        const registration = registrations.get(id);
-        const final = finalStates(id, registration);
-        const production = "production" in final ? final.production! : final;
-        const contract = "standalone" in final ? final.standalone! : null;
-        const digest = rowDigest(
-          [row, ...pages, ...(registration ? [registration] : [])],
-          contract?.raw ? [contract.raw] : [],
-        );
-        try {
-          const document = journal.document(String(id));
-          return document
-              ? success("journal", String(id), "article", digest, document.structure, {
-                final_contract: production.state, page_rows: pages.length,
-                ...(contract ? contractProof(contract, true) : {}),
-              })
-            : failure("journal", String(id), "article", digest, "provider_unavailable", undefined, {
-                final_contract: production.state, page_rows: pages.length,
-                ...(contract ? contractProof(contract, true) : {}),
-              });
-        } catch (error) {
-          return failure("journal", String(id), "article", digest, "compile_exception", error, {
-            final_contract: production.state, page_rows: pages.length,
-            ...(contract ? contractProof(contract, true) : {}),
-          });
-        }
-      }));
-    }
+    const prepared = rows.map((row) => {
+      const id = Number(row.article_id);
+      const pages = (byArticle.get(id) ?? []).map(({ page_label, pdf_page }) =>
+        ({ page_label, pdf_page }) satisfies JournalPageRow);
+      const registration = registrations.get(id), final = finalStates(id, registration, pages);
+      const production = "production" in final ? final.production! : final;
+      const contract = "standalone" in final ? final.standalone! : null;
+      const digest = rowDigest([row, ...pages, ...(registration ? [registration] : [])],
+        contract?.raw ? [contract.raw] : []);
+      const canonical = production.canonical;
+      const text = canonical?.text ?? (typeof row.text === "string" ? row.text.trim() : "");
+      const url = publicUrl(row);
+      const input: JournalStructureInput | null = text && url ? {
+        articleId: id, url, text, pageRows: pages, nativeBlocks: canonical?.blocks,
+      } : null;
+      return { id, pages, production, contract, digest, input };
+    });
+    const available = prepared.filter(
+      (item): item is typeof item & { input: JournalStructureInput } => !!item.input,
+    );
+    addElapsed(state, "prepare_ms", batchStarted);
+    const deriveStarted = performance.now();
+    const derived = await derivePreparedStructures(available.map(({ input }) =>
+      prepareJournalSourceStructure(input)));
+    addElapsed(state, "derive_wall_ms", deriveStarted);
+    const byId = new Map(available.map(({ id }, index) => [id, derived[index]]));
+    const recordStarted = performance.now();
+    const records = prepared.map(({ id, pages, production, contract, digest }) => {
+      const result = byId.get(id);
+      const extra = { final_contract: production.state, page_rows: pages.length,
+        ...(contract ? contractProof(contract, true) : {}),
+        ...(result ? { structure_input_sha256: result.structure_input_sha256 } : {}) };
+      return result ? success("journal", String(id), "article", digest, result.doc, extra)
+        : failure("journal", String(id), "article", digest, "provider_unavailable", undefined, extra);
+    });
+    addElapsed(state, "record_ms", recordStarted);
+    recordWarmup(state, records, performance.now() - batchStarted);
     commitPart("journal", records, Number(rows.at(-1)!.article_id), batchStarted);
   }
   if (limit || shardIndex !== shardCount - 1 ||
-    (state.details.orphan_final_contracts ?? 0) === orphanContracts) return;
+    (state.details.orphan_final_contracts ?? 0) === orphanContracts) {
+    state.details.sidecar_batches = (await sourceStructureEngineState()).batches - batchesBefore;
+    return;
+  }
   const batchStarted = performance.now();
   const records = finalRows.filter((row) => !articleIds.has(Number(row.article_id))).map((row) => {
     const id = Number(row.article_id);
-    const final = finalStates(id, row);
+    const final = finalStates(id, row, []);
     if (!("production" in final)) throw new Error("Registered final contract is missing");
     const standalone = final.standalone!;
     const production = final.production!;
@@ -612,12 +755,25 @@ function runJournal() {
     );
   });
   commitPart("journal", records, state.last_id, batchStarted);
+  state.details.sidecar_batches = (await sourceStructureEngineState()).batches - batchesBefore;
 }
 
+async function main() {
+const startupStarted = performance.now();
+const initialEngine = await sourceStructureEngineState();
+if (!initialEngine.priority || initialEngine.priority.parent_pid !== runPriority.pid ||
+    initialEngine.priority.parent_priority !== runPriority.priority) {
+  throw new Error("Structure sidecar did not bind the BELOW_NORMAL harness priority");
+}
+checkpoint.engine = { startup_ms: performance.now() - startupStarted,
+  max_documents: initialEngine.limits.max_documents, max_bytes: initialEngine.limits.max_bytes,
+  batches: 0, documents: 0, request_bytes: 0, materialize_ms: 0,
+  derive_ms: 0, project_ms: 0, binary_sha256: engineBinaryHash,
+  capabilities: [...initialEngine.capabilities], priority: initialEngine.priority };
 try {
-  if (selected.has("a2aj")) runA2AJ();
-  if (selected.has("courtlistener")) runCourtlistener();
-  if (selected.has("journal")) runJournal();
+  if (selected.has("a2aj")) await runA2AJ();
+  if (selected.has("courtlistener")) await runCourtlistener();
+  if (selected.has("journal")) await runJournal();
   for (const provider of selected) {
     const state = checkpoint.providers[provider];
     if (state.attempted !== state.pass + state.failure) {
@@ -627,22 +783,41 @@ try {
     if (state.attempted !== expected) throw new Error(`${provider}: incomplete ${state.attempted}/${expected}`);
     const measuredBytes = state.source_bytes - state.warmup_bytes;
     const measuredMs = state.elapsed_ms - state.warmup_ms;
+    const measuredDocuments = state.attempted - state.warmup_rows;
     const mib = measuredBytes / 1048576 / Math.max(measuredMs / 1000, 0.001);
     state.details.measured_mib_s_x1000 = Math.round(mib * 1000);
+    state.details.measured_docs_s_x1000 = Math.round(
+      measuredDocuments / Math.max(measuredMs / 1000, 0.001) * 1000,
+    );
     if (requiredMib && mib < requiredMib) {
       throw new Error(`${provider}: ${mib.toFixed(1)} MiB/s is below ${requiredMib}`);
     }
   }
+  const finalEngine = await sourceStructureEngineState();
+  checkpoint.engine = { ...checkpoint.engine, batches: finalEngine.batches,
+    documents: finalEngine.documents, request_bytes: finalEngine.request_bytes,
+    materialize_ms: finalEngine.materialize_ms, derive_ms: finalEngine.derive_ms,
+    project_ms: finalEngine.project_ms };
   checkpoint.complete = true;
-  atomicJson(checkpointFile, checkpoint);
+  if (!digestOnly) atomicJson(checkpointFile, checkpoint);
   const summary = {
     ...checkpoint,
+    harness_revision: harnessRevision,
+    harness_sha256: harnessHash,
+    adapter_code_sha256: adapterCodeHash,
+    structure_input_contract_sha256: structureInputContractHash,
+    artifact_mode: digestOnly ? "digest-only" : "gzip-parts",
+    peak_rss_bytes: peakRssBytes,
     manifest_root_sha256: sha(JSON.stringify(checkpoint.parts)),
     artifact_bytes: checkpoint.parts.reduce((sum, part) => sum + part.bytes, 0),
   };
-  atomicJson(path.join(output, "summary.json"), summary);
+  if (!digestOnly) atomicJson(path.join(output, "summary.json"), summary);
   console.log(JSON.stringify(summary, null, 2));
 } finally {
+  await shutdownSourceStructureEngine();
   journal.closeDatabases();
-  a2ajDb.close(); a2ajSearchDb.close(); courtlistenerDb.close(); journalDb.close(); finalDb.close();
+  a2ajDb.close(); a2ajSearchDb.close(); courtlistenerDb.close(); journalDb.close(); finalDb?.close();
 }
+}
+
+void main();

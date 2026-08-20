@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { getModelCatalog } from "@/app/lib/beaverApi";
-import { resetModelCatalogSession } from "@/app/lib/modelCatalog";
 import AssistantPage from "./page";
 
 vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
@@ -41,7 +40,6 @@ const getCatalog = vi.mocked(getModelCatalog);
 
 beforeEach(() => {
   localStorage.clear();
-  resetModelCatalogSession();
   getCatalog.mockReset();
   getCatalog.mockResolvedValue({ source: "live", models: [] });
 });

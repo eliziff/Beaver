@@ -208,7 +208,7 @@ function Build-LegalPdf([string]$Binary) {
     $engine = Join-Path $Repo 'legal-pdf-parser'
     Push-Location $engine
     try {
-        & $cargo build --release --locked --features kraken,ppdoc
+        & $cargo build --release --locked --features full
         $buildExitCode = $LASTEXITCODE
     }
     finally {
@@ -242,7 +242,7 @@ function Resolve-LegalPdfBinary([switch]$Build) {
     if ($installed) {
         return $installed
     }
-    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features kraken,ppdoc --manifest-path .\legal-pdf-parser\Cargo.toml'
+    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features full --manifest-path .\legal-pdf-parser\Cargo.toml'
 }
 
 function Get-LegalPdfRuntimeVersion([string]$Binary) {
@@ -601,7 +601,7 @@ function Start-Stack {
         Write-Host "Beaver ready: $($Services[0].Url)"
 
         if ($WithTableOfAuthorities) {
-            $toaStart = Start-LoggedProcess 'authorities-helper' $python @('bootstrap.py', '--web', '--port', '8765', '--no-browser') $Toa $state
+            $toaStart = Start-LoggedProcess 'authorities-helper' $python @('bootstrap.py', '--port', '8765', '--no-browser') $Toa $state
             $launched += [pscustomobject]@{
                 Id = $toaStart.Process.Id
                 StartedAt = Get-ProcessStamp $toaStart.Process.Id

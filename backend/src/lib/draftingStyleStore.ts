@@ -14,17 +14,14 @@ import {
 const settingsPath = () => path.join(mikeLocalDataHome(), "drafting-style.json");
 let localMutation: Promise<unknown> = Promise.resolve();
 
-async function readLocalDraftingStyle() {
-  try {
-    return normalizeDraftingStyleSettings(JSON.parse(await readFile(settingsPath(), "utf8")));
-  } catch { return DEFAULT_DRAFTING_STYLE; }
-}
-
 export async function getDraftingStyleSettings(
   userId: string,
   db?: ReturnType<typeof createServerSupabase>,
 ): Promise<DraftingStyleSettings> {
-  if (isLocalRuntime()) return readLocalDraftingStyle();
+  if (isLocalRuntime()) {
+    try { return normalizeDraftingStyleSettings(JSON.parse(await readFile(settingsPath(), "utf8"))); }
+    catch { return DEFAULT_DRAFTING_STYLE; }
+  }
   const client = db ?? createServerSupabase();
   const { data, error } = await client
     .from("user_profiles")
@@ -46,9 +43,10 @@ export async function saveDraftingStyleSettings(
   if (isLocalRuntime()) {
     const operation = localMutation.then(async () => {
       const filename = settingsPath(), temporary = `${filename}.${randomUUID()}.tmp`;
-      await mkdir(path.dirname(filename), { recursive: true });
+      await mkdir(path.dirname(filename), { recursive: true, mode: 0o700 });
       try {
-        await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+        await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`,
+          { encoding: "utf8", mode: 0o600 });
         await rename(temporary, filename);
       } finally { await rm(temporary, { force: true }); }
       return settings;

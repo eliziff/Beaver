@@ -131,7 +131,7 @@ npm ci
 npm ci --prefix backend
 npm ci --prefix frontend
 cargo build --manifest-path legal-pdf-parser\Cargo.toml --release --locked `
-  --features kraken,ppdoc,fast-allocator
+  --features full,fast-allocator
 python -m venv AuthoritiesHelper\.venv
 .\AuthoritiesHelper\.venv\Scripts\python -m pip install `
   -r AuthoritiesHelper\requirements.lock.txt

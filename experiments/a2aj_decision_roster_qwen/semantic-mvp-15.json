@@ -1,0 +1,40 @@
+{
+  "format": "a2aj-semantic-mvp-cohort-v1",
+  "source_manifest": "runs/selection-fast-15k.manifest.json",
+  "source_seed": 20260819,
+  "selection": "First seeded-random candidate chosen within each named dataset after requiring two sampled citation contexts and source length <= 160000 characters; alternatives used to include unresolved opinion structures.",
+  "document_ids": [
+    195409,
+    13988,
+    34646,
+    141906,
+    123136,
+    135892,
+    225060,
+    112329,
+    105292,
+    223564,
+    67804,
+    72491,
+    169514,
+    186486,
+    120949
+  ],
+  "cases": [
+    { "document_id": 195409, "dataset": "SCC", "citation": "[1979] 2 SCR 529" },
+    { "document_id": 13988, "dataset": "BCCA", "citation": "2002 BCCA 3" },
+    { "document_id": 34646, "dataset": "BCSC", "citation": "2012 BCSC 387" },
+    { "document_id": 141906, "dataset": "ONCA", "citation": "2018 ONCA 24" },
+    { "document_id": 123136, "dataset": "NSCA", "citation": "2020 NSCA 48" },
+    { "document_id": 135892, "dataset": "NSSC", "citation": "2002 NSSC 243" },
+    { "document_id": 225060, "dataset": "YKCA", "citation": "2000 YKCA 5" },
+    { "document_id": 112329, "dataset": "FCA", "citation": "2005 FCA 386" },
+    { "document_id": 105292, "dataset": "FC", "citation": "2005 FC 894" },
+    { "document_id": 223564, "dataset": "TCC", "citation": "2007 TCC 547" },
+    { "document_id": 67804, "dataset": "CHRT", "citation": "2016 CHRT 18" },
+    { "document_id": 72491, "dataset": "CITT", "citation": "CITT AP-2012-066" },
+    { "document_id": 169514, "dataset": "RAD", "citation": "MB5-05590" },
+    { "document_id": 186486, "dataset": "RPD", "citation": "TA9-05795" },
+    { "document_id": 120949, "dataset": "FPSLREB", "citation": "2021 FPSLREB 61" }
+  ]
+}

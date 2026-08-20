@@ -5,7 +5,6 @@ const DEFAULT_URL = "http://127.0.0.1:11434";
 type OllamaModelCatalog = {
   source: "live" | "unavailable";
   models: { name: string; displayName: string; supportsThinking: boolean }[];
-  error?: string;
 };
 
 function label(name: string) {
@@ -58,11 +57,5 @@ export async function getOllamaModelCatalog(): Promise<OllamaModelCatalog> {
       }] : [];
     }).sort((left, right) => left.name.localeCompare(right.name));
     return { source: "live", models };
-  } catch (error) {
-    return {
-      source: "unavailable",
-      models: [],
-      error: error instanceof Error ? error.message : "Ollama unavailable",
-    };
-  }
+  } catch { return { source: "unavailable", models: [] }; }
 }

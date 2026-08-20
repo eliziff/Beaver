@@ -50,9 +50,9 @@ These decisions are not open backlog items:
 8. Model choice and reasoning effort are capability-driven and dynamically
    enumerated where a provider exposes a catalog. Values such as `max` are not
    hardcoded away.
-9. The browser UI is the maintained Table of Authorities UI used both
-   standalone and inside Beaver. The Tk UI is a compatibility fallback, not a
-   second product to redesign.
+9. The browser UI is the sole maintained Table of Authorities UI used both
+   standalone and inside Beaver. The retired Tk UI is not a compatibility
+   surface and must not be recreated.
 10. Legal ontology artifacts use renderer-independent JSON. A viewer is a
     replaceable projection, not the data model.
 11. Accessibility is a cross-cutting product constraint. New and changed
@@ -84,6 +84,11 @@ These decisions are not open backlog items:
     implementation in the same vertical slice. Production retains no legacy
     alias, fallback, compatibility DTO, dual read/write, migration framework,
     or transition flag; Git is the rollback mechanism.
+18. Rust artifacts are capability-scoped. Provider-native structure composition
+    and raw-text recovery can ship independently, and each Legal PDF Parser
+    artifact explicitly selects PDF, language, OCR, or layout capabilities.
+    Protocol handshakes fail closed when a required capability is absent; a
+    minimal artifact never carries an unselected engine, model, or runtime.
 
 ## Implemented baseline
 
@@ -626,6 +631,38 @@ Acceptance:
 - Model repair must improve a named structural metric without losing text,
   IDs, or source order.
 - Complexity increases only for recurring failure classes with held-out wins.
+
+### P0.11 Rebuild the ALR Quote Verifier on the shared engines
+
+Status: **Planned after P0.10 acceptance**
+
+Maintain an independent ALR Quote Verifier branch as a thin consumer of Legal
+PDF Parser and the provider-neutral structure engine. It must not copy either
+engine or recreate their detector grammar. Decompose the verifier monolith
+around intake, structure, quote and proposition resolution, evidence, and
+presentation while preserving its useful product behavior.
+
+Add only the Codex app-server account methods needed for managed browser or
+device-code `chatgpt` login, `account/read`, logout/cancel, and
+`account/rateLimits/read`. Codex owns persistence and token refresh; the
+verifier never receives or stores ChatGPT access tokens. Subscription-backed
+calls are permitted for the verifier acceptance run; API-key and other metered
+auth modes fail closed unless separately authorized. Pin the implementation to
+the official [Codex app-server account protocol](https://learn.chatgpt.com/docs/app-server#auth-endpoints)
+rather than scraping CLI output or owning OAuth tokens.
+
+Acceptance:
+
+- Every locally available verifier DOCX is inventoried by content hash and run
+  through the rebuilt branch with exact denominators and compact receipts.
+- One real PDF with footnotes, propositions, and a quotation with an
+  independently verifiable source and pinpoint passes end to end, including
+  fail-closed disagreement behavior.
+- Engine versions are pinned dependencies, so later structure improvements
+  reach Beaver and the verifier through dependency updates rather than copied
+  patches.
+- The branch has no Beaver runtime dependency and Beaver imports none of its
+  private modules.
 
 ## Priority 1 — provider-neutral legal retrieval and durable sources
 
@@ -1429,7 +1466,8 @@ Acceptance:
 
 ## Explicit non-goals
 
-- No runtime dependency on ALR Quote Verifier and no obligation to fork it.
+- No Beaver runtime dependency on ALR Quote Verifier. Its required independent
+  rebuild is P0.11, not a module imported into Beaver.
 - No graph database for the first ontology implementation.
 - No vector database until a held-out retrieval win justifies it.
 - No lossy summary as a legal source or replacement for raw history.

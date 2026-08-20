@@ -1,20 +1,26 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
-
-import { buildOracle } from "./oracle";
 
 const VECTORS = path.join(__dirname, "vectors.json");
 const sha = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");
 
-export function verifyOracle(write = false) {
-  const observed = buildOracle();
-  const bytes = `${JSON.stringify(observed)}\n`;
-  if (write) writeFileSync(VECTORS, bytes);
-  const frozen = JSON.parse(readFileSync(VECTORS, "utf8")) as typeof observed;
-  assert.deepEqual(observed, frozen);
+export function verifyOracle() {
+  const bytes = readFileSync(VECTORS);
+  const frozen = JSON.parse(bytes.toString("utf8")) as {
+    schema_version: string;
+    suites: {
+      real_captured: Array<{ id: string; provenance: string; profile: string;
+        fixture: { path: string; sha256: string }; expected: { value: unknown; sha256: string } }>;
+      provider_final_parity: {
+        row_bindings: Record<string, string | { status: string; query_sha256?: string }>;
+        coverage_rows: Array<{ id: string }>;
+      };
+      synthetic_offset_control: { utf16_length: number; scalar_length: number };
+    };
+  };
   assert.equal(frozen.schema_version, "source-structure-port-oracle.v1");
   assert.equal(frozen.suites.real_captured.length, 24);
   assert.deepEqual(
@@ -44,10 +50,10 @@ export function verifyOracle(write = false) {
   assert(!/[A-Za-z]:[\\/]|AppData|LOCALAPPDATA/u.test(serialized));
   assert.equal(frozen.suites.synthetic_offset_control.utf16_length, 10);
   assert.equal(frozen.suites.synthetic_offset_control.scalar_length, 8);
-  return { bytes: Buffer.byteLength(bytes), sha256: sha(bytes), vectors: 24 };
+  return { bytes: bytes.length, sha256: sha(bytes), vectors: 24 };
 }
 
 if (require.main === module) {
-  const result = verifyOracle(process.argv.includes("--write"));
+  const result = verifyOracle();
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }

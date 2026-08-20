@@ -15,8 +15,7 @@ export function UserMessage({ content, files, workflow }: Props) {
             await navigator.clipboard.writeText(content);
             setCopied(true);
             window.setTimeout(() => setCopied(false), 2000);
-        } catch {
-        }
+        } catch { /* Clipboard permission may be unavailable. */ }
     };
     const copySelection = (event: ClipboardEvent<HTMLDivElement>) => {
         const selected = window.getSelection()?.toString();

@@ -25,7 +25,8 @@ import {
     type LegalSourceViewerProps,
 } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
-import { formatLongDate } from "@/app/lib/utils";
+import { errorMessage, formatLongDate } from "@/app/lib/utils";
+import { safeAssistantUrl } from "@/app/lib/assistantSession";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -44,10 +45,6 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["articles", "Journals"],
     ["hansard", "Hansard"],
 ];
-
-function errorMessage(reason: unknown, fallback: string) {
-    return reason instanceof Error ? reason.message : fallback;
-}
 
 function directSourceHref(result: LegalSourceSearchResult) {
     const query = new URLSearchParams({
@@ -455,6 +452,9 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                     const saved = savedSources.has(
                                         savedSourceKey(result),
                                     );
+                                    const sourceHref = safeAssistantUrl(result.url, {
+                                        relative: false,
+                                    });
                                     const metadata = [
                                         result.name && result.name !== result.citation
                                             ? result.citation
@@ -515,9 +515,9 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                                     {saved ? "Saved" : "Save"}
                                                     </button>
                                                 )}
-                                                {result.url && (
+                                                {sourceHref && (
                                                     <a
-                                                        href={result.url}
+                                                        href={sourceHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         aria-label="View original source"

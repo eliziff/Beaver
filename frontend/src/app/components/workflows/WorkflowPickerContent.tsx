@@ -217,6 +217,8 @@ function WorkflowPreview({
     className?: string;
 }) {
     const showColumns = workflow.metadata.type === "tabular";
+    const prompt = workflow.skill_md ?? "_No prompt defined._";
+    const preview = prompt.replace(/^\s{0,3}#{1,6}\s+[^\n]+(?:\n+|$)/, "").trimStart() || prompt;
     return (
         <div
             className={`${className} min-h-0 min-w-0 flex-1 flex-col overflow-visible`}
@@ -246,28 +248,14 @@ function WorkflowPreview({
                             columns={workflow.columns_config ?? []}
                         />
                     ) : (
-                        <WorkflowPromptPreview
-                            content={
-                                workflow.skill_md ?? "_No prompt defined._"
-                            }
-                        />
+                        <div className="min-w-0 flex-1 overflow-x-hidden break-words rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
+                            <WorkflowPromptMarkdown content={preview} />
+                        </div>
                     )}
                 </div>
             </div>
         </div>
     );
-}
-function WorkflowPromptPreview({ content }: { content: string }) {
-    const previewContent = stripLeadingMarkdownHeading(content);
-    return (
-        <div className="min-w-0 flex-1 overflow-x-hidden break-words rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
-            <WorkflowPromptMarkdown content={previewContent} />
-        </div>
-    );
-}
-function stripLeadingMarkdownHeading(content: string) {
-    const stripped = content.replace(/^\s{0,3}#{1,6}\s+[^\n]+(?:\n+|$)/, "");
-    return stripped.trimStart() || content;
 }
 function WorkflowPromptMarkdown({ content }: { content: string }) {
     return (

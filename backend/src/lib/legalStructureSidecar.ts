@@ -32,7 +32,7 @@ import {
   type AgreementSkeleton,
   type CompileSkeletonOptions,
 } from "./legalTextSkeleton";
-import { crossReferenceGraph, type CrossReferenceGraph } from "./legalCrossReference";
+import { crossReferenceGraphFromSkeleton, type CrossReferenceGraph } from "./legalCrossReference";
 import { createSourceDoc, type SourceDocBlock } from "./sourceDoc";
 
 /**
@@ -151,7 +151,7 @@ export async function bakedSkeleton(
   let pending = skeletonMisses.get(file);
   if (!pending) {
     pending = (async () => {
-      const payload = skeletonPayload(compileAgreementSkeleton(text, "", options), "");
+      const payload = skeletonPayload(await compileAgreementSkeleton(text, "", options), "");
       await fs.mkdir(sidecarRoot(), { recursive: true });
       await writeAtomic(file, payload);
       return payload;
@@ -188,7 +188,7 @@ export async function bakedCrossReferenceGraph(
   let pending = graphMisses.get(file);
   if (!pending) {
     pending = (async () => {
-      const graph = crossReferenceGraph(text, "", { skeleton });
+      const graph = crossReferenceGraphFromSkeleton(text, skeleton);
       const payload = { ...graph, nodes: undefined };
       await fs.mkdir(sidecarRoot(), { recursive: true });
       await writeAtomic(file, { version: SIDECAR_VERSION, graph: payload });
@@ -219,11 +219,11 @@ export async function bakeStructure(
   const variant = variantOf(options);
 
   const skeletonStarted = performance.now();
-  const skeleton = compileAgreementSkeleton(text, id, options);
+  const skeleton = await compileAgreementSkeleton(text, id, options);
   const skeletonMs = performance.now() - skeletonStarted;
 
   const graphStarted = performance.now();
-  const graph = crossReferenceGraph(text, id, { skeleton });
+  const graph = crossReferenceGraphFromSkeleton(text, skeleton);
   const graphMs = performance.now() - graphStarted;
 
   const payload = skeletonPayload(skeleton, id);

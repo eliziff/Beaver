@@ -65,7 +65,7 @@ export type DocumentStore = {
     Promise<RelocateDocumentResult>;
   updateMetadata(scope: DocumentScope, id: string,
     input: { metadata?: unknown; notes?: string | null }): Promise<DocumentRecord | null>;
-  files(scope: DocumentScope, ids: string[]): Promise<DocumentContent[]>;
+  files(scope: DocumentScope, ids: string[], maxBytes?: number): Promise<DocumentContent[]>;
   read(scope: DocumentScope, id: string, versionId: string | null,
     preferPdf: boolean): Promise<DocumentContent | null>;
   download(scope: DocumentScope, id: string, versionId: string | null, preferPdf: boolean,

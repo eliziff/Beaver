@@ -55,6 +55,16 @@ describe("remote legal-source providers", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects DTD entities in remote XML before parsing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(
+      `<!DOCTYPE feed [<!ENTITY repeated "expanded">]><feed>&repeated;</feed>`,
+      "application/atom+xml",
+    )));
+    await expect(tnaLegalSourceProvider.resolve!({
+      text: "[2026] UKSC 999", kind: "case",
+    })).rejects.toThrow("DOCTYPE");
+  });
+
   it("follows TNA alternate links and preserves native paragraph and section eIds", async () => {
     const atom = `
       <feed xmlns="http://www.w3.org/2005/Atom" xmlns:tna="https://caselaw.nationalarchives.gov.uk">

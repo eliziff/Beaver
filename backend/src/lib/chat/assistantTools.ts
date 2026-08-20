@@ -20,7 +20,7 @@ import {
 } from "../legalAmendOps";
 import { compileAgreementSkeleton, readSection, skeletonSubtreeLabels, type AgreementSkeleton } from "../legalTextSkeleton";
 import {
-  crossReferenceGraph,
+  crossReferenceGraphFromSkeleton,
   type CrossReferenceGraph,
 } from "../legalCrossReference";
 import {
@@ -118,6 +118,7 @@ import {
 import {
   courtlistenerPdfRendition,
 } from "./courtlistenerToolRunner";
+import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
 import {
   supraFixEvent,
@@ -132,6 +133,8 @@ import {
 import { readTabularCells } from "./tabularCells";
 import type { TabularCellStore, WorkflowStore } from "./types";
 import type { ReadSubagentAssignment, ReadSubagentRegion } from "./readSubagents";
+import type { AssistantEvent } from "./turnEngine";
+import { safeErrorMessage } from "../safeError";
 
 const DOCUMENT_ID_PROPERTY = {
   type: "string",
@@ -219,17 +222,6 @@ function oneHopLegalScope(
 
 
 
-function findNearestSuggestion(query: string, body: string): string | null {
-  const spans: string[] = [];
-  for (let at = 0; at < body.length && spans.length < 40; at += 12_000) {
-    spans.push(body.slice(at, at + 15_000));
-  }
-  return quoteRepairSuggestion(query.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans);
-}
-
-const trimmed = (value: unknown) =>
-  typeof value === "string" ? value.trim() : "";
-
 type AssistantDocument = Record<string, unknown> & {
   id: string; filename: string; current_version_id: string; file_type: string;
   page_count?: number | null;
@@ -282,9 +274,6 @@ function resolveDocumentArgument(
   }
   return { input, error: "document_id must be a document resource returned by Glob" };
 }
-
-const errorText = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
 
 type AssistantEditTurnState = Map<string, {
   versionId: string; parentVersionId: string;
@@ -347,12 +336,10 @@ const editAnnotations = (
   versionNumber: number | null,
   edits: StoredAssistantEdit[],
 ) => edits.map((edit) => ({
-  kind: "edit",
   edit_id: edit.id,
   document_id: documentId,
   version_id: versionId,
   version_number: versionNumber,
-  change_id: edit.changeId,
   del_w_id: edit.delWId,
   ins_w_id: edit.insWId,
   deleted_text: edit.deletedText.slice(0, 500),
@@ -660,7 +647,7 @@ async function readNonDocumentResource(
       };
     } catch (error) {
       return fail(
-        errorText(error, "Table of Authorities status lookup failed"),
+        safeErrorMessage(error, "Table of Authorities status lookup failed"),
       );
     }
   }
@@ -710,10 +697,6 @@ async function readNonDocumentResource(
     );
   }
 }
-
-const objectRecord = (value: unknown) =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
 
 function legalSourceEvidence(passage: LegalSourcePassage): LegalEvidenceReceipt | undefined {
   if (passage.source.provider === "a2aj") {
@@ -1307,7 +1290,9 @@ async function runCodingShapeCall(
           evidence,
         };
       } catch (error) {
-        return fail(pdfEvidenceError(error));
+        const message = error instanceof Error ? error.message : "";
+        return fail(SAFE_PDF_EVIDENCE_ERRORS.has(message)
+          ? message : "PDF evidence is unavailable");
       }
     }
     const meta = resolvePath(requested);
@@ -1566,12 +1551,16 @@ async function runCodingShapeCall(
     }], { author: "Beaver" });
     if (!applied.changes.length) {
       const sourceText = await extractDocxBodyText(file.bytes);
+      const spans: string[] = [];
+      for (let at = 0; at < sourceText.length && spans.length < 40; at += 12_000)
+        spans.push(sourceText.slice(at, at + 15_000));
       return result({
         ok: false,
         error: "No revision was saved",
         edit_errors: applied.errors.map(({ index, reason }) =>
           `edit ${index + 1}: ${reason}`),
-        nearest_match: findNearestSuggestion(oldString, sourceText),
+        nearest_match: quoteRepairSuggestion(
+          oldString.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans),
       });
     }
     return saveDocxEdits({
@@ -1587,11 +1576,15 @@ async function runCodingShapeCall(
   }
 
   const pattern = trimmed(args.pattern);
+  if (/\\[1-9]|\(\?(?!:)|\((?:[^()\\]|\\.)*(?:[+*?]|\{\d)[^()]*(?:\)|\])\s*(?:[+*?]|\{\d)/u
+    .test(pattern) ||
+    pattern.includes("|") && /\)\s*(?:[+*?]|\{\d)/u.test(pattern))
+    return fail("regex parse error: unsafe backtracking pattern");
   let re: RegExp;
   try {
     re = new RegExp(pattern, args["-i"] === true ? "iu" : "u");
   } catch (error) {
-    return fail(`regex parse error: ${errorText(error, "invalid pattern")}`);
+    return fail(`regex parse error: ${safeErrorMessage(error, "invalid pattern")}`);
   }
   const pathArg = trimmed(args.path);
   let targets = files;
@@ -1777,7 +1770,7 @@ function documentResult(content: Record<string, unknown>): BeaverOutcome {
     typeof content.version_id !== "string" ||
     typeof content.download_url !== "string"
   ) return base;
-  const event = {
+  const event: Extract<AssistantEvent, { type: "document_artifact" }> = {
     type: "document_artifact",
     action: action === "created" ? "created" : "edited",
     filename: content.filename,
@@ -1787,12 +1780,11 @@ function documentResult(content: Record<string, unknown>): BeaverOutcome {
       ? content.version_number
       : null,
     download_url: content.download_url,
-    resource: typeof content.resource === "string"
-      ? content.resource
-      : resourceReference.document(content.document_id, content.version_id),
     ...(action === "revised" && {
       edit_mode: content.edit_mode === "auto" ? "auto" : "manual",
-      annotations: Array.isArray(content.annotations) ? content.annotations : [],
+      annotations: Array.isArray(content.annotations)
+        ? content.annotations as Extract<AssistantEvent, { type: "document_artifact" }>["annotations"]
+        : [],
     }),
   };
   return {
@@ -1807,7 +1799,7 @@ const mutationResult = (content: Record<string, unknown>) => ({
   mutated: content.ok === true,
 });
 
-const withEvent = (output: BeaverOutcome, event: unknown): BeaverOutcome => event
+const withEvent = (output: BeaverOutcome, event: AssistantEvent | null | undefined): BeaverOutcome => event
   ? { ...output, events: [...(output.events ?? []), event] }
   : output;
 
@@ -1874,13 +1866,6 @@ const SAFE_PDF_EVIDENCE_ERRORS = new Set([
   "PDF evidence source bytes no longer match their version",
   "PDF evidence no longer matches the authoritative source artifacts",
 ]);
-
-const pdfEvidenceError = (error: unknown) => {
-  const message = error instanceof Error ? error.message : "";
-  return SAFE_PDF_EVIDENCE_ERRORS.has(message)
-    ? message
-    : "PDF evidence is unavailable";
-};
 
 type PdfLookupResult =
   | Awaited<ReturnType<typeof documentProjectionService.lookupPdf>>
@@ -2119,7 +2104,7 @@ async function runAdvancedDocxEdit(params: {
       if (!body.text) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
-      const skeleton = compileAgreementSkeleton(body.text, params.documentId, {
+      const skeleton = await compileAgreementSkeleton(body.text, params.documentId, {
         tableCells: body.tableCells,
       });
       const map = pageMapFromMarkers(body.text);
@@ -2149,7 +2134,7 @@ async function runAdvancedDocxEdit(params: {
           if (follow !== "none") {
             const walked = graphScope(
               skeleton,
-              crossReferenceGraph(body.text, params.documentId, { skeleton }),
+              crossReferenceGraphFromSkeleton(body.text, skeleton),
               seed.block.label,
               { follow, depth: scope.depth ?? 1 },
             );
@@ -2216,7 +2201,7 @@ async function runAdvancedDocxEdit(params: {
       },
     });
   } catch (error) {
-    return fail(errorText(error, "Deterministic text operations failed"));
+    return fail(safeErrorMessage(error, "Deterministic text operations failed"));
   }
 }
 
@@ -2527,7 +2512,7 @@ export function assistantTools<Context extends {
         if (!body.text) {
           return fail("DOCX body text could not be extracted");
         }
-        const plan = deleteProvisionAndRenumberSiblings(body.text, target);
+        const plan = await deleteProvisionAndRenumberSiblings(body.text, target);
         if (plan.failures.length) {
           return result({
             ok: false,
@@ -2568,7 +2553,7 @@ export function assistantTools<Context extends {
           extra: { target, mapping: plan.mapping, verification: plan.verification },
         });
       } catch (error) {
-        return fail(errorText(error, "Delete-and-renumber failed"));
+        return fail(safeErrorMessage(error, "Delete-and-renumber failed"));
       }
     },
   );
@@ -2618,7 +2603,7 @@ export function assistantTools<Context extends {
         const fallback = action === "fix_supras"
           ? "DOCX supra cleanup failed"
           : "DOCX structural lint failed";
-        const message = errorText(error, fallback);
+        const message = safeErrorMessage(error, fallback);
         return respond({ ok: false, error: message });
       }
     },
@@ -2656,7 +2641,7 @@ export function assistantTools<Context extends {
         };
         return respond(payload);
       } catch (error) {
-        const message = errorText(error, "Table of Authorities submission failed");
+        const message = safeErrorMessage(error, "Table of Authorities submission failed");
         return respond({ ok: false, error: message });
       }
     },
@@ -2733,10 +2718,10 @@ export function assistantTools<Context extends {
     const args = resolved ? { ...input, file_path: resolved } : input;
     return coding({ ...call, input: args }, args, signal, progress);
   };
-  const isDocumentToolEvent = (event: unknown): event is {
-    type: "document_artifact"; action: "created" | "edited"; document_id: string;
-    version_id: string; filename: string;
-  } => objectRecord(event)?.type === "document_artifact";
+  const isDocumentToolEvent = (
+    event: AssistantEvent,
+  ): event is Extract<AssistantEvent, { type: "document_artifact" }> =>
+    event.type === "document_artifact";
   const documentName = (value: unknown) => {
     const raw = trimmed(value);
     const resolved = resolveArtifact(raw) ?? raw;

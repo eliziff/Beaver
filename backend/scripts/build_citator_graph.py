@@ -46,7 +46,7 @@ node-identity key are faithful ports of the proven reference implementations
       and corpus identity agree.
 scripts/citator-oracle-diff.py proves the ports against the originals over a
 real corpus slice. Host paragraphs come directly from Beaver's shipping
-compileA2AJSourceDoc process; this builder contains no paragraph grammar.
+legal-structure process; this builder contains no paragraph grammar.
 
 NODE IDENTITY / NORMALIZATION: cited_key = citation_lookup_key(anchor text):
 NFKC, en/em dashes to "-", digit-boundary "." "-" "/" become the words
@@ -777,9 +777,9 @@ def build(args: argparse.Namespace) -> None:
                 "citation_lookup_key port of ALR-Quote-Verifier local_a2aj"
                 "._citation_lookup_key; anchors ported from "
                 "AuthoritiesHelper toa_maker.py; host paragraphs from "
-                "compileA2AJSourceDoc"
+                "legal-structure"
             ),
-            "paragraph_compiler": "compileA2AJSourceDoc",
+            "paragraph_compiler": "legal-structure",
             "resolution": resolution_note,
             "resolved_edge_keys": str(resolved_edge_keys),
             "resolution_keys": str(resolution_keys),

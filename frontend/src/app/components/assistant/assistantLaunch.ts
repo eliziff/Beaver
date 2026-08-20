@@ -2,6 +2,9 @@ import type { Document } from "@/app/components/shared/types";
 
 const NEW_CHAT_DOCUMENTS = "beaver:new-chat-documents";
 
+export const clearStagedChatDocuments = () =>
+    typeof window === "undefined" || sessionStorage.removeItem(NEW_CHAT_DOCUMENTS);
+
 export function stageNewChatDocuments(documents: Document[]) {
     if (typeof window === "undefined") return;
     sessionStorage.setItem(NEW_CHAT_DOCUMENTS, JSON.stringify(documents));
@@ -13,7 +16,7 @@ export function takeNewChatDocuments(): Document[] {
         const documents = JSON.parse(
             sessionStorage.getItem(NEW_CHAT_DOCUMENTS) ?? "[]",
         ) as unknown;
-        sessionStorage.removeItem(NEW_CHAT_DOCUMENTS);
+        clearStagedChatDocuments();
         return Array.isArray(documents)
             ? documents.filter(
                   (document): document is Document =>
@@ -24,7 +27,7 @@ export function takeNewChatDocuments(): Document[] {
               )
             : [];
     } catch {
-        sessionStorage.removeItem(NEW_CHAT_DOCUMENTS);
+        clearStagedChatDocuments();
         return [];
     }
 }

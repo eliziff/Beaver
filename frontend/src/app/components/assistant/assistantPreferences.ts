@@ -58,8 +58,8 @@ export const JURISDICTION_GROUPS: JurisdictionGroup[] = [
 const jurisdictionOptions = JURISDICTION_GROUPS.flatMap((group) => group.options);
 const jurisdictionById = new Map(jurisdictionOptions.map((option) => [option[0], option]));
 const quickActionDefaults = Object.fromEntries(QUICK_ACTIONS.map(({ id }) => [id, !["newProject", "newTabularReview"].includes(id)])) as Record<QuickActionId, boolean>;
-export const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
-export const DEFAULT_READ_SUBAGENT_EFFORT = "high";
+const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
+const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 
 const preferenceSchema = z.strictObject({
     activityDetail: z.enum(["auto", "standard", "tools", "trace"]),

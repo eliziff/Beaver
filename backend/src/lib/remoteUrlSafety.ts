@@ -36,7 +36,11 @@ function isBlockedIp(ip: string) {
   if (family === 4) return blockedIpv4.check(ip, "ipv4");
   if (family === 6) {
     if (mappedIpv4.check(ip, "ipv6")) {
-      return blockedIpv4.check(ip, "ipv6");
+      const dotted = /(?:^|:)(\d+(?:\.\d+){3})$/u.exec(ip)?.[1];
+      const [upper = 0, lower = 0] = ip.split(":").slice(-2)
+        .map((part) => Number.parseInt(part, 16));
+      return blockedIpv4.check(dotted ?? `${upper >>> 8}.${upper & 255}.${
+        lower >>> 8}.${lower & 255}`, "ipv4");
     }
     return !publicIpv6.check(ip, "ipv6") || blockedIpv6.check(ip, "ipv6");
   }

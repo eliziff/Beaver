@@ -25,6 +25,10 @@ export type ProviderAdapter = {
   events: (step: ProviderStep) => AsyncIterable<ProviderEvent>;
 };
 
+export const MAX_PROVIDER_STREAM_BYTES = 4 * 1024 * 1024;
+export const MAX_PROVIDER_TOOL_ARGUMENT_BYTES = 1024 * 1024;
+const MAX_PROVIDER_TOOL_CALLS = 128;
+
 const emptyUsage = (): NormalizedLlmUsage => ({
   inputTokens: null,
   outputTokens: null,
@@ -82,12 +86,10 @@ export async function runProviderLoop(
   let fullText = "";
   let usage: NormalizedLlmUsage | null = null;
   let serviceTier: string | undefined;
+  let streamedBytes = 0, providerToolCalls = 0, providerToolArgumentBytes = 0;
 
-  for (
-    let iteration = 0;
-    params.maxIterations === undefined || iteration < params.maxIterations;
-    iteration += 1
-  ) {
+  const maxIterations = params.maxIterations ?? 32;
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
       throwIfAborted(params.abortSignal);
       const tools = params.resolveTools?.() ?? initialTools;
       const newToolNames = iteration
@@ -157,6 +159,9 @@ export async function runProviderLoop(
             const event = item.value;
             if (event.type === "reasoning_delta") {
               if (!event.text) continue;
+              streamedBytes += Buffer.byteLength(event.text);
+              if (streamedBytes > MAX_PROVIDER_STREAM_BYTES)
+                throw new Error("Provider stream exceeded the output limit");
               closeContent();
               if (reasoningOpen && event.block !== reasoningBlock) closeReasoning();
               reasoningOpen = true;
@@ -165,6 +170,9 @@ export async function runProviderLoop(
               callbacks.onReasoningDelta?.(event.text);
             } else if (event.type === "text_delta") {
               if (!event.text) continue;
+              streamedBytes += Buffer.byteLength(event.text);
+              if (streamedBytes > MAX_PROVIDER_STREAM_BYTES)
+                throw new Error("Provider stream exceeded the output limit");
               closeReasoning();
               if (contentOpen && event.block !== contentBlock) closeContent();
               contentOpen = true;
@@ -173,6 +181,11 @@ export async function runProviderLoop(
               fullText += event.text;
               callbacks.onContentDelta?.(event.text);
             } else if (event.type === "tool_call") {
+              providerToolCalls += 1;
+              providerToolArgumentBytes += Buffer.byteLength(JSON.stringify(event.call.input));
+              if (providerToolCalls > MAX_PROVIDER_TOOL_CALLS ||
+                  providerToolArgumentBytes > MAX_PROVIDER_TOOL_ARGUMENT_BYTES)
+                throw new Error("Provider tool calls exceeded the input limit");
               closeReasoning();
               closeContent();
               visible = true;

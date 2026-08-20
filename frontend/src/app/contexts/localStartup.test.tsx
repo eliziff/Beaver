@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
     onAuthStateChange: vi.fn(),
     unsubscribe: vi.fn(),
     getUserProfile: vi.fn(),
+    clearApiCaches: vi.fn(),
+    clearDocumentFileCache: vi.fn(),
     pathname: "/assistant",
 }));
 
@@ -27,11 +29,15 @@ vi.mock("@/app/lib/supabase", () => {
 });
 
 vi.mock("@/app/lib/beaverApi", () => ({
+    clearApiCaches: mocks.clearApiCaches,
     getUserProfile: mocks.getUserProfile,
     isMfaRequiredError: vi.fn(() => false),
     saveApiKey: vi.fn(),
     updateUserMfaOnLogin: vi.fn(),
     updateUserProfile: vi.fn(),
+}));
+vi.mock("@/app/hooks/useDocumentFile", () => ({
+    clearDocumentFileCache: mocks.clearDocumentFileCache,
 }));
 
 async function configure(mode: "local" | "cloud") {
@@ -56,6 +62,7 @@ describe("local startup", () => {
         vi.resetModules();
         vi.clearAllMocks();
         mocks.supabaseLoads = 0;
+        sessionStorage.clear();
         mocks.pathname = "/assistant";
         mocks.getUserProfile.mockReturnValue(new Promise(() => {}));
         mocks.onAuthStateChange.mockReturnValue({
@@ -97,6 +104,7 @@ describe("local startup", () => {
 
     it("restores cloud auth from one subscription and keeps MFA fail-closed while the profile loads", async () => {
         await configure("cloud");
+        sessionStorage.setItem("beaver:new-chat-documents", '[{"owner_email":"prior@example.com"}]');
         mocks.onAuthStateChange.mockImplementation((callback) => {
             queueMicrotask(() =>
                 callback("INITIAL_SESSION", {
@@ -142,6 +150,9 @@ describe("local startup", () => {
         await waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledOnce());
         expect(mocks.supabaseLoads).toBe(1);
         expect(mocks.onAuthStateChange).toHaveBeenCalledOnce();
+        expect(mocks.clearApiCaches).toHaveBeenCalledOnce();
+        expect(mocks.clearDocumentFileCache).toHaveBeenCalledOnce();
+        expect(sessionStorage.getItem("beaver:new-chat-documents")).toBeNull();
         view.unmount();
         expect(mocks.unsubscribe).toHaveBeenCalledOnce();
     });

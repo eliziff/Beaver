@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { legalDataHome } from "../legalDataPath";
+import { isolatedProcessEnv } from "../subprocessEnv";
 
 type JsonObject = Record<string, unknown>;
 export type CodexAppServerNotification = {
@@ -30,13 +31,6 @@ export type CodexAppServer = {
   stop(): void;
 };
 
-function codexCommand() {
-  return (
-    process.env.CODEX_COMMAND?.trim() ||
-    (process.platform === "win32" ? "codex.cmd" : "codex")
-  );
-}
-
 export function beaverCodexHome() {
   return (
     process.env.BEAVER_CODEX_HOME?.trim() ||
@@ -61,10 +55,15 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
   const codexHome = path.resolve(beaverCodexHome());
   await mkdir(codexHome, { recursive: true });
   const bridgeToken = randomBytes(32).toString("hex");
-  const child = spawn(codexCommand(), ["app-server", "--stdio", "--strict-config"], {
+  const child = spawn(
+    process.env.CODEX_COMMAND?.trim() || (process.platform === "win32" ? "codex.cmd" : "codex"),
+    ["app-server", "--stdio", "--strict-config"], {
     cwd: os.tmpdir(),
     env: {
-      ...process.env,
+      ...isolatedProcessEnv([
+        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR",
+        "NODE_EXTRA_CA_CERTS", "OPENAI_BASE_URL",
+      ]),
       CODEX_HOME: codexHome,
       MIKE_CODEX_BRIDGE_TOKEN: bridgeToken,
       ...(apiKey ? { CODEX_API_KEY: apiKey } : {}),
@@ -215,14 +214,10 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
 
 const servers = new Map<string, Promise<CodexAppServer>>();
 
-function credentialKey(apiKey: string) {
-  return apiKey
+export async function acquireCodexAppServer(apiKey = "") {
+  const key = apiKey
     ? createHash("sha256").update(apiKey).digest("hex")
     : "subscription";
-}
-
-export async function acquireCodexAppServer(apiKey = "") {
-  const key = credentialKey(apiKey);
   const existing = servers.get(key);
   if (existing) {
     const server = await existing.catch(() => null);

@@ -283,12 +283,12 @@ afterEach(() => {
 });
 
 describe("local journal articles", () => {
-  it("prefers registered final-contract text and native structure", () => {
+  it("prefers registered final-contract text and native structure", async () => {
     const canonical = fixtureFinalContractDatabase();
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
     journal.closeDatabases();
 
-    const article = journal.document("7")!;
+    const article = (await journal.document("7"))!;
     expect(article.text).toBe(canonical.text);
     expect(article.text).not.toContain("[page 100]");
     expect(journal.lookup(article, "page", "101")).toMatchObject({
@@ -318,16 +318,13 @@ describe("local journal articles", () => {
     ).toBe(true);
   });
 
-  it("reconstructs only a locator kind missing from the final contract", () => {
+  it("does not rediscover a locator kind absent from the final contract", async () => {
     const canonical = fixtureFinalContractDatabase({ annotations: false });
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
     journal.closeDatabases();
 
-    const article = journal.document("7")!;
-    expect(journal.lookup(article, "footnote", "1")).toMatchObject({
-      status: "found",
-      block: { origin: "heuristic" },
-    });
+    const article = (await journal.document("7"))!;
+    expect(journal.lookup(article, "footnote", "1").status).toBe("unavailable");
     expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
     );
@@ -336,14 +333,14 @@ describe("local journal articles", () => {
     );
   });
 
-  it("ignores an unsafe final-contract registration", () => {
+  it("ignores an unsafe final-contract registration", async () => {
     const canonical = fixtureFinalContractDatabase({
       sourceDir: "..\\..\\outside",
     });
     process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB = canonical.filename;
     journal.closeDatabases();
 
-    const article = journal.document("7")!;
+    const article = (await journal.document("7"))!;
     expect(article.text).toContain("[page 100]");
     expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
@@ -353,14 +350,14 @@ describe("local journal articles", () => {
     );
   });
 
-  it("searches candidates, resolves stable locators, and builds multi-text links", () => {
+  it("searches candidates, resolves stable locators, and builds multi-text links", async () => {
     const match = journal.find("Fixture Article")[0];
     expect(match.hitId).toBe("journal:7");
     expect(match.citation).toBe(
       "Ada Example & Grace Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100",
     );
 
-    const article = journal.document(String(match.articleId))!;
+    const article = (await journal.document(String(match.articleId)))!;
     const page = journal.lookup(article, "page", "101");
     const section = journal.lookup(article, "section", "II");
     const footnote = journal.lookup(article, "footnote", "2");
@@ -437,7 +434,7 @@ describe("local journal articles", () => {
 
   });
 
-  it("formats four-plus authors and an empty issue without a fallback citation", () => {
+  it("formats four-plus authors and an empty issue without a fallback citation", async () => {
     journal.closeDatabases();
     const database = new DatabaseSync(process.env.MIKE_PUBLIC_ENDPOINT_DB!);
     database.prepare(`INSERT INTO articles (
@@ -451,7 +448,7 @@ describe("local journal articles", () => {
       "A complete paragraph long enough for deterministic source structure.",
     );
     database.close();
-    expect(journal.document("8")?.citation).toBe(
+    expect((await journal.document("8"))?.citation).toBe(
       "Ada Example et al, “No Issue Article” (2025) 9 Fixture LJ 44",
     );
   });
@@ -519,16 +516,16 @@ describe("local journal articles", () => {
     expect(journal.find("second footnote")).toEqual([]);
   });
 
-  it("drops parsed article state when the source snapshot changes", () => {
+  it("drops parsed article state when the source snapshot changes", async () => {
     const source = process.env.MIKE_PUBLIC_ENDPOINT_DB!;
-    const first = journal.document("7");
+    const first = await journal.document("7");
     const future = new Date(Date.now() + 2_000);
     utimesSync(source, future, future);
 
-    expect(journal.document("7")).not.toBe(first);
+    expect(await journal.document("7")).not.toBe(first);
   });
 
-  it("keeps the journalStructure engine's recorded behavior byte-identical", () => {
+  it("keeps the journalStructure engine's recorded behavior byte-identical", async () => {
     // `journal-alr-13` is a REAL article captured from the journals provider
     // database on 2026-07-27; `baseline-structure.json` freezes the deleted
     // legalSourceStructure-based engine's output over it (the baseline-spine
@@ -626,7 +623,7 @@ describe("local journal articles", () => {
     journal.closeDatabases();
     process.env.MIKE_PUBLIC_ENDPOINT_DB = filename;
 
-    const article = journal.document("13")!;
+    const article = (await journal.document("13"))!;
     expect(sha256(article.text)).toBe(recording.textSha256);
     expect(article.structure.status).toBe(recording.status);
     expect(
@@ -696,10 +693,10 @@ const realDatabase =
 
 it.runIf(existsSync(realDatabase))(
   "reads a real public_endpoint.db article and native page map",
-  () => {
+  async () => {
     journal.closeDatabases();
     process.env.MIKE_PUBLIC_ENDPOINT_DB = realDatabase;
-    const article = journal.document("2");
+    const article = await journal.document("2");
     expect(article?.title).toContain("Alcohol Manufacturers");
     expect(journal.lookup(article!, "page", "9").anchor).toBe("page=9");
     expect(journal.find("consumers fetal alcohol")[0]?.articleId).toBe(2);

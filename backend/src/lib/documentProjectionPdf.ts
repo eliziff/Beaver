@@ -196,14 +196,7 @@ export async function readPdfEvidenceReceipt(handle: string) {
   return receipt;
 }
 
-function sameStrings(left: string[], right: string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
-}
-
-function sameNumbers(left: number[], right: number[]) {
+function sameValues<T>(left: T[], right: T[]) {
   return (
     left.length === right.length &&
     left.every((value, index) => value === right[index])
@@ -231,12 +224,6 @@ type EngineLookup = {
   exact: boolean;
   error?: string;
 };
-
-function canonicalKind(kind: PdfLocatorKind): CanonicalKind {
-  return kind === "page" || kind === "paragraph" || kind === "footnote"
-    ? kind
-    : "section";
-}
 
 function validInput(input: PdfLookupInput) {
   return RESOURCE_LOCATOR_KINDS.includes(input.locatorKind) &&
@@ -279,21 +266,6 @@ function baseResult(input: PdfLookupInput) {
     after: [] as PdfLookupUnit[],
     matches: [] as string[],
   };
-}
-
-function normalizedPages(rows: EngineLookup["pages"]): NormalizedPage[] {
-  return rows.map(({ page_number: number, text }) => ({ number, text }));
-}
-
-function relevantPages(pages: NormalizedPage[], units: PdfLookupUnit[]) {
-  const numbers = new Set(units.flatMap((unit) => unit.page_numbers));
-  return pages.filter(({ number }) => numbers.has(number));
-}
-
-function pageTextSha256(pages: NormalizedPage[]) {
-  return sha256(JSON.stringify(
-    pages.map(({ number, text }) => ({ page_number: number, text })),
-  ));
 }
 
 async function loadSource(sourcePath: string, cacheKey: string) {
@@ -373,7 +345,7 @@ async function finishLookup(
 ) {
   const base = baseResult(input);
   const lookup = checkedLookup(result);
-  const pages = normalizedPages(lookup.pages);
+  const pages = lookup.pages.map(({ page_number: number, text }) => ({ number, text }));
   options?.capturePages?.(pages);
   if (lookup.status !== "found") {
     return {
@@ -393,15 +365,20 @@ async function finishLookup(
   const artifactIds = units.map((unit) => unit.id);
   const contextArtifactIds = [...before, ...after].map((unit) => unit.id);
   const payloadSha256 = sha256(JSON.stringify({ units, before, after }));
-  const boundPages = relevantPages(pages, [...before, ...units, ...after]);
+  const relevantPageNumbers = new Set(
+    [...before, ...units, ...after].flatMap((unit) => unit.page_numbers));
+  const boundPages = pages.filter(({ number }) => relevantPageNumbers.has(number));
   const boundPageNumbers = boundPages.map(({ number }) => number);
-  const boundPageTextSha256 = pageTextSha256(boundPages);
+  const boundPageTextSha256 = sha256(JSON.stringify(
+    boundPages.map(({ number, text }) => ({ page_number: number, text })),
+  ));
   const handle = evidenceHandle({
     document_id: state.document_id,
     version_id: state.version_id,
     source_sha256: state.source_sha256,
     cache_key: state.cache_key,
-    kind: canonicalKind(input.locatorKind),
+    kind: input.locatorKind === "page" || input.locatorKind === "paragraph" ||
+      input.locatorKind === "footnote" ? input.locatorKind : "section",
     artifact_ids: artifactIds,
     text_sha256: textSha256,
     context_artifact_ids: contextArtifactIds,
@@ -479,9 +456,7 @@ function unavailable(input: PdfLookupInput, error: unknown) {
     ...baseResult(input),
     status: "unavailable" as const,
     exact: false,
-    error: code
-      ? "PDF lookup source or artifact is unavailable"
-      : error instanceof Error ? error.message : "PDF lookup failed",
+    error: code ? "PDF lookup source or artifact is unavailable" : "PDF lookup failed",
   };
 }
 
@@ -575,17 +550,17 @@ async function verifiedPdfEvidence(
     lookup.source.cache_key !== receipt.source.cache_key ||
     lookup.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
     lookup.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
-    !sameStrings(
+    !sameValues(
       lookup.evidence.artifact_ids,
       receipt.evidence.artifact_ids,
     ) ||
-    !sameStrings(
+    !sameValues(
       lookup.evidence.context_artifact_ids,
       receipt.evidence.context_artifact_ids,
     ) ||
     lookup.evidence.page_text_sha256 !==
       receipt.evidence.page_text_sha256 ||
-    !sameNumbers(
+    !sameValues(
       lookup.evidence.page_numbers,
       receipt.evidence.page_numbers,
     )

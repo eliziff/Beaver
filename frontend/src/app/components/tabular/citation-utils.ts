@@ -1,4 +1,4 @@
-const INLINE_METADATA_RE = /\[\[((?:[^\[\]]|\[[^\]]*\])+)\]\]/g;
+const INLINE_METADATA_RE = /\[\[((?:[^[\]]|\[[^\]]*\])+)\]\]/g;
 export interface ParsedCitation {
     page?: number;
     sheet?: string;

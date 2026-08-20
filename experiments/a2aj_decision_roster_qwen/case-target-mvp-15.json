@@ -1,0 +1,67 @@
+{
+  "format": "a2aj-case-target-pairs-v1",
+  "source_cohort": "semantic-mvp-15.json",
+  "selection": "One target per citing decision, selected from deterministic citation occurrences with preference for repeated prose mentions and corpus-resolved targets; two unresolved reporter citations and one authority-list mention are retained as deliberate hard cases.",
+  "pairs": [
+    {
+      "document_id": 195409,
+      "target": { "document_id": 195502, "citation": "[1976] 1 S.C.R. 477", "citation_aliases": [], "name": "Interprovincial Co-operatives Ltd. et al. v. R." }
+    },
+    {
+      "document_id": 13988,
+      "target": { "document_id": 189885, "citation": "[1988] 1 S.C.R. 214", "citation_aliases": [], "name": "R. v. Graham" }
+    },
+    {
+      "document_id": 34646,
+      "target": { "document_id": 192562, "citation": "[1996] 3 S.C.R. 458", "citation_aliases": [], "name": "Athey v. Leonati" }
+    },
+    {
+      "document_id": 141906,
+      "target": { "document_id": 189561, "citation": "[1980] 1 S.C.R. 759", "citation_aliases": [], "name": "Palmer v. The Queen" }
+    },
+    {
+      "document_id": 123136,
+      "target": { "document_id": 137099, "citation": "2018 NSSC 313", "citation_aliases": [], "name": "Tobin v. Hurley" }
+    },
+    {
+      "document_id": 135892,
+      "target": { "document_id": null, "citation": "53 O.R. (3d) 137", "citation_aliases": [], "name": "McIntyre Estate v. Ontario (Attorney General)" }
+    },
+    {
+      "document_id": 225060,
+      "target": { "document_id": null, "citation": "(1994), 4 S.C.R.", "citation_aliases": [], "name": "R. v. Shropshire" }
+    },
+    {
+      "document_id": 112329,
+      "target": { "document_id": 190257, "citation": "[2002] 2 S.C.R. 235", "citation_aliases": [], "name": "Housen v. Nikolaisen" }
+    },
+    {
+      "document_id": 105292,
+      "target": { "document_id": 92081, "citation": "2004 FC 1672", "citation_aliases": [], "name": "Johnson & Johnson Inc. v. Boston Scientific Ltd." }
+    },
+    {
+      "document_id": 223564,
+      "target": { "document_id": 115730, "citation": "2006 FCA 87", "citation_aliases": [], "name": "Royal Winnipeg Ballet v. Canada (Minister of National Revenue)" }
+    },
+    {
+      "document_id": 67804,
+      "target": { "document_id": 68174, "citation": "2012 CHRT 24", "citation_aliases": [], "name": "First Nations Child and Family Caring Society of Canada et al. v. Attorney General of Canada" }
+    },
+    {
+      "document_id": 72491,
+      "target": { "document_id": 118176, "citation": "2010 FCA 61", "citation_aliases": [], "name": "Canada (Border Services Agency) v. C.B. Powell Limited" }
+    },
+    {
+      "document_id": 169514,
+      "target": { "document_id": 115160, "citation": "2016 FCA 93", "citation_aliases": [], "name": "Canada (Citizenship and Immigration) v. Huruglica" }
+    },
+    {
+      "document_id": 186486,
+      "target": { "document_id": 193078, "citation": "[1993] 2 S.C.R. 689", "citation_aliases": [], "name": "Canada (Attorney General) v. Ward" }
+    },
+    {
+      "document_id": 120949,
+      "target": { "document_id": 119673, "citation": "2009 PSLRB 107", "citation_aliases": [], "name": "Ouellet v. St-Georges and Public Service Alliance of Canada" }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { UserApiKeys } from "./llm";
-import { decryptSecret, encryptSecret } from "./secretEncryption";
+import { decryptSecret, encryptionSecret, encryptSecret } from "./secretEncryption";
 import { createServerSupabase } from "./supabase";
+import { safeErrorLog } from "./safeError";
 
 type Db = ReturnType<typeof createServerSupabase>;
 export const API_KEY_PROVIDERS = [
@@ -48,17 +49,7 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
   return status;
 }
 
-function secret() {
-  const value = process.env.USER_API_KEYS_ENCRYPTION_SECRET?.trim();
-  if (!value) throw new Error("USER_API_KEYS_ENCRYPTION_SECRET is not configured");
-  return value;
-}
-
-function decrypt(row: EncryptedKeyRow) {
-  return decryptSecret(
-    { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag }, secret(), SALT,
-  );
-}
+const secret = () => encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
 
 export async function getUserApiKeyStatus(userId: string, db: Db = createServerSupabase()) {
   const status = getEnvironmentApiKeyStatus();
@@ -82,10 +73,13 @@ export async function getUserApiKeys(userId: string, db: Db = createServerSupaba
   for (const row of (data ?? []) as EncryptedKeyRow[]) {
     const provider = normalizeApiKeyProvider(row.provider);
     if (!provider || keys[provider]) continue;
-    try { keys[provider] = decrypt(row); }
+    try { keys[provider] = decryptSecret(
+      { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag }, secret(), SALT,
+      `${userId}\0${provider}`,
+    ); }
     catch (error) {
       console.error("[user-api-keys] stored key is unreadable", {
-        provider, error: error instanceof Error ? error.message : String(error),
+        provider, ...safeErrorLog(error),
       });
     }
   }
@@ -103,7 +97,7 @@ export async function saveUserApiKey(
     if (error) throw error;
     return;
   }
-  const encrypted = encryptSecret(normalized, secret(), SALT);
+  const encrypted = encryptSecret(normalized, secret(), SALT, `${userId}\0${provider}`);
   const { error } = await db.from("user_api_keys").upsert({
     user_id: userId, provider, encrypted_key: encrypted.encrypted,
     iv: encrypted.iv, auth_tag: encrypted.tag, updated_at: new Date().toISOString(),

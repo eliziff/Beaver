@@ -54,16 +54,9 @@ export function DocumentViewer({
                 {...options}
             />
         );
-    return <Suspense fallback={<ViewerLoading />}>{renderer}</Suspense>;
-}
-
-function ViewerLoading() {
-    return (
-        <div
-            className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500"
-            role="status"
-        >
+    return <Suspense fallback={
+        <div className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500" role="status">
             Loading document…
         </div>
-    );
+    }>{renderer}</Suspense>;
 }

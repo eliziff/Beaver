@@ -2,7 +2,7 @@ import type { DocumentStore } from "./documentStore";
 import { abortChatTurnForDeletion } from "./chatTurns";
 import { normalizeDocumentFilename } from "./normalize";
 import { deleteFolderDocuments, validateFolderMove } from "./folderApplication";
-import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { ApplicationError, notFound as missing, type ApplicationScope } from "./applicationError";
 
 export type ProjectScope = ApplicationScope;
 export type ProjectRecord = Record<string, unknown> & { id: string };
@@ -61,8 +61,6 @@ export type ProjectStore = {
   moveDocument(scope: ProjectScope, projectId: string, id: string,
     folderId: string | null): Promise<ProjectRecord>;
 };
-
-const missing = (detail: string) => new ApplicationError(404, detail);
 
 export function createProjectStore(
   repository: ProjectRepository,

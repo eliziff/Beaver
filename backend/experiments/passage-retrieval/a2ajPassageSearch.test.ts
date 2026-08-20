@@ -70,14 +70,14 @@ function seed(file: string) {
   db.close();
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   // Literal-key behaviour only: never fall through to a real citator
   // graph on the developer's box (alias expansion is covered by
   // a2ajPassageWiring.test.ts against a fixture graph).
   process.env.MIKE_CITATOR_DB = path.join(dir, "no-citator.sqlite");
   seed(sourceDb);
   seed(emptyDb);
-  ensurePassageIndex({
+  await ensurePassageIndex({
     sourceDb,
     target: A2AJ_PASSAGE_TARGET,
     overlap: A2AJ_PASSAGE_OVERLAP,
@@ -130,7 +130,7 @@ describe("searchLocalA2AJPassages", () => {
   it("prepends the citation-resolved document ahead of the bm25 ranking", async () => {
     process.env.MIKE_A2AJ_BULK_DB = sourceDb;
     const query = "what did 2024 SCC 6 say about notice";
-    const ranked = searchPassages({
+    const ranked = await searchPassages({
       sourceDb,
       target: A2AJ_PASSAGE_TARGET,
       overlap: A2AJ_PASSAGE_OVERLAP,

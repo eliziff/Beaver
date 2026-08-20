@@ -24,9 +24,9 @@ Section 8.01 Termination. This Agreement may be terminated in accordance with th
 `;
 
 describe("extractProvisionGraph", () => {
-  it("extracts nodes and edges from a cross-reference graph", () => {
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("extracts nodes and edges from a cross-reference graph", async () => {
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
 
     expect(graph.nodes.length).toBeGreaterThan(0);
@@ -48,9 +48,9 @@ describe("extractProvisionGraph", () => {
     expect(parents.length).toBeGreaterThan(0);
   });
 
-  it("resolves cross-references between sections", () => {
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("resolves cross-references between sections", async () => {
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
 
     const xrefEdges = graph.edges.filter((e) => e.kind === "cross-reference");
@@ -61,10 +61,10 @@ describe("extractProvisionGraph", () => {
     expect(to801!.refText).toBe("Section 8.01");
   });
 
-  it("does not include self-loops", () => {
+  it("does not include self-loops", async () => {
     const text = "Section 2.01 Purchase Price. As provided in this Section 2.01, the price shall be $100.";
-    const skeleton = compileAgreementSkeleton(text, "test");
-    const xref = crossReferenceGraph(text, "test", { skeleton });
+    const skeleton = await compileAgreementSkeleton(text, "test");
+    const xref = await crossReferenceGraph(text, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
 
     const selfEdges = graph.edges.filter(
@@ -73,18 +73,18 @@ describe("extractProvisionGraph", () => {
     expect(selfEdges.length).toBe(0);
   });
 
-  it("handles documents that abstain", () => {
+  it("handles documents that abstain", async () => {
     const text = "This is a simple letter agreement with no numbered provisions.";
-    const { graph, abstained } = compileProvisionGraph(text, "test");
+    const { graph, abstained } = await compileProvisionGraph(text, "test");
     expect(abstained).toBe(true);
     expect(graph.edges.filter((e) => e.kind === "cross-reference").length).toBe(0);
   });
 });
 
 describe("renderProvisionGraphHtml", () => {
-  it("produces valid HTML with cytoscape", () => {
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("produces valid HTML with cytoscape", async () => {
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
     const html = renderProvisionGraphHtml(graph);
 
@@ -110,18 +110,18 @@ describe("renderProvisionGraphHtml", () => {
     expect(html).toContain("</html>");
   });
 
-  it("truncates when exceeding maxNodes", () => {
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("truncates when exceeding maxNodes", async () => {
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
     const html = renderProvisionGraphHtml(graph, { maxNodes: 5 });
 
     expect(html).toContain("Showing 5 of");
   });
 
-  it("accepts custom title", () => {
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("accepts custom title", async () => {
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const graph = extractProvisionGraph(xref);
     const html = renderProvisionGraphHtml(graph, { title: "My Agreement" });
 
@@ -130,10 +130,10 @@ describe("renderProvisionGraphHtml", () => {
 });
 
 describe("compileProvisionGraph", () => {
-  it("is a convenience over extractProvisionGraph", () => {
-    const a = compileProvisionGraph(SAMPLE, "test");
-    const skeleton = compileAgreementSkeleton(SAMPLE, "test");
-    const xref = crossReferenceGraph(SAMPLE, "test", { skeleton });
+  it("is a convenience over extractProvisionGraph", async () => {
+    const a = await compileProvisionGraph(SAMPLE, "test");
+    const skeleton = await compileAgreementSkeleton(SAMPLE, "test");
+    const xref = await crossReferenceGraph(SAMPLE, "test", { skeleton });
     const b = extractProvisionGraph(xref);
 
     expect(a.graph.nodes.length).toBe(b.nodes.length);

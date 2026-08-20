@@ -17,7 +17,7 @@ export const sqliteChatFeatures: Partial<ChatApplicationFeatures> = {
       const compatibilityKey = providerSessionCompatibilityKey({ schema_version: 5,
         transport: "app-server-v2", model: input.model,
         reasoning_effort: input.reasoningEffort?.trim() || "max",
-        service_tier: input.serviceTier?.trim().toLowerCase() || "default",
+        service_tier: "default",
         scope: { user_id: input.auth.userId, project_id: input.projectId },
         auth: { command: process.env.CODEX_COMMAND?.trim() || "codex",
           codex_home: beaverCodexHome(), api_key_sha256: process.env.CODEX_API_KEY

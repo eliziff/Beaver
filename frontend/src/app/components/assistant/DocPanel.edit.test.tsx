@@ -52,7 +52,6 @@ const edit: EditAnnotation = {
     document_id: "doc-1",
     version_id: "version-1",
     version_number: 1,
-    change_id: "change-1",
     deleted_text: "Deleted original",
     inserted_text: "Inserted replacement",
     diff: [
@@ -71,10 +70,8 @@ afterEach(() => {
 describe("edit document panel", () => {
     it("highlights citations in the rendered document without duplicating their text", async () => {
         const citation: DocumentCitation = {
-            type: "citation_data",
             kind: "document",
             ref: 1,
-            document_id: "doc-1",
             document_id: "doc-1",
             filename: "Draft agreement.docx",
             quotes: [{ quote: "The term is five years." }],

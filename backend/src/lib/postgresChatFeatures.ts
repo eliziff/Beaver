@@ -15,13 +15,10 @@ export const postgresChatFeatures: Partial<ChatApplicationFeatures> = {
     const extraTools: BeaverTool<ChatToolContext>[] = schemas.map((schema) => ({ ...schema,
       activity: () => `Using ${schema.name}`,
       async execute(input, context, signal) {
-        context.emit({ type: "mcp_tool_start", name: schema.name });
         const { content, event } = await executeMcpToolCall(
           auth.userId, schema.name, input, db, signal);
-        context.emit({ type: "mcp_tool_result", name: schema.name,
-          connector_name: event.connector_name, tool_name: event.tool_name,
-          status: event.status, error: event.error });
-        return { result: toolText(content, event.status === "error"), events: [event] };
+        context.addEvent(event);
+        return { result: toolText(content, event.status === "error") };
       },
     }));
     return { apiKeys: api_keys, includeResearchTools: legal_research_us, extraTools };

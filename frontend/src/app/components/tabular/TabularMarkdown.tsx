@@ -40,23 +40,23 @@ export function TabularMarkdown({
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-                p: ({ node, ...props }) =>
+                p: ({ node: _node, ...props }) =>
                     inline ? (
                         <span {...props} />
                     ) : (
                         <p className="mb-1 last:mb-0 leading-relaxed" {...props} />
                     ),
-                ul: ({ node, ...props }) => (
+                ul: ({ node: _node, ...props }) => (
                     <ul className="mb-1 list-disc space-y-0.5 pl-4 last:mb-0" {...props} />
                 ),
-                ol: ({ node, ...props }) => (
+                ol: ({ node: _node, ...props }) => (
                     <ol className="mb-1 list-decimal space-y-0.5 pl-4 last:mb-0" {...props} />
                 ),
-                strong: ({ node, ...props }) => (
+                strong: ({ node: _node, ...props }) => (
                     <strong className="font-semibold" {...props} />
                 ),
-                em: ({ node, ...props }) => <em className="italic" {...props} />,
-                a: ({ node, ...props }) => (
+                em: ({ node: _node, ...props }) => <em className="italic" {...props} />,
+                a: ({ node: _node, ...props }) => (
                     <a
                         target="_blank"
                         rel="noopener noreferrer"
@@ -64,7 +64,7 @@ export function TabularMarkdown({
                         {...props}
                     />
                 ),
-                code: ({ node, children, ...props }) => {
+                code: ({ node: _node, children, ...props }) => {
                     const token = String(children);
                     const citationIndex = token.match(/^§c(\d+)§$/)?.[1];
                     if (citationIndex !== undefined) {

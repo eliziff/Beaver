@@ -80,8 +80,3 @@ export function preloadModelCatalog() {
         });
     return pending;
 }
-export function resetModelCatalogSession() {
-    catalog = null;
-    refreshedAt = 0;
-    pending = null;
-}

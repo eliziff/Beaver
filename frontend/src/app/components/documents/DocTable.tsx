@@ -230,12 +230,6 @@ function documentRemovalMessage(pending: PendingDocumentRemoval | null,
           : <>Delete {name}? This will delete the document and all of its versions.</>}
     </p></div>;
 }
-function folderDeletionMessage(pending: PendingFolderDeletion | null) {
-    if (!pending) return;
-    return <p>
-        Permanently delete {emphasis(pending.folder.name)} and everything inside it?
-    </p>;
-}
 interface DocTableProps {
     scopeKey: string; documents: Document[]; folders: DocTableFolder[];
     loading: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
@@ -319,18 +313,15 @@ export function DocTable({
                 try { await refreshCollection(); }
                 catch (error) { console.error("PDF preparation refresh failed", error); }
             }
-            if (!stopped) timer = setTimeout(poll, 500);
+            if (!stopped) timer = setTimeout(poll, 1_500);
         };
-        timer = setTimeout(poll, 500);
+        timer = setTimeout(poll, 1_500);
         return () => { stopped = true; clearTimeout(timer); };
     }, [hasActivePreparation, refreshCollection]);
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
     }, [loading, renderAddDocumentsModal]);
-    useEffect(() => {
-        void getPdfJs().catch(() => {});
-    }, []);
     const openAddDocuments = useCallback(() => {
         if (loadingRef.current) return;
         if (renderAddDocumentsModalRef.current) {
@@ -1133,7 +1124,9 @@ export function DocTable({
         detachesDocument,
         pendingDeleteDocVersionCount,
     );
-    const pendingDeleteFolderMessage = folderDeletionMessage(pendingDeleteFolder);
+    const pendingDeleteFolderMessage = pendingDeleteFolder ? <p>
+        Permanently delete {emphasis(pendingDeleteFolder.folder.name)} and everything inside it?
+    </p> : undefined;
     return (
         <div className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden ${compact ? "[&_.document-metadata]:hidden" : ""}`}
             onDragEnd={clearDragOver}>

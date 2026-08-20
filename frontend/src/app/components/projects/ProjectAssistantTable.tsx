@@ -19,10 +19,7 @@ import { CheckboxControl } from "@/app/components/ui/checkbox";
 import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
-import { formatDate } from "@/app/lib/utils";function creatorLabel(chat: Chat, currentUserId?: string | null) {
-    if (currentUserId && chat.user_id === currentUserId) return "Me";
-    return chat.creator_display_name?.trim() || "Shared";
-}
+import { formatDate } from "@/app/lib/utils";
 const LOADING_TITLE_WIDTHS = ["w-36", "w-40", "w-44", "w-48", "w-52"];
 export function ProjectAssistantTable({
     chats,
@@ -164,7 +161,8 @@ export function ProjectAssistantTable({
                                 onEditCancel={() => setRenamingChatId(null)}
                             />
                             <TableCell className="ml-auto hidden w-28 sm:block md:w-32">
-                                {creatorLabel(chat, currentUserId)}
+                                {currentUserId && chat.user_id === currentUserId
+                                    ? "Me" : chat.creator_display_name?.trim() || "Shared"}
                             </TableCell>
                             <TableCell className="hidden w-28 sm:block md:w-32">
                                 {formatDate(chat.created_at)}

@@ -4,6 +4,7 @@ import type {
   LegalEvidenceReceipt,
   LegalEvidenceReceiptEvent,
 } from "./legalEvidence";
+import { jsonRecord as record } from "../value";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
 export const RESUME_SUBAGENT_TOOL_NAME = "resume_read";
@@ -55,7 +56,6 @@ export type ReadSubagentEvent = {
   output?: string;
   error?: string;
   activities?: ToolActivity[];
-  reasoning?: string[];
   sources?: ReadSubagentSource[];
   grounding?: LegalEvidenceReceiptEvent;
   resume?: ReadSubagentCheckpoint;
@@ -134,9 +134,6 @@ export const RESUME_SUBAGENT_TOOL: Tool = {
 export const READ_SUBAGENT_SYSTEM_PROMPT =
   "Use direct research tools for ordinary work. Delegate only when two to four genuinely independent reading lanes will help. Keep every lane within the jurisdictions selected for this request, wait for all siblings, and skeptically compare their exact evidence against the question. Resume interrupted readers instead of replacing them. A reader miss is not proof of absence; refine concrete gaps, but never force a result. Reuse returned evidence IDs in the final grounded answer.";
 
-const record = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
 const strings = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === "string") : [];
 const region = (value: unknown): ReadSubagentRegion =>
@@ -203,8 +200,6 @@ const REGION_TERMS: Record<ReadSubagentRegion, readonly RegExp[]> = {
   US: [/\b(?:US|USA|United States|U\.S\.|American (?:law|cases?|courts?)|SCOTUS|CourtListener)\b/iu],
   UK: [/\b(?:UK|U\.K\.|United Kingdom|UKSC|EWCA|EWHC|BAILII|English law|England and Wales|Scots? law|Northern Ireland law)\b/iu],
 };
-const mentionedRegion = (text: string) =>
-  REGIONS.find((key) => REGION_TERMS[key].some((pattern) => pattern.test(text)));
 const preferenceRegion = (value: string): ReadSubagentRegion | null => {
   const folded = value.trim().toLowerCase();
   if (["ca", "canada"].includes(folded) || folded.startsWith("ca-")) return "CA";
@@ -261,7 +256,8 @@ export function createReadSubagentAdmission(
       const key = assignment
         ? `${assignment.scope}\n${assignment.task}`.replace(/\s+/gu, " ").toLowerCase()
         : "";
-      const named = assignment && mentionedRegion(`${assignment.scope} ${assignment.task}`);
+      const named = assignment && REGIONS.find((region) => REGION_TERMS[region]
+        .some((pattern) => pattern.test(`${assignment.scope} ${assignment.task}`)));
       const error = !assignment
         ? "Reader assignments require a task and distinct scope."
         : !allowed.has(assignment.jurisdiction)
@@ -290,7 +286,7 @@ function readerError(call: NormalizedToolCall, error: string): NormalizedToolRes
   return { tool_use_id: call.id, status: "error", content: JSON.stringify({ ok: false, error }) };
 }
 
-export function prepareReadSubagentRound(
+function prepareReadSubagentRound(
   calls: NormalizedToolCall[],
   admit: ReturnType<typeof createReadSubagentAdmission>,
 ) {
@@ -320,7 +316,7 @@ export function prepareReadSubagentRound(
   } : { parent, assignments: admitted.accepted, rejected: [] };
 }
 
-export function combineReadSubagentResults(
+function combineReadSubagentResults(
   parent: NormalizedToolCall,
   results: NormalizedToolResult[],
 ): NormalizedToolResult {

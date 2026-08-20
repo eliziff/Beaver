@@ -30,44 +30,23 @@ describe("recordChatTurn", () => {
   it("records the turn and its generated artifacts", async () => {
     const { db, inserts } = makeDb();
     await recordChatTurn(db, base, [
-      { type: "document_artifact", action: "created", filename: "brief.docx", document_id: "d1" },
-      { type: "document_artifact", action: "edited", filename: "memo.docx", document_id: "d2" },
-      { type: "workflow_applied", workflow_id: "wf1", title: "Cleanup" },
+      { type: "document_artifact", action: "created", filename: "brief.docx",
+        document_id: "d1", download_url: "/documents/d1", version_id: "v1",
+        version_number: 1 },
+      { type: "document_artifact", action: "edited", filename: "memo.docx",
+        document_id: "d2", download_url: "/documents/d2", version_id: "v2",
+        version_number: 2 },
     ]);
 
     expect(inserts.map((row) => row.action)).toEqual([
       "chat.message",
       "document.generated",
       "document.edited",
-      "workflow.applied",
     ]);
     expect(inserts[1]).toMatchObject({
       title: "brief.docx",
       document_id: "d1",
     });
-    expect(inserts[3]).toMatchObject({ detail: { workflow_id: "wf1" } });
   });
 
-  it("records each replicated copy rather than the source", async () => {
-    const { db, inserts } = makeDb();
-    await recordChatTurn(db, base, [
-      {
-        type: "doc_replicated",
-        filename: "source.docx",
-        copies: [
-          { new_filename: "copy-a.docx", document_id: "da" },
-          { new_filename: "copy-b.docx", document_id: "db" },
-        ],
-      },
-    ]);
-
-    const artifacts = inserts.filter(
-      (row) => row.action === "document.generated",
-    );
-    expect(artifacts.map((row) => row.title)).toEqual([
-      "copy-a.docx",
-      "copy-b.docx",
-    ]);
-    expect(inserts.some((row) => row.title === "source.docx")).toBe(false);
-  });
 });

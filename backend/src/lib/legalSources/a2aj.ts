@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
-import { fetchLocalA2AJDocument, getLocalA2AJSectionMap, getLocalA2AJStructure,
+import { fetchLocalA2AJDocument, getLocalA2AJSectionMap,
   searchLocalA2AJ } from "../a2ajLocalBulk";
 import { citationAuthorityMetricsBatch } from "../caselawCitator";
 import { sha256 } from "../hash";
@@ -17,12 +17,12 @@ import {
   type SourceDocLocatorKind,
   type SourceDocLookup,
 } from "../sourceDoc";
-import { compileA2AJSourceDoc, summarizeA2AJSourceDoc,
-  type A2AJStructureSummary } from "../sourceDocA2AJ";
+import { summarizeA2AJSourceDoc, type A2AJStructureSummary } from "../sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
+import { objectValue as object, type JsonObject } from "./remoteProvider";
 import type { LegalSourcePassage, LegalSourceProvider, LegalSourceReference,
   LegalSourceResolveRequest, LegalSourceSearchHit } from ".";
 
-type JsonObject = Record<string, unknown>;
 type DocType = "cases" | "laws";
 type Language = "en" | "fr";
 export type A2AJLocatorKind = Exclude<SourceDocLocatorKind, "footnote">;
@@ -68,12 +68,11 @@ const TRIBUNALS = new Set([
   "PSDPT", "RAD", "RLLR", "RPD", "SCT", "SST", "TATC",
 ]);
 const documents = new Map<string, { expires: number; value: A2AJDocument }>();
-const sourceDocs = new WeakMap<A2AJDocument, SourceDoc>();
+const sourceDocs = new WeakMap<A2AJDocument, Promise<SourceDoc>>();
+const resolvedSourceDocs = new WeakMap<A2AJDocument, SourceDoc>();
 const sectionMaps = new WeakMap<A2AJDocument, Record<string, string>>();
 const lookupDocs = new WeakMap<A2AJLocatorLookup, SourceDoc>();
 
-const object = (value: unknown): JsonObject | null =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const string = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 const languageText = (record: JsonObject, field: string, language: Language) =>
@@ -186,13 +185,10 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
   return document;
 }
 
-function sourceDoc(document: A2AJDocument) {
-  const cached = sourceDocs.get(document) ?? getLocalA2AJStructure(document);
-  if (cached) {
-    sourceDocs.set(document, cached);
-    return cached;
-  }
-  const compiled = compileA2AJSourceDoc({
+async function sourceDoc(document: A2AJDocument) {
+  const cached = sourceDocs.get(document);
+  if (cached) return cached;
+  const pending = deriveA2AJSourceDoc({
     citation: document.citation,
     docType: document.docType ?? "cases",
     text: document.text,
@@ -201,7 +197,9 @@ function sourceDoc(document: A2AJDocument) {
     dataset: document.dataset,
     name: document.name,
   });
-  sourceDocs.set(document, compiled);
+  sourceDocs.set(document, pending);
+  const compiled = await pending;
+  resolvedSourceDocs.set(document, compiled);
   document.text = compiled.text;
   document.structure = summarizeA2AJSourceDoc(compiled);
   return compiled;
@@ -214,7 +212,7 @@ function locator(value: string) {
   return stripped && (normalizeSourceDocLocator("section", stripped) || `sec${stripped}`);
 }
 
-function mappedSection(document: A2AJDocument, requested: string) {
+async function mappedSection(document: A2AJDocument, requested: string) {
   const mapped = getLocalA2AJSectionMap(document) ?? sectionMaps.get(document);
   if (!mapped) return null;
   const normalized = locator(requested);
@@ -229,7 +227,7 @@ function mappedSection(document: A2AJDocument, requested: string) {
   if (matches.length > 1) return { status: "ambiguous" as const, matches };
   const match = matches[0];
   if (!match || !match.text.trim() || /^\[blank\]$/iu.test(match.text.trim())) return null;
-  const doc = compileA2AJSourceDoc({
+  const doc = await deriveA2AJSourceDoc({
     citation: document.citation,
     docType: "laws",
     text: match.text,
@@ -239,34 +237,26 @@ function mappedSection(document: A2AJDocument, requested: string) {
     dataset: document.dataset,
     name: document.name,
     sectionMap: { [match.label]: match.text },
-  });
+  }, { kind: "excerpt", excerptOf: document.citation });
   const lookup = lookupSourceDocLabel(
     doc, "section", match.normalized + normalized.slice(match.normalized.length), 0,
   );
   return lookup.status === "found" ? { status: "found" as const, doc, lookup } : null;
 }
 
-function scopedDocument(document: A2AJDocument, requested: string, text: string) {
+async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
   const label = locator(requested).replace(/^sec/iu, "");
   if (!label || !text.trim()) return null;
-  const doc = compileA2AJSourceDoc({
+  const doc = await deriveA2AJSourceDoc({
     citation: document.citation, docType: "laws", text, id: document.citation,
     url: document.url, alternateCitation: document.alternateCitation,
     dataset: document.dataset, name: document.name, sectionMap: { [label]: text },
-  });
+  }, { kind: "excerpt", excerptOf: document.citation });
   const result = { ...document, docType: "laws" as const, text: doc.text,
     structure: summarizeA2AJSourceDoc(doc) };
-  sourceDocs.set(result, doc);
+  sourceDocs.set(result, Promise.resolve(doc));
+  resolvedSourceDocs.set(result, doc);
   return result;
-}
-
-function documentKey(args: {
-  citation: string; docType: DocType; language: Language; dataset?: string; section?: string;
-}) {
-  return JSON.stringify([
-    args.docType, args.language, args.dataset?.trim().toLowerCase() ?? "",
-    args.citation.trim().toLowerCase(), args.section?.trim().toLowerCase() ?? "",
-  ]);
 }
 
 async function document(args: {
@@ -278,7 +268,10 @@ async function document(args: {
   args.signal?.throwIfAborted();
   const docType = args.docType ?? "cases";
   const language = args.language === "fr" ? "fr" : "en";
-  const key = documentKey({ ...args, citation, docType, language });
+  const key = JSON.stringify([
+    docType, language, args.dataset?.trim().toLowerCase() ?? "",
+    citation.toLowerCase(), args.section?.trim().toLowerCase() ?? "",
+  ]);
   const cached = documents.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
   if (cached) documents.delete(key);
@@ -286,10 +279,10 @@ async function document(args: {
     citation, docType, language, dataset: args.dataset, maxChars: Number.MAX_SAFE_INTEGER,
   });
   if (result && args.section?.trim()) {
-    const section = mappedSection(result, args.section);
+    const section = await mappedSection(result, args.section);
     if (section?.status === "ambiguous") return null;
     result = section?.status === "found"
-      ? scopedDocument(result, section.lookup.block?.label ?? args.section, section.doc.text)
+      ? await scopedDocument(result, section.lookup.block?.label ?? args.section, section.doc.text)
       : null;
   }
   if (!result) {
@@ -300,10 +293,10 @@ async function document(args: {
       .map((item) => mapDocument(item, language, docType))
       .find((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
         item.dataset.toLowerCase() === args.dataset.trim().toLowerCase())) ?? null;
-    if (result && args.section?.trim()) result = scopedDocument(result, args.section, result.text);
+    if (result && args.section?.trim()) result = await scopedDocument(result, args.section, result.text);
   }
   if (!result) return null;
-  sourceDoc(result);
+  await sourceDoc(result);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
     value: result,
@@ -352,7 +345,7 @@ async function lookup(args: {
   const docType = args.docType ?? "cases";
   const found = await document({ ...args, docType });
   if (!found) return null;
-  const compiled = sourceDoc(found);
+  const compiled = await sourceDoc(found);
   const end = args.endLocator?.trim();
   if (end) {
     const blocks = sliceSourceDocBlocks(compiled, "paragraph", requested, end);
@@ -375,7 +368,7 @@ async function lookup(args: {
     }, "structure_index", compiled);
   }
   if (args.kind === "section" && docType === "laws") {
-    const native = mappedSection(found, requested);
+    const native = await mappedSection(found, requested);
     if (native?.status === "ambiguous") return lookupResult(found,
       { kind: "section", locator: requested },
       { status: "ambiguous", requestedLabel: locator(requested),
@@ -390,7 +383,7 @@ async function lookup(args: {
     const label = locator(requested);
     const native = label && await document({ ...args, docType, section: label.replace(/^sec/iu, "") });
     if (native) {
-      const nativeDoc = sourceDoc(native);
+      const nativeDoc = await sourceDoc(native);
       const nativeLookup = lookupSourceDocLabel(nativeDoc, "section", label);
       if (nativeLookup.status === "found") return lookupResult(found,
         { kind: "section", locator: requested }, nativeLookup,
@@ -543,7 +536,7 @@ async function viewer(args: {
   for (const docType of types) {
     const found = await document({ ...args, docType });
     if (!found) continue;
-    const compiled = sourceDoc(found);
+    const compiled = await sourceDoc(found);
     const text = compiled.text.slice(0, max);
     const structure: StructureView = {
       ...summarizeA2AJSourceDoc(compiled),
@@ -621,7 +614,7 @@ const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
       const found = await document({ citation, docType, language: request.source.language,
         dataset: request.source.collection ?? undefined, signal: request.signal });
       if (!found) return [];
-      const artifact = sourceDoc(found);
+      const artifact = await sourceDoc(found);
       return [{ source: reference(found, request.source.kind as "case" | "legislation"),
         locator: { requested: null, label: "document" }, role: "document",
         text: artifact.text, textSha256: sha256(artifact.text),
@@ -674,10 +667,10 @@ const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
   },
 };
 
-function artifact(value: A2AJDocument): SourceDoc;
+function artifact(value: A2AJDocument): SourceDoc | null;
 function artifact(value: A2AJLocatorLookup): SourceDoc | null;
 function artifact(value: A2AJDocument | A2AJLocatorLookup) {
-  return "requested" in value ? lookupDocs.get(value) ?? null : sourceDoc(value);
+  return "requested" in value ? lookupDocs.get(value) ?? null : resolvedSourceDocs.get(value) ?? null;
 }
 
 export const a2ajLegalSourceProvider = Object.assign(provider, {

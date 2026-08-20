@@ -1,6 +1,8 @@
 import { Router, type Response } from "express";
 
 import { cloudScope, type CloudScope } from "../lib/access";
+import { asyncRoute } from "../lib/asyncRoute";
+import { downloadHeaders } from "../lib/storage";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 
 export const auditRouter = Router();
@@ -54,7 +56,7 @@ export function escapeLikePattern(value: string) {
 
 export function csvCell(value: unknown) {
   let text = value == null ? "" : String(value);
-  if (/^[=+\-@\t\r]/u.test(text)) text = `'${text}`;
+  if (/^\s*[=+\-@]/u.test(text) || /^[\t\r]/u.test(text)) text = `'${text}`;
   return /[",\r\n]/u.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
 }
 
@@ -82,7 +84,7 @@ const failed = (res: Response, error: unknown) => {
   res.status(500).json({ detail: "Failed to load history" });
 };
 
-auditRouter.get("/export", requireMfaIfEnrolled, async (req, res) => {
+auditRouter.get("/export", requireMfaIfEnrolled, asyncRoute(async (req, res) => {
   const parsed = parseQuery(req.query, EXPORT_LIMIT);
   if (!parsed.ok) return void res.status(400).json({ detail: parsed.error });
   let result;
@@ -100,13 +102,11 @@ auditRouter.get("/export", requireMfaIfEnrolled, async (req, res) => {
       columns.map((column) => csvCell(row[column])).join(","),
     ),
   ];
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition",
-    `attachment; filename="beaver-history-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.set(downloadHeaders("text/csv; charset=utf-8", `beaver-history-${new Date().toISOString().slice(0, 10)}.csv`));
   res.send(`\uFEFF${lines.join("\r\n")}\r\n`);
-});
+}));
 
-auditRouter.get("/", async (req, res) => {
+auditRouter.get("/", asyncRoute(async (req, res) => {
   const parsed = parseQuery(req.query, PAGE_SIZE);
   if (!parsed.ok) return void res.status(400).json({ detail: parsed.error });
   let result;
@@ -121,4 +121,4 @@ auditRouter.get("/", async (req, res) => {
     page: parsed.query.page,
     pageSize: PAGE_SIZE,
   });
-});
+}));

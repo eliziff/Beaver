@@ -62,13 +62,6 @@ function userMessage(message: Message): Message {
   };
 }
 
-function networkError(value: unknown) {
-  const message = value instanceof Error ? value.message : "";
-  return /^(?:failed to fetch|fetch failed|network request failed|networkerror)/iu.test(message)
-    ? "Unable to get a response. Check the local service or provider connection, then try again."
-    : ASSISTANT_GENERIC_ERROR;
-}
-
 export function useAssistantChat({
   chatId: initialChatId,
   projectId,
@@ -248,23 +241,23 @@ export function useAssistantChat({
       const model = message.model ?? readSelectedModel();
       const preferences = readAssistantPreferences();
       const readSubagents = preferences.readSubagents;
-      const attachedDocs = (message.files ?? []).flatMap((file) =>
-        file.document_id ? [{ filename: file.filename, document_id: file.document_id }] : [],
-      );
       const response = await streamChat({
         current_turn: turnOptions?.askInputsResponse
           ? {
               kind: "ask_inputs_response" as const,
-              content: message.content,
-              files: message.files,
-              responses: turnOptions.askInputsResponse.responses,
+              responses: turnOptions.askInputsResponse.responses.map((response) =>
+                response.kind === "documents"
+                  ? { ...response, documents: response.documents.map(
+                      ({ document_id }) => ({ document_id }),
+                    ) }
+                  : response),
             }
           : {
               kind: "message" as const,
               turn_id: turnOptions?.turnId,
               content: message.content,
-              files: message.files,
-              workflow: message.workflow,
+              files: message.files?.map(({ document_id }) => ({ document_id })),
+              workflow: message.workflow ? { id: message.workflow.id } : undefined,
             },
         expected_version: current.transcriptVersion,
         chat_id: current.chatId,
@@ -280,9 +273,8 @@ export function useAssistantChat({
         activity_detail: preferences.activityDetail,
         time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         displayed_doc: turnOptions?.displayedDoc
-          ? { filename: turnOptions.displayedDoc.filename, document_id: turnOptions.displayedDoc.documentId }
+          ? { document_id: turnOptions.displayedDoc.documentId }
           : undefined,
-        attached_documents: attachedDocs.length ? attachedDocs : undefined,
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -382,10 +374,15 @@ export function useAssistantChat({
           // Fall through to the bounded transport failure.
         }
       }
+      const failure = error instanceof AssistantProtocolError ? ASSISTANT_GENERIC_ERROR
+        : /^(?:failed to fetch|fetch failed|network request failed|networkerror)/iu
+          .test(error instanceof Error ? error.message : "")
+          ? "Unable to get a response. Check the local service or provider connection, then try again."
+          : ASSISTANT_GENERIC_ERROR;
       dispatch({
         type: "run_failed",
         runId,
-        message: error instanceof AssistantProtocolError ? ASSISTANT_GENERIC_ERROR : networkError(error),
+        message: failure,
         rejected: { message: userMessage(message), options: turnOptions },
       });
       if (targetChatId) setChatTurnInProgress?.(targetChatId, false);

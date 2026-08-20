@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { it } from "vitest";
+import { it } from "node:test";
 
 import {
   citationTarget,
@@ -33,7 +33,7 @@ function substantive(label: ModelTreatmentItem["substantive"][number]["label"]):
       label,
       scope: "specific_proposition",
       evidence_quote: "We decline to follow Jordan on this point.",
-      proposition_quote: "Jordan set a presumptive ceiling.",
+      target_proposition_as_characterized: "Jordan established a presumptive ceiling.",
     }],
     direct_history: [],
   };
@@ -51,8 +51,8 @@ it("a majority negative treatment controls; the same dissent does not", () => {
   });
 });
 
-it("party argument and reported reasons do not become the current court's treatment", () => {
-  for (const attribution of ["party_submission", "reported_decision"] as const) {
+it("non-court voices do not become the current court's treatment", () => {
+  for (const attribution of ["party_submission", "reported_decision", "document_metadata"] as const) {
     const item = substantive("not_followed");
     item.substantive[0].attribution = attribution;
     const events = resolve("majority", item).substantive;
@@ -73,7 +73,7 @@ it("citation-only unclassified treatment is a mention, not positive treatment", 
       label: "unclassified",
       scope: "unclear",
       evidence_quote: "Jordan set a presumptive ceiling.",
-      proposition_quote: null,
+      target_proposition_as_characterized: null,
     }],
     direct_history: [],
   });
@@ -95,11 +95,7 @@ it("exact unique quotes become absolute offsets; missing anchors are rejected", 
     start: 100,
     end: 142,
   });
-  assert.deepEqual(result.substantive[0].proposition, {
-    quote: "Jordan set a presumptive ceiling.",
-    start: 143,
-    end: 176,
-  });
+  assert.equal(result.substantive[0].proposition, "Jordan established a presumptive ceiling.");
 
   const rejected = resolve("majority", substantive("applied"), "No matching anchor.");
   assert.equal(rejected.substantive.length, 0);
@@ -123,7 +119,7 @@ it("direct procedural history remains separate from substantive treatment", () =
       label: "referred_to",
       scope: "unclear",
       evidence_quote: "We referred to Jordan only for context.",
-      proposition_quote: null,
+      target_proposition_as_characterized: null,
     }],
     direct_history: [{
       label: "affirmed",
@@ -167,7 +163,7 @@ it("a case-level batch maps two targets by edge id and rejects unknown or duplic
       label: "followed",
       scope: "legal_test",
       evidence_quote: housenText,
-      proposition_quote: null,
+      target_proposition_as_characterized: null,
     }],
     direct_history: [],
   };
@@ -178,7 +174,7 @@ it("a case-level batch maps two targets by edge id and rejects unknown or duplic
       label: "applied",
       scope: "legal_test",
       evidence_quote: jordanText,
-      proposition_quote: null,
+      target_proposition_as_characterized: null,
     }],
     direct_history: [],
   };

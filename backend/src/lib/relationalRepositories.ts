@@ -499,9 +499,9 @@ async function missingProfileEmail(db: RelationalDatabase, emails: string[]) {
   return normalized.find((value) => !found.has(value)) ?? null;
 }
 async function replaceMembers(db: RelationalDatabase, table: "project_members" |
-  "tabular_review_members", foreignKey: "project_id" | "review_id", id: string,
-  emails: string[]) {
+  "tabular_review_members", id: string, emails: string[]) {
   if (db.engine === "postgres") return;
+  const foreignKey = table === "project_members" ? "project_id" : "review_id";
   await changes(sql`DELETE FROM ${sql.raw(table)} WHERE ${sql.raw(foreignKey)}=${id}`, db);
   for (const value of [...new Set(emails.map((item) => item.trim().toLowerCase()))]) {
     await changes(sql`INSERT INTO ${sql.raw(table)}(${sql.raw(foreignKey)},email)
@@ -536,7 +536,7 @@ export const projectRepository: ProjectRepository = {
         metadata,notes,created_at,updated_at) VALUES(${id},${scope.userId},${input.name},
         ${input.cmNumber},${input.practice},${encode(input.sharedWith)},
         ${encode(input.metadata ?? {})},${input.notes ?? null},${created},${created})`, tx);
-      await replaceMembers(tx, "project_members", "project_id", id, input.sharedWith);
+      await replaceMembers(tx, "project_members", id, input.sharedWith);
       return (await findProject(scope, id, true, tx))!;
     });
   },
@@ -594,7 +594,7 @@ export const projectRepository: ProjectRepository = {
         shared_with=${encode(shared)},metadata=${encode(input.metadata ?? current.metadata ?? {})},
         notes=${input.notes === undefined ? current.notes as string | null : input.notes},
         updated_at=${now()} WHERE id=${id} AND user_id=${scope.userId}`, tx);
-      if (input.sharedWith) await replaceMembers(tx, "project_members", "project_id", id, shared);
+      if (input.sharedWith) await replaceMembers(tx, "project_members", id, shared);
       return findProject(scope, id, true, tx);
     });
   },
@@ -728,7 +728,7 @@ export const tabularRepository: TabularRepository = {
         ${input.projectId},${input.title ?? null},${encode(input.columns)},
         ${encode(input.documentIds)},${input.workflowId ?? null},${encode(shared)},
         ${created},${created})`, tx);
-      await replaceMembers(tx, "tabular_review_members", "review_id", id, shared);
+      await replaceMembers(tx, "tabular_review_members", id, shared);
       await syncCells(tx, id, input.documentIds, input.columns);
       return { status: "committed", value: (await findReview(scope, id, true, tx))! } as const;
     });
@@ -780,7 +780,7 @@ export const tabularRepository: TabularRepository = {
         const latest = await findReview(scope, id, false, tx);
         return latest ? { status: "conflict", value: latest } : { status: "missing" };
       }
-      if (input.sharedWith) await replaceMembers(tx, "tabular_review_members", "review_id", id, shared);
+      if (input.sharedWith) await replaceMembers(tx, "tabular_review_members", id, shared);
       if (input.columns || input.documentIds) await syncCells(tx, id, documentIds, columns);
       return { status: "committed", value: (await findReview(scope, id, false, tx))! };
     });

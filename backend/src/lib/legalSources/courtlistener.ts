@@ -10,9 +10,10 @@ import {
   type SourceDocLocatorKind,
 } from "../sourceDoc";
 import {
-  compileNativeMarkupSourceDoc,
   lookupLegalSourceDoc,
 } from "../sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
+import { nonemptyString as asString } from "../value";
 import {
   courtlistenerLocalBulkAvailable,
   getLocalCourtlistenerCase,
@@ -31,26 +32,6 @@ const US_REPORTER =
 type JsonRecord = Record<string, unknown>;
 const opinionStructures = new WeakMap<object, SourceDoc>();
 
-function courtlistenerHeaders(apiToken?: string | null): HeadersInit {
-  const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
-  if (!token) {
-    throw new Error(
-      "COURTLISTENER_API_TOKEN must be set to use CourtListener tools.",
-    );
-  }
-  return { Accept: "application/json", Authorization: `Token ${token}` };
-}
-
-function courtlistenerError(status: number): string {
-  if (status === 429) {
-    return "CourtListener rate limit exceeded.";
-  }
-  if (status === 401 || status === 403) {
-    return "CourtListener authentication failed.";
-  }
-  return `CourtListener request failed (${status}).`;
-}
-
 async function courtlistenerFetch<T>(
   pathOrUrl: string,
   init?: RequestInit,
@@ -61,12 +42,15 @@ async function courtlistenerFetch<T>(
     : `${COURTLISTENER_BASE}${pathOrUrl}`;
   const method = init?.method ?? "GET";
   const perform = async () => {
+    const token = apiToken?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim();
+    if (!token) throw new Error("COURTLISTENER_API_TOKEN must be set to use CourtListener tools.");
     const response = await guardedRemoteFetch(
       url,
       {
         ...init,
         headers: {
-          ...courtlistenerHeaders(apiToken),
+          Accept: "application/json",
+          Authorization: `Token ${token}`,
           ...(init?.headers ?? {}),
         },
       },
@@ -84,7 +68,10 @@ async function courtlistenerFetch<T>(
       },
     );
     if (!response.ok) {
-      throw new Error(courtlistenerError(response.status));
+      const message = response.status === 429 ? "CourtListener rate limit exceeded."
+        : response.status === 401 || response.status === 403
+          ? "CourtListener authentication failed." : `CourtListener request failed (${response.status}).`;
+      throw new Error(message);
     }
     return response.json() as Promise<T>;
   };
@@ -102,9 +89,6 @@ async function courtlistenerFetch<T>(
     produce: perform,
   });
 }
-
-const asString = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() ? value : null;
 
 const asNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -236,7 +220,7 @@ function compactCluster(raw: unknown) {
   };
 }
 
-function attachOpinionStructure(
+async function attachOpinionStructure(
   compacted: {
     opinionId: number | null;
     url: string | null;
@@ -248,7 +232,7 @@ function attachOpinionStructure(
   pageCitations: string[],
 ) {
   if (!text) return;
-  const compiled = compileNativeMarkupSourceDoc({
+  const compiled = await deriveNativeMarkupSourceDoc({
     provider: "courtlistener",
     id: compacted.opinionId === null ? "" : String(compacted.opinionId),
     url: compacted.url,
@@ -260,7 +244,7 @@ function attachOpinionStructure(
   opinionStructures.set(compacted, compiled);
 }
 
-function compactOpinion(
+async function compactOpinion(
   opinion: JsonRecord,
   maxChars: number,
   pageCitations: string[] = [],
@@ -300,17 +284,13 @@ function compactOpinion(
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
     text: truncate(text, maxChars),
   };
-  attachOpinionStructure(compacted, text, rawMarkup, maxChars, pageCitations);
+  await attachOpinionStructure(compacted, text, rawMarkup, maxChars, pageCitations);
   return compacted;
 }
 
 function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
   const urls = [...new Set(opinions.map(({ pdfUrl }) => pdfUrl).filter(Boolean))];
   return urls.length === 1 ? urls[0]! : null;
-}
-
-function opinionStructure(opinion: object) {
-  return opinionStructures.get(opinion) ?? null;
 }
 
 function hasNativeOpinionStructure(opinion: object) {
@@ -348,7 +328,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     asString(cluster.filepath_json_harvard),
     args.signal,
   );
-  const opinions: ReturnType<typeof compactOpinion>[] = [];
+  const opinions: Awaited<ReturnType<typeof compactOpinion>>[] = [];
   const rawOpinions: JsonRecord[] = [];
   let nextUrl: string | null = `/opinions/?cluster=${args.clusterId}`;
   let pages = 0;
@@ -371,7 +351,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     );
     for (const opinion of pageOpinions) {
       if (remainingChars <= 0) break;
-      const compacted = compactOpinion(
+      const compacted = await compactOpinion(
         opinion,
         Math.max(1, Math.min(opinionMaxChars, remainingChars)),
         pageCitations,
@@ -446,11 +426,6 @@ function parseCitationParts(value: string) {
     page: match[3],
   };
 }
-
-const citationPartsLabel = (parts: ReturnType<typeof parseCitationParts>) =>
-  parts
-    ? [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ")
-    : null;
 
 function compactLocalBulkCluster(
   cluster: LocalCourtlistenerCluster,
@@ -537,7 +512,7 @@ function getBulkCitationLookup(citations: string[]): CitationLookupPayload | nul
         clusters: [],
       };
     }
-    const citation = citationPartsLabel(parts);
+    const citation = [parts.volume, parts.reporter, parts.page].filter(Boolean).join(" ");
     const matches = lookupLocalCourtlistenerCitation(parts) ?? [];
     return {
       citation,
@@ -610,9 +585,9 @@ async function getBulkCourtlistenerCaseOpinions(args: {
     const pageCitations = await capPageCitations(
       local.cluster.filepathJsonHarvard,
     );
-    const opinions = local.opinions.map((opinion) =>
+    const opinions = await Promise.all(local.opinions.map((opinion) =>
       compactLocalOpinion(opinion, args.maxChars, pageCitations),
-    );
+    ));
     return {
       ...compactLocalBulkCluster(local.cluster, local.citations, opinions),
       opinions,
@@ -622,7 +597,7 @@ async function getBulkCourtlistenerCaseOpinions(args: {
   return null;
 }
 
-function compactLocalOpinion(
+async function compactLocalOpinion(
   opinion: LocalCourtlistenerOpinion,
   maxChars: number,
   pageCitations: string[],
@@ -1006,7 +981,7 @@ function provider(
         ) {
           return [];
         }
-        const structure = opinionStructure(opinion);
+        const structure = opinionStructures.get(opinion) ?? null;
         if (!structure) return [];
         const url = asString(opinionRecord.url) ?? caseUrl;
         if (!url) return [];

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
+import { applicationScope, notFound as missing, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { requireAuth } from "../middleware/auth";
-import { encodePageCursor, pageRequest } from "../lib/pagination";
+import { pageRequest, pageResponse } from "../lib/pagination";
+import { tabularDtos } from "../lib/tabular/application";
 import {
   SYSTEM_WORKFLOW_IDS,
   SYSTEM_WORKFLOWS,
@@ -45,7 +46,7 @@ const metadataSchema = z.object({
   jurisdictions: z.array(text(100)).max(50).nullable().optional()
     .transform((items) => items?.length ? [...new Set(items)] : null),
 }).strict();
-const columnsSchema = z.array(z.record(z.unknown())).max(500);
+const columnsSchema = tabularDtos.create.shape.columns_config;
 const createSchema = z.object({
   metadata: metadataSchema,
   skill_md: z.string().max(1_000_000).optional(),
@@ -97,7 +98,6 @@ const withAccess = <T extends object>(workflow: T, access: {
 const system = (workflow: SystemWorkflow) => withAccess(workflow, {
   allowEdit: false, isOwner: false,
 });
-const missing = (detail = "Workflow not found") => new ApplicationError(404, detail);
 const cloud = (collaboration: WorkflowCollaboration | undefined) =>
   collaboration ?? reject(501, "Workflow sharing is unavailable in account-free local mode.");
 function validateContribution(workflow: WorkflowRecord) {
@@ -176,9 +176,9 @@ export function createWorkflowsRouter(
       req.query, "workflows", filters, ["string", "string"],
     );
     const page = await repositoryFor(applicationScope(res)).page({ q, type, after, limit });
-    res.json({ items: page.items.filter(({ id }) => !SYSTEM_WORKFLOW_IDS.has(id)).map(present),
-      next_cursor: page.nextAfter
-        ? encodePageCursor("workflows", filters, page.nextAfter) : null });
+    res.json(pageResponse("workflows", filters, { ...page,
+      items: page.items.filter(({ id }) => !SYSTEM_WORKFLOW_IDS.has(id)).map(present),
+    }));
   }));
   router.get("/hidden", asyncRoute(async (_req, res) => {
     res.json(await repositoryFor(applicationScope(res)).hidden());
@@ -210,7 +210,7 @@ export function createWorkflowsRouter(
     const workflow: ArchiveWorkflow | null = builtin ?? await repositoryFor(applicationScope(res))
       .get(idSchema.parse(req.params.workflowId)).then((access) => access
         ? present(access.workflow) : null);
-    if (!workflow) throw missing();
+    if (!workflow) throw missing("Workflow not found");
     const { slug, files } = workflowArchive(workflow);
     const JSZip = (await import("jszip")).default, archive = new JSZip();
     files.forEach(({ path, content }) => archive.file(path, content));
@@ -245,7 +245,7 @@ export function createWorkflowsRouter(
   router.delete("/:workflowId/shares/:shareId", asyncRoute(async (req, res) => {
     const removed = await cloud(collaboration).removeShare(applicationScope(res),
       idSchema.parse(req.params.workflowId), idSchema.parse(req.params.shareId));
-    if (!removed) throw missing();
+    if (!removed) throw missing("Workflow not found");
     res.status(204).send();
   }));
   router.post("/:workflowId/share", asyncRoute(async (req, res) => {
@@ -266,7 +266,7 @@ export function createWorkflowsRouter(
     if (builtin) return void res.json(system(builtin));
     const scope = applicationScope(res);
     const access = await repositoryFor(scope).get(idSchema.parse(req.params.workflowId));
-    if (!access) throw missing();
+    if (!access) throw missing("Workflow not found");
     res.json({ ...withAccess(present(access.workflow), access),
       open_source_submission: access.isOwner && collaboration
         ? await collaboration.latestSubmission(scope, access.workflow.id) : null });
@@ -290,7 +290,7 @@ export function createWorkflowsRouter(
     const builtin = SYSTEM_WORKFLOWS.find(({ id }) => id === req.params.workflowId);
     if (builtin) return void res.json(system(builtin));
     if (!await repositoryFor(applicationScope(res)).remove(
-      idSchema.parse(req.params.workflowId))) throw missing();
+      idSchema.parse(req.params.workflowId))) throw missing("Workflow not found");
     res.status(204).send();
   }));
   return router;

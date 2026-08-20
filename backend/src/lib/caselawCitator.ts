@@ -98,15 +98,6 @@ function matchesCourt(
   if (scope === "trial") return level === 2 || level === 3;
   return level === 1;
 }
-
-export type CitatorGraphStats = {
-  cases_indexed: number;
-  edges: number;
-  distinct_cited: number;
-  /** curated provider_edge rows; null when the graph predates them */
-  provider_edges: number | null;
-};
-
 export type CitationAuthorityMetric = {
   citingCases: number;
   distinctCitingParagraphs: number;
@@ -219,7 +210,6 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
     ) ?? keys.map((key) => (key ? [key] : []))
   );
 }
-
 /** Batch authority counts for ranked retrieval: one DB handle, no excerpts. */
 export function citationAuthorityMetricsBatch(
   citations: string[],
@@ -389,7 +379,6 @@ export function noteUpCitations(args: {
     };
   });
 }
-
 export type StandsForCandidate = {
   /**
    * case = another court's citing prose (edge graph); commentary = a
@@ -646,30 +635,6 @@ export function noteUpAnalysis(args: {
       excerptsRejected: { authorityList, insufficient },
       commentary: commentary
         ? { considered: commentary.considered, rejected: commentary.rejected }
-        : null,
-    };
-  });
-}
-
-/** Whole-graph counts; null when no note-up graph has been built. */
-export function graphStats(): CitatorGraphStats | null {
-  return withDatabase((database) => {
-    const row = database
-      .prepare(
-        `SELECT (SELECT COUNT(*) FROM case_doc) AS cases_indexed,
-                (SELECT COUNT(*) FROM edge) AS edges,
-                (SELECT COUNT(DISTINCT cited_key) FROM edge) AS distinct_cited`,
-      )
-      .get() as Row;
-    return {
-      cases_indexed: Number(row.cases_indexed),
-      edges: Number(row.edges),
-      distinct_cited: Number(row.distinct_cited),
-      provider_edges: hasProviderEdges(database)
-        ? Number(
-            (database.prepare("SELECT COUNT(*) AS n FROM provider_edge").get() as Row)
-              .n,
-          )
         : null,
     };
   });

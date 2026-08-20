@@ -95,7 +95,6 @@ export function createLegalEvidenceCitations(
       };
       if (receipt.tabular) {
         return [{
-          type: "citation_data" as const,
           kind: "tabular" as const,
           ref,
           ...receipt.tabular,
@@ -105,7 +104,6 @@ export function createLegalEvidenceCitations(
       }
       if (receipt.provider === "library") {
         return [{
-          type: "citation_data" as const,
           kind: "document" as const,
           ref,
           document_id: receipt.stable_source_id,
@@ -121,7 +119,6 @@ export function createLegalEvidenceCitations(
           ? receipt.stable_source_id.slice("journal:".length)
           : receipt.stable_source_id;
         return [{
-          type: "citation_data" as const,
           kind: "public_legal" as const,
           ref,
           provider: "journal" as const,
@@ -142,7 +139,6 @@ export function createLegalEvidenceCitations(
         : undefined;
       if (publicProvider) {
         return [{
-          type: "citation_data" as const,
           kind: "public_legal" as const,
           ref,
           provider: publicProvider,
@@ -159,7 +155,6 @@ export function createLegalEvidenceCitations(
       }
       if (receipt.provider !== "a2aj" && receipt.provider !== "citator") return [];
       return [{
-        type: "citation_data" as const,
         kind: "a2aj" as const,
         ref,
         citation: receipt.citation,

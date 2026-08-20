@@ -159,7 +159,12 @@ export function CitationQuotesHeader({
                 {visibleMode !== "closed" && (
                     <div className="px-2 pb-2">
                         {isLoading ? (
-                            <RelevantQuoteSkeleton />
+                            <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
+                                <div className="h-3 w-28 rounded bg-gray-200" />
+                                <div className="mt-2.5 h-3 w-full rounded bg-gray-200" />
+                                <div className="mt-2 h-3 w-11/12 rounded bg-gray-200" />
+                                <div className="mt-2 h-3 w-2/3 rounded bg-gray-200" />
+                            </div>
                         ) : error ? (
                             <RelevantQuoteMessage tone="error">
                                 {error}
@@ -195,16 +200,6 @@ export function CitationQuotesHeader({
                     </div>
                 )}
             </div>
-        </div>
-    );
-}
-function RelevantQuoteSkeleton() {
-    return (
-        <div className={`px-3 py-2.5 ${QUOTE_CARD_SURFACE}`}>
-            <div className="h-3 w-28 rounded bg-gray-200" />
-            <div className="mt-2.5 h-3 w-full rounded bg-gray-200" />
-            <div className="mt-2 h-3 w-11/12 rounded bg-gray-200" />
-            <div className="mt-2 h-3 w-2/3 rounded bg-gray-200" />
         </div>
     );
 }

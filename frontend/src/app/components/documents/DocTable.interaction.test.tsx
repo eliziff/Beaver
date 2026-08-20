@@ -612,7 +612,7 @@ describe("structural parse state", () => {
             <ParseHarness state={parseState("queued")}
                 refreshCollection={refreshCollection} />,
         );
-        await vi.advanceTimersByTimeAsync(500);
+        await vi.advanceTimersByTimeAsync(1_500);
         expect(refreshCollection).toHaveBeenCalledTimes(1);
         view.unmount();
         vi.useRealTimers();

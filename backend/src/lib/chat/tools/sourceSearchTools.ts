@@ -3,8 +3,9 @@ import {
 } from "../../legalSourceRegistry";
 import type { Tool } from "../../llm";
 import { resourceReference } from "../../resourceReferences";
+import { trimmedText as text } from "../../value";
 
-export const SEARCH_SOURCES_TOOL_NAME = "search_sources";
+const SEARCH_SOURCES_TOOL_NAME = "search_sources";
 
 export const SEARCH_SOURCES_TOOL: Tool = {
   name: SEARCH_SOURCES_TOOL_NAME,
@@ -86,9 +87,6 @@ type CachedSearch = { expires: number; value: Record<string, unknown> };
 const searchCache = new Map<string, CachedSearch>();
 const SEARCH_CACHE_MS = 5 * 60_000;
 const MAX_SEARCH_CACHE = 128;
-
-const text = (value: unknown) =>
-  typeof value === "string" ? value.trim() : "";
 
 function date(value: unknown, name: string) {
   const parsed = text(value);

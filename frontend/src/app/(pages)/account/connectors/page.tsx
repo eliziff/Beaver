@@ -8,7 +8,6 @@ import {
 } from "@/app/components/account/NewMcpModal";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
-    API_BASE,
     BeaverApiError,
     createMcpConnector,
     deleteMcpConnector,
@@ -23,6 +22,7 @@ import {
 import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
+import { errorMessage } from "@/app/lib/utils";
 const emptyAddDraft: McpConnectorDraft = {
     name: "",
     serverUrl: "",
@@ -48,8 +48,6 @@ const connectorDraft = (
     name: connector?.name ?? "",
     serverUrl: connector?.serverUrl ?? "",
 });
-const errorMessage = (error: unknown, fallback: string) =>
-    error instanceof Error ? error.message : fallback;
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
     if (!text) return undefined;
@@ -164,7 +162,7 @@ export default function ConnectorsPage() {
     const connectConnectorOAuth = async (connectorId: string) => {
         const popup = window.open(
             "about:blank",
-            "mike_mcp_oauth",
+            "_blank",
             "popup,width=560,height=720,menubar=no,toolbar=no,location=no,status=no",
         );
         const { authorizationUrl, alreadyAuthorized } =
@@ -181,46 +179,34 @@ export default function ConnectorsPage() {
             window.location.assign(authorizationUrl);
             return null;
         }
+        popup.opener = null;
         popup.location.href = authorizationUrl;
-        await new Promise<void>((resolve, reject) => {
-            const controller = new AbortController();
+        try { await new Promise<void>((resolve, reject) => {
+            let settled = false;
             const poll = window.setInterval(() => {
-                if (popup.closed)
+                let result: string | null = null;
+                try {
+                    if (popup.location.origin === location.origin)
+                        result = new URL(popup.location.href).searchParams.get("mcp_oauth");
+                } catch { /* The authorization page is cross-origin. */ }
+                if (result) finish(result === "success"
+                    ? undefined : new Error("OAuth authorization failed."));
+                else if (popup.closed)
                     finish(new Error("OAuth authorization window was closed."));
-            }, 700);
+            }, 500);
             const timeout = window.setTimeout(
                 () => finish(new Error("OAuth authorization timed out.")),
                 5 * 60 * 1000,
             );
             const finish = (error?: Error) => {
-                controller.abort();
+                if (settled) return;
+                settled = true;
                 window.clearInterval(poll);
                 window.clearTimeout(timeout);
                 if (error) reject(error);
                 else resolve();
             };
-            window.addEventListener("message", (event) => {
-                if (
-                    event.source !== popup ||
-                    event.origin !== new URL(API_BASE, location.href).origin
-                ) return;
-                const result = event.data as Record<string, unknown>;
-                if (result?.type !== "mcp_oauth_result") return;
-                if (result.connectorId && result.connectorId !== connectorId)
-                    return;
-                (event.source as Window | null)?.postMessage(
-                    { type: "mcp_oauth_result_ack" },
-                    event.origin,
-                );
-                const failure =
-                    result.detail ?? "OAuth authorization failed.";
-                finish(
-                    result.success
-                        ? undefined
-                        : new Error(String(failure)),
-                );
-            }, { signal: controller.signal });
-        });
+        }); } finally { popup.close(); }
         return refreshTools(connectorId);
     };
     const authorizeAddedConnector = (

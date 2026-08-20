@@ -94,4 +94,9 @@ describe("PATCH /chat/:chatId", () => {
     expect(res.status).toBe(400);
     expect(res.body.detail).toBe("title or project_id is required");
   });
+
+  it("rejects oversized stored fields", async () => {
+    const res = await request(app).patch(`/chat/${CHAT_ID}`).send({ title: "x".repeat(201) });
+    expect(res.status).toBe(400);
+  });
 });

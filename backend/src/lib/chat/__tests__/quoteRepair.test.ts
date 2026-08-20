@@ -42,6 +42,11 @@ describe("quote repair", () => {
       "The busybody … before the hearing continues.",
       source,
     )).toBe(true);
+    expect(sourceSupportsMarkedQuote(
+      `The busybody ${"\u2026 ".repeat(5)}before the hearing continues.`,
+      source,
+    )).toBe(false);
+    expect(sourceSupportsMarkedQuote(source, `${"x".repeat(50_001)}${source}`)).toBe(true);
     for (const changed of [
       "the busybody must decide 12 motions, promptly, before the hearing continues.",
       "The busybody may decide 12 motions, promptly, before the hearing continues.",

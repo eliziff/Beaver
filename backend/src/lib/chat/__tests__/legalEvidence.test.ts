@@ -77,7 +77,6 @@ describe("production legal evidence", () => {
 
     expect(createLegalEvidenceCitations(state)).toEqual([
       expect.objectContaining({
-        type: "citation_data",
         kind: "public_legal",
         provider: "tna",
         identifier: "uksc/2026/1:page-3",

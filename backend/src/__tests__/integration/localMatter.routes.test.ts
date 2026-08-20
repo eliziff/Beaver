@@ -12,6 +12,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { zipDocumentBytes } from "../../lib/__tests__/support/documentBytes";
 
 const mocks = vi.hoisted(() => ({
   supabaseCalls: 0,
@@ -117,6 +118,12 @@ afterEach(async () => {
 });
 
 describe("account-free matter routes", () => {
+  it("rejects oversized persistent matter metadata", async () => {
+    const response = await request(await loadApi()).post("/projects")
+      .send({ name: "Appeal", metadata: { value: "x".repeat(65 * 1024) } });
+    expect(response.status).toBe(400);
+  });
+
   it("passes the client-work-product presumption to the provider", async () => {
     const api = await loadApi();
     const streamed = await request(api).post("/chat").send({
@@ -218,10 +225,8 @@ describe("account-free matter routes", () => {
         current_turn: {
           kind: "message",
           content: "Use the unrelated file.",
+          files: [{ document_id: randomUUID() }],
         },
-        attached_documents: [
-          { filename: "missing.xlsx", document_id: randomUUID() },
-        ],
       });
     expect(missingFocus.status).toBe(400);
     expect(missingFocus.body.detail).toMatch(/unavailable/u);
@@ -268,37 +273,21 @@ describe("account-free matter routes", () => {
         expected_version: 3,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Continue with my selections.",
-          files: [
-            {
-              filename: "spoofed-current-turn-name.xlsx",
-              document_id: source.body.id,
-            },
-          ],
           responses: [
             {
               id: "documents",
               kind: "documents",
-              filenames: ["appeal-record.xlsx"],
               documents: [
                 {
                   document_id: source.body.id,
-                  filename: "spoofed-response-name.xlsx",
                 },
               ],
             },
           ],
         },
         displayed_doc: {
-          filename: "spoofed-display-name.xlsx",
           document_id: source.body.id,
         },
-        attached_documents: [
-          {
-            filename: "spoofed-attachment-name.xlsx",
-            document_id: source.body.id,
-          },
-        ],
       });
     expect(continued.status).toBe(200);
     const focusedInput = mocks.modelInputs.at(-1)!;
@@ -308,7 +297,6 @@ describe("account-free matter routes", () => {
     expect(focusedInput.systemPrompt).toContain(
       'User-attached documents for this turn:\n- "appeal-record.xlsx"',
     );
-    expect(focusedInput.systemPrompt).not.toContain("spoofed");
     const lastContent = focusedInput.messages.at(-1)?.content ?? "";
     expect(lastContent).toContain(
       "[The user attached the following document(s) to this message:\n" +
@@ -396,13 +384,13 @@ describe("account-free matter routes", () => {
       .send({ name: "Appeal" });
     const source = await request(api)
       .post("/library/files/documents")
-      .attach("file", Buffer.from("record"), "appeal-record.xlsx");
+      .attach("file", await zipDocumentBytes("record"), "appeal-record.xlsx");
     const store = await import("../../lib/__tests__/support/localDocumentFixtures");
     const foreign = await store.createLocalDocument({
       userId: "00000000-0000-0000-0000-000000000099",
       kind: "file",
       filename: "foreign.docx",
-      bytes: Buffer.from("foreign"),
+      bytes: await zipDocumentBytes("foreign"),
     });
     const chat = await request(api)
       .post("/chat/create")
@@ -417,26 +405,38 @@ describe("account-free matter routes", () => {
           current_turn: {
             kind: "message",
             content: "Use this document.",
+            workflow: { id: "builtin-extract-key-terms" },
             files: [
               {
-                filename: source.body.filename,
                 document_id: source.body.id,
               },
             ],
           },
-          attached_documents: [
-            {
-              filename: source.body.filename,
-              document_id: source.body.id,
-            },
-          ],
         });
 
     expect((await turn(0)).status).toBe(200);
+    expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
+      "[Workflow: Extract Key Terms (id: builtin-extract-key-terms)]",
+    );
     expect((await turn(2)).status).toBe(200);
     expect(pageDocuments((await request(api).get(
       `/projects/${matter.body.id}/directory`,
     )).body)).toEqual([]);
+
+    const missingWorkflow = await request(api)
+      .post("/chat")
+      .send({
+        project_id: matter.body.id,
+        chat_id: chat.body.id,
+        expected_version: 4,
+        current_turn: {
+          kind: "message",
+          content: "Use an unknown workflow.",
+          workflow: { id: "missing-workflow" },
+        },
+      });
+    expect(missingWorkflow.status).toBe(400);
+    expect(missingWorkflow.body.detail).toMatch(/workflow is unavailable/u);
 
     const rejected = await request(api)
       .post("/chat")
@@ -449,7 +449,6 @@ describe("account-free matter routes", () => {
           content: "Use another user's document.",
           files: [
             {
-              filename: foreign.filename,
               document_id: foreign.id,
             },
           ],
@@ -494,7 +493,7 @@ describe("account-free matter routes", () => {
       .send({ name: "Separate matter" });
     const source = await request(api)
       .post("/library/files/documents")
-      .attach("file", Buffer.from("record"), "appeal-record.xlsx");
+      .attach("file", await zipDocumentBytes("record"), "appeal-record.xlsx");
 
     expect(
       (

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementResultingChanges } from "node:sqlite";
 import postgres, { type Sql as PostgresClient } from "postgres";
@@ -126,8 +126,9 @@ const localState = processState.__beaverLocalDatabase ??= {};
 
 function openLocalDatabase() {
   const filename = path.join(mikeLocalDataHome(), "application.sqlite");
-  mkdirSync(path.dirname(filename), { recursive: true });
+  mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const database = new DatabaseSync(filename);
+  if (process.platform !== "win32") chmodSync(filename, 0o600);
   try {
     database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
     const version = Number((database.prepare("PRAGMA user_version").get() as
@@ -165,10 +166,6 @@ export function localTransaction<T>(run: (database: DatabaseSync) => T) {
   }
 }
 
-function localDatabase() {
-  return localState.relational ??= new LocalDatabase(localDatabaseSync());
-}
-
 function remoteDatabase() {
   const connection = process.env.DATABASE_URL?.trim();
   if (!connection) throw new Error("DATABASE_URL is required in cloud mode");
@@ -178,19 +175,24 @@ function remoteDatabase() {
   }
   const insecure = url.searchParams.get("sslmode") === "disable";
   const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
-  if (insecure && process.env.NODE_ENV === "production" && !loopback) {
+  if (insecure && !loopback) {
     throw new Error("PostgreSQL TLS can be disabled only for a loopback database");
   }
   return cloudDatabase(postgres(connection, {
+    connection: {
+      idle_in_transaction_session_timeout: 30_000,
+      statement_timeout: 60_000,
+    },
     max: Math.max(1, Math.min(Number(process.env.DATABASE_POOL_SIZE) || 10, 20)),
     prepare: false,
-    ssl: insecure ? false : "require",
+    ssl: insecure ? false : "verify-full",
   }));
 }
 
 let active: Promise<RelationalDatabase> | undefined;
 export const relationalDatabase = () => active ??=
-  Promise.resolve(isLocalRuntime() ? localDatabase() : remoteDatabase());
+  Promise.resolve(isLocalRuntime()
+    ? (localState.relational ??= new LocalDatabase(localDatabaseSync())) : remoteDatabase());
 
 export async function closeRelationalDatabase() {
   const current = active;

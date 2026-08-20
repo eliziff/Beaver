@@ -5,7 +5,7 @@ import type { DocumentStore } from "../documentStore";
 import type { ProjectStore } from "../projectStore";
 import { throwIfAborted } from "../llm/abort";
 import { providerForModel, type Provider, type UserApiKeys } from "../llm";
-import { encodePageCursor, pageRequest } from "../pagination";
+import { pageRequest, pageResponse } from "../pagination";
 import { getUserModelSettings } from "../userSettings";
 import {
   type TabularCell,
@@ -15,7 +15,7 @@ import {
   type TabularRepository,
   type WriteResult,
 } from "../tabularStore";
-import { ApplicationError } from "../applicationError";
+import { ApplicationError, reject as fail } from "../applicationError";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_DOCUMENT_CHARS = 120_000;
@@ -99,9 +99,6 @@ type Dependencies = {
   project?: typeof documentProjectionService.read;
 };
 
-const fail = (status: number, message: string): never => {
-  throw new ApplicationError(status, message);
-};
 const value = <T>(result: WriteResult<T>, noun: string) => {
   if (result.status === "committed") return result.value;
   if (result.status === "missing") return fail(404, `${noun} not found`);
@@ -314,8 +311,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         const owner = id ? await projects.get(scope, id) : null;
         return { ...item, project_name: typeof owner?.name === "string" ? owner.name : null };
       }));
-      return { items, next_cursor: page.nextAfter
-        ? encodePageCursor("tabular-review", filters, page.nextAfter) : null };
+      return pageResponse("tabular-review", filters, { ...page, items });
     },
     async create(scope: TabularScope, input: z.infer<typeof tabularDtos.create>) {
       const projectId = input.project_id ?? null;

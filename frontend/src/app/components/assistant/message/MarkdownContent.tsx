@@ -7,26 +7,23 @@ import {
     type ReactNode,
     type RefObject,
 } from "react";
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import ReactMarkdown from "react-markdown";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
-import {
-    type CaseCitationEvent,
-    type CaseOpinionsEvent,
-    type Citation,
-} from "../../shared/types";
+import { safeAssistantUrl } from "@/app/lib/assistantSession";
+import type { Citation } from "../../shared/types";
 import { withoutMarkdownNode } from "./messageStyles";
 import {
     citationPillParts,
     citationTooltip,
 } from "./CitationSources";
-import { internalCaseHref } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
-    const { remarkPlugins, ...rest } = props;
+    const { remarkPlugins, urlTransform, ...rest } = props;
     return (
         <ReactMarkdown
             {...rest}
             remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
+            urlTransform={urlTransform ?? ((url) => safeAssistantUrl(url) ?? "")}
         />
     );
 }
@@ -34,7 +31,7 @@ const LEGAL_CITATION =
     /(?:\b(?:19|20)\d{2}\s+[A-Z][A-Z0-9-]{1,15}\s+\d+\b|\b\d+\s+(?:U\.?S\.?C\.?|U\.?S\.?|S\.?\s*Ct\.?|F\.?\s*(?:2d|3d|4th|Supp\.?))\s+(?:\u00a7+\s*)?\d+\b|\b(?:RSC|SC|RSA|SA|RSBC|SBC|RSO|SO)\s+\d{4}\b|\u00a7\s*\d+)/iu;
 const LEGAL_CITATION_LINK =
     /\[([^\]\r\n]{1,180})\]\(([^)\r\n]+)\)(\s*,?\s*(?:at\s+)?para(?:graph)?s?\.?\s*\d{1,5}(?:\s*[-\u2013\u2014]\s*\d{1,5})?)/giu;
-export const LEGAL_CITATION_PILL =
+const LEGAL_CITATION_PILL =
     "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-md bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 [overflow-wrap:anywhere] hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 const PLAIN_LINK =
     "text-red-300 underline decoration-red-500/70 underline-offset-2 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
@@ -98,14 +95,6 @@ function paragraphFragment(url: string) {
     };
 }
 
-function unavailableLegalProvider(url: string) {
-    try {
-        return /(^|\.)getcaselaw\.com$/iu.test(new URL(url).hostname);
-    } catch {
-        return false;
-    }
-}
-
 function moveParagraphFragmentsToCitationPills() {
     return (tree: MarkdownNode) => {
         let pending: Array<ReturnType<typeof paragraphFragment>> = [];
@@ -147,7 +136,7 @@ function moveParagraphFragmentsToCitationPills() {
     };
 }
 
-export function normalizeLegalCitationLinks(text: string) {
+function normalizeLegalCitationLinks(text: string) {
     return text.replace(
         LEGAL_CITATION_LINK,
         (full, label: string, href: string, pinpoint: string) =>
@@ -212,9 +201,13 @@ export function CitationPillMarkdown({
                         );
                     }
                     const internal = !!href && /^\/(?!\/)/u.test(href);
+                    const link = source
+                        ? safeAssistantUrl(source.url, { relative: false })
+                        : internal ? href : null;
+                    if (!link) return <>{children}</>;
                     return (
                         <a
-                            href={href}
+                            href={link}
                             className={className}
                             target={internal ? undefined : "_blank"}
                             rel={internal ? undefined : "noopener noreferrer"}
@@ -238,35 +231,18 @@ function styled<T extends ElementType>(tag: T, className: string) {
 export function MarkdownContent({
     text,
     inlineCitationTargets,
-    caseCitations,
-    caseOpinions,
     onCitationClick,
     citationTitle,
-    onCaseClick,
     divRef,
     isStreaming = false,
 }: {
     text: string;
     inlineCitationTargets: Citation[];
-    caseCitations: Map<
-        string,
-        CaseCitationEvent
-    >;
-    caseOpinions: Map<
-        number,
-        CaseOpinionsEvent["case"]
-    >;
     onCitationClick?: (c: Citation) => void;
     citationTitle?: (c: Citation) => string;
-    onCaseClick?: (
-        c: CaseCitationEvent,
-    ) => void;
     divRef?: RefObject<HTMLDivElement | null>;
     isStreaming?: boolean;
 }) {
-    function findCaseCitation(href: string) {
-        return caseCitations.get(internalCaseHref(href) ?? "");
-    }
     const markdown = normalizeLegalCitationLinks(isStreaming ? remend(text) : text);
     return (
         <div
@@ -275,9 +251,6 @@ export function MarkdownContent({
         >
             <GfmMarkdown
                 remarkPlugins={[moveParagraphFragmentsToCitationPills]}
-                urlTransform={(url) =>
-                    /^us-case-\d+$/.test(url) ? url : defaultUrlTransform(url)
-                }
                 components={{
                     table: (props) => (
                         <div className="my-4 overflow-x-auto rounded-lg bg-gray-900">
@@ -367,14 +340,13 @@ export function MarkdownContent({
                         const { href, children, ...anchorProps } =
                             withoutMarkdownNode(props);
                         if (href) {
-                            if (unavailableLegalProvider(href)) {
+                            let unavailable = false;
+                            try { unavailable = /(^|\.)getcaselaw\.com$/iu.test(new URL(href).hostname); }
+                            catch { /* Invalid URLs continue through the existing link handling. */ }
+                            if (unavailable) {
                                 return <>{children}</>;
                             }
-                            const isInternalCaseHref = !!internalCaseHref(href);
-                            const citation = findCaseCitation(href);
-                            const isLegalCitation =
-                                isInternalCaseHref ||
-                                LEGAL_CITATION.test(nodeText(children));
+                            const isLegalCitation = LEGAL_CITATION.test(nodeText(children));
                             if (
                                 paragraphFragment(href) &&
                                 !isLegalCitation
@@ -384,46 +356,6 @@ export function MarkdownContent({
                             const className = isLegalCitation
                                 ? LEGAL_CITATION_PILL
                                 : PLAIN_LINK;
-                            if (citation && onCaseClick) {
-                                return (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            onCaseClick({
-                                                ...citation,
-                                                case:
-                                                    citation.cluster_id !== null
-                                                        ? caseOpinions.get(
-                                                              citation.cluster_id,
-                                                          )
-                                                        : undefined,
-                                            })
-                                        }
-                                        className={`${className} text-left`}
-                                    >
-                                        {children}
-                                    </button>
-                                );
-                            }
-                            if (citation) {
-                                return (
-                                    <a
-                                        href={citation.url}
-                                        className={className}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        {children}
-                                    </a>
-                                );
-                            }
-                            if (isInternalCaseHref) {
-                                return (
-                                    <span className={PLAIN_LINK}>
-                                        {children}
-                                    </span>
-                                );
-                            }
                             const isBeaverAppHref = /^\/(?!\/)/.test(href);
                             if (!isBeaverAppHref) return <>{children}</>;
                             return (

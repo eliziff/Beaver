@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import JSZip from "jszip";
 import { createDocumentApplication } from "../documentApplication";
 import type {
   CreateDocumentMetadata,
@@ -12,6 +13,10 @@ import { createFilesystemObjectStorage, type ObjectStorage } from "../storage";
 
 const countLegalPdfPages = vi.hoisted(() => vi.fn(async () => 1));
 vi.mock("../legalPdfSourceDoc", () => ({ countLegalPdfPages }));
+const docx = (text: string) => new JSZip().file("word/document.xml", text, {
+  date: new Date("2000-01-01T00:00:00Z"),
+})
+  .generateAsync({ type: "nodebuffer" });
 
 function memoryRepository() {
   const values = new Map<string, DocumentAggregate>();
@@ -125,6 +130,18 @@ describe("shared document application", () => {
     expect((await objects.list()).keys).toEqual([]);
   });
 
+  it("rejects oversized Office packages before storing them", async () => {
+    const archive = new JSZip();
+    for (let index = 0; index <= 4_096; index += 1) archive.file(`word/${index}.xml`, "x");
+    const bytes = await archive.generateAsync({ type: "nodebuffer" });
+    const objects = createFilesystemObjectStorage(root);
+    const documents = createDocumentApplication(memoryRepository().repository, objects);
+    await expect(documents.create({ userId: "owner" }, {
+      filename: "bomb.docx", fileType: "docx", bytes,
+    })).rejects.toMatchObject({ status: 400, message: expect.stringContaining("extraction limits") });
+    expect((await objects.list()).keys).toEqual([]);
+  });
+
   it("keeps local and cloud lifecycle outcomes identical", async () => {
     const outcomes = [];
     for (const mode of modes()) {
@@ -132,13 +149,13 @@ describe("shared document application", () => {
       const documents = createDocumentApplication(repository, mode.objects);
       const scope = { userId: `user-${mode.name}` };
       const created = await documents.create(scope, {
-        filename: "../Brief.docx", fileType: "docx", bytes: Buffer.from("docx-v1"),
+        filename: "../Brief.docx", fileType: "docx", bytes: await docx("docx-v1"),
       });
       const tracked = await documents.commitAssistantVersion(scope, created.id, {
         sourceVersionId: created.current_version_id,
         parentVersionId: created.current_version_id,
         filename: "Brief.docx",
-        bytes: Buffer.from("docx-tracked"),
+        bytes: await docx("docx-tracked"),
         status: "pending",
         edits: [{
           changeId: "change-1", deletedText: "old", insertedText: "new",
@@ -147,13 +164,13 @@ describe("shared document application", () => {
       });
       expect(tracked.status).toBe("committed");
       const added = await documents.addVersion(scope, created.id, {
-        filename: "Brief revised.docx", fileType: "docx", bytes: Buffer.from("docx-v2"),
+        filename: "Brief revised.docx", fileType: "docx", bytes: await docx("docx-v2"),
       });
       const renamed = await documents.renameVersion(
         scope, created.id, added!.id, "Brief final.docx",
       );
       const replaced = await documents.replaceVersion(scope, created.id, added!.id, {
-        filename: "Brief final.docx", fileType: "docx", bytes: Buffer.from("docx-v3"),
+        filename: "Brief final.docx", fileType: "docx", bytes: await docx("docx-v3"),
       });
       const read = await documents.read(scope, created.id, null, false);
       expect(await documents.read({ userId: "intruder" }, created.id, null, false)).toBeNull();
@@ -177,7 +194,7 @@ describe("shared document application", () => {
     const state = memoryRepository();
     const documents = createDocumentApplication(state.repository, mode.objects);
     const created = await documents.create({ userId: "owner" }, {
-      filename: "Brief.docx", fileType: "docx", bytes: Buffer.from("private"),
+      filename: "Brief.docx", fileType: "docx", bytes: await docx("private"),
     });
     expect(await documents.download({ userId: "other" }, created.id, null, false, "attachment"))
       .toBeNull();
@@ -189,7 +206,7 @@ describe("shared document application", () => {
     const put = mode.objects.put;
     mode.objects.put = async () => { throw new Error("provider object not found"); };
     await expect(documents.addVersion({ userId: "owner" }, created.id, {
-      filename: "Brief.docx", fileType: "docx", bytes: Buffer.from("next"),
+      filename: "Brief.docx", fileType: "docx", bytes: await docx("next"),
     })).rejects.toThrow("provider object not found");
     mode.objects.put = put;
 
@@ -197,7 +214,7 @@ describe("shared document application", () => {
     const remove = mode.objects.remove;
     mode.objects.remove = async () => { throw new Error("storage unavailable"); };
     await expect(documents.create({ userId: "owner" }, {
-      filename: "Orphan.docx", fileType: "docx", bytes: Buffer.from("orphan"),
+      filename: "Orphan.docx", fileType: "docx", bytes: await docx("orphan"),
     })).rejects.toThrow(/cleanup/u);
     expect(state.orphans.size).toBe(1);
     mode.objects.remove = remove;

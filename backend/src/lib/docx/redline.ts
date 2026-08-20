@@ -6,8 +6,10 @@ import {
   elChildren,
   elName,
   getTextContent,
+  isRedFamily,
 } from "./core";
 import { openDocxSession } from "./session";
+import { boundedErrorText as message, countLabel as plural } from "../text";
 
 export interface RedlineProjection {
   text: string;
@@ -36,26 +38,6 @@ const WRAP: Record<Exclude<MarkKind, "plain" | "comment">, [string, string]> = {
 };
 
 const MARKER_SEQUENCES = ["{++", "++}", "{--", "--}", "{>>", "<<}"];
-
-function isRedFamily(value: string) {
-  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(
-    value.trim(),
-  );
-  if (!match) return false;
-  const [red, green, blue] = match.slice(1, 4).map((c) => parseInt(c, 16));
-  return red >= 0xb0 && green <= 0x60 && blue <= 0x60;
-}
-
-function message(error: unknown) {
-  return String((error as { message?: unknown })?.message ?? error)
-    .replace(/\s+/gu, " ")
-    .trim()
-    .slice(0, 200);
-}
-
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count === 1 ? one : many}`;
-}
 
 function subtreeText(node: unknown): string {
   const name = elName(node);
@@ -91,10 +73,6 @@ function readComments(tree: XNode[]): Map<string, CommentBody> {
   };
   for (const top of tree) visit(top);
   return bodies;
-}
-
-function renderComment(body: CommentBody) {
-  return `{>>${body.author || "unattributed"}: ${body.text}<<}`;
 }
 
 function render(segments: Segment[]) {
@@ -178,7 +156,8 @@ export async function projectDocxRedline(
           anchored.add(event.id);
           counts.comments += 1;
           literal += body.text;
-          segments.push({ kind: "comment", text: renderComment(body) });
+          segments.push({ kind: "comment",
+            text: `{>>${body.author || "unattributed"}: ${body.text}<<}` });
           continue;
         }
         const run = event.run;

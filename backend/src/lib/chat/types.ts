@@ -34,7 +34,7 @@ export type TabularCellStore = {
 export type ChatMessage = {
   role: string;
   content: string | null;
-  files?: { filename: string; document_id?: string }[];
+  files?: { filename: string; document_id: string }[];
   workflow?: { id: string; title: string };
   /** Resolved server-side from file references; never accepted as raw client bytes. */
   images?: LlmImage[];
@@ -53,15 +53,11 @@ export type AskInputItem =
       kind: "choice";
       question: string;
       options: AskInputOption[];
-      allow_other: boolean;
-      other_label: string;
-      response_prefix?: string;
     }
   | {
       id: string;
       kind: "documents";
       document_types: string[];
-      response_prefix?: string;
     };
 
 export type AskInputsEvent = {
@@ -73,16 +69,12 @@ export type AskInputResponseItem =
   | {
       id: string;
       kind: "choice";
-      question: string;
       answer?: string;
-      skipped?: boolean;
     }
   | {
       id: string;
       kind: "documents";
-      filenames: string[];
-      documents?: { document_id: string; filename: string }[];
-      skipped?: boolean;
+      documents: { document_id: string; filename: string }[];
     };
 
 export type AskInputsResponseRequest = {
@@ -90,12 +82,10 @@ export type AskInputsResponseRequest = {
 };
 
 export type EditAnnotation = {
-  kind: "edit";
   edit_id: string;
   document_id: string;
   version_id: string;
   version_number?: number | null;
-  change_id: string;
   del_w_id?: string;
   ins_w_id?: string;
   deleted_text: string;

@@ -4,9 +4,11 @@ import express, {
   type RequestHandler,
   type Router,
 } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { runtime } from "./runtime";
 import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
+import { sha256 } from "./lib/hash";
+import { concurrentRequests } from "./lib/requestConcurrency";
 import { safeErrorLog } from "./lib/safeError";
 
 export const api = express();
@@ -34,94 +36,73 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function minutes(value: number): number {
-  return value * 60 * 1000;
-}
-
-function hours(value: number): number {
-  return minutes(value * 60);
-}
-
-function makeLimiter(options: {
-  windowMs: number;
-  max: number;
-  message?: string;
-}) {
+function makeLimiter(name: string, max: number, window: number,
+  unit: "MINUTES" | "HOURS", message?: string, perSession = true) {
   return rateLimit({
-    windowMs: options.windowMs,
-    max: options.max,
+    windowMs: envInt(`RATE_LIMIT_${name}_WINDOW_${unit}`, window) *
+      (unit === "HOURS" ? 3_600_000 : 60_000),
+    max: envInt(`RATE_LIMIT_${name}_MAX`, max),
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) =>
       runtime.mode === "local" || req.method === "OPTIONS",
+    ...(perSession ? { keyGenerator: (req) => {
+      const token = req.get("authorization")
+        ?.match(/^Bearer ([A-Za-z0-9._~+/-]{1,8192}=*)$/iu)?.[1];
+      return token ? `session:${sha256(token)}`
+        : ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
+    } } : {}),
     message: {
-      detail: options.message ?? "Too many requests. Please try again later.",
+      detail: message ?? "Too many requests. Please try again later.",
     },
   });
 }
 
-const generalLimiter = makeLimiter({
-  windowMs: minutes(envInt("RATE_LIMIT_GENERAL_WINDOW_MINUTES", 15)),
-  max: envInt("RATE_LIMIT_GENERAL_MAX", 300),
-});
-
-const chatLimiter = makeLimiter({
-  windowMs: minutes(envInt("RATE_LIMIT_CHAT_WINDOW_MINUTES", 15)),
-  max: envInt("RATE_LIMIT_CHAT_MAX", 30),
-  message: "Too many chat requests. Please try again later.",
-});
-
-const chatCreateLimiter = makeLimiter({
-  windowMs: minutes(envInt("RATE_LIMIT_CHAT_CREATE_WINDOW_MINUTES", 15)),
-  max: envInt("RATE_LIMIT_CHAT_CREATE_MAX", 60),
-});
-
-const uploadLimiter = makeLimiter({
-  windowMs: hours(envInt("RATE_LIMIT_UPLOAD_WINDOW_HOURS", 1)),
-  max: envInt("RATE_LIMIT_UPLOAD_MAX", 50),
-  message: "Too many upload requests. Please try again later.",
-});
-
-const exportLimiter = makeLimiter({
-  windowMs: hours(envInt("RATE_LIMIT_EXPORT_WINDOW_HOURS", 1)),
-  max: envInt("RATE_LIMIT_EXPORT_MAX", 10),
-  message: "Too many export requests. Please try again later.",
-});
-
-const dataDeleteLimiter = makeLimiter({
-  windowMs: hours(envInt("RATE_LIMIT_DATA_DELETE_WINDOW_HOURS", 1)),
-  max: envInt("RATE_LIMIT_DATA_DELETE_MAX", 20),
-  message: "Too many data deletion requests. Please try again later.",
-});
+const generalLimiter = makeLimiter("GENERAL", 300, 15, "MINUTES", undefined, false);
+const chatLimiter = makeLimiter("CHAT", 30, 15, "MINUTES",
+  "Too many chat requests. Please try again later.");
+const chatCreateLimiter = makeLimiter("CHAT_CREATE", 60, 15, "MINUTES");
+const uploadLimiter = makeLimiter("UPLOAD", 50, 1, "HOURS",
+  "Too many upload requests. Please try again later.");
+const exportLimiter = makeLimiter("EXPORT", 10, 1, "HOURS",
+  "Too many export requests. Please try again later.");
+const dataDeleteLimiter = makeLimiter("DATA_DELETE", 20, 1, "HOURS",
+  "Too many data deletion requests. Please try again later.");
+const lookupLimiter = makeLimiter("LOOKUP", 60, 1, "HOURS");
+const workSlot = concurrentRequests(8, "The service is busy. Try again shortly.");
+const jsonBody = express.json({ limit: "2mb" });
 
 api.disable("x-powered-by");
 api.set("trust proxy", trustedProxyHops());
 
+api.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  next();
+});
 api.use(generalLimiter);
 
-api.post("/chat", chatLimiter);
-api.post("/tabular-review/:reviewId/chat", chatLimiter);
-api.post("/tabular-review/:reviewId/generate", chatLimiter);
+for (const path of ["/chat", "/chat/:chatId/compact", "/chat/:chatId/generate-title",
+  "/tabular-review/prompt", "/tabular-review/:reviewId/regenerate-cell",
+  "/tabular-review/:reviewId/generate"])
+  api.post(path, chatLimiter, workSlot);
 api.post("/chat/create", chatCreateLimiter);
-api.post("/chat/:chatId/generate-title", chatCreateLimiter);
-api.post("/single-documents", uploadLimiter);
-api.post("/library/:kind/documents", uploadLimiter);
-api.post("/single-documents/:documentId/versions", uploadLimiter);
-api.put(
-  "/single-documents/:documentId/versions/:versionId/file",
-  uploadLimiter,
-);
-api.post("/projects/:projectId/documents", uploadLimiter);
-api.get("/user/export", exportLimiter);
-api.get("/user/chats/export", exportLimiter);
-api.get("/user/tabular-reviews/export", exportLimiter);
+for (const path of ["/single-documents", "/library/:kind/documents",
+  "/single-documents/:documentId/versions", "/projects/:projectId/documents"])
+  api.post(path, uploadLimiter);
+api.put("/single-documents/:documentId/versions/:versionId/file", uploadLimiter);
+for (const path of ["/user/export", "/user/chats/export",
+  "/user/tabular-reviews/export", "/tabular-review/:reviewId/export",
+  "/workflows/:workflowId/export"]) api.get(path, exportLimiter);
+api.post("/single-documents/download-zip", exportLimiter);
 if (runtime.mode === "cloud") api.get("/audit/export", exportLimiter);
-api.delete("/user/account", dataDeleteLimiter);
-api.delete("/user/chats", dataDeleteLimiter);
-api.delete("/user/projects", dataDeleteLimiter);
-api.delete("/user/tabular-reviews", dataDeleteLimiter);
+for (const path of ["/user/account", "/user/chats", "/user/projects",
+  "/user/tabular-reviews"]) api.delete(path, dataDeleteLimiter);
+api.get("/user/lookup", lookupLimiter);
+for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
+  "/user/mcp-connectors/:connectorId/refresh-tools"])
+  api.post(path, lookupLimiter, workSlot);
 
-api.use(express.json({ limit: "5mb" }));
+api.use(jsonBody);
 
 api.use(
   "/chat",
@@ -206,7 +187,6 @@ api.use(
 );
 
 api.get("/config", (_req, res) => {
-  res.setHeader("Cache-Control", "no-store");
   res.json(publicRuntimeConfig());
 });
 
@@ -221,11 +201,10 @@ api.get("/health", (_req, res) => {
 
 const apiError: ErrorRequestHandler = (error, _req, res, next) => {
   if (res.headersSent) return next(error);
-  if (
-    error && typeof error === "object" &&
-    "status" in error && error.status === 413
-  ) {
-    res.status(413).json({ detail: "Invalid request" });
+  const status = error && typeof error === "object" && "status" in error
+    ? error.status : undefined;
+  if (status === 400 || status === 413) {
+    res.status(status).json({ detail: "Invalid request" });
     return;
   }
   console.error("[api] request failed", safeErrorLog(error));

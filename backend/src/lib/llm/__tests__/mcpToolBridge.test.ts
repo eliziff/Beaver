@@ -96,4 +96,18 @@ describe("MCP tool bridge", () => {
     expect(bridge.stats().toolCallCount).toBe(2);
     await transport.close();
   });
+
+  it("redacts provider credentials from tool failures", async () => {
+    const bridge = await startMcpToolBridge({
+      tools: [tool("inspect")],
+      runTools: async () => { throw new Error("token: secret-token-value"); },
+    });
+    bridges.push(bridge);
+    const { client, transport } = await clientFor(bridge);
+
+    const result = await client.callTool({ name: "inspect", arguments: {} });
+    expect(JSON.stringify(result)).not.toContain("secret-token-value");
+    expect(JSON.stringify(result)).toContain("[redacted]");
+    await transport.close();
+  });
 });

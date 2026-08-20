@@ -198,6 +198,8 @@ export function TableOfAuthoritiesHost({
             ref={frameRef}
             src={url}
             title="Table of Authorities"
+            sandbox="allow-downloads allow-forms allow-modals allow-same-origin allow-scripts"
+            referrerPolicy="no-referrer"
             aria-hidden={!visible || !frameCurrent}
             tabIndex={visible && frameCurrent ? 0 : -1}
             onLoad={pingFrame}

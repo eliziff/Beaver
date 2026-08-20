@@ -167,29 +167,6 @@ describe("application job queue", () => {
     expect(attempts).toBe(2);
   });
 
-  it("cancels only the owner's active job and keeps cancellation terminal", async () => {
-    const queue = await import("../jobQueue"), started = deferred();
-    const worker = queue.startJobWorker({ test: async (_job, { signal }) => {
-      started.resolve();
-      await new Promise<void>((_resolve, reject) => signal.addEventListener(
-        "abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true },
-      ));
-      return {};
-    } });
-    const queued = await queue.enqueueJob({
-      kind: "test", dedupeKey: "cancel", userId: "owner", payload: {},
-    });
-    queue.wakeJobWorker();
-    await started.promise;
-    await expect(queue.cancelJob(queued.id, "stranger")).resolves.toBe(false);
-    await expect(queue.getJob(queued.id, "stranger")).resolves.toBeNull();
-    await expect(queue.cancelJob(queued.id, "owner")).resolves.toBe(true);
-    await expect(queue.waitForJob(queued.id, "owner")).rejects.toMatchObject({ name: "AbortError" });
-    await worker.stop();
-    await expect(queue.getJob(queued.id, "owner"))
-      .resolves.toMatchObject({ status: "cancelled" });
-  });
-
   it("reclaims an expired lease and terminally fails an exhausted lease", async () => {
     const queue = await import("../jobQueue");
     const { relationalDatabase, sql } = await import("../relationalDatabase");

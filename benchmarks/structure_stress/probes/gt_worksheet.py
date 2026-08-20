@@ -6,7 +6,7 @@
   python -X utf8 gt_worksheet.py grade snap/gt_ids.json snap/gt_truth.json --gate
 
 The v1 and ALR results are historical compatibility references. Production is
-always measured by Beaver's shipping compileA2AJSourceDoc through the shared
+always measured by Beaver's shipping legal-structure engine through the shared
 JSONL transport; this file contains no production parser.
 """
 

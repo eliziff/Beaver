@@ -111,14 +111,14 @@ const chunking = {
   overlap: A2AJ_PASSAGE_OVERLAP,
 };
 
-beforeAll(() => {
+beforeAll(async () => {
   for (const file of [clauseDb, charsDb, unindexedDb]) seed(file);
   seedCitator(citatorDb);
-  ensurePassageIndex({ sourceDb: clauseDb, ...chunking, mode: "clause" });
-  ensurePassageIndex({ sourceDb: charsDb, ...chunking });
+  await ensurePassageIndex({ sourceDb: clauseDb, ...chunking, mode: "clause" });
+  await ensurePassageIndex({ sourceDb: charsDb, ...chunking });
   // The chat tool always scopes by doc_type, and doc_type is part of the
   // sidecar identity, so the lane needs its own build.
-  ensurePassageIndex({ sourceDb: charsDb, ...chunking, docType: "cases" });
+  await ensurePassageIndex({ sourceDb: charsDb, ...chunking, docType: "cases" });
 });
 
 afterEach(() => {
@@ -146,7 +146,7 @@ describe("clause-mode sidecar round trip", () => {
       size: 4,
     });
     expect(hits.length).toBeGreaterThan(0);
-    const clauseSpans = clauseChunkText(statute, chunking);
+    const clauseSpans = await clauseChunkText(statute, chunking);
     const charSpans = chunkText(statute, chunking);
     // Premise: the two chunkers disagree here, so span identity is proof
     // that `mode` reached the sidecar and the query read the same one.

@@ -1,0 +1,360 @@
+[
+  {
+    "document_id": 109208,
+    "citation": "2007 FC 676",
+    "annotator": "human_primary",
+    "annotation": {
+      "source_sufficient": true,
+      "issue_positions": [
+        {
+          "issue_key": "s1",
+          "question": "Did the RPD make a reviewable error in rejecting the applicants' credibility?",
+          "answer": "No. Although some individual reasons were weak, the credibility finding was supportable on the evidence considered as a whole and was not patently unreasonable.",
+          "opinion_author_or_label": "Yves de Montigny",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "decision is entirely justifiable and is certainly not patently unreasonable."
+        }
+      ],
+      "mentions": [
+        {
+          "mention_id": "gm1",
+          "occurrence_id": "tm1",
+          "mention_quote": null,
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1"],
+          "context_summary": "The court cites Singh for considering the credibility evidence as a whole.",
+          "evidence_quote": "Singh v. Canada (Minister of Citizenship and Immigration), 2002 FCT 1272, [2002] F.C.J. No. 1724 (QL)."
+        }
+      ],
+      "treatments": [
+        {
+          "mention_ids": ["gm1"],
+          "issue_keys": ["s1"],
+          "attribution": "current_court",
+          "authority": "controlling",
+          "label": "applied",
+          "scope": "specific_proposition",
+          "evidence_quote": "may seem less convincing than others, it does not change the fact that the evidence must be considered as a whole: Sylla v. Canada (Minister of Employment and Immigration), [1994] F.C.J. No. 793 (F.C.A.) (QL); Wen v. Canada (Minister of Employment and Immigration), [1994] F.C.J. No. 907 (F.C.A.) (QL); Singh v. Canada (Minister of Citizenship and Immigration), 2002 FCT 1272, [2002] F.C.J. No. 1724 (QL).",
+          "target_proposition_as_characterized": "Credibility evidence must be considered as a whole even where some individual reasons are less convincing."
+        }
+      ],
+      "direct_history": []
+    }
+  },
+  {
+    "document_id": 67037,
+    "citation": "2014 CART 21",
+    "annotator": "human_primary",
+    "annotation": {
+      "source_sufficient": true,
+      "issue_positions": [
+        {
+          "issue_key": "s1",
+          "question": "Should Kor's original request for ministerial review be referred to the Minister following Vorobyov?",
+          "answer": "Yes. The Tribunal referred the request to the Minister because the case was materially similar to Vorobyov.",
+          "opinion_author_or_label": "Donald Buckingham",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "Given the finding of the Federal Court of Appeal in Vorobyov, 2014 FCA 102, the Tribunal hereby refers Kor"
+        },
+        {
+          "issue_key": "s2",
+          "question": "What effective filing date should be used when Kor's original request is absent from the record?",
+          "answer": "July 13, 2011, deemed to be ten days after delivery of the notice in the absence of contrary evidence.",
+          "opinion_author_or_label": "Donald Buckingham",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "the Tribunal deems, in the absence of evidence to the contrary, that Kor filed his request to the Minister 10 days later, that is on July 13, 2011."
+        }
+      ],
+      "mentions": [
+        {
+          "mention_id": "gm1",
+          "occurrence_id": "tm1",
+          "mention_quote": null,
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1", "s2"],
+          "context_summary": "The operative decision header identifies Vorobyov as the basis for referral.",
+          "evidence_quote": "Attorney General of Canada (Canada Border Services Agency) v. Sergiy Vorobyov (2014 FCA 102;"
+        },
+        {
+          "mention_id": "gm2",
+          "occurrence_id": "tm2",
+          "mention_quote": null,
+          "attribution": "procedural_recounting",
+          "authority": "noncontrolling",
+          "issue_keys": ["s1", "s2"],
+          "context_summary": "The Tribunal introduces the Federal Court of Appeal decision before quoting it.",
+          "evidence_quote": "Federal Court of Appeal rendered its decision in Attorney General of Canada (Canada Border Services Agency) v. Sergiy Vorobyov, 2014 FCA 102;"
+        },
+        {
+          "mention_id": "gm3",
+          "occurrence_id": "tm3",
+          "mention_quote": null,
+          "attribution": "procedural_recounting",
+          "authority": "noncontrolling",
+          "issue_keys": ["s1", "s2"],
+          "context_summary": "The second citation is part of the same introduction to the quoted authority.",
+          "evidence_quote": "(Vorobyov, 2014 FCA 102). Justice"
+        },
+        {
+          "mention_id": "gm4",
+          "occurrence_id": "tm4",
+          "mention_quote": null,
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1", "s2"],
+          "context_summary": "The Tribunal compares Kor's case to Vorobyov and identifies the one factual difference.",
+          "evidence_quote": "the Federal Court of Appeal in the Vorobyov, 2014 FCA 102, except in one regard."
+        },
+        {
+          "mention_id": "gm5",
+          "occurrence_id": "tm5",
+          "mention_quote": null,
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1", "s2"],
+          "context_summary": "The Tribunal expressly acts on Vorobyov in its disposition.",
+          "evidence_quote": "Given the finding of the Federal Court of Appeal in Vorobyov, 2014 FCA 102, the Tribunal hereby refers Kor"
+        }
+      ],
+      "treatments": [
+        {
+          "mention_ids": ["gm2", "gm3"],
+          "issue_keys": ["s1", "s2"],
+          "attribution": "quoted_authority",
+          "authority": "noncontrolling",
+          "label": "explained",
+          "scope": "holding",
+          "evidence_quote": "a proper exercise of jurisdiction by necessary implication would have been for the Tribunal to refer the respondent",
+          "target_proposition_as_characterized": "The Tribunal should refer a misdirected request to the proper Minister while preserving its effective filing date."
+        },
+        {
+          "mention_ids": ["gm4", "gm5"],
+          "issue_keys": ["s1", "s2"],
+          "attribution": "current_court",
+          "authority": "controlling",
+          "label": "applied",
+          "scope": "holding",
+          "evidence_quote": "Given the finding of the Federal Court of Appeal in Vorobyov, 2014 FCA 102, the Tribunal hereby refers Kor",
+          "target_proposition_as_characterized": "A misdirected request should be referred to the proper Minister with its filing date preserved."
+        }
+      ],
+      "direct_history": []
+    }
+  },
+  {
+    "document_id": 119605,
+    "citation": "2010 PSLRB 55",
+    "annotator": "human_primary",
+    "annotation": {
+      "source_sufficient": true,
+      "issue_positions": [
+        {
+          "issue_key": "s1",
+          "question": "Did the adjudicator have jurisdiction to interpret the Isolated Post Policy?",
+          "answer": "Yes, because the policy formed part of the collective agreement and its interpretation was subject to the grievance procedure.",
+          "opinion_author_or_label": "Michele A. Pineau",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "I am satisfied that I have jurisdiction over the interpretation of its subject matter."
+        },
+        {
+          "issue_key": "s2",
+          "question": "Were the disputed Isolated Post Policy benefits available to the grievors during seasonal layoff?",
+          "answer": "No. They were available during seasonal employment, with an off-season exception only where operational requirements prevented an in-season grant; neither grievor met that exception.",
+          "opinion_author_or_label": "Michele A. Pineau",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "In resolving both grievances, I take the view that the benefits of the ISP in dispute are available only during seasonal employment, with one exception: when, because of operational requirements, the employer cannot grant the employee"
+        }
+      ],
+      "mentions": [
+        {
+          "mention_id": "gm1",
+          "occurrence_id": "tm1",
+          "mention_quote": null,
+          "attribution": "procedural_recounting",
+          "authority": "not_judicial",
+          "issue_keys": [],
+          "context_summary": "Provider metadata reports the later judicial-review result; the reasons themselves do not discuss the target.",
+          "evidence_quote": "An application for judicial review before the Federal Court has been allowed (2011 FC 251) (Court file: T-737-10)."
+        }
+      ],
+      "treatments": [],
+      "direct_history": [
+        {
+          "mention_ids": ["gm1"],
+          "label": "reversed",
+          "evidence_quote": "An application for judicial review before the Federal Court has been allowed (2011 FC 251) (Court file: T-737-10)."
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 152419,
+    "citation": "2009 ONCA 345",
+    "annotator": "human_primary",
+    "annotation": {
+      "source_sufficient": true,
+      "issue_positions": [
+        {
+          "issue_key": "s1",
+          "question": "Was the unpurchased annuity fund vested in Andrea Stevenson and available for garnishment?",
+          "answer": "Yes. Robbins governed; the fund vested on the testatrix's death and was garnishable despite the intended non-commutable annuity.",
+          "opinion_author_or_label": "Robert P. Armstrong",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "I accept Robbins as governing the situation presented in this case and I would not give effect to this ground of appeal."
+        },
+        {
+          "issue_key": "s2",
+          "question": "Would garnishment improperly prejudice Jesse Stevenson's interest?",
+          "answer": "No. His interest depended on funds remaining, and the will did not require preservation of capital for him.",
+          "opinion_author_or_label": "Robert P. Armstrong",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "I can find no error in the finding of the trial judge on this issue."
+        },
+        {
+          "issue_key": "s3",
+          "question": "Should the costs order below be varied so the estate bore the trustees' and respondent's costs?",
+          "answer": "Yes. Leave was granted, the order was set aside, and the estate was ordered to pay the specified costs.",
+          "opinion_author_or_label": "Robert P. Armstrong",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "order and replacing it with an order that the costs of the trustees in the amount of $1,500 and of the respondent Kirsten Stevenson, in the amount of $3,000, should be paid by the estate."
+        },
+        {
+          "issue_key": "s4",
+          "question": "What costs should be awarded on the appeal?",
+          "answer": "$3,500 to Kirsten Stevenson on a partial-indemnity scale, payable by the appellant.",
+          "opinion_author_or_label": "Robert P. Armstrong",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "I would award costs to the respondent, Kirsten Stevenson, on a partial indemnity scale fixed in the amount of $3,500, inclusive of disbursements and GST, payable by the appellant."
+        }
+      ],
+      "mentions": [
+        {
+          "mention_id": "gm1",
+          "occurrence_id": "tm1",
+          "mention_quote": null,
+          "attribution": "party_submission",
+          "authority": "not_judicial",
+          "issue_keys": ["s1"],
+          "context_summary": "The explicit reporter citation is introduced as counsel's authority.",
+          "evidence_quote": "Counsel for the appellant cited Morayniss v. McArthur (1980), 30 O.R. (2d) 226 (H.C.J.) in support of this ground of appeal."
+        },
+        {
+          "mention_id": "gm2",
+          "occurrence_id": null,
+          "mention_quote": "Morayniss may be at odds with the reasoning in Robbins.",
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1"],
+          "context_summary": "The court questions whether Morayniss is consistent with Robbins and notes it is not binding.",
+          "evidence_quote": "Morayniss may be at odds with the reasoning in Robbins. If it is, this court is not bound by it."
+        },
+        {
+          "mention_id": "gm3",
+          "occurrence_id": null,
+          "mention_quote": "Morayniss is distinguishable from this case",
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s1"],
+          "context_summary": "The court distinguishes the discretionary charging order in Morayniss from garnishment available as of right.",
+          "evidence_quote": "However, Morayniss is distinguishable from this case in that the charging order sought by the solicitor is given at the discretion of the application judge."
+        }
+      ],
+      "treatments": [
+        {
+          "mention_ids": ["gm2"],
+          "issue_keys": ["s1"],
+          "attribution": "current_court",
+          "authority": "controlling",
+          "label": "questioned",
+          "scope": "specific_proposition",
+          "evidence_quote": "Morayniss may be at odds with the reasoning in Robbins. If it is, this court is not bound by it.",
+          "target_proposition_as_characterized": "Morayniss may conflict with Robbins on vesting or access to the annuity fund."
+        },
+        {
+          "mention_ids": ["gm3"],
+          "issue_keys": ["s1"],
+          "attribution": "current_court",
+          "authority": "controlling",
+          "label": "distinguished",
+          "scope": "specific_proposition",
+          "evidence_quote": "However, Morayniss is distinguishable from this case in that the charging order sought by the solicitor is given at the discretion of the application judge.",
+          "target_proposition_as_characterized": "Morayniss concerned a discretionary charging order, unlike garnishment available to a judgment creditor as of right."
+        }
+      ],
+      "direct_history": []
+    }
+  },
+  {
+    "document_id": 153056,
+    "citation": "C28760",
+    "annotator": "human_primary",
+    "annotation": {
+      "source_sufficient": true,
+      "issue_positions": [
+        {
+          "issue_key": "s1",
+          "question": "Did the trial judge err in using diminution in value, including compensatory pre-judgment interest, to assess damages?",
+          "answer": "No. The appellants did not establish a better restorative measure, and the diminution-in-value approach was correct.",
+          "opinion_author_or_label": "Michael J. Moldaver",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "approach. In my view, that approach, which included fixing pre-judgment interest at compensatory rates, was the correct one."
+        },
+        {
+          "issue_key": "s2",
+          "question": "Should liability between the appellants and co-defendants have been several rather than joint, with an assignment after payment?",
+          "answer": "Yes. Their liabilities arose from distinct causes; the appellants' liability was secondary and they were entitled to an assignment after making the respondent whole.",
+          "opinion_author_or_label": "Michael J. Moldaver",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "The appellants submit, correctly in my view, that as between the two sets of defendants, liability to the respondent for the sum of $825,079.30 should have been several, not joint."
+        },
+        {
+          "issue_key": "s3",
+          "question": "Did the trial judge err in fixing post-judgment interest at 10 rather than 14 per cent?",
+          "answer": "No. The trial judge's discretion was not shown to have been exercised wrongly, and 10 per cent was generous in the circumstances.",
+          "opinion_author_or_label": "Michael J. Moldaver",
+          "authority": "controlling",
+          "relation_to_disposition": "dispositive",
+          "evidence_quote": "post-judgment interest at 10 per cent is a generous rate of return on the moneys due and owing to the respondent. Accordingly, I would not give effect to this ground of appeal."
+        }
+      ],
+      "mentions": [
+        {
+          "mention_id": "gm1",
+          "occurrence_id": "tm1",
+          "mention_quote": null,
+          "attribution": "current_court",
+          "authority": "controlling",
+          "issue_keys": ["s2"],
+          "context_summary": "The court cites Wilson as support for assignment of the judgment after secondary obligors satisfy the respondent.",
+          "evidence_quote": "(See Reaney et al. v. National Trust Co. et al. (1964), 1 O.R. (4th) 61 (Ont. H.C.) and Wilson et al. v. Roswell, [1970] S.C.R. 865.)"
+        }
+      ],
+      "treatments": [
+        {
+          "mention_ids": ["gm1"],
+          "issue_keys": ["s2"],
+          "attribution": "current_court",
+          "authority": "controlling",
+          "label": "applied",
+          "scope": "specific_proposition",
+          "evidence_quote": "(See Reaney et al. v. National Trust Co. et al. (1964), 1 O.R. (4th) 61 (Ont. H.C.) and Wilson et al. v. Roswell, [1970] S.C.R. 865.)",
+          "target_proposition_as_characterized": "A secondarily liable party that makes the plaintiff whole is entitled to an assignment of the plaintiff's judgment against the co-defendants."
+        }
+      ],
+      "direct_history": []
+    }
+  }
+]

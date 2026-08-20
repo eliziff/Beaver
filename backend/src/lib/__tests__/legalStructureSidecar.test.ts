@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { crossReferenceGraph } from "../legalCrossReference";
+import { crossReferenceGraphFromSkeleton } from "../legalCrossReference";
 import {
   bakeStructure,
   bakedCrossReferenceGraph,
@@ -74,7 +74,7 @@ afterEach(async () => {
 
 describe("legal structure sidecars", () => {
   it("rehydrates the requested document id without changing structure", async () => {
-    const cold = compileAgreementSkeleton(AGREEMENT, "baker-id");
+    const cold = await compileAgreementSkeleton(AGREEMENT, "baker-id");
     await bakeStructure(AGREEMENT, "baker-id");
     clearSkeletonCache();
 
@@ -108,7 +108,7 @@ describe("legal structure sidecars", () => {
   it("keys native cell maps separately and reproduces the cold structure", async () => {
     const officerCells = [cell("Officer")];
     const secretaryCells = [cell("Secretary")];
-    const cold = compileAgreementSkeleton(TABLE_TEXT, "cold", {
+    const cold = await compileAgreementSkeleton(TABLE_TEXT, "cold", {
       tableCells: officerCells,
     });
 
@@ -135,10 +135,8 @@ describe("legal structure sidecars", () => {
   });
 
   it("compiles safely when sidecars are missing", async () => {
-    const expectedSkeleton = compileAgreementSkeleton(AGREEMENT, "missing");
-    const expectedGraph = crossReferenceGraph(AGREEMENT, "missing", {
-      skeleton: expectedSkeleton,
-    });
+    const expectedSkeleton = await compileAgreementSkeleton(AGREEMENT, "missing");
+    const expectedGraph = crossReferenceGraphFromSkeleton(AGREEMENT, expectedSkeleton);
     clearSkeletonCache();
 
     const skeleton = await bakedSkeleton(AGREEMENT, "missing");
@@ -153,10 +151,8 @@ describe("legal structure sidecars", () => {
 
   it("recompiles safely when sidecars are corrupt", async () => {
     await bakeStructure(AGREEMENT, "corrupt");
-    const expectedSkeleton = compileAgreementSkeleton(AGREEMENT, "corrupt");
-    const expectedGraph = crossReferenceGraph(AGREEMENT, "corrupt", {
-      skeleton: expectedSkeleton,
-    });
+    const expectedSkeleton = await compileAgreementSkeleton(AGREEMENT, "corrupt");
+    const expectedGraph = crossReferenceGraphFromSkeleton(AGREEMENT, expectedSkeleton);
     const cacheDirectory = path.join(temporaryDirectory, "structure-cache");
     for (const name of await readdir(cacheDirectory)) {
       await writeFile(path.join(cacheDirectory, name), "{not-json", "utf8");

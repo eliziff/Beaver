@@ -29,7 +29,11 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
             setGateState("idle");
             return;
         }
-        if (hasRecentMfaVerification()) {
+        const [verifiedUser, timestamp] =
+            (window.sessionStorage.getItem(MFA_VERIFIED_AT_KEY) ?? "").split(":");
+        const verifiedAt = Number.parseInt(timestamp ?? "", 10);
+        if (verifiedUser === user.id && Number.isFinite(verifiedAt) &&
+            Date.now() - verifiedAt < MFA_VERIFIED_GRACE_MS) {
             setGateState("verified");
             return;
         }
@@ -74,7 +78,8 @@ export function MfaLoginGate({ children }: { children: ReactNode }) {
                         void signOut().then(() => navigate("/login", { replace: true }));
                     }}
                     onVerified={() => {
-                        markMfaVerifiedForGate();
+                        window.sessionStorage.setItem(
+                            MFA_VERIFIED_AT_KEY, `${user.id}:${Date.now()}`);
                         setGateState("verified");
                     }}
                 />
@@ -88,18 +93,5 @@ function GateLoader() {
         <div className="flex min-h-dvh items-center justify-center bg-gray-50/80">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-700" />
         </div>
-    );
-}
-
-function markMfaVerifiedForGate() {
-    window.sessionStorage.setItem(MFA_VERIFIED_AT_KEY, String(Date.now()));
-}
-
-function hasRecentMfaVerification() {
-    const raw = window.sessionStorage.getItem(MFA_VERIFIED_AT_KEY);
-    const verifiedAt = raw ? Number.parseInt(raw, 10) : 0;
-    return (
-        Number.isFinite(verifiedAt) &&
-        Date.now() - verifiedAt < MFA_VERIFIED_GRACE_MS
     );
 }

@@ -1,7 +1,7 @@
 """Persistent Python client for Beaver's shipping SourceDoc compiler.
 
 This module contains transport only. Structure detection belongs exclusively
-to backend/src/lib/sourceDocA2AJ.ts.
+to the shared Rust structure engine.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ SCRIPTS = Path(__file__).resolve().parent
 BACKEND = SCRIPTS.parent
 BRIDGE = SCRIPTS / "sourcedoc-jsonl.ts"
 PROTOCOL = "beaver.sourcedoc.jsonl.v1"
-COMPILER = "compileA2AJSourceDoc"
+COMPILER = "legal-structure"
 
 
 class SourceDocClient:

@@ -3,8 +3,10 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isolatedProcessEnv } from "./subprocessEnv";
+import { isJsonRecord as record } from "./value";
 
-export const LEGAL_PDF_REQUEST_SCHEMA = "legalpdf.document-request.v1";
+const LEGAL_PDF_REQUEST_SCHEMA = "legalpdf.document-request.v1";
 export const LEGAL_PDF_RESULT_SCHEMA = "legalpdf.document-result.v1";
 
 export type LegalPdfOcrProvider = "kraken-lite" | "tesseract";
@@ -107,7 +109,7 @@ function numericSetting(env: NodeJS.ProcessEnv, name: string) {
   return value;
 }
 
-export function configuredLegalPdfOcrProvider(
+function configuredLegalPdfOcrProvider(
   options: RuntimeOptions = {},
 ): LegalPdfOcrProvider | null {
   const env = options.env ?? process.env;
@@ -239,10 +241,6 @@ export function legalPdfBinary(options: RuntimeOptions = {}) {
   return (options.exists ?? existsSync)(managed) ? managed : "legalpdf";
 }
 
-function record(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
 function exactKeys(value: Record<string, unknown>, allowed: string[]) {
   return Object.keys(value).every((key) => allowed.includes(key));
 }
@@ -305,7 +303,10 @@ export async function runLegalPdfDocument<Result = Record<string, unknown>>(
         ["contract", input],
         {
           cwd: root,
-          env: process.env,
+          env: isolatedProcessEnv([
+            "LEGALPDF_*", "OPEN_LEGAL_DATA_HOME", "TESSDATA_PREFIX", "PYTHONPATH",
+            "VIRTUAL_ENV", "OMP_*", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
+          ]),
           maxBuffer: options.maxBuffer ?? 64 * 1024 * 1024,
           timeout: options.timeoutMs ?? 11 * 60 * 1000,
           signal: options.signal,

@@ -1,5 +1,41 @@
 # A2AJ decision-roster results
 
+## One-citing-case/one-target Luna Max MVP (2026-08-19)
+
+Run `case-target-mvp-15-luna-max-v1` completed all 15 frozen pairs with ten
+independent ephemeral workers. Each call received one complete public citing
+decision, one target identity, and the deterministic target-occurrence map;
+no target decision text was supplied. There were no process failures or
+timeouts. Median call time was 534.55 seconds (361.42--754.02), with 537,793
+input tokens, 235,131 output tokens, and 177,748 reasoning tokens in total.
+The exact raw ledger is 561,120 bytes and the full receipt stream is 593,279
+bytes.
+
+The frozen v1 receipts report 13 `accepted_with_target_rejections` and two
+opinion rejections. The raw outputs were revalidated locally after four general
+validator corrections: a proved occurrence ID wins over a redundant model
+quote; punctuation-only quote variation can resolve through the shared source
+token index; repeated identical panel evidence in the pre-reasons header uses
+the first exact occurrence; and direct-history outcome evidence may appear
+later in the same opinion than the target citation.
+
+The current fail-closed revalidation accepts 14/15 opinion records and 5/15
+complete case-target records. Across the 14 opinion-valid cases it accepts
+51/64 opinion-issue positions, 30/37 target mentions, 25/32 treatment events,
+and 1/1 direct-history events. Acceptance is now atomic per subrecord: a failed
+mention, issue link, partial joinder, treatment, or history item cannot enter
+the accepted arrays or the derived treatment graph. Rejection receipts identify
+the exact component and reason. The main remaining failure is Luna placing an
+issue card's own evidence outside its declared discussion span, followed by
+changed or invented quote text. Those claims remain rejected.
+
+The deterministic `flat_treatment` projection worked on surviving events. It
+keeps controlling, other-judicial, and attributed labels separate by issue and
+derives retrieval flags without asking the model for a scalar good-law score.
+Examples include controlling `applied` edges in `2005 FC 894` and `2021
+FPSLREB 61`, and a controlling `referred_to`/`explained`/`applied` combination
+in the partially accepted `2007 TCC 547` record.
+
 ## Fast deterministic storage and selection (2026-08-19)
 
 The durable boundary remains newline-delimited JSON: the representative
@@ -389,3 +425,302 @@ adjacent `.progress.jsonl` file. At the latest checkpoint recorded here,
 7,922 cases were complete (7,622 accepted, 232 rejected, 75
 structure-unavailable, zero execution failures). The final JSON receipt will
 be written only after all 30,000 cases finish.
+
+## Combined semantic MVP, diverse 15 (2026-08-19)
+
+- Frozen cohort: `semantic-mvp-15.json`, one seeded-random qualifying case from
+  each of 15 datasets, with two sampled citation contexts per case.
+- Run: `runs/semantic-mvp-15-luna-max-v2.json`; raw final answers and exact
+  streamed Codex events are in the adjacent `.outputs.jsonl` file.
+- All 15 receipts report `gpt-5.6-luna` at `max`, distinct thread IDs, and
+  return code zero. Ten workers dispatched one ephemeral exec per case. One
+  WebSocket reset retried successfully.
+
+| Measure | Result |
+| --- | ---: |
+| Fully accepted combined records | 3/15 |
+| Opinion/vote extraction accepted | 13/15 |
+| Issue cards accepted by exact grounding checks | 47/60 |
+| Accepted substantive treatment events | 25 |
+| Accepted direct-history events | 0 |
+| Input tokens | 433,705 |
+| Output tokens | 284,791 |
+| Reasoning tokens | 234,050 |
+| Median case latency | 484.26 s |
+| Maximum case latency | 684.53 s |
+| Dispatch wall time | 17.2 min |
+
+The three fully accepted decisions (`2002 BCCA 3`, `2005 FC 894`, and
+`2016 CHRT 18`) produced coherent issue questions, answers, bases, and exact
+evidence. Across the 25 grounded treatment events, attribution was
+`current_court` 7, `quoted_authority` 10, `party_submission` 4,
+`reported_decision` 3, and `procedural_recounting` 1. That separation is doing
+real work: most citation language in this cell should not become controlling
+court treatment. The noisy CITT date-like citation candidates yielded no
+substantive treatment.
+
+The two opinion-layer rejections were narrow grounding failures: one opinion
+had both a named author and a collective author; one FCA decision used repeated
+bare judge-name anchors that could not be resolved uniquely. Of the 13 rejected
+issue cards, failures were missing exact quotes or evidence outside the card's
+own discussion span. Seven selected citation occurrences fell outside every
+resolved opinion, and seven treatment events used evidence outside the sampled
+occurrence's context. The former is mostly a candidate-selection/eligibility
+problem; the latter shows the model drifting from the requested occurrence to
+another discussion of the same authority.
+
+An initial canary exposed that the runner buffered Codex JSON events until
+completion, hiding sandbox network failures. It now appends every exact raw
+event immediately and writes a content-free progress summary alongside it.
+The next context ablation is recorded in `PLAN.md`: closed-record,
+later-judgment characterization, journal characterization, and combined arms,
+with every external characterization kept separate and provenance-tagged.
+
+## Case-target prompt ablation, flat-subscription baseline (2026-08-20)
+
+The controlled case-target cell uses 15 frozen citing-decision/target pairs:
+five directly reviewed human-development cases and ten untouched holdouts. Each
+call sees the complete citing decision, one fixed target identity, and every
+deterministically resolved target occurrence. The target decision itself is
+not context in this cell.
+
+The live transport now uses the existing ChatGPT/Codex subscription adapter at
+`https://chatgpt.com/backend-api/codex`, with `auth_mode=chatgpt`; API-key
+environment variables are removed in every child. Each case has an isolated
+process, ten logical calls run concurrently at BelowNormal priority, decoded
+provider events are appended as they arrive, and the exact final answer is
+stored separately. The parent retains only a streaming hash and the small
+start/completion receipts. A local 17 MiB stream test and this 44 MiB baseline
+raw stream both completed beyond the retired 16 MiB buffer limit.
+
+One baseline canary (`2014 CART 21`) completed in 723.25 seconds with 5/5
+mentions, 2/2 issue positions, and one controlling `applied` treatment. The
+same frozen case in the baseline run also found an attributed `explained` event
+and an issue-scoped `distinguished` event. Both runs passed structural
+validation; the difference is useful evidence of semantic run variance and is
+not resolved by validator survival.
+
+Baseline arm: `runs/case-target-prompt-baseline-luna-max-flat-sub-v1.*`.
+Revalidation uses validator v10.
+
+| Measure | Baseline |
+| --- | ---: |
+| Opinion extraction accepted | 12/15 |
+| Whole case-target record accepted | 6/15 |
+| Partial semantic salvage | 6/15 |
+| Opinion-layer rejected | 3/15 |
+| Opinion positions accepted/submitted | 59/65 |
+| Target mentions accepted/submitted | 20/22 |
+| Treatment events accepted/submitted | 11/16 |
+| Direct-history events accepted | 2 |
+| Input tokens | 145,076 |
+| Output tokens | 573,082 |
+| Reasoning tokens | 514,863 |
+| Median logical-call latency | 809.23 s |
+| Maximum logical-call latency | 1,509.09 s |
+| Ten-worker dispatch wall | 29.63 min |
+| Provider retries | 4 |
+
+The three opinion rejections were narrow, auditable inconsistencies: a repeated
+author-link quote, an author link absent from `author_names`, and two
+result-only evidence quotes that did not identify their judges. Partial
+semantic failures were primarily evidence outside the resolved opinion or
+discussion span, orphaned issue links, and treatment/mention linkage errors.
+All submitted raw subrecords remain available for later deterministic salvage.
+
+On the five human-development cases, the baseline treatment labels agree on
+the central `applied` result in three cases and on the direct `reversed` history
+in one. The remaining ONCA case produced `distinguished` plus `limited` where
+the human annotation recorded `distinguished` plus `questioned`; that is a
+semantic grading question for Sol Max, not a deterministic correction. No
+prompt is selected until all four frozen arms and blinded grading complete.
+
+The verbose arm (`runs/case-target-prompt-verbose-luna-max-flat-sub-v1.*`)
+improved the local gate to 13/15 opinion-valid and 7/15 fully target-valid. It
+accepted 62/65 positions, 21/21 mentions, 13/17 treatments, and two direct
+history events. Median latency was 637.03 seconds, maximum latency 878.19
+seconds, and ten-worker wall time 25.52 minutes. It used 146,561 input, 527,425
+output, and 471,891 reasoning tokens, with no provider retry.
+
+That structural lead is not yet a semantic win. On human cases, verbose found
+the annotated `questioned` plus `distinguished` ONCA treatments that baseline
+rendered as `limited` plus `distinguished`, but it changed C28760 from the
+human-annotated `applied` to `referred_to`. This is exactly why arm selection
+uses human/Sol adjudication rather than acceptance counts alone.
+
+The concise arm (`runs/case-target-prompt-concise-luna-max-flat-sub-v1.*`)
+regressed sharply: 9/15 opinion-valid and 1/15 fully target-valid. It accepted
+41 opinion positions, 20 target mentions, only 2/18 submitted treatments, and
+one direct-history event. Median latency was 736.79 seconds, maximum latency
+1,456.13 seconds, and ten-worker wall time 34.14 minutes. It used 125,377
+input, 516,966 output, and 462,365 reasoning tokens, with three provider
+retries.
+
+Most concise treatment failures supplied a generated characterization where
+the frozen contract required source-grounded proposition text. One BCSC call
+returned an empty final answer after a complete provider event stream. The
+JSONL itself contained 68,894 valid records and no corrupt line; the offline
+readers were corrected to retain that case as a fail-closed model rejection
+instead of aborting revalidation of the arm.
+
+## Prompt selection, validator v12, and repair canary (2026-08-20)
+
+The exact four-arm cohort is now durable in
+`case-target-prompt-cell-15.json`. It contains the five human-development pairs
+and the same ten blind holdouts used by every arm. The launch manifest had not
+been retained; the replacement was recovered from the per-case receipts,
+which preserved the source document, target identity, aliases, and corpus ID.
+
+Validator v12 incorporates the generalizable defects found in the runs:
+normalized target propositions are separate from exact treatment evidence;
+all deterministic target occurrences must be accounted for; citation-only
+endnotes can link to an unambiguous inline marker; exact containment can repair
+wrong model-supplied opinion IDs; and an explicit `REASONS ... BY: JUDGE`
+byline overrides a contradictory collective-author label. Replaying the four
+unchanged output streams gives:
+
+| Luna Max arm | Opinion-valid | Whole target-valid | Positions | Mentions | Treatments | Direct history |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 13/15 | 7/15 | 60/66 | 22/24 | 13/18 | 3 |
+| Verbose | 14/15 | 9/15 | 63/66 | 22/22 | 15/18 | 3 |
+| Concise v2 | 12/15 | 7/15 | 56/67 | 10/17 | 8/16 | 4 |
+| Examples v2 | 14/15 | 10/15 | 65/74 | 18/27 | 12/19 | 3 |
+
+The selected examples packet regenerated the exact stored prompt SHA-256 for
+`2007 FC 676`; the later FCA byline lesson remains a deterministic
+normalization and did not silently create an untested prompt version.
+
+Every live extraction and grade used the Codex/ChatGPT flat-subscription
+endpoint, `auth_mode=chatgpt`, with API-key variables removed. All cases used
+isolated one-case processes, ten-worker extraction dispatch, and BelowNormal
+priority. The shared ledger now records 315 attempted submissions including
+the 97-call carry-forward and 19 provider retries; 14,685 of the authorized
+15,000 remain.
+
+Sol Max graded the current examples and concise repeats against the five
+direct annotations. Examples was usable on 5/5; its mean issue recall,
+precision, and answer correctness were 4.0/4, treatment label accuracy was
+3.8/4, and treatment scope and authority side were 3.6/4. Concise was usable
+on 2/5, with means of 2.8, 3.0, and 3.2 for issue recall, issue precision, and
+answer correctness. Across both human-case runs, examples was usable on 10/10
+and concise on 7/10.
+
+The ten-case blind comparison was less decisive. Concise was usable on 5/10
+and preferred in five cases; examples was usable on 4/10 and preferred in two.
+Examples nevertheless had higher mean treatment (3.1 versus 2.5), occurrence
+attribution (3.5 versus 2.9), and opinion authority (4.0 versus 3.2). Baseline
+was usable on 4/10 and verbose on 3/10. Given the stated priority order and the
+concise repeat's instability on the human cases, examples v2 is the provisional
+MVP prompt. Applied/followed/approved remain too fine for an unqualified
+inference-time flag; the derived relied-on family is the safer compact value.
+
+The CIRB repair canary used provider-enforced JSON Schema through the Beaver
+Codex app-server. Its initial examples extraction failed seven linked-record
+checks. Same-thread validator feedback repaired six and left one error: a
+treatment linked issue `i3` without a linked mention carrying `i3`. A fresh
+full-context correction returned malformed JSON. The persistent turn also
+consumed 47,971 input tokens versus 14,008 initially and reported no cache
+read. Automatic repair is therefore not part of the MVP; the result supports
+a smaller future test of targeted machine-edit operations rather than another
+full extraction turn.
+
+Three current concise calls ended empty after the subscription stream reset
+twice. Full stderr is now retained in the raw stream and hashed/sized in compact
+receipts. All three show `httpx.RemoteProtocolError` from an incomplete chunked
+response, separating transport loss from schema or semantic rejection.
+
+## Provisional MVP viability review (2026-08-20)
+
+The attempted 4,950-pair scale run was stopped after 6.1 minutes. Its exact
+36-process tree was terminated without touching unrelated processes. The run
+used 12 ledger attempts across ten source decisions, produced no completed
+model answer, and retained 5.57 MiB of raw partial events plus one interruption
+failure receipt. It is excluded from quality rates. The append-only ledger has
+327 attempted submissions: 97 carried forward, 209 started calls, and 21
+provider retries. Thus 14,673 of the authorized 15,000 remain. Future runs use
+five workers.
+
+The useful evidence already spans three different cells and should not be
+pooled as one percentage:
+
+- The seeded 50-case calibration covered all 29 A2AJ datasets. After replacing
+  its 19 sidecar failures with the dedicated retry, the older v2/v3 prompts
+  produced 36/50 opinion-valid and 16/50 whole target-valid records, accepting
+  155/181 opinion positions, 55/70 target mentions, and 37/51 treatment events.
+- The current examples-v2 prompt on the fixed 15-pair cell produced 14/15
+  opinion-valid and 10/15 whole target-valid records, accepting 65/74 opinion
+  positions, 18/27 mentions, 12/19 treatments, and three history events.
+- Against five hand-written case records, Sol Max found all five examples-v2
+  outputs usable. Issue recall, issue precision, and answer correctness were
+  4.0/4. Four treatment records had no substantive treatment error. In `2014 CART 21`,
+  Luna improperly grouped a reported/quoted explanation with the Tribunal's
+  own application, omitted the separate attributed explanation, and scoped
+  the controlling application too narrowly. One other record understated a
+  threshold jurisdiction ruling as non-dispositive.
+
+The ten untouched holdouts are a warning against extrapolating from the five
+development cases. Sol Max called only 4/10 examples-v2 records semantically
+usable, although their mean scores remained strong for opinion authority
+(4.0/4), occurrence attribution (3.5/4), and treatment (3.1/4). The broad
+50-case cell used older prompts, while the current 15-case cell is not an
+opinion-structure stress set. None of the retained parsed predictions in those
+65 cases contained more than one opinion. A separate semantic-MVP SCC decision,
+`[1979] 2 SCR 529`, did
+correctly recover two opinions, the six-judge majority, the three-judge
+dissent, and distinct issue positions, but that is only one direct test of the
+hard case. Partial joinders and issue-specific judicial coalitions therefore
+remain unproven.
+
+### Capability assessment
+
+Luna Max is already useful for a selectively run, fail-closed enrichment
+pipeline. On ordinary single-opinion decisions it usually finds the writer and
+panel relationship, frames the decided issues, states the answer, grounds it in
+the current court's words, accounts for known target occurrences, and separates
+court speech from counsel, quotations, reported decisions, and procedural
+recounting. The current schema can represent the information the MVP needs,
+including different answers by opinion and a compact issue-aware treatment
+projection.
+
+It is not ready to supply inference-critical treatment claims without receipts
+and filtering. Fine labels such as `applied`, `followed`, and `approved` are
+less stable than the broader relied-on family. Multiple mentions can still be
+collapsed across speaker contexts. Exact-quote mistakes and one bad issue link
+can cascade through an otherwise useful record. Result-only panel evidence is
+too awkward for collective tribunal decisions. Current latency is also an
+offline-enrichment profile: examples-v2 used a 701-second median and 545,696
+output tokens for 15 calls, of which 486,981 were reasoning tokens.
+
+The judge-service registry is not yet part of this quality result. The current
+live-check snapshot is a partial 123-person artifact, these MVP runs did not
+pass it, and the implemented runner presently attaches resolutions to receipts
+rather than giving vetted candidate names to Luna or using them in validation.
+Its proposed benefit to authorship and quoted-judge disambiguation therefore
+needs its own controlled roster-hint test; it should not be silently combined
+with the schema ablation.
+
+The ontology should be retained, but the model-facing contract should be made
+smaller. The next schema ablation should:
+
+1. nest semantic records and assign bookkeeping IDs deterministically instead
+   of asking Luna to generate and cross-link them;
+2. remove model-declared issue hierarchy and discussion boundaries from the
+   MVP, retaining exact answer/basis evidence and deriving conservative evidence
+   ranges and paragraph views after quote resolution;
+3. derive occurrence identity, offsets, opinion containment, judge-by-issue
+   counts, and flat treatment families locally;
+4. keep a normalized target proposition distinct from verbatim treatment
+   evidence, and allow a treatment to remain proposition-scoped but
+   case-issue-unscoped rather than forcing an invented issue link; and
+5. keep detailed treatment labels in the auditable graph while exposing only
+   `relied_on`, `declined_or_constrained_on_issue`, `explained`,
+   `mentioned_only`, and `direct_history` families to cheap downstream routing.
+
+The MVP is viable as audited selective enrichment, not yet as a corpus-scale
+citator. The next evidence-producing step is a paired current-schema versus
+reduced-schema Luna Max test on 15 deliberately difficult decisions: five true
+multi-opinion or partial-join cases, five attribution traps, and five ordinary
+court/tribunal controls. Use five isolated workers, grade every case with Sol
+Max, and hand-inventory five. Only after that schema choice should the combined
+versus structure-first, roster-hint, and citing-only versus
+citing-plus-target-text ablations run.

@@ -226,6 +226,28 @@ describe("provider wire adapters", () => {
     });
   });
 
+  it("treats omitted arguments for a parameterless tool as an empty object", async () => {
+    let request = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => ++request === 1
+      ? sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call-1",
+          function: { name: "lookup" } }] } }] })
+      : sse({ choices: [{ delta: { content: "Done." } }] })));
+    const runTools = vi.fn(async () => [{ tool_use_id: "call-1", content: "ok" }]);
+
+    await streamDeepSeek({
+      model: "deepseek-v4-pro",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "Run it." }],
+      tools: [{ ...tool, inputSchema: { type: "object", properties: {} } }],
+      apiKeys: { deepseek: "test" },
+      runTools,
+    });
+
+    expect(runTools).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "call-1", name: "lookup", input: {} }),
+    ]);
+  });
+
   it("echoes Gemini thoughtSignature and exact function-call id", async () => {
     sdk.geminiCreate
       .mockResolvedValueOnce(generator([{

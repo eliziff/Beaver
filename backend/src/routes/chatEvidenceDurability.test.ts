@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
 import type { ChatStore } from "../lib/chatStore";
 
 const mocks = vi.hoisted(() => ({
@@ -234,7 +235,7 @@ describe("chat PDF evidence durability", () => {
       userId: USER_ID,
       kind: "file",
       filename: "Retainer.docx",
-      bytes: Buffer.from("test-docx-bytes"),
+      bytes: await zipDocumentBytes("test-docx-bytes"),
     });
     mocks.matterDocuments = [];
     const loaded = await loadApp();
@@ -253,17 +254,10 @@ describe("chat PDF evidence durability", () => {
           content: "Review this document.",
           files: [
             {
-              filename: "Retainer%20spoof.docx",
               document_id: document.id,
             },
           ],
         },
-        attached_documents: [
-          {
-            filename: "Retainer%20spoof.docx",
-            document_id: document.id,
-          },
-        ],
       });
 
     expect(response.status).toBe(200);
@@ -273,7 +267,6 @@ describe("chat PDF evidence durability", () => {
       ...mocks.providerMessages.at(-1)!.map(({ content }) => content),
     ].join("\n");
     expect(providerInput).toContain("Retainer.docx");
-    expect(providerInput).not.toContain("Retainer%20spoof.docx");
     expect(providerInput).not.toContain(document.id);
   });
 
@@ -757,7 +750,6 @@ describe("chat PDF evidence durability", () => {
           content: "Use a missing file",
           files: [
             {
-              filename: "missing.pdf",
               document_id: "50000000-0000-4000-8000-000000000001",
             },
           ],
@@ -781,7 +773,6 @@ describe("chat PDF evidence durability", () => {
           content: "Trigger a local read",
           files: [
             {
-              filename: "evidence.pdf",
               document_id: DOCUMENT_ID,
             },
           ],
@@ -873,8 +864,6 @@ describe("chat PDF evidence durability", () => {
                   kind: "choice",
                   question: "Which forum?",
                   options: [{ value: "Ontario" }, { value: "Alberta" }],
-                  allow_other: true,
-                  other_label: "Write your own answer",
                 },
               ],
             },
@@ -890,7 +879,6 @@ describe("chat PDF evidence durability", () => {
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Quebec",
           responses: [
             {
               id: "forum",
@@ -903,25 +891,23 @@ describe("chat PDF evidence durability", () => {
       });
     expect(forgedQuestion.status).toBe(400);
 
-    const emptyAnswer = await request(loaded.app)
+    const invalidAnswer = await request(loaded.app)
       .post("/chat")
       .send({
         chat_id: created.body.id,
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "",
           responses: [
             {
               id: "forum",
               kind: "choice",
-              question: "Which forum?",
-              answer: "",
+              answer: 7,
             },
           ],
         },
       });
-    expect(emptyAnswer.status).toBe(400);
+    expect(invalidAnswer.status).toBe(400);
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(
       (await storedChat(loaded.store, created.body.id))
@@ -935,12 +921,10 @@ describe("chat PDF evidence durability", () => {
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Browser-authored prose is not authoritative.",
           responses: [
             {
               id: "forum",
               kind: "choice",
-              question: "Which forum?",
               answer: "Quebec",
             },
           ],
@@ -960,12 +944,10 @@ describe("chat PDF evidence durability", () => {
       ),
     ).toMatchObject({
       type: "ask_inputs_response",
-      content: "Responses to Beaver's questions:\n1. Which forum?\nQuebec",
       responses: [
         {
           id: "forum",
           kind: "choice",
-          question: "Which forum?",
           answer: "Quebec",
         },
       ],
@@ -1000,8 +982,6 @@ describe("chat PDF evidence durability", () => {
                 kind: "choice",
                 question: "Which forum?",
                 options: [{ value: "Ontario" }, { value: "Alberta" }],
-                allow_other: false,
-                other_label: "Other",
               },
             ],
           },
@@ -1010,12 +990,10 @@ describe("chat PDF evidence durability", () => {
     });
     const responseTurn = {
       kind: "ask_inputs_response",
-      content: "Ontario",
       responses: [
         {
           id: "forum",
           kind: "choice",
-          question: "Which forum?",
           answer: "Ontario",
         },
       ],
@@ -1039,7 +1017,6 @@ describe("chat PDF evidence durability", () => {
         expected_version: 3,
         current_turn: {
           ...responseTurn,
-          content: "Alberta",
           responses: [{ ...responseTurn.responses[0], answer: "Alberta" }],
         },
       });
@@ -1403,12 +1380,10 @@ describe("chat PDF evidence durability", () => {
         expected_version: 0,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Ontario",
           responses: [
             {
               id: "forum",
               kind: "choice",
-              question: "Forum?",
               answer: "Ontario",
             },
           ],

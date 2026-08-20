@@ -1,8 +1,12 @@
-import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { sha256 } from "./hash";
-import { legalProviderDatabase, withReadonlySqlite } from "./legalDataPath";
+import { searchTokens, sqliteText as string } from "./sqliteSearch";
+import {
+  legalProviderDatabase,
+  withSearchReadonlySqlite,
+  withReadonlySqlite,
+} from "./legalDataPath";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
@@ -48,31 +52,10 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(hansardDatabasePath(), operation);
 }
 
-let searchConnection:
-  | { filename: string; database: DatabaseSync }
-  | undefined;
-
 function withSearchDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   const filename = hansardDatabasePath();
-  if (process.env.MIKE_A2AJ_HANSARD_DB?.trim()) {
-    return withReadonlySqlite(filename, operation);
-  }
-  if (!existsSync(filename)) return null;
-  if (searchConnection?.filename !== filename) {
-    searchConnection?.database.close();
-    const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
-    const database = new DatabaseSync(filename, { readOnly: true });
-    database.exec(
-      "PRAGMA query_only=ON; PRAGMA mmap_size=2147418112; PRAGMA cache_size=-65536",
-    );
-    searchConnection = { filename, database };
-  }
-  return operation(searchConnection.database);
-}
-
-function string(row: Row, field: string) {
-  const value = row[field];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  const cache = !process.env.MIKE_A2AJ_HANSARD_DB?.trim();
+  return withSearchReadonlySqlite(filename, cache, operation);
 }
 
 function intervention(row: Row): HansardIntervention | null {
@@ -112,10 +95,6 @@ function searchHit(row: Row): HansardSearchHit | null {
     upstreamLicense: string(row, "upstream_license"),
     snippet: null,
   };
-}
-
-function searchTokens(query: string) {
-  return query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 12) ?? [];
 }
 
 /**

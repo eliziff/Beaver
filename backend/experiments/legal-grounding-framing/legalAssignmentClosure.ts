@@ -110,27 +110,3 @@ export function assignmentTriggerClosure(
   }
   return findings;
 }
-
-export function assignmentClosureReceipts(
-  sources: readonly AssignmentClosureSource[],
-  draft: string,
-) {
-  return assignmentTriggerClosure(sources, draft).map((finding) => ({
-    kind: "anti_assignment_trigger_omission" as const,
-    source_document: finding.document,
-    ...(finding.documentId
-      ? { source_document_id: finding.documentId }
-      : {}),
-    ...(finding.versionId ? { source_version_id: finding.versionId } : {}),
-    ...(finding.sourceSha256
-      ? { source_sha256: finding.sourceSha256 }
-      : {}),
-    ...(finding.projection
-      ? { source_projection: finding.projection }
-      : {}),
-    source_offset: finding.at,
-    source_end: finding.at + finding.excerpt.length,
-    omitted_triggers: finding.omitted,
-    source_excerpt: finding.excerpt,
-  }));
-}

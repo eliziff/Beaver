@@ -152,10 +152,6 @@
     padding: 0 1px;
     color: inherit !important;
 }
-.case-opinion-content span.docx-text-highlight,.case-opinion-content .docx-text-highlight {    background-color: rgba(213, 43, 30, 0.35) !important;    border-radius: 2px;
-    padding: 0 1px;
-    color: inherit !important;
-}
 .docx-view-container ins {
     color: #16a34a;
     text-decoration: none;

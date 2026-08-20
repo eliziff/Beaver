@@ -46,16 +46,20 @@ const options = {
   mode: modeFlag as "chars" | "clause" | undefined,
 };
 
-console.log(`source   ${options.sourceDb}`);
-console.log(
-  `chunking target=${options.target} overlap=${options.overlap} mode=${
-    options.mode ?? "chars"
-  }${options.docType ? ` doc_type=${options.docType}` : ""}`,
-);
-const started = Date.now();
-const result = ensurePassageIndex(options);
-const seconds = ((Date.now() - started) / 1_000).toFixed(1);
-console.log(`sidecar  ${result.indexDb}`);
-console.log(
-  `${result.built ? "built" : "reused"} ${result.passages.toLocaleString()} passages over ${result.documents.toLocaleString()} documents in ${seconds}s`,
-);
+async function main() {
+  console.log(`source   ${options.sourceDb}`);
+  console.log(
+    `chunking target=${options.target} overlap=${options.overlap} mode=${
+      options.mode ?? "chars"
+    }${options.docType ? ` doc_type=${options.docType}` : ""}`,
+  );
+  const started = Date.now();
+  const result = await ensurePassageIndex(options);
+  const seconds = ((Date.now() - started) / 1_000).toFixed(1);
+  console.log(`sidecar  ${result.indexDb}`);
+  console.log(
+    `${result.built ? "built" : "reused"} ${result.passages.toLocaleString()} passages over ${result.documents.toLocaleString()} documents in ${seconds}s`,
+  );
+}
+
+void main();

@@ -261,10 +261,10 @@ async function callModel(model: string, testCase: Case) {
   throw lastNetworkError;
 }
 
-export function judge(
+export async function judge(
   testCase: Case,
   content: string,
-): { outcome: Attempt["outcome"]; kinds: string[] } {
+): Promise<{ outcome: Attempt["outcome"]; kinds: string[] }> {
   let ops: AmendOp[];
   try {
     const parsed = JSON.parse(content) as { ops?: AmendOp[] };
@@ -278,7 +278,7 @@ export function judge(
   // Every case's pre-text is A2AJ consolidation text (case 3 is the unit-test
   // statute fixture), so the line breaks are the publisher's and there is no
   // extraction damage to recover: the segmentation competition must not run.
-  const result = applyAmendOps(testCase.pre, ops, { recoverExtraction: false });
+  const result = await applyAmendOps(testCase.pre, ops, { recoverExtraction: false });
   if (result.failures.length)
     return { outcome: `apply_failed:${result.failures[0].code}`, kinds };
   return {
@@ -307,7 +307,7 @@ async function main() {
         let attempt: Attempt;
         try {
           const call = await callModel(model, testCase);
-          const verdict = judge(testCase, call.content);
+          const verdict = await judge(testCase, call.content);
           attempt = {
             model,
             case_id: testCase.id,

@@ -4,7 +4,8 @@ import { once } from "node:events";
 
 import { describe, expect, it } from "vitest";
 
-import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
+import type { SourceDoc } from "../sourceDoc";
+import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
 
 const backend = path.resolve(__dirname, "../../..");
 const root = path.resolve(backend, "..");
@@ -29,7 +30,7 @@ async function bridge(requests: unknown[]) {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-function topLevel(doc: ReturnType<typeof compileA2AJSourceDoc>, kind: string) {
+function topLevel(doc: SourceDoc, kind: string) {
   return doc.blocks
     .filter((block) => block.kind === kind && !block.parentLabel)
     .map(({ label, start, end, origin }) => ({ label, start, end, origin }));
@@ -68,18 +69,18 @@ describe("SourceDoc JSONL protocol", () => {
       { id: "bad", docType: "cases" },
     ]);
 
-    expect(caseResult.compiler).toBe("compileA2AJSourceDoc");
+    expect(caseResult.compiler).toBe("legal-structure");
     expect(caseResult.blocks).toMatchObject({
       paragraph: topLevel(
-        compileA2AJSourceDoc(caseRequest),
+        await deriveA2AJSourceDoc(caseRequest),
         "paragraph",
       ),
     });
     expect(lawResult.blocks).toMatchObject({
-      section: topLevel(compileA2AJSourceDoc(lawRequest), "section"),
+      section: topLevel(await deriveA2AJSourceDoc(lawRequest), "section"),
     });
     expect(malformed).toMatchObject({
-      compiler: "compileA2AJSourceDoc",
+      compiler: "legal-structure",
       id: "bad",
     });
     expect(malformed.error).toEqual(expect.any(String));
@@ -102,7 +103,7 @@ describe("SourceDoc JSONL protocol", () => {
       },
     };
     const [result] = await bridge([request]);
-    const doc = compileA2AJSourceDoc(request);
+    const doc = await deriveA2AJSourceDoc(request);
     const rendition = result.rendition as {
       kind: string;
       segments: Array<{
@@ -169,7 +170,7 @@ describe("SourceDoc JSONL protocol", () => {
     });
     expect(run.status, run.stderr).toBe(0);
     expect(JSON.parse(run.stdout)).toMatchObject({
-      engine: "compileA2AJSourceDoc",
+      engine: "legal-structure",
       kind: "paragraphs",
       count: 4,
       first: 1,
@@ -199,7 +200,7 @@ describe("SourceDoc JSONL protocol", () => {
 
     expect(run.status, run.stderr).toBe(0);
     expect(JSON.parse(run.stdout)).toMatchObject({
-      engine: "compileA2AJSourceDoc",
+      engine: "legal-structure",
       expected_count: 1,
       actual: 3,
       recovery_production: 0,

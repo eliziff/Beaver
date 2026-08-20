@@ -3,20 +3,11 @@ import type { DocumentStore } from "./documentStore";
 
 type Db = ReturnType<typeof createServerSupabase>;
 
-async function throwIfError<T extends { message?: string } | null>(
+function throwIfError<T extends { message?: string } | null>(
     error: T,
     context: string,
 ) {
     if (error) throw new Error(`${context}: ${error.message ?? "unknown error"}`);
-}
-
-async function getOwnedProjectIds(db: Db, userId: string): Promise<string[]> {
-    const { data, error } = await db
-        .from("projects")
-        .select("id")
-        .eq("user_id", userId);
-    await throwIfError(error, "Failed to load user projects");
-    return (data ?? []).flatMap((row) => typeof row.id === "string" ? [row.id] : []);
 }
 
 async function removeEmailFromSharedWith(
@@ -31,7 +22,7 @@ async function removeEmailFromSharedWith(
         .from(table)
         .select("id, shared_with")
         .filter("shared_with", "cs", JSON.stringify([normalizedEmail]));
-    await throwIfError(error, `Failed to load shared ${table}`);
+    throwIfError(error, `Failed to load shared ${table}`);
 
     const updates = (data ?? [])
         .map((row) => {
@@ -51,8 +42,9 @@ async function removeEmailFromSharedWith(
             const { error: updateError } = await db
                 .from(table)
                 .update({ shared_with: sharedWith })
-                .eq("id", id);
-            await throwIfError(updateError, `Failed to update shared ${table}`);
+                .eq("id", id)
+                .filter("shared_with", "cs", JSON.stringify([normalizedEmail]));
+            throwIfError(updateError, `Failed to update shared ${table}`);
         }),
     );
 }
@@ -63,7 +55,11 @@ export async function deleteUserAccountData(
     userId: string,
     userEmail?: string | null,
 ) {
-    const ownedProjectIds = await getOwnedProjectIds(db, userId);
+    const { data: ownedProjects, error: ownedProjectsError } = await db
+        .from("projects").select("id").eq("user_id", userId);
+    throwIfError(ownedProjectsError, "Failed to load user projects");
+    const ownedProjectIds = (ownedProjects ?? [])
+        .flatMap((row) => typeof row.id === "string" ? [row.id] : []);
 
     await Promise.all([
         removeEmailFromSharedWith(db, "projects", userEmail),
@@ -98,6 +94,6 @@ export async function deleteUserAccountData(
 
     const results = await Promise.all(deletions);
     for (const result of results) {
-        await throwIfError(result.error, "Failed to delete account data");
+        throwIfError(result.error, "Failed to delete account data");
     }
 }

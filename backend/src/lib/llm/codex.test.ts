@@ -74,6 +74,27 @@ describe("Codex app-server adapter", () => {
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
   });
 
+  it("passes a structured-output schema to the native turn", async () => {
+    const outputSchema = {
+      type: "object",
+      additionalProperties: false,
+      required: ["ok"],
+      properties: { ok: { type: "boolean" } },
+    };
+
+    await streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "Return the requested object.",
+      messages: [{ role: "user", content: "Reply." }],
+      outputSchema,
+    });
+
+    expect(transport.request).toHaveBeenCalledWith(
+      "turn/start",
+      expect.objectContaining({ outputSchema }),
+    );
+  });
+
   it("resumes a persisted thread through the stable protocol", async () => {
     transport.request.mockImplementation(async (method: string) => {
       if (method === "thread/resume") return { thread: { id: threadId } };

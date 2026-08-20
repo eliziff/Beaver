@@ -467,13 +467,11 @@ describe("useAssistantChat local transcript boundary", () => {
           content: "extract key terms",
           files: [
             {
-              filename: "Lease.docx",
               document_id: "document-1",
             },
           ],
           workflow: {
             id: "builtin-extract-key-terms",
-            title: "Extract Key Terms",
           },
         }),
       }),
@@ -641,7 +639,6 @@ describe("useAssistantChat local transcript boundary", () => {
         {
           id: "forum",
           kind: "choice" as const,
-          question: "Forum?",
           answer: "Ontario",
         },
       ],
@@ -667,8 +664,6 @@ describe("useAssistantChat local transcript boundary", () => {
         expected_version: 2,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Ontario",
-          files: undefined,
           responses: response.responses,
         },
       }),
@@ -714,7 +709,6 @@ describe("useAssistantChat local transcript boundary", () => {
         {
           id: "forum",
           kind: "choice" as const,
-          question: "Forum?",
           answer: "Ontario",
         },
       ],
@@ -746,8 +740,6 @@ describe("useAssistantChat local transcript boundary", () => {
         expected_version: 3,
         current_turn: {
           kind: "ask_inputs_response",
-          content: "Ontario",
-          files: undefined,
           responses: response.responses,
         },
       }),
@@ -787,7 +779,6 @@ describe("useAssistantChat local transcript boundary", () => {
               {
                 id: "forum",
                 kind: "choice",
-                question: "Forum?",
                 answer: "Ontario",
               },
             ],
@@ -862,8 +853,6 @@ describe("useAssistantChat local transcript boundary", () => {
               kind: "choice",
               question: "Which forum?",
               options: [{ value: "Ontario" }],
-              allow_other: false,
-              other_label: "Other",
             },
           ],
         },
@@ -979,7 +968,7 @@ describe("useAssistantChat local transcript boundary", () => {
           text: "view before use because tenancy rules vary by jurisdiction",
         },
         { type: "content_delta", text: "." },
-        { type: "citations", status: "final", citations: [] },
+        { type: "citations", citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -999,12 +988,10 @@ describe("useAssistantChat local transcript boundary", () => {
 
   it("reconciles a live local DOCX redline into the original Mike event", async () => {
     const annotation = {
-      kind: "edit" as const,
       edit_id: "edit-1",
       document_id: "document-1",
       version_id: "version-2",
       version_number: 2,
-      change_id: "7",
       del_w_id: "8",
       ins_w_id: "9",
       deleted_text: "Original",
@@ -1174,7 +1161,7 @@ describe("useAssistantChat local transcript boundary", () => {
         },
         { type: "content_delta", text: "\n\nCorrected safely" },
         { type: "content_final", text: expected },
-        { type: "citations", status: "final", citations: [] },
+        { type: "citations", citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
