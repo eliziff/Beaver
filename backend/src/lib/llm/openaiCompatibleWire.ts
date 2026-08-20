@@ -1,6 +1,8 @@
-import OpenAI from "openai";
-import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
+import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
+  type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
+import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import { isJsonRecord } from "../value";
 
 export type CompatibleMessage = Record<string, unknown> & {
   role: "system" | "user" | "assistant" | "tool";
@@ -9,6 +11,23 @@ export type CompatibleMessage = Record<string, unknown> & {
 
 type State = { messages: CompatibleMessage[] };
 type PendingCall = { id: string; name: string; arguments: string };
+type OpenAIClient = {
+  chat: {
+    completions: {
+      create(
+        request: Record<string, unknown>,
+        options: { signal?: AbortSignal; maxRetries: number },
+      ): Promise<AsyncIterable<unknown>>;
+    };
+  };
+};
+type OpenAIConstructor = new (options: {
+  apiKey: string;
+  baseURL: string;
+  defaultHeaders?: Record<string, string>;
+  maxRetries: number;
+}) => OpenAIClient;
+const openAI = runtimeConstructor<OpenAIConstructor>("openai");
 
 type CompatibleWireConfig = {
   apiKey: string;
@@ -56,25 +75,17 @@ function normalizedUsage(value: Record<string, unknown>): NormalizedLlmUsage {
   };
 }
 
-function parsedInput(value: string): Record<string, unknown> {
-  const parsed = JSON.parse(value) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Provider returned non-object function arguments");
-  }
-  return parsed as Record<string, unknown>;
-}
-
 export function createCompatibleWireAdapter(
   params: StreamChatParams,
   config: CompatibleWireConfig,
 ): ProviderAdapter {
   const initial = messages(params.messages, params.systemPrompt);
-  const client = new OpenAI({
+  const client = openAI.then((OpenAI) => new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
     defaultHeaders: config.headers,
     maxRetries: 0,
-  });
+  }));
   return {
     provider: config.provider,
     async *events(step: ProviderStep): AsyncIterable<ProviderEvent> {
@@ -89,15 +100,15 @@ export function createCompatibleWireAdapter(
 
       let stream: AsyncIterable<unknown>;
       try {
-        stream = await client.chat.completions.create({
+        stream = await (await client).chat.completions.create({
           model: config.model,
-          messages: requestMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          messages: requestMessages,
           tools: wireTools(step.tools),
           max_tokens: params.maxTokens ?? config.maxTokens,
           stream: true,
           stream_options: { include_usage: true },
           ...config.request,
-        } as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming, {
+        }, {
           signal: step.signal,
           maxRetries: 0,
         });
@@ -110,6 +121,7 @@ export function createCompatibleWireAdapter(
       let reasoning = "";
       let reasoningField: "reasoning_content" | "reasoning" | undefined;
       let reportedUsage: Record<string, unknown> | undefined;
+      let toolArgumentBytes = 0;
       try {
         for await (const raw of stream) {
           const chunk = raw as Record<string, unknown>;
@@ -142,7 +154,12 @@ export function createCompatibleWireAdapter(
             const call = pending.get(index) ?? { id: "", name: "", arguments: "" };
             if (typeof part.id === "string") call.id = part.id;
             if (typeof fn?.name === "string") call.name += fn.name;
-            if (typeof fn?.arguments === "string") call.arguments += fn.arguments;
+            if (typeof fn?.arguments === "string") {
+              toolArgumentBytes += Buffer.byteLength(fn.arguments);
+              if (toolArgumentBytes > MAX_PROVIDER_TOOL_ARGUMENT_BYTES)
+                throw new Error("Provider tool calls exceeded the input limit");
+              call.arguments += fn.arguments;
+            }
             pending.set(index, call);
           }
         }
@@ -156,9 +173,11 @@ export function createCompatibleWireAdapter(
         function: { name: call.name, arguments: call.arguments },
       }));
       for (const call of nativeCalls) {
+        const input = JSON.parse(call.function.arguments || "{}") as unknown;
+        if (!isJsonRecord(input)) throw new Error("Provider returned non-object function arguments");
         yield {
           type: "tool_call",
-          call: { id: call.id, name: call.function.name, input: parsedInput(call.function.arguments) },
+          call: { id: call.id, name: call.function.name, input },
         };
       }
       const assistant: CompatibleMessage = {

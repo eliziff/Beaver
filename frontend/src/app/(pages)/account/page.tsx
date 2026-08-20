@@ -87,7 +87,9 @@ export default function AccountPage() {
                         error instanceof Error
                             ? error.message
                             : "Failed to update email. Please try again.";
-                    if (isAlreadyRegisteredEmailError(message)) {
+                    if (message.toLowerCase().includes(
+                        "a user with this email address has already been registered",
+                    )) {
                         input.value =
                             user?.pendingEmail || user?.email || "";
                         setEmailWarning(message);
@@ -251,9 +253,4 @@ export default function AccountPage() {
             {mfaPopup}
         </div>
     );
-}
-function isAlreadyRegisteredEmailError(message: string) {
-    return message
-        .toLowerCase()
-        .includes("a user with this email address has already been registered");
 }

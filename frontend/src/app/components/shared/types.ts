@@ -112,8 +112,6 @@ export type AutomationRunEvent = {
   outputs?: { name: string; url?: string }[];
   app_url?: string;
   job_id?: string;
-  document_id?: string;
-  version_id?: string;
   version_number?: number | null;
 };
 export type ToolActivitySource = {
@@ -123,7 +121,6 @@ export type ToolActivitySource = {
   name: string | null;
   dataset: string;
   url: string | null;
-  clusterId?: number;
   locator?: string;
   quote?: string;
 };
@@ -135,15 +132,11 @@ export type AskInputsEvent = {
         kind: "choice";
         question: string;
         options: { value: string }[];
-        allow_other: boolean;
-        other_label: string;
-        response_prefix?: string;
       }
     | {
         id: string;
         kind: "documents";
         document_types: string[];
-        response_prefix?: string;
       }
   )[];
 };
@@ -153,60 +146,20 @@ export type AskInputsResponseEvent = {
     | {
         id: string;
         kind: "choice";
-        question: string;
         answer?: string;
-        skipped?: boolean;
       }
     | {
         id: string;
         kind: "documents";
-        filenames: string[];
-        documents?: { document_id: string; filename: string }[];
-        skipped?: boolean;
+        documents: { document_id: string; filename: string }[];
       }
   )[];
-};
-export type CaseOpinionsEvent = {
-  type: "case_opinions";
-  cluster_id: number;
-  case: {
-    id: number | null;
-    caseName?: string | null;
-    dateFiled?: string | null;
-    citations?: string[];
-    url?: string | null;
-    pdfUrl?: string | null;
-    opinions: {
-      opinionId: number | null;
-      apiUrl?: string | null;
-      type: string | null;
-      author: string | null;
-      url: string | null;
-      text?: string | null;
-    }[];
-  };
-};
-export type CaseCitationEvent = {
-  type: "case_citation";
-  cluster_id: number | null;
-  case_name: string | null;
-  citation: string | null;
-  url: string;
-  pdfUrl?: string | null;
-  dateFiled?: string | null;
-  case?: CaseOpinionsEvent["case"];
-};
-export type CaseCitationQuote = {
-  opinionId: number | null;
-  type: string | null;
-  author: string | null;
-  quote: string;
 };
 export interface Message {
   id?: string;
   role: "user";
   content: string;
-  files?: { filename: string; document_id?: string }[];
+  files?: { filename: string; document_id: string }[];
   workflow?: { id: string; title: string };
   model?: string;
   reasoningEffort?: string;
@@ -232,8 +185,7 @@ type CitationDisplay = {
   locator_separator?: " at " | ", ";
 };
 export type DocumentCitation = CitationDisplay & {
-  type: "citation_data";
-  kind?: "document";
+  kind: "document";
   ref: number;
   document_id: string;
   version_id?: string | null;
@@ -249,20 +201,7 @@ type LegalCitationLocator = {
   locator?: string | null;
   pinpoint?: string | null;
 } & CitationDisplay;
-export type CaseCitation = LegalCitationLocator & {
-  type: "citation_data";
-  kind: "case";
-  ref: number;
-  cluster_id: number;
-  case_name?: string | null;
-  citation?: string | null;
-  url?: string | null;
-  pdfUrl?: string | null;
-  dateFiled?: string | null;
-  quotes: CaseCitationQuote[];
-};
 type A2AJCitation = LegalCitationLocator & {
-  type: "citation_data";
   kind: "a2aj";
   ref: number;
   citation?: string | null;
@@ -272,7 +211,6 @@ type A2AJCitation = LegalCitationLocator & {
   quotes: { quote: string }[];
 };
 type PublicLegalCitation = LegalCitationLocator & {
-  type: "citation_data";
   kind: "public_legal";
   ref: number;
   provider: "tna" | "govuk-et" | "govinfo" | "journal";
@@ -283,7 +221,6 @@ type PublicLegalCitation = LegalCitationLocator & {
   quotes: { quote: string }[];
 };
 export type TabularCitation = CitationDisplay & {
-  type: "citation_data";
   kind: "tabular";
   ref: number;
   review_id: string;
@@ -295,7 +232,6 @@ export type TabularCitation = CitationDisplay & {
 };
 export type Citation =
   | DocumentCitation
-  | CaseCitation
   | A2AJCitation
   | PublicLegalCitation
   | TabularCitation;
@@ -330,11 +266,8 @@ function expandDocumentQuoteEntry(entry: DocumentCitationQuote): CitationQuote[]
     ? [{ page: pageNum, quote: entry.quote }]
     : [{ quote: entry.quote }];
 }
-function isDocumentCitation(citation: Citation): citation is DocumentCitation {
-  return citation.kind == null || citation.kind === "document";
-}
 export function getDocumentCitationQuotes(a: Citation): DocumentCitationQuote[] {
-  return isDocumentCitation(a)
+  return a.kind === "document"
     ? a.quotes.filter((entry) => entry.quote.trim().length > 0)
     : [];
 }
@@ -344,9 +277,6 @@ export function expandCitationToEntries(
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
 export function formatCitationPage(a: Citation): string {
-  if (a.kind === "case") {
-    return a.citation || a.case_name || `Case ${a.cluster_id}`;
-  }
   if (a.kind === "a2aj") return a.citation || a.name || "A2AJ source";
   if (a.kind === "public_legal") {
     return a.title || a.identifier || "Public legal source";
@@ -369,7 +299,7 @@ export function formatCitationPage(a: Citation): string {
   return "";
 }
 export function citationPinpoint(a: Citation): string {
-  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
+  if (a.kind === "a2aj" || a.kind === "public_legal") {
     return a.pinpoint?.trim() ?? "";
   }
   if (a.kind === "tabular") return a.col_name;
@@ -397,7 +327,7 @@ function cleanCitationQuoteText(rawQuote: string): string {
   return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
 }
 export function displayCitationQuote(a: Citation): string {
-  if (a.kind === "case" || a.kind === "a2aj" || a.kind === "public_legal") {
+  if (a.kind === "a2aj" || a.kind === "public_legal") {
     return a.quotes
       .map((q) => cleanCitationQuoteText(q.quote))
       .join(" / ");

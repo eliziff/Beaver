@@ -37,3 +37,12 @@ export function escapeXmlText(value: string): string {
 export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
+
+export function countLabel(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+export function boundedErrorText(error: unknown) {
+  return String((error as { message?: unknown })?.message ?? error)
+    .replace(/\s+/gu, " ").trim().slice(0, 200);
+}

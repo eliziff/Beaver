@@ -23,7 +23,7 @@ const maybeDescribe =
 // trips the leak sweep below. A table missing from an older local stack
 // returns an error (no rows), which never counts as a leak.
 const PUBLIC_TABLES = [
-    "chat_messages", "chats", "document_edits",
+    "application_jobs", "audit_events", "chat_messages", "chats", "document_edits",
     "document_versions", "documents", "hidden_workflows", "library_folders",
     "library_legal_sources", "object_cleanup", "project_members", "project_subfolders",
     "projects", "provider_sessions", "tabular_cells", "tabular_review_members", "tabular_reviews",

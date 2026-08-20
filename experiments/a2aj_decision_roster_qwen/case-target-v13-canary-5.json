@@ -1,0 +1,467 @@
+{
+  "format": "a2aj-case-target-challenge-v1",
+  "created_utc": "2026-08-20T16:07:14.422Z",
+  "seed": 20260820,
+  "requested_pairs": 5,
+  "selection": {
+    "algorithm": "seed-lineage-plus-source-evidence-freeze-v1",
+    "purpose": "v13 final-legal-quality challenge cell; no validator-stage scoring",
+    "one_full_citing_decision_per_call": true,
+    "one_target_per_call": true,
+    "target_decision_text_included": false,
+    "source_audit_seed": 20260819,
+    "source_pair_seed": 20260820,
+    "frozen_pair_keys_sha256": "f5b2bbc36c5d5ffedf194524c07aef233debf18899628a32c00794eb81acf41e",
+    "parent_frozen_pair_keys_sha256": "a32528fa316682fa1649b9711eb9a91ea8b4e98cb8ad67ced4c0addd082929fc"
+  },
+  "category_counts": {
+    "multi_opinion_or_partial_join": 2,
+    "attribution_trap": 2,
+    "ordinary_control": 1
+  },
+  "dataset_counts": {
+    "SCC": 1,
+    "YKCA": 1,
+    "NSCA": 1,
+    "CIRB": 1,
+    "ONCA": 1
+  },
+  "pairs": [
+    {
+      "challenge_id": "multi-02",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 193954,
+      "source": {
+        "dataset": "SCC",
+        "citation": "2020 SCC 32",
+        "name": "Quebec (Attorney General) v. 9147-0732 Québec inc.",
+        "date": "2020-11-05",
+        "language": "en",
+        "url": "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18529/index.do"
+      },
+      "target": {
+        "document_id": 191310,
+        "citation": "[1985] 1 S.C.R. 295",
+        "citation_aliases": [
+          "[1985] 1 SCR 295",
+          "[1985] 1 RCS 295"
+        ],
+        "name": "R. v. Big M Drug Mart Ltd."
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "4d247015547019505ae43b45bf3c890228718b73ecc3ab172d5f6359bc2bbb42",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 193954
+        },
+        "source_chars": 137850,
+        "source_text_sha256": "b1e57181d19b33cdfde635308b6777b6f629dbfa64fc57d67fc398092c0d15ab",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 17828,
+            "end_exclusive": 17847,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 17508,
+              "end_exclusive": 18267,
+              "quote": " English law and on the Civil Code of Québec. In this case, it is unnecessary to consider questions relating to the proper approach to constitutional interpretation or the place of international law and comparative law in that approach any further.\nCases Cited\nBy Brown and Rowe JJ.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295; considered: Reference re Public Service Employee Relations Act (Alta.), [1987] 1 S.C.R. 313; referred to: Irwin Toy Ltd. v. Quebec (Attorney General), [1989] 1 S.C.R. 927; R. v. Poulin, 2019 SCC 47; R. v. CIP Inc., [1992] 1 S.C.R. 843; R. v. Grant, 2009 SCC 32, [2009] 2 S.C.R. 353; Caron v. Alberta, 2015 SCC 56, [2015] 3 S.C.R. 511; British Columbia (Attorney General) v. Canada (Attorney General), [1994] 2 S.C.R. 4",
+              "sha256": "0e982c3b35d8298d1992a89d84947b92aaef3ab8916ec080b24ccbc9252bcf00"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 19519,
+            "end_exclusive": 19538,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 19199,
+              "end_exclusive": 19958,
+              "quote": "19 SCC 1, [2019] 1 S.C.R. 3; Canadian Egg Marketing Agency v. Richardson, [1998] 3 S.C.R. 157; R. v. Oakes, [1986] 1 S.C.R. 103; R. v. Smith (Edward Dewey), [1987] 1 S.C.R. 1045; Suresh v. Canada (Minister of Citizenship and Immigration), 2002 SCC 1, [2002] 1 S.C.R. 3.\nBy Abella J.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295; referred to: R. v. Smith (Edward Dewey), [1987] 1 S.C.R. 1045; R. v. Lyons, [1987] 2 S.C.R. 309; R. v. Luxton, [1990] 2 S.C.R. 711; Steele v. Mountain Institution, [1990] 2 S.C.R. 1385; R. v. Goltz, [1991] 3 S.C.R. 485; R. v. Morrisey, 2000 SCC 39, [2000] 2 S.C.R. 90; R. v. Latimer, 2001 SCC 1, [2001] 1 S.C.R. 3; R. v. Ferguson, 2008 SCC 6, [2008] 1 S.C.R. 96; R. v. Nur, 2015 SCC 15, [2015] 1 S.C.R. 773; R. v. Lloy",
+              "sha256": "7a3fdb14c009ddbfba239743dfb51c670c7909e7e374cc964b05df6295eef5f9"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 34761,
+            "end_exclusive": 34780,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 34441,
+              "end_exclusive": 35200,
+              "quote": "dienne ” (2013), 61 S.C.L.R. (2d) 191, at pp. 192-93.\n[4] We also make a preliminary and more general point on constitutional interpretation. Our colleague Abella J. applies the primacy of constitutional text and considerations of purpose in accordance with the purposive approach adopted in R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295, at p. 344, recently affirmed in R. v. Poulin, 2019 SCC 47, at para. 32. In doing so, however, she makes several remarks which risk minimizing the primordial significance assigned by this Court’s jurisprudence to constitutional text in undertaking purposive interpretation.\n[5] Having regard to the decision under appeal, that of the Quebec Court of Appeal, we find Justice Chamberland’s dissenting reasons difficult to",
+              "sha256": "10512460c0f9316688778af3118f2c637c73e345b18f4a66238f5ea2556bcb79"
+            }
+          },
+          {
+            "id": "tm4",
+            "kind": "citation",
+            "quote": "[1985] 1 S.C.R. 295",
+            "start": 79341,
+            "end_exclusive": 79360,
+            "citation_key": "19851scr295",
+            "context": {
+              "start": 79021,
+              "end_exclusive": 79780,
+              "quote": "IP Inc., [1992] 1 S.C.R. 843, at p. 852).\n[68] Unlike the approach applied by the majority of the Court of Appeal, with respect, determining the scope requires first determining the purpose of the right. A Charter right must be interpreted “by an analysis of the purpose of [the] guarantee” (R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295, at p. 344 (emphasis deleted); Hunter v. Southam Inc., [1984] 2 S.C.R. 145, at pp. 155-57; see also Peter W. Hogg, Constitutional Law of Canada (5th ed. Supp.), at s. 36.8(c)). Big M Drug Mart provides the definitive account of this approach:\n. . . the proper approach to the definition of the rights and freedoms guaranteed by the Charter was a purposive one. The meaning of a right or freedom guaranteed by the Charte",
+              "sha256": "1d787f8a318dab0813dd6423bf219bd18e32f2c74dbcd8b9bafa53ba4018274e"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Joint Reasons for Judgment: (paras. 1 to 48)",
+            "start": 1150,
+            "end_exclusive": 1194,
+            "sha256": "468fd3e207d7d990cf5df6143a98a061de12b723d03a4e22f5c105e0165b6bdd"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 49 to 137)",
+            "start": 1265,
+            "end_exclusive": 1303,
+            "sha256": "2fc116df70bdccabf1e086664db97d5f3897dabc2d925bdc28c64eb960370ad2"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Concurring Reasons: (paras. 138 to 142)",
+            "start": 1355,
+            "end_exclusive": 1394,
+            "sha256": "4b2ab4113421d515960a8620dcc1011b13250735d5924c0baad3d95378e72085"
+          }
+        ],
+        "source_text_review_note": "Three same-result opinions with issue-specific joinders; Big M appears in the lead and concurring reasons."
+      }
+    },
+    {
+      "challenge_id": "multi-05",
+      "challenge_category": "multi_opinion_or_partial_join",
+      "document_id": 225088,
+      "source": {
+        "dataset": "YKCA",
+        "citation": "2015 YKCA 17",
+        "name": "R. v. Dickson",
+        "date": "2015-10-08",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/CA/15/YK/2015YKCA0017.htm"
+      },
+      "target": {
+        "document_id": 196235,
+        "citation": "2010 SCC 6",
+        "citation_aliases": [
+          "[2010] 1 SCR 206",
+          "2010 CSC 6",
+          "[2010] 1 RCS 206"
+        ],
+        "name": "R. v. Nasogaluak"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "d5e4ea03584f6711951fab72fb0a157b65af1f103a615fab1ff5e6c3a1bad179",
+        "source_lineage": {
+          "kind": "seeded_deterministic_audit",
+          "file": "runs/stress-random15k-deterministic-v6b-seed20260819.results.jsonl",
+          "seed": 20260819,
+          "document_id": 225088
+        },
+        "source_chars": 35113,
+        "source_text_sha256": "78e7b75e3a18e31f88112abf4bd3fda379ceecdd5d422258abd8e6e97cd9f273",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2010 SCC 6",
+            "start": 27623,
+            "end_exclusive": 27633,
+            "citation_key": "2010scc6",
+            "context": {
+              "start": 27303,
+              "end_exclusive": 28053,
+              "quote": " a sentence that fell within the range of acceptable sentences for this offence and offender. The defence cited numerous decisions of the Yukon Territorial Court in which sentences under a year were imposed in similar circumstances. Defence counsel further relies on the comments of Justice Labelle in R. v. Nasogaluak, 2010 SCC 6 at para. 44, in which he stated:\nBut it must be remembered that, while courts should pay heed to these ranges, they are guidelines rather than hard and fast rules. A judge can order a sentence outside that range as long as it is in accordance with the principles and objectives of sentencing. Thus, a sentence falling outside the regular range of appropriate sentences is not necessarily unfit.\n[35] In R. v. M. (C.A.),",
+              "sha256": "7ce19d77b0b2d34c6376310c4f02331dc01e9e23145a6fab6201b1a8d3e36144"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "2010 SCC 6",
+            "start": 33372,
+            "end_exclusive": 33382,
+            "citation_key": "2010scc6",
+            "context": {
+              "start": 33052,
+              "end_exclusive": 33802,
+              "quote": ". Bernier, 2003 BCCA 134, this Court addressed the matter of ranges and concluded that \"[t]hey are general guidelines, not hard and fast categories\" and \"do not preclude lesser or greater sentences, if the circumstances or the applicable principles in the particular case warrant\" (para. 105; see also R. v. Nasogaluak, 2010 SCC 6 at para. 44). While acknowledging that \"ranges\" may be helpful in making submissions on sentencing, Madam Justice Newbury observed that their usefulness \"will always be limited by the countervailing consideration that in Canada, each case must still be assessed on its own facts and that as also noted in M. (C.A.), '... the search for a single appropriate sentence for a similar offender and a similar crime will frequ",
+              "sha256": "8072d06e49279c2c8d5dfe4631e2a21a34e4aea21b96eb449092eeea6ff13390"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "opinion_boundary",
+            "quote": "Reasons for Judgment of the Honourable Madam Justice Fenlon:",
+            "start": 1815,
+            "end_exclusive": 1875,
+            "sha256": "398b17fe7a761b8854fca8a8b451b0e135a7f7ade8cc0a5b3a326d82f0a1b76d"
+          },
+          {
+            "kind": "opinion_boundary",
+            "quote": "Reasons for Judgment of the Honourable Madam Justice D. Smith:",
+            "start": 30568,
+            "end_exclusive": 30630,
+            "sha256": "a7bfd1037c907eedd7aa257db88a557e36b2345578e1db1f561ee96c461a0f8f"
+          }
+        ],
+        "source_text_review_note": "Lead and separate reasons; both use Nasogaluak in resolving the sentencing issue."
+      }
+    },
+    {
+      "challenge_id": "attribution-02",
+      "challenge_category": "attribution_trap",
+      "document_id": 123916,
+      "source": {
+        "dataset": "NSCA",
+        "citation": "2018 NSCA 53",
+        "name": "Piper v. Piper",
+        "date": "2018-06-20",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nsca/en/item/311752/index.do"
+      },
+      "target": {
+        "document_id": 192670,
+        "citation": "2014 SCC 53",
+        "citation_aliases": [
+          "[2014] 2 SCR 633",
+          "2014 CSC 53",
+          "[2014] 2 RCS 633"
+        ],
+        "name": "Sattva Capital Corp. v. Creston Moly Corp."
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "41ce7aedc79b9fa73398d94d16eeff0841fa290a73b454b34f7bf0829dcf8005",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 1700
+        },
+        "source_chars": 57006,
+        "source_text_sha256": "d6ae2db76a6b7b421e3a84dd72362da3f4b3e234cde86b9d826ae39ae36b5821",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2014 SCC 53",
+            "start": 46327,
+            "end_exclusive": 46338,
+            "citation_key": "2014scc53",
+            "context": {
+              "start": 46007,
+              "end_exclusive": 46758,
+              "quote": "ar.\n[80] Ms. Piper also asserts the judge erred in limiting her analysis to the written terms of the draft CRO. By doing so, she failed to consider relevant evidence of the surrounding circumstances and the objective intentions of the parties. Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:\n[43] Justice Cormier committed an error of mixed fact and law when she misapprehended the law of contractual interpretation. She misdirected herself when she stated: “If the plain wording of the document reveals a clear and unambiguous intent it is not necessary to go further. Indeed, once that has been done, it may not be possible to have recourse outside the document, either to ",
+              "sha256": "5a76bedf8bb79ead0e1da094b2216e3b7ea8c550a76fd006587d6c66799d96c7"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:",
+            "start": 46251,
+            "end_exclusive": 46374,
+            "sha256": "3de50ff28a62473b3341068c0ea5ad6d425d1464dbe742a1c6864bb15d6dc993"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "I note that Sattva does not apply to determine whether a contract exists",
+            "start": 46980,
+            "end_exclusive": 47052,
+            "sha256": "adbae995673f40f4a44574b9ded6bdcde4d5b4cdd68f85781a50ec85daa24053"
+          }
+        ],
+        "source_text_review_note": "A party's quoted characterization is immediately limited by the current court."
+      }
+    },
+    {
+      "challenge_id": "attribution-04",
+      "challenge_category": "attribution_trap",
+      "document_id": 68919,
+      "source": {
+        "dataset": "CIRB",
+        "citation": "2005 CAPPRT 050",
+        "name": "Petch",
+        "date": "2006-01-23",
+        "language": "en",
+        "url": "https://decisia.lexum.com/cirb-ccri/saa-lsa/en/item/8104/index.do"
+      },
+      "target": {
+        "document_id": 68923,
+        "citation": "1998 CAPPRT 028",
+        "citation_aliases": [
+          "1998 TCRPAP 028"
+        ],
+        "name": "Writers' Union of Canada"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "8682fc1d8f6a7d1199db9aaef4ecf69d6920ed9f63133b898724df169bc34941",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 2179
+        },
+        "source_chars": 69217,
+        "source_text_sha256": "89b56755a411cac20268a54aa7dc8ae940372f5f3e24182b233bb29de006c7dd",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 28989,
+            "end_exclusive": 29004,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 28669,
+              "end_exclusive": 29424,
+              "quote": "consistency with a contract between an artist and a producer, but it shall not be applied so as to deprive an artist of a right or benefit under the contract that is more favourable to the artist than is provided for under the agreement.\n[60] The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:\nUnder the Status of the Artist Act regime, artists retain control over the decision whether to accept a commission from a producer or to allow a particular producer to use one of their works. The artist remains free to negotiate individual contracts above the minimum, but no producer may offer less than the terms set out in the scale agreement to which the producer and the artists' association have ",
+              "sha256": "8b86cb24fdd8d8493b5854c77cd4caacec9b75492697e2386159ce0715adaf98"
+            }
+          },
+          {
+            "id": "tm2",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 37409,
+            "end_exclusive": 37424,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 37089,
+              "end_exclusive": 37844,
+              "quote": " has been the subject of close interest since the statute's coming into force in 1995. The Tribunal has had opportunities to consider and comment on the interrelations of these two statutes in previous decisions. The relationship has always been viewed as a complementary one, as set out in The Writers Union of Canada, 1998 CAPPRT 028:\n[57] In the Tribunal's view, the Status of the Artist Act was intended to complement and supplement the regime provided in the Copyright Act. It is intended to do so by providing artists with an additional mechanism to obtain compensation for their work, thereby enhancing and promoting artists' freedom of choice as to how they will exploit the fruits of their creative talents.\n[58] The statute must be given an inte",
+              "sha256": "87f76e36f6336cb4fbb5711703e1f36f3c34a1ed7a1a4839bcbe5a91ef954051"
+            }
+          },
+          {
+            "id": "tm3",
+            "kind": "citation",
+            "quote": "1998 CAPPRT 028",
+            "start": 38993,
+            "end_exclusive": 39008,
+            "citation_key": "1998capprt028",
+            "context": {
+              "start": 38673,
+              "end_exclusive": 39428,
+              "quote": " consent to include in a collective agreement.\n[79] The right to use an existing work is a service that the artist, who holds the copyright in that work, may provide to a producer. Representing artists' interests in this fundamental socio-economic right is an appropriate activity for a certified artists' association. [1998 CAPPRT 028, paragraph 61]\n[80] Both scale agreements specify that copyright remains vested with the writer (Article A5 in the 1988-91 Agreement [extended to 1998] and Article C3 in the 1998-2000 Agreement.) The scale agreements then provide the mechanism through which the CBC acquires licenses for certain uses of the writer's work upon the payment of the prescribed fee, including the right to distribute to third parties.\n[81] ",
+              "sha256": "047b805e2222909ec3a41e10c3713b91a90677a9c5e5eb25e2ad374fd177f13d"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:",
+            "start": 28912,
+            "end_exclusive": 29021,
+            "sha256": "5854879285b5b5068c1650aacf42dbaf257a6908d3d17a45c1a6582fba64ec0e"
+          },
+          {
+            "kind": "party_or_reported_voice",
+            "quote": "The relationship has always been viewed as a complementary one, as set out in The Writers Union of Canada, 1998 CAPPRT 028:",
+            "start": 37302,
+            "end_exclusive": 37425,
+            "sha256": "2ef7a8477b02c62f4d3e9a58a17743dc60cd10162bcd4279ff186cb5190680c8"
+          },
+          {
+            "kind": "current_decision_voice",
+            "quote": "In the instant case, the Tribunal finds the dispute",
+            "start": 39805,
+            "end_exclusive": 39856,
+            "sha256": "bbba4ce5395d8548a6914befbf5f2696ed55b09254c3c2e1d4acf4bffbd7694d"
+          }
+        ],
+        "source_text_review_note": "Prior reasons are quoted twice around party submissions before the Tribunal states its own application."
+      }
+    },
+    {
+      "challenge_id": "control-05",
+      "challenge_category": "ordinary_control",
+      "document_id": 153903,
+      "source": {
+        "dataset": "ONCA",
+        "citation": "2025 ONCA 336",
+        "name": "Elzayat v. Rogers Communications",
+        "date": "2025-04-29",
+        "language": "en",
+        "url": "https://coadecisions.ontariocourts.ca/coa/coa/en/item/23252/index.do"
+      },
+      "target": {
+        "document_id": 164379,
+        "citation": "2021 ONCA 364",
+        "citation_aliases": [],
+        "name": "Hillmount Capital Inc. v. Pizale"
+      },
+      "selection_receipt": {
+        "challenge_seed": 20260820,
+        "seeded_rank_sha256": "892fcda3179894ee8e1270c2deabbcec6dd6ae22d302ec1b91af9d4adca770c9",
+        "source_lineage": {
+          "kind": "seeded_pair_manifest",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "seed": 20260820,
+          "zero_based_pair_index": 2328
+        },
+        "source_chars": 3533,
+        "source_text_sha256": "e9cea9feefab9b79e7f0259b106b7204497a332c7e06db15533248963b83a529",
+        "target_resolved_in_a2aj": true,
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2021 ONCA 364",
+            "start": 2675,
+            "end_exclusive": 2688,
+            "citation_key": "2021onca364",
+            "context": {
+              "start": 2355,
+              "end_exclusive": 3108,
+              "quote": " that required the transcript for its adjudication.\n[4] A panel reviewing a discretionary order of a single judge does so on a deferential basis. A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364, 462 D.L.R. (4th) 228, at para. 18.\n[5] We see no such error. Roberts J.A. reviewed the relevant factors and reached a reasonable result.\n[6] The appellant has provided, for this motion, both detailed written submissions and a further affidavit that elaborate on why he wants the transcript. The reasons he advances as to why the transcript is needed are not materially different than those that Roberts J.A. considered",
+              "sha256": "2bcf54a4cdcb36eeb0e9ded653275783931142df6e54f4641cae1317a1f86c61"
+            }
+          }
+        ],
+        "category_evidence": [
+          {
+            "kind": "current_decision_treatment",
+            "quote": "A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364",
+            "start": 2501,
+            "end_exclusive": 2688,
+            "sha256": "9833609fb5e0b2b2b9af63b8d4566b767d6b3ae857e43e6f480b17d7d68caeef"
+          }
+        ],
+        "source_text_review_note": "Short unanimous panel decision applying an ordinary deferential review rule."
+      }
+    }
+  ],
+  "resolved_targets": 5,
+  "unresolved_targets": 0,
+  "parent_manifest": "C:\\Users\\elias\\Desktop\\MikeOSS Fork\\experiments\\a2aj_decision_roster_qwen\\case-target-challenge-15.json",
+  "budget_partition": {
+    "kind": "document_ids",
+    "pairs": 5
+  }
+}

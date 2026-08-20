@@ -196,16 +196,75 @@ async function boundedBody(body: unknown, maximum: number, signal: AbortSignal) 
   return bytes;
 }
 
+type S3Command<Output = unknown> = object & { readonly __output?: Output };
+type S3CommandConstructor<Input, Output = unknown> = new (input: Input) => S3Command<Output>;
+type S3ObjectInput = { Bucket: string; Key: string };
+type S3GetOutput = { ContentLength?: number; Body?: unknown };
+type S3ListOutput = {
+  IsTruncated?: boolean;
+  NextContinuationToken?: string;
+  Contents?: { Key?: string }[];
+};
+type S3Client = {
+  send<Output>(command: S3Command<Output>, options: { abortSignal: AbortSignal }): Promise<Output>;
+};
+type S3Runtime = {
+  S3Client: new (input: {
+    region: string;
+    endpoint: string;
+    forcePathStyle: boolean;
+    maxAttempts: number;
+    credentials: { accessKeyId: string; secretAccessKey: string };
+  }) => S3Client;
+  PutObjectCommand: S3CommandConstructor<S3ObjectInput & {
+    Body: Buffer; ContentLength: number; ContentType: string;
+  }>;
+  GetObjectCommand: S3CommandConstructor<
+    S3ObjectInput & { ResponseContentDisposition?: string }, S3GetOutput
+  >;
+  DeleteObjectCommand: S3CommandConstructor<S3ObjectInput>;
+  ListObjectsV2Command: S3CommandConstructor<{
+    Bucket: string; Prefix?: string; ContinuationToken?: string; MaxKeys: number;
+  }, S3ListOutput>;
+};
+type S3Signer = (
+  client: S3Client,
+  command: S3Command,
+  options: { expiresIn: number },
+) => Promise<string>;
+
+const runtimeImport = (specifier: string) =>
+  import(specifier) as Promise<Record<string, unknown>>;
+
+function checkedS3Runtime(value: Record<string, unknown>): S3Runtime {
+  const exports = [
+    "S3Client", "PutObjectCommand", "GetObjectCommand",
+    "DeleteObjectCommand", "ListObjectsV2Command",
+  ];
+  if (exports.some((name) => typeof value[name] !== "function")) {
+    throw new Error("Installed S3 runtime is missing required exports");
+  }
+  return value as S3Runtime;
+}
+
 export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
   let sdk: Promise<{
-    client: import("@aws-sdk/client-s3").S3Client;
-    commands: typeof import("@aws-sdk/client-s3");
-    sign: typeof import("@aws-sdk/s3-request-presigner").getSignedUrl;
+    client: S3Client;
+    commands: S3Runtime;
+    sign: S3Signer;
   }> | undefined;
   const load = () => sdk ??= Promise.all([
-    import("@aws-sdk/client-s3"),
-    import("@aws-sdk/s3-request-presigner"),
+    runtimeImport("@aws-sdk/client-s3"),
+    runtimeImport("@aws-sdk/s3-request-presigner"),
   ]).then(([commands, presigner]) => ({
+    commands: checkedS3Runtime(commands),
+    sign: (() => {
+      if (typeof presigner.getSignedUrl !== "function") {
+        throw new Error("Installed S3 signer is missing getSignedUrl");
+      }
+      return presigner.getSignedUrl as S3Signer;
+    })(),
+  })).then(({ commands, sign }) => ({
     client: new commands.S3Client({
       region: config.region,
       endpoint: config.endpoint,
@@ -217,7 +276,7 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       },
     }),
     commands,
-    sign: presigner.getSignedUrl,
+    sign,
   }));
 
   return {
@@ -327,10 +386,10 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       const signal = storageSignal(options);
       const target = resolve(key);
       signal.throwIfAborted();
-      await mkdir(path.dirname(target), { recursive: true });
+      await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
       const temporary = `${target}.${randomUUID()}.tmp`;
       try {
-        await writeFile(temporary, body, { flag: "wx", signal });
+        await writeFile(temporary, body, { flag: "wx", mode: 0o600, signal });
         signal.throwIfAborted();
         await rename(temporary, target);
       } catch (error) {
@@ -426,26 +485,26 @@ export function normalizeDownloadFilename(name: string): string {
     .slice(0, 200).join("");
 }
 
-function sanitizeDispositionFilename(name: string): string {
-  return normalizeDownloadFilename(name)
-    .replace(/["\\]/gu, "_")
-    .replace(/[^\x20-\x7E]/gu, "_");
-}
-
-function encodeRFC5987(value: string): string {
-  return encodeURIComponent(value).replace(
-    /['()*]/gu,
-    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-}
-
-export function buildContentDisposition(
+function buildContentDisposition(
   kind: "inline" | "attachment",
   filename: string,
 ): string {
   const normalized = normalizeDownloadFilename(filename);
-  return `${kind}; filename="${sanitizeDispositionFilename(normalized)}"; filename*=UTF-8''${encodeRFC5987(normalized)}`;
+  const ascii = normalized.replace(/["\\]/gu, "_").replace(/[^\x20-\x7E]/gu, "_");
+  const encoded = encodeURIComponent(normalized).replace(/['()*]/gu, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
+
+export const downloadHeaders = (
+  contentType: string, filename: string,
+  disposition: "inline" | "attachment" = "attachment",
+) => ({
+  "Cache-Control": "private, no-store",
+  "Content-Disposition": buildContentDisposition(disposition, filename),
+  "Content-Type": contentType,
+  "X-Content-Type-Options": "nosniff",
+} as const);
 
 export function versionStorageKey(
   userId: string,

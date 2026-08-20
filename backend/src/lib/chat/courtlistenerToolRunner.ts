@@ -1,18 +1,10 @@
 import { courtlistenerLegalSourceProvider } from "../legalSources/courtlistener";
 import { queueProviderPdfAttachment } from "../providerPdfLibraryBridge";
 import { resourceReference } from "../resourceReferences";
-
-type Row = Record<string, unknown>;
-const row = (value: unknown): Row | null =>
-  value && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
-const text = (value: unknown) => typeof value === "string" && value.trim() ? value : null;
-const integer = (value: unknown) => {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-};
+import { jsonRecord as row, nonemptyString as text, positiveInteger as integer } from "../value";
 
 export async function courtlistenerPdfRendition(value: object, userId?: string) {
-  const source = value as Row;
+  const source = value as Record<string, unknown>;
   const clusterId = integer(source.clusterId) ?? integer(source.id);
   const opinions = Array.isArray(source.opinions)
     ? source.opinions.filter((item): item is object => Boolean(row(item))) : [];

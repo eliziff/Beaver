@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  pageLabel,
   pageMapFromMarkers,
   pageMapFromSourceDoc,
   resolvePage,
-  selectPages,
 } from "../legalDocumentNavigator";
 
 /**
@@ -118,11 +116,6 @@ describe("pageMapFromSourceDoc", () => {
     ]);
   });
 
-  it("renders a page so the two numbers are never confusable", () => {
-    const { doc } = offsetPagedDoc();
-    const map = pageMapFromSourceDoc(doc);
-    expect(pageLabel(map.pages[1])).toBe('PDF page 2 (printed "1")');
-  });
 });
 
 describe("resolvePage", () => {
@@ -181,39 +174,5 @@ describe("resolvePage", () => {
     expect(resolvePage(pageMapFromMarkers(plain), plain, "1")).toEqual({
       status: "no_pages",
     });
-  });
-});
-
-describe("selectPages", () => {
-  it("takes a single page, a list and a numeric range", () => {
-    const map = pageMapFromMarkers(AGREEMENT);
-    const one = selectPages(map, AGREEMENT, "2");
-    expect(one.status === "ok" && one.pages.map((page) => page.ordinal)).toEqual([2]);
-    const list = selectPages(map, AGREEMENT, "1, iv");
-    expect(list.status === "ok" && list.pages.map((page) => page.ordinal)).toEqual([1, 3]);
-    const range = selectPages(map, AGREEMENT, "1-2");
-    expect(range.status === "ok" && range.pages.map((page) => page.ordinal)).toEqual([1, 2]);
-  });
-
-  /**
-   * A range across a numbering change cannot be arithmetic on either label,
-   * so the endpoints resolve independently and the span is taken by
-   * position.
-   */
-  it("spans a range whose endpoints are not comparable as numbers", () => {
-    const { text, doc } = offsetPagedDoc();
-    const map = pageMapFromSourceDoc(doc);
-    const span = selectPages(map, text, "printed:i - printed:2");
-    expect(span.status === "ok" && span.pages.map((page) => page.pdfPage)).toEqual([
-      1, 2, 3,
-    ]);
-  });
-
-  it("propagates an endpoint refusal rather than dropping it", () => {
-    const { text, doc } = offsetPagedDoc();
-    const failed = selectPages(pageMapFromSourceDoc(doc), text, "printed:99");
-    expect(failed.status).toBe("failed");
-    if (failed.status !== "failed") return;
-    expect(failed.lookup.status).toBe("not_found");
   });
 });

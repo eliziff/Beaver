@@ -697,14 +697,26 @@ Reasons for Judgment
     expect(result.opinions).toEqual([]);
   });
 
-  it("routes an apparent opinion author who conflicts with the parsed panel", () => {
+  it("does not turn a judge attribution in prose into an opinion byline", () => {
+    const text = `[35] As Wilson J. expressed in her concurring judgment: ${reasons}`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("unavailable");
+    expect(result.opinions).toEqual([]);
+  });
+
+  it("keeps a comma before a judicial title in a real opinion byline", () => {
+    const text = `[1] BRAIDWOOD, J.A.: ${reasons}`;
+    const result = deriveTextOpinionStructure({ text });
+    expect(result.status).toBe("ready");
+    expect(result.opinions[0].authors).toEqual(["BRAIDWOOD J.A"]);
+  });
+
+  it("does not treat a reported judge in prose as an opinion author", () => {
     const text = `Coram: Alpha J.
 [1] At 758, Cory J. provided a three-step instruction: ${reasons}`;
     const result = deriveTextOpinionStructure({ text });
-    expect(result.status).toBe("unresolved");
-    expect(result.refusals).toEqual(expect.arrayContaining([
-      expect.stringMatching(/absent from the parsed panel/iu),
-    ]));
+    expect(result.status).toBe("unavailable");
+    expect(result.opinions).toEqual([]);
   });
 
   it("excludes nonparticipating judges and trims post-opinion court metadata", () => {

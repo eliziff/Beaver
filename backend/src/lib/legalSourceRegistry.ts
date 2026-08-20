@@ -27,7 +27,7 @@ import {
 import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
 import { tnaLegalSourceProvider } from "./legalSources/tna";
 
-export function createLegalSourceOperations(
+function createLegalSourceOperations(
   options: { courtlistener?: CourtlistenerProviderOptions } = {},
 ) {
   return createLegalSourceRegistry<QuoteSource, unknown>(
@@ -45,7 +45,7 @@ export function createLegalSourceOperations(
   );
 }
 
-export const legalSourceOperations = createLegalSourceOperations();
+const legalSourceOperations = createLegalSourceOperations();
 
 export const searchLegalSources = (request: LegalSourceSearchRequest) =>
   legalSourceOperations.search(request);
@@ -98,12 +98,6 @@ export function legalSourcePassageUrl(
     },
     [...quotes],
   );
-}
-
-export function legalSourceProviderFamily(
-  passage: Pick<LegalSourcePassage, "source">,
-) {
-  return passage.source.family ?? passage.source.provider;
 }
 
 export type {

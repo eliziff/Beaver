@@ -3,7 +3,7 @@
 Doctrine (Eli, 2026-07-29): "made sure the full sweep is highly
 performant so we don't wait for nothing." This probe runs the REAL
 per-doc scorer (sweep.scan_doc, same entries, same prefilters, shipping
-compileA2AJSourceDoc bridge) over a seeded reservoir sample, then:
+legal-structure bridge) over a seeded reservoir sample, then:
 
   1. per-doc wall stats by source and size decile;
   2. a per-entry cost table (ms/MB, gated-share) to expose the regexes
@@ -206,7 +206,7 @@ def main() -> int:
     law_structure_s = time.perf_counter() - t0
     case_mb = sum(len(j[2]) for j in case_jobs) / 1e6
     law_mb = sum(len(j[2]) for j in law_jobs) / 1e6
-    print(f"\n== compileA2AJSourceDoc cost: "
+    print(f"\n== legal-structure cost: "
           f"cases {case_structure_s * 1e3 / max(case_mb, 1e-9):.1f} ms/MB, "
           f"laws {law_structure_s * 1e3 / max(law_mb, 1e-9):.1f} ms/MB")
 

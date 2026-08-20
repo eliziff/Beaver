@@ -2,9 +2,7 @@ import { useRef, useState } from "react";
 import { Check, Copy, Minimize2 } from "lucide-react";
 import {
     type AutomationRunEvent,
-    type CaseCitationEvent,
     type Citation,
-    type DocumentCitation,
     type EditAnnotation,
     type EditResolveHandlers,
     type EditResolved,
@@ -17,7 +15,6 @@ import type {
 import { EditCard } from "./EditCard";
 import {
     preprocessCitations,
-    internalCaseHref,
     citationSourceKey,
     type CitationHistory,
 } from "./message/citationUtils";
@@ -32,12 +29,10 @@ interface Props {
     onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
     showCopyAction?: boolean;
-    onCaseClick?: (citation: CaseCitationEvent) => void;
     onAutomationClick?: (run: AutomationRunEvent) => void;
     onReaderClick?: (readerId: string) => void;
     onSubagentSourceClick?: (source: ToolActivitySource) => void;
     minHeight?: string;
-    onWorkflowClick?: (workflowId: string) => void;
     onEditViewClick?: (ann: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: (args: {
         documentId: string;
@@ -59,12 +54,10 @@ export function AssistantMessage({
     onCitationClick,
     citationTitle,
     showCopyAction = true,
-    onCaseClick,
     onAutomationClick,
     onReaderClick,
     onSubagentSourceClick,
     minHeight = "0px",
-    onWorkflowClick,
     onEditViewClick,
     onOpenDocument,
     onEditResolveStart,
@@ -83,26 +76,12 @@ export function AssistantMessage({
         }
         onEditResolved?.(args);
     };
-    const isDocumentCitation = (citation: Citation): citation is DocumentCitation =>
-        !citation.kind || citation.kind === "document";
     const inlineCitationTargets: Citation[] = [];
     const citationHistory: CitationHistory = { seen: new Set(), previous: null };
     const citationsByRef = new Map<number, Citation>();
-    const documentCitations = new Map<string, Citation>();
     for (const citation of message.citations) {
         if (!citationsByRef.has(citation.ref)) citationsByRef.set(citation.ref, citation);
-        if (isDocumentCitation(citation) && !documentCitations.has(citation.filename)) {
-            documentCitations.set(citation.filename, citation);
-        }
     }
-    const caseCitations = new Map<string, CaseCitationEvent>();
-    for (const citation of message.caseCitations) {
-        const key = internalCaseHref(citation.cluster_id);
-        if (key) caseCitations.set(key, citation);
-    }
-    const caseOpinions = new Map(
-        message.caseOpinions.map((event) => [event.cluster_id, event.case]),
-    );
     const dialogue = message.blocks.map((block) =>
         block.role === "assistant"
             ? {
@@ -216,12 +195,7 @@ export function AssistantMessage({
         if (action?.type === "reader" && activity.status !== "running") {
             return onReaderClick ? () => onReaderClick(action.readerId) : undefined;
         }
-        if (action?.type === "workflow") {
-            return onWorkflowClick ? () => onWorkflowClick(action.workflowId) : undefined;
-        }
-        if (action?.type !== "document" || activity.status === "running") return undefined;
-        const citation = documentCitations.get(action.filename);
-        return citation && onCitationClick ? () => onCitationClick(citation) : undefined;
+        return undefined;
     };
     const editCards = edits.map(({ annotation, filename, editMode }, index) => (
         <EditCard
@@ -312,11 +286,8 @@ export function AssistantMessage({
                                     <MarkdownContent
                                         text={block.text}
                                         inlineCitationTargets={inlineCitationTargets}
-                                        caseCitations={caseCitations}
-                                        caseOpinions={caseOpinions}
                                         onCitationClick={onCitationClick}
                                         citationTitle={citationTitle}
-                                        onCaseClick={onCaseClick}
                                         isStreaming={isStreaming}
                                         divRef={index === lastAssistantBlock ? contentDivRef : undefined}
                                     />

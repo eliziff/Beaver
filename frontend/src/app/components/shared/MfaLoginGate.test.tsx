@@ -110,6 +110,15 @@ describe("MfaLoginGate", () => {
         expect(screen.getByText("Protected content")).toBeInTheDocument();
     });
 
+    it("does not reuse another account's recent MFA receipt", async () => {
+        sessionStorage.setItem("mike:mfa-verified-at", `other-user:${Date.now()}`);
+        mocks.needsMfa.mockResolvedValue(true);
+        render(<MfaLoginGate><p>Protected content</p></MfaLoginGate>);
+        expect(await screen.findByRole("dialog", { name: "MFA verification" }))
+            .toBeInTheDocument();
+        expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+    });
+
     it("signs out before returning a cancelled login to the login page", async () => {
         mocks.needsMfa.mockResolvedValue(true);
         mocks.signOut.mockResolvedValue(undefined);

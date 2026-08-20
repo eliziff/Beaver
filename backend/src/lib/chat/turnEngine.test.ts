@@ -73,6 +73,42 @@ it("preserves one tool activity through running and completed states", async () 
   });
 });
 
+it("persists private tool receipts without emitting them", async () => {
+  const emitted: unknown[] = [];
+  const receipt = {
+    type: "mcp_tool_call" as const,
+    connector_id: "connector-1",
+    connector_name: "Private connector",
+    tool_name: "lookup",
+    openai_tool_name: "mcp_lookup",
+    status: "ok" as const,
+  };
+  const tool: BeaverTool<ChatToolContext> = {
+    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    async execute() {
+      return { result: toolText({ ok: true }), events: [receipt] };
+    },
+  };
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    await runTools([{
+      id: "private-1", name: tool.name,
+      input: { file_path: "document://x/version/v1" },
+    }]);
+    return { fullText: "Done." };
+  });
+
+  const result = await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Use the connector." }],
+    createTools: () => [tool],
+    emit: (event) => emitted.push(event),
+  });
+
+  expect(result.events).toContainEqual(receipt);
+  expect(emitted).not.toContainEqual(receipt);
+});
+
 it("repairs a failed grounded submission without exposing the validator error", async () => {
   const evidence = createBenchmarkEvidence({
     jurisdiction: "CA",

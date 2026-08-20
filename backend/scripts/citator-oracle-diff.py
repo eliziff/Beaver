@@ -10,7 +10,7 @@ and proves the ports faithful over a real corpus slice:
   - node identity:     port.citation_lookup_key vs local_a2aj._citation_lookup_key
   - case-name capture: port.case_name_start     vs toa_maker._case_name_start
 Host paragraph indexing is not ported here: build_citator_graph calls the
-shipping compileA2AJSourceDoc JSONL bridge.
+shipping legal-structure JSONL bridge.
 
 The deliberate deviation NOT diffed here: the build's pinpoint capture scans
 a bounded window after each anchor (toa_maker scans a whole split part),

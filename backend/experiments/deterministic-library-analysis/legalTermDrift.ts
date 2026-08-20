@@ -179,10 +179,10 @@ const INCORPORATION_RE = new RegExp(
 const incorporatesDefinitions = (text: string) =>
   INCORPORATION_RE.test(text.replace(/\s+/gu, " "));
 
-export function termDriftReport(
+export async function termDriftReport(
   docs: TermDriftDoc[],
   opts: { maxRows?: number } = {},
-): TermDriftReport {
+): Promise<TermDriftReport> {
   const maxRows = opts.maxRows ?? 40;
   const byTerm = new Map<string, TermDefinition[]>();
   const definitionCounts: Record<string, number> = {};
@@ -199,7 +199,7 @@ export function termDriftReport(
     // AUTHORITATIVE feed with the publisher's line breaks (the A2AJ lane),
     // and no such feed reaches this function.
     const nodes = definitions.length
-      ? compileAgreementSkeleton(doc.text).nodes
+      ? (await compileAgreementSkeleton(doc.text)).nodes
       : [];
     const seen = new Map<string, TermDefinition>();
     for (const def of definitions) {

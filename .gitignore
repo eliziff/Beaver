@@ -7,6 +7,14 @@ build
 .env
 .env.*
 !.env.example
+*.key
+*.p12
+*.pem
+*.pfx
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
 
 *.log
 *.tsbuildinfo

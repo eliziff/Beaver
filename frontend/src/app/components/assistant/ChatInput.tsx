@@ -234,7 +234,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             typeof (document as Document).id === "string" &&
                             typeof (document as Document).filename === "string",
                     ));
-                } catch {}
+                } catch { /* Ignore malformed drag metadata. */ }
             } else {
                 void handleDroppedFiles(Array.from(event.dataTransfer.files));
             }

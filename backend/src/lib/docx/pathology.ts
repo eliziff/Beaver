@@ -1,4 +1,6 @@
+import { isRedFamily } from "./core";
 import { openDocxSession, type DocxSession } from "./session";
+import { boundedErrorText as message, countLabel as plural } from "../text";
 
 const MAX_FIELD_SAMPLES = 5;
 const MAX_SAMPLE_CHARS = 120;
@@ -24,14 +26,12 @@ export interface UnicodeTraps {
   /** U+2061-2064 — invisible operators. */
   invisible_math: number;
 }
-
 type TrapClass = keyof UnicodeTraps;
 
 export interface UnicodeTrapFindings extends UnicodeTraps {
   /** One excerpt per class, the trap character named in place. */
   samples: string[];
 }
-
 /**
  * What a DOCX contains, read from raw OOXML before any extraction path
  * runs. Counts are of markup actually present; nothing here is inferred
@@ -281,15 +281,6 @@ export function scanTextTraps(text: string): UnicodeTraps {
  * Red family: the red channel dominates and neither other channel is
  * near it. Excludes `auto`, theme colors, and every non-hex value.
  */
-function isRedFamily(value: string) {
-  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(
-    value.trim(),
-  );
-  if (!match) return false;
-  const [red, green, blue] = match.slice(1, 4).map((c) => parseInt(c, 16));
-  return red >= 0xb0 && green <= 0x60 && blue <= 0x60;
-}
-
 function containsNestedTable(xml: string) {
   let depth = 0;
   for (const match of xml.matchAll(/<(\/?)w:tbl(?=[\s/>])([^>]*)>/gu)) {
@@ -391,10 +382,6 @@ function countNotes(xml: string, tag: "footnote" | "endnote") {
     "giu",
   );
   return (xml.match(pattern) ?? []).length;
-}
-
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 function deriveNotes(
@@ -597,11 +584,4 @@ export async function scanDocxPathology(
     ];
     return degraded;
   }
-}
-
-function message(error: unknown) {
-  return String((error as { message?: unknown })?.message ?? error)
-    .replace(/\s+/gu, " ")
-    .trim()
-    .slice(0, 200);
 }

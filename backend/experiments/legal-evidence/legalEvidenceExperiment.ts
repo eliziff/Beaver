@@ -343,7 +343,7 @@ export function createA2AJDocumentEvidence(
   document: A2AJDocument,
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt {
-  const sourceText = a2ajLegalSourceProvider.source(document).text;
+  const sourceText = a2ajLegalSourceProvider.source(document)?.text ?? document.text;
   return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
@@ -578,51 +578,6 @@ export function citatorNoteUpReceipt(args: {
       label: `${source}${args.entry.paragraph === null ? "" : ` at para ${args.entry.paragraph}`}`,
     },
     resolver_version: "citator-noteup-v1",
-  });
-}
-
-/**
- * Receipt for a law-journal article the agent pulled whole via
- * public_legal_source_fetch (provider "journal"). A PASSAGE-scope receipt
- * whose span is the article text the model saw — the passage scope is what
- * makes it citeable by submit_grounded_answer (passageErrors rejects
- * document-scope evidence). The citation/date/url are the article's own
- * metadata, so a verbatim quote from the article renders attributed to the
- * article. Complements (never replaces) the attestation receipts: the
- * attestation is the curated proposition with "as characterized in ..."
- * framing; this receipt is the source itself.
- */
-export function createPublicJournalDocumentEvidence(args: {
-  /** the article's canonical citation, e.g. "(2020) 65:1 McGill LJ 1" */
-  citation: string;
-  name: string | null;
-  date: string | null;
-  url: string | null;
-  /** the exact article text bytes the agent received (span identity) */
-  text: string;
-  /** public_endpoint.db article id — the identifier the journal fetch accepts */
-  articleId: string;
-  language?: "en" | "fr";
-}): LegalEvidenceReceipt {
-  return withEvidenceId({
-    provider: "journal",
-    jurisdiction: "CA",
-    source_class: "commentary",
-    stable_source_id: `journal:${args.articleId}`,
-    source_sha256: sha256(args.text),
-    scope: "passage",
-    block_id: `article:${args.articleId}`,
-    exact_span_sha256: sha256(args.text),
-    span_sha256: sha256(normalizeWhitespace(args.text)),
-    span_text: args.text,
-    citation: args.citation,
-    name: args.name,
-    dataset: "journal",
-    language: args.language ?? "en",
-    version: args.date,
-    external_url: args.url,
-    locator: { kind: "document", label: "article" },
-    resolver_version: "public-journal-v1",
   });
 }
 

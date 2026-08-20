@@ -14,6 +14,8 @@ export const reject = (status: number, message: string): never => {
   throw new ApplicationError(status, message);
 };
 
+export const notFound = (message: string) => new ApplicationError(404, message);
+
 export const applicationScope = (res: Response): ApplicationScope => ({
   userId: res.locals.userId as string,
   userEmail: res.locals.userEmail as string | undefined,

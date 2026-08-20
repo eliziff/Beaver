@@ -27,7 +27,7 @@ import {
     type LibraryKind,
 } from "../../lib/beaverApi";
 
-export const LIBRARY_TABS = [
+const LIBRARY_TABS = [
     { id: "files", label: "Files" },
     { id: "templates", label: "Templates" },
 ] as const;

@@ -276,10 +276,6 @@ function indentationDepth(value: string) {
   return Math.floor(columns / 2);
 }
 
-function headingLevel(markers: string): 2 | 3 | 4 | 5 {
-  return Math.min(5, Math.max(2, markers.length)) as 2 | 3 | 4 | 5;
-}
-
 function provisionDepth(label: string) {
   if (!label.startsWith("(")) return 0;
   const marker = label.slice(1, -1).toLowerCase();
@@ -358,7 +354,7 @@ export function classifyLegalMarkdown(markdown: string): LegalMarkdownBlock[] {
     const markdownHeading = line.match(MARKDOWN_HEADING_RE);
     if (markdownHeading) {
       flushText();
-      const level = headingLevel(markdownHeading[1]);
+      const level = Math.min(5, Math.max(2, markdownHeading[1].length)) as 2 | 3 | 4 | 5;
       const presented = presentedText(markdownHeading[2]);
       if (presented.text) {
         headingDepth = level - 2;

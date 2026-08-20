@@ -5,7 +5,6 @@ import {
 } from "../../shared/types";
 import type { Citation } from "../../shared/types";
 function caseName(annotation: Citation): string | null {
-    if (annotation.kind === "case") return annotation.case_name?.trim() || null;
     if (annotation.kind === "a2aj" && annotation.source_class === "case")
         return annotation.name?.trim() || null;
     if (
@@ -25,14 +24,8 @@ function shortCaseName(value: string): string {
         ? right || left
         : left;
 }
-export function citationSourceLabel(annotation: Citation): string {
+function citationSourceLabel(annotation: Citation): string {
     if (annotation.authority?.trim()) return annotation.authority.trim();
-    if (annotation.kind === "case") {
-        const caseName = annotation.case_name?.trim();
-        const citation = annotation.citation?.trim();
-        if (caseName && citation) return `${caseName}, ${citation}`;
-        return caseName || citation || `Case ${annotation.cluster_id}`;
-    }
     if (annotation.kind === "a2aj") {
         const name = annotation.name?.trim();
         const citation = annotation.citation?.trim();
@@ -51,7 +44,7 @@ export function citationSourceLabel(annotation: Citation): string {
         return `${annotation.col_name} · ${annotation.doc_name}`;
     return annotation.filename;
 }
-export function citationPillLabel(annotation: Citation): string {
+function citationPillLabel(annotation: Citation): string {
     const source = citationSourceLabel(annotation);
     const pinpoint = citationPinpoint(annotation);
     if (annotation.display_form === "pinpoint" && pinpoint) return pinpoint;

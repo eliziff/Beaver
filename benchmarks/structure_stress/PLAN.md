@@ -14,7 +14,7 @@ raw per-doc results stay local.
 | Journals | `.../data/public_endpoint-*.db` (`articles.text`) | 180 MB | 2,496 articles | `article_pages` (51,125 rows with page_label) + `page_map_json` |
 | CanLII index | `.../data/canlii-*.db` | 316 MB | 3,538,714 case titles + 91,669 legislation titles | membership check for extracted cites; style-of-cause grammar vectors |
 | docx_corpus | `benchmarks/docx_corpus/private_results` | — | 1,860 unique real footnote texts | behavior captures (predictions.*.jsonl) |
-| CourtListener | **remote**: Supabase `courtlistener_citation_index` / `courtlistener_opinion_cluster_index`; opinion bodies in R2 `courtlistener/opinions/by-cluster/` | — | — | NOT on this machine. Index-level vetting possible against Supabase; opinion-body sweep needs a bounded, explicitly-costed fetch. |
+| CourtListener | `%LOCALAPPDATA%/OpenLegalProducts/LegalData/providers/courtlistener/courtlistener.sqlite` | local SQLite | 55,504 opinion bodies | native/hybrid/flat SourceDoc rows in the installed-provider freeze |
 
 ## Performance model (measured before building)
 
@@ -31,11 +31,10 @@ raw per-doc results stay local.
 ## What the sweep records per document
 
 1. Grammar-table entries: match count per entry (prefilter-gated).
-2. Bracketed paragraph ladder: count, max label, monotonic breaks, duplicates.
-3. ¶-mark count; page-mark lines (journalArticles form + toa PDF form).
-4. Laws: section labels recovered from markdown text by two candidate
-   detectors (line-start label, bold-wrapped label), each scored against the
-   oracle key set — the sweep measures detectors, it does not presume one.
+2. Shipping `legal-structure` paragraph/page blocks, spans, and abstentions.
+3. Laws: shipping section labels and aliases scored against provider keys.
+4. No harness-local structure detector: recovery uses the persistent
+   SourceDoc JSONL bridge and the same shared Rust engine as production.
 5. Journals: detected page-mark labels vs `page_map_json` label sequence.
 6. Pathology: per-doc wall cap; docs exceeding it are recorded (catastrophic
    backtracking surfaces as slow docs) and skipped, never hung on.
@@ -62,8 +61,12 @@ Summaries per source land in `results/<tier>/<source>.summary.json`
 
 ## Out of scope here
 
-TS-side spine/skeleton engines (statuteSpine, sourceDocA2AJ) sweep via a
-Node harness reading the same exports — Phase 4 work; this harness's
+The shared Rust structure engine and agreement-skeleton adapter sweep via the
+persistent Node JSONL harness; this harness's
 `--export-jsonl` gives it identical inputs. The ASCII-vs-Unicode `\w`
 semantics comparison lives in the engine's `tools/grammar_differential.py`,
 not here.
+
+Historical reference-only detectors and one-off ladder/endnote/law probes were
+retired after the 24-vector, hand-gold, statute, and installed-provider gates
+made them non-authoritative; Git history retains their diagnostic provenance.

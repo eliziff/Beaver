@@ -1,9 +1,5 @@
 /** Anchor DOCX-derived section nodes onto the Markdown served to search tools. */
-import { extractDocxBodyStructure } from "../../src/lib/docxTrackedChanges";
-import {
-  compileAgreementSkeleton,
-  type SkeletonNode,
-} from "../../src/lib/legalTextSkeleton";
+import type { SkeletonNode } from "../../src/lib/legalTextSkeleton";
 
 /** Node kinds that form the derived section spine (never table/row/cell). */
 const INDEX_KINDS = new Set<string>([
@@ -302,24 +298,4 @@ export function anchoredSectionSpine(
   }
   out.sort((a, b) => a.offset - b.offset);
   return out;
-}
-
-export function anchoredSectionStarts(
-  nodes: SkeletonNode[],
-  markdown: string,
-): number[] {
-  return anchoredSectionSpine(nodes, markdown).map((entry) => entry.offset);
-}
-
-/**
- * Consumes the existing .docx detectors/**
- * Consumes the existing .docx detectors to get the derived section tree.
- * Reads the same bytes the drafting-source read uses.
- */
-export async function deriveSectionNodes(
-  bytes: Buffer,
-): Promise<SkeletonNode[]> {
-  const body = await extractDocxBodyStructure(bytes);
-  if (!body.text) return [];
-  return compileAgreementSkeleton(body.text, "drafting", {}).nodes;
 }

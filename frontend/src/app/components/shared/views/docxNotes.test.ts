@@ -49,6 +49,20 @@ function refNumbers(container: HTMLElement): string[] {
 }
 
 describe("DOCX notes", () => {
+    it("disables active or credential-bearing links from uploaded documents", () => {
+        const container = document.createElement("div");
+        container.innerHTML = `<a href="javascript:alert(1)">active</a>
+            <a href="https://user:secret@example.test/">credential</a>
+            <a href="https://example.test/path">safe</a><a href="#section">anchor</a>`;
+        finalizeDocxDom(container);
+        const links = container.querySelectorAll("a");
+        expect(links[0]).not.toHaveAttribute("href");
+        expect(links[1]).not.toHaveAttribute("href");
+        expect(links[2]).toHaveAttribute("target", "_blank");
+        expect(links[2]).toHaveAttribute("rel", "noopener noreferrer");
+        expect(links[3]).toHaveAttribute("href", "#section");
+    });
+
     it("keeps footnotes on the saved Word page that references them", async () => {
         const source = new Document({
             footnotes: {

@@ -86,6 +86,7 @@ const CONTROL_TAG_RE = new RegExp(`^${CONTROL_TAG}$`, "u");
 const NOTE_ID = "[A-Za-z0-9][A-Za-z0-9_.-]{0,63}";
 const CITATION_ID = "[a-z][a-z0-9_-]{0,63}";
 const BOOKMARK_ID = /^[A-Za-z][A-Za-z0-9_]{0,39}$/u;
+const EXPLICIT_LEGAL_NUMBERING = /^(?:(?:part|article|section|schedule)\s+(?:\d+|[ivxlc]+)\b|\d+(?:\.\d+)*[.)]?\s+|\([a-z0-9ivxlc]+\)\s+)/iu;
 const CONTROL_ONLY_RE = new RegExp(
   `^\\s*\\{\\{(${CONTROL_MARKER})\\}\\}\\s*$`,
   "u",
@@ -299,12 +300,6 @@ function normalizeMarkdownLines(lines: string[]) {
   return normalized;
 }
 
-function hasExplicitLegalNumbering(text: string) {
-  return /^(?:(?:part|article|section|schedule)\s+(?:\d+|[ivxlc]+)\b|\d+(?:\.\d+)*[.)]?\s+|\([a-z0-9ivxlc]+\)\s+)/iu.test(
-    text,
-  );
-}
-
 function splitTableRow(line: string): string[] {
   let value = line.trim();
   if (value.startsWith("|")) value = value.slice(1);
@@ -407,7 +402,7 @@ function parseHeading(
   return {
     type: "heading",
     level: match[1].length as 1 | 2 | 3 | 4 | 5 | 6,
-    numbered: numbered && !hasExplicitLegalNumbering(text),
+    numbered: numbered && !EXPLICIT_LEGAL_NUMBERING.test(text),
     bookmark,
     children: parseInline(text, state),
   };
@@ -464,14 +459,9 @@ function blockquoteLine(line: string) {
     : null;
 }
 
-function hasHardBreak(line: string) {
-  const trailing = line.match(/\\+$/u)?.[0].length ?? 0;
-  return trailing % 2 === 1;
-}
-
 function paragraphInlines(lines: string[], state: ParseState) {
   return lines.flatMap((line, index): DocxMarkdownInline[] => {
-    const hardBreak = hasHardBreak(line);
+    const hardBreak = (line.match(/\\+$/u)?.[0].length ?? 0) % 2 === 1;
     const text = hardBreak ? line.slice(0, -1).trimEnd() : line.trim();
     const children = parseInline(text, state);
     if (index === lines.length - 1) return children;

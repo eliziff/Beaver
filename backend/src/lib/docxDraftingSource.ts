@@ -10,6 +10,7 @@ import {
 import { openDocxSession } from "./docx/session";
 import { normalizeDocxControlTag } from "./chat/tools/docxMarkdown";
 import { spawn } from "child_process";
+import { isolatedProcessEnv } from "./subprocessEnv";
 
 export const DOCX_DRAFTING_SOURCE_FORMAT = "pandoc-markdown-v1";
 const MAX_DRAFTING_WARNINGS = 20;
@@ -29,10 +30,6 @@ function cleanWarning(value: unknown) {
     .slice(0, 500);
 }
 
-function hasPart(paths: string[], pattern: RegExp) {
-  return paths.some((path) => pattern.test(path));
-}
-
 function boundedWarnings(warnings: string[]) {
   const unique = [...new Set(warnings)];
   if (unique.length <= MAX_DRAFTING_WARNINGS) return unique;
@@ -42,14 +39,7 @@ function boundedWarnings(warnings: string[]) {
   ];
 }
 
-/**
- * Strip `<w:numPr>` from heading-styled paragraphs AND add `<w:outlineLvl>`
- * so Pandoc outputs `# Heading` instead of `N. **Heading**`. Pandoc requires
- * `w:outlineLvl` on the paragraph itself (not just the style definition) to
- * recognise heading rank. Without this patch, the combination of
- * `w:numPr` (list numbering) and missing paragraph-level outline level
- * causes Pandoc to flatten every heading into bold body text.
- */
+/** Make heading-styled paragraphs structurally recognizable to Pandoc. */
 const HEADING_OUTLINE_MAP: Record<string, string> = {
   Heading1: "0",
   Heading2: "1",
@@ -74,13 +64,7 @@ function stripHeadingNumbering(documentXml: string): string {
   );
 }
 
-/**
- * Patch heading styles in styles.xml so Pandoc recognises them as headings.
- * The `docx` npm package emits `w:pStyle w:val="Heading1"` on paragraphs but
- * does not add `<w:outlineLvl>` to the style definition. Pandoc uses the
- * outline level (not the style name) to determine heading rank, so without
- * this patch every heading becomes bold body text.
- */
+/** Patch DOCX-generated heading styles into Pandoc's expected shape. */
 function normalizeStylesForPandoc(stylesXml: string): string {
   // Ensure a default Normal style exists — Pandoc's style resolution chain
   // requires it. Without `w:default="1"` on Normal, heading styles that
@@ -127,25 +111,37 @@ function pandocMd(bytes: Buffer): Promise<string> {
     const child = spawn("pandoc", [
       "-f", "docx",
       "-t", "gfm",
+      "--sandbox",
       "--wrap=none",
       "-o", "-",
     ], {
+      env: isolatedProcessEnv(),
       stdio: ["pipe", "pipe", "pipe"],
+      timeout: 2 * 60 * 1000,
       windowsHide: true,
     });
 
-    let stdout = "";
+    const stdout: Buffer[] = [];
+    let stdoutBytes = 0;
     let stderr = "";
-    child.stdout.on("data", (data: Buffer) => { stdout += data.toString("utf8"); });
-    child.stderr.on("data", (data: Buffer) => { stderr += data.toString("utf8"); });
+    child.stdout.on("data", (data: Buffer) => {
+      stdoutBytes += data.length;
+      if (stdoutBytes > MAX_DRAFTING_DOCX_BYTES) child.kill();
+      else stdout.push(data);
+    });
+    child.stderr.on("data", (data: Buffer) => {
+      stderr = `${stderr}${data.toString("utf8")}`.slice(-8_192);
+    });
 
     child.on("close", (code: number | null) => {
-      if (code !== 0) {
+      if (stdoutBytes > MAX_DRAFTING_DOCX_BYTES) {
+        reject(new Error("Pandoc conversion output exceeded 25 MiB"));
+      } else if (code !== 0) {
         reject(new Error(
           `Pandoc conversion failed (exit ${code}): ${cleanWarning(stderr)}`,
         ));
       } else {
-        resolve(stdout);
+        resolve(Buffer.concat(stdout, stdoutBytes).toString("utf8"));
       }
     });
 
@@ -199,14 +195,6 @@ function hasMergedOrNestedTables(documentXml: string): boolean {
   return /<w:gridSpan\b/iu.test(documentXml) ||
     /<w:vMerge\b/iu.test(documentXml) ||
     /<w:tbl\b[\s\S]*?<w:tbl\b/iu.test(documentXml);
-}
-
-/**
- * Check raw document.xml for heading levels 7–9 that exceed our six-level
- * drafting schema.
- */
-function hasDeepHeadings(documentXml: string): boolean {
-  return /w:val="Heading[7-9]"/iu.test(documentXml);
 }
 
 /**
@@ -330,7 +318,7 @@ export async function extractDocxDraftingSource(
   ) {
     warnings.push("Word comments are not included in the drafting source.");
   }
-  if (hasPart(paths, /^word\/embeddings\//i)) {
+  if (paths.some((entry) => /^word\/embeddings\//i.test(entry))) {
     warnings.push("Embedded objects are not included in the drafting source.");
   }
   const documentXml = await session.readText("word/document.xml").catch((error: unknown) => {
@@ -428,7 +416,7 @@ export async function extractDocxDraftingSource(
   }
 
   // Structural warnings based on raw OOXML (format-agnostic).
-  if (hasDeepHeadings(documentXml)) {
+  if (/w:val="Heading[7-9]"/iu.test(documentXml)) {
     warnings.push(
       "Heading levels 7–9 must be normalized into the six-level drafting schema.",
     );

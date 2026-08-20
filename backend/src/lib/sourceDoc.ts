@@ -124,17 +124,9 @@ export function sourceDocQuoteWords(quote: string) {
   return tokenizeSourceText(sourceDocQuoteText(quote)).map(({ word }) => word);
 }
 
-function sourceDocRevision(text: string) {
-  return sha256(text);
-}
-
-function labelNumber(label: string) {
-  const match = label.match(/^(?:par|page=?|fn)(\d{1,6})$/iu);
-  return match ? Number(match[1]) : null;
-}
-
-function sectionRoot(label: string) {
-  const match = label.match(/^sec(\d{1,8})(?:$|[.\-(])/iu);
+function labelNumber(kind: SourceDocLocatorKind, label: string) {
+  const match = label.match(kind === "section" ? /^sec(\d{1,8})(?:$|[.\-(])/iu
+    : /^(?:par|page=?|fn)(\d{1,6})$/iu);
   return match ? Number(match[1]) : null;
 }
 
@@ -177,7 +169,7 @@ function locatorRange(
     ),
   ].map((label) => ({
     label,
-    value: kind === "section" ? sectionRoot(label) : labelNumber(label),
+    value: labelNumber(kind, label),
   }));
   const present = numbered.filter(
     (entry): entry is { label: string; value: number } => entry.value !== null,
@@ -291,7 +283,7 @@ export function createSourceDoc(args: {
     enumerable: true,
     configurable: false,
     get() {
-      return (revision ??= sourceDocRevision(doc.text));
+      return (revision ??= sha256(doc.text));
     },
   });
   return doc;
@@ -703,18 +695,11 @@ export function sourceDocPhraseSpans(
   return spans;
 }
 
-function sourceDocQuoteSpans(
-  doc: SourceDoc,
-  quote: string,
-  block?: SourceDocBlock,
-): SourceDocQuoteSpan[] {
-  return sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote), { block });
-}
-
 export function sourceDocContainsQuote(
   doc: SourceDoc,
   quote: string,
   block?: SourceDocBlock,
 ) {
-  return sourceDocQuoteSpans(doc, quote, block).length > 0;
+  return sourceDocPhraseSpans(
+    doc, sourceDocQuoteWords(quote), { block }).length > 0;
 }

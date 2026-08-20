@@ -6,10 +6,7 @@ import { ReadSubagentDock } from "./ReadSubagentDock";
 const completedPanel = {
     type: "subagent_run" as const,
     id: "agent:1",
-    agent: "scout" as const,
     task: "Find the authorities.",
-    model: "GPT-5.6 Luna",
-    effort: "high",
     status: "completed" as const,
     activities: [
         {

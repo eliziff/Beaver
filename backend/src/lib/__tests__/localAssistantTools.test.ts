@@ -12,8 +12,10 @@ import {
 } from "docx";
 import * as XLSX from "xlsx";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { zipDocumentBytes } from "./support/documentBytes";
 import { resourceReference } from "../resourceReferences";
 import { extractDocument } from "../chat/assistantTools";
+import { globPattern } from "../chat/resourceTools";
 
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../remoteUrlSafety")>()),
@@ -21,6 +23,10 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
   ) => fetch(input, init),
+}));
+
+vi.mock("../legalPdfSourceDoc", () => ({
+  countLegalPdfPages: vi.fn().mockResolvedValue(1),
 }));
 
 let temporaryDirectory: string | null = null;
@@ -790,6 +796,20 @@ describe("local assistant tools", () => {
     expect(read.content).toContain("Library evidence survives an empty chat focus.");
   });
 
+  it("bounds adversarial search patterns", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-search-bounds-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const tools = await import("./support/localAssistantTools");
+    const results = await tools.runLocalAssistantTools("local-user",
+      ["(a+)+$", "(a|aa)+$", "((a|aa)b)+$"].map((pattern, index) => ({
+        id: `unsafe-grep-${index}`, name: "Grep", input: { pattern },
+      })));
+    results.forEach((grep) =>
+      expect(grep.content).toContain("unsafe backtracking pattern"));
+    expect(() => globPattern("{a,b}".repeat(20))).not.toThrow();
+    expect(() => globPattern("x".repeat(257))).toThrow("256");
+  });
+
   it("reports a missing PDF page before starting structural analysis", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -876,11 +896,12 @@ describe("local assistant tools", () => {
       getTableOfAuthoritiesJob: vi.fn(),
     }));
     const store = await import("./support/localDocumentFixtures");
+    const ownedBytes = await zipDocumentBytes("owned-docx-bytes");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
       filename: "factum.docx",
-      bytes: Buffer.from("owned-docx-bytes"),
+      bytes: ownedBytes,
     });
     const tools = await import("./support/localAssistantTools");
 
@@ -901,7 +922,7 @@ describe("local assistant tools", () => {
       filename: "factum.docx",
       splitFallback: "auto",
     });
-    expect(submit.mock.calls[0][0].bytes.toString()).toBe("owned-docx-bytes");
+    expect(submit.mock.calls[0][0].bytes).toEqual(ownedBytes);
     expect(JSON.parse(response.content)).toMatchObject({
       ok: true,
       document_id: document.id,

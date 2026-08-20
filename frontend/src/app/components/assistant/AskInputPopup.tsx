@@ -37,9 +37,9 @@ export function AskInputPopup({
         const responses: AskResponse["responses"] = event.items.map((entry) => {
             const skipped = resolved[entry.id] === "skipped";
             if (entry.kind === "choice") return skipped
-                ? { id: entry.id, kind: "choice", question: entry.question, skipped: true }
+                ? { id: entry.id, kind: "choice" }
                 : {
-                    id: entry.id, kind: "choice", question: entry.question,
+                    id: entry.id, kind: "choice",
                     answer: data.get(entry.id) === OTHER
                         ? String(data.get(`${entry.id}-other`) ?? "").trim()
                         : String(data.get(entry.id) ?? ""),
@@ -49,8 +49,7 @@ export function AskInputPopup({
             }));
             return {
                 id: entry.id, kind: "documents",
-                filenames: documents.map(({ filename }) => filename),
-                documents, ...(skipped && { skipped: true }),
+                documents,
             };
         });
         const files = [...new Map(
@@ -59,12 +58,16 @@ export function AskInputPopup({
                 : []),
         ).values()];
         const content = responses.map((response, index) => {
-            if (response.kind === "choice") return response.skipped
-                ? `${index + 1}. Skipped: ${response.question}`
-                : `${index + 1}. ${response.question}\n${response.answer ?? ""}`;
-            return response.skipped
+            if (response.kind === "choice") {
+                const entry = event.items[index];
+                const question = entry?.kind === "choice" ? entry.question : response.id;
+                return !response.answer
+                    ? `${index + 1}. Skipped: ${question}`
+                    : `${index + 1}. ${question}\n${response.answer ?? ""}`;
+            }
+            return !response.documents.length
                 ? `${index + 1}. Skipped document request.`
-                : `${index + 1}. Documents attached: ${response.filenames.join(", ")}`;
+                : `${index + 1}. Documents attached: ${response.documents.map(({ filename }) => filename).join(", ")}`;
         }).join("\n\n");
         sent.current = true;
         onSubmit?.(
@@ -232,7 +235,7 @@ function Choices({ item, required }: {
         <div className="grid gap-1.5">
             {values.map((value, index) => {
                 const label = value === OTHER
-                    ? item.other_label || "Write your own answer"
+                    ? "Write your own answer"
                     : value;
                 return (
                     <label key={`${item.id}-${index}`} className="flex min-h-11 cursor-pointer items-start gap-2 rounded-lg bg-gray-100/70 px-3 py-2.5 text-gray-700 hover:bg-gray-200/70 has-[:checked]:bg-gray-200">

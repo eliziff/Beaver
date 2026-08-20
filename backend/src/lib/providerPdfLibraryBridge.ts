@@ -18,7 +18,7 @@ import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { summarizeLegalSourceDoc } from "./sourceDocNativeMarkup";
 import { resourceReference } from "./resourceReferences";
-import { enqueueJob, wakeJobWorker, type ApplicationJob, type JobHandler } from "./jobQueue";
+import { enqueueJob, wakeJobWorker, type JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
   provider: string;
@@ -200,13 +200,11 @@ function state(request: SafeRequest, record: PdfRecord | null,
   };
 }
 
-const providerGroup = (request: SafeRequest) => `provider-pdf:${request.requestKey}`;
-
 async function enqueueProviderJob(request: SafeRequest, userId: string) {
   const queued = await enqueueJob({
     kind: "pdf.provider",
     dedupeKey: request.requestReference,
-    groupKey: providerGroup(request),
+    groupKey: `provider-pdf:${request.requestKey}`,
     userId,
     payload: { requestReference: request.requestReference },
     priority: 0,
@@ -269,17 +267,13 @@ async function requestForReference(reference: string) {
   return { request: safeRequest(record), digest: match[3] ?? null };
 }
 
-function providerJobReference(job: ApplicationJob) {
-  const value = job.payload;
-  if (!value || typeof value !== "object" || Array.isArray(value) ||
-      typeof value.requestReference !== "string") throw new Error("InvalidProviderPdfJob");
-  return value.requestReference;
-}
-
 export function providerPdfJobHandlers(): Record<string, JobHandler> {
   return {
     "pdf.provider": async (job, context) => {
-      const { request } = await requestForReference(providerJobReference(job));
+      const value = job.payload;
+      if (!value || typeof value !== "object" || Array.isArray(value) ||
+          typeof value.requestReference !== "string") throw new Error("InvalidProviderPdfJob");
+      const { request } = await requestForReference(value.requestReference);
       const downloaded = await download(request, context.signal);
       await context.progress({ phase: "extracting" });
       const parsed = await parse(downloaded.path, downloaded.digest, context.signal);

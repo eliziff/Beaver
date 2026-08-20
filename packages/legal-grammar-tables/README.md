@@ -14,6 +14,12 @@ adapters may translate syntax, but must not change the corpus.
 standalone PDF parser and Table of Authorities projects are derived. After a
 corpus edit, run:
 
+The US citation families are a runtime-free snapshot derived from eyecite
+2.7.8 and reporters-db 3.2.66 (BSD-2-Clause). Exact commits, source hashes,
+counts, licence, and the resulting corpus hash are pinned in
+`eyecite-us-receipt.json`; `check.mjs` refuses receipt or corpus drift. Neither
+upstream package is a shipping dependency.
+
 ```console
 npm run sync
 npm run check

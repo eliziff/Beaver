@@ -1,9 +1,22 @@
-import OpenAI from "openai";
-import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
+import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
+  type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
+import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type InputItem = Record<string, unknown>;
 type State = { responseId: string } | { history: InputItem[] };
+type OpenAIClient = {
+  responses: {
+    create(
+      request: Record<string, unknown>,
+      options: { signal?: AbortSignal; maxRetries: number },
+    ): Promise<AsyncIterable<unknown>>;
+  };
+};
+type OpenAIConstructor = new (options: {
+  apiKey: string; baseURL: string; maxRetries: number;
+}) => OpenAIClient;
+const openAI = runtimeConstructor<OpenAIConstructor>("openai");
 
 type ResponsesWireConfig = {
   apiKey: string;
@@ -44,6 +57,8 @@ function toolCall(item: Record<string, unknown>) {
       typeof item.arguments !== "string") {
     throw new Error("OpenAI returned an invalid function call");
   }
+  if (Buffer.byteLength(item.arguments) > MAX_PROVIDER_TOOL_ARGUMENT_BYTES)
+    throw new Error("Provider tool calls exceeded the input limit");
   const parsed = JSON.parse(item.arguments) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("OpenAI returned non-object function arguments");
@@ -84,7 +99,8 @@ export function createResponsesWireAdapter(
   params: StreamChatParams,
   config: ResponsesWireConfig,
 ): ProviderAdapter {
-  const client = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 0 });
+  const client = openAI.then((OpenAI) =>
+    new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 0 }));
   const initial = input(params.messages);
   return {
     provider: config.provider,
@@ -113,21 +129,21 @@ export function createResponsesWireAdapter(
             effort: params.reasoningEffort,
           }
         : undefined;
-      const stream = await client.responses.create({
+      const stream = await (await client).responses.create({
         model: params.model,
         instructions: params.systemPrompt || undefined,
-        input: requestInput as OpenAI.Responses.ResponseInput,
-        tools: wireTools(step.tools) as unknown as OpenAI.Responses.Tool[],
+        input: requestInput,
+        tools: wireTools(step.tools),
         stream: true,
         max_output_tokens: params.maxTokens ?? 16_384,
         previous_response_id: responseId,
-        reasoning: reasoning as OpenAI.Responses.ResponseCreateParams["reasoning"],
-        service_tier: config.serviceTier as OpenAI.Responses.ResponseCreateParams["service_tier"],
+        reasoning,
+        service_tier: config.serviceTier,
         prompt_cache_key: config.promptCacheKey,
         ...(config.nativeCompaction && params.compactThreshold
           ? { context_management: [{ type: "compaction", compact_threshold: params.compactThreshold }] }
           : {}),
-      } as OpenAI.Responses.ResponseCreateParamsStreaming, {
+      }, {
         signal: step.signal,
         maxRetries: 0,
       });

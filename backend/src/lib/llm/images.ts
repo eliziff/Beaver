@@ -42,7 +42,7 @@ function hasExpectedSignature(type: ImageDocumentType, bytes: Buffer) {
     bytes.subarray(8, 12).toString("ascii") === "WEBP";
 }
 
-export function validateImageBytes(
+function validateImageBytes(
   filename: string,
   value: Buffer | ArrayBuffer,
 ): LlmImage["mimeType"] {

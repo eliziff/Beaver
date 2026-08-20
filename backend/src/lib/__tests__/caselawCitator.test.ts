@@ -172,18 +172,6 @@ describe("caselaw citator note-up graph", () => {
       process.env.MIKE_CITATOR_DB = database;
       const citator = await import("../caselawCitator");
 
-      // 7 edges: Carter contributes none (both header occurrences are
-      // self-citations) and the duplicate-url row is skipped entirely.
-      // 5 distinct keys: 2015scc5, 20151scr331, 384us436, 2019scc5,
-      // 2015csc5 - the S.C.R. parallel form and the French twin stay
-      // separate nodes.
-      expect(citator.graphStats()).toEqual({
-        cases_indexed: 4,
-        edges: 7,
-        distinct_cited: 5,
-        provider_edges: 5,
-      });
-
       const noteUp = citator.noteUpCitations({ citation: "2015 SCC 5" });
       expect(noteUp).toMatchObject({ total: 2 });
       expect(noteUp!.entries).toMatchObject([
@@ -720,7 +708,6 @@ describe("caselaw citator note-up graph", () => {
     );
     const citator = await import("../caselawCitator");
     expect(citator.noteUpCitations({ citation: "2015 SCC 5" })).toBeNull();
-    expect(citator.graphStats()).toBeNull();
     // Absent graph: both alias surfaces degrade to the literal key, and
     // text that normalizes to nothing to no key. Same contract, batched
     // or not.

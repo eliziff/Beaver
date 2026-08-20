@@ -15,6 +15,11 @@ function makeDb(tables: Record<string, Row[]>) {
         in: (column: string, values: unknown[]) => {
           rows = rows.filter((row) => values.includes(row[column])); return query;
         },
+        contains: (column: string, values: unknown[]) => {
+          rows = rows.filter((row) => values.every((value) =>
+            Array.isArray(row[column]) && row[column].some((item: unknown) =>
+              String(item).toLowerCase() === String(value).toLowerCase()))); return query;
+        },
         is: (column: string, value: unknown) => {
           rows = rows.filter((row) => row[column] === value); return query;
         },
@@ -34,6 +39,9 @@ describe("CloudScope", () => {
       { id: "own-project", user_id: "owner", shared_with: [] },
       { id: "shared-project", user_id: "other", shared_with: ["Reviewer@Example.com"] },
       { id: "private-project", user_id: "other", shared_with: [] },
+    ],
+    project_members: [
+      { project_id: "shared-project", email: "reviewer@example.com" },
     ],
     documents: [
       { id: "own-doc", user_id: "owner", project_id: null },
@@ -101,6 +109,7 @@ describe("CloudScope", () => {
     await expect(scope.review("shared-review")).resolves.not.toBeNull();
     await expect(scope.chat("review-chat")).resolves.not.toBeNull();
     tables.projects[1].shared_with = [];
+    tables.project_members = [];
     tables.tabular_reviews[1].shared_with = [];
     await expect(scope.project("shared-project")).resolves.toBeNull();
     await expect(scope.document("shared-doc")).resolves.toBeNull();

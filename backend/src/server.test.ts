@@ -4,12 +4,23 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("./runtime", () => ({ runtime: { mode: "local" } }));
 
 import { api } from "./api";
+import { trustedProxyHops } from "./runtimeConfig";
 import { server } from "./server";
 
 describe("public server boundary", () => {
   it("does not trust forwarded client addresses unless explicitly configured", () => {
     expect(server.get("trust proxy fn")("203.0.113.8", 0)).toBe(false);
     expect(api.get("trust proxy fn")("203.0.113.8", 0)).toBe(false);
+  });
+
+  it("ignores stale proxy configuration in account-free local mode", () => {
+    const previous = process.env.TRUST_PROXY_HOPS;
+    process.env.TRUST_PROXY_HOPS = "2";
+    try { expect(trustedProxyHops()).toBe(false); }
+    finally {
+      if (previous === undefined) delete process.env.TRUST_PROXY_HOPS;
+      else process.env.TRUST_PROXY_HOPS = previous;
+    }
   });
 
   it("serves the API under one same-origin prefix with security headers", async () => {
@@ -28,6 +39,7 @@ describe("public server boundary", () => {
     expect(response.headers["content-security-policy"]).toContain(
       "script-src 'self'",
     );
+    expect(response.headers["content-security-policy"]).toContain("img-src 'self' data: blob:");
     expect(response.headers["content-security-policy"]).not.toContain(
       "script-src 'self' 'unsafe-inline'",
     );
@@ -46,6 +58,10 @@ describe("public server boundary", () => {
       .get("/api/health")
       .set("Host", "127.0.0.1:3000")
       .set("Origin", "https://evil.test")).status).toBe(403);
+    expect((await request(server)
+      .get("/api/health")
+      .set("Host", "127.0.0.1:3000")
+      .set("Origin", "https://127.0.0.1:3000")).status).toBe(403);
   });
 
   it("rejects oversized JSON before loading an application route", async () => {
@@ -56,6 +72,17 @@ describe("public server boundary", () => {
       .send(JSON.stringify({ content: "x".repeat(5 * 1024 * 1024) }));
 
     expect(response.status).toBe(413);
+    expect(response.body).toEqual({ detail: "Invalid request" });
+  });
+
+  it("rejects malformed JSON as a client error without reflecting parser details", async () => {
+    const response = await request(server)
+      .post("/api/chat")
+      .set("Host", "127.0.0.1:3000")
+      .set("Content-Type", "application/json")
+      .send('{"content":');
+
+    expect(response.status).toBe(400);
     expect(response.body).toEqual({ detail: "Invalid request" });
   });
 

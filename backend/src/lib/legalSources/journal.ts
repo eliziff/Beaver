@@ -8,15 +8,19 @@ import {
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
+import { deriveJournalSourceDoc } from "../sourceDocStructureHost";
+import { positiveInteger as integer } from "../value";
+import {
+  journalFinalContractSource,
+  type JournalPageRow,
+} from "../sourceDocJournal";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
 } from ".";
 import { sourceDocPassages } from "./sourceDocPassages";
 import {
-  createSourceDoc,
   type SourceDoc,
-  type SourceDocBlock,
   type SourceDocLocatorKind,
   type SourceDocLookup,
 } from "../sourceDoc";
@@ -26,7 +30,7 @@ import {
 } from "../sourceDocNativeMarkup";
 
 type Row = Record<string, unknown>;
-type PageRow = { page_label: unknown; pdf_page: unknown };
+type FinalContractPages = { filename: string; signature: string };
 
 export type JournalArticleSearchResult = {
   provider: "journal";
@@ -87,19 +91,6 @@ function string(row: Row, name: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function integer(value: unknown) {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(number) && number > 0 ? number : null;
-}
-
-function samePath(left: string, right: string) {
-  left = path.resolve(left);
-  right = path.resolve(right);
-  return process.platform === "win32"
-    ? left.toLocaleLowerCase() === right.toLocaleLowerCase()
-    : left === right;
-}
-
 function trustedUrl(value: string | null) {
   if (!value) return null;
   try {
@@ -142,13 +133,6 @@ function journalSearchDatabasePath() {
   return configured
     ? path.resolve(configured)
     : legalProviderDatabase("journals", "public_endpoint-search.sqlite");
-}
-
-function journalFinalContractDatabasePath() {
-  const configured = process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB?.trim();
-  return configured
-    ? path.resolve(configured)
-    : legalProviderDatabase("journals", "journals.db");
 }
 
 function closeDatabases() {
@@ -229,11 +213,14 @@ function searchDatabase() {
           .all() as Array<{ key: string; value: string }>
       ).map(({ key, value }) => [key, value]),
     );
+    const expectedSource = path.resolve(metadata.source_path ?? ""), actualSource = path.resolve(sourcePath);
+    const matchesSource = process.platform === "win32"
+      ? expectedSource.toLocaleLowerCase() === actualSource.toLocaleLowerCase() : expectedSource === actualSource;
     if (
       metadata.schema_version !== "2" ||
       metadata.source_size !== String(source.size) ||
       metadata.source_mtime_ms !== String(Math.trunc(source.mtimeMs)) ||
-      !samePath(metadata.source_path ?? "", sourcePath) ||
+      !matchesSource ||
       metadata.source_schema_version !==
         (sourceMetadata.schema_version ?? "") ||
       metadata.source_created_at !== (sourceMetadata.created_at ?? "")
@@ -250,7 +237,9 @@ function searchDatabase() {
 }
 
 function finalContractDatabase() {
-  const filename = journalFinalContractDatabasePath();
+  const configured = process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB?.trim();
+  const filename = configured ? path.resolve(configured)
+    : legalProviderDatabase("journals", "journals.db");
   if (!existsSync(filename)) return null;
   const source = statSync(filename);
   const sourceSignature = `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
@@ -459,67 +448,6 @@ function findArticles(
   return rows.map((row) => result(row, query));
 }
 
-function addRanges(
-  matches: Array<Omit<SourceDocBlock, "end">>,
-  textLength: number,
-) {
-  return matches.map((block, index): SourceDocBlock => ({
-    ...block,
-    end: matches[index + 1]?.start ?? textLength,
-  }));
-}
-
-/**
- * The `[page N]` markers in `text` are rendered by the journals database
- * export from its own page map, so the map (`article_pages`, in page_order)
- * is the authority on which pages exist: walk it and locate each label's
- * marker line, rather than regex-discovering markers. This also carries
- * non-numeric labels ("PDF 1", "-5") and repeated labels, which discovery
- * by numeric regex plus a label-keyed anchor map cannot.
- */
-function pageBlocks(text: string, pageRows: PageRow[]) {
-  const found: Array<Omit<SourceDocBlock, "end">> = [];
-  let cursor = 0;
-  for (const row of pageRows) {
-    const label = String(row.page_label ?? "").trim();
-    if (!label) continue;
-    const marker = `[page ${label}]`;
-    let at = text.indexOf(marker, cursor);
-    while (at >= 0) {
-      const lineStart = at === 0 ? 0 : text.lastIndexOf("\n", at - 1) + 1;
-      const lineEnd = at + marker.length;
-      const nextBreak = text.indexOf("\n", lineEnd);
-      const tail = text.slice(
-        lineEnd,
-        nextBreak < 0 ? text.length : nextBreak,
-      );
-      if (
-        !/[^ \t]/u.test(text.slice(lineStart, at)) &&
-        !/[^ \t\r]/u.test(tail)
-      ) {
-        const pdfPage = integer(row.pdf_page);
-        found.push({
-          kind: "page",
-          label: /^\d+$/u.test(label) ? `page${Number(label)}` : `page${label}`,
-          start: lineStart,
-          anchor: pdfPage ? `page=${pdfPage}` : undefined,
-          aliases: [label],
-          origin: "native",
-        });
-        cursor = lineEnd;
-        break;
-      }
-      at = text.indexOf(marker, lineEnd);
-    }
-  }
-  return found;
-}
-
-type FinalContractPages = {
-  filename: string;
-  signature: string;
-};
-
 function inside(base: string, candidate: string) {
   const relative = path.relative(base, candidate);
   return (
@@ -583,302 +511,14 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   }
 }
 
-type FinalRegion = {
-  type: string;
-  text: string;
-  start: number;
-  end: number;
-  pdfPage: number | null;
-  lineOrders: Set<number>;
-};
-
-type FinalAnnotation = {
-  annotation: Row;
-  regions: FinalRegion[];
-};
-
-function row(value: unknown): Row | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Row)
-    : null;
-}
-
-function titleAliases(text: string) {
-  const compact = text.replace(/\s+/gu, " ").trim();
-  const numbered = compact.match(/^([IVXLCDM]+|[A-Z])\.[ \t]+(.+)$/u);
-  const title = (numbered?.[2] ?? compact)
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-  return {
-    label: numbered?.[1] ?? null,
-    aliases: [
-      ...(numbered ? [numbered[1]] : []),
-      ...(title ? [`sectitle:${title}`] : []),
-    ],
-  };
-}
-
 function finalContractSource(
-  articleId: number,
-  pagesFile: FinalContractPages,
-  pageRows: PageRow[],
+  articleId: number, pages: FinalContractPages, pageRows: JournalPageRow[],
 ) {
   try {
-    const pages = readFileSync(pagesFile.filename, "utf8")
-      .split(/\r?\n/gu)
-      .filter((line) => line.trim())
-      .map((line) => row(JSON.parse(line)));
-    if (!pages.length || pages.some((page) => !page)) return null;
-
-    const parts: string[] = [];
-    const blocks: SourceDocBlock[] = [];
-    const titles: FinalRegion[] = [];
-    const annotations: FinalAnnotation[] = [];
-    let offset = 0;
-    let paragraph = 0;
-    for (const [pageIndex, page] of (pages as Row[]).entries()) {
-      const registeredArticle = integer(page.article_id);
-      if (registeredArticle && registeredArticle !== articleId) return null;
-      const pageText =
-        typeof page.text === "string" ? page.text : null;
-      if (pageText === null) return null;
-      if (pageIndex) {
-        parts.push("\n");
-        offset += 1;
-      }
-      const pageStart = offset;
-      parts.push(pageText);
-      offset += pageText.length;
-      const pdfPage = integer(page.pdf_page);
-      if (pdfPage) {
-        const publicPage = pageRows.find(
-          (candidate) => integer(candidate.pdf_page) === pdfPage,
-        );
-        const publicLabel = String(publicPage?.page_label ?? "").trim();
-        const label = publicLabel || String(pdfPage);
-        blocks.push({
-          kind: "page",
-          label: /^\d+$/u.test(label)
-            ? `page${Number(label)}`
-            : `page${label}`,
-          start: pageStart,
-          end: offset,
-          anchor: `page=${pdfPage}`,
-          aliases: [label],
-          origin: "native",
-        });
-      }
-
-      const regions: FinalRegion[] = [];
-      let cursor = 0;
-      const orderedRegions = (Array.isArray(page.regions)
-        ? page.regions
-        : []
-      )
-        .map((value, index) => ({ value: row(value), index }))
-        .filter(
-          (entry): entry is { value: Row; index: number } => !!entry.value,
-        )
-        .sort(
-          (left, right) =>
-            Number(left.value.order ?? left.index) -
-            Number(right.value.order ?? right.index),
-        );
-      for (const { value: region } of orderedRegions) {
-        const regionText =
-          typeof region.text === "string" ? region.text : "";
-        if (!regionText) continue;
-        const at = pageText.indexOf(regionText, cursor);
-        if (at < 0) continue;
-        cursor = at + regionText.length;
-        const lines = Array.isArray(region.lines) ? region.lines : [];
-        const lineOrders = new Set(
-          lines
-            .map((line) => integer(row(line)?.codex_text_order))
-            .filter((value): value is number => value !== null),
-        );
-        const placed: FinalRegion = {
-          type: String(region.type ?? ""),
-          text: regionText,
-          start: pageStart + at,
-          end: pageStart + at + regionText.length,
-          pdfPage,
-          lineOrders,
-        };
-        regions.push(placed);
-        paragraph += 1;
-        blocks.push({
-          kind: "paragraph",
-          label: `par${paragraph}`,
-          start: placed.start,
-          end: placed.end,
-          origin: "native",
-        });
-        if (placed.type === "paragraph_title") titles.push(placed);
-      }
-      for (const value of Array.isArray(page.annotations)
-        ? page.annotations
-        : []) {
-        const annotation = row(value);
-        if (annotation) annotations.push({ annotation, regions });
-      }
-    }
-    const text = parts.join("");
-    if (!text.trim()) return null;
-
-    titles.forEach((title, index) => {
-      const identified = titleAliases(title.text);
-      blocks.push({
-        kind: "section",
-        label: identified.label
-          ? `sec${identified.label}`
-          : `secTitle${index + 1}`,
-        start: title.start,
-        end: titles[index + 1]?.start ?? text.length,
-        aliases: identified.aliases,
-        origin: "native",
-      });
-    });
-
-    const pairedRefs = new Set(
-      annotations
-        .filter(
-          ({ annotation }) =>
-            annotation.taxonomy_name === "fn_ref" &&
-            annotation.pair_status === "paired" &&
-            typeof annotation.pair_id === "string",
-        )
-        .map(({ annotation }) => annotation.pair_id as string),
-    );
-    const usedPairs = new Set<string>();
-    for (const { annotation, regions } of annotations) {
-      const pairId =
-        typeof annotation.pair_id === "string" ? annotation.pair_id : "";
-      if (
-        annotation.taxonomy_name !== "fn_label" ||
-        annotation.pair_status !== "paired" ||
-        !pairId ||
-        !pairedRefs.has(pairId) ||
-        usedPairs.has(pairId)
-      ) {
-        continue;
-      }
-      const lineOrder = integer(annotation.start_line_order);
-      const note = String(
-        annotation.note_id ?? annotation.selected_text ?? "",
-      ).trim();
-      const region = lineOrder
-        ? regions.find(
-            (candidate) =>
-              candidate.type === "footnote" &&
-              candidate.lineOrders.has(lineOrder),
-          )
-        : null;
-      if (!region || !note) continue;
-      usedPairs.add(pairId);
-      blocks.push({
-        kind: "footnote",
-        label: /^\d+$/u.test(note) ? `fn${Number(note)}` : `fn${note}`,
-        start: region.start,
-        end: region.end,
-        aliases: [note],
-        anchor: region.pdfPage ? `page=${region.pdfPage}` : undefined,
-        origin: "native",
-      });
-    }
-
-    return {
-      text,
-      blocks: blocks.sort(
-        (left, right) => left.start - right.start || left.end - right.end,
-      ),
-    };
+    return journalFinalContractSource(articleId, readFileSync(pages.filename), pageRows);
   } catch {
     return null;
   }
-}
-
-function reconstructedJournalBlocks(text: string, pageRows: PageRow[]) {
-  const blocks: SourceDocBlock[] = [];
-  blocks.push(...addRanges(pageBlocks(text, pageRows), text.length));
-  blocks.push(
-    ...addRanges(
-      [
-        ...text.matchAll(
-          /^[ \t]*([IVXLCDM]+|[A-Z])\.[ \t]+([^\n\b]{3,180})$/gmu,
-        ),
-      ].map((match) => {
-        const title = match[2].replace(/\s+/gu, " ").trim();
-        const titleAlias = title
-          .toLocaleLowerCase()
-          .replace(/[^\p{L}\p{N}]+/gu, " ")
-          .trim();
-        return {
-          kind: "section" as const,
-          label: `sec${match[1]}`,
-          start: match.index,
-          aliases: [
-            match[1],
-            ...(titleAlias ? [`sectitle:${titleAlias}`] : []),
-          ],
-          origin: "heuristic" as const,
-        };
-      }),
-      text.length,
-    ),
-  );
-  blocks.push(
-    ...addRanges(
-      [...text.matchAll(/^[ \t]*(\d{1,5})\t[ \t]*(?:\r?\n)?/gmu)].map(
-        (match) => ({
-          kind: "footnote" as const,
-          label: `fn${Number(match[1])}`,
-          start: match.index,
-          aliases: [match[1]],
-          origin: "heuristic" as const,
-        }),
-      ),
-      text.length,
-    ),
-  );
-  blocks.push(
-    ...[...text.matchAll(/\S[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gu)]
-      .filter((match) => !/^\[page [^\]\n]{1,40}\]/iu.test(match[0]))
-      .map(
-        (match, index): SourceDocBlock => ({
-          kind: "paragraph",
-          label: `par${index + 1}`,
-          start: match.index,
-          end: match.index + match[0].length,
-          origin: "heuristic",
-        }),
-      ),
-  );
-  return blocks;
-}
-
-function journalSourceDoc(
-  articleId: number,
-  url: string,
-  text: string,
-  pageRows: PageRow[],
-  nativeBlocks: SourceDocBlock[] = [],
-): SourceDoc {
-  const nativeKinds = new Set(nativeBlocks.map(({ kind }) => kind));
-  const reconstructed = reconstructedJournalBlocks(text, pageRows).filter(
-    ({ kind }) => !nativeKinds.has(kind),
-  );
-  const blocks = [...nativeBlocks, ...reconstructed].sort(
-    (left, right) => left.start - right.start || left.end - right.end,
-  );
-  return createSourceDoc({
-    provider: "journal",
-    id: String(articleId),
-    url,
-    text,
-    blocks,
-  });
 }
 
 function articleRow(identifier: string) {
@@ -897,9 +537,9 @@ function articleRow(identifier: string) {
   return rows.length === 1 ? rows[0] : null;
 }
 
-function document(
+async function document(
   identifier: string,
-): JournalArticleDocument | null {
+): Promise<JournalArticleDocument | null> {
   identifier = identifier.trim();
   if (!identifier) throw new Error("identifier is required");
   database();
@@ -918,10 +558,8 @@ function document(
       `SELECT page_label, pdf_page FROM article_pages
        WHERE article_id = ? ORDER BY page_order`,
     )
-    .all(articleId) as PageRow[];
-  const canonical = registered
-    ? finalContractSource(articleId, registered, pageRows)
-    : null;
+    .all(articleId) as JournalPageRow[];
+  const canonical = registered ? finalContractSource(articleId, registered, pageRows) : null;
   const text = canonical?.text ?? publicText;
   const document: JournalArticleDocument = {
     provider: "journal",
@@ -933,7 +571,7 @@ function document(
     date: string(row, "document_date_en"),
     url,
     text,
-    structure: journalSourceDoc(
+    structure: await deriveJournalSourceDoc(
       articleId,
       url,
       text,
@@ -975,8 +613,8 @@ function lookup(
   };
 }
 
-function viewer(identifier: string) {
-  const article = document(identifier);
+async function viewer(identifier: string) {
+  const article = await document(identifier);
   if (!article) return null;
   const summary = summarizeLegalSourceDoc(article.structure);
   const payload = {
@@ -1055,7 +693,7 @@ const provider: LegalSourceProvider<
       .map((value) => value.trim().replace(/\s+/gu, " "))
       .filter(Boolean);
     for (const candidate of candidates) {
-      const article = document(candidate);
+      const article = await document(candidate);
       if (article) return [journalReference(article)];
     }
     const matches = findArticles(candidates[0] ?? request.text, 10).filter(
@@ -1067,7 +705,7 @@ const provider: LegalSourceProvider<
         ),
     );
     if (matches.length !== 1) return [];
-    const article = document(String(matches[0].articleId));
+    const article = await document(String(matches[0].articleId));
     return article ? [journalReference(article)] : [];
   },
   canSearch: (request) => request.kinds.includes("journal"),
@@ -1114,7 +752,7 @@ const provider: LegalSourceProvider<
     }));
   },
   async readPassage(request) {
-    const article = document(request.source.id);
+    const article = await document(request.source.id);
     if (!article) return [];
     return sourceDocPassages({
       request,
@@ -1134,12 +772,3 @@ export const journalLegalSourceProvider = Object.assign(provider, {
   lookup,
   viewer,
 });
-
-/** Temporary, read-only port oracle. Delete with this TypeScript detector. */
-export const __journalStructurePortOracle = {
-  pageBlocks,
-  finalContractSource,
-  reconstructedJournalBlocks,
-  journalSourceDoc,
-  titleAliases,
-};

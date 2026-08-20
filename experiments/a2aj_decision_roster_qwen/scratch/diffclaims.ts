@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -19,6 +20,7 @@ const DB = path.join(
   "a2aj.sqlite",
 );
 
+async function main() {
 const db = new DatabaseSync(DB, { readOnly: true });
 const row = db
   .prepare("SELECT id, unofficial_text_en, citation_en, citation2_en, url_en, dataset, name_en FROM document WHERE id = ?")
@@ -35,7 +37,7 @@ const job = {
   url: string(row.url_en),
   alternateCitation: string(row.citation2_en),
 };
-const source = compileA2AJSourceDoc({
+const source = await deriveA2AJSourceDoc({
   citation: job.citation,
   docType: "cases",
   text: job.text,
@@ -100,3 +102,15 @@ if (a !== b) {
   console.log("ledger   :", JSON.stringify(a.slice(Math.max(0, first - 60), first + 80)));
   console.log("computed :", JSON.stringify(b.slice(Math.max(0, first - 60), first + 80)));
 }
+}
+
+void (async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  } finally {
+    await shutdownSourceStructureEngine();
+  }
+})();

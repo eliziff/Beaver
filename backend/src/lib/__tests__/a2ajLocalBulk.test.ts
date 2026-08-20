@@ -146,10 +146,6 @@ describe("local A2AJ bulk data", () => {
       citation: "2022 SCC 88",
     });
     expect(longDocument?.text).toHaveLength(50_000);
-    expect(
-      bulk
-        .getLocalA2AJStructure(longDocument!)
-        ?.blocks.some(({ label }) => label === "par6"),
-    ).toBe(true);
+    expect(longDocument?.structure.status).toBe("unavailable");
   });
 });

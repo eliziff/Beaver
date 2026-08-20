@@ -10,6 +10,8 @@ import path from "node:path";
 import { abortError, throwIfAborted } from "./abort";
 import { modelContextWindow } from "./contextWindow";
 import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
+import { flattenedPrompt } from "./prompt";
+import { isolatedProcessEnv } from "../subprocessEnv";
 import type {
   LlmContextRoundReceipt,
   NormalizedLlmUsage,
@@ -24,13 +26,14 @@ const HARD_LIMIT_MS = 3_600_000;
 const MAX_PROVIDER_COMPACTIONS = 3;
 const MCP_TOKEN_ENV = "BEAVER_CLAUDE_MCP_TOKEN";
 const CLAUDE_SESSION_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
+const CLAUDE_MODEL = /^[a-z0-9][a-z0-9._-]{0,127}$/iu;
 
 export type ClaudePFatalCode =
   | "context_overflow"
   | "quota_exhausted"
   | "compaction_limit";
 
-export class ClaudePFatalError extends Error {
+class ClaudePFatalError extends Error {
   constructor(
     message: string,
     public readonly code: ClaudePFatalCode,
@@ -47,9 +50,9 @@ function fatalCode(text: string): ClaudePFatalCode | null {
 }
 
 export function claudePModelSlug(model: string): string | null {
-  return model.startsWith("claude-p:")
-    ? model.slice("claude-p:".length).trim() || null
-    : null;
+  const slug = model.startsWith("claude-p:")
+    ? model.slice("claude-p:".length).trim() : "";
+  return CLAUDE_MODEL.test(slug) ? slug : null;
 }
 
 function resolveCli(): { file: string; shell: boolean } {
@@ -61,11 +64,14 @@ function resolveCli(): { file: string; shell: boolean } {
     );
     if (existsSync(exe)) return { file: exe, shell: false };
   }
-  return { file: "claude", shell: true };
+  return { file: "claude", shell: process.platform === "win32" };
 }
 
 function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
-  const env = { ...process.env };
+  const env = isolatedProcessEnv([
+    "CLAUDE_CODE_*", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "SSL_CERT_FILE",
+    "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
+  ]);
   for (const key of [
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS",
@@ -83,23 +89,6 @@ function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
   }
   if (bridge) env[MCP_TOKEN_ENV] = bridge.token;
   return env;
-}
-
-function promptFrom(messages: StreamChatParams["messages"]) {
-  if (messages.length === 1 && messages[0]?.role === "user") return messages[0].content;
-  return messages
-    .map(({ role, content }) => `${role.toUpperCase()}:\n${content}`)
-    .join("\n\n");
-}
-
-function isCompaction(line: string) {
-  if (!line.startsWith("{") || !line.includes('"compact_boundary"')) return false;
-  try {
-    const event = JSON.parse(line) as { type?: string; subtype?: string };
-    return event.type === "system" && event.subtype === "compact_boundary";
-  } catch {
-    return false;
-  }
 }
 
 type ResultEnvelope = {
@@ -140,7 +129,7 @@ function handleStreamLine(
       .join("; ") ?? "";
   }
 
-  if (isCompaction(line)) {
+  if (message.type === "system" && message.subtype === "compact_boundary") {
     state.compactions += 1;
     callbacks.onCompaction?.("completed");
   }
@@ -159,17 +148,6 @@ function handleStreamLine(
   return ["assistant", "stream_event", "result"].includes(message.type ?? "") ||
     (message.type === "system" &&
       ["compact_boundary", "api_retry"].includes(message.subtype ?? ""));
-}
-
-function usageFrom(envelope: ResultEnvelope): NormalizedLlmUsage {
-  const usage = envelope.usage ?? {};
-  return {
-    inputTokens: usage.input_tokens ?? 0,
-    outputTokens: usage.output_tokens ?? 0,
-    reasoningTokens: null,
-    cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
-    cacheWriteInputTokens: usage.cache_creation_input_tokens ?? 0,
-  };
 }
 
 type RunParams = StreamChatParams & {
@@ -382,12 +360,11 @@ export async function streamClaudeP(
           : Math.max(1, Math.trunc(params.maxIterations)),
     });
   }
-
   try {
     const state = await runClaudeP({
       ...params,
       model,
-      prompt: promptFrom(params.messages),
+      prompt: flattenedPrompt(params.messages),
       bridge,
       callbacks,
     });
@@ -395,7 +372,14 @@ export async function streamClaudeP(
     if (bridge && !state.mcpReady) {
       throw new Error(`Claude did not load the Beaver MCP server${state.mcpError ? `: ${state.mcpError}` : "."}`);
     }
-    const usage = usageFrom(envelope);
+    const rawUsage = envelope.usage ?? {};
+    const usage: NormalizedLlmUsage = {
+      inputTokens: rawUsage.input_tokens ?? 0,
+      outputTokens: rawUsage.output_tokens ?? 0,
+      reasoningTokens: null,
+      cacheReadInputTokens: rawUsage.cache_read_input_tokens ?? 0,
+      cacheWriteInputTokens: rawUsage.cache_creation_input_tokens ?? 0,
+    };
     const contextWindowTokens = modelContextWindow(params.model);
     if (contextWindowTokens) {
       callbacks.onContextUsage?.({

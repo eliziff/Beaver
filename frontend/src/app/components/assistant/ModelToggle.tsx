@@ -114,9 +114,7 @@ export function ModelToggle({
     onDetailClick,
 }: Props) {
     const catalog = useModelCatalog();
-    const dynamicModels: ModelOption[] = (catalog?.models ?? [])
-        .filter((model) => model.supportedInApi !== false)
-        .map((model) => ({
+    const dynamicModels: ModelOption[] = (catalog?.models ?? []).map((model) => ({
             id: `codex:${model.slug}`,
             label: model.displayName,
             group: "Codex",
@@ -190,9 +188,7 @@ export function ModelToggle({
 }
 function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
     const selectedModel = catalog?.models.find(
-        (item) =>
-            item.supportedInApi !== false &&
-            `codex:${item.slug}` === model,
+        (item) => `codex:${item.slug}` === model,
     );
     const selectedDesktopModel = catalog?.ollama?.models.find(
         (item) => `ollama:${item.name}` === model,
@@ -215,13 +211,6 @@ function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
             ]
           : (selectedModel?.supportedReasoningLevels ?? []);
 }
-function defaultCodexReasoning(model: string) {
-    return model.endsWith("gpt-5.6-sol")
-        ? "low"
-        : model.endsWith("gpt-5.3-codex-spark")
-          ? "high"
-          : "medium";
-}
 function selectedReasoningEffort(
     model: string,
     value: string | undefined,
@@ -229,20 +218,22 @@ function selectedReasoningEffort(
 ) {
     const efforts = reasoningEfforts(model, catalog);
     const selectedModel = catalog?.models.find(
-        (item) => item.supportedInApi !== false && `codex:${item.slug}` === model,
+        (item) => `codex:${item.slug}` === model,
     );
     const selectedDesktopModel = catalog?.ollama?.models.find(
         (item) => `ollama:${item.name}` === model,
     );
     const isMuseSpark = model.includes("muse-spark-");
+    const defaultCodexReasoning = model.endsWith("gpt-5.6-sol") ? "low"
+        : model.endsWith("gpt-5.3-codex-spark") ? "high" : "medium";
     return (
         value && (
             efforts.some((level) => level.effort === value) ||
-            (!catalog && model.startsWith("codex:"))
+            (!selectedModel && model.startsWith("codex:"))
         )
             ? value
-            : (model.startsWith("codex:") && !catalog
-            ? defaultCodexReasoning(model)
+            : (model.startsWith("codex:") && !selectedModel
+            ? defaultCodexReasoning
             : model.startsWith("deepseek-")
             ? "high"
             : selectedDesktopModel?.supportsThinking

@@ -3,8 +3,6 @@ import type {
   AskInputsEvent,
   AskInputsResponseEvent,
   AutomationRunEvent,
-  CaseCitationEvent,
-  CaseOpinionsEvent,
   Citation,
   EditAnnotation,
   Message,
@@ -23,7 +21,6 @@ export const ASSISTANT_LIMITS = {
 
 const FIELD_TEXT_LIMIT = 8_192;
 const SHORT_TEXT_LIMIT = 512;
-const COLLECTION_LIMIT = 128;
 export const ASSISTANT_GENERIC_ERROR = "Unable to get a response. Try again.";
 export type AssistantTranscriptMessage = {
   id: string;
@@ -52,24 +49,16 @@ export type AssistantActivity = {
   items?: { label: string; detail?: string; url?: string | null; error?: boolean }[];
   source?: ToolActivitySource;
   sources?: ToolActivitySource[];
-  action?:
-    | { type: "document"; filename: string }
-    | { type: "reader"; readerId: string }
-    | { type: "workflow"; workflowId: string };
+  action?: { type: "reader"; readerId: string };
 };
 
 export type AssistantReaderRun = {
   id: string;
-  agent: "scout" | "planner" | "reviewer" | "native";
   task: string;
-  model: string;
-  effort: string;
   status: AssistantActivityStatus;
   activities: AssistantActivity[];
   output?: string;
-  error?: string;
   sources: ToolActivitySource[];
-  verifiedPassages: number;
 };
 
 export type AssistantArtifact = {
@@ -98,9 +87,6 @@ export type AssistantMessageState = {
   automations: AutomationRunEvent[];
   artifacts: AssistantArtifact[];
   citations: Citation[];
-  citationStatus?: "started" | "partial" | "final";
-  caseCitations: CaseCitationEvent[];
-  caseOpinions: CaseOpinionsEvent[];
   contextCompacted: boolean;
   contentOpen: boolean;
   error?: string;
@@ -117,7 +103,7 @@ export type UserMessageState = Pick<
 export type AssistantSessionMessage = UserMessageState | AssistantMessageState;
 
 export type AssistantTurnOptions = {
-  displayedDoc?: { filename: string; documentId: string } | null;
+  displayedDoc?: { documentId: string } | null;
   turnId?: string;
   askInputsResponse?: AskInputsResponseEvent;
 };
@@ -163,14 +149,11 @@ export type ProtocolEvent =
   | { type: "ask_inputs"; event: AskInputsEvent }
   | { type: "ask_inputs_response"; event: AskInputsResponseEvent }
   | { type: "steering"; id: string; text: string }
-  | { type: "citations"; citations: Citation[]; status: "started" | "partial" | "final" }
-  | { type: "case_citation"; event: CaseCitationEvent }
-  | { type: "case_opinions"; event: CaseOpinionsEvent }
+  | { type: "citations"; citations: Citation[] }
   | { type: "context_usage"; usedTokens: number; windowTokens: number }
   | { type: "compaction"; status: "running" | "completed" | "failed" }
-  | { type: "turn_status"; status: "cancelled" | "interrupted" }
-  | { type: "error"; message: string; retryable: boolean }
-  | { type: "noop" };
+  | { type: "turn_status"; status: "cancelled" }
+  | { type: "error"; message: string; retryable: boolean };
 
 export type AssistantSessionEvent =
   | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
@@ -221,7 +204,8 @@ export function safeAssistantUrl(
   if (relative && raw.startsWith("/") && !raw.startsWith("//")) return raw;
   try {
     const url = new URL(raw);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username && !url.password ? url.href : null;
   } catch { return null; }
 }
 const safeUrl = z.string().max(FIELD_TEXT_LIMIT).transform((value) => safeAssistantUrl(value));
@@ -230,28 +214,16 @@ const sourceSchema = z.strictObject({
   provider: shortText.default(""), jurisdiction: shortText.default(""), citation: idText,
   name: shortText.nullish().transform((value) => value || null),
   dataset: shortText.default(""), url: safeUrl.nullish().transform((value) => value ?? null),
-  clusterId: safeInteger.optional(), locator: shortText.optional(), quote: fieldText.optional(),
+  locator: shortText.optional(), quote: fieldText.optional(),
 });
-const activityItemSchema = z.strictObject({
-  label: idText, detail: fieldText.optional(), url: safeUrl.nullish(), error: z.boolean().optional(),
-});
-const activityActionSchema = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("document"), filename: idText }),
-  z.strictObject({ type: z.literal("reader"), readerId: idText }),
-  z.strictObject({ type: z.literal("workflow"), workflowId: idText }),
-]);
 const activityFields = {
   id: idText, tool: idText, label: idText, status: statusSchema,
-  detail: fieldText.optional(), markdown: longText.optional(),
-  items: z.array(activityItemSchema).max(COLLECTION_LIMIT).optional(),
-  source: sourceSchema.optional(), sources: z.array(sourceSchema).max(ASSISTANT_LIMITS.citations).optional(),
-  action: activityActionSchema.optional(),
+  source: sourceSchema.optional(),
 };
 const activitySchema = z.strictObject(activityFields);
 const editAnnotationSchema = z.strictObject({
-  type: z.literal("edit_data").optional(), kind: z.literal("edit").optional(),
   edit_id: idText, document_id: idText, version_id: idText,
-  version_number: safeInteger.optional(), change_id: idText,
+  version_number: safeInteger.nullish(),
   del_w_id: shortText.optional(), ins_w_id: shortText.optional(),
   deleted_text: fieldText.default(""), inserted_text: fieldText.default(""),
   context_before: fieldText.optional(), context_after: fieldText.optional(), reason: fieldText.optional(),
@@ -273,40 +245,31 @@ const locatorFields = {
 const citationQuote = z.strictObject({ quote: fieldText });
 const citationSchema = z.union([
   z.strictObject({
-    type: z.literal("citation_data"), kind: z.literal("case"), ref: safeInteger,
-    cluster_id: safeInteger, case_name: shortText.nullish(), citation: shortText.nullish(),
-    url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), dateFiled: shortText.nullish(),
-    quotes: z.array(z.strictObject({
-      opinionId: safeInteger.nullish(), type: shortText.nullish(),
-      author: shortText.nullish(), quote: fieldText,
-    })).max(32).default([]), ...locatorFields,
-  }),
-  z.strictObject({
-    type: z.literal("citation_data"), kind: z.literal("a2aj"), ref: safeInteger,
+    kind: z.literal("a2aj"), ref: safeInteger,
     citation: shortText.nullish(), name: shortText.nullish(), dataset: shortText.nullish(),
     url: safeUrl.nullish(), quotes: z.array(citationQuote).max(32).default([]), ...locatorFields,
   }),
   z.strictObject({
-    type: z.literal("citation_data"), kind: z.literal("public_legal"), ref: safeInteger,
+    kind: z.literal("public_legal"), ref: safeInteger,
     provider: z.enum(["tna", "govuk-et", "govinfo", "journal"]), identifier: idText,
     title: shortText.nullish(), citation: shortText.nullish(), url: safeUrl.nullish(),
     quotes: z.array(citationQuote).max(32).default([]), ...locatorFields,
   }),
   z.strictObject({
-    type: z.literal("citation_data"), kind: z.literal("tabular"), ref: safeInteger,
+    kind: z.literal("tabular"), ref: safeInteger,
     review_id: idText, col_index: safeInteger, row_index: safeInteger,
     col_name: shortText.default(""), doc_name: shortText.default(""),
     quotes: z.array(citationQuote).max(32).default([]), ...displayFields,
   }),
   z.strictObject({
-    type: z.literal("citation_data"), kind: z.literal("document").optional(), ref: safeInteger,
+    kind: z.literal("document"), ref: safeInteger,
     document_id: idText, filename: idText,
     version_id: shortText.optional(), version_number: safeInteger.optional(), url: safeUrl.optional(),
     quotes: z.array(z.strictObject({
       page: z.union([z.number().finite(), shortText]).optional(),
       quote: fieldText, sheet: shortText.optional(), cell: shortText.optional(),
     })).max(32).default([]), ...locatorFields,
-  }).transform((row) => ({ ...row, kind: "document" as const })),
+  }),
 ]).transform((citation) => citation as Citation);
 const citationListSchema = z.preprocess(
   (value) => Array.isArray(value) ? value.slice(0, ASSISTANT_LIMITS.citations) : value,
@@ -324,13 +287,10 @@ const askItemSchema = z.union([
   z.strictObject({
     id: idText, kind: z.literal("choice"), question: fieldText,
     options: z.array(z.strictObject({ value: idText })).min(1).max(32),
-    allow_other: z.boolean().optional(), other_label: shortText.optional(),
-    response_prefix: shortText.optional(),
-  }).transform((row) => ({ ...row, allow_other: true,
-    other_label: row.other_label || "Write your own answer" })),
+  }),
   z.strictObject({
     id: idText, kind: z.literal("documents"),
-    document_types: z.array(shortText).max(32).default([]), response_prefix: shortText.optional(),
+    document_types: z.array(shortText).max(32).default([]),
   }),
 ]);
 const askEventSchema = z.strictObject({
@@ -340,14 +300,14 @@ const askResponseSchema = z.strictObject({
   type: z.literal("ask_inputs_response"),
   responses: z.array(z.union([
     z.strictObject({
-      id: idText, kind: z.literal("choice"), question: shortText.default(""),
-      answer: fieldText.optional(), skipped: z.boolean().optional(),
+      id: idText, kind: z.literal("choice"),
+      answer: fieldText.optional(),
     }),
     z.strictObject({
-      id: idText, kind: z.literal("documents"), filenames: z.array(shortText).max(32).default([]),
+      id: idText, kind: z.literal("documents"),
       documents: z.array(z.strictObject({
         document_id: idText, filename: idText,
-      })).max(32).optional(), skipped: z.boolean().optional(),
+      })).max(32).default([]),
     }),
   ])).max(32),
 });
@@ -358,29 +318,21 @@ const automationSchema = z.strictObject({
   progress: z.number().finite().min(0).max(100).optional(), message: fieldText.optional(),
   counts: z.array(z.strictObject({ label: idText, value: z.number().finite() })).max(32).optional(),
   outputs: z.array(z.strictObject({ name: idText, url: validUrl.optional() })).max(32).optional(),
-  app_url: validUrl.optional(), job_id: shortText.optional(), document_id: shortText.optional(),
-  version_id: shortText.optional(), version_number: safeInteger.nullish(), error: shortText.optional(),
+  app_url: validUrl.optional(), job_id: shortText.optional(),
+  version_number: safeInteger.nullish(), error: shortText.optional(),
 }).transform((row): AutomationRunEvent => ({
   ...row, id: row.id || row.tool + ":" + (row.job_id || "run"),
   ...(row.error && { error: "Automation failed." }),
 }));
 const readerSchema = z.strictObject({
   type: z.literal("subagent_run"), id: idText,
-  agent: z.enum(["scout", "planner", "reviewer", "native"]),
-  task: longText, model: shortText, effort: shortText, status: statusSchema,
+  task: longText, status: statusSchema,
   activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
-  output: longText.optional(), error: fieldText.optional(),
+  output: longText.optional(),
   sources: z.array(sourceSchema).max(ASSISTANT_LIMITS.citations).default([]),
-  grounding: z.strictObject({
-    status: z.string().max(32), evidence: z.array(z.unknown()).max(COLLECTION_LIMIT),
-  }).optional(),
-}).transform(({ grounding, type: _type, ...row }): AssistantReaderRun => ({
-  ...row, ...(row.status === "error" && { error: "Reading agent failed." }),
-  verifiedPassages: grounding?.status === "passed" ? grounding.evidence.length : 0,
-}));
+}).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 
-const noop = (type: string) => z.strictObject({ type: z.literal(type) })
-  .transform((): ProtocolEvent => ({ type: "noop" }));
+const marker = (type: string) => z.strictObject({ type: z.literal(type) });
 const textEvent = (type: "content_delta" | "content") =>
   z.strictObject({ type: z.literal(type), text: type === "content_delta"
     ? z.string().max(65_536) : longText })
@@ -397,7 +349,6 @@ const documentArtifactSchema = z.strictObject({
   version_id: idText,
   version_number: safeInteger.nullable(),
   download_url: relativeUrl,
-  resource: boundedEvent.optional(),
   edit_mode: z.enum(["manual", "auto"]).optional(),
   annotations: z.array(editAnnotationSchema).max(256).optional(),
 }).transform((row): ProtocolEvent => ({
@@ -414,31 +365,6 @@ const documentArtifactSchema = z.strictObject({
     annotations: row.annotations ?? [],
   },
 }));
-const caseCitationSchema = z.strictObject({
-  type: z.literal("case_citation"), cluster_id: safeInteger.nullish(),
-  case_name: shortText.nullish(), citation: shortText.nullish(),
-  url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), dateFiled: shortText.nullish(),
-}).transform((row): ProtocolEvent => ({ type: "case_citation", event: {
-  ...row, cluster_id: row.cluster_id ?? null, case_name: row.case_name ?? null,
-  citation: row.citation ?? null, url: row.url ?? "", dateFiled: row.dateFiled ?? null,
-}}));
-const opinionSchema = z.strictObject({
-  opinionId: safeInteger.nullish(), apiUrl: safeUrl.nullish(), type: shortText.nullish(),
-  author: shortText.nullish(), url: safeUrl.nullish(), text: longText.nullish(),
-});
-const caseOpinionsSchema = z.strictObject({
-  type: z.literal("case_opinions"), cluster_id: safeInteger,
-  case: z.strictObject({
-    id: safeInteger.nullish(), caseName: shortText.nullish(), dateFiled: shortText.nullish(),
-    citations: z.array(shortText).max(COLLECTION_LIMIT).optional(),
-    url: safeUrl.nullish(), pdfUrl: safeUrl.nullish(), opinions: z.array(opinionSchema).max(64),
-  }),
-}).transform((row): ProtocolEvent => ({ type: "case_opinions", event: {
-  ...row, case: { ...row.case, id: row.case.id ?? null,
-    opinions: row.case.opinions.map((opinion) => ({ ...opinion,
-      opinionId: opinion.opinionId ?? null, type: opinion.type ?? null,
-      author: opinion.author ?? null, url: opinion.url ?? null })) },
-}}));
 const protocolSchemas = [
   z.strictObject({ type: z.literal("chat_id"), chatId: idText,
     transcriptVersion: safeInteger.optional() })
@@ -450,29 +376,23 @@ const protocolSchemas = [
   z.strictObject({ type: z.enum(["content_snapshot", "content_final"]), text: longText })
     .transform((row): ProtocolEvent => ({ type: "content_snapshot", text: row.text,
       final: row.type === "content_final" })),
-  noop("content_reset").transform(() => ({ type: "content_reset" as const })),
-  noop("content_block_end").transform(() => ({ type: "content_end" as const })),
-  noop("content_done"),
+  marker("content_reset").transform(() => ({ type: "content_reset" as const })),
+  marker("content_block_end").transform(() => ({ type: "content_end" as const })),
   z.strictObject({ type: z.literal("reasoning_delta"), text: z.string().max(65_536) })
     .transform((row): ProtocolEvent => ({ type: "reasoning", text: row.text, append: true })),
-  noop("reasoning_block_end").transform(() => ({ type: "reasoning" as const,
+  marker("reasoning_block_end").transform(() => ({ type: "reasoning" as const,
     text: "", append: false, done: true })),
-  z.strictObject({ type: z.literal("reasoning"), text: fieldText })
-    .transform((row): ProtocolEvent => ({ type: "reasoning", text: row.text,
-      append: false, done: true })),
-  ...["thinking", "mcp_tool_start", "mcp_tool_result", "mcp_tool_call",
-    "legal_evidence_receipt", "context_checkpoint"].map(noop),
   z.strictObject({ type: z.literal("error"), message: fieldText, retryable: z.boolean().optional() })
     .transform((row): ProtocolEvent => row.message.trim() === "Cancelled by user."
       ? { type: "turn_status", status: "cancelled" }
       : { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: row.retryable !== false }),
   z.strictObject({ type: z.literal("turn_status"),
-    status: z.enum(["cancelled", "interrupted"]) }).transform((row): ProtocolEvent => row),
+    status: z.literal("cancelled") }).transform((row): ProtocolEvent => row),
   z.strictObject({ type: z.literal("steering"), id: idText, text: fieldText })
     .transform((row): ProtocolEvent => row),
-  z.strictObject({ type: z.literal("citations"),
-    status: z.enum(["started", "partial", "final"]).default("final"), citations: z.unknown() })
-    .transform((row): ProtocolEvent => ({ ...row, citations: parseAssistantCitations(row.citations) })),
+  z.strictObject({ type: z.literal("citations"), citations: z.unknown() })
+    .transform((row): ProtocolEvent => ({ type: "citations",
+      citations: parseAssistantCitations(row.citations) })),
   askEventSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs", event })),
   askResponseSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs_response", event })),
   z.strictObject({ type: z.literal("tool_activity"), ...activityFields })
@@ -485,14 +405,7 @@ const protocolSchemas = [
       usedTokens: row.used_tokens, windowTokens: row.window_tokens })),
   z.strictObject({ type: z.literal("compaction"),
     status: z.enum(["running", "completed", "failed"]) }).transform((row): ProtocolEvent => row),
-  z.strictObject({ type: z.literal("workflow_applied"), workflow_id: idText, title: idText })
-    .transform((row): ProtocolEvent => ({ type: "activity", activity: {
-      id: "workflow:" + row.workflow_id, tool: "workflow_applied",
-      label: "Applied " + row.title, status: "completed",
-      action: { type: "workflow", workflowId: row.workflow_id },
-    }})),
   documentArtifactSchema,
-  caseCitationSchema, caseOpinionsSchema,
 ];
 const protocolSchema = boundedEvent.pipe(z.union(protocolSchemas as [
   (typeof protocolSchemas)[number], (typeof protocolSchemas)[number],
@@ -512,19 +425,15 @@ function cleanValue(value: unknown, limit = SHORT_TEXT_LIMIT): string {
 }
 
 function emptyAssistant(id: string, turnId?: string): AssistantMessageState {
-  return { id, role: "assistant", blocks: [], activities: [], automations: [], artifacts: [], citations: [], caseCitations: [], caseOpinions: [], contextCompacted: false, contentOpen: false, ...(turnId && { turnId }) };
-}
-
-function sanitizeFiles(value: Message["files"]) {
-  return (value ?? []).slice(0, 64).flatMap((file) => {
-    const filename = cleanValue(file?.filename);
-    const documentId = cleanValue(file.document_id);
-    return filename ? [{ filename, ...(documentId && { document_id: documentId }) }] : [];
-  });
+  return { id, role: "assistant", blocks: [], activities: [], automations: [], artifacts: [], citations: [], contextCompacted: false, contentOpen: false, ...(turnId && { turnId }) };
 }
 
 function userMessage(message: Message, fallbackId: string): UserMessageState {
-  const files = sanitizeFiles(message.files);
+  const files = (message.files ?? []).slice(0, 64).flatMap((file) => {
+    const filename = cleanValue(file?.filename);
+    const documentId = cleanValue(file.document_id);
+    return filename && documentId ? [{ filename, document_id: documentId }] : [];
+  });
   const workflowId = cleanValue(message.workflow?.id);
   const workflowTitle = cleanValue(message.workflow?.title);
   const workflow = workflowId && workflowTitle ? { id: workflowId, title: workflowTitle } : undefined;
@@ -606,7 +515,6 @@ function interrupt(state: AssistantSessionState, status: "cancelled" | "interrup
 }
 
 function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): AssistantSessionState {
-  if (event.type === "noop") return state;
   if (event.type === "chat_id") return { ...state, chatId: event.chatId, transcriptVersion: event.transcriptVersion ?? state.transcriptVersion, run: state.run ? { ...state.run, chatId: event.chatId } : null };
   if (event.type === "transcript_version") return { ...state, transcriptVersion: event.transcriptVersion };
   if (event.type === "context_usage") return { ...state, contextUsage: { usedTokens: event.usedTokens, windowTokens: event.windowTokens } };
@@ -662,7 +570,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       label: event.reader.status === "running" ? `Waiting for reading agent: ${task}` : event.reader.status === "error" ? "Reading agent failed" : event.reader.status === "interrupted" ? `Reading agent interrupted: ${task}` : `Reading agent completed: ${task}`,
       status: event.reader.status,
       ...(event.reader.output && { markdown: event.reader.output, sources: event.reader.sources }),
-      ...(event.reader.verifiedPassages && { detail: `${event.reader.verifiedPassages} verified passage${event.reader.verifiedPassages === 1 ? "" : "s"}` }),
+      ...(event.reader.sources.length && { detail: `${event.reader.sources.length} verified passage${event.reader.sources.length === 1 ? "" : "s"}` }),
       action: { type: "reader", readerId: event.reader.id },
     };
     const next = updateAssistant(state, (message) => ({ ...message, contentOpen: false, activities: upsertById(message.activities.filter((entry) => entry.tool !== "reasoning"), activity, ASSISTANT_LIMITS.activities) }));
@@ -685,7 +593,9 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       const responses = new Map(event.event.responses.map((response) => [response.id, response]));
       const items = (pending?.event.items ?? []).map((item, index) => {
         const answer = responses.get(item.id);
-        const detail = !answer ? undefined : answer.skipped ? "Skipped" : answer.kind === "choice" ? answer.answer : answer.filenames.join(", ") || "No documents attached";
+        const detail = !answer ? undefined : answer.kind === "choice"
+          ? answer.answer || "Skipped"
+          : answer.documents.map(({ filename }) => filename).join(", ") || "Skipped";
         return { label: `${index + 1}. ${item.kind === "choice" ? item.question : item.document_types.join(", ") || "Documents requested"}`, ...(detail && { detail }) };
       });
       return { ...message, activities: upsertById(message.activities, { ...activity, label: "Asked for input", status: "completed", items }, ASSISTANT_LIMITS.activities) };
@@ -697,14 +607,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
     const blocks = [...message.blocks, { id: `steering:${event.id}`, role: "user" as const, text: event.text }].slice(-ASSISTANT_LIMITS.blocks);
     return { ...message, blocks, contentOpen: false };
   });
-  if (event.type === "citations") return updateAssistant(state, (message) => ({ ...message, citations: event.citations, citationStatus: event.citations.length || event.status !== "final" ? event.status : undefined }));
-  if (event.type === "case_citation") return updateAssistant(state, (message) => {
-    const caseCitations = [...message.caseCitations.filter((item) => item.cluster_id !== event.event.cluster_id), event.event].slice(-ASSISTANT_LIMITS.citations);
-    const verify = message.activities.find((activity) => activity.id === "case-verify");
-    const label = [event.event.case_name, event.event.citation].filter(Boolean).join(", ") || "Unknown case";
-    return { ...message, caseCitations, activities: verify ? upsertById(message.activities, { ...verify, items: [...(verify.items ?? []), { label, url: event.event.url || null }].slice(-ASSISTANT_LIMITS.citations) }, ASSISTANT_LIMITS.activities) : message.activities };
-  });
-  if (event.type === "case_opinions") return updateAssistant(state, (message) => ({ ...message, caseOpinions: [...message.caseOpinions.filter((item) => item.cluster_id !== event.event.cluster_id), event.event].slice(-ASSISTANT_LIMITS.citations) }));
+  if (event.type === "citations") return updateAssistant(state, (message) => ({ ...message, citations: event.citations }));
   if (event.type === "error") return updateAssistant(state, (message) => ({ ...message, contentOpen: false, error: event.message }));
   return state;
 }
@@ -724,7 +627,7 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
       if (parsed.ok) next = applyProtocol(next, parsed.event);
     }
     const citations = parseAssistantCitations(message.citations);
-    if (citations.length) next = applyProtocol(next, { type: "citations", citations, status: "final" });
+    if (citations.length) next = applyProtocol(next, { type: "citations", citations });
     if (!rawEvents.length && typeof message.content === "string" && message.content) next = applyProtocol(next, { type: "content_snapshot", text: textValue(message.content, ASSISTANT_LIMITS.text), final: true });
     next = updateAssistant(next, (current) => current.id === assistant.id ? { ...current, turnComplete: message.turn_complete } : current);
   });

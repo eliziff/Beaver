@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -9,13 +10,12 @@ import {
   type ProjectScope,
   type ProjectStore,
 } from "../lib/projectStore";
-import { encodePageCursor, pageRequest } from "../lib/pagination";
+import { pageRequest, pageResponse } from "../lib/pagination";
 import { singleFileUpload } from "../lib/upload";
+import { isJsonRecord, jsonRecord } from "../lib/value";
 
 const bodyOf = (req: Request): Record<string, unknown> =>
-  req.body && typeof req.body === "object" && !Array.isArray(req.body)
-    ? req.body as Record<string, unknown>
-    : {};
+  jsonRecord(req.body) ?? {};
 
 function requiredText(value: unknown, name: string, max: number) {
   if (typeof value !== "string" || !value.trim()) {
@@ -42,13 +42,22 @@ function nullableId(value: unknown, name: string) {
   return reject(400, `${name} must be a string or null`);
 }
 
+function projectMetadata(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null) return {};
+  if (!isJsonRecord(value) ||
+      Buffer.byteLength(JSON.stringify(value)) > 64 * 1024) {
+    return reject(400, "metadata must be an object no larger than 64 KB");
+  }
+  return value;
+}
+
 function sharing(value: unknown, ownEmail?: string) {
-  if (!Array.isArray(value)) return reject(400, "shared_with must be an array");
+  const parsed = z.array(z.string().trim().toLowerCase().email().max(320))
+    .max(100).safeParse(value);
+  if (!parsed.success) return reject(400, "shared_with must contain at most 100 email addresses");
   const own = ownEmail?.trim().toLowerCase();
-  const emails = [...new Set<string>(value.flatMap((item: unknown) => {
-    const email = typeof item === "string" ? item.trim().toLowerCase() : "";
-    return email ? [email] : [];
-  }))];
+  const emails = [...new Set(parsed.data)];
   if (own && emails.includes(own)) {
     reject(400, "You cannot share a project with yourself.");
   }
@@ -81,26 +90,18 @@ export function createProjectsRouter(
     const { after, limit } = pageRequest<[string, string]>(
       req.query, "projects", filters, ["string", "string"]);
     const page = await store.page(scope, { q, scope: filter, limit, after });
-    res.json({
-      items: page.items,
-      next_cursor: page.nextAfter
-        ? encodePageCursor("projects", filters, page.nextAfter) : null,
-    });
+    res.json(pageResponse("projects", filters, page));
   }));
 
   router.post("/", route(async (req, res, scope) => {
     const body = bodyOf(req);
-    const metadata = body.metadata;
-    if (metadata != null && (typeof metadata !== "object" || Array.isArray(metadata))) {
-      reject(400, "metadata must be an object or null");
-    }
     res.status(201).json(await store.create(scope, {
       name: requiredText(body.name, "name", 120),
       cmNumber: optionalText(body.cm_number, "cm_number", 200),
       practice: optionalText(body.practice, "practice", 200),
       sharedWith: body.shared_with === undefined
         ? [] : sharing(body.shared_with, scope.userEmail),
-      metadata: metadata == null ? undefined : metadata as Record<string, unknown>,
+      metadata: projectMetadata(body.metadata),
       notes: optionalText(body.notes, "notes", 500),
     }));
   }));
@@ -117,11 +118,7 @@ export function createProjectsRouter(
     const page = await store.directory(scope, projectId, {
       q, parentFolderId: filters.parent_id, limit, after,
     });
-    res.json({
-      items: page.items,
-      next_cursor: page.nextAfter
-        ? encodePageCursor("project-directory", filters, page.nextAfter) : null,
-    });
+    res.json(pageResponse("project-directory", filters, page));
   }));
 
   router.get("/:projectId", route(async (req, res, scope) => {
@@ -152,12 +149,7 @@ export function createProjectsRouter(
       update.sharedWith = sharing(body.shared_with, scope.userEmail);
     }
     if (Object.hasOwn(body, "metadata")) {
-      if (body.metadata != null &&
-          (typeof body.metadata !== "object" || Array.isArray(body.metadata))) {
-        reject(400, "metadata must be an object or null");
-      }
-      update.metadata = body.metadata == null
-        ? {} : body.metadata as Record<string, unknown>;
+      update.metadata = projectMetadata(body.metadata) ?? {};
     }
     if (Object.hasOwn(body, "notes")) {
       update.notes = optionalText(body.notes, "notes", 500);

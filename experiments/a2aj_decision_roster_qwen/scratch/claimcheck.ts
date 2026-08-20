@@ -4,13 +4,15 @@ import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
-import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
 } from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 import type { Claims } from "../seedtypes";
 
+async function main() {
 const rows = readFileSync(path.join(__dirname, "..", "seeds", "1.SCC.jsonl"), "utf8")
   .split(/\r?\n/u)
   .filter((line) => line.trim())
@@ -24,7 +26,7 @@ for (const row of rows) {
     .prepare("SELECT unofficial_text_en, citation_en, citation2_en, url_en, dataset, name_en FROM document WHERE id = ?")
     .get(row.documentId) as Record<string, unknown>;
   const text = String(dbRow.unofficial_text_en);
-  const source = compileA2AJSourceDoc({
+  const source = await deriveA2AJSourceDoc({
     citation: String(dbRow.citation_en ?? dbRow.citation2_en ?? ""),
     docType: "cases",
     text,
@@ -71,3 +73,15 @@ for (const row of rows) {
 }
 db.close();
 console.log(`claims same=${claimsSame} diff=${claimsDiff}`);
+}
+
+void (async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  } finally {
+    await shutdownSourceStructureEngine();
+  }
+})();

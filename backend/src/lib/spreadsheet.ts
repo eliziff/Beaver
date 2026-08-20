@@ -21,18 +21,12 @@ export interface SpreadsheetLlmStructure {
 // the boot graph and off every request that never touches a spreadsheet.
 type XlsxModule = typeof import("xlsx");
 let xlsxModule: Promise<XlsxModule> | null = null;
-function loadXlsx(): Promise<XlsxModule> {
-  return (xlsxModule ??= import("xlsx"));
-}
+const MAX_SHEETS = 256, MAX_CELLS = 500_000, MAX_MERGE_CHECKS = 10_000_000;
 
-function cellDisplayText(cell: XLSX.CellObject | undefined): string {
+function cellText(cell: XLSX.CellObject | undefined): string {
   if (!cell) return "";
-  if (typeof cell.w === "string" && cell.w.length > 0) return cell.w;
-  if (cell.v == null) return "";
-  return String(cell.v);
-}
-
-function sanitizeCellText(value: string): string {
+  const value = typeof cell.w === "string" && cell.w.length > 0 ? cell.w
+    : cell.v == null ? "" : String(cell.v);
   return value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
 }
 
@@ -93,7 +87,7 @@ function renderSheet(
         column <= merge.endColumn,
     );
     if (isCovered) continue;
-    const value = sanitizeCellText(cellDisplayText(ws[address]));
+    const value = cellText(ws[address]);
     const merge = mergeAnchors.get(address);
     const text = merge
       ? value
@@ -162,8 +156,20 @@ function renderSheet(
 export async function spreadsheetToLLMStructure(
   buffer: Buffer,
 ): Promise<SpreadsheetLlmStructure> {
-  const xlsx = await loadXlsx();
+  const xlsx = await (xlsxModule ??= import("xlsx"));
   const workbook = xlsx.read(buffer, { type: "buffer" });
+  if (workbook.SheetNames.length > MAX_SHEETS)
+    throw new Error("Spreadsheet contains too many sheets");
+  let cells = 0;
+  for (const name of workbook.SheetNames) {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) continue;
+    const populated = Object.keys(sheet).filter((key) => !key.startsWith("!")).length;
+    const merges = sheet["!merges"]?.length ?? 0;
+    cells += populated + merges;
+    if (cells > MAX_CELLS || (populated + merges) * merges > MAX_MERGE_CHECKS)
+      throw new Error("Spreadsheet is too complex to render safely");
+  }
   const sheets: RenderedSheet[] = [];
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
@@ -187,8 +193,4 @@ export async function spreadsheetToLLMStructure(
     );
   }
   return { text: text.trim(), tableCells };
-}
-
-export async function spreadsheetToLLMText(buffer: Buffer): Promise<string> {
-  return (await spreadsheetToLLMStructure(buffer)).text;
 }

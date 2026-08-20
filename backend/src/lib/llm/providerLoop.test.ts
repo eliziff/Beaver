@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { runProviderLoop, type ProviderAdapter, type ProviderEvent } from "./providerLoop";
+import { MAX_PROVIDER_STREAM_BYTES, MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
+  runProviderLoop, type ProviderAdapter, type ProviderEvent } from "./providerLoop";
 import type { NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 const tool = (name: string): Tool => ({
@@ -35,6 +36,30 @@ describe("provider loop", () => {
     }), adapter(steps));
     expect(steps).toHaveBeenCalledOnce();
     expect(result.contextRounds?.[0]).toMatchObject({ toolCallCount: 1, toolResultBytes: 8 });
+  });
+
+  it("bounds a provider that never stops requesting tools", async () => {
+    const steps = vi.fn((step: Parameters<ProviderAdapter["events"]>[0]) => [
+      { type: "tool_call", call: { id: String(step.iteration), name: "again", input: {} } } as const,
+      done,
+    ]);
+    const result = await runProviderLoop(params({
+      tools: [tool("again")],
+      runTools: async ([call]) => [{ tool_use_id: call.id, content: "continue" }],
+    }), adapter(steps));
+    expect(steps).toHaveBeenCalledTimes(32);
+    expect(result.contextRounds).toHaveLength(32);
+  });
+
+  it("rejects oversized provider output and tool arguments", async () => {
+    await expect(runProviderLoop(params(), adapter(() => [
+      { type: "text_delta", text: "x".repeat(MAX_PROVIDER_STREAM_BYTES + 1) }, done,
+    ]))).rejects.toThrow("output limit");
+    await expect(runProviderLoop(params(), adapter(() => [
+      { type: "tool_call", call: {
+        id: "1", name: "oversized", input: { value: "x".repeat(MAX_PROVIDER_TOOL_ARGUMENT_BYTES) },
+      } }, done,
+    ]))).rejects.toThrow("input limit");
   });
 
   it("drains steering only at a completed provider boundary", async () => {

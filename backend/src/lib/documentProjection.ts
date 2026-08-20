@@ -15,7 +15,7 @@ import {
 import { mikeLocalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
 
-export const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
+const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
 
 const writes = new Map<string, Promise<void>>();
 const dataRoot = () => path.resolve(mikeLocalDataHome());
@@ -50,10 +50,6 @@ export function pdfContentPath(sourceSha256: string) {
   );
 }
 
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
-}
-
 export async function inspectPdf(filename: string, options?: {
   expectedSha256?: string;
   signal?: AbortSignal;
@@ -61,7 +57,7 @@ export async function inspectPdf(filename: string, options?: {
 }) {
   const source = localDataPath(filename);
   const maximum = options?.maximumBytes ?? MAX_PROJECTION_PDF_BYTES;
-  throwIfAborted(options?.signal);
+  options?.signal?.throwIfAborted();
   const details = await stat(source);
   if (!details.isFile() || details.size <= 0 || details.size > maximum)
     throw new Error("PDF input is empty or exceeds the size limit");
@@ -89,7 +85,7 @@ export async function inspectPdf(filename: string, options?: {
 
 async function atomicWriteNow(filename: string, value: string | Buffer, signal?: AbortSignal) {
   const destination = localDataPath(filename);
-  throwIfAborted(signal);
+  signal?.throwIfAborted();
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
   try {
@@ -108,7 +104,7 @@ async function atomicWriteNow(filename: string, value: string | Buffer, signal?:
         }
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(delay * 2, 100);
-        throwIfAborted(signal);
+        signal?.throwIfAborted();
       }
     }
   } finally {
@@ -165,7 +161,7 @@ export async function withProjectionLock<T>(
   const deadline = Date.now() + 35_000;
   await mkdir(path.dirname(lock), { recursive: true });
   for (;;) {
-    throwIfAborted(signal);
+    signal?.throwIfAborted();
     try {
       await mkdir(lock);
       await writeFile(path.join(lock, "owner.json"), JSON.stringify({ token, touched_at: Date.now() }));
@@ -207,7 +203,7 @@ export async function withProjectionLock<T>(
   }
 }
 
-export async function publishPdfContent(
+async function publishPdfContent(
   source: string,
   expectedSha256: string,
   signal?: AbortSignal,
@@ -220,7 +216,7 @@ export async function publishPdfContent(
     const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
     try {
       await copyFile(source, temporary);
-      throwIfAborted(signal);
+      signal?.throwIfAborted();
       await inspectPdf(temporary, { expectedSha256, signal });
       await rename(temporary, destination);
     } finally {
@@ -265,7 +261,7 @@ export async function publishPdfStream(
   let complete = false;
   try {
     for (;;) {
-      throwIfAborted(signal);
+      signal?.throwIfAborted();
       const { done, value } = await reader.read();
       if (done) {
         complete = true;

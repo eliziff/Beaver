@@ -4,7 +4,7 @@ import request from "supertest";
 // requireAuth reads SUPABASE_URL / SUPABASE_SECRET_KEY from process.env at
 // request time (not import time), so setting them here is early enough even
 // though imported modules evaluate before this assignment runs.
-process.env.SUPABASE_URL = "http://supabase.test.local";
+process.env.SUPABASE_URL = "https://supabase.test.local";
 process.env.SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
 process.env.SUPABASE_SECRET_KEY = "test-service-key";
 process.env.AUTH_MODE = "cloud";
@@ -64,11 +64,11 @@ describe("GET /config", () => {
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             mode: "cloud",
-            supabaseUrl: "http://supabase.test.local",
+            supabaseUrl: "https://supabase.test.local",
             supabasePublishableKey: "test-publishable-key",
         });
         expect(JSON.stringify(res.body)).not.toContain("test-service-key");
-        expect(res.headers["cache-control"]).toBe("no-store");
+        expect(res.headers["cache-control"]?.split(",").map((value) => value.trim())).toContain("no-store");
     });
 });
 

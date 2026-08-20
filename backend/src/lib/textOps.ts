@@ -61,16 +61,6 @@ const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
 // Case family (Word's Change Case menu + conventional title case)
 // ---------------------------------------------------------------------------
 
-const toggleCase = (text: string) =>
-  [...text]
-    .map((ch) => {
-      const up = ch.toUpperCase();
-      const low = ch.toLowerCase();
-      if (up === low) return ch;
-      return ch === up ? low : up;
-    })
-    .join("");
-
 /** First letter of every word upper, rest of the word lower (Word behavior). */
 function capitalizeEachWord(text: string) {
   let out = "";
@@ -314,12 +304,6 @@ function curlQuotes(text: string): TextOpResult {
   return { text: out.join(""), notes };
 }
 
-/** Runs of 2+ spaces collapse to one, except leading line indentation. */
-const collapseDoubleSpaces = (text: string) =>
-  text.replace(/(^ *)|( {2,})/gm, (_, indent: string | undefined) =>
-    indent !== undefined ? indent : " ",
-  );
-
 function normalizeDashes(text: string): TextOpResult {
   const notes: TextOpNote[] = [];
   const withRanges = text.replace(
@@ -345,13 +329,6 @@ function normalizeEllipses(text: string, params: TextOpParams) {
   }
   return text.replace(/(?<!\.)\.{3}(?!\.)/gu, "…");
 }
-
-/** Ordinary space between s./ss./§/¶ and a following number becomes NBSP. */
-const nonbreakingSectionRefs = (text: string) =>
-  text.replace(/(§§?|¶¶?|\bss?\.) (?=\d)/gu, "$1 ");
-
-const removeTrailingWhitespace = (text: string) =>
-  text.replace(/[ \t]+(?=\n|$)/gu, "");
 
 // ---------------------------------------------------------------------------
 // check_spelling — flag-only dictionary review (never mutates)
@@ -533,23 +510,29 @@ async function checkSpelling(text: string): Promise<TextOpResult> {
 // Registry
 // ---------------------------------------------------------------------------
 
-export const TEXT_OPS: Record<string, OpFn> = {
+const TEXT_OPS: Record<string, OpFn> = {
   uppercase: (text) => text.toUpperCase(),
   lowercase: (text) => text.toLowerCase(),
   sentence_case: sentenceCase,
   capitalize_each_word: capitalizeEachWord,
-  toggle_case: toggleCase,
+  toggle_case: (text) => [...text].map((ch) => {
+    const up = ch.toUpperCase(), low = ch.toLowerCase();
+    return up === low ? ch : ch === up ? low : up;
+  }).join(""),
   title_case: titleCase,
   replace_text: replaceText,
   sentence_spacing: sentenceSpacing,
   check_spelling: checkSpelling,
   straighten_quotes: straightenQuotes,
   curl_quotes: curlQuotes,
-  collapse_double_spaces: collapseDoubleSpaces,
+  collapse_double_spaces: (text) =>
+    text.replace(/(^ *)|( {2,})/gm, (_, indent: string | undefined) =>
+      indent !== undefined ? indent : " "),
   normalize_dashes: normalizeDashes,
   normalize_ellipses: normalizeEllipses,
-  nonbreaking_section_refs: nonbreakingSectionRefs,
-  remove_trailing_whitespace: removeTrailingWhitespace,
+  nonbreaking_section_refs: (text) =>
+    text.replace(/(§§?|¶¶?|\bss?\.) (?=\d)/gu, "$1 "),
+  remove_trailing_whitespace: (text) => text.replace(/[ \t]+(?=\n|$)/gu, ""),
 };
 
 export async function runTextOp(

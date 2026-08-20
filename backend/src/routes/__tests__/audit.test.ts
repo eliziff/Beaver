@@ -23,6 +23,7 @@ describe("audit query helpers", () => {
     expect(csvCell('=HYPERLINK("bad")')).toBe(
       '"\'=HYPERLINK(""bad"")"',
     );
+    expect(csvCell("  =1+1")).toBe("'  =1+1");
     expect(csvCell("ordinary")).toBe("ordinary");
   });
 });

@@ -1,4 +1,5 @@
-import { compileNativeMarkupSourceDoc, lookupLegalSourceDoc } from "../sourceDocNativeMarkup";
+import { lookupLegalSourceDoc } from "../sourceDocNativeMarkup";
+import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -12,6 +13,7 @@ import {
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
 import { sourceDocPassages } from "./sourceDocPassages";
+import { escapeXmlText } from "../text";
 
 const ORIGIN = "https://www.gov.uk";
 const HOST = "www.gov.uk";
@@ -95,11 +97,6 @@ function hiddenMarkup(value: unknown): string {
     : "";
 }
 
-const escapeHtml = (value: string) => value
-  .replace(/&/gu, "&amp;")
-  .replace(/</gu, "&lt;")
-  .replace(/>/gu, "&gt;");
-
 function attachments(value: unknown): RemoteLegalSourceAttachment[] {
   const hosts = [HOST, "assets.publishing.service.gov.uk"];
   return arrayValue(value).flatMap((raw) => {
@@ -142,7 +139,7 @@ async function fetchEmploymentTribunalCase(
   const markup = hiddenHtml
     ? [title, description]
         .filter((value): value is string => Boolean(value))
-        .map((value) => `<p>${escapeHtml(value)}</p>`)
+        .map((value) => `<p>${escapeXmlText(value)}</p>`)
         .join("") + hiddenHtml
     : null;
   return {
@@ -150,12 +147,13 @@ async function fetchEmploymentTribunalCase(
     identity: result.caseNumber,
     title,
     url,
-    structure: compileNativeMarkupSourceDoc({
+    structure: await deriveNativeMarkupSourceDoc({
       provider: "govuk-et",
       id: result.caseNumber,
       url,
       text,
       markup,
+      scope: { kind: "excerpt", excerptOf: result.caseNumber },
     }),
     attachments: attachments(details.attachments),
   };

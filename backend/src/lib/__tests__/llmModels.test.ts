@@ -14,8 +14,10 @@ import {
     OPENAI_LOW_MODELS,
     OPENAI_MAIN_MODELS,
     OPENAI_MID_MODELS,
+    isSupportedModel,
     providerForModel,
     resolveModel,
+    resolveRequestedModel,
 } from "../llm/models";
 import {
     hasNativeCompaction,
@@ -99,6 +101,20 @@ describe("model catalog", () => {
             defaults,
         );
         for (const model of defaults) providerForModel(model);
+    });
+
+    it("fails an explicit unsupported selection before provider routing", () => {
+        expect(resolveRequestedModel(undefined, DEFAULT_MAIN_MODEL)).toBe(
+            DEFAULT_MAIN_MODEL,
+        );
+        expect(resolveRequestedModel("ollama:llama3", DEFAULT_MAIN_MODEL)).toBe(
+            "ollama:llama3",
+        );
+        expect(isSupportedModel("ollama:")).toBe(false);
+        expect(() => resolveRequestedModel(
+            "gpt-3.5-turbo",
+            DEFAULT_MAIN_MODEL,
+        )).toThrow(/Unsupported model id/u);
     });
 
     it("uses native compaction only where the transport can resume it", () => {

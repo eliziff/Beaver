@@ -156,10 +156,6 @@ const describePage = (page: PageSpan): string =>
     ? `PDF page ${page.pdfPage ?? page.ordinal} (printed "${page.printedLabel}")`
     : `PDF page ${page.pdfPage ?? page.ordinal}`;
 
-export function pageLabel(page: PageSpan): string {
-  return describePage(page);
-}
-
 /**
  * Resolve a page request in ONE numbering scheme, chosen by the caller.
  *
@@ -215,70 +211,6 @@ export function resolvePage(
 }
 
 /** Every page overlapping a span — the filter behind a page-scoped search. */
-export function pagesInRange(
-  map: PageMap,
-  from: PageSpan,
-  to: PageSpan,
-): PageSpan[] {
-  const low = Math.min(from.ordinal, to.ordinal);
-  const high = Math.max(from.ordinal, to.ordinal);
-  return map.pages.filter(
-    (page) => page.ordinal >= low && page.ordinal <= high,
-  );
-}
-
-export type PageSelection =
-  | { status: "ok"; pages: PageSpan[] }
-  | { status: "empty" }
-  | { status: "failed"; token: string; lookup: PageLookup };
-
-/**
- * Parse a page scope: "47", "12-18", "3,5,9", "printed:47", or any mix.
- *
- * Ranges are resolved END BY END and then taken by position, so "printed:iv
- * - printed:2" spans the front matter into the body even though neither
- * endpoint is comparable as a number. Every endpoint goes through the same
- * two-scheme resolution as a single page, so an ambiguous endpoint refuses
- * here exactly as it would there rather than quietly picking a reading.
- */
-export function selectPages(
-  map: PageMap,
-  text: string,
-  spec: string,
-): PageSelection {
-  const tokens = spec
-    .split(",")
-    .map((token) => token.trim())
-    .filter(Boolean);
-  if (!tokens.length) return { status: "empty" };
-
-  const chosen = new Map<number, PageSpan>();
-  for (const token of tokens) {
-    // Split on a hyphen that separates two endpoints, not one inside a label
-    // like "A-3": the separator has whitespace, or the token has exactly one
-    // hyphen with digits on both sides.
-    const range =
-      /^(.+?)\s+-\s+(.+)$/u.exec(token) ?? /^(\d{1,6})-(\d{1,6})$/u.exec(token);
-    if (range) {
-      const from = resolvePage(map, text, range[1]);
-      if (from.status !== "found") return { status: "failed", token, lookup: from };
-      const to = resolvePage(map, text, range[2]);
-      if (to.status !== "found") return { status: "failed", token, lookup: to };
-      for (const page of pagesInRange(map, from.page, to.page)) {
-        chosen.set(page.ordinal, page);
-      }
-      continue;
-    }
-    const single = resolvePage(map, text, token);
-    if (single.status !== "found") return { status: "failed", token, lookup: single };
-    chosen.set(single.page.ordinal, single.page);
-  }
-  return {
-    status: "ok",
-    pages: [...chosen.values()].sort((left, right) => left.ordinal - right.ordinal),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Addresses
 // ---------------------------------------------------------------------------

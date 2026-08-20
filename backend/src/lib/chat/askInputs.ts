@@ -21,7 +21,6 @@ export function normalizeAskInputsEvent(
       const id =
         clean(row.id) ||
         `${row.kind === "documents" ? "documents" : "choice"}-${index + 1}`;
-      const responsePrefix = clean(row.response_prefix);
 
       if (row.kind === "documents") {
         const rawTypes = Array.isArray(row.document_types)
@@ -37,9 +36,6 @@ export function normalizeAskInputsEvent(
           id: id.slice(0, 80),
           kind: "documents",
           document_types: documentTypes,
-          ...(responsePrefix
-            ? { response_prefix: responsePrefix.slice(0, 200) }
-            : {}),
         };
       }
 
@@ -59,11 +55,6 @@ export function normalizeAskInputsEvent(
         kind: "choice",
         question: question.slice(0, 500),
         options: options.length ? options : [{ value: "Continue" }],
-        allow_other: true,
-        other_label: "Write your own answer",
-        ...(responsePrefix
-          ? { response_prefix: responsePrefix.slice(0, 200) }
-          : {}),
       };
     })
     .filter((item): item is AskInputItem => {

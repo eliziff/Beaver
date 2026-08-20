@@ -23,26 +23,14 @@ import {
 import {
   CODEX_THREAD_ID,
 } from "../lib/llm/codex";
+import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
+import { safeErrorLog } from "../lib/safeError";
+import { jsonRecord } from "../lib/value";
 
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
-function writeSse(res: Response, payload: unknown) {
-  if (res.destroyed || res.writableEnded) return;
-  res.write(`data: ${JSON.stringify(payload)}\n\n`);
-}
-
-function startSse(res: Response) {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
-}
-
-function parseLimit(raw: unknown) {
-  const limit = Number.parseInt(String(raw ?? ""), 10);
-  return Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20;
-}
-
+const text = (value: unknown, max = 20_000) => {
+  const parsed = typeof value === "string" ? value.trim() : "";
+  return parsed.length <= max ? parsed : "";
+};
 type Handler = (req: Request, res: Response, scope: ChatScope) => Promise<unknown>;
 function route(handler: Handler) {
   return asyncRoute(async (req, res) => {
@@ -63,7 +51,7 @@ function route(handler: Handler) {
           detail: error.message,
         });
       }
-      console.error("[chat] operation failed", error);
+      console.error("[chat] operation failed", safeErrorLog(error));
       if (!res.headersSent) res.status(500).json({ detail: "Chat operation failed" });
       else res.end();
     }
@@ -73,7 +61,7 @@ function route(handler: Handler) {
 function optionalId(value: unknown, label: string) {
   if (value === undefined) return { provided: false, value: null } as const;
   if (value === null) return { provided: true, value: null } as const;
-  const parsed = text(value);
+  const parsed = text(value, 200);
   if (!parsed) throw new ChatApplicationError(400,
     `${label} must be a non-empty string or null`);
   return { provided: true, value: parsed } as const;
@@ -87,10 +75,11 @@ export function createChatRouter(
   router.use(requireAuth);
 
   router.get("/", route(async (req, res, scope) => {
-    const tabularReviewId = text(req.query.tabular_review_id) || undefined;
+    const tabularReviewId = text(req.query.tabular_review_id, 200) || undefined;
+    const limit = Number.parseInt(String(req.query.limit ?? ""), 10);
     res.json(await chats.list(scope, {
       ...(tabularReviewId ? { tabularReviewId } : {}),
-      limit: parseLimit(req.query.limit),
+      limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20,
     }));
   }));
 
@@ -134,7 +123,7 @@ export function createChatRouter(
       return void res.status(404).json({ detail: "Chat not found" });
     }
     const id = text(req.body?.id), instruction = text(req.body?.text);
-    if (!CODEX_THREAD_ID.test(id) || !instruction || instruction.length > 20_000) {
+    if (!CODEX_THREAD_ID.test(id) || !instruction) {
       return void res.status(400).json({ detail: "id and text are required" });
     }
     if (!await steerChatTurn(req.params.chatId, { id, text: instruction })) {
@@ -146,13 +135,12 @@ export function createChatRouter(
   }));
 
   router.post("/:chatId/compact", route(async (req, res, scope) => {
-    const controller = new AbortController();
+    const controller = requestAbortController(req, res);
     let claimedChatId: string | null = null;
-    req.once("aborted", () => controller.abort());
     try {
       res.json(await application.compact(scope, {
         chatId: req.params.chatId,
-        model: text(req.body?.model) || undefined,
+        model: text(req.body?.model, 200) || undefined,
       }, controller.signal, (chatId) => {
         if (!beginChatTurn(chatId, controller)) return false;
         claimedChatId = chatId;
@@ -164,13 +152,13 @@ export function createChatRouter(
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {
-    const body = asObject(req.body);
+    const body = jsonRecord(req.body) ?? {};
     const titleProvided = Object.hasOwn(body, "title");
     const projectProvided = Object.hasOwn(body, "project_id");
     if (!titleProvided && !projectProvided) return void res.status(400).json({
       detail: "title or project_id is required",
     });
-    const title = titleProvided ? text(body.title) : undefined;
+    const title = titleProvided ? text(body.title, 200) : undefined;
     if (titleProvided && !title) return void res.status(400).json({
       detail: "title is required",
     });
@@ -215,10 +203,9 @@ export function createChatRouter(
     if (!parsed.success) return void res.status(400).json({
       detail: parsed.error.issues[0]?.message ?? "Invalid chat turn",
     });
-    const controller = new AbortController();
+    const controller = requestAbortController(req, res);
     let claimedChatId: string | null = null;
     let started = false;
-    req.once("aborted", () => controller.abort());
     const sink: EventSink = {
       claim(chatId) {
         if (!beginChatTurn(chatId, controller)) return false;
@@ -246,7 +233,7 @@ export function createChatRouter(
         });
       }
       if (!res.headersSent) throw error;
-      console.error("[chat] streaming turn failed", error);
+      console.error("[chat] streaming turn failed", safeErrorLog(error));
     } finally {
       if (claimedChatId) {
         if (started && !res.destroyed && !res.writableEnded) {
@@ -261,9 +248,4 @@ export function createChatRouter(
   }));
 
   return router;
-}
-
-function asObject(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : {};
 }

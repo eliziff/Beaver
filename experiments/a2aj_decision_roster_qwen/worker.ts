@@ -9,7 +9,7 @@
 
 import { parentPort } from "node:worker_threads";
 import { createHash } from "node:crypto";
-import { compileA2AJSourceDoc } from "../../backend/src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocA2AJ";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -110,8 +110,8 @@ function buildOpinions(
   return opinions;
 }
 
-function processJob(job: WorkerJob): WorkerResult {
-  const source = compileA2AJSourceDoc({
+async function processJob(job: WorkerJob): Promise<WorkerResult> {
+  const source = await deriveA2AJSourceDoc({
     citation: job.citation,
     docType: "cases",
     text: job.text,
@@ -191,9 +191,9 @@ function processJob(job: WorkerJob): WorkerResult {
   };
 }
 
-parentPort!.on("message", (batch: WorkerJob[] | null) => {
+parentPort!.on("message", async (batch: WorkerJob[] | null) => {
   if (!batch) {
     process.exit(0);
   }
-  parentPort!.postMessage(batch.map(processJob));
+  parentPort!.postMessage(await Promise.all(batch.map(processJob)));
 });

@@ -15,8 +15,8 @@ const AGREEMENT = [
 ].join("\n\n");
 
 describe("experimental weak edges", () => {
-  it("points a unique defined-term use to its definition", () => {
-    const skeleton = compileAgreementSkeleton(AGREEMENT, "fixture");
+  it("points a unique defined-term use to its definition", async () => {
+    const skeleton = await compileAgreementSkeleton(AGREEMENT, "fixture");
     expect(
       definedTermEdges(AGREEMENT, skeleton).find((edge) =>
         edge.evidence.includes("Termination Fee"),
@@ -24,12 +24,12 @@ describe("experimental weak edges", () => {
     ).toMatchObject({ sourceLabel: "sec1.1", targetLabel: "sec7.3" });
   });
 
-  it("never contaminates the literal graph with inferred evidence", () => {
-    const skeleton = compileAgreementSkeleton(AGREEMENT, "fixture");
+  it("never contaminates the literal graph with inferred evidence", async () => {
+    const skeleton = await compileAgreementSkeleton(AGREEMENT, "fixture");
     expect(lexicalOverlapEdges(AGREEMENT, skeleton).every((edge) => edge.evidence.length > 0))
       .toBe(true);
     expect(
-      crossReferenceGraph(AGREEMENT, "fixture", { skeleton }).edges.every(
+      (await crossReferenceGraph(AGREEMENT, "fixture", { skeleton })).edges.every(
         (edge) => !("evidence" in edge),
       ),
     ).toBe(true);

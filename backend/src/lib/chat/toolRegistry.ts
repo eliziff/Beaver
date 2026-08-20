@@ -10,15 +10,17 @@ import { safeErrorLog } from "../safeError";
 import type { AskInputsEvent } from "./types";
 import type { LegalEvidenceReceipt } from "./legalEvidence";
 import type { ReadSubagentRegion } from "./readSubagents";
+import type { AssistantEvent } from "./turnEngine";
 
 export const LOAD_TOOLS_NAME = "load_tools";
-export const SPECIALIST_LIMIT = 3;
+const SPECIALIST_LIMIT = 3;
+const MAX_PARALLEL_TOOL_CALLS = 4;
 export const MAX_MODEL_TOOL_RESULT_CHARS = 64_000;
 
 export type BeaverOutcome = {
   result: CallToolResult;
   metadata?: Omit<NormalizedToolResult, "tool_use_id" | "content" | "terminal">;
-  events?: unknown[];
+  events?: AssistantEvent[];
   evidence?: LegalEvidenceReceipt[];
   pause?: AskInputsEvent;
   mutated?: boolean;
@@ -42,7 +44,7 @@ export type ToolBatch = {
   outcomes: BeaverOutcome[];
   pause?: AskInputsEvent;
   mutated: boolean;
-  events: unknown[];
+  events: AssistantEvent[];
   evidence: LegalEvidenceReceipt[];
 };
 
@@ -76,8 +78,6 @@ export const toolText = (value: unknown, isError = false): CallToolResult => ({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
   ...(isError && { isError: true }),
 });
-export const toolResultText = (result: CallToolResult) => result.content
-  .map((block) => block.type === "text" ? block.text : JSON.stringify(block)).join("\n");
 const withoutUrls = (value: unknown): unknown => Array.isArray(value)
   ? value.map(withoutUrls)
   : value && typeof value === "object"
@@ -197,7 +197,7 @@ export class TurnToolRegistry<Context> {
     });
     const executions = serial
       ? await this.#serial(calls, context, signal)
-      : await Promise.all(calls.map((call) => this.#execute(call, context, signal)));
+      : await this.#parallel(calls, context, signal);
     this.#mutated ||= executions.some(({ outcome }) => outcome.mutated);
     const terminal = executions.length > 0 && executions.every(({ outcome }) => outcome.terminal);
     const outcomes = executions.map(({ outcome }) => outcome);
@@ -209,6 +209,21 @@ export class TurnToolRegistry<Context> {
       events: outcomes.flatMap(({ events }) => events ?? []),
       evidence: outcomes.flatMap(({ evidence }) => evidence ?? []),
     };
+  }
+
+  async #parallel(calls: NormalizedToolCall[], context: Context, signal: AbortSignal) {
+    const results = new Array<Execution>(calls.length);
+    let next = 0;
+    await Promise.all(Array.from(
+      { length: Math.min(MAX_PARALLEL_TOOL_CALLS, calls.length) },
+      async () => {
+        while (next < calls.length) {
+          const index = next++;
+          results[index] = await this.#execute(calls[index], context, signal);
+        }
+      },
+    ));
+    return results;
   }
 
   async #serial(calls: NormalizedToolCall[], context: Context, signal: AbortSignal) {

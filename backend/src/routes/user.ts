@@ -6,7 +6,7 @@ import { recordAudit } from "../lib/audit";
 import { normalizeDraftingStyleSettings } from "../lib/draftingStyle";
 import { getDraftingStyleSettings, saveDraftingStyleSettings } from "../lib/draftingStyleStore";
 import { sha256 } from "../lib/hash";
-import { resolveModel } from "../lib/llm";
+import { isSupportedModel, resolveModel } from "../lib/llm";
 import { isLocalRuntime } from "../lib/localMode";
 import * as mcp from "../lib/mcp/servers";
 import {
@@ -14,7 +14,7 @@ import {
   startUserMcpConnectorOAuth,
 } from "../lib/mcp/oauth";
 import { publicOrigin } from "../lib/publicOrigin";
-import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import { safeErrorLog, safeErrorMessage, safePublicErrorMessage } from "../lib/safeError";
 import { createServerSupabase } from "../lib/supabase";
 import {
   API_KEY_PROVIDERS, getEnvironmentApiKeyStatus, getUserApiKeyStatus,
@@ -48,7 +48,7 @@ const nextReset = () => {
 };
 
 const supportedModel = z.string().trim().min(1).max(160)
-  .refine((value) => !!resolveModel(value, ""), "Unsupported model");
+  .refine(isSupportedModel, "Unsupported model");
 const profileInput = z.object({
   displayName: z.string().trim().max(160).nullable().optional(),
   organisation: z.string().trim().max(240).nullable().optional(),
@@ -90,7 +90,7 @@ function serializeProfile(row: ProfileRow, apiKeyStatus: ApiKeyStatus) {
   };
 }
 
-export class AccountApplication {
+class AccountApplication {
   readonly local = isLocalRuntime();
   private client?: Db;
 
@@ -198,7 +198,8 @@ function endpoint(handler: Handler, errorStatus = 500) {
     catch (error) {
       const status = error instanceof HttpError ? error.status : errorStatus;
       const detail = error instanceof HttpError ? error.message
-        : errorStatus >= 500 ? "Account operation failed" : safeErrorMessage(error);
+        : errorStatus >= 500 ? "Account operation failed"
+          : safePublicErrorMessage(error, "Account operation failed");
       console.error("[account] request failed", safeErrorLog(error));
       res.status(status).json({ ...(error instanceof HttpError && error.code ? { code: error.code } : {}), detail });
     }
@@ -209,52 +210,75 @@ function cloud(handler: Handler, errorStatus = 500) {
 }
 
 export const userRouter = Router();
-userRouter.get("/profile", requireAuth, endpoint(async (_req, res) => {
+userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
+  const nonce = randomBytes(16).toString("base64");
+  try {
+    const state = parse(z.string().min(1).max(4_096), req.query.state);
+    const code = parse(z.string().min(1).max(16_384), req.query.code);
+    if (req.query.error) throw new Error("OAuth authorization was not completed");
+    await mcp.completeUserMcpConnectorOAuth(state, code, account.db());
+    res.set("Content-Security-Policy", oauthCsp(nonce)).type("html")
+      .send(oauthHtml(true, nonce));
+  } catch (error) {
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    console.error("[account/oauth] callback failed", {
+      ...safeErrorLog(error), stateDigest: state ? sha256(state).slice(0, 12) : null,
+    });
+    try {
+      res.status(400).set("Content-Security-Policy", oauthCsp(nonce)).type("html")
+        .send(oauthHtml(false, nonce));
+    } catch {
+      res.status(500).type("text").send("OAuth callback configuration is invalid");
+    }
+  }
+});
+userRouter.use(requireAuth);
+userRouter.get("/profile", endpoint(async (_req, res) => {
   res.json(await account.profile(identity(res)));
 }));
-userRouter.patch("/profile", requireAuth, endpoint(async (req, res) => {
+userRouter.patch("/profile", endpoint(async (req, res) => {
   res.json(await account.updateProfile(identity(res), req.body));
 }));
-userRouter.get("/lookup", requireAuth, cloud(async (req, res, db) => {
+userRouter.get("/lookup", cloud(async (req, res, db) => {
   const email = parse(z.string().trim().email().max(320), req.query.email);
   const user = await findProfileUserByEmail(db!, email);
   res.json({ exists: !!user, email: user?.email ?? email.toLowerCase(),
     display_name: user?.display_name ?? null });
 }, 400));
-userRouter.patch("/security/mfa-login", requireAuth, requireMfaIfEnrolled,
+userRouter.patch("/security/mfa-login", requireMfaIfEnrolled,
   endpoint(async (req, res) => res.json(await account.setMfaOnLogin(identity(res), req.body))));
-userRouter.get("/api-keys", requireAuth, endpoint(async (_req, res) => {
+userRouter.get("/api-keys", endpoint(async (_req, res) => {
   res.json(await account.apiKeys(identity(res)));
 }));
-userRouter.put("/api-keys/:provider", requireAuth, requireMfaIfEnrolled,
+userRouter.put("/api-keys/:provider", requireMfaIfEnrolled,
   endpoint(async (req, res) => res.json(
     await account.saveApiKey(identity(res), req.params.provider, req.body),
   )));
 
-userRouter.get("/mcp-connectors", requireAuth, cloud(async (_req, res, db) => {
+userRouter.get("/mcp-connectors", cloud(async (_req, res, db) => {
   res.json(await mcp.listUserMcpConnectors(identity(res).userId, db!, { includeTools: false }));
 }));
-userRouter.get("/mcp-connectors/:connectorId", requireAuth, cloud(async (req, res, db) => {
+userRouter.get("/mcp-connectors/:connectorId", cloud(async (req, res, db) => {
   res.json(await mcp.getUserMcpConnector(identity(res).userId, req.params.connectorId, db!));
 }, 404));
-userRouter.post("/mcp-connectors", requireAuth, requireMfaIfEnrolled,
+userRouter.post("/mcp-connectors", requireMfaIfEnrolled,
   cloud(async (req, res, db) => res.status(201).json(await mcp.createUserMcpConnector(
     identity(res).userId, parse(connectorCreateInput, req.body), db!,
   )), 400));
-userRouter.patch("/mcp-connectors/:connectorId", requireAuth, requireMfaIfEnrolled,
+userRouter.patch("/mcp-connectors/:connectorId", requireMfaIfEnrolled,
   cloud(async (req, res, db) => res.json(await mcp.updateUserMcpConnector(
     identity(res).userId, req.params.connectorId, parse(connectorPatchInput, req.body), db!,
   )), 400));
-userRouter.delete("/mcp-connectors/:connectorId", requireAuth, requireMfaIfEnrolled,
+userRouter.delete("/mcp-connectors/:connectorId", requireMfaIfEnrolled,
   cloud(async (req, res, db) => {
     await mcp.deleteUserMcpConnector(identity(res).userId, req.params.connectorId, db!);
     res.status(204).send();
   }));
-userRouter.post("/mcp-connectors/:connectorId/oauth/start", requireAuth, requireMfaIfEnrolled,
+userRouter.post("/mcp-connectors/:connectorId/oauth/start", requireMfaIfEnrolled,
   cloud(async (req, res, db) => res.json(await startUserMcpConnectorOAuth(
     identity(res).userId, req.params.connectorId, db!,
   )), 400));
-userRouter.post("/mcp-connectors/:connectorId/refresh-tools", requireAuth, requireMfaIfEnrolled,
+userRouter.post("/mcp-connectors/:connectorId/refresh-tools", requireMfaIfEnrolled,
   cloud(async (req, res, db) => {
     try {
       res.json(await mcp.refreshUserMcpConnectorTools(
@@ -267,69 +291,38 @@ userRouter.post("/mcp-connectors/:connectorId/refresh-tools", requireAuth, requi
       throw error;
     }
   }, 400));
-userRouter.patch("/mcp-connectors/:connectorId/tools/:toolId", requireAuth,
+userRouter.patch("/mcp-connectors/:connectorId/tools/:toolId",
   requireMfaIfEnrolled, cloud(async (req, res, db) => res.json(
     await mcp.setUserMcpToolEnabled(identity(res).userId, req.params.connectorId,
       req.params.toolId, parse(enabledInput, req.body).enabled, db!),
   ), 400));
 
-function oauthHtml(success: boolean, connectorId: string | undefined, nonce: string) {
-  const origin = publicOrigin(), payload = JSON.stringify({
-    type: "mcp_oauth_result", success, ...(connectorId ? { connectorId } : {}),
-  }).replace(/</gu, "\\u003c");
+function oauthHtml(success: boolean, nonce: string) {
+  const target = JSON.stringify(`${publicOrigin()}/account/connectors?mcp_oauth=${
+    success ? "success" : "failure"}`);
   return `<!doctype html><meta charset="utf-8"><title>MCP authorization</title><h1>${
     success ? "Authorization complete" : "Authorization failed"
-  }</h1><p>${success ? "You can return to Beaver." : "Return to Beaver and try again."}</p><script nonce="${nonce}">const m=${payload},o=${JSON.stringify(origin)};if(opener&&!opener.closed){opener.postMessage(m,o);setTimeout(()=>close(),600)}else{location.assign(o+"/account/connectors")}</script>`;
+  }</h1><p>Returning to Beaver.</p><script nonce="${nonce}">setTimeout(()=>location.replace(${target}),600)</script>`;
 }
 const oauthCsp = (nonce: string) => [
   "default-src 'none'", `script-src 'nonce-${nonce}'`, "base-uri 'none'",
   "form-action 'none'", "frame-ancestors 'none'",
 ].join("; ");
-userRouter.get("/mcp-connectors/oauth/callback", async (req, res) => {
-  const nonce = randomBytes(16).toString("base64");
-  try {
-    const state = parse(z.string().min(1).max(4_096), req.query.state);
-    const code = parse(z.string().min(1).max(16_384), req.query.code);
-    if (req.query.error) throw new Error("OAuth authorization was not completed");
-    const result = await mcp.completeUserMcpConnectorOAuth(state, code, account.db());
-    res.set("Content-Security-Policy", oauthCsp(nonce)).type("html")
-      .send(oauthHtml(true, result.connectorId, nonce));
-  } catch (error) {
-    const state = typeof req.query.state === "string" ? req.query.state : "";
-    console.error("[account/oauth] callback failed", {
-      error: safeErrorMessage(error), stateDigest: state ? sha256(state).slice(0, 12) : null,
-    });
-    try {
-      res.status(400).set("Content-Security-Policy", oauthCsp(nonce)).type("html")
-        .send(oauthHtml(false, undefined, nonce));
-    } catch {
-      res.status(500).type("text").send("OAuth callback configuration is invalid");
-    }
-  }
-});
-
-userRouter.delete("/account", requireAuth, requireMfaIfEnrolled, cloud(async (_req, res, db) => {
+userRouter.delete("/account", requireMfaIfEnrolled, cloud(async (_req, res, db) => {
   const id = identity(res);
   await cleanup.deleteUserAccountData(db!, await runtime.documents(), id.userId, id.userEmail);
   const { error } = await db!.auth.admin.deleteUser(id.userId);
   if (error) throw error;
   res.status(204).send();
 }));
-userRouter.delete("/chats", requireAuth, requireMfaIfEnrolled,
-  endpoint(async (_req, res) => {
-    await (await runtime.chats()).deleteAll(identity(res));
-    res.status(204).send();
-  }));
-userRouter.delete("/projects", requireAuth, requireMfaIfEnrolled,
-  endpoint(async (_req, res) => {
-    await (await runtime.projects()).deleteAll(identity(res));
-    res.status(204).send();
-  }));
-userRouter.delete("/tabular-reviews", requireAuth, requireMfaIfEnrolled,
-  endpoint(async (_req, res) => {
-    await (await runtime.tabular()).deleteAll(identity(res));
-    res.status(204).send();
-  }));
+for (const [path, remove] of [
+  ["/chats", async (id: Identity) => (await runtime.chats()).deleteAll(id)],
+  ["/projects", async (id: Identity) => (await runtime.projects()).deleteAll(id)],
+  ["/tabular-reviews", async (id: Identity) => (await runtime.tabular()).deleteAll(id)],
+] as const) userRouter.delete(path, requireMfaIfEnrolled, endpoint(async (_req, res) => {
+  await remove(identity(res));
+  res.status(204).send();
+}));
 
 function exportRoute(
   kind: Parameters<typeof dataExport.userExportFilename>[0], action: string,
@@ -343,9 +336,8 @@ function exportRoute(
       action, surface: "account" });
   });
 }
-userRouter.get("/export", requireAuth, requireMfaIfEnrolled,
-  exportRoute("account", "export.account", dataExport.buildUserAccountExport));
-userRouter.get("/chats/export", requireAuth, requireMfaIfEnrolled,
-  exportRoute("chats", "export.chats", dataExport.buildUserChatsExport));
-userRouter.get("/tabular-reviews/export", requireAuth, requireMfaIfEnrolled,
-  exportRoute("tabular-reviews", "export.tabular", dataExport.buildUserTabularReviewsExport));
+for (const [path, kind, action, build] of [
+  ["/export", "account", "export.account", dataExport.buildUserAccountExport],
+  ["/chats/export", "chats", "export.chats", dataExport.buildUserChatsExport],
+  ["/tabular-reviews/export", "tabular-reviews", "export.tabular", dataExport.buildUserTabularReviewsExport],
+] as const) userRouter.get(path, requireMfaIfEnrolled, exportRoute(kind, action, build));

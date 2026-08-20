@@ -8,7 +8,7 @@ the claim addressable-structure-true? A wrong claim is worse than a
 miss — pinpoint resolution would silently address the wrong text.
 
 This probe contains no structure detector. It loads corpus text, asks the
-persistent compileA2AJSourceDoc bridge for blocks, and reports generic coverage
+persistent legal-structure bridge for blocks, and reports generic coverage
 and provider-metadata comparisons over those returned blocks.
 
 Populations:
@@ -131,7 +131,7 @@ def scan_vetted(con, sink, stats: dict) -> None:
         row = json.loads(line)
         source_doc = row.get("sourceDoc") or {}
         if (
-            source_doc.get("engine") != "compileA2AJSourceDoc"
+            source_doc.get("engine") != "legal-structure"
             or source_doc.get("kind") == "none"
         ):
             continue

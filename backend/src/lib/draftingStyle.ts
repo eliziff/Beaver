@@ -1,6 +1,8 @@
-export const DRAFTING_STYLE_VERSION = 1 as const;
+import { jsonRecord as object } from "./value";
 
-export const DRAFTING_DOCUMENT_TYPES = [
+const DRAFTING_STYLE_VERSION = 1 as const;
+
+const DRAFTING_DOCUMENT_TYPES = [
   "memo",
   "factum",
   "letter",
@@ -8,7 +10,7 @@ export const DRAFTING_DOCUMENT_TYPES = [
 ] as const;
 export type DraftingDocumentType = (typeof DRAFTING_DOCUMENT_TYPES)[number];
 
-export const CITATION_PLACEMENTS = [
+const CITATION_PLACEMENTS = [
   "footnotes",
   "inline",
   "after-paragraph",
@@ -42,12 +44,6 @@ export const DEFAULT_DRAFTING_STYLE: DraftingStyleSettings = {
   },
   memoHeader: { to: "File", from: "AI Assistant" },
 };
-
-function object(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
 
 function oneLine(value: unknown, fallback: string) {
   if (typeof value !== "string") return fallback;
@@ -112,12 +108,6 @@ export function normalizeDraftingStyleSettings(
   };
 }
 
-export function isDraftingDocumentType(
-  value: unknown,
-): value is DraftingDocumentType {
-  return DRAFTING_DOCUMENT_TYPES.includes(value as DraftingDocumentType);
-}
-
 export type ResolvedDraftingOptions = {
   documentType: DraftingDocumentType;
   citationPlacement: CitationPlacement;
@@ -136,8 +126,8 @@ export function resolveDraftingOptions(
 ): ResolvedDraftingOptions {
   const documentType = raw.document_type === undefined
     ? "other"
-    : isDraftingDocumentType(raw.document_type)
-      ? raw.document_type
+    : DRAFTING_DOCUMENT_TYPES.includes(raw.document_type as DraftingDocumentType)
+      ? raw.document_type as DraftingDocumentType
       : null;
   if (!documentType) throw new Error("DOCX document_type is invalid.");
 

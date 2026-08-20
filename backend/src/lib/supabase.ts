@@ -4,6 +4,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type CreateClient = typeof import("@supabase/supabase-js").createClient;
 let createClient: CreateClient | undefined;
 let serverClient: SupabaseClient<any, "public", any> | undefined;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+const timedFetch: typeof fetch = (input, init) => fetch(input, {
+  ...init,
+  signal: AbortSignal.any([
+    AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    init?.signal,
+    input instanceof Request ? input.signal : undefined,
+  ].filter((signal): signal is AbortSignal => Boolean(signal))),
+});
 
 /**
  * Server-side Supabase client using the service role key.
@@ -20,5 +30,9 @@ export function createServerSupabase() {
   createClient ??=
     (require("@supabase/supabase-js") as { createClient: CreateClient })
       .createClient;
-  return serverClient ??= createClient(url, key, { auth: { persistSession: false } });
+  return serverClient ??= createClient(url, key, {
+    auth: { persistSession: false },
+    db: { timeout: REQUEST_TIMEOUT_MS },
+    global: { fetch: timedFetch },
+  });
 }

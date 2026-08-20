@@ -88,12 +88,6 @@ export function quietBrokenDocxImages(
         else image.addEventListener("error", quiet, { once: true });
     }
 }
-function parseDocx(bytes: ArrayBuffer): Promise<DocxNoteModel> {
-    return parseAsync(bytes, DOCX_RENDER_OPTIONS).then((doc) => {
-        tagDocxMarkers(doc as DocxNoteModel);
-        return doc as DocxNoteModel;
-    });
-}
 function findEditElement(
     root: HTMLElement,
     tag: "ins" | "del",
@@ -236,7 +230,10 @@ export function DocxView({
         const thisRender = ++renderKeyRef.current;
         (async () => {
             try {
-                const doc = await parseDocx(bytes);
+                const doc = await parseAsync(bytes, DOCX_RENDER_OPTIONS).then((value) => {
+                    tagDocxMarkers(value as DocxNoteModel);
+                    return value as DocxNoteModel;
+                });
                 if (cancelled) return;
                 await renderDocument(
                     doc,
@@ -295,7 +292,7 @@ export function DocxView({
         return () => {
             cancelled = true;
         };
-    }, [bytes]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [bytes]);
     useEffect(() => {
         if (!highlightEdit || !containerRef.current || !scrollRef.current)
             return;

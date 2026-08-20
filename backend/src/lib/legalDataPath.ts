@@ -59,10 +59,12 @@ export function withReadonlySqlite<T>(
 
 const readonlyDatabases = new Map<string, DatabaseSync>();
 
-export function withCachedReadonlySqlite<T>(
+export function withSearchReadonlySqlite<T>(
   filename: string,
+  cache: boolean,
   operation: (database: DatabaseSync) => T,
 ): T | null {
+  if (!cache) return withReadonlySqlite(filename, operation);
   if (!existsSync(filename)) return null;
   let database = readonlyDatabases.get(filename);
   if (!database) {

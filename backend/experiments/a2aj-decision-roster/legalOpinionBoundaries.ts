@@ -329,6 +329,28 @@ function parseNames(text: string, loose = false): string[] {
   return names;
 }
 
+function paragraphBylineNames(head: string) {
+  const honourable = HONOURABLE_NAME_RE.exec(head.trim());
+  if (honourable) return [honourable[1]];
+  const normalized = head.replace(COMMA_SUFFIX_RE, " $1 ");
+  const matches = [...normalized.matchAll(JUDGE_NAMES_RE)];
+  if (!matches.length) return [];
+  let cursor = 0;
+  for (const match of matches) {
+    const gap = normalized.slice(cursor, match.index).trim();
+    if (gap && !/^(?:,|and|&)+$/iu.test(gap)) return [];
+    cursor = (match.index ?? 0) + match[0].length;
+  }
+  const tail = normalized.slice(cursor).trim();
+  if (
+    tail &&
+    !/^\(?\s*(?:dissenting|in\s+dissent|concurring|in\s+concurrence|for\s+the\s+court|for\s+the\s+majority)\s*\)?$/iu.test(tail)
+  ) {
+    return [];
+  }
+  return parseNames(head);
+}
+
 function stripParens(text: string) {
   return text.replace(/\([^()\n]*\)/gu, " ").replace(/\s+/gu, " ").trim();
 }
@@ -472,9 +494,9 @@ function scanBodyMarkers(lines: readonly TextLine[], firstParagraphStart: number
     } else if (/^(?:the\s+court|by\s+the\s+court)$/iu.test(head)) {
       marker = { kind: "court", paragraph, name: null, role: "majority", line: head };
     } else {
-      const judge = JUDGE_NAME_RE.exec(head);
-      if (judge) {
-        const name = judge[0].trim();
+      const names = paragraphBylineNames(head);
+      if (names.length) {
+        const name = names[0];
         const role = /dissents?|dissenting|dissented/iu.test(head)
           ? "minority"
           : /concurring|concurs?|concurrence/iu.test(head)
@@ -959,7 +981,7 @@ function paragraphAuthor(line: string) {
   }
   const authors = /^(?:the\s+court|by\s+the\s+court)$/iu.test(head)
     ? []
-    : parseNames(head);
+    : paragraphBylineNames(head);
   if (!authors.length && !/^(?:the\s+court|by\s+the\s+court)$/iu.test(head)) {
     return null;
   }

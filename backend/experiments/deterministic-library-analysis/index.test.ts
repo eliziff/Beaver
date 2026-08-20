@@ -4,9 +4,9 @@ import {
   runExperimentalLibraryAnalysis,
 } from "./index";
 
-it("keeps the quarantined analyses executable over supplied documents", () => {
+it("keeps the quarantined analyses executable over supplied documents", async () => {
   expect(EXPERIMENTAL_LIBRARY_ANALYSES).toHaveLength(7);
-  expect(runExperimentalLibraryAnalysis("drafting_lint", {
+  expect(await runExperimentalLibraryAnalysis("drafting_lint", {
     document_id: "draft",
   }, [{
     id: "draft",

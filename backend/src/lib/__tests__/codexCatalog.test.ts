@@ -10,12 +10,10 @@ const luna = {
     { reasoningEffort: "max" },
     { reasoningEffort: "LOW" },
   ],
-  serviceTiers: [
-    { id: "priority", name: "Fast", description: "1.5x speed" },
-    { id: "PRIORITY", name: "Duplicate" },
-    { id: "" },
-  ],
+  description: "Unused backend prose",
+  serviceTiers: [{ id: "priority", name: "Fast" }],
   defaultServiceTier: "default",
+  hidden: true,
 };
 
 describe("normalizeCodexCatalog", () => {
@@ -31,13 +29,11 @@ describe("normalizeCodexCatalog", () => {
     );
 
     expect(result.models).toHaveLength(1);
-    expect(result.models[0]).toMatchObject({
+    expect(result.models[0]).toEqual({
       slug: "gpt-5.6-luna",
+      displayName: "GPT-5.6-Luna",
+      defaultReasoningLevel: "medium",
       supportedReasoningLevels: [{ effort: "low" }, { effort: "max" }],
-      serviceTiers: [
-        { id: "priority", name: "Fast", description: "1.5x speed" },
-      ],
-      defaultServiceTier: "default",
     });
   });
 

@@ -2,13 +2,15 @@
 
 import path from "node:path";
 import { readFileSync } from "node:fs";
-import { compileA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../../backend/src/lib/sourceDocA2AJ";
+import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   analyzeOpinionStructure,
   deriveTextOpinionStructure,
   partitionOpinionStructure,
 } from "../../../backend/experiments/a2aj-decision-roster/legalOpinionBoundaries";
 
+async function main() {
 const TEXT_CACHE_DIR = path.join(__dirname, "..", "scratch", ".textcache");
 const fingerprint = readFileSync(path.join(TEXT_CACHE_DIR, "..", ".drawcache", "4.SCC.1000.json"), "utf8");
 void fingerprint;
@@ -33,7 +35,7 @@ let totalMs = 0;
 const sample = texts.slice(0, 60);
 for (const text of sample) {
   const t0 = performance.now();
-  const source = compileA2AJSourceDoc({
+  const source = await deriveA2AJSourceDoc({
     citation: "x",
     docType: "cases",
     text,
@@ -73,3 +75,15 @@ for (const text of sample) {
 console.log(
   `per-doc avg: compile=${(compileMs / sample.length).toFixed(2)}ms analyze=${(analyzeMs / sample.length).toFixed(2)}ms partition=${(partitionMs / sample.length).toFixed(2)}ms derive=${(deriveMs / sample.length).toFixed(2)}ms total=${(totalMs / sample.length).toFixed(2)}ms`,
 );
+}
+
+void (async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  } finally {
+    await shutdownSourceStructureEngine();
+  }
+})();

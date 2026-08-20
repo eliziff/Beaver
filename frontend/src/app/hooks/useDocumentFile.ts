@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch } from "../lib/beaverApi";
+import { apiBlobRequest } from "../lib/beaverApi";
 
 export type DocumentFile = {
   type: "pdf" | "spreadsheet" | "docx" | "text";
@@ -8,6 +8,13 @@ export type DocumentFile = {
 
 const cache = new Map<string, DocumentFile>();
 const pending = new Map<string, Promise<DocumentFile>>();
+let cacheGeneration = 0;
+
+export function clearDocumentFileCache() {
+  cacheGeneration += 1;
+  cache.clear();
+  pending.clear();
+}
 
 function keyFor(
   documentId: string,
@@ -43,14 +50,15 @@ async function load(
   if (!original) query.set("rendition", "pdf");
   if (versionId) query.set("version_id", versionId);
   const search = query.toString();
-  const request = apiFetch(
-    `/single-documents/${documentId}/file${search ? `?${search}` : ""}`,
+  const generation = cacheGeneration;
+  const request = apiBlobRequest(
+    `/single-documents/${encodeURIComponent(documentId)}/file${search ? `?${search}` : ""}`,
     { cache: "default", headers: { Accept: "*/*" } },
-  ).then(async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  ).then(async ({ blob }) => {
+    if (generation !== cacheGeneration) throw new Error("Authentication changed");
     const result: DocumentFile = {
-      type: fileType(response.headers.get("content-type") ?? ""),
-      buffer: await response.arrayBuffer(),
+      type: fileType(blob.type),
+      buffer: await blob.arrayBuffer(),
     };
     cache.set(key, result);
     const oldest = cache.keys().next().value;
@@ -58,7 +66,9 @@ async function load(
     return result;
   });
   pending.set(key, request);
-  void request.finally(() => pending.delete(key)).catch(() => undefined);
+  void request.finally(() => {
+    if (pending.get(key) === request) pending.delete(key);
+  }).catch(() => undefined);
   return request;
 }
 

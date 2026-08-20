@@ -1,126 +1,70 @@
-/**
- * Shared OOXML kernel: the fast-xml-parser preserveOrder settings, the tiny
- * node helpers built on that tree shape, and package entry access. All DOCX
- * consumers share it so OOXML text and attribute semantics stay identical.
- */
+import { XMLBuilder, XMLParser } from "fast-xml-parser";
 
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
-
-/** preserveOrder node: `{ [name]: children[] }`, attrs under ":@", text "#text". */
+/** preserveOrder node: element children under its name, attrs under :@. */
 export type XNode = Record<string, unknown>;
+export const ATTR_KEY = ":@", TEXT_KEY = "#text";
 
-export const ATTR_KEY = ":@";
-export const TEXT_KEY = "#text";
-
-export function elName(n: unknown): string | null {
-    if (!n || typeof n !== "object") return null;
-    for (const k of Object.keys(n as XNode)) {
-        if (k === ATTR_KEY || k === TEXT_KEY) continue;
-        return k;
-    }
-    return null;
+export function elName(node: unknown): string | null {
+  if (!node || typeof node !== "object") return null;
+  return Object.keys(node as XNode).find((key) =>
+    key !== ATTR_KEY && key !== TEXT_KEY) ?? null;
 }
 
-export function isTextNode(n: unknown): n is { [TEXT_KEY]: string } {
-    if (!n || typeof n !== "object") return false;
-    const obj = n as XNode;
-    return TEXT_KEY in obj && elName(n) === null;
+export function isTextNode(node: unknown): node is { [TEXT_KEY]: string } {
+  return !!node && typeof node === "object" && TEXT_KEY in node && elName(node) === null;
 }
 
-export function elChildren(n: unknown): XNode[] {
-    const name = elName(n);
-    if (!name) return [];
-    const v = (n as XNode)[name];
-    return Array.isArray(v) ? (v as XNode[]) : [];
+export function elChildren(node: unknown): XNode[] {
+  const name = elName(node);
+  const value = name && (node as XNode)[name];
+  return Array.isArray(value) ? value as XNode[] : [];
 }
 
-export function setChildren(n: XNode, children: XNode[]): void {
-    const name = elName(n);
-    if (!name) return;
-    n[name] = children;
+export function setChildren(node: XNode, children: XNode[]) {
+  const name = elName(node);
+  if (name) node[name] = children;
 }
 
-export function elAttrs(n: unknown): Record<string, string> {
-    if (!n || typeof n !== "object") return {};
-    const a = (n as XNode)[ATTR_KEY];
-    return (a as Record<string, string>) ?? {};
+export function elAttrs(node: unknown): Record<string, string> {
+  return node && typeof node === "object"
+    ? (node as XNode)[ATTR_KEY] as Record<string, string> ?? {} : {};
 }
 
-export function makeEl(
-    name: string,
-    children: XNode[] = [],
-    attrs?: Record<string, string>,
-): XNode {
-    const el: XNode = { [name]: children };
-    if (attrs) {
-        const attrObj: Record<string, string> = {};
-        for (const [k, v] of Object.entries(attrs)) {
-            attrObj[`@_${k}`] = v;
-        }
-        el[ATTR_KEY] = attrObj;
-    }
-    return el;
+export function makeEl(name: string, children: XNode[] = [],
+  attrs?: Record<string, string>): XNode {
+  const node: XNode = { [name]: children };
+  if (attrs) node[ATTR_KEY] = Object.fromEntries(
+    Object.entries(attrs).map(([key, value]) => [`@_${key}`, value]));
+  return node;
 }
 
-export function makeText(s: string): XNode {
-    return { [TEXT_KEY]: s };
+export const makeText = (value: string): XNode => ({ [TEXT_KEY]: value });
+export const getTextContent = (node: XNode) => elChildren(node)
+  .flatMap((child) => isTextNode(child) ? [String(child[TEXT_KEY] ?? "")] : []).join("");
+export const cloneNode = <T>(node: T): T => JSON.parse(JSON.stringify(node)) as T;
+
+const XML_OPTIONS = {
+  ignoreAttributes: false, attributeNamePrefix: "@_", preserveOrder: true,
+  trimValues: false, parseTagValue: false, parseAttributeValue: false,
+  processEntities: true,
+} as const;
+export const createParser = () => new XMLParser(XML_OPTIONS);
+export const createBuilder = () => new XMLBuilder({ ...XML_OPTIONS,
+  suppressEmptyNode: false });
+
+export const ensureXmlDeclaration = (xml: string) => xml.startsWith("<?xml")
+  ? xml : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${xml}`;
+
+export function findBody(document: XNode[]): XNode | null {
+  const root = document.find((node) => elName(node) === "w:document");
+  return root ? elChildren(root).find((node) => elName(node) === "w:body") ?? null : null;
 }
 
-export function getTextContent(wtEl: XNode): string {
-    // A w:t node has only a single text child (or nothing).
-    const kids = elChildren(wtEl);
-    let out = "";
-    for (const k of kids) {
-        if (isTextNode(k)) out += String(k[TEXT_KEY] ?? "");
-    }
-    return out;
-}
-
-export function cloneNode<T>(n: T): T {
-    return JSON.parse(JSON.stringify(n)) as T;
-}
-
-export function createParser() {
-    return new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        trimValues: false,
-        // Word text nodes are strings even when a run happens to contain
-        // only "1.0", "001", or another numeric-looking token. Letting the
-        // XML parser coerce them corrupts numbering and leading zeroes when
-        // tracked edits split a paragraph into smaller runs.
-        parseTagValue: false,
-        parseAttributeValue: false,
-        processEntities: true,
-    });
-}
-
-export function createBuilder() {
-    return new XMLBuilder({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_",
-        preserveOrder: true,
-        suppressEmptyNode: false,
-        processEntities: true,
-    });
-}
-
-export function ensureXmlDeclaration(xml: string): string {
-    if (xml.startsWith("<?xml")) return xml;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${xml}`;
-}
-
-/** The w:body element itself. */
-export function findBody(doc: XNode[]): XNode | null {
-    for (const top of doc) {
-        if (elName(top) === "w:document") {
-            for (const c of elChildren(top)) {
-                if (elName(c) === "w:body") return c;
-            }
-        }
-    }
-    return null;
+export function isRedFamily(value: string) {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(value.trim());
+  if (!match) return false;
+  const [red, green, blue] = match.slice(1).map((part) => Number.parseInt(part, 16));
+  return red >= 0xb0 && green <= 0x60 && blue <= 0x60;
 }
 
 // Package bounds enforced by the canonical session before parts are read.

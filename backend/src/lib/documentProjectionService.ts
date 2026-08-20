@@ -8,6 +8,7 @@ import {
   type LegalPdfOcrProvider,
 } from "./legalPdfProcess";
 import { sha256 } from "./hash";
+import { assertBoundedZip } from "./zip";
 import {
   lookupPdfStructure,
   readPdfEvidenceReceipt,
@@ -46,6 +47,7 @@ import {
 import { extractEmailText } from "./emailText";
 import { extractPresentationText } from "./officeText";
 import { docxToPdf } from "./convert";
+import { isJsonRecord } from "./value";
 import {
   scanDocxPathology,
   type DocxPathologyReport,
@@ -124,19 +126,8 @@ function validProjectionId(value: string) {
     !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
-function abortError() {
-  return new DOMException("Document projection aborted", "AbortError");
-}
-
-function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw abortError();
-}
-
 function safeParserError(error: unknown) {
-  const stderr = error && typeof error === "object" &&
-    typeof (error as { stderr?: unknown }).stderr === "string"
-    ? (error as { stderr: string }).stderr
-    : "";
+  const stderr = isJsonRecord(error) && typeof error.stderr === "string" ? error.stderr : "";
   const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
   if (/invalid file trailer|couldn't parse input|PDF parsing failed/iu.test(message))
     return "PDF is invalid or corrupt";
@@ -152,7 +143,7 @@ function safeParserError(error: unknown) {
 }
 
 function parseState(value: unknown): PdfParseState {
-  if (!value || typeof value !== "object" || Array.isArray(value))
+  if (!isJsonRecord(value))
     throw new Error("Invalid PDF preparation state");
   const state = value as Partial<PdfParseState>;
   if (state.schema_version !== STATE_SCHEMA ||
@@ -206,13 +197,6 @@ function integerArray(value: unknown) {
     : [];
 }
 
-function numberRecord(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value).filter(
-    (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]),
-  ));
-}
-
 async function preparePdf(input: {
   documentId: string;
   versionId: string;
@@ -224,7 +208,7 @@ async function preparePdf(input: {
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 }) {
-  throwIfAborted(input.signal);
+  input.signal?.throwIfAborted();
   if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
     throw new Error("PDF preparation requires valid document and version IDs");
   const inspected = await inspectPdf(input.sourcePath, {
@@ -297,7 +281,10 @@ async function preparePdf(input: {
       cache_key: prepared.source.cache_key,
       engine_status: engineStatus,
       page_count: prepared.source.page_count,
-      counts: numberRecord(prepared.result.counts),
+      counts: isJsonRecord(prepared.result.counts)
+        ? Object.fromEntries(Object.entries(prepared.result.counts).filter(
+          (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])))
+        : {},
       pages_needing_ocr: integerArray(prepared.result.pages_needing_ocr),
       ocr_routed_pages: integerArray(prepared.result.ocr_routed_pages),
       completed_at: completed,
@@ -392,12 +379,12 @@ export type DocumentReadProjection =
 async function boundedSource(input: DocumentProjectionInput, signal?: AbortSignal) {
   if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
     throw new Error("Document projection requires valid document and version IDs");
-  throwIfAborted(signal);
+  signal?.throwIfAborted();
   const fileType = input.fileType.trim().toLowerCase();
   const bytes = input.bytes;
   if (!bytes.length || bytes.length > MAX_DOCUMENT_INPUT_BYTES)
     throw new Error("Document projection input exceeds the read limit");
-  if (["docx", "xlsx", "xlsm"].includes(fileType) &&
+  if (["docx", "xlsx", "xlsm", "pptx"].includes(fileType) &&
       bytes.length > MAX_COMPRESSED_PACKAGE_BYTES)
     throw new Error("Compressed document exceeds the read limit");
   const sourceSha256 = sha256(bytes);
@@ -410,18 +397,9 @@ async function assertBoundedSpreadsheetPackage(bytes: Buffer, fileType: string) 
   if (!["xlsx", "xlsm"].includes(fileType)) return;
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(bytes);
-  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (entries.length > MAX_PACKAGE_ENTRIES)
-    throw new Error("Spreadsheet contains too many package entries");
-  let expanded = 0;
-  for (const entry of entries) {
-    const size = (entry as { _data?: { uncompressedSize?: unknown } })._data?.uncompressedSize;
-    if (!Number.isSafeInteger(size) || Number(size) < 0)
-      throw new Error("Spreadsheet has invalid ZIP size metadata");
-    expanded += Number(size);
-    if (expanded > MAX_EXPANDED_PACKAGE_BYTES)
-      throw new Error("Spreadsheet expands beyond the read limit");
-  }
+  assertBoundedZip(zip, "Spreadsheet", {
+    maxEntries: MAX_PACKAGE_ENTRIES, maxExpandedBytes: MAX_EXPANDED_PACKAGE_BYTES,
+  });
 }
 
 function sourceDocProjection(kind: "source-doc" | "pdf", doc: SourceDoc): DocumentReadProjection {
@@ -436,7 +414,7 @@ async function compileReadProjection(
   signal?: AbortSignal,
 ): Promise<DocumentReadProjection> {
   const { bytes, fileType, sourceSha256 } = source;
-  throwIfAborted(signal);
+  signal?.throwIfAborted();
   if (fileType === "docx") {
     const session = await openDocxSession(bytes);
     const body = await session.document(input.filename ?? "document.docx");
@@ -518,18 +496,18 @@ async function read(input: DocumentProjectionInput, options: { signal?: AbortSig
   if (!pending) {
     pending = compileReadProjection(input, source, options.signal).then((projection) => {
       assertProjectionOutput(projection);
-      throwIfAborted(options.signal);
+      options.signal?.throwIfAborted();
       return projection;
     }).catch((error) => {
       projectionMemory.delete(key);
       throw error;
     });
-    if (projectionMemory.size >= 32)
+    if (projectionMemory.size >= 8)
       projectionMemory.delete(projectionMemory.keys().next().value!);
     projectionMemory.set(key, pending);
   }
   const result = await pending;
-  throwIfAborted(options.signal);
+  options.signal?.throwIfAborted();
   return result;
 }
 

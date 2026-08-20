@@ -35,7 +35,7 @@ function response() {
   return res;
 }
 function request(overrides: Partial<Request> = {}) {
-  return { headers: {}, method: "GET", route: { path: "/private" }, ...overrides } as Request;
+  return { headers: {}, method: "GET", path: "/private", ...overrides } as Request;
 }
 
 describe("auth boundary", () => {
@@ -68,12 +68,31 @@ describe("auth boundary", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it("does not downgrade login MFA when the enrolled factor disappears", async () => {
+    state.profile = { mfa_on_login: true };
+    state.assurance = { currentLevel: "aal1", nextLevel: "aal1" };
+    const res = response(), next = vi.fn() as NextFunction;
+    await requireAuth(request({ headers: { authorization: "Bearer token" } }), res, next);
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it("keeps GET /profile available as the MFA bootstrap", async () => {
     state.profile = { mfa_on_login: true };
     const res = response(), next = vi.fn() as NextFunction;
-    await requireAuth(request({ headers: { authorization: "Bearer token" }, route: { path: "/profile" } as never }), res, next);
+    await requireAuth(request({ headers: { authorization: "Bearer token" }, path: "/profile" }), res, next);
     expect(next).toHaveBeenCalledOnce();
     expect(db.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized or whitespace-smuggled bearer values before verification", async () => {
+    for (const authorization of [`Bearer ${"a".repeat(8193)}`, "Bearer token extra"]) {
+      const res = response(), next = vi.fn() as NextFunction;
+      await requireAuth(request({ headers: { authorization } }), res, next);
+      expect(res.statusCode).toBe(401);
+      expect(next).not.toHaveBeenCalled();
+    }
+    expect(db.auth.getUser).not.toHaveBeenCalled();
   });
 
   it("fails closed without returning assurance-provider details", async () => {
@@ -84,5 +103,14 @@ describe("auth boundary", () => {
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ detail: "MFA verification failed" });
     expect(JSON.stringify(res.body)).not.toContain("abcdefghi");
+  });
+
+  it("fails closed on an unexpected assurance response", async () => {
+    state.assurance = { currentLevel: "aal1", nextLevel: undefined as never };
+    const res = response(), next = vi.fn() as NextFunction;
+    Object.assign(res.locals, { token: "token", userId: "user-1" });
+    await requireMfaIfEnrolled(request(), res, next);
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

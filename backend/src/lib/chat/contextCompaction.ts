@@ -7,6 +7,7 @@ import {
 import { streamChatWithTools, type LlmMessage, type UserApiKeys } from "../llm";
 import { providerForModel } from "../llm/models";
 import type { Provider } from "../llm/types";
+import { isJsonRecord } from "../value";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
 
@@ -20,13 +21,6 @@ export type ContextCheckpointEvent = {
   summary: string;
   keep_current: boolean;
 };
-
-const checkpointRow = (message: ChatMessageRecord) =>
-  message.role === "assistant" && Array.isArray(message.content) &&
-  message.content.some((value) =>
-    value && typeof value === "object" && !Array.isArray(value) &&
-    (value as Record<string, unknown>).type === "context_checkpoint"
-  );
 
 function llmMessages(rows: ChatMessageRecord[], provider?: Provider): LlmMessage[] {
   return projectChatTranscript(rows, provider).map((message) => ({
@@ -43,7 +37,9 @@ export function planContextCheckpoint(
 ) {
   let prior = -1;
   for (let index = rows.length - 1; index >= 0; index -= 1) {
-    if (checkpointRow(rows[index])) {
+    const message = rows[index];
+    if (message.role === "assistant" && Array.isArray(message.content) &&
+        message.content.some((value) => isJsonRecord(value) && value.type === "context_checkpoint")) {
       prior = index;
       break;
     }

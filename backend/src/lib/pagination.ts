@@ -1,11 +1,10 @@
-export type Page<T> = { items: T[]; next_cursor: string | null };
 export type CursorScalar = string | number | boolean | null;
 export type CursorFilters = Record<string, CursorScalar>;
 type ScalarType = "string" | "number" | "boolean" | "null";
 
 export class PageCursorError extends Error {}
 
-export function pageLimit(value: unknown) {
+function pageLimit(value: unknown) {
   if (value === undefined) return 50;
   const limit = typeof value === "string" && /^\d{1,3}$/u.test(value)
     ? Number(value) : 0;
@@ -15,16 +14,7 @@ export function pageLimit(value: unknown) {
   return limit;
 }
 
-export function encodePageCursor(
-  resource: string,
-  filters: CursorFilters,
-  after: CursorScalar[],
-) {
-  return Buffer.from(JSON.stringify({ v: 1, resource, filters, after }))
-    .toString("base64url");
-}
-
-export function decodePageCursor(
+function decodePageCursor(
   value: unknown,
   resource: string,
   filters: CursorFilters,
@@ -59,6 +49,20 @@ export function pageRequest<T extends CursorScalar[]>(
 ) {
   return { limit: pageLimit(query.limit),
     after: decodePageCursor(query.cursor, resource, filters, shape) as T | null };
+}
+
+export function pageResponse<T>(
+  resource: string,
+  filters: CursorFilters,
+  page: { items: T; nextAfter: readonly CursorScalar[] | null },
+) {
+  return {
+    items: page.items,
+    next_cursor: page.nextAfter
+      ? Buffer.from(JSON.stringify({
+        v: 1, resource, filters, after: page.nextAfter,
+      })).toString("base64url") : null,
+  };
 }
 
 const canonical = (value: CursorFilters) => JSON.stringify(

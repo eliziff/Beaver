@@ -4,9 +4,12 @@ import express from "express";
 import helmet from "helmet";
 import { api } from "./api";
 import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
+import { publicOrigin } from "./lib/publicOrigin";
+import { tableOfAuthoritiesUrl } from "./lib/tableOfAuthorities";
 
 const frontend = path.resolve(__dirname, "../../frontend/dist");
 const config = publicRuntimeConfig();
+const cloudOrigin = config.mode === "cloud" ? publicOrigin() : null;
 const connectSrc = ["'self'"];
 if (config.mode === "cloud") {
   const supabase = new URL(config.supabaseUrl);
@@ -35,9 +38,9 @@ server.use(helmet({
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
       frameSrc: config.mode === "local"
-        ? ["'self'", "http://127.0.0.1:*", "http://localhost:*"]
+        ? ["'self'", tableOfAuthoritiesUrl()]
         : ["'none'"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      imgSrc: ["'self'", "data:", "blob:"],
       objectSrc: ["'none'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
@@ -73,8 +76,9 @@ server.use((req, res, next) => {
   const origin = req.get("origin");
   if (origin && !oauthCallback) {
     try {
-      if (new URL(origin).host.toLowerCase() !==
-          (req.get("host") ?? "").toLowerCase()) throw new Error();
+      const expected = cloudOrigin ??
+        new URL(`${req.protocol}://${req.get("host")}`).origin;
+      if (new URL(origin).origin.toLowerCase() !== expected.toLowerCase()) throw new Error();
     } catch {
       res.status(403).send("Cross-origin requests are not allowed");
       return;

@@ -1,10 +1,31 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
+import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
+  type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
+import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Block = Record<string, unknown>;
 type Message = { role: "user" | "assistant"; content: string | Block[] };
 type State = { messages: Message[] };
+type AnthropicClient = {
+  messages: {
+    create(
+      request: Record<string, unknown>,
+      options: { signal?: AbortSignal; maxRetries: number },
+    ): Promise<AsyncIterable<unknown>>;
+  };
+  beta: {
+    messages: {
+      create(
+        request: Record<string, unknown>,
+        options: { signal?: AbortSignal; maxRetries: number },
+      ): Promise<AsyncIterable<unknown>>;
+    };
+  };
+};
+type AnthropicConstructor = new (options: {
+  apiKey: string; baseURL: string; maxRetries: number;
+}) => AnthropicClient;
+const anthropic = runtimeConstructor<AnthropicConstructor>("@anthropic-ai/sdk");
 
 const tools = (source: Tool[]) => source.map((tool) => ({
   name: tool.name,
@@ -48,7 +69,8 @@ export function createAnthropicWireAdapter(
   apiKey: string,
   nativeCompaction: boolean,
 ): ProviderAdapter {
-  const client = new Anthropic({ apiKey, baseURL: "https://api.anthropic.com", maxRetries: 0 });
+  const client = anthropic.then((Anthropic) =>
+    new Anthropic({ apiKey, baseURL: "https://api.anthropic.com", maxRetries: 0 }));
   const initial = messages(params.messages, nativeCompaction);
   return {
     provider: "claude",
@@ -83,7 +105,7 @@ export function createAnthropicWireAdapter(
       let stream: AsyncIterable<unknown>;
       try {
         stream = params.compactThreshold && nativeCompaction
-          ? await client.beta.messages.create({
+          ? await (await client).beta.messages.create({
               ...body,
               betas: ["compact-2026-01-12"],
               context_management: {
@@ -93,11 +115,11 @@ export function createAnthropicWireAdapter(
                   trigger: { type: "input_tokens", value: Math.max(50_000, params.compactThreshold) },
                 }],
               },
-            } as never, { signal: step.signal, maxRetries: 0 }) as unknown as AsyncIterable<unknown>
-          : await client.messages.create(body as never, {
+            }, { signal: step.signal, maxRetries: 0 })
+          : await (await client).messages.create(body, {
               signal: step.signal,
               maxRetries: 0,
-            }) as unknown as AsyncIterable<unknown>;
+            });
       } catch (error) {
         throw providerError(error);
       }
@@ -141,7 +163,10 @@ export function createAnthropicWireAdapter(
             } else if (delta?.type === "signature_delta" && typeof delta.signature === "string") {
               block.signature = String(block.signature ?? "") + delta.signature;
             } else if (delta?.type === "input_json_delta" && typeof delta.partial_json === "string") {
-              argumentsByBlock.set(index, (argumentsByBlock.get(index) ?? "") + delta.partial_json);
+              const argumentsJson = (argumentsByBlock.get(index) ?? "") + delta.partial_json;
+              if (Buffer.byteLength(argumentsJson) > MAX_PROVIDER_TOOL_ARGUMENT_BYTES)
+                throw new Error("Provider tool calls exceeded the input limit");
+              argumentsByBlock.set(index, argumentsJson);
             } else if (delta?.type === "compaction_delta" && typeof delta.content === "string") {
               block.content = String(block.content ?? "") + delta.content;
             }

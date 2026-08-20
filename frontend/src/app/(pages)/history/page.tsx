@@ -26,7 +26,6 @@ const ACTIONS = [
   ["document.uploaded", "Document upload"],
   ["document.generated", "Generated document"],
   ["document.edited", "Document edit"],
-  ["workflow.applied", "Workflow"],
   ["tabular.created", "Tabular review"],
   ["tabular.generated", "Tabular run"],
   ["export.account", "Account export"],

@@ -271,12 +271,12 @@ describe("parseAmendmentInstructions (français)", () => {
 });
 
 describe("applyAmendOps", () => {
-  it("applies a substitute inside the addressed provision only", () => {
+  it("applies a substitute inside the addressed provision only", async () => {
     const { ops } = parseAmendmentInstructions(
       "Subsection 5(2) of the Act is amended by striking out “sixty days” " +
         "and substituting “ninety days”.",
     );
-    const result = applyAmendOps(STATUTE, ops);
+    const result = await applyAmendOps(STATUTE, ops);
     expect(result.failures).toEqual([]);
     expect(result.applied).toHaveLength(1);
     expect(result.text).toContain("respond within ninety days");
@@ -284,12 +284,12 @@ describe("applyAmendOps", () => {
     expect(result.verification.newTextPresent).toBe(1);
   });
 
-  it("replaces a whole provision Canadian-style", () => {
+  it("replaces a whole provision Canadian-style", async () => {
     const { ops } = parseAmendmentInstructions(
       "Subsection 5(1) of the Act is replaced by the following:\n\n" +
         "“(1) A corporation may apply to the Minister for a licence.”",
     );
-    const result = applyAmendOps(STATUTE, ops);
+    const result = await applyAmendOps(STATUTE, ops);
     expect(result.failures).toEqual([]);
     expect(result.text).toContain("corporation may apply to the Minister for a licence");
     expect(result.text).not.toContain("A person may apply");
@@ -297,40 +297,40 @@ describe("applyAmendOps", () => {
     expect(result.text).toContain("respond within sixty days");
   });
 
-  it("fails loudly when the quoted text is not in the target", () => {
+  it("fails loudly when the quoted text is not in the target", async () => {
     const { ops } = parseAmendmentInstructions(
       "Subsection 5(1) of the Act is amended by striking out “ninety days” " +
         "and substituting “thirty days”.",
     );
-    const result = applyAmendOps(STATUTE, ops);
+    const result = await applyAmendOps(STATUTE, ops);
     expect(result.applied).toEqual([]);
     expect(result.failures[0].code).toBe("old_text_not_found");
   });
 
-  it("fails loudly on a target the skeleton cannot resolve", () => {
+  it("fails loudly on a target the skeleton cannot resolve", async () => {
     const { ops } = parseAmendmentInstructions(
       "Section 99 of the Act is repealed.",
     );
-    const result = applyAmendOps(STATUTE, ops);
+    const result = await applyAmendOps(STATUTE, ops);
     expect(result.failures[0].code).toBe("target_not_found");
   });
 
-  it("flags ambiguity instead of picking an occurrence", () => {
+  it("flags ambiguity instead of picking an occurrence", async () => {
     const { ops } = parseAmendmentInstructions(
       "Section 1.02 of the Agreement is amended by striking “Agent” and " +
         "inserting “Trustee”.",
     );
-    const result = applyAmendOps(AGREEMENT, ops);
+    const result = await applyAmendOps(AGREEMENT, ops);
     expect(result.applied).toEqual([]);
     expect(result.failures[0].code).toBe("old_text_ambiguous");
   });
 
-  it("applies every-occurrence substitutions across the target", () => {
+  it("applies every-occurrence substitutions across the target", async () => {
     const { ops } = parseAmendmentInstructions(
       "Section 1.02 of the Agreement is amended by striking “Administrative " +
         "Agent” each place it appears and inserting “Collateral Agent”.",
     );
-    const result = applyAmendOps(AGREEMENT, ops);
+    const result = await applyAmendOps(AGREEMENT, ops);
     expect(result.failures).toEqual([]);
     expect(result.applied).toHaveLength(2);
     expect(result.text.match(/Collateral Agent/gu)).toHaveLength(2);
@@ -338,9 +338,9 @@ describe("applyAmendOps", () => {
     expect(result.text.match(/Administrative Agent/gu)).toHaveLength(1);
   });
 
-  it("repeals a provision without touching its neighbours", () => {
+  it("repeals a provision without touching its neighbours", async () => {
     const { ops } = parseAmendmentInstructions("Section 8 of the Act is repealed.");
-    const result = applyAmendOps(STATUTE, ops);
+    const result = await applyAmendOps(STATUTE, ops);
     expect(result.failures).toEqual([]);
     expect(result.text).not.toContain("binds His Majesty");
     expect(result.text).toContain("A person may apply");
@@ -348,8 +348,8 @@ describe("applyAmendOps", () => {
 });
 
 describe("consolidateAmendment", () => {
-  it("runs parse + apply + verification as one gate", () => {
-    const result = consolidateAmendment(
+  it("runs parse + apply + verification as one gate", async () => {
+    const result = await consolidateAmendment(
       STATUTE,
       "Section 5 of the Act is amended— (1) in subsection (2), by striking " +
         "“sixty” and inserting “ninety”; and (2) by adding at the end the " +
@@ -421,20 +421,20 @@ describe("bare-token list re-punctuation (SC 2021, c. 24, s. 1(1))", () => {
     });
   });
 
-  it("reproduces today's consolidation from the pre-amendment text", () => {
+  it("reproduces today's consolidation from the pre-amendment text", async () => {
     const { ops } = parseAmendmentInstructions(INSTRUCTION);
-    const result = applyAmendOps(PRE, ops);
+    const result = await applyAmendOps(PRE, ops);
     expect(result.failures).toEqual([]);
     const normalize = (t: string) => t.replace(/\s+/gu, " ").trim();
     expect(normalize(result.text)).toBe(normalize(GOLD));
   });
 
-  it("refuses append_text on a terminal it has no rule for", () => {
+  it("refuses append_text on a terminal it has no rule for", async () => {
     const { ops } = parseAmendmentInstructions(
       "Subsection 164(1) of the Criminal Code is amended by adding “or” at the end of paragraph (c)",
     );
     const source = [CHAPEAU, "", "(c) an unpunctuated line"].join("\n");
-    const result = applyAmendOps(source, ops);
+    const result = await applyAmendOps(source, ops);
     expect(result.failures.map((f) => f.code)).toEqual(["unsupported_apply"]);
   });
 });
@@ -451,16 +451,16 @@ describe("applyAmendOps: who says whether line breaks were lost", () => {
   const instruction =
     "Section 1.02 of the Agreement is amended by striking out “as described”.";
 
-  it("addresses the recovered reading by default", () => {
+  it("addresses the recovered reading by default", async () => {
     const { ops } = parseAmendmentInstructions(instruction);
-    const result = applyAmendOps(COLLAPSED, ops);
+    const result = await applyAmendOps(COLLAPSED, ops);
     expect(result.failures).toEqual([]);
     expect(result.text).not.toContain("as described");
   });
 
-  it("refuses the same op when the caller says the breaks are the publisher's", () => {
+  it("refuses the same op when the caller says the breaks are the publisher's", async () => {
     const { ops } = parseAmendmentInstructions(instruction);
-    const result = applyAmendOps(COLLAPSED, ops, { recoverExtraction: false });
+    const result = await applyAmendOps(COLLAPSED, ops, { recoverExtraction: false });
     expect(result.failures.map((f) => f.code)).toEqual(["target_not_found"]);
     expect(result.text).toBe(COLLAPSED);
   });
@@ -493,8 +493,8 @@ describe("deleteProvisionAndRenumberSiblings", () => {
     "11.03 Cooperation. Each party shall cooperate.",
   ].join("\n");
 
-  it("deletes a clause, closes its sibling gap, and updates pointers atomically", () => {
-    const result = deleteProvisionAndRenumberSiblings(
+  it("deletes a clause, closes its sibling gap, and updates pointers atomically", async () => {
+    const result = await deleteProvisionAndRenumberSiblings(
       AGREEMENT_WITH_POINTERS,
       "8.02",
     );
@@ -524,7 +524,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
     );
   });
 
-  it("satisfies the frozen Sunrise delete-and-renumber benchmark fixture", () => {
+  it("satisfies the frozen Sunrise delete-and-renumber benchmark fixture", async () => {
     const source = readFileSync(
       path.join(
         __dirname,
@@ -540,7 +540,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
       ),
       "utf8",
     );
-    const result = deleteProvisionAndRenumberSiblings(source, "8.02");
+    const result = await deleteProvisionAndRenumberSiblings(source, "8.02");
 
     expect(result.failures).toEqual([]);
     expect(result.mapping).toEqual([
@@ -576,20 +576,20 @@ describe("deleteProvisionAndRenumberSiblings", () => {
       "external_reference",
       "\nSection 11.03 is subject to Section 8.05 of the Income Tax Act.",
     ],
-  ])("refuses %s without applying a partial edit", (code, extra) => {
+  ])("refuses %s without applying a partial edit", async (code, extra) => {
     const source = AGREEMENT_WITH_POINTERS + extra;
-    const result = deleteProvisionAndRenumberSiblings(source, "8.02");
+    const result = await deleteProvisionAndRenumberSiblings(source, "8.02");
 
     expect(result.failures.map((failure) => failure.code)).toContain(code);
     expect(result.text).toBe(source);
     expect(result.applied).toEqual([]);
   });
 
-  it("updates every item in an explicit cross-reference list", () => {
+  it("updates every item in an explicit cross-reference list", async () => {
     const source =
       AGREEMENT_WITH_POINTERS +
       "\nSection 11.03 is subject to Sections 8.03 and 8.05.";
-    const result = deleteProvisionAndRenumberSiblings(source, "8.02");
+    const result = await deleteProvisionAndRenumberSiblings(source, "8.02");
 
     expect(result.failures).toEqual([]);
     expect(result.text).toContain(
@@ -597,7 +597,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
     );
   });
 
-  it("refuses an ambiguous target without choosing an occurrence", () => {
+  it("refuses an ambiguous target without choosing an occurrence", async () => {
     const source = [
       "ARTICLE I",
       "COVENANTS",
@@ -608,7 +608,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
       "",
       "Section 1.02 Second Covenant. The Borrower shall notify.",
     ].join("\n");
-    const result = deleteProvisionAndRenumberSiblings(source, "1.01");
+    const result = await deleteProvisionAndRenumberSiblings(source, "1.01");
 
     expect(result.failures).toEqual([
       expect.objectContaining({ code: "target_ambiguous" }),
@@ -616,7 +616,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
     expect(result.text).toBe(source);
   });
 
-  it("refuses to compress a pre-existing sibling gap", () => {
+  it("refuses to compress a pre-existing sibling gap", async () => {
     const source = [
       "ARTICLE I",
       "COVENANTS",
@@ -627,7 +627,7 @@ describe("deleteProvisionAndRenumberSiblings", () => {
       "",
       "Section 1.04 Reserved Sequence. The numbering gap is intentional.",
     ].join("\n");
-    const result = deleteProvisionAndRenumberSiblings(source, "1.02");
+    const result = await deleteProvisionAndRenumberSiblings(source, "1.02");
 
     expect(result.failures).toEqual([
       expect.objectContaining({ code: "sibling_sequence_unsupported" }),

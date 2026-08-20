@@ -27,8 +27,6 @@ import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
 import { DocumentAutomation, type DocumentAutomationTarget } from "@/app/components/documents/DocumentAutomation";
 import type {
     AutomationRunEvent,
-    CaseCitation,
-    CaseCitationEvent,
     Citation,
     Document,
     DocumentCitation,
@@ -220,7 +218,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
     const [agentInspectorTab, setAgentInspectorTab] = useState<
-        Extract<AssistantSidePanelTab, { kind: "case" | "legal" }> | null
+        Extract<AssistantSidePanelTab, { kind: "legal" }> | null
     >(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowInitialId, setWorkflowInitialId] = useState<string>();
@@ -289,29 +287,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         },
         [setDockExpanded],
     );
-    const openCase = (
-        citation:
-            | CaseCitation
-            | CaseCitationEvent,
-        showQuotes = true,
-    ) => {
-        if (!citation.cluster_id || !chatId) return;
-        const streamed = citation.type === "case_citation";
-        upsertTab({
-            kind: "case",
-            id: `case:${citation.cluster_id}`,
-            chatId,
-            clusterId: citation.cluster_id,
-            citationRef: streamed ? undefined : citation.ref,
-            caseName: citation.case_name ?? null,
-            citation: citation.citation ?? null,
-            url: citation.url ?? null,
-            dateFiled: citation.dateFiled ?? null,
-            pdfUrl: citation.pdfUrl ?? null,
-            quotes: !streamed && showQuotes ? citation.quotes : undefined,
-            opinions: streamed ? citation.case?.opinions : undefined,
-        });
-    };
     const openCitation = (citation: Citation) => {
         if (onCitationClick?.(citation)) return;
         if (citation.kind === "tabular") return;
@@ -328,17 +303,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             window.open(exactProviderUrl, "_blank", "noopener,noreferrer");
             return;
         }
-        if (citation.kind === "case") return openCase(citation);
-        if (citation.kind === "document" || !citation.kind) {
+        if (citation.kind === "document") {
             return upsertTab(documentCitationTab(citation));
         }
-        if (citation.kind === "a2aj" || citation.kind === "public_legal") {
-            const tab = legalCitationTab(citation, true);
-            if (tab) upsertTab(tab);
-            else if ("url" in citation && citation.url) {
-                const href = safeAssistantUrl(citation.url, { relative: false });
-                if (href) window.open(href, "_blank", "noopener,noreferrer");
-            }
+        const tab = legalCitationTab(citation, true);
+        if (tab) upsertTab(tab);
+        else if (citation.url) {
+            const href = safeAssistantUrl(citation.url, { relative: false });
+            if (href) window.open(href, "_blank", "noopener,noreferrer");
         }
     };
     const openEditor = (
@@ -559,7 +531,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         if (useDisplayedDocumentContext) {
             return handleChat(message, {
                 displayedDoc: {
-                    filename: activeDocument.filename,
                     documentId: activeDocument.documentId,
                 },
             });
@@ -586,7 +557,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             normalizeLegalSourceLocator(source.locator) ??
             legalSourceLocatorFromUrl(source.url);
         const openSourceTab = (
-            tab: Extract<AssistantSidePanelTab, { kind: "case" | "legal" }>,
+            tab: Extract<AssistantSidePanelTab, { kind: "legal" }>,
         ) => {
             const inspectBesideAgent = activeDockTab === "agents";
             if (inspectBesideAgent) {
@@ -597,29 +568,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             }
             upsertTab(tab);
         };
-        if (source.clusterId && chatId) {
-            openSourceTab({
-                kind: "case",
-                id: `case:${source.clusterId}`,
-                chatId,
-                clusterId: source.clusterId,
-                caseName: source.name,
-                citation: source.citation,
-                url: source.url,
-                dateFiled: null,
-                pdfUrl: null,
-                initialLocator,
-                quotes: source.quote
-                    ? [{
-                        quote: source.quote,
-                        opinionId: null,
-                        type: null,
-                        author: null,
-                    }]
-                    : undefined,
-            });
-            return;
-        }
         if (
             source.citation &&
             (source.provider === "a2aj" ||
@@ -697,7 +645,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             if (latest) {
                 const slot = latest.id.match(/:(\d+)$/u)?.[1] ?? latest.id;
                 // A newly materialized reader is an external session event that intentionally opens its panel.
-                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setActiveAgentSlot(slot);
                 setActiveDockTab("agents");
                 setDockExpanded(true);
@@ -768,13 +715,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     ) : activeDockTab === "sources" ? (
         <LegalLibraryPage embedded />
     ) : null;
-    const agentInspectorContent = agentInspectorTab ? (
-        agentInspectorTab.kind === "case" ? (
-            <LegalSourceViewer caseTab={agentInspectorTab} compact />
-        ) : (
-            <LegalSourceViewer {...agentInspectorTab} compact />
-        )
-    ) : null;
+    const agentInspectorContent = agentInspectorTab
+        ? <LegalSourceViewer {...agentInspectorTab} compact />
+        : null;
     const closeAgentGroup = (slot: string) => {
         for (const panel of groupedAgents.get(slot) ?? []) {
             closeReadSubagentPanel(panel.id);
@@ -915,7 +858,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             }
                                             onCitationClick={openCitation}
                                             citationTitle={citationTitle}
-                                            onCaseClick={openCase}
                                             onAutomationClick={openAutomation}
                                             onReaderClick={
                                                 readSubagents.showDock
@@ -939,16 +881,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                         : LATEST_ASSISTANT_MIN_HEIGHT
                                                     : "0px"
                                             }
-                                            onWorkflowClick={(id) => {
-                                                openWorkflows(
-                                                    (workflow) =>
-                                                        chatInputRef.current?.startWorkflowDocumentSelection({
-                                                            id: workflow.id,
-                                                            title: workflow.metadata.title,
-                                                        }),
-                                                    id,
-                                                );
-                                            }}
                                             onEditViewClick={openEditor}
                                             onOpenDocument={openDocument}
                                             onEditResolveStart={

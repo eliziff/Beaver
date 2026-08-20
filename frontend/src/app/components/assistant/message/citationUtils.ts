@@ -6,7 +6,6 @@ export type CitationHistory = {
 };
 
 export function citationSourceKey(annotation: Citation): string {
-    if (annotation.kind === "case") return `case:${annotation.cluster_id}`;
     if (annotation.kind === "a2aj") {
         const identity = annotation.citation?.trim().toLocaleLowerCase();
         return `a2aj:${identity || annotation.url?.split("#", 1)[0] || annotation.ref}`;
@@ -16,16 +15,6 @@ export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "tabular")
         return `tabular:${annotation.review_id}:${annotation.col_index}:${annotation.row_index}`;
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
-}
-
-function usesSupra(annotation: Citation): boolean {
-    return (
-        annotation.kind === "case" ||
-        annotation.source_class === "case" ||
-        annotation.source_class === "legislation" ||
-        annotation.source_class === "commentary" ||
-        (annotation.kind === "public_legal" && annotation.provider === "journal")
-    );
 }
 
 export function preprocessCitations(
@@ -42,10 +31,14 @@ export function preprocessCitations(
             const citation = citations.get(ref);
             if (!citation) return [];
             const sourceKey = citationSourceKey(citation);
+            const canUseSupra = citation.source_class === "case" ||
+                citation.source_class === "legislation" ||
+                citation.source_class === "commentary" ||
+                (citation.kind === "public_legal" && citation.provider === "journal");
             const displayForm =
                 sourceKey === history.previous && citationPinpoint(citation)
                     ? "pinpoint"
-                    : history.seen.has(sourceKey) && usesSupra(citation)
+                    : history.seen.has(sourceKey) && canUseSupra
                       ? "supra"
                       : "full";
             const idx = inlineCitationTargets.length;
@@ -59,12 +52,4 @@ export function preprocessCitations(
         });
         return tokens.length > 0 ? tokens.join("") : full;
     });
-}
-export function internalCaseHref(
-    value: string | number | null | undefined,
-): string | null {
-    if (typeof value === "number") return `us-case-${value}`;
-    if (!value) return null;
-    const match = value.match(/^us-case-(\d+)$/);
-    return match ? `us-case-${match[1]}` : null;
 }

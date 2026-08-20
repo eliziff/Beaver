@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -12,12 +13,13 @@ import type {
   DocumentStore,
 } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
-import { encodePageCursor, pageRequest } from "../lib/pagination";
-import { buildContentDisposition } from "../lib/storage";
+import { pageRequest, pageResponse } from "../lib/pagination";
+import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
+  normalizeDownloadFilename } from "../lib/storage";
 import { singleFileUpload } from "../lib/upload";
 import { documentProjectionService } from "../lib/documentProjectionService";
 
-const scope = applicationScope;
+const scope = applicationScope, MAX_ZIP_FILES = 100;
 
 const versionId = (req: Request) =>
   typeof req.query.version_id === "string" ? req.query.version_id : null;
@@ -47,25 +49,15 @@ const filename = (req: Request, original: string) =>
     ? req.body.filename.trim().slice(0, 200)
     : original;
 
+const archiveName = (name: string, index: number) => {
+  const safe = normalizeDownloadFilename(name).replace(/[:*?"<>|]/gu, "_")
+    .replace(/^[. ]+|[. ]+$/gu, "") || "document";
+  return `${String(index + 1).padStart(3, "0")}-${safe}`;
+};
+
 function validatedFileType(name: string, bytes: Buffer) {
   const validated = validateDocumentFile(name, bytes);
   return validated.ok ? validated.fileType : reject(400, validated.error);
-}
-
-function documentRoute(
-  handler: (req: Request, res: Response) => Promise<unknown>,
-) {
-  return asyncRoute(handler);
-}
-
-function sendContent(res: Response, content: DocumentContent,
-  disposition: "inline" | "attachment") {
-  res.setHeader("Content-Type", contentTypeForDocumentType(content.fileType));
-  res.setHeader(
-    "Content-Disposition",
-    buildContentDisposition(disposition, content.filename),
-  );
-  res.send(content.bytes);
 }
 
 async function sendDownload(
@@ -80,7 +72,9 @@ async function sendDownload(
   ) ?? reject(404, "Document not found");
   res.setHeader("Cache-Control", "private, no-store");
   if (download.kind === "redirect") return void res.redirect(302, download.url);
-  sendContent(res, download.content, disposition);
+  res.set(downloadHeaders(contentTypeForDocumentType(download.content.fileType),
+    download.content.filename, disposition));
+  res.send(download.content.bytes);
 }
 
 export function createDocumentsRouter(
@@ -90,7 +84,7 @@ export function createDocumentsRouter(
   const router = Router();
   router.use(requireAuth);
 
-  router.get("/", documentRoute(async (req, res) => {
+  router.get("/", asyncRoute(async (req, res) => {
     const q = typeof req.query.q === "string"
       ? req.query.q.trim().toLocaleLowerCase()
       : "";
@@ -108,16 +102,13 @@ export function createDocumentsRouter(
       after,
       documentsOnly: true,
     });
-    res.json({
+    res.json(pageResponse("single-documents", filters, { ...page,
       items: page.items.flatMap((item) =>
         item.kind === "document" ? [item.document] : []),
-      next_cursor: page.nextAfter
-        ? encodePageCursor("single-documents", filters, page.nextAfter)
-        : null,
-    });
+    }));
   }));
 
-  router.get("/:documentId/spreadsheet", documentRoute(async (req, res) => {
+  router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {
     const file = await documents.read(
       scope(res), req.params.documentId, versionId(req), false,
     ) ?? reject(404, "Document not found");
@@ -161,7 +152,7 @@ export function createDocumentsRouter(
   router.post(
     "/",
     singleFileUpload("file"),
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const fileType = validatedFileType(file.originalname, file.buffer);
       res.status(201).json(await documents.create(scope(res), {
@@ -173,31 +164,31 @@ export function createDocumentsRouter(
     }),
   );
 
-  router.post("/download-zip", documentRoute(async (req, res) => {
-    const ids: string[] = Array.isArray(req.body?.document_ids)
-      ? (req.body.document_ids as unknown[]).filter(
-        (item: unknown): item is string => typeof item === "string",
-      )
-      : [];
-    if (!ids.length) reject(400, "document_ids is required");
-    const files = await documents.files(scope(res), [...new Set(ids)]);
+  router.post("/download-zip", asyncRoute(async (req, res) => {
+    const requested: unknown = req.body?.document_ids;
+    if (!Array.isArray(requested) || !requested.length ||
+        requested.length > MAX_ZIP_FILES || requested.some((id) =>
+          typeof id !== "string" || !id.trim() || id.length > 200)) {
+      reject(400, `document_ids must contain 1 to ${MAX_ZIP_FILES} document IDs`);
+    }
+    const ids = [...new Set((requested as string[]).map((id) => id.trim()))];
+    const files = await documents.files(scope(res), ids, MAX_OBJECT_SIZE_BYTES);
     if (!files.length) reject(404, "No documents found");
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
-    for (const file of files) zip.file(file.filename, file.bytes);
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", 'attachment; filename="documents.zip"');
-    res.send(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+    files.forEach((file, index) => zip.file(archiveName(file.filename, index), file.bytes));
+    res.set(downloadHeaders("application/zip", "documents.zip"));
+    await pipeline(zip.generateNodeStream({ type: "nodebuffer", streamFiles: true }), res);
   }));
 
-  router.delete("/:documentId", documentRoute(async (req, res) => {
+  router.delete("/:documentId", asyncRoute(async (req, res) => {
     if (!await documents.deleteDocument(scope(res), req.params.documentId)) {
       reject(404, "Document not found");
     }
     res.status(204).send();
   }));
 
-  router.get("/:documentId/evidence-view", documentRoute(async (req, res) => {
+  router.get("/:documentId/evidence-view", asyncRoute(async (req, res) => {
     const handle = evidenceHandle(req) ?? reject(400, "version_id and evidence are required");
     const requested = versionId(req) ?? reject(400, "version_id and evidence are required");
     const file = await documents.read(scope(res), req.params.documentId, requested, false)
@@ -223,7 +214,7 @@ export function createDocumentsRouter(
     res.send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${name} — verified evidence</title><style>body{margin:auto;max-width:52rem;padding:1rem;font:1rem/1.6 Georgia,serif}article{margin:1rem 0;padding:1rem;border-left:.3rem solid #c8102e;background:#f7f5f2}p{white-space:pre-wrap}a{color:#8b0d24}</style><h1>${name}</h1><a href="${html(original)}">Open the receipt-bound original PDF</a><main>${pages}</main></html>`);
   }));
 
-  router.get("/:documentId/file", documentRoute(async (req, res) => {
+  router.get("/:documentId/file", asyncRoute(async (req, res) => {
     const rendition = req.query.rendition;
     if (rendition !== undefined && rendition !== "pdf") {
       reject(400, "rendition must be pdf");
@@ -244,7 +235,7 @@ export function createDocumentsRouter(
     );
   }));
 
-  router.get("/:documentId/versions", documentRoute(async (req, res) => {
+  router.get("/:documentId/versions", asyncRoute(async (req, res) => {
     const versions = await documents.versions(scope(res), req.params.documentId)
       ?? reject(404, "Document not found");
     res.json(versions);
@@ -253,7 +244,7 @@ export function createDocumentsRouter(
   router.post(
     "/:documentId/versions",
     singleFileUpload("file"),
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const resolvedName = filename(req, file.originalname);
       const fileType = validatedFileType(resolvedName, file.buffer);
@@ -269,7 +260,7 @@ export function createDocumentsRouter(
 
   router.post(
     "/:documentId/versions/from-document",
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const sourceId = typeof req.body?.source_document_id === "string"
         ? req.body.source_document_id.trim()
         : "";
@@ -296,7 +287,7 @@ export function createDocumentsRouter(
 
   router.patch(
     "/:documentId/versions/:versionId",
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const resolvedName = typeof req.body?.filename === "string"
         ? req.body.filename.trim().slice(0, 200)
         : "";
@@ -312,7 +303,7 @@ export function createDocumentsRouter(
   router.put(
     "/:documentId/versions/:versionId/file",
     singleFileUpload("file"),
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const resolvedName = filename(req, file.originalname);
       const fileType = validatedFileType(resolvedName, file.buffer);
@@ -330,7 +321,7 @@ export function createDocumentsRouter(
 
   router.delete(
     "/:documentId/versions/:versionId",
-    documentRoute(async (req, res) => {
+    asyncRoute(async (req, res) => {
       const result = await documents.deleteVersion(
         scope(res), req.params.documentId, req.params.versionId,
       );
@@ -345,7 +336,7 @@ export function createDocumentsRouter(
     }),
   );
 
-  const resolveEdit = (mode: "accept" | "reject") => documentRoute(
+  const resolveEdit = (mode: "accept" | "reject") => asyncRoute(
     async (req, res) => {
       const result = await documents.resolveEdit(
         scope(res), req.params.documentId, req.params.editId, mode,

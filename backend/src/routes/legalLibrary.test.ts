@@ -2,7 +2,6 @@ import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { a2ajLegalSourceProvider } from "../lib/legalSources/a2aj";
-import { courtlistenerLegalSourceProvider } from "../lib/legalSources/courtlistener";
 import { legalLibraryRouter } from "./legalLibrary";
 
 vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
@@ -15,15 +14,12 @@ vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
 
 const searchLegalSources = vi.hoisted(() => vi.fn());
 const resolveLegalSource = vi.hoisted(() => vi.fn());
-const getUserModelSettings = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/legalSourceRegistry", async (original) => ({
   ...(await original<typeof import("../lib/legalSourceRegistry")>()),
   searchLegalSources,
   resolveLegalSource,
 }));
-
-vi.mock("../lib/userSettings", () => ({ getUserModelSettings }));
 
 const app = express();
 app.use(express.json());
@@ -35,30 +31,12 @@ afterEach(() => {
   a2ajLegalSourceProvider.clearCache();
   searchLegalSources.mockReset();
   resolveLegalSource.mockReset();
-  getUserModelSettings.mockReset();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   process.env.AUTH_MODE = originalAuthMode;
 });
 
 describe("legal Library viewer responses", () => {
-  it("returns CourtListener opinions through the canonical source route", async () => {
-    process.env.AUTH_MODE = "local";
-    getUserModelSettings.mockResolvedValue({ api_keys: { courtlistener: "token" } });
-    vi.spyOn(courtlistenerLegalSourceProvider, "caseOpinions").mockResolvedValue({
-      opinions: [{ opinionId: 7, text: "The court's reasons." }],
-      source: "bulk-local",
-    } as never);
-
-    const response = await request(app)
-      .get("/sources/courtlistener/42/opinions");
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      opinions: [{ opinionId: 7, text: "The court's reasons." }],
-    });
-  });
-
   it("keeps Library filters and DTOs while searching through the registry", async () => {
     process.env.AUTH_MODE = "local";
     searchLegalSources.mockResolvedValue({

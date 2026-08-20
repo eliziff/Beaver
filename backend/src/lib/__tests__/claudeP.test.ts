@@ -7,7 +7,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { streamClaudeP } from "../llm/claudeP";
+import { claudePModelSlug, streamClaudeP } from "../llm/claudeP";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 
@@ -46,6 +46,11 @@ afterEach(() => {
 });
 
 describe("claude -p native MCP transport", () => {
+  it("accepts ordinary model slugs and rejects shell metacharacters", () => {
+    expect(claudePModelSlug("claude-p:claude-sonnet-4-6")).toBe("claude-sonnet-4-6");
+    expect(claudePModelSlug("claude-p:sonnet & whoami")).toBeNull();
+  });
+
   it("runs Beaver tools through one isolated native Claude process", async () => {
     const inputs: Buffer[] = [];
     let config: {

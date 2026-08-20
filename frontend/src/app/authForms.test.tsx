@@ -68,12 +68,13 @@ describe("account forms", () => {
             </Profiler>,
         );
         const initialCommits = commits;
+        const password = "correct horse battery staple";
         const fields: [RegExp, string][] = [
             [/^Name/, "Ada"],
             [/^Organisation/, "Example LLP"],
             [/^Email$/, "ada@example.ca"],
-            [/^Password$/, "secret"],
-            [/^Confirm Password$/, "secret"],
+            [/^Password$/, password],
+            [/^Confirm Password$/, password],
         ];
         for (const [label, value] of fields) {
             fireEvent.change(screen.getByLabelText(label), {
@@ -85,7 +86,8 @@ describe("account forms", () => {
         fireEvent.submit(screen.getByRole("button", { name: "Sign up" }));
         expect(mocks.signUp).toHaveBeenCalledWith({
             email: "ada@example.ca",
-            password: "secret",
+            password,
         });
+        expect(screen.getByLabelText(/^Password$/)).toHaveAttribute("minLength", "12");
     });
 });

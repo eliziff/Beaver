@@ -255,7 +255,7 @@ describe("ChatView rejected normal turn", () => {
                         role: "assistant",
                         content: [
                             { type: "content", text: "Partial answer" },
-                            { type: "turn_status", status: "interrupted" },
+                            { type: "turn_status", status: "cancelled" },
                         ],
                     },
                 ] })}
@@ -263,8 +263,6 @@ describe("ChatView rejected normal turn", () => {
                 cancel={cancel}
             />,
         );
-        expect(screen.getByText("Response interrupted").parentElement).toHaveClass(
-            "text-red-700",
-        );
+        expect(screen.getByText("Response stopped")).toBeVisible();
     });
 });

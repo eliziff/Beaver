@@ -1,5 +1,4 @@
 import {
-  createSourceDoc,
   lookupSourceDocLabel,
   normalizeSourceDocLocator,
   type SourceDoc,
@@ -8,17 +7,15 @@ import {
   type SourceDocLookup,
   type SourceDocProvider,
 } from "./sourceDoc";
-import {
-  a2ajCaseBlocks,
-  courtlistenerCaseBlocks,
-  type CaseBlockExcludedRange,
-} from "./sourceDocA2AJ";
+import { reporterStartPage } from "./sourceDocA2AJ";
+import { sha256 } from "./hash";
+import { validRange, type SourceStructureInput } from "./sourceStructureAdapter";
 
 /**
  * Native provider markup (Akoma Ntoso eIds, CourtListener paragraph ids and
- * page-number elements) compiled to one SourceDoc: the markup is rendered to
- * text exactly once, natively-labelled blocks keep their provider anchors, and
- * the A2AJ prose case spine fills in whatever the markup does not label.
+ * page-number elements) rendered to provider evidence: the markup is rendered
+ * exactly once and natively-labelled blocks keep their provider anchors. The
+ * optional shared recovery host fills only the kinds this adapter leaves open.
  *
  * Parity with the legalSourceStructure engine this replaced is frozen in
  * fixtures/nativemarkup/baseline-structure.json: the rendered text, every block
@@ -41,6 +38,7 @@ type PendingBlock = {
   citationIndex?: number;
   pageScheme?: string;
 };
+type CaseBlockExcludedRange = Readonly<{ start: number; end: number }>;
 
 const BREAK_TAGS = new Set([
   "article",
@@ -95,6 +93,7 @@ const VOID_TAGS = new Set([
  * there). Do not merge the two or change either's output.
  */
 function decodeEntities(value: string) {
+  if (!value.includes("&")) return value;
   return value
     .replace(/&nbsp;|&#160;/giu, " ")
     .replace(/&amp;/giu, "&")
@@ -113,14 +112,18 @@ function decodeEntities(value: string) {
     });
 }
 
+const ATTRIBUTE_PATTERNS = new Map<string, RegExp>();
 function attribute(attrs: string, name: string) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = attrs.match(
-    new RegExp(
+  let pattern = ATTRIBUTE_PATTERNS.get(name);
+  if (!pattern) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    pattern = new RegExp(
       `(?:^|\\s)${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+))`,
       "iu",
-    ),
-  );
+    );
+    ATTRIBUTE_PATTERNS.set(name, pattern);
+  }
+  const match = attrs.match(pattern);
   return decodeEntities(match?.[1] ?? match?.[2] ?? match?.[3] ?? "").trim();
 }
 
@@ -367,6 +370,7 @@ function nativeMarkupBlocks(
     pageScheme?: string;
   } | null = null;
   let position = 0;
+  let harvardCasebody = false;
   const appendText = (value: string) => {
     if (!value) return;
     const prior = parts.at(-1) ?? "";
@@ -494,8 +498,13 @@ function nativeMarkupBlocks(
 
     const opening = raw.match(/^<\s*([\w:-]+)([\s\S]*?)\/?\s*>$/u);
     if (!opening || raw.startsWith("<!")) continue;
-    const tag = opening[1].split(":").at(-1)!.toLowerCase();
+    const qualifiedTag = opening[1];
+    const tag = qualifiedTag.split(":").at(-1)!.toLowerCase();
     const attrs = opening[2] ?? "";
+    if (!harvardCasebody &&
+      /^<(?:\w+:)?(?:section|article)\b[^>]*\bcasebody\b/iu.test(raw)) {
+      harvardCasebody = true;
+    }
     const selfClosing = /\/\s*>$/u.test(raw) || VOID_TAGS.has(tag);
     const depth = tagStack.length;
     const identity = nativeIdentity(provider, tag, attrs);
@@ -558,23 +567,25 @@ function nativeMarkupBlocks(
     if (tag === "br") appendBreak();
   }
 
-  const text = parts
+  const normalized = parts
     .join("")
     .replace(/[ \t]+\n/gu, "\n")
-    .replace(/\n{3,}/gu, "\n\n")
-    .trim();
+    .replace(/\n{3,}/gu, "\n\n");
+  const leadingTrim = normalized.length - normalized.trimStart().length;
+  const text = normalized.trim();
+  const rawEnd = leadingTrim + text.length;
   for (const pending of openExcluded) {
-    if (text.length > pending.start) {
-      excludedRanges.push({ start: pending.start, end: text.length });
+    if (rawEnd > pending.start) {
+      excludedRanges.push({ start: pending.start, end: rawEnd });
     }
   }
   for (const pending of open) {
-    if (text.length > pending.start) {
+    if (rawEnd > pending.start) {
       blocks.push({
         kind: pending.kind,
         label: pending.label,
         start: pending.start,
-        end: text.length,
+        end: rawEnd,
         anchor: pending.anchor,
         aliases: pending.aliases,
         origin: "native",
@@ -583,7 +594,7 @@ function nativeMarkupBlocks(
     }
   }
   pageStarts.forEach((page, index) => {
-    const end = pageStarts[index + 1]?.start ?? text.length;
+    const end = pageStarts[index + 1]?.start ?? rawEnd;
     if (end > page.start) {
       blocks.push({
         kind: "page",
@@ -596,117 +607,31 @@ function nativeMarkupBlocks(
       });
     }
   });
-  return { text, blocks, excludedRanges };
-}
-
-function hasGappedParagraphSpine(blocks: readonly SourceDocBlock[]) {
-  const labels = blocks
-    .filter(({ kind, label }) => kind === "paragraph" && /^par\d+$/u.test(label))
-    .sort((left, right) => left.start - right.start)
-    .map(({ label }) => Number(label.slice(3)));
-  return labels.some((label, index) => index > 0 && label !== labels[index - 1] + 1);
-}
-
-function clipParagraphsAtExcludedRanges(
-  blocks: readonly SourceDocBlock[],
-  ranges: readonly CaseBlockExcludedRange[],
-) {
-  const ordered = ranges
-    .filter(({ end, start }) => end > start)
-    .slice()
-    .sort((left, right) => left.start - right.start);
-  return blocks.flatMap((block) => {
-    if (block.kind !== "paragraph") return [block];
-    let end = block.end;
-    for (const range of ordered) {
-      if (range.start >= end) break;
-      if (range.end <= block.start) continue;
-      if (range.start <= block.start) return [];
-      end = range.start;
-    }
-    return end > block.start ? [{ ...block, end }] : [];
+  const ontoEvidenceText = ({ start, end }: CaseBlockExcludedRange) => ({
+    start: start - leadingTrim,
+    end: Math.min(end - leadingTrim, text.length),
   });
-}
-
-export function compileNativeMarkupSourceDoc(args: {
-  provider: SourceDocProvider;
-  id: string;
-  url?: string | null;
-  text: string;
-  markup?: string | null;
-  citation?: string | null;
-  pageCitations?: string[];
-}): SourceDoc {
-  const native = args.markup?.trim()
-    ? nativeMarkupBlocks(args.provider, args.markup, args.pageCitations ?? [])
-    : {
-        text: "",
-        blocks: [] as SourceDocBlock[],
-        excludedRanges: [] as CaseBlockExcludedRange[],
-      };
-  const text = native.text || args.text;
-  const nativeLocators = new Set(
-    native.blocks.flatMap((block) =>
-      [block.label, ...(block.aliases ?? [])].map(
-        (label) => `${block.kind}:${label.toLowerCase()}`,
-      ),
-    ),
-  );
-  // Harvard CAP casebody HTML has a frozen, receipt-bearing structure
-  // contract. Its own page/footnote markup already supplies that structure;
-  // keep its established fallback byte-for-byte while hardening the ordinary
-  // CourtListener opinion HTML that has no native paragraph labels.
-  const harvardCasebody = /<(?:\w+:)?(?:section|article)\b[^>]*\bcasebody\b/iu.test(
-    args.markup ?? "",
-  );
-  const recoveredBlocks = a2ajCaseBlocks({ text, citation: args.citation });
-  const clippedLegacyBlocks =
-    args.provider === "courtlistener"
-      ? clipParagraphsAtExcludedRanges(recoveredBlocks, native.excludedRanges)
-      : recoveredBlocks;
-  const candidateLegacyBlocks =
-    args.provider === "courtlistener"
-      ? clippedLegacyBlocks.filter(
-          (block) =>
-            block.kind !== "paragraph" ||
-            /\p{L}/u.test(text.slice(block.start, block.end)),
-        )
-      : clippedLegacyBlocks;
-  // Leave an already-safe generic spine alone. The CourtListener profile is
-  // a ratchet: source-marked footnotes and numeric-only tables are removed
-  // deterministically; the stricter selector runs only for an absent or
-  // gapped remaining spine.
-  const needsCourtlistenerProfile =
-    args.provider === "courtlistener" &&
-    (!candidateLegacyBlocks.some(({ kind }) => kind === "paragraph") ||
-      hasGappedParagraphSpine(candidateLegacyBlocks));
-  const heuristicBlocks =
-    args.provider === "courtlistener" &&
-    !harvardCasebody &&
-    needsCourtlistenerProfile
-      ? courtlistenerCaseBlocks(
-          { text, citation: args.citation },
-          native.excludedRanges,
-        )
-      : candidateLegacyBlocks;
-  const heuristic = heuristicBlocks.filter(
-    ({ kind, label }) =>
-      !nativeLocators.has(`${kind}:${label.toLowerCase()}`),
-  );
-  const blocks = [...native.blocks, ...heuristic].sort(
-    (left, right) =>
-      left.start - right.start ||
-      left.end - right.end ||
-      left.label.localeCompare(right.label),
-  );
-  return createSourceDoc({
-    provider: args.provider,
-    id: args.id,
-    url: args.url ?? null,
-    docType: "cases",
+  const sourceHash = sha256(markup);
+  const publicBlocks = blocks.map((block) => ({ ...block,
+    start: block.start - leadingTrim, end: block.end - leadingTrim }));
+  const trimOverhangRanges = new Map<string, CaseBlockExcludedRange>();
+  publicBlocks.forEach((block, index) => {
+    if (validRange(block, text.length)) return;
+    const raw = blocks[index];
+    if (block.start < 0 || block.start > text.length || block.end <= text.length ||
+        raw.end <= rawEnd || raw.end > normalized.length ||
+        /\S/u.test(normalized.slice(rawEnd, raw.end))) return;
+    trimOverhangRanges.set(`native-${String(index + 1).padStart(6, "0")}`,
+      { start: block.start, end: text.length });
+  });
+  return {
     text,
-    blocks,
-  });
+    blocks: publicBlocks,
+    trimOverhangRanges,
+    excludedRanges: excludedRanges.map(ontoEvidenceText),
+    sourceHash,
+    harvardCasebody,
+  };
 }
 
 export type LegalSourceStructureSummary = {
@@ -817,9 +742,84 @@ export function lookupLegalSourceDoc(
   return lookupSourceDocLabel(doc, kind, requestedLabel, contextBlocks);
 }
 
-/** Temporary, read-only port oracle. Delete with this TypeScript detector. */
-export const __nativeMarkupPortOracle = {
-  nativeMarkupBlocks,
-  hasGappedParagraphSpine,
-  clipParagraphsAtExcludedRanges,
+export type NativeMarkupSourceInput = {
+  provider: SourceDocProvider;
+  id: string;
+  url?: string | null;
+  text: string;
+  markup?: string | null;
+  citation?: string | null;
+  pageCitations?: string[];
+  scope?: { kind: "complete" | "excerpt"; excerptOf?: string };
 };
+
+function nativeEvidenceRanges(
+  args: NativeMarkupSourceInput,
+  text: string,
+  native: { text: string; blocks: SourceDocBlock[]; excludedRanges: CaseBlockExcludedRange[];
+    trimOverhangRanges?: ReadonlyMap<string, CaseBlockExcludedRange> },
+) {
+  const ranges = new Map<string, { start: number; end: number }>();
+  const used = new Set<string>();
+  native.blocks.forEach((block, index) => {
+    if (validRange(block, text.length)) return;
+    const claim = `native-${String(index + 1).padStart(6, "0")}`;
+    const evidence = native.trimOverhangRanges?.get(claim);
+    if (!evidence || evidence.start !== block.start || evidence.end !== text.length ||
+        block.end <= text.length || !validRange(evidence, text.length)) {
+      throw new RangeError(`${claim} has an invalid provider UTF-16 range ` +
+        `(${args.provider}/${args.id}/${block.start}:${block.end})`);
+    }
+    used.add(claim);
+    ranges.set(claim, evidence);
+  });
+  if (native.trimOverhangRanges &&
+      [...native.trimOverhangRanges.keys()].some((claim) => !used.has(claim))) {
+    throw new RangeError("A trim-overhang range does not name an invalid native claim");
+  }
+  native.excludedRanges.forEach((range, index) => {
+    if (!validRange(range, text.length)) throw new RangeError(
+      `Exclusion has an invalid provider UTF-16 range ` +
+      `(${args.provider}/${args.id}/${range.start}:${range.end}/${index})`);
+  });
+  return ranges;
+}
+
+export function prepareNativeMarkupSourceStructure(args: NativeMarkupSourceInput): SourceStructureInput {
+  const native = args.markup?.trim()
+    ? nativeMarkupBlocks(args.provider, args.markup, args.pageCitations ?? [])
+    : { text: "", blocks: [] as SourceDocBlock[], excludedRanges: [] as CaseBlockExcludedRange[] };
+  const text = native.text || args.text;
+  const harvardCasebody = "harvardCasebody" in native && native.harvardCasebody;
+  const representationRevision = "sourceHash" in native
+    ? native.sourceHash : sha256(args.markup || args.text);
+  const adapterRevision = sha256(JSON.stringify({
+    provider: args.provider,
+    representationRevision,
+    citation: args.citation ?? null,
+    pageCitations: args.pageCitations ?? [],
+    scope: args.scope ?? { kind: "complete" },
+    profile: harvardCasebody ? "case_lossy" : args.provider === "courtlistener"
+      ? "case_contiguous_complete" : "case_lossy",
+  }));
+  const evidenceRanges = nativeEvidenceRanges(args, text, native);
+  const reportStart = reporterStartPage(args.citation);
+  return {
+    provider: args.provider,
+    id: args.id,
+    url: args.url,
+    docType: "cases",
+    text,
+    providerRevision: adapterRevision,
+    sourceSha256: adapterRevision,
+    representationRevision,
+    scope: args.scope ?? { kind: "complete" },
+    profile: harvardCasebody ? "case_lossy" : args.provider === "courtlistener"
+      ? "case_contiguous_complete" : "case_lossy",
+    ...(reportStart === null ? {} : { reportStartPage: reportStart }),
+    nativeBlocks: native.blocks,
+    ...(evidenceRanges.size ? { nativeClaimRanges: evidenceRanges } : {}),
+    exclusions: native.excludedRanges,
+    order: "position",
+  };
+}

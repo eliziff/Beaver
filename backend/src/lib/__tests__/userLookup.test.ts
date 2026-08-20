@@ -2,9 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     normalizeEmail,
     normalizeDisplayName,
-    loadProfileUsersByEmail,
     findProfileUserByEmail,
-    findMissingUserEmails,
     syncProfileEmail,
 } from "../userLookup";
 
@@ -121,43 +119,6 @@ describe("normalizeDisplayName", () => {
 });
 
 // ---------------------------------------------------------------------------
-// loadProfileUsersByEmail
-// ---------------------------------------------------------------------------
-
-describe("loadProfileUsersByEmail", () => {
-    it("indexes profiles by normalized email and by id", async () => {
-        const db = makeDb([
-            { user_id: "u1", email: "Alice@Example.com", display_name: " Alice " },
-            { user_id: "u2", email: "bob@example.com", display_name: null },
-        ]);
-        const { userByEmail, userById } = await loadProfileUsersByEmail(
-            db as any,
-        );
-        expect(userByEmail.get("alice@example.com")).toEqual({
-            id: "u1",
-            email: "alice@example.com",
-            display_name: "Alice",
-        });
-        expect(userById.get("u2")).toEqual({
-            id: "u2",
-            email: "bob@example.com",
-            display_name: null,
-        });
-        expect(userByEmail.size).toBe(2);
-    });
-
-    it("skips rows whose email normalizes to empty", async () => {
-        const db = makeDb([
-            { user_id: "u1", email: "   ", display_name: null },
-            { user_id: "u2", email: "ok@example.com", display_name: null },
-        ]);
-        const { userByEmail } = await loadProfileUsersByEmail(db as any);
-        expect(userByEmail.size).toBe(1);
-        expect(userByEmail.has("ok@example.com")).toBe(true);
-    });
-});
-
-// ---------------------------------------------------------------------------
 // findProfileUserByEmail
 // ---------------------------------------------------------------------------
 
@@ -187,40 +148,6 @@ describe("findProfileUserByEmail", () => {
     it("returns null without querying for empty input", async () => {
         const db = makeDb(rows);
         await expect(findProfileUserByEmail(db as any, "   ")).resolves.toBeNull();
-    });
-});
-
-// ---------------------------------------------------------------------------
-// findMissingUserEmails
-// ---------------------------------------------------------------------------
-
-describe("findMissingUserEmails", () => {
-    const db = makeDb([
-        { user_id: "u1", email: "alice@example.com", display_name: null },
-    ]);
-
-    it("returns only emails with no matching profile", async () => {
-        await expect(
-            findMissingUserEmails(db as any, [
-                "Alice@Example.com",
-                "carol@example.com",
-            ]),
-        ).resolves.toEqual(["carol@example.com"]);
-    });
-
-    it("dedupes and drops empty entries before querying", async () => {
-        await expect(
-            findMissingUserEmails(db as any, [
-                "carol@example.com",
-                " CAROL@example.com ",
-                "",
-                "   ",
-            ]),
-        ).resolves.toEqual(["carol@example.com"]);
-    });
-
-    it("returns [] for an empty input list", async () => {
-        await expect(findMissingUserEmails(db as any, [])).resolves.toEqual([]);
     });
 });
 

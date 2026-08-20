@@ -25,7 +25,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { compileAgreementSkeleton } from "../../src/lib/legalTextSkeleton";
 import { sourceDocBlockText, type SourceDoc } from "../../src/lib/sourceDoc";
-import { compileA2AJSourceDoc } from "../../src/lib/sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../../src/lib/sourceDocStructureHost";
 
 export type ChunkSpan = { start: number; end: number };
 
@@ -78,12 +78,12 @@ export function chunkText(text: string, options?: ChunkOptions): ChunkSpan[] {
  * overlap — clause units don't straddle, so boundary overlap has
  * nothing to recover.
  */
-export function clauseChunkText(
+export async function clauseChunkText(
   text: string,
   options?: ChunkOptions,
-): ChunkSpan[] {
+): Promise<ChunkSpan[]> {
   return structuralChunkText(
-    compileAgreementSkeleton(text).doc,
+    (await compileAgreementSkeleton(text)).doc,
     options,
     "section",
   );
@@ -339,12 +339,12 @@ export function isSqliteLockError(error: unknown): boolean {
  * Build (or reuse) the derived passage index. Reads the source db
  * read-only; writes only the sidecar. Idempotent per parameter set.
  */
-export function ensurePassageIndex(options: PassageIndexOptions): {
+export async function ensurePassageIndex(options: PassageIndexOptions): Promise<{
   indexDb: string;
   passages: number;
   documents: number;
   built: boolean;
-} {
+}> {
   const indexDb = passageIndexPath(options);
   if (existsSync(indexDb)) {
     const existing = new DatabaseSync(indexDb, { readOnly: true });
@@ -426,10 +426,12 @@ export function ensurePassageIndex(options: PassageIndexOptions): {
               // damage to recover and the segmentation competition must not
               // run: legislation and case law keep the structure the
               // hardened statute/paragraph work gives them.
-              compileAgreementSkeleton(text, `${String(row.id)}:${language}`, {
-                recoverExtraction: false,
-              }).doc
-            : compileA2AJSourceDoc({
+              (await compileAgreementSkeleton(
+                text,
+                `${String(row.id)}:${language}`,
+                { recoverExtraction: false },
+              )).doc
+            : await deriveA2AJSourceDoc({
                 citation,
                 docType:
                   row.doc_type === "laws" || row.doc_type === "cases"
@@ -555,10 +557,12 @@ export function capHitsPerDoc<T extends { citation: string }>(
 }
 
 /** OR-semantics weighted-bm25 passage search over the derived index. */
-export function searchPassages(options: PassageSearchOptions): PassageHit[] {
+export async function searchPassages(
+  options: PassageSearchOptions,
+): Promise<PassageHit[]> {
   const tokens = passageQueryTokens(options.query);
   if (!tokens.length) return [];
-  const { indexDb } = ensurePassageIndex(options);
+  const { indexDb } = await ensurePassageIndex(options);
   const k = Math.max(1, Math.min(50, options.k ?? 8));
   const nameWeight = options.nameWeight ?? 4;
   // Default 0 (column ignored): measured slightly NEGATIVE on

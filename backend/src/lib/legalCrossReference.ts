@@ -166,7 +166,7 @@ export interface CrossReferenceOptions {
   integrityThreshold?: number;
 }
 
-export const DEFAULT_INTEGRITY_GATE = 0.5;
+const DEFAULT_INTEGRITY_GATE = 0.5;
 
 /**
  * Graphs are memoized against the SKELETON they were resolved over, not
@@ -179,12 +179,23 @@ export const DEFAULT_INTEGRITY_GATE = 0.5;
  */
 const graphCache = new WeakMap<AgreementSkeleton, Map<string, CrossReferenceGraph>>();
 
-export function crossReferenceGraph(
+export async function crossReferenceGraph(
   text: string,
   id = "",
   options: CrossReferenceOptions = {},
+): Promise<CrossReferenceGraph> {
+  return crossReferenceGraphFromSkeleton(
+    text,
+    options.skeleton ?? await compileAgreementSkeleton(text, id),
+    options,
+  );
+}
+
+export function crossReferenceGraphFromSkeleton(
+  text: string,
+  skeleton: AgreementSkeleton,
+  options: Omit<CrossReferenceOptions, "skeleton"> = {},
 ): CrossReferenceGraph {
-  const skeleton = options.skeleton ?? compileAgreementSkeleton(text, id);
   const variantKey = [
     options.words ? [...options.words].join(",") : "",
     options.integrityThreshold ?? "default",
@@ -377,16 +388,10 @@ function locatorFor(
   if (reference.locator) return reference.locator;
   if (reference.shape === "roman") return reference.aliasKey;
   if (reference.shape === "sub-only" && sourceNode) {
-    const head = sectionHead(sourceNode.label);
+    const head = sourceNode.label.match(/^sec([^(@]+)/u)?.[1] ?? "";
     if (head) return joinLocator(head, reference.label);
   }
   return "";
-}
-
-/** "sec8.01(a)(ii)" -> "8.01" */
-function sectionHead(label: string): string {
-  const match = label.match(/^sec([^(@]+)/u);
-  return match ? match[1] : "";
 }
 
 interface ResolvedTarget {

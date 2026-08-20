@@ -47,6 +47,9 @@ describe("remote URL network safety", () => {
       "https://[::ffff:7f00:1]/",
       "https://[::ffff:127.0.0.1]/",
       "https://[0:0:0:0:0:ffff:7f00:1]/",
+      "https://[::ffff:a00:1]/",
+      "https://[::ffff:a9fe:a9fe]/",
+      "https://[::ffff:c0a8:101]/",
       "https://[::7f00:1]/",
       "https://[2001:db8::1]/",
       "https://[2001:20::1]/",
@@ -61,7 +64,7 @@ describe("remote URL network safety", () => {
     }
 
     dnsLookup.mockResolvedValueOnce([
-      { address: "::ffff:127.0.0.1", family: 6 },
+      { address: "::ffff:169.254.169.254", family: 6 },
     ]);
     await expect(
       validateRemoteHttpsUrl("https://provider.example/document.pdf"),

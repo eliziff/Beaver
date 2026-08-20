@@ -29,6 +29,7 @@ describe("projectChatTranscript", () => {
           files: [
             { filename: "Evidence.png", document_id: "document-1" },
             { filename: "", document_id: "ignored" },
+            { filename: "orphan.pdf", document_id: "" },
           ],
           workflow: { id: "workflow-1", title: "Review" },
         }),
@@ -63,19 +64,15 @@ describe("projectChatTranscript", () => {
                 kind: "choice",
                 question: "Forum?",
                 options: [{ value: "Ontario" }],
-                allow_other: false,
-                other_label: "Other",
               },
             ],
           },
           {
             type: "ask_inputs_response",
-            content: "Browser-authored display text",
             responses: [
               {
                 id: "forum",
                 kind: "choice",
-                question: "Forum?",
                 answer: "Ontario",
               },
             ],
@@ -114,19 +111,12 @@ describe("projectChatTranscript", () => {
               {
                 id: "record",
                 kind: "documents",
-                filenames: ["record.pdf"],
                 documents: [
                   {
                     document_id: "document-1",
                     filename: "record.pdf",
                   },
                 ],
-              },
-            ],
-            files: [
-              {
-                document_id: "document-1",
-                filename: "record.pdf",
               },
             ],
           },
@@ -179,19 +169,37 @@ describe("visibleChatMessages", () => {
   it("exposes durable turn identity and completion without internal events", () => {
     const turnId = randomUUID();
 
-    expect(visibleChatMessages([
+    const visible = visibleChatMessages([
       message("user", "Question", { turn_id: turnId }),
       message("assistant", [
         { type: "content", text: "Answer" },
+        { type: "reasoning", text: "private reasoning" },
+        { type: "future_private_receipt", secret: "private" },
+        { type: "legal_evidence_receipt", status: "passed", evidence: [] },
+        { type: "mcp_tool_call", connector_name: "Private connector" },
+        {
+          type: "subagent_run", id: "reader-1", agent: "scout", task: "Read",
+          model: "private-model", effort: "high", status: "completed",
+          grounding: { type: "legal_evidence_receipt" },
+          resume: { continuation_id: "private-continuation" },
+          error: "private failure detail",
+        },
         { type: "local_turn_completed", schema_version: 1 },
       ], { turn_id: turnId }),
-    ])).toMatchObject([
+    ]);
+    expect(visible).toMatchObject([
       { role: "user", turn_id: turnId },
       {
         role: "assistant",
         turn_id: turnId,
         turn_complete: true,
-        content: [{ type: "content", text: "Answer" }],
+      },
+    ]);
+    expect(visible[1].content).toEqual([
+      { type: "content", text: "Answer" },
+      {
+        type: "subagent_run", id: "reader-1", task: "Read",
+        status: "completed",
       },
     ]);
   });

@@ -12,7 +12,7 @@ import {
   tokenizeSourceText,
   type SourceDoc,
 } from "../sourceDoc";
-import { compileA2AJSourceDoc } from "../sourceDocA2AJ";
+import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
 
 /**
  * The cross-provider fixture matrix (master plan P1.1a stage 1): the P1.1
@@ -52,8 +52,8 @@ function fixture(file: string): Fixture {
   ) as Fixture;
 }
 
-function compile(source: Fixture): SourceDoc {
-  return compileA2AJSourceDoc({
+function compile(source: Fixture): Promise<SourceDoc> {
+  return deriveA2AJSourceDoc({
     citation: source.citation,
     docType: source.docType,
     text: source.text,
@@ -226,9 +226,9 @@ const MATRIX: Array<{
 describe("SourceDoc cross-provider fixture matrix", () => {
   it.each(MATRIX)(
     "$file indexes $compiledSections sections and $compiledParagraphs paragraphs",
-    (entry) => {
+    async (entry) => {
       const source = fixture(entry.file);
-      const doc = compile(source);
+      const doc = await compile(source);
       expect(doc.ranges.section.count).toBe(entry.compiledSections);
       expect(doc.ranges.paragraph.count).toBe(entry.compiledParagraphs);
       expect(doc.status).toBe(
@@ -241,9 +241,9 @@ describe("SourceDoc cross-provider fixture matrix", () => {
     },
   );
 
-  it("marks every A2AJ block heuristic except a provider section spine", () => {
+  it("marks every A2AJ block heuristic except a provider section spine", async () => {
     for (const entry of MATRIX) {
-      const doc = compile(fixture(entry.file));
+      const doc = await compile(fixture(entry.file));
       const origins = new Set(doc.blocks.map((block) => block.origin));
       if (entry.file === "a2aj-laws-fed-criminalcode-sectionmap") {
         // The section map is provider-supplied granularity; the nesting
@@ -264,8 +264,8 @@ describe("SourceDoc cross-provider fixture matrix", () => {
 describe("federal statute corpus", () => {
   const source = fixture("a2aj-laws-fed-criminalcode-s231");
 
-  it("the compiler resolves the section, its subsections and its paragraphs", () => {
-    const doc = compile(source);
+  it("the compiler resolves the section, its subsections and its paragraphs", async () => {
+    const doc = await compile(source);
     expect(labels(doc)).toEqual([
       "sec231",
       "sec231(1)",
@@ -302,8 +302,8 @@ describe("federal statute corpus", () => {
     expect(lookupSourceDoc(doc, "section", "231(9)").status).toBe("not_found");
   });
 
-  it("separates the decimal subsections (6.01) and (6.1)", () => {
-    const doc = compile(source);
+  it("separates the decimal subsections (6.01) and (6.1)", async () => {
+    const doc = await compile(source);
     expect(
       lookupSourceDoc(doc, "section", "231(6.01)").block?.text,
     ).toContain("also constitutes a terrorist activity");
@@ -320,8 +320,8 @@ describe("federal statute corpus", () => {
     ).toContain("while committing or attempting to commit an indictable");
   });
 
-  it("indexes decimal sections and Roman subparagraphs", () => {
-    const doc = compile(fixture("a2aj-laws-fed-criminalcode-s22-1"));
+  it("indexes decimal sections and Roman subparagraphs", async () => {
+    const doc = await compile(fixture("a2aj-laws-fed-criminalcode-s22-1"));
     expect(labels(doc)).toContain("sec22.1");
     expect(labels(doc)).toContain("sec22.2");
     expect(
@@ -333,8 +333,8 @@ describe("federal statute corpus", () => {
     );
   });
 
-  it("keeps uppercase clause letters out of the Roman run", () => {
-    const doc = compile(fixture("a2aj-laws-fed-criminalcode-s83-01"));
+  it("keeps uppercase clause letters out of the Roman run", async () => {
+    const doc = await compile(fixture("a2aj-laws-fed-criminalcode-s83-01"));
     expect(
       labels(doc).filter((label) => label.startsWith("sec83.01(1)(b)(ii)")),
     ).toEqual([
@@ -350,8 +350,8 @@ describe("federal statute corpus", () => {
     ).toContain("subsection 7(3.73)");
   });
 
-  it("indexes alphanumeric federal regulation sections", () => {
-    const doc = compile(fixture("a2aj-regs-fed-crc870-a01"));
+  it("indexes alphanumeric federal regulation sections", async () => {
+    const doc = await compile(fixture("a2aj-regs-fed-crc870-a01"));
     expect(labels(doc)).toEqual([
       "secA.01.001",
       "secA.01.002",
@@ -368,10 +368,10 @@ describe("federal statute corpus", () => {
 });
 
 describe("parity with the engine SourceDoc replaced", () => {
-  it.each(PARITY_FIXTURES)("%s keeps the old spine byte-identical", (file) => {
+  it.each(PARITY_FIXTURES)("%s keeps the old spine byte-identical", async (file) => {
     const source = fixture(file);
     const old = BASELINE[file];
-    const doc = compile(source);
+    const doc = await compile(source);
     expect(createHash("sha256").update(doc.text).digest("hex")).toBe(
       old.textSha256,
     );
@@ -395,7 +395,7 @@ describe("parity with the engine SourceDoc replaced", () => {
     }
   });
 
-  it("indexes the federal statute corpus the old engine could not read", () => {
+  it("indexes the federal statute corpus the old engine could not read", async () => {
     for (const file of [
       "a2aj-laws-fed-criminalcode-s231",
       "a2aj-laws-fed-criminalcode-s22-1",
@@ -404,11 +404,11 @@ describe("parity with the engine SourceDoc replaced", () => {
     ]) {
       expect(BASELINE[file].status).toBe("unavailable");
       expect(BASELINE[file].blocks).toEqual([]);
-      expect(compile(fixture(file)).status).toBe("usable");
+      expect((await compile(fixture(file))).status).toBe("usable");
     }
   });
 
-  it("fixes the labels the old section-map engine mislabelled", () => {
+  it("fixes the labels the old section-map engine mislabelled", async () => {
     const oldLabels = BASELINE[
       "a2aj-laws-fed-criminalcode-sectionmap"
     ].blocks.map(([, label]) => label);
@@ -422,14 +422,14 @@ describe("parity with the engine SourceDoc replaced", () => {
 });
 
 describe("provider section map and Markdown emphasis agree", () => {
-  it("produces the same labels from both inputs", () => {
-    const mapped = compile(fixture("a2aj-laws-fed-criminalcode-sectionmap"));
+  it("produces the same labels from both inputs", async () => {
+    const mapped = await compile(fixture("a2aj-laws-fed-criminalcode-sectionmap"));
     for (const [file, section] of [
       ["a2aj-laws-fed-criminalcode-s231", "sec231"],
       ["a2aj-laws-fed-criminalcode-s22-1", "sec22.1"],
       ["a2aj-laws-fed-criminalcode-s83-01", "sec83.01"],
     ] as const) {
-      const emphasis = compile(fixture(file));
+      const emphasis = await compile(fixture(file));
       const fromMap = labels(mapped).filter(
         (label) => label === section || label.startsWith(`${section}(`),
       );
@@ -440,8 +440,8 @@ describe("provider section map and Markdown emphasis agree", () => {
     }
   });
 
-  it("keeps decimal and Roman children on their correct parents", () => {
-    const doc = compile(fixture("a2aj-laws-fed-criminalcode-sectionmap"));
+  it("keeps decimal and Roman children on their correct parents", async () => {
+    const doc = await compile(fixture("a2aj-laws-fed-criminalcode-sectionmap"));
     expect(labels(doc)).toContain("sec231(6.1)(a)");
     expect(labels(doc)).not.toContain("sec231(6.01)(a)");
     expect(labels(doc)).toContain("sec83.01(1)(b)(ii)(E)");
@@ -450,16 +450,16 @@ describe("provider section map and Markdown emphasis agree", () => {
 });
 
 describe("case spine corrections", () => {
-  it("keeps the complete ladder when a table of contents repeats its numbers", () => {
-    const doc = compile(fixture("a2aj-case-scc-2026scc16-toc"));
+  it("keeps the complete ladder when a table of contents repeats its numbers", async () => {
+    const doc = await compile(fixture("a2aj-case-scc-2026scc16-toc"));
     expect(labels(doc)).toEqual(
       Array.from({ length: 35 }, (_, index) => `par${index + 1}`),
     );
     expect(doc.ranges.paragraph.missing).toEqual([]);
   });
 
-  it("anchors a dot-numbered decision on its reasons, not quoted legislation", () => {
-    const doc = compile(fixture("a2aj-case-scc-1986scr103-dot"));
+  it("anchors a dot-numbered decision on its reasons, not quoted legislation", async () => {
+    const doc = await compile(fixture("a2aj-case-scc-1986scr103-dot"));
     expect(lookupSourceDoc(doc, "paragraph", "1").block?.text).toContain(
       "This appeal concerns the constitutionality",
     );
@@ -474,8 +474,8 @@ describe("case spine corrections", () => {
     );
   });
 
-  it("abstains on a pre-1995 decision with no paragraph numbers", () => {
-    const doc = compile(fixture("a2aj-case-scc-1990scr30-unnumbered"));
+  it("abstains on a pre-1995 decision with no paragraph numbers", async () => {
+    const doc = await compile(fixture("a2aj-case-scc-1990scr30-unnumbered"));
     expect(doc.blocks).toEqual([]);
     expect(doc.status).toBe("unavailable");
     expect(lookupSourceDoc(doc, "paragraph", "12").status).toBe("unavailable");
@@ -489,8 +489,8 @@ describe("case spine corrections", () => {
 });
 
 describe("locator ranges replace bare counts", () => {
-  it("advertises first, last and the gaps in between", () => {
-    const doc = compile(fixture("a2aj-laws-on-occupiers-liability"));
+  it("advertises first, last and the gaps in between", async () => {
+    const doc = await compile(fixture("a2aj-laws-on-occupiers-liability"));
     expect(doc.ranges.section).toMatchObject({
       kind: "section",
       count: 66,
@@ -500,12 +500,12 @@ describe("locator ranges replace bare counts", () => {
       missingTruncated: false,
     });
     expect(doc.ranges.paragraph.count).toBe(0);
-    const regulation = compile(fixture("a2aj-regs-on-oreg267-03"));
+    const regulation = await compile(fixture("a2aj-regs-on-oreg267-03"));
     expect(regulation.ranges.section.first).toBe("sec2");
     expect(regulation.ranges.section.last).toBe("sec14");
   });
 
-  it("caps the reported gap list instead of listing thousands", () => {
+  it("caps the reported gap list instead of listing thousands", async () => {
     const blocks = [0, 500].map((value) => ({
       kind: "paragraph" as const,
       label: `par${value + 1}`,
@@ -529,8 +529,8 @@ describe("locator ranges replace bare counts", () => {
 describe("queries over the compiled document", () => {
   const source = fixture("a2aj-laws-on-occupiers-liability");
 
-  it("tokenizes exactly like the pinpoint link builder", () => {
-    const doc = compile(source);
+  it("tokenizes exactly like the pinpoint link builder", async () => {
+    const doc = await compile(source);
     const expected = [...doc.text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)].map(
       (match) => ({
         word: match[0].toLowerCase(),
@@ -549,8 +549,8 @@ describe("queries over the compiled document", () => {
     ]);
   });
 
-  it("verifies a quote against the whole document and one block", () => {
-    const doc = compile(source);
+  it("verifies a quote against the whole document and one block", async () => {
+    const doc = await compile(source);
     const quote =
       "owes a duty to take such care as in all the circumstances of the case is reasonable";
     const block = doc.blocks.find((item) => item.label === "sec3(1)")!;
@@ -569,8 +569,8 @@ describe("queries over the compiled document", () => {
     expect(url).toContain("#:~:text=");
   });
 
-  it("slices a block range and fails closed on an unknown endpoint", () => {
-    const doc = compile(source);
+  it("slices a block range and fails closed on an unknown endpoint", async () => {
+    const doc = await compile(source);
     expect(
       sliceSourceDocBlocks(doc, "section", "3", "4").map((block) => block.label),
     ).toEqual([
@@ -599,8 +599,8 @@ describe("potato constraint", () => {
     return parts.join("\n\n");
   }
 
-  it("compiles a 2.3 MB statute once, in linear time", () => {
-    const small = compileA2AJSourceDoc({
+  it("compiles a 2.3 MB statute once, in linear time", async () => {
+    const small = await deriveA2AJSourceDoc({
       citation: "synthetic",
       docType: "laws",
       text: largeStatute(80),
@@ -608,7 +608,7 @@ describe("potato constraint", () => {
     const text = largeStatute(640);
     expect(text.length).toBeGreaterThan(2_300_000);
     const started = performance.now();
-    const large = compileA2AJSourceDoc({
+    const large = await deriveA2AJSourceDoc({
       citation: "synthetic",
       docType: "laws",
       text,

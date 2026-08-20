@@ -41,6 +41,25 @@ describe("citationsInText", () => {
     expect(texts("the decision at CanLII 123 is short")).toEqual(["CanLII 123"]);
   });
 
+  it("finds shared-corpus US reporters, journals, laws, and short cites", () => {
+    expect(texts("See 410 U.S. 113 and 410 U.S. at 115.")).toEqual([
+      "410 U.S. 113",
+      "410 U.S. at 115",
+    ]);
+    expect(texts("The article is at 123 Harv. L. Rev. 456.")).toEqual([
+      "123 Harv. L. Rev. 456",
+    ]);
+    expect(texts("The claim arises under 42 U.S.C. § 1983.")).toEqual([
+      "42 U.S.C. § 1983",
+    ]);
+    expect(texts("See T.C.M. (RIA) 2004-279.")).toEqual([
+      "T.C.M. (RIA) 2004-279",
+    ]);
+    expect(texts("Under Am. Samoa Code Ann. § 15.4.")).toEqual([
+      "Am. Samoa Code Ann. § 15.4",
+    ]);
+  });
+
   it("keeps the reporter shapes the excerpt classifier depends on", () => {
     // Regression pin for the detector promoted out of citatorExcerpts:
     // volume-reporter-page and "(1985), 48 C.R. (3d) 226" first-instance

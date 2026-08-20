@@ -70,6 +70,7 @@ export function finalizeDocxDom(container: HTMLElement): {
     const doc = container.ownerDocument;
     const pages: HTMLElement[] = [];
     const images: HTMLImageElement[] = [];
+    const links: HTMLAnchorElement[] = [];
     const refs: HTMLElement[] = [];
     const bodies: HTMLElement[] = [];
     const walker = doc.createTreeWalker(container, ELEMENT_NODE);
@@ -83,10 +84,28 @@ export function finalizeDocxDom(container: HTMLElement): {
             pages.push(element);
         } else if (element.tagName === "IMG") {
             images.push(element as HTMLImageElement);
+        } else if (element.tagName === "A") {
+            links.push(element as HTMLAnchorElement);
         } else if (element.id.startsWith(REF_MARK)) {
             refs.push(element);
         } else if (element.id.startsWith(BODY_MARK)) {
             bodies.push(element);
+        }
+    }
+    for (const link of links) {
+        const raw = link.getAttribute("href")?.trim() ?? "";
+        if (!raw || raw.startsWith("#")) continue;
+        try {
+            const url = new URL(raw, doc.baseURI);
+            if (!["http:", "https:", "mailto:", "tel:"].includes(url.protocol) ||
+                ((url.protocol === "http:" || url.protocol === "https:") &&
+                    (url.username || url.password))) throw new Error();
+            if (url.protocol === "http:" || url.protocol === "https:") {
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+            }
+        } catch {
+            link.removeAttribute("href");
         }
     }
     const numbers = new Map<string, number>();

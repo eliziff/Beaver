@@ -3,6 +3,8 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
+import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
+import { MAX_OBJECT_SIZE_BYTES } from "../lib/storage";
 import { createDocumentsRouter } from "./documentRoutes";
 
 const version = {
@@ -78,7 +80,7 @@ describe("canonical document routes", () => {
       .attach("file", Buffer.from("bad"), "draft.exe")).status).toBe(400);
     expect((await request(app).post("/single-documents")).status).toBe(400);
     expect((await request(app).post("/single-documents")
-      .attach("file", Buffer.from("docx"), "draft.docx")).status).toBe(201);
+      .attach("file", await zipDocumentBytes(), "draft.docx")).status).toBe(201);
     expect(documents.create).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ filename: "draft.docx", libraryKind: "file" }),
@@ -87,6 +89,35 @@ describe("canonical document routes", () => {
       .send({ document_ids: [] })).status).toBe(400);
     expect((await request(app).post("/single-documents/download-zip")
       .send({ document_ids: ["missing"] })).status).toBe(404);
+  });
+
+  it("bounds archive work and flattens untrusted filenames", async () => {
+    const { app, documents } = fixture();
+    expect((await request(app).post("/single-documents/download-zip").send({
+      document_ids: Array.from({ length: 101 }, (_, index) => `d${index}`),
+    })).status).toBe(400);
+    vi.mocked(documents.files).mockResolvedValueOnce([
+      { bytes: Buffer.from("one"), version, filename: "../brief?.docx",
+        fileType: "docx", hasPdfRendition: false },
+      { bytes: Buffer.from("two"), version, filename: "../brief?.docx",
+        fileType: "docx", hasPdfRendition: false },
+    ]);
+    const response = await request(app).post("/single-documents/download-zip")
+      .send({ document_ids: ["d1", "d2"] }).buffer(true)
+      .parse((incoming, done) => {
+        const chunks: Buffer[] = [];
+        incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
+        incoming.on("end", () => done(null, Buffer.concat(chunks)));
+      });
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    const zip = await (await import("jszip")).default.loadAsync(response.body);
+    expect(Object.keys(zip.files)).toEqual([
+      "001-_brief_.docx", "002-_brief_.docx",
+    ]);
+    expect(documents.files).toHaveBeenCalledWith(
+      expect.anything(), ["d1", "d2"], MAX_OBJECT_SIZE_BYTES,
+    );
   });
 
   it("serves local bytes and removes the divergent URL endpoint", async () => {
@@ -146,7 +177,7 @@ describe("canonical document routes", () => {
     const { app, documents } = fixture();
     const added = await request(app).post("/single-documents/d1/versions")
       .field("filename", " revised.docx ")
-      .attach("file", Buffer.from("docx"), "upload.docx");
+      .attach("file", await zipDocumentBytes(), "upload.docx");
     expect(added.status).toBe(201);
     expect(documents.addVersion).toHaveBeenCalledWith(
       expect.anything(),

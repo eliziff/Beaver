@@ -11,6 +11,7 @@ import {
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
 import { AccountToggle } from "../AccountToggle";
+import { errorMessage } from "@/app/lib/utils";
 type Enrollment = {
     factorId: string;
     challengeId: string;
@@ -31,8 +32,6 @@ const emptySetup: SetupState = {
     verificationCode: "",
     keyCopied: false,
 };
-const errorMessage = (error: unknown, fallback = "") =>
-    error instanceof Error ? error.message : fallback;
 export default function SecurityPage() {
     const [mfaClient] = useState(() => getSupabase().auth.mfa);
     const { profile, updateMfaOnLogin } = useUserProfile();
