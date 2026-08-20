@@ -144,6 +144,9 @@ function pagePath(path: string, query: object = {}) {
   const encoded = params.toString();
   return encoded ? `${path}?${encoded}` : path;
 }
+export async function getApiAuthorization() {
+  return (await getAuthHeader()).Authorization ?? "";
+}
 export const listProjects = (options: PageQuery & {
   scope?: "all" | "mine" | "shared-with-me";
 } = {}, signal?: AbortSignal) => apiRequest<Page<Project>>(
@@ -207,8 +210,6 @@ export interface UserProfile {
 export interface UserLookupResult {
   exists: boolean; email: string; display_name: string | null;
 }
-export const launchTableOfAuthorities = () =>
-  post<{ url: string }>("/table-of-authorities/launch");
 export interface ModelCatalog {
   models: {
     slug: string; displayName: string; defaultReasoningLevel?: string;

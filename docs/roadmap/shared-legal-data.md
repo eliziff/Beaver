@@ -61,8 +61,8 @@ disposable and must never be the sole copy of user work.
 
 - OpenLegalData lookup and service code: Python standard library only.
 - Beaver: Node 22 built-ins for direct SQLite fallback; no npm database driver.
-- Table of Authorities source launch: versioned managed virtual environment,
-  keyed by the runtime requirements hash.
+- Table of Authorities plugin and standalone launch: versioned managed virtual
+  environment, keyed by the runtime requirements hash.
 - Standalone executables: bundle application runtime dependencies.
 - DuckDB/PyArrow: importer extra, never imported on normal startup or lookup.
 - `open-legal-data doctor --check-write` is a release and support check.

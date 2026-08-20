@@ -198,8 +198,9 @@ lost during compaction or delegation.
   before updating bundles, lock records, and root gitlinks.
 - Do not commit credentials, AppData, model traces, downloaded corpora, caches,
   generated authorities, or managed runtimes.
-- One launcher starts backend, frontend, and Authorities, diagnoses ports and
-  dependencies, reports owning PIDs, and stops only its own processes.
+- One launcher starts Beaver and diagnoses its port and dependencies. The
+  Authorities worker is an on-demand Beaver child process, never a separately
+  managed service or listener, and exits with Beaver.
 - Missing dependencies such as `duckdb` must not appear randomly. Optional bulk
   readers do not load in the normal runtime.
 - The normal UI does not expose “local runtime,” data-directory paths, DuckDB

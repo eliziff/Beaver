@@ -125,6 +125,8 @@ const shutdown = lazy(async () => {
     jobs().then((worker) => worker.stop()),
     import("./lib/llm/codexAppServer")
       .then(({ shutdownCodexAppServers }) => shutdownCodexAppServers()),
+    import("./lib/tableOfAuthorities")
+      .then(({ shutdownTableOfAuthorities }) => shutdownTableOfAuthorities()),
   ];
   tasks.push(import("./lib/relationalDatabase")
     .then(({ closeRelationalDatabase }) => closeRelationalDatabase()));

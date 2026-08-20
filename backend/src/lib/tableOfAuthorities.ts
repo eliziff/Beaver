@@ -1,21 +1,20 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createWriteStream, existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { appUrl } from "./appRoutes";
-import { isLocalRuntime } from "./localMode";
-import { bufferRemoteResponse } from "./remoteUrlSafety";
+import { sha256 } from "./hash";
 import { isolatedProcessEnv } from "./subprocessEnv";
 import { isJsonRecord } from "./value";
 
 const DOCX_LIMIT = 64 * 1024 * 1024;
 const PDF_LIMIT = 256 * 1024 * 1024;
 const JOB_ID = /^[0-9a-f]{32}$/;
-const boundedJson = async (response: Response) => (await bufferRemoteResponse(response, {
-  label: "Authorities Helper response", maxBytes: 256 * 1024,
-  contentTypes: ["application/json"],
-})).json() as Promise<unknown>;
-
-let child: ChildProcess | null = null;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export type TableOfAuthoritiesJob = {
   id: string;
@@ -31,101 +30,157 @@ export type TableOfAuthoritiesJob = {
   app_url: string;
 };
 
-function port() {
-  const parsed = Number.parseInt(process.env.TOA_WEB_PORT ?? "8765", 10);
-  return Number.isFinite(parsed) && parsed >= 1024 && parsed <= 65_535
-    ? parsed
-    : 8765;
-}
+export type AuthoritiesResponse = {
+  status: number;
+  body?: unknown;
+  file?: string;
+  name?: string;
+  contentType?: string;
+};
 
-export function tableOfAuthoritiesUrl() {
-  return `http://127.0.0.1:${port()}`;
-}
+type Pending = {
+  resolve: (value: AuthoritiesResponse) => void;
+  reject: (reason: Error) => void;
+  timer: NodeJS.Timeout;
+};
 
-export function tableOfAuthoritiesProjectDirectory() {
+let worker: ChildProcessWithoutNullStreams | null = null;
+let starting: Promise<ChildProcessWithoutNullStreams> | null = null;
+let inbox = "";
+let nextRequestId = 1;
+const pending = new Map<number, Pending>();
+
+function tableOfAuthoritiesProjectDirectory() {
   const configured = process.env.TOA_MAKER_DIR?.trim();
   if (configured) return path.resolve(configured);
-  const fromBackend = path.resolve(
-    process.cwd(),
-    "..",
-    "AuthoritiesHelper",
-  );
+  const fromBackend = path.resolve(process.cwd(), "..", "AuthoritiesHelper");
   if (existsSync(path.join(fromBackend, "toa_web.py"))) return fromBackend;
   return path.resolve(process.cwd(), "AuthoritiesHelper");
 }
 
-export function tableOfAuthoritiesLocalFeatureAvailable() {
-  return isLocalRuntime();
+function stopWorker(reason: string) {
+  const current = worker;
+  worker = null;
+  for (const request of pending.values()) {
+    clearTimeout(request.timer);
+    request.reject(new Error(reason));
+  }
+  pending.clear();
+  if (current && current.exitCode === null) current.kill();
+  const oldInbox = inbox;
+  inbox = "";
+  if (oldInbox) void rm(oldInbox, { recursive: true, force: true });
 }
 
-export async function tableOfAuthoritiesStatus() {
+export function shutdownTableOfAuthorities() {
+  stopWorker("Beaver is shutting down.");
+}
+
+async function startWorker() {
+  if (worker?.exitCode === null) return worker;
+  if (starting) return starting;
+  starting = createWorker();
   try {
-    const response = await fetch(`${tableOfAuthoritiesUrl()}/api/status`, {
-      signal: AbortSignal.timeout(1_000),
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return false;
-    const payload = (await boundedJson(response)) as {
-      ok?: unknown;
-      service?: unknown;
-    };
-    return payload.ok === true && payload.service === "authorities-helper";
-  } catch {
-    return false;
+    return await starting;
+  } finally {
+    starting = null;
   }
 }
 
-async function waitUntilReady() {
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    if (await tableOfAuthoritiesStatus()) return true;
-    if (child?.exitCode !== null && child?.exitCode !== undefined) return false;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  return false;
-}
-
-export async function ensureTableOfAuthoritiesRunning() {
-  if (!tableOfAuthoritiesLocalFeatureAvailable()) {
-    throw new Error(
-      "Authorities Helper is available only in local mode.",
-    );
-  }
-  if (await tableOfAuthoritiesStatus()) {
-    return { url: tableOfAuthoritiesUrl(), reused: true };
-  }
-
+async function createWorker() {
   const directory = tableOfAuthoritiesProjectDirectory();
   const script = path.join(directory, "toa_web.py");
   const bootstrap = path.join(directory, "bootstrap.py");
-  if (!existsSync(script)) {
-    throw new Error(`Authorities Helper web host was not found at ${script}`);
-  }
+  if (!existsSync(script)) throw new Error(`Authorities Helper was not found at ${script}`);
+  inbox = await mkdtemp(path.join(tmpdir(), "beaver-authorities-"));
+  const args = existsSync(bootstrap)
+    ? [bootstrap, "--stdio", "--inbox", inbox]
+    : ["-X", "utf8", script, "--stdio", "--inbox", inbox];
+  const child = spawn(process.env.TOA_PYTHON?.trim() || "python", args, {
+    cwd: directory,
+    env: isolatedProcessEnv([
+      "TOA_*", "LEGALPDF_*", "MIKE_DOCX_*", "OPEN_LEGAL_DATA_HOME",
+      "CODEX_HOME", "TESSDATA_PREFIX", "PYTHONPATH", "VIRTUAL_ENV",
+    ]),
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  worker = child;
+  const lines = createInterface({ input: child.stdout });
+  lines.on("line", (line) => {
+    try {
+      const value: unknown = JSON.parse(line);
+      if (!isJsonRecord(value) || typeof value.id !== "number") return;
+      const request = pending.get(value.id);
+      if (!request) return;
+      pending.delete(value.id);
+      clearTimeout(request.timer);
+      if (typeof value.status !== "number") {
+        request.reject(new Error("Authorities Helper returned an invalid response."));
+        return;
+      }
+      request.resolve({
+        status: value.status,
+        body: value.body,
+        file: typeof value.file === "string" ? value.file : undefined,
+        name: typeof value.name === "string" ? value.name : undefined,
+        contentType: typeof value.content_type === "string" ? value.content_type : undefined,
+      });
+    } catch {
+      stopWorker("Authorities Helper returned an invalid response.");
+    }
+  });
+  child.once("error", () => stopWorker("Authorities Helper could not be started."));
+  child.once("exit", () => stopWorker("Authorities Helper stopped unexpectedly."));
+  child.stderr.resume();
+  return child;
+}
 
-  if (!child || child.exitCode !== null) {
-    const args = existsSync(bootstrap)
-      ? [bootstrap, "--port", String(port()), "--no-browser"]
-      : [script, "--port", String(port()), "--no-browser"];
-    child = spawn(process.env.TOA_PYTHON?.trim() || "python", args, {
-      cwd: directory,
-      env: isolatedProcessEnv([
-        "TOA_*", "LEGALPDF_*", "MIKE_DOCX_*", "OPEN_LEGAL_DATA_HOME",
-        "CODEX_HOME", "TESSDATA_PREFIX", "PYTHONPATH", "VIRTUAL_ENV",
-      ]),
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.once("error", () => {
-      child = null;
-    });
+export async function requestTableOfAuthorities(
+  userId: string,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  requestPath: string,
+  options: { body?: unknown; upload?: Buffer | Readable } = {},
+) {
+  const child = await startWorker();
+  const workerInbox = inbox;
+  if (!workerInbox || worker !== child) throw new Error("Authorities Helper is unavailable.");
+  const id = nextRequestId++;
+  let upload = "";
+  if (options.upload) {
+    upload = path.join(workerInbox, `${id}-${crypto.randomUUID()}.upload`);
+    try {
+      if (Buffer.isBuffer(options.upload)) {
+        await writeFile(upload, options.upload, { flag: "wx", mode: 0o600 });
+      } else {
+        await pipeline(options.upload, createWriteStream(upload, { flags: "wx", mode: 0o600 }));
+      }
+    } catch (error) {
+      await rm(upload, { force: true });
+      throw error;
+    }
   }
-
-  if (!(await waitUntilReady())) {
-    throw new Error(
-      "Authorities Helper did not become ready. Run `python bootstrap.py` in AuthoritiesHelper to see its startup error.",
-    );
-  }
-  return { url: tableOfAuthoritiesUrl(), reused: false };
+  const response = new Promise<AuthoritiesResponse>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("Authorities Helper request timed out."));
+    }, REQUEST_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timer });
+  });
+  const message: Record<string, unknown> = {
+    id, method, path: requestPath, scope: sha256(userId),
+  };
+  if ("body" in options) message.body = options.body;
+  if (upload) message.upload = upload;
+  child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
+    if (!error) return;
+    const request = pending.get(id);
+    if (!request) return;
+    pending.delete(id);
+    clearTimeout(request.timer);
+    request.reject(error);
+  });
+  return response;
 }
 
 function boundedText(value: unknown, maximum = 500) {
@@ -133,124 +188,75 @@ function boundedText(value: unknown, maximum = 500) {
 }
 
 function normalizeJob(payload: unknown): TableOfAuthoritiesJob {
-  if (!isJsonRecord(payload)) {
-    throw new Error("Authorities Helper returned an invalid job.");
-  }
+  if (!isJsonRecord(payload)) throw new Error("Authorities Helper returned an invalid job.");
   const id = boundedText(payload.id, 32);
-  if (!JOB_ID.test(id)) {
-    throw new Error("Authorities Helper returned an invalid job id.");
-  }
-  const files = Array.isArray(payload.files)
-    ? payload.files.slice(0, 50).flatMap((value) => {
-        if (!isJsonRecord(value)) {
-          return [];
-        }
-        const relativeUrl = boundedText(value.url, 2_000);
-        if (!relativeUrl.startsWith(`/api/jobs/${id}/files/`)) return [];
-        return [
-          {
-            name: boundedText(value.name, 200),
-            size:
-              typeof value.size === "number" && Number.isFinite(value.size)
-                ? Math.max(0, Math.trunc(value.size))
-                : 0,
-            url: new URL(relativeUrl, tableOfAuthoritiesUrl()).toString(),
-          },
-        ];
-      })
-    : [];
+  if (!JOB_ID.test(id)) throw new Error("Authorities Helper returned an invalid job id.");
+  const files = Array.isArray(payload.files) ? payload.files.slice(0, 50).flatMap((value) => {
+    if (!isJsonRecord(value)) return [];
+    const relativeUrl = boundedText(value.url, 2_000);
+    if (!relativeUrl.startsWith(`/api/jobs/${id}/files/`)) return [];
+    return [{
+      name: boundedText(value.name, 200),
+      size: typeof value.size === "number" && Number.isFinite(value.size)
+        ? Math.max(0, Math.trunc(value.size)) : 0,
+      url: `/api/table-of-authorities/workspace${relativeUrl.slice(4)}`,
+    }];
+  }) : [];
   const projectId = boundedText(payload.project_id, 80);
   return {
     id,
     state: boundedText(payload.state, 40),
     operation: boundedText(payload.operation, 80),
-    progress:
-      typeof payload.progress === "number" && Number.isFinite(payload.progress)
-        ? Math.min(100, Math.max(0, Math.trunc(payload.progress)))
-        : 0,
+    progress: typeof payload.progress === "number" && Number.isFinite(payload.progress)
+      ? Math.min(100, Math.max(0, Math.trunc(payload.progress))) : 0,
     message: boundedText(payload.message),
     error: boundedText(payload.error, 1_000),
     has_review: payload.has_review === true,
     split_fallback: payload.split_fallback === "auto" ? "auto" : "off",
     files,
     project_id: projectId,
-    app_url: appUrl({
-      kind: "authorities",
-      jobId: id,
-      projectId: projectId || null,
-    }),
+    app_url: appUrl({ kind: "authorities", jobId: id, projectId: projectId || null }),
   };
 }
 
-async function responseError(response: Response) {
-  try {
-    const payload = (await boundedJson(response)) as { error?: unknown };
-    if (typeof payload.error === "string") return payload.error.slice(0, 500);
-  } catch {
-    // Fall through to a bounded status message.
+function responseError(response: AuthoritiesResponse) {
+  if (isJsonRecord(response.body) && typeof response.body.error === "string") {
+    return response.body.error.slice(0, 500);
   }
   return `Authorities Helper request failed (${response.status}).`;
 }
 
 export async function submitTableOfAuthoritiesDocument(params: {
+  userId: string;
   bytes: Buffer;
   filename: string;
   splitFallback?: "off" | "auto";
   projectId?: string | null;
 }) {
   const filename = path.basename(params.filename).slice(0, 180);
-  const lower = filename.toLowerCase();
-  const pdf = lower.endsWith(".pdf");
-  const docx = lower.endsWith(".docx");
-  if (!docx && !pdf) {
-    throw new Error(
-      "Authorities Helper requires a Word or PDF Library version.",
-    );
+  const pdf = filename.toLowerCase().endsWith(".pdf");
+  if (!pdf && !filename.toLowerCase().endsWith(".docx")) {
+    throw new Error("Authorities Helper requires a Word or PDF Library version.");
   }
   const limit = pdf ? PDF_LIMIT : DOCX_LIMIT;
-  if (params.bytes.byteLength === 0 || params.bytes.byteLength > limit) {
-    throw new Error(
-      `Authorities Helper accepts ${pdf ? "PDF files up to 256 MB" : "Word files up to 64 MB"}.`,
-    );
+  if (!params.bytes.byteLength || params.bytes.byteLength > limit) {
+    throw new Error(`Authorities Helper accepts ${pdf ? "PDF files up to 256 MB" : "Word files up to 64 MB"}.`);
   }
-  await ensureTableOfAuthoritiesRunning();
   const query = new URLSearchParams({
     filename,
     split_fallback: params.splitFallback === "auto" ? "auto" : "off",
   });
-  if (params.projectId?.trim()) {
-    query.set("project", params.projectId.trim());
-  }
-  const response = await fetch(
-    `${tableOfAuthoritiesUrl()}/api/jobs?${query.toString()}`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": pdf
-          ? "application/pdf"
-          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      },
-      body: new Uint8Array(params.bytes),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
-  if (!response.ok) throw new Error(await responseError(response));
-  return normalizeJob(await boundedJson(response));
+  if (params.projectId?.trim()) query.set("project", params.projectId.trim());
+  const response = await requestTableOfAuthorities(params.userId, "POST", `/api/jobs?${query}`, {
+    upload: params.bytes,
+  });
+  if (response.status < 200 || response.status >= 300) throw new Error(responseError(response));
+  return normalizeJob(response.body);
 }
 
-export async function getTableOfAuthoritiesJob(jobId: string) {
-  if (!JOB_ID.test(jobId)) {
-    throw new Error("A valid Authorities Helper job ID is required.");
-  }
-  await ensureTableOfAuthoritiesRunning();
-  const response = await fetch(
-    `${tableOfAuthoritiesUrl()}/api/jobs/${jobId}`,
-    {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5_000),
-    },
-  );
-  if (!response.ok) throw new Error(await responseError(response));
-  return normalizeJob(await boundedJson(response));
+export async function getTableOfAuthoritiesJob(userId: string, jobId: string) {
+  if (!JOB_ID.test(jobId)) throw new Error("A valid Authorities Helper job ID is required.");
+  const response = await requestTableOfAuthorities(userId, "GET", `/api/jobs/${jobId}`);
+  if (response.status < 200 || response.status >= 300) throw new Error(responseError(response));
+  return normalizeJob(response.body);
 }

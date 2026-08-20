@@ -49,6 +49,19 @@ describe("public server boundary", () => {
     expect(response.headers["x-powered-by"]).toBeUndefined();
   });
 
+  it("hosts the canonical Authorities workspace without a second origin", async () => {
+    const response = await request(server)
+      .get("/authorities-helper/?mode=mike")
+      .set("Host", "127.0.0.1:3000");
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('href="styles.css"');
+    expect(response.text).toContain('src="app.js"');
+    expect(response.headers["content-security-policy"]).toContain(
+      "frame-ancestors 'self'",
+    );
+  });
+
   it("rejects DNS rebinding and cross-site browser requests in local mode", async () => {
     expect((await request(server).get("/api/health").set("Host", "evil.test"))
       .status).toBe(421);
