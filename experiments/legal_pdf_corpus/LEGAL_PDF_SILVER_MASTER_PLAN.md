@@ -2148,8 +2148,8 @@ No stage is being called complete prematurely:
 - The whole-project source guard self-test passes. It includes untracked
   authored files inside subrepositories and `.cmd` source. On the latest dirty
   execution slice it correctly leaves two ceilings red: production+tests
-  182,219 versus 181,886 (+333) and all authored code 288,586 versus 285,654
-  (+2,932), plus the intentionally
+  182,226 versus 181,886 (+340) and all authored code 288,751 versus 285,654
+  (+3,097), plus the intentionally
   unadvanced Legal PDF Parser lock. Physical diff counts inside one subrepo do
   not override this whole-project classifier. No ownership/performance slice
   is accepted until the old paths are deleted, the lock is updated, and all
@@ -2212,6 +2212,14 @@ No stage is being called complete prematurely:
   independent >=1,000 pages/s gate. It was not retried. The scheduler/proof is
   committed at `68848ac`; another full run requires a newly measured
   >=1,100-page/s projection rather than a timing-only retry.
+  An eight-light-worker qualifier was stopped after exceeding four minutes and
+  is disqualified. Its theoretical 1.908 GB bound incorrectly assumed worker
+  working set was bounded by its input slot; no scheduler change or retry was
+  accepted. Because the controller persisted only a final receipt, its
+  admissible completed denominator is 0/171 despite observed work, exposing a
+  durability defect as well as oversubscription. It left no temp/raw output or
+  process and is recorded at `97362fc`; future qualifiers must checkpoint
+  exact completed hashes and measured aggregate peak incrementally.
   The latest `cargo quick` was 2.759 s (within individual p95, median unproven)
   and the incremental production-feature build/link was 50.121 s, still red
   against 30 s. The binary shrank to 16,556,032 bytes and whole production is
