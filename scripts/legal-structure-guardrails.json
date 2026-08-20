@@ -110,6 +110,11 @@
     "hiddenFallbackOrDualImplementationAllowed": false,
     "codeMovedToSubrepoExperimentToolingGeneratedVendorOrDataCountsAsContraction": false,
     "throughputUsesFrozenInputDenominatorAndEndToEndWallTime": true,
+    "resumedOrCachedWorkMayCountForFreshThroughput": false,
+    "digestParityHashesExactSerializedBytesAndLength": true,
+    "quickDatabaseFingerprintMaySatisfyProviderParity": false,
+    "releaseBinaryMustBeBuiltFromPinnedSource": true,
+    "embeddedRuntimeProvenanceMustMatchPinnedSource": true,
     "receiptWarningsMaySatisfyRelease": false
   }
 }

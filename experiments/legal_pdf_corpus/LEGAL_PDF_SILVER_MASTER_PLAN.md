@@ -1122,31 +1122,32 @@ Inspected pages 1–3, 10, 35, 68, and 69.
 - complete false-positive and false-negative queues for every structure family
   in Section 6 before prioritizing production repair.
 
-## 16. Immediate next actions
+## 16. Current execution order
 
-1. Finish mapping SourceDoc and Legal PDF Parser structure responsibilities,
-   tests, corpus gates, and performance constraints into the shared-engine
-   extraction boundary without changing production code.
-2. Build a corpus-wide native structure/diagnostic inventory from the 748
-   successful documents without treating counters as correctness evidence and
-   without reimplementing SourceDoc's sequence selector in an experiment.
-3. Continue page renders/overlays from the existing source and parser artifacts.
-4. Manually audit false positives and false negatives across every structure
-   family in Section 6.
-5. Record examples, prevalence, mechanical causes, schema gaps, and resulting
-   decisions directly in this master plan.
-6. Specify the neutral evidence/result contract and choose library versus
-   persistent sidecar packaging from measured integration constraints.
-7. Inventory grammar consumers and map the existing authored corpus into the
-   structure-evidence contract; identify measured dialect gaps before importing
-   any Eyecite-derived grammar.
-8. Freeze a Text-Fidelity paragraph-boundary transfer fixture and specify the
-   separate prose-paragraph versus numbered-unit projection contract.
-9. Prioritize deterministic fixes and regression surfaces.
-10. Only then begin production code changes, beginning with behavior-preserving
-   structure-engine extraction.
-11. Re-establish the intended Kraken baseline separately before drawing OCR or
-   scan-regioning conclusions.
+1. Keep the full 748-document native baseline, every real provider mode, the
+   source/LoC budget, and the every-local-corpus registry red-or-green before
+   accepting another ownership move.
+2. Finish the behavior-preserving Rust extraction: retain exact public bytes,
+   eliminate the remaining slow batch/hashing path, and meet the frozen build,
+   binary, disk, and replay budgets before widening its contract.
+3. Freeze real canonical outputs for every applicable SourceDoc provider/mode,
+   including the local-PDF cross-language boundary and the locally installed
+   A2AJ, CourtListener, journal-source, and journal-final-contract stores.
+4. Extract the existing monotonic selector and native-claim merge as the shared
+   provider-neutral text-evidence contract; migrate one provider family at a
+   time and delete each superseded detector in the same accepted slice.
+5. Continue source-page/overlay diagnosis and corpus-wide mechanical probes for
+   each structure family, recording false positives, false negatives, schema
+   gaps, and abstentions here rather than treating parser counters as truth.
+6. Restore the settled Kraken `cpu_fallback` runtime contract to source, finish
+   the exact 750-document non-digital run, and resolve cache-round-trip
+   determinism separately from recognition quality.
+7. Wire the authored grammar corpus and Text-Fidelity/BLLA paragraph evidence
+   through the shared contract without conflating prose boundaries with legal
+   numbered-paragraph locators.
+8. Only after exact ownership parity, admit allowlisted quality deltas and
+   generate Luna xHigh machine silver/distillation/benchmark material with the
+   frozen ontology, provenance, and no-new-annotation rule.
 
 ## 17. Completion criteria
 
@@ -1245,7 +1246,7 @@ the structure layer during development.
 | Any focused backend structure test command | at most 15 s |
 | Rust cached structure replay | at least 1,000 pages/s |
 | All 24,707 successful native pages, cached replay | at most 30 s |
-| Text-only SourceDoc recovery | at least 50 MiB/s after process warmup |
+| Text-only SourceDoc recovery | at least 50 MiB/s for each provider lane and aggregate after process warmup |
 | Kraken-lite Quality, settled GPU | at least 5.5 pages/s |
 | Kraken-lite Quality, laptop profile | at least 2.0 pages/s |
 | Selective OCR over all 750 non-digital documents on GPU | at most 60 min |
@@ -1660,13 +1661,13 @@ Known applicable local surfaces to register immediately include at least:
 | Historical frozen journal qualification | 1,024 articles / 27,391 pages / 8,192 product sidecars, not currently materialized | historical evidence only until exact source inputs are local again; it cannot be a current release pass |
 | Historical external digital-born qualification | 29 URL rows and prior 1,445-page / 232-sidecar results, but source PDFs are not local | historical evidence only; URLs are not runnable corpus bytes |
 | Legal OCR benchmark | 153 pages: 123 manual gold + 30 reviewed silver | recognition, segmentation, routing, structure, and speed using the frozen split |
-| Text-Fidelity ordered journal truth | 661 pages / 350 articles / 32,553 lines in local revision `_01` | regression only; reconcile the `_01` versus OCR plan's accepted `_05` identity before any OCR-quality claim; no new user labeling |
+| Text-Fidelity ordered journal truth | 661 pages / 350 articles / 32,553 lines: 538 train + 68 eval + 55 test, self-contained under `known-good-input` | remap stale list paths by basename, then verify the 661 PNG/PAGE pairs against dataset summary `1030a939...` and source receipt `133a5a0f...`; no new user labeling |
 | Legal25 layout holdout | 87 pages / 975 annotations / 25 categories; consumer join covers only 48 pages | region accuracy on all 87; line-role/order/note claims only on their actual 48-page joined denominator |
 | Real-document layout surface | 1,500 images / 1,500 annotations | region-detector breadth only, never a semantic-structure denominator |
 | Local structure-stress corpora | most recent historical sweep: 330,473 A2AJ cases, 36,927 A2AJ laws, and 2,494 journals | remeasure live membership, then full provider/grammar/sequence proof over all present rows |
-| Current installed A2AJ full-text store | 248,685 documents: 225,017 cases + 23,668 laws | exact pre-refactor/candidate SourceDoc and lookup hashes over every row; reconcile membership difference from the historical sweep rather than choosing the smaller denominator |
-| Current local CourtListener bodies/audit | 55,504 installed opinion bodies and 69,393 audited rows in 71 completed parts | full real native/hybrid/flat classification and parity; metadata-only rows remain separately accounted |
-| Current local journal database | 18,958 articles / 404,506 article-page rows; FTS sidecar currently indexes 18,595 articles | all articles and page rows accounted; exact native/hybrid/flat output by actual applicability |
+| Current installed A2AJ full-text store | 248,685 documents: 225,162 cases + 23,523 laws; separate case-search store has 225,017 rows | exact pre-refactor/candidate SourceDoc and lookup hashes over every row; retain the second store as a named derivative surface rather than double-counting it as independent truth |
+| Current local CourtListener bodies/audit | 55,504 installed opinion bodies; current partial audit file has 23,300 rows; the historical 69,393-row/71-part audit is not presently located | full real native/hybrid/flat classification and parity on all bodies; partial and historical audits remain separately and honestly scoped |
+| Current local journal database | 18,958 articles / 404,506 article-page rows; FTS sidecar indexes 18,595 articles; OAJD has 6,937 registered final contracts plus their source packages | all source articles/pages and final-contract packages accounted; exact native/hybrid/flat output by actual applicability; the contentless FTS index is inventory, not a second structure corpus |
 | CanLII title/index corpus | historical local index: 3,538,714 case titles + 91,669 legislation titles | grammar/citation collision and membership proof where structure engine consumes those matches |
 | SourceDoc captured fixtures | currently 21 A2AJ SourceDoc JSON files and 7 native-markup JSON files | real-input canonical baseline per applicable provider/mode; synthetic rows separately labeled |
 | Legal generalization corpus | 31 raw/text document pairs | manifest/hash fidelity plus all heading/numbered-unit/paragraph/note/page outputs |
@@ -1686,6 +1687,17 @@ This table is a floor, not an allowlist. Stage 0 must discover additional local
 applicable surfaces, including ignored accepted gold, cached provider exports,
 real PDF regression fixtures, and browser/runtime held-outs. Every discovered
 surface must be registered and run, or explicitly proven irrelevant.
+
+OCR denominators must be de-aliased. `benchmark-153` and `combined-153` are the
+same bytes; heldout/manual-gold 55 are aliases; validation/manual-gold 68 are
+aliases; and the two silver-30 lists are aliases. The 123 true-gold benchmark
+pages are the 68 evaluation plus 55 test pages of the 661-page parent journal
+corpus, not a second independent source corpus. The accepted parent payload is
+661 PNG + 661 PAGE XML files / 32,553 corrected lines / 350 articles; the
+original 662-page export includes one excluded empty page and cannot be used to
+inflate the denominator. The six-page BLLA parity surface is generated
+reference evidence, not manual truth, and its `wrongful-interior` image is
+byte-identical to the one-page parity corpus rather than an independent page.
 
 ### 18.11 Anti-skip, anti-cache, and source-accounting rules
 
@@ -1722,6 +1734,20 @@ cache-key hash. The harness must prove:
   disappear merely because they bypass recognition; and
 - interruption/resume produces the same final manifest as an uninterrupted
   run.
+
+Installed multi-gigabyte SQLite stores use a two-level contract. The quick
+registry pins schema, provider metadata/source revisions, primary-key
+membership where cheap, byte size, modification identity, and exact row
+denominators without streaming tens of gigabytes. The provider corpus stage
+then hashes every consumed source row/content field and binds its output to
+that row hash. A database metadata fingerprint is never represented as a full
+content hash, and the quick registry can never satisfy provider parity.
+
+Old absolute paths in frozen lists are remapped only by stable page ID followed
+by fresh image/XML byte verification. A model path string is never model
+identity, and a Tesseract/OCR reuse decision cannot depend only on the resolved
+image path; pixel, truth, engine, model, and material option hashes are all
+part of the key. Changing bytes in place must force a miss.
 
 Every document result accounts for source anchors exactly once. Every physical
 PDF page is present exactly once. Every source text byte/span is retained,
@@ -1760,6 +1786,12 @@ Deleting or loosening tests cannot make a slice pass. The receipt reports test
 files, assertions/cases, real fixture rows, and applicable provider modes
 before and after; reductions require an explicit replacement mapping to a
 stronger public-outcome test.
+
+Digest-only parity still serializes the exact public byte representation and
+checks both byte length and SHA-256. Hashing an object model, normalized JSON,
+unordered map, semantic projection, or reserialized baseline is not byte
+parity. A resumed run may prove completeness and deterministic reuse, but it
+cannot contribute cached work to a fresh throughput numerator.
 
 ### 18.13 Anti-LoC and anti-architecture evasion
 
@@ -1812,11 +1844,28 @@ only when it is the intended shippable configuration and memory/disk ceilings
 still pass. Record peak RSS, GPU memory, artifact/model/binary bytes, cache
 growth, and temporary peak disk—not only steady-state throughput.
 
+Keep decoded-pixel warmed recognition speed, cold OCR-process speed, and
+end-to-end PDF product wall speed as separate metrics. Do not compare or merge
+CUDA and CPU accuracy/performance receipts: the settled benchmark has observed
+up to nine characters of backend drift over 438,577 truth characters. OCR
+receipts separately report physical pages, detector positives, routed
+attempts, actual OCR outputs, unresolved pages, and the exact partition
+identity; routed attempts cannot stand in for completed OCR output.
+
 Ordinary development uses warm package-scoped checks and cached structure
 replay. One controlled package-scoped cold/offline build and one final clean
 locked release build prove reproducibility; repeated clean builds are process
 theatre. Build work is itself timed and cannot be excluded from the build
 budget by prebuilding an unrecorded binary.
+
+Every release binary must be rebuilt from the clean pinned source and its
+embedded source-file/grammar/model provenance must agree with that commit. A
+previously frozen binary may remain an output baseline, but it cannot prove
+that current source reproduces the product; this directly guards the Kraken
+`cpu_fallback` discrepancy. Throughput also reports the slowest documents, p95
+document latency, peak batch bytes, and peak worker count. Parallel scheduling
+cannot hide a pathological algorithm by exceeding memory or temporary-disk
+ceilings.
 
 ### 18.15 Quality-change proof and no-new-annotation rule
 
@@ -1877,11 +1926,15 @@ warning-only release state.
 
 No stage is being called complete prematurely:
 
-- The whole-project source guard self-test passes. It now includes untracked
-  authored files inside subrepositories and `.cmd` source. It correctly fails
-  the current dirty slice because Legal PDF Parser contains an uncommitted
-  parity harness and production-plus-test source is temporarily over the
-  corrected baseline ceiling. Production source itself has not grown.
+- The whole-project source guard self-test passes. It includes untracked
+  authored files inside subrepositories and `.cmd` source. On the latest dirty
+  execution slice it correctly fails all three ceilings: production 125,904
+  versus 125,896 (+8), production+tests 182,240 versus 181,886 (+354), and all
+  authored code 288,482 versus 285,654 (+2,828), plus the intentionally
+  unadvanced Legal PDF Parser lock. Physical diff counts inside one subrepo do
+  not override this whole-project classifier. No ownership/performance slice
+  is accepted until the old paths are deleted, the lock is updated, and all
+  ceilings pass; completion still requires the lower contraction targets.
 - The Rust baseline harness has now hardened the full denominator: 750 audit
   records = 748 cached successes plus the two explicit ingestion failures.
   The independent resumed check passed 748/748 documents / 24,707 pages with
@@ -1890,20 +1943,94 @@ No stage is being called complete prematurely:
   Its fresh 168.628 s run achieved only 147.3 pages/s and therefore correctly
   failed the unchanged 250 pages/s interim speed gate. This freezes Stage-0
   bytes but does not satisfy the ownership-refactor or final 1,000 pages/s
-  gates; production Rust remains unchanged.
-- The SourceDoc coverage ledger has 17 provider/mode rows: eight real captured
-  baselines are frozen and exact, while nine missing real captures keep the
-  acceptance gate red. Synthetic/mocked cases remain unit tests only.
+  gates. The first ownership-only Rust slice is now committed at
+  `51b55f2fee7e2ce3d349ddb5e8fa56e6e8a6ab3a`: it exposes the existing aligned
+  page/line structure core through validated public `derive`/`replay` entry
+  points and keeps PDF/file handling in the engine adapter. It contracts
+  production by four physical lines, adds no dependency, and preserves exact
+  bytes for all 748 documents / 24,707 pages. The candidate binary grew only
+  35,840 bytes (0.216%). This is not yet the final provider-neutral text
+  evidence contract. The optimized digest-only harness now proves all 748
+  outputs exactly with zero raw outputs and aggregate output SHA-256
+  `eca681b3...0d9d3`; cumulative production change is -17 physical lines and
+  the binary is 21,504 bytes smaller than the frozen product. Repeated-furniture
+  preparation on the worst 1,401-page document fell from 5.282 s to 0.325 s
+  while preserving its exact 553 MB output. The full fresh run still took
+  89.588 s / 275.8 pages/s (91.227 s including proof work), so the 1,000
+  pages/s / 30 s gate remains red. Its 7.803 GB exact pretty-byte surface is
+  now dominated by Python common-input materialization, Rust reparse, sorted
+  value construction, and serialization; the next slice must remove that
+  boundary rather than add buffers or relax the gate. Post-edit `cargo quick`
+  (9.53 s) and the production-feature link (42.16 s) also remain red against
+  the 2 s median / 4 s p95 and 30 s budgets.
+- The SourceDoc compact parity ledger now covers every shipping provider: 16
+  of 17 provider/mode rows are frozen from real captures, including real A2AJ
+  native-only, CourtListener hybrid/flat, journal final-contract
+  native/recovery, and frozen-binary local-PDF native/hybrid/flat outputs. The
+  seventeenth row, TNA hybrid, is explicitly not parity-passed: the complete
+  current local TNA inventory has one native capture and no hybrid capture, so
+  a query-hashed applicability proof closes it only for this corpus and
+  automatically reopens when another capture/store appears. The smoke is
+  0.613 s, acceptance is 0.568 s, and the canonical battery is about 0.08 s.
+  Synthetic/mocked cases remain unit tests only. Full installed-provider
+  corpus output freezes are the next provider gate; compact captures alone do
+  not establish corpus-scale parity.
 - The non-digital runner has verified the full local manifest and exact
   denominator of 750 documents / 86,763 physical pages. Its first CUDA product
   smoke correctly failed when all CPU execution-provider fallback was
   forbidden: the settled model has a small unavoidable CPU-node assignment.
   The exact run is now live without a rebuild using the same frozen binary and
-  model, with `fallback=cpu` explicitly enabled and identity-pinned. The first
-  durable checkpoint has 76/750 documents passed, zero failed, and 101/86,763
-  physical pages accounted; 60 pages were detector-marked, 73 OCR attempts
-  were routed, and 70 OCR pages were emitted. This is progress, not a corpus
-  completion claim, and the image-only 6.263 pages/s result remains distinct
-  from end-to-end product throughput.
-- The dynamic all-local-corpus registry and its negative controls remain Stage
-  0 work. The inventory floor in Section 18.10 is not yet a green receipt.
+  model, with `fallback=cpu` explicitly enabled and identity-pinned. At the
+  latest durable product checkpoint has 448/750 document receipts. The launch
+  runner reports 446 passed and two explicit failures, but strict receipt
+  audit shows only 56/448 are raw-byte replay exact: 390 launch-era “passes”
+  have `byte_identical_structure_replay=false` and therefore become raw-float
+  drift failures, plus the two explicit failures. At the earlier 409-document
+  accounting checkpoint, 3,840/86,763 physical pages passed, 1,138 were
+  detector-marked, 3,299 OCR attempts were routed, 3,082 OCR pages were
+  emitted, and 217 remained unresolved, with no
+  route/output/partition mismatch. The first failure is not OCR drift: source
+  pages, lines, paragraphs,
+  eight notes, and their pairs are identical, while an extraction-cache f64
+  round trip moved one line across the exact `0.92 * body_median` small-font
+  boundary and changed two diagnostic fields. The second has exactly two
+  coordinate differences of `1e-9` and no semantic/structure/entity delta,
+  pure f64 JSON round-trip noise at the auditor's nine-decimal cutoff. A
+  tolerance may classify semantic equivalence, but cannot satisfy exact byte
+  parity; production quantization/serialization must make it deterministic.
+  The patched runner retains every such raw mismatch in the byte-failure
+  denominator. This prevalence proves a production canonical-float
+  serialization/quantization defect rather than 390 independent structure
+  regressions; semantic-equivalence diagnostics remain separate and cannot
+  turn the strict gate green. At this small-document
+  prefix, end-to-end wall is 55.7 minutes; warmed larger documents amortize
+  startup, with roughly four to five hours still projected. This is progress,
+  not a corpus completion claim, and the image-only 6.263 pages/s result
+  remains distinct from end-to-end product throughput.
+- The settled Kraken product binary is not yet reproducible from the checked-in
+  source. Its embedded provenance pins a `kraken.rs` implementation with
+  `cpu_fallback` in the request contract and provider identity; the current
+  source lacks that field and its Kraken allowlist would reject the request or
+  restore `fallback=none`, which cannot initialize this CUDA model. This is
+  treated as lost already-proven behavior. The frozen run remains useful for
+  corpus discovery, but release is red until the exact implementation is
+  restored, contract-tested, and reproduced from a source-built binary without
+  changing the model, route, or provider identities.
+- The repository-local corpus registry gate passes independently: 59 rows =
+  38 current/applicable/runnable, eight current but narrowly inapplicable, 13
+  historical-only, zero blocked current, and zero unregistered discoveries.
+  Freeze took 4.111 s, independent verification 3.427 s, and the ignored
+  receipt is 37,568 bytes. Its four negative controls reject a missing row,
+  changed manifest hash, duplicate ID, and smoke substituted for full scope.
+  This currently proves repository-local inventory completeness only. The
+  external provider stores discovered afterward are materially larger and are
+  not permitted to hide behind historical rows: two A2AJ SQLite stores (11.1
+  and 12.6 GB), a 9.2 GB CourtListener store plus the current 23,300-row
+  partial audit, a 487 MB journal search store, a 1.25 GB source database, and
+  the OAJD final-contract database/packages must
+  be registered with real row denominators and content/membership identities.
+  Their absolute paths must not enter receipts, and a quick registry check must
+  not re-hash roughly 35 GB merely to prove an unchanged store. Until that
+  database-aware freeze passes, `all-local-corpora` is red. Even afterward,
+  the applicable corpus executions remain required and a registry receipt
+  cannot satisfy them.
