@@ -1622,6 +1622,192 @@ TOCs/indexes, tables, figures/captions, forms, furniture, reading order/flows,
 continuations, exclusions, and abstention. Where no independent truth exists,
 claim exact parity and invariant validity only—not improved accuracy.
 
+#### 18.9.1 Stage-3 provider-evidence contract
+
+Stage 3 uses one `StructureEvidenceV1` value. It is evidence, not an unfinished
+`SourceDoc`, and a text provider must never fabricate PDF pages, lines, boxes,
+or fonts merely to enter the Rust engine. The contract is intentionally limited
+to fields exercised by a current provider or the PDF/OCR lane:
+
+```text
+StructureEvidenceV1
+  schema_version, document_id, provider, provider_revision
+  text, text_sha256, offset_unit = "unicode-scalar"
+  scope = { kind: "complete" | "excerpt", excerpt_of? }
+  origins[] = { id, producer, representation, revision, authority }
+  units[] = {
+    id, role: "page" | "line" | "span", parent_id?, source_order,
+    provider_order?, range, origin_id, page_index?, page_number?, flow_id?,
+    raw_geometry?: { coordinate_space, page_width, page_height, bbox }
+  }
+  native_claims[] = {
+    id, kind: "paragraph" | "page" | "section" | "footnote", label,
+    aliases[], parent_label?, anchor?, range, provider_order, origin_id
+  }
+  coverage[] = { kind, range, state: "absent" | "augment" | "complete",
+                 origin_id?, reason }
+  exclusions[] = { range, applies_to[], reason, origin_id }
+  paragraph_breaks[] = { at, before_unit?, after_unit?, origin_id, strength }
+```
+
+`range.start`, `range.end`, and `paragraph_breaks.at` are document-global,
+half-open Unicode-scalar offsets into the exact `text`; no normalization or
+replacement is permitted after ranges are made. TypeScript converts UTF-16
+offsets once at ingress and converts scalar output once in the `SourceDoc`
+projector. The existing Rust PDF core still uses line-local scalar span/word
+offsets, so the PDF adapter performs the checked document-to-line projection;
+text-only adapters do not create lines. An astral-character round trip is a
+mandatory contract test. IDs are stable and unique. `source_order` is
+document-global and one-based for each unit role; `provider_order` preserves a
+different upstream order rather than overwriting it.
+
+Raw finite provider/PDF geometry is retained unchanged for projection and
+provenance. Separately, the engine derives a versioned fixed-point decision key
+in one declared page frame and uses that key for every detector comparison,
+sort, threshold, and tie. The qualifying precision is selected against all
+cached PDF and OCR evidence; four decimals is a candidate, not a contract.
+Stable ties use valid provider/source order first and then the decision bbox
+tuple plus stable ID. Raw floating-point equality or ordering is forbidden,
+and ownership parity must never rewrite a retained raw bbox merely to obtain a
+decision key.
+
+Coverage is exhaustive and non-overlapping for every v1 claim kind over the
+declared text range. A missing kind is one full-range `absent` declaration; a
+known hole is an explicit `absent` interval inside otherwise stronger
+coverage. `complete` suppresses inference only inside its range. `augment`
+allows inference, but a native exact-locator claim wins and a native overlap
+cannot be silently replaced. `absent` permits inference. Conflicting native
+claims produce a diagnostic or abstention, never a heuristic override. An
+exclusion affects only its named detectors and cannot remove source text.
+Paragraph-break evidence is an unnumbered segmentation boundary, not a
+`parN` claim; promotion remains a separate engine decision. `complete` scope
+enables starts-at-1/gap completeness rules. `excerpt` validates observed order
+but does not penalize a missing external origin or gap.
+
+Origins map provider structure to `native` projection and engine derivation to
+`heuristic`; model/OCR proposals keep their model and runtime identity. The
+engine returns scalar ranges and origin diagnostics. The existing `SourceDoc`
+projector alone builds UTF-16 ranges, blocks, indexes, lookups, status, mode,
+and public serialization. Provider fetching, persistence, and cache policy do
+not enter this schema.
+
+#### 18.9.2 Frozen applicability mapping
+
+The counts below are the exact current frozen public blocks, recorded here so
+an adapter cannot call a different lane while still claiming mode parity.
+`N` and `H` mean native and heuristic origin. Claims named `complete` are
+complete only for the stated provider representation and range.
+
+| Frozen row | Scope and factual evidence | Coverage and required frozen result |
+| --- | --- | --- |
+| `a2aj/flat-case` | Complete decision; exact Markdown text; no fabricated units or native claims | all kinds absent; `paragraph H35` |
+| `a2aj/flat-law` | Legislation excerpt; exact Markdown text | all kinds absent; `section H22` |
+| `a2aj/hybrid-section-map` | Legislation excerpt; uniquely aligned map entries retain provider order as section claims | section augment, other kinds absent; `section N3/H50` |
+| `a2aj/native-section-map` | Legislation excerpt; exact text is assembled from the provider map in recovered provider semantic order | section augment because map entries do not claim nested completeness; other kinds absent; `section N1` |
+| `courtlistener/native-cap` | Complete CAP casebody; rendered tag spans, break edges, page/footnote claims, and footnote-body exclusions | CAP page and footnote ranges complete, other kinds absent; `page N17`, `footnote N20` |
+| `courtlistener/hybrid-opinion` | Complete opinion; rendered markup, tag breaks, and page claims | page complete, other kinds absent; `page N2`, `paragraph H5` |
+| `courtlistener/flat-opinion` | Complete plain opinion text; no structural markup | all kinds absent; no blocks |
+| `tna/native-akn` | Complete judgment; rendered AKN order/spans/breaks and numbered paragraph/section claims | paragraph and section complete for the AKN judgment body, other kinds absent; `paragraph N97`, `section N24` |
+| `tna/hybrid-akn` | No current lawful/local instance; prospective adapter is the same AKN contract with explicit absent holes | remains query-hash-proven inapplicable, not parity-passed; any new capture/store reopens it |
+| `govinfo/flat-text` | Excerpt: title, docket, and date from the package summary, not the attached decision | all kinds absent; no blocks |
+| `govuk-et/flat-text` | Excerpt: title/description/hidden index content, not the attached decision | all kinds absent; no blocks |
+| `journal/hybrid-legacy` | Complete article; authoritative `article_pages` order/ranges and page-marker paragraph exclusions | page complete, other kinds absent; `page N15`, `section H5`, `footnote H79`, `paragraph H1` |
+| `journal/native-final-contract` | Complete article package; page/region/line order, region breaks, and native claims | page/paragraph/section complete, footnote absent for this capture; `page N1`, `paragraph N9`, `section N1` |
+| `journal/hybrid-final-contract-recovery` | Complete package with an authoritative page but no usable native regions | page complete, other kinds absent; `page N1`, `paragraph H1` |
+| `local-pdf/native-source-doc` | Complete PDF; ordered page/line/span evidence, raw geometry, source-region kinds, and exclusions | native source-region contract is complete or the core abstains from it; `page N3` |
+| `local-pdf/hybrid-source-doc` | Complete PDF; same factual units, with a native page claim and no native paragraph claim | page complete, paragraph absent; `page N1`, `paragraph H1` |
+| `local-pdf/flat-source-doc` | Complete PDF; factual units/geometry but no native semantic claim | all semantic kinds absent; `page H1`, `paragraph H5` |
+
+The separate `journal/flat-text` applicability proof is not an eighteenth
+parity row: the current local provider contract always has an authoritative
+`article_pages` claim. Its live query hash must still reopen on corpus change.
+A2AJ law records remain `excerpt` unless provider metadata affirmatively proves
+that the rendition is the complete enactment. Physical page units are factual
+evidence, not semantic `pageN` claims: the flat local-PDF row therefore remains
+heuristic. A native-markup kind may be marked complete only where the upstream
+representation guarantees the entire range; otherwise the adapter emits
+`augment` and Stage-2 byte parity decides whether the claim is safe. Final
+journal packages preserve the current per-kind rule: a provider-populated kind
+is complete; a missing kind is explicitly absent and recoverable. Native
+provider blocks and anchors are always the oracle and remain byte-identical.
+
+#### 18.9.3 Detector deletion and ownership budget
+
+The following gross physical-line deletion ledger is pinned to design baseline
+`e111f1dce255a45249f8a45320f0cea2fa88c64f`. It names only detector/merge code,
+not retained fetchers, renderers, provider ordering, native claim extraction,
+or `SourceDoc` projection:
+
+| Provider family | Exact obsolete detector ranges | Gross lines removed |
+| --- | --- | ---: |
+| A2AJ case/law, also supplying today's generic CourtListener fallback | `backend/src/lib/sourceDocA2AJ.ts:50-54,57-75,127-261,297-471,659-1870` | 1,546 |
+| CourtListener/TNA/GovInfo/GOV.UK shared native-markup recovery and precedence merge | `backend/src/lib/sourceDocNativeMarkup.ts:602-629,648-701` | 82 |
+| Journal reconstructed blocks and per-kind merge | `backend/src/lib/legalSources/journal.ts:802-859,868-874` | 65 |
+| Local PDF | no detector deletion: `rust/src/structure.rs`, `pairing.rs`, `pairing_support.rs`, and grammar tables are the shared-core seed; `pdf.rs` remains its evidence adapter and `engine.rs` transport | 0 |
+| **Unique gross detector deletion** | shared ranges are counted once, never once per provider | **1,693** |
+
+TNA, GovInfo, and GOV.UK add zero further unique lines because they share the
+82-line native-markup merge; this is not permission to count that deletion
+three times. `backend/src/lib/legalPdfSourceDoc.ts` is a validator/projector,
+not a detector, and has a zero deletion budget. Rust extraction is a move into
+one public structure module, not a second implementation. Adapter/schema/client
+additions must fit under the 1,693-line gross removal, meet the Stage-3 net
+production contraction of at least 300 lines, and not increase whole-project
+LoC after subrepositories are included.
+
+#### 18.9.4 In-process/sidecar and acceptance tests
+
+Prefer an in-process Rust library call. If the TypeScript host requires a
+process boundary, it owns one warmed persistent sidecar per server process,
+not one child per document. The minimal protocol is versioned NDJSON:
+`hello` negotiates schema/engine hashes and `max_documents`/`max_bytes`;
+`derive_batch` carries a request ID and unique document IDs; one ordered
+`result_batch` returns each ID exactly once with either a result or typed item
+error. The host packs by both negotiated bounds, applies backpressure, and
+records batch size and hashes. The chosen bounds must fit the largest locally
+registered single document and are frozen only after that proof.
+
+Invalid evidence returns a per-item error without losing valid siblings. A
+malformed envelope, missing/duplicate ID, schema/hash mismatch, truncated
+response, or process death is fatal to that batch; later work may start a new
+sidecar, but no response prefix is accepted and no old TypeScript detector is
+used as a silent fallback. The core performs no provider fetch and writes no
+raw output or durable sidecar. Compact digest receipts and ignored,
+content-addressed proof manifests remain harness concerns.
+
+Before any ownership cutover, require these tests:
+
+1. Offset/schema tests cover astral Unicode round trips, empty/overlapping/out-
+   of-range evidence, duplicate IDs/order, invalid coverage partitions,
+   parent containment, non-finite geometry refusal, and preservation plus
+   deterministic decision handling for finite out-of-frame raw boxes.
+2. Geometry tests prove raw bbox preservation and decision-key determinism for
+   every cached PDF/OCR artifact before fixing precision; permissible batching
+   and serialization changes cannot alter a tie or semantic output.
+3. Native precedence tests cross `complete`, `augment`, `absent`, and explicit
+   holes for every kind; exact locator and overlap conflicts, exclusions,
+   paragraph breaks, complete starts-at-1/gaps, and excerpt semantics all fail
+   closed as specified above.
+4. Transport tests prove one handshake/process after warmup, 1-versus-N and
+   arbitrary batch-partition byte identity, ordered correlation, backpressure,
+   oversize refusal, valid-sibling survival on item error, and fail-closed
+   crash/protocol handling.
+5. Provider tests reproduce all 17 rows above plus both live-query
+   applicability reopen checks, then reproduce every installed Stage-2 source
+   row. They compare the complete canonical public `SourceDoc` bytes: text,
+   ordered blocks, ranges, indexes/lookups, status, mode, and revision.
+6. Whole-corpus acceptance retains the Stage-2 manifest root and exact
+   attempted/pass/failure accounting. Any intentional quality delta requires
+   a separate adjudicated receipt; ownership parity cannot refresh baselines.
+7. Speed tests use the same bytes and report each provider separately: no
+   per-document spawn, at least 50 MiB/s warmed text recovery for every
+   provider and aggregate, real-capture smoke under 1 s, full fixture matrix
+   under 8 s, and no provider fixture more than 5% slower.
+
+Stage 3 remains red if any provider is byte-different, any native pathway is
+displaced, any registered source row is skipped, the sidecar silently falls
+back, a provider is below the warmed speed floor, or project LoC grows.
+
 ### 18.10 Every-local-corpus proof registry
 
 Before the first production change and again at release, the harness scans the
