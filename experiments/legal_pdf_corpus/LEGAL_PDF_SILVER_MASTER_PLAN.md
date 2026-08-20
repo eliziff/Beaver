@@ -2192,6 +2192,16 @@ No stage is being called complete prematurely:
   the current two-heavy-worker schedule still projects roughly 33 s, so no
   fresh 748-document run was spent or claimed. The measured memory now permits
   a bounded three-heavy-worker scheduler qualification under the 2 GiB cap.
+  That qualification passed 17/17 exact documents / 11,495 pages in 18.379 s,
+  with 1.258 GB measured aggregate working set and a 1.573 GB evidence bound
+  after 25% headroom. The single authorized fresh run then preserved all
+  748/748 documents, 24,707 pages, and 7,803,025,160 exact output bytes with
+  aggregate SHA-256 `eca681b3...0d9d3`, zero receipt mismatches, zero raw
+  outputs, and misalignment rejection. Replay took 27.044 s (27.794 s total),
+  so the <=30 s gate is green but 913.6 pages/s remains red against the
+  independent >=1,000 pages/s gate. It was not retried. The scheduler/proof is
+  committed at `68848ac`; another full run requires a newly measured
+  >=1,100-page/s projection rather than a timing-only retry.
   The latest `cargo quick` was 2.759 s (within individual p95, median unproven)
   and the incremental production-feature build/link was 50.121 s, still red
   against 30 s. The binary shrank to 16,556,032 bytes and whole production is
