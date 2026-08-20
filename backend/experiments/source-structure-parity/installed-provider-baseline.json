@@ -1,0 +1,39 @@
+{
+  "schema_version": "source-structure-installed-freeze.expected.v1",
+  "baseline_commit": "e4c8aa35a9bf0714848cb228ef33c7f591d34ae1",
+  "serializer_contract_sha256": "95cffe3b9db96a4accae2d817ec27de8fc5c85139d08416652b70cfe23c8c453",
+  "manifest_root_sha256": "4ac13b37c59f3a1e235c6e0434bcdc2ecffe100c43ce43acf922bc92a0cef5f8",
+  "artifact_bytes": 29496144,
+  "wall_ms": 721677,
+  "processing_wall_ms": 686580,
+  "measured_mib_s_x1000": 41822,
+  "inventory": {
+    "a2aj": { "total": 248685, "cases": 225162, "laws": 23523, "derivative_cases_search": 225017 },
+    "courtlistener": { "opinions": 55504 },
+    "journal": { "articles": 18958, "page_rows": 404506, "orphan_page_rows": 0, "final_contracts": 6937, "orphan_final_contracts": 227 },
+    "signatures": {
+      "a2aj": "95496fa8b3fae7926bd51ecff41d2ed0f731d9b5f783812888801669f0af1aa7",
+      "a2aj-search": "128ba99105bb1f972bc738563386ba6583895330fc567f7755676f13e11f4d52",
+      "courtlistener": "0ea45890b598c2b1509d222fe6cac4c389f60837973e0afe9ddc918b38a0e580",
+      "journal": "890b68fcacd0f1c6fa3bc97eb45719f85840de40a227dd0e0c58b5a906d8bfd4",
+      "journal-final": "20f404a174b774ecbaaaefe8d00ca8fad0027642364055d5bf01f3d403816852"
+    }
+  },
+  "providers": {
+    "a2aj": { "attempted": 248685, "pass": 248640, "failure": 45, "source_bytes": 10892507375, "canonical_bytes": 7704525370, "modes": { "native": 0, "hybrid": 0, "flat": 248640 } },
+    "courtlistener": { "attempted": 55504, "pass": 55503, "failure": 1, "source_bytes": 3067149043, "canonical_bytes": 1158696817, "modes": { "native": 38652, "hybrid": 3260, "flat": 13591 } },
+    "journal": { "attempted": 19185, "pass": 18595, "failure": 590, "source_bytes": 16408660012, "canonical_bytes": 1475016821, "modes": { "native": 10162, "hybrid": 8433, "flat": 0 } }
+  },
+  "journal_proof": { "page_rows": 404506, "contract_proofs": 6937, "contract_applicable": 6937, "contract_hashed": 6937, "contract_aliases": 6710, "contract_standalone": 227, "contract_pages": 179722 },
+  "harness_sha256": {
+    "canonical.ts": "8f4b75f86ecf70f456af01b1b1e679fa0e58c85155701ac11f9bfbdbf5f0c3c4",
+    "freezeInstalledProviders.ts": "7ba9e40748f81cf9c6208416a6ef96d2ba49d5878c99c1b5500abdf55dd9c1bd",
+    "freezeInstalledProvidersParallel.ts": "bf7f8efbd9c0d2fcd9bf75fdf9fe222efe30e9ac227064f7d01f36d4245b4b68"
+  },
+  "reproduction_harness_sha256": {
+    "canonical.ts": "8f4b75f86ecf70f456af01b1b1e679fa0e58c85155701ac11f9bfbdbf5f0c3c4",
+    "freezeInstalledProviders.ts": "75f722a5dfcf933d024e2876119397de646d5261debee5597d9f6a2b110b3546",
+    "freezeInstalledProvidersParallel.ts": "bf7f8efbd9c0d2fcd9bf75fdf9fe222efe30e9ac227064f7d01f36d4245b4b68",
+    "verifyInstalledFreeze.ts": "af9b3fb26e8820a22c8534f3fcea5f0f65b929e7aec0f7f3c5a9cb0f7239cd44"
+  }
+}
