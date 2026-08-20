@@ -4,7 +4,13 @@ import {
   resolveIssueCards,
   type ModelIssueCard,
 } from "./caseSemanticMvp";
-import { createTextSourceDoc, type SourceDoc } from "../../src/lib/sourceDoc";
+import {
+  createTextSourceDoc,
+  sourceDocPhraseSpans,
+  sourceDocQuoteWords,
+  type SourceDoc,
+} from "../../src/lib/sourceDoc";
+import { citationLookupKey, citationsInText } from "../../src/lib/citationKey";
 import {
   ATTRIBUTIONS,
   DIRECT_HISTORY_LABELS,
@@ -14,7 +20,7 @@ import {
 
 export type CaseTargetOccurrence = {
   id: string;
-  kind: "citation";
+  kind: "citation" | "case_name";
   quote: string;
   start: number;
   end: number;
@@ -26,6 +32,103 @@ export type CaseTargetOccurrence = {
     end: number;
   } | null;
 };
+
+export type CaseTargetIdentity = {
+  citation: string;
+  citationAliases: readonly string[];
+  name: string | null;
+};
+
+const GENERIC_CASE_PARTY_WORDS = new Set([
+  "applicant", "association", "board", "canada", "commission", "company",
+  "corporation", "defendant", "director", "estate", "minister", "ontario",
+  "plaintiff", "quebec", "respondent", "tribunal", "union",
+]);
+
+function targetNamePhrases(name: string | null) {
+  if (!name?.trim()) return [];
+  const full = name.trim();
+  const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
+  const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
+  const preferredParty = (crown ? sides[1] : sides[0])
+    .replace(/^the\s+/iu, "")
+    .replace(/\s*\([^)]*\)\s*$/u, "")
+    .replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "")
+    .trim();
+  const partyWords = sourceDocQuoteWords(preferredParty);
+  const first = partyWords[0] ?? "";
+  const shortWords = sides.length === 1
+    ? partyWords.slice(0, Math.min(2, partyWords.length))
+    : first.length >= 5 && !GENERIC_CASE_PARTY_WORDS.has(first)
+      ? [first]
+      : partyWords.slice(0, 2);
+  const phrases = [full, preferredParty, shortWords.join(" ")]
+    .map((value) => value.trim())
+    .filter((value) => sourceDocQuoteWords(value).length > 0);
+  const keyed = new Map<string, string>();
+  for (const phrase of phrases) keyed.set(sourceDocQuoteWords(phrase).join("\0"), phrase);
+  return [...keyed.values()];
+}
+
+function directlyDecoratesCitation(text: string, end: number, citations: readonly { start: number }[]) {
+  return citations.some((citation) => {
+    if (citation.start < end || citation.start - end > 180) return false;
+    const between = text.slice(end, citation.start);
+    return !between.includes("\n") && !/[!?]/u.test(between);
+  });
+}
+
+/**
+ * Find host-owned mentions of one target. Literal citations keep their stable
+ * `tmN` IDs; conservative case-name/short-form matches use `tnN`. A name that
+ * merely decorates an immediately following target citation is not duplicated.
+ */
+export function detectCaseTargetOccurrences(
+  source: SourceDoc,
+  target: CaseTargetIdentity,
+): CaseTargetOccurrence[] {
+  const bodyEnd = source.blocks.filter(({ kind }) => kind === "paragraph").at(-1)?.end ?? source.text.length;
+  const targetCitations = [target.citation, ...target.citationAliases];
+  const targetKeys = new Set(
+    targetCitations.map(citationLookupKey)
+      .filter(Boolean),
+  );
+  const citations = citationsInText(source.text)
+    .filter((match) => targetKeys.has(citationLookupKey(match.text)));
+  const citationOccurrences = citations.map((match, index): CaseTargetOccurrence => ({
+    id: `tm${index + 1}`,
+    kind: "citation",
+    quote: match.text,
+    start: match.start,
+    end: match.end,
+    citationKey: citationLookupKey(match.text),
+    linkedContext: footnoteReferenceContext(source.text, match.start, bodyEnd),
+  }));
+
+  const candidateSpans = targetNamePhrases(target.name).flatMap((phrase) =>
+    sourceDocPhraseSpans(source, sourceDocQuoteWords(phrase)).map(({ start, end }) => ({ start, end }))
+  ).filter(({ start, end }) =>
+    !citations.some((citation) => start < citation.end && end > citation.start) &&
+    !directlyDecoratesCitation(source.text, end, citations)
+  );
+  const names = [...new Map(candidateSpans
+    .sort((left, right) => left.start - right.start || right.end - left.end)
+    .map((span) => [`${span.start}:${span.end}`, span])).values()]
+    .filter((span, index, spans) => !spans.some((other, otherIndex) =>
+      otherIndex !== index && other.start === span.start && other.end > span.end
+    ))
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+  const nameOccurrences = names.map((span, index): CaseTargetOccurrence => ({
+    id: `tn${index + 1}`,
+    kind: "case_name",
+    quote: source.text.slice(span.start, span.end),
+    start: span.start,
+    end: span.end,
+    citationKey: citationLookupKey(target.citation),
+    linkedContext: footnoteReferenceContext(source.text, span.start, bodyEnd),
+  }));
+  return [...citationOccurrences, ...nameOccurrences];
+}
 
 export function footnoteReferenceContext(
   text: string,
@@ -71,8 +174,7 @@ export type ModelPartialIssueJoin = {
 
 export type ModelTargetMention = {
   id: string;
-  occurrence_id: string | null;
-  mention_quote: string | null;
+  occurrence_id: string;
   opinion_id: string | null;
   voice: (typeof ATTRIBUTIONS)[number];
   case_issue_ids: string[];
@@ -168,11 +270,10 @@ export const CASE_TARGET_MVP_SCHEMA_EXTENSION = {
     items: {
       type: "object",
       additionalProperties: false,
-      required: ["id", "occurrence_id", "mention_quote", "opinion_id", "voice", "case_issue_ids"],
+      required: ["id", "occurrence_id", "opinion_id", "voice", "case_issue_ids"],
       properties: {
         id: { type: "string", pattern: "^m[1-9][0-9]*$" },
-        occurrence_id: { type: ["string", "null"] },
-        mention_quote: { type: ["string", "null"] },
+        occurrence_id: { type: "string", minLength: 1 },
         opinion_id: { type: ["string", "null"] },
         voice: { type: "string", enum: ATTRIBUTIONS },
         case_issue_ids: {
@@ -439,37 +540,20 @@ export function resolveCaseTargetMvp(args: {
   for (const mention of args.targetMentions) {
     const local: string[] = [];
     if (duplicateMentionIds.has(mention.id)) local.push("duplicate target mention id");
-    const occurrence = mention.occurrence_id === null ? undefined : occurrenceById.get(mention.occurrence_id);
-    // A deterministic occurrence ID is the stronger identity assertion. Some
-    // structured responses also fill the optional quote with a wider local
-    // passage; retain the proved occurrence and discard that redundant span.
-    const occurrenceNormalizedMention = occurrence && mention.mention_quote !== null
-      ? { ...mention, mention_quote: null }
-      : mention;
-    const supplied = Number(occurrenceNormalizedMention.occurrence_id !== null) + Number(occurrenceNormalizedMention.mention_quote !== null);
-    if (supplied !== 1) local.push("must use exactly one occurrence_id or mention_quote");
+    const occurrence = occurrenceById.get(mention.occurrence_id);
     let span: ExactQuote | null = null;
-    if (occurrenceNormalizedMention.occurrence_id !== null) {
-      if (!occurrence) {
-        local.push(`references unknown occurrence ${occurrenceNormalizedMention.occurrence_id}`);
-      } else {
-        if (seenOccurrenceIds.has(occurrence.id)) local.push(`duplicate accounting for occurrence ${occurrence.id}`);
-        span = { quote: occurrence.quote, start: occurrence.start, end: occurrence.end };
-      }
-    } else if (occurrenceNormalizedMention.mention_quote !== null) {
-      const grounded = exactQuote(args.sourceText, 0, occurrenceNormalizedMention.mention_quote, sourceDoc);
-      if (typeof grounded === "string") {
-        local.push(`mention ${grounded}`);
-      } else {
-        span = grounded;
-      }
+    if (!occurrence) {
+      local.push(`references unknown occurrence ${mention.occurrence_id}`);
+    } else {
+      if (seenOccurrenceIds.has(occurrence.id)) local.push(`duplicate accounting for occurrence ${occurrence.id}`);
+      span = { quote: occurrence.quote, start: occurrence.start, end: occurrence.end };
     }
     const opinionAnchor = occurrence?.linkedContext ?? span;
     const derivedOpinionId = opinionAnchor === null
-      ? occurrenceNormalizedMention.opinion_id
+      ? mention.opinion_id
       : containingOpinion(args.opinions, opinionAnchor.start, opinionAnchor.end)?.id ?? null;
-    if (span !== null && occurrenceNormalizedMention.opinion_id !== derivedOpinionId) correctedMentionOpinionIds += 1;
-    const normalizedMention = { ...occurrenceNormalizedMention, opinion_id: derivedOpinionId };
+    if (span !== null && mention.opinion_id !== derivedOpinionId) correctedMentionOpinionIds += 1;
+    const normalizedMention = { ...mention, opinion_id: derivedOpinionId };
     if (new Set(normalizedMention.case_issue_ids).size !== normalizedMention.case_issue_ids.length) {
       local.push("duplicate case issue id");
     }

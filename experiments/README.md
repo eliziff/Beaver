@@ -10,5 +10,5 @@ code, checks, and run instructions together. Raw `results/` and `receipts/` are
 local artifacts; preserve durable conclusions in that experiment's
 `RESULTS.md` with the commit, input/corpus, command, metric, and decision.
 
-`npm run check:experiment-boundary` verifies the boundary and catches stale
-relative imports after either production or experiment code moves.
+`npm run check:source-boundaries` verifies that boundary, keeps deployment
+choices out of feature code, and catches stale relative imports after moves.

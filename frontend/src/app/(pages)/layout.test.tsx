@@ -12,6 +12,9 @@ vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ authLoading: false, isAuthenticated: true }),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
+vi.mock("@/app/lib/runtimeConfig", () => ({
+    getRuntimeConfig: () => ({ capabilities: { connectors: false } }),
+}));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     ChatHistoryProvider: ({ children }: PropsWithChildren) => children,
 }));
@@ -32,6 +35,11 @@ const children: RouteObject[] = [
         element: <p>Security settings</p>,
     },
     { path: "account/features", element: <p>Feature settings</p> },
+    {
+        path: "account/connectors",
+        handle: { capability: "connectors" },
+        element: <p>Connector settings</p>,
+    },
     {
         path: "history",
         handle: { localRedirect: "/assistant" },
@@ -63,5 +71,11 @@ describe("local route access", () => {
         renderPath("/history");
         expect(await screen.findByText("Assistant route")).toBeVisible();
         expect(screen.queryByText("History")).not.toBeInTheDocument();
+    });
+
+    it("hides capabilities disabled by the server", () => {
+        renderPath("/account/connectors");
+        expect(screen.getByText("Unavailable in this deployment")).toBeVisible();
+        expect(screen.queryByText("Connector settings")).not.toBeInTheDocument();
     });
 });

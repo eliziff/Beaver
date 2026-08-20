@@ -1,12 +1,13 @@
 import { runtime } from "./runtime";
 
-export type PublicRuntimeConfig =
+type Capabilities = { capabilities: { connectors: boolean } };
+export type PublicRuntimeConfig = Capabilities & (
   | { mode: "local" }
   | {
       mode: "cloud";
       supabaseUrl: string;
       supabasePublishableKey: string;
-    };
+    });
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -26,7 +27,8 @@ export function trustedProxyHops(): false | number {
 }
 
 export function publicRuntimeConfig(): PublicRuntimeConfig {
-  if (runtime.mode === "local") return { mode: "local" };
+  const capabilities = runtime.capabilities;
+  if (runtime.mode === "local") return { mode: "local", capabilities };
   const supabaseUrl = required("SUPABASE_URL");
   const url = new URL(supabaseUrl);
   const loopback = ["localhost", "127.0.0.1", "::1"].includes(
@@ -44,6 +46,7 @@ export function publicRuntimeConfig(): PublicRuntimeConfig {
     throw new Error("Supabase publishable and secret keys must differ");
   return {
     mode: "cloud",
+    capabilities,
     supabaseUrl: url.origin,
     supabasePublishableKey: publishable,
   };

@@ -68,7 +68,7 @@ server.use((req, res, next) => {
     return;
   }
   const oauthCallback = req.method === "GET" &&
-    req.path === "/api/user/mcp-connectors/oauth/callback";
+    config.capabilities.connectors && req.path === "/api/user/mcp-connectors/oauth/callback";
   if (!oauthCallback && req.get("sec-fetch-site") === "cross-site") {
     res.status(403).send("Cross-site requests are not allowed");
     return;

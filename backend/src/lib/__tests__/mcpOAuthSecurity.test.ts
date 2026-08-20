@@ -51,7 +51,8 @@ import {
   guardedOAuthFetch,
   startUserMcpConnectorOAuth,
 } from "../mcp/oauth";
-import type { ConnectorRow, Db, OAuthTokenRow } from "../mcp/types";
+import type { ConnectorRow, OAuthTokenRow } from "../mcp/types";
+import { mcpDatabase, seedMcpConnector } from "./support/mcpDatabase";
 
 const initialRevision = "2026-07-27T00:00:00.000Z";
 
@@ -110,137 +111,28 @@ type StateRow = {
   expires_at: string;
 };
 
-function fakeDb(
-  options: {
-    token?: Partial<OAuthTokenRow> | null;
-    state?: Partial<StateRow> | null;
-    connectorUpdatedAt?: string;
-  } = {},
-) {
-  let connectorUpdatedAt = options.connectorUpdatedAt ?? initialRevision;
-  let token = options.token
-    ? ({ updated_at: initialRevision, ...options.token } as Partial<OAuthTokenRow>)
-    : null;
-  let state = options.state
-    ? ({
-        id: "state-1",
-        user_id: "user-1",
-        connector_id: "connector-1",
-        state_hash: "state-hash",
-        expires_at: "2099-01-01T00:00:00.000Z",
-        ...options.state,
-      } as StateRow)
-    : null;
-  const writes: Array<{ table: string; value: Record<string, unknown> }> = [];
-  const filters: Array<{ table: string; column: string; value: unknown }> = [];
-
-  const db = {
-    from(table: string) {
-      let action: "select" | "update" | "delete" = "select";
-      let updateValue: Record<string, unknown> | undefined;
-      const queryFilters = new Map<string, unknown>();
-
-      const execute = async () => {
-        if (table === "user_mcp_oauth_states" && action === "delete") {
-          const valid =
-            state &&
-            state.state_hash === queryFilters.get("state_hash") &&
-            Date.parse(state.expires_at) >
-              Date.parse(String(queryFilters.get("expires_at")));
-          const consumed = valid ? state : null;
-          if (valid) state = null;
-          return { data: consumed, error: null };
-        }
-        if (table === "user_mcp_oauth_tokens" && action === "delete") {
-          token = null;
-          return { data: null, error: null };
-        }
-        if (table === "user_mcp_oauth_tokens") {
-          return { data: token ? [token] : [], error: null };
-        }
-        return { data: null, error: null };
-      };
-
-      const query: Record<string, any> = {
-        select: () => query,
-        eq: (column: string, value: unknown) => {
-          filters.push({ table, column, value });
-          queryFilters.set(column, value);
-          return query;
-        },
-        gt: (column: string, value: unknown) => {
-          queryFilters.set(column, value);
-          return query;
-        },
-        lte: (column: string, value: unknown) => {
-          queryFilters.set(column, value);
-          return query;
-        },
-        in: () => query,
-        delete: () => {
-          action = "delete";
-          return query;
-        },
-        update: (value: Record<string, unknown>) => {
-          action = "update";
-          updateValue = value;
-          writes.push({ table, value });
-          return query;
-        },
-        insert: async (value: Record<string, unknown>) => {
-          writes.push({ table, value });
-          if (table === "user_mcp_oauth_states") {
-            state = { id: "state-1", ...value } as StateRow;
-            return { error: null };
-          }
-          if (table === "user_mcp_oauth_tokens") {
-            if (token) return { error: { code: "23505" } };
-            token = value as Partial<OAuthTokenRow>;
-          }
-          return { error: null };
-        },
-        maybeSingle: async () => {
-          if (table === "user_mcp_oauth_states") return execute();
-          if (table === "user_mcp_connectors" && action === "update") {
-            if (queryFilters.get("updated_at") !== connectorUpdatedAt) {
-              return { data: null, error: null };
-            }
-            connectorUpdatedAt = String(updateValue?.updated_at);
-            return { data: { id: "connector-1" }, error: null };
-          }
-          if (table === "user_mcp_oauth_tokens" && action === "update") {
-            const threshold = Date.parse(String(queryFilters.get("updated_at")));
-            const stored = Date.parse(String(token?.updated_at));
-            if (token && stored <= threshold) {
-              token = { ...token, ...updateValue };
-              return { data: { id: "token-1" }, error: null };
-            }
-            return { data: null, error: null };
-          }
-          return {
-            data: table === "user_mcp_oauth_tokens" ? token : null,
-            error: null,
-          };
-        },
-        then: (
-          resolve: (value: { data: unknown; error: null }) => unknown,
-          reject?: (reason: unknown) => unknown,
-        ) => execute().then(resolve, reject),
-      };
-      return query;
-    },
-  } as unknown as Db;
-
+const databases: ReturnType<typeof mcpDatabase>[] = [];
+function fakeDb(options: { token?: Partial<OAuthTokenRow> | null } = {}) {
+  const fixture = mcpDatabase();
+  databases.push(fixture);
+  seedMcpConnector(fixture.native, connector());
+  if (options.token) {
+    const value = { id: "token-1", connector_id: "connector-1",
+      created_at: initialRevision, updated_at: initialRevision, ...options.token };
+    const columns = Object.keys(value);
+    fixture.native.prepare(`INSERT INTO user_mcp_oauth_tokens(${columns.join(",")}) VALUES(${
+      columns.map(() => "?").join(",")})`).run(...Object.values(value).map((item) => item ?? null));
+  }
   return {
-    db,
-    filters,
-    writes,
-    state: () => state,
-    token: () => token,
-    connectorUpdatedAt: () => connectorUpdatedAt,
-    expireState: () => {
-      if (state) state.expires_at = "2000-01-01T00:00:00.000Z";
-    },
+    ...fixture,
+    state: () => fixture.native.prepare("SELECT * FROM user_mcp_oauth_states").get() as StateRow | undefined,
+    token: () => fixture.native.prepare("SELECT * FROM user_mcp_oauth_tokens").get() as OAuthTokenRow | undefined,
+    expireState: () => fixture.native.prepare(
+      "UPDATE user_mcp_oauth_states SET expires_at='2000-01-01T00:00:00.000Z'",
+    ).run(),
+    changeStateOwner: () => fixture.native.prepare(
+      "UPDATE user_mcp_oauth_states SET user_id='user-2'",
+    ).run(),
   };
 }
 
@@ -272,11 +164,12 @@ beforeEach(() => {
   }), { headers: { "content-type": "application/json" } }));
 });
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env.PUBLIC_ORIGIN;
   delete process.env.MCP_OAUTH_CLIENT_ID;
   delete process.env.MCP_OAUTH_CLIENT_SECRET;
   delete process.env.MCP_OAUTH_CONFIDENTIAL_ORIGINS;
+  await Promise.all(databases.splice(0).map(({ db }) => db.close()));
 });
 
 describe("MCP OAuth security boundary", () => {
@@ -317,7 +210,7 @@ describe("MCP OAuth security boundary", () => {
   it("makes cross-owner state indistinguishable from missing state", async () => {
     const fixture = fakeDb();
     const state = await persistState(fixture);
-    fixture.state()!.user_id = "user-2";
+    fixture.changeStateOwner();
 
     const crossOwner = completeMcpConnectorOAuthAuthorization(
       state,

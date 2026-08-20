@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./runtime", () => ({ runtime: { mode: "cloud" } }));
+vi.mock("./runtime", () => ({
+  runtime: { mode: "cloud", capabilities: { connectors: true } },
+}));
 
 import { publicRuntimeConfig } from "./runtimeConfig";
 

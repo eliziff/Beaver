@@ -6,7 +6,7 @@
         "test:source-budget": "node scripts/measure-source.mjs --self-test",
         "check:source-budget": "node scripts/measure-source.mjs --check scripts/legal-structure-guardrails.json",
         "check:grammar": "node packages/legal-grammar-tables/check.mjs",
-        "check:experiment-boundary": "node scripts/check-experiment-boundary.mjs",
+        "check:source-boundaries": "node scripts/check-source-boundaries.mjs",
         "test:experiments": "npm run test:experiments --prefix backend",
         "test:e2e": "playwright test",
         "test:e2e:local": "bash scripts/e2e-local-stack.sh",

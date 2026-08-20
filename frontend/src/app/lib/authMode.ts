@@ -1,3 +1,5 @@
 import { getRuntimeConfig } from "@/app/lib/runtimeConfig";
 
-export const isLocalMode = getRuntimeConfig().mode === "local";
+const config = getRuntimeConfig();
+export const isLocalMode = config.mode === "local";
+export const connectorsEnabled = config.capabilities.connectors;

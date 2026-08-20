@@ -285,25 +285,66 @@ attribution, treatment label, and controlling versus non-controlling opinion.
 Use disagreements and grounding failures to create review queues; do not turn
 validator survival into semantic accuracy.
 
-This is a replacement design for the sampled-two-citations semantic MVP. The
-existing 15-call run remains diagnostic evidence about the opinion and issue
-contracts, but its treatment yield is not the acceptance result for this MVP.
-The replacement schema, validator, pair manifest, local preflight, prompt
-arms, human gold, blinded comparison, and shared call ledger are implemented.
-The examples arm is the provisional MVP. It was usable on 5/5 human-reviewed
-cases, produced the strongest treatment/attribution/authority scores, and had
-the best current structural yield (14/15 opinion-valid; 10/15 fully valid).
-The concise challenger won more individual blind preferences but was usable
-on only 2/5 human cases in the repeated current run, so it is not stable enough
-to select. The next extraction experiment is not another prompt edit: audit a
-small fresh cohort with the examples arm, then test lower Luna effort against
-that same fixed cohort.
+This replaces the sampled-two-citations semantic MVP and the ID-heavy v12
+contract. The current v14 model schema is nested by issue, answer group, and
+per-opinion position. The model supplies legal meaning and exact evidence; the
+harness owns every internal ID, target occurrence, character offset, opinion
+containment link, and flat treatment projection. The only identifier in model
+output is an occurrence ID supplied in the input packet. The full citing
+decision appears once. Deterministic preflight and structure dumps are not
+model context.
 
-A one-case app-server repair canary is diagnostic only. Same-thread validator
-feedback reduced seven linked-record errors to one but still failed; a fresh
-full-context repair emitted malformed JSON. Do not add automatic repair to the
-MVP until a new fixed canary cell shows higher whole-record validity without
-semantic regression or excessive extra tokens.
+The five-case v13 canary is frozen diagnostic evidence, not a v14 score. It
+showed that Luna Max can recover multi-opinion issue positions and treatment,
+but also exposed model-authored name mentions, optional-evidence cascades,
+redundant partial joins, panel-roster authorship, and nearly exact boundary
+quotes. V14 makes occurrence identity host-owned, validates optional basis
+items locally, removes redundant partial joins, rejects panel rosters as
+authors, and allows conservative auditable boundary recovery. Historical raw
+answers are recompiled only against their original occurrence receipt; there
+is no live compatibility branch.
+
+The frozen five-case v14 extraction is complete. Three cases returned final
+answers and two timed out after retaining their full provider streams. Offline
+v15 recompilation accepts the YKCA and ONCA records, keeps the CIRB record
+partial because one complete claimed basis lacks grounded evidence, and makes
+zero model calls. Do not add cases until these three semantic records have
+been compared with independently audited source annotations.
+
+The old one-case app-server repair canary tested the retired ID-heavy v12
+contract. Same-thread feedback fixed six of seven linked-record errors but used
+47,971 input tokens, and a fresh full-context retry emitted malformed JSON.
+V15 first removes those cross-link failures. Any new repair test must be a
+single per-case continuation that changes only validator-named fields, retains
+every attempt, and proves better whole-record validity at an acceptable token
+cost; it is not permission for a shared hot session or automatic full-record
+regeneration.
+
+### Grounding contract audit
+
+Beaver's production contract selects the smallest model-visible evidence block
+before drafting a support unit, binds the unit to host-owned evidence handles,
+checks exact quotations deterministically, and permits bounded same-session
+repair. The case-target harness already follows most of that boundary: the full
+closed record is visible once, occurrence identity is host-owned, semantic
+objects carry exact source quotes, and the compiler resolves containment and
+offsets without trusting the model.
+
+Before changing the schema again, use the 15 development/audit cases to test
+two remaining hypotheses while scoring only the final case graph:
+
+1. reorder otherwise identical schema fields and instructions so Luna selects
+   exact evidence before writing the answer, basis characterization, voice, or
+   treatment label; and
+2. require a short local attribution-cue quote for each target occurrence, or
+   show that host context plus the existing occurrence offset performs just as
+   well without the extra output.
+
+Measure whole-record semantic correctness, grounding rejection, visible and
+reasoning tokens, latency, and repair need. Do not promote an entailment model
+or lexical-overlap score as truth: Beaver's own held-out work found cheap
+framing detectors unsuitable as acceptance gates. Exact validation remains
+deterministic; semantic verification remains gold/evaluation work.
 
 ### Planned context arms (do not run yet)
 
@@ -600,14 +641,12 @@ Human review has two different jobs:
 
 Use sequential caps suited to one reviewer:
 
-1. **Zero-call contract:** build fixtures from existing receipts and hand-write
-   the expected case-target record for two ordinary and two multi-opinion
-   decisions. Prove validation, issue-level vote derivation, target identity,
-   and receipt recovery locally.
-2. **Max MVP:** only after separate authorization, run one Luna Max call on 15
-   frozen diverse case-target pairs. Fully inventory five decisions and
-   claim-audit a randomized spread of the remaining issue positions and
-   treatment events.
+1. **Zero-call contract:** completed for a frozen 15-case challenge set. The
+   three human-gold files cover five multi-opinion/partial-join cases, five
+   attribution traps, and five controls; all source anchors validate locally.
+2. **Max MVP:** rerun the same five-case canary under v14, then add the other ten
+   only after inspecting every first-slate result. Keep one full citing
+   decision and one target per isolated Luna Max call.
 3. **Architecture ablation:** if the combined contract is viable, use at most
    eight locked pairs for combined versus structure-first treatment. The
    two-stage arm costs two calls per pair; do not enlarge it before inspecting

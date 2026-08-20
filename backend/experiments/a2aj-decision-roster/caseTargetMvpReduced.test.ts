@@ -64,7 +64,7 @@ const context: GroundedCaseTargetContext = {
   ],
 };
 
-const ref = (occurrence_id: string) => ({ occurrence_id, mention_quote: null });
+const ref = (occurrence_id: string) => ({ occurrence_id });
 
 function validSubmission(): ReducedCaseTargetSubmission {
   return {
@@ -193,6 +193,7 @@ function validSubmission(): ReducedCaseTargetSubmission {
 test("compiles multi-opinion answers, silence, partial joins, and scoped/unscoped treatment", () => {
   const compiled = compileReducedCaseTargetSubmission(validSubmission(), context);
   assert.deepEqual(compiled.errors, []);
+  assert.deepEqual(compiled.warnings, []);
   assert.deepEqual(
     compiled.input.opinionPositions.map(({ opinion_id, case_issue_id, answer_group_id }) =>
       [opinion_id, case_issue_id, answer_group_id]
@@ -241,6 +242,46 @@ test("reports occurrence omissions and never falls back for cross-opinion treatm
   assert(!compiled.input.targetTreatments.some(({ case_issue_ids }) => case_issue_ids.length === 0));
 });
 
+test("keeps a grounded position when optional basis evidence is bad", () => {
+  const submission = validSubmission();
+  submission.issues[0].answer_groups[0].positions[0].basis_and_limits[0].evidence = [
+    { quote: "not present in the opinion", voice: "current_court" },
+  ];
+  const compiled = compileReducedCaseTargetSubmission(submission, context);
+  assert.equal(compiled.ok, false);
+  assert.match(compiled.errors.join("\n"), /basis_and_limits\[0\].*omitted because no evidence grounded/u);
+  assert.match(compiled.warnings.join("\n"), /basis_and_limits\[0\].*quote ignored.*quote is missing/u);
+  const position = compiled.input.opinionPositions.find(({ opinion_id, case_issue_id }) =>
+    opinion_id === "o1" && case_issue_id === "i1"
+  );
+  assert(position, "the grounded position should survive an invalid optional basis item");
+  assert.deepEqual(position.basis_and_limits, []);
+  assert.deepEqual(position.answer_evidence_ids, ["p1e1"]);
+});
+
+test("ignores one bad optional basis quote when another quote grounds the basis", () => {
+  const submission = validSubmission();
+  const basis = submission.issues[0].answer_groups[0].positions[0].basis_and_limits[0];
+  basis.evidence.push({ quote: "not present in the opinion", voice: "current_court" });
+  const compiled = compileReducedCaseTargetSubmission(submission, context);
+  assert.equal(compiled.ok, true, compiled.errors.join("\n"));
+  assert.equal(compiled.input.opinionPositions[0].basis_and_limits.length, 1);
+  assert.match(compiled.warnings.join("\n"), /quote ignored.*quote is missing/u);
+});
+
+test("omits a partial join when the participant already has a position on that issue", () => {
+  const submission = validSubmission();
+  const compiled = compileReducedCaseTargetSubmission(submission, {
+    ...context,
+    participants: context.participants.map((participant) => participant.name === "B J."
+      ? { ...participant, opinion_links: [{ opinion_id: "o1", relation: "authors" as const }] }
+      : participant),
+  });
+  assert.equal(compiled.ok, false);
+  assert.match(compiled.errors.join("\n"), /redundant partial join/u);
+  assert.deepEqual(compiled.input.partialIssueJoins, []);
+});
+
 test("rejects direct history unless the pair is deterministically same-litigation eligible", () => {
   const compiled = compileReducedCaseTargetSubmission(validSubmission(), {
     ...context,
@@ -279,6 +320,11 @@ test("full schema recursively forbids generated IDs, ordinals, hierarchy, and di
   for (const forbidden of ["parent_issue_id", "discussion_spans"]) {
     assert(!propertyNames.includes(forbidden));
   }
+  assert(!propertyNames.includes("mention_quote"));
+  assert.deepEqual(
+    (CASE_TARGET_MVP_REDUCED_JSON_SCHEMA.properties.target_mentions as any).items.required,
+    ["occurrence_id", "voice"],
+  );
   assert(propertyNames.includes("opinions"));
   assert(propertyNames.includes("participants"));
   assert(propertyNames.includes("whole_opinion_joiners"));

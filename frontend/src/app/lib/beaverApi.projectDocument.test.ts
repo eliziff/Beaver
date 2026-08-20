@@ -16,8 +16,9 @@ afterEach(() => {
 
 async function configure(mode: "local" | "cloud") {
   const { initializeRuntimeConfig } = await import("./runtimeConfig");
-  const config = mode === "local" ? { mode } : {
+  const config = mode === "local" ? { mode, capabilities: { connectors: false } } : {
     mode,
+    capabilities: { connectors: true },
     supabaseUrl: "https://example.supabase.co",
     supabasePublishableKey: "test-key",
   };

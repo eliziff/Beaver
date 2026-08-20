@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+const capabilities = { capabilities: z.object({ connectors: z.boolean() }).strict() };
 const runtimeConfigSchema = z.discriminatedUnion("mode", [
-    z.object({ mode: z.literal("local") }).strict(),
+    z.object({ mode: z.literal("local"), ...capabilities }).strict(),
     z
         .object({
             mode: z.literal("cloud"),
+            ...capabilities,
             supabaseUrl: z.url().max(2_048),
             supabasePublishableKey: z.string().min(1).max(4_096),
         })

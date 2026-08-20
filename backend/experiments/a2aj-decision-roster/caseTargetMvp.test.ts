@@ -3,10 +3,12 @@ import { it } from "node:test";
 
 import {
   CASE_TARGET_MVP_SCHEMA_EXTENSION,
+  detectCaseTargetOccurrences,
   footnoteReferenceContext,
   resolveCaseTargetMvp,
   type ModelOpinionIssuePosition,
 } from "./caseTargetMvp";
+import { createTextSourceDoc } from "../../src/lib/sourceDoc";
 
 it("permits empty issue maps and case-level direct history without weakening opinion-linked fields", () => {
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.case_issues.minItems, 0);
@@ -14,6 +16,24 @@ it("permits empty issue maps and case-level direct history without weakening opi
   assert.deepEqual(CASE_TARGET_MVP_SCHEMA_EXTENSION.target_direct_history.items.properties.opinion_id.type, ["string", "null"]);
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.partial_issue_joins.items.properties.opinion_id.type, "string");
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.target_treatments.items.properties.opinion_id.type, "string");
+});
+
+it("pre-registers conservative case-name mentions without duplicating a decorated citation", () => {
+  const text = [
+    "Cases Cited\nSattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53.\n",
+    "[1] The appellant relies on Sattva.\n",
+    "[2] We follow Sattva Capital on contractual interpretation.\n",
+  ].join("");
+  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(text), {
+    citation: "2014 SCC 53",
+    citationAliases: [],
+    name: "Sattva Capital Corp. v. Creston Moly Corp.",
+  });
+  assert.deepEqual(occurrences.map(({ id, kind, quote }) => ({ id, kind, quote })), [
+    { id: "tm1", kind: "citation", quote: "2014 SCC 53" },
+    { id: "tn1", kind: "case_name", quote: "Sattva" },
+    { id: "tn2", kind: "case_name", quote: "Sattva Capital" },
+  ]);
 });
 
 const o1Text = [
@@ -106,8 +126,8 @@ function validInput() {
       evidence_quotes: ["B J. joins these reasons on the notice issue only."],
     }],
     targetMentions: [
-      { id: "m1", occurrence_id: "tm1", mention_quote: null, opinion_id: "o1", voice: "current_court" as const, case_issue_ids: ["i1"] },
-      { id: "m2", occurrence_id: "tm2", mention_quote: null, opinion_id: "o2", voice: "current_court" as const, case_issue_ids: ["i1"] },
+      { id: "m1", occurrence_id: "tm1", opinion_id: "o1", voice: "current_court" as const, case_issue_ids: ["i1"] },
+      { id: "m2", occurrence_id: "tm2", opinion_id: "o2", voice: "current_court" as const, case_issue_ids: ["i1"] },
     ],
     targetTreatments: [
       {
@@ -163,13 +183,13 @@ it("rejects an omitted deterministic target occurrence", () => {
   assert(result.errors.some((error) => error === "missing target occurrence tm2"));
 });
 
-it("prefers a proved occurrence ID over a redundant model-supplied quote span", () => {
+it("rejects a target mention whose host-owned occurrence ID is unknown", () => {
   const input = validInput();
-  input.targetMentions[0].mention_quote = "Applying 2010 SCC 1, the target rule is followed on notice.";
+  input.targetMentions[0].occurrence_id = "missing";
   const result = resolveCaseTargetMvp(input);
-  assert.equal(result.ok, true);
-  assert.equal(result.target_mentions[0].occurrence_id, "tm1");
-  assert.equal(result.target_mentions[0].mention_quote, null);
+  assert.equal(result.ok, false);
+  assert(result.errors.some((error) => error.includes("references unknown occurrence missing")));
+  assert(!result.target_mentions.some(({ id }) => id === "m1"));
 });
 
 it("drops unused evidence and recovers a uniquely defined cross-position evidence ID", () => {
@@ -328,7 +348,6 @@ it("accepts case-level direct history proved in provider metadata", () => {
   input.targetMentions.unshift({
     id: "m0",
     occurrence_id: "tm0",
-    mention_quote: null,
     opinion_id: null,
     voice: "procedural_recounting",
     case_issue_ids: [],

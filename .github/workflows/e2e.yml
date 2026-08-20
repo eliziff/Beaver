@@ -90,6 +90,11 @@ jobs:
             echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
           } >> backend/.env
 
+      - name: Verify cloud persistence contracts
+        env:
+          S3_CONTRACT_TEST: "true"
+        run: npm run test:stack --prefix backend
+
       - run: npm run build --prefix frontend
       - run: npm run build --prefix backend
       - name: Start Beaver
