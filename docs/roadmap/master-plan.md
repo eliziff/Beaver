@@ -1,7 +1,7 @@
 # Beaver master plan
 
 Status: canonical implementation plan
-Last reconciled: 2026-08-18
+Last reconciled: 2026-08-20
 
 This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
@@ -90,6 +90,92 @@ These decisions are not open backlog items:
     Protocol handshakes fail closed when a required capability is absent; a
     minimal artifact never carries an unselected engine, model, or runtime.
 
+## Canonical legal-document stack
+
+Status: **Active cutover**
+
+The permanent shape is one shared Rust model and two operations:
+
+```text
+adapt(source) -> DocumentInput
+compose(DocumentInput, native-only | recover-missing) -> SourceDoc
+```
+
+`adapt` is source-specific but contains no detector. `compose` is
+provider-neutral and uses native claims first; raw-text recovery runs only for
+facts the input says are missing. `SourceDoc` is the final, canonical legal-text
+record. No intermediate graph or second text rendition crosses a process
+boundary.
+
+Three thin commands expose that library:
+
+- `sourcedoc` reads provider APIs, OpenLegalData SQLite, authoritative journal
+  exports, files, or stdin and emits final SourceDocs;
+- `legal-structure` accepts generic `DocumentInput` records and is the
+  standalone structure utility; and
+- `legalpdf` extracts PDF text and geometry, optionally uses OCR/layout, and
+  feeds the same composer.
+
+This is one data path, not three pipelines. Direct and bulk commands call the
+same adapter. For example, `sourcedoc a2aj --db ... --id ...` reads one SQLite
+row while the bulk form iterates that same query and function. A2AJ needs no
+JSON input, socket, sidecar, or provider-specific IPC. Serialization happens
+once, when the final SourceDoc leaves the command.
+
+The journal path is intentionally uneventful. `pages.jsonl` is the final export
+and its recorded pages, headings, sections, notes, annotations, and geometry are
+authoritative. The adapter copies them. It may form unnumbered prose slices
+from the recorded geometry segmentation boundaries; it must not rediscover
+headings, sections, pages, notes, or numbered paragraphs.
+
+The public contract stays ordinary and easy to use:
+
+- Rust callers use the library directly;
+- a single result is versioned JSON on stdout;
+- bulk results are JSONL, one success or typed failure per input, with progress
+  on stderr and usable partial output after interruption; and
+- an outside provider can supply generic `DocumentInput` JSONL instead of
+  writing a plugin or adopting Beaver internals.
+
+`DocumentInput` owns identity, canonical UTF-8 text, provenance, truthful
+native claims, coverage, exclusions, and factual boundaries. `SourceDoc` owns
+that text plus final blocks, relations, diagnostics, and provider locators.
+Indexes and token postings are derived views, not another persisted schema.
+
+Shipping remains capability-based. The native-only structure artifact excludes
+raw recovery. Recovery excludes providers and PDF. Provider builds exclude
+PDF/OCR. PDF, Kraken OCR, and PPDoc layout are selectable independently, and
+model/runtime packs ship separately. Publish prebuilt Windows, macOS, and Linux
+binaries; Cargo is an optional developer installation path.
+
+Delete the old TypeScript wire model, validator, sidecar client/lifecycle,
+projector, retry bridge, and detector remnants in the same cutover. Do not add a
+daemon, N-API layer, gRPC service, SQLite extension, cache hierarchy, worker
+pool, compatibility wrapper, or alternate SourceDoc schema. The work is a few
+linear adapters plus one shared composer; performance should come from doing
+less, not orchestration.
+
+Acceptance:
+
+- each artifact works alone and closure checks prove omitted capabilities are
+  actually absent;
+- direct and bulk use the same functions and produce byte-identical SourceDoc
+  JSON for the same source;
+- the 24 frozen provider vectors, all 323,374 installed-provider rows, the
+  1,500-PDF registry, and the full available DOCX corpus keep exact
+  denominators and fail closed on the first unexplained delta;
+- journal processing performs no semantic recovery beyond geometry-informed
+  prose slicing;
+- source acquisition, composition, and final encoding are timed separately;
+  the structure step must be cheap enough that I/O dominates, and the existing
+  0.8-second-per-2,000-document result is not accepted as the target;
+- release builds remain below 15 seconds on the reference machine, with one to
+  five seconds the target;
+- long corpus runs use below-normal priority, stream durable progress, and
+  remove disposable candidate/target artifacts after recording hashes; and
+- the accepted cutover removes at least 300 more maintained production/test
+  nonblank lines than it adds, without deleting behavioral coverage.
+
 ## Implemented baseline
 
 The following work is complete enough to build upon and is not repeated as
@@ -107,7 +193,7 @@ backlog:
 | Growing collections | Bounded cursor pages, server-side filters, exact-ID reads, local SQLite/FTS, shared frontend paging hooks, and the same local/cloud wire shapes |
 | Journal data | `public_endpoint.db` page/structure access and a contentless FTS5 sidecar |
 | PDF core | Standalone deterministic digital-born parser plus Beaver on-demand ingestion, content-addressed artifacts, exact page/paragraph/footnote/section lookup, cache, diagnostics, and provider adapters |
-| Source structure | `SourceDoc` core and native/recovered compilers serve A2AJ, CourtListener, public native markup, journals, and local PDF queries |
+| Source structure | Public `SourceDoc` behavior and the frozen provider/PDF parity fixtures exist; the current TypeScript-to-Rust bridge is transitional and is deleted by the canonical-stack cutover above |
 | DOCX citations | Bounded deterministic citation splitting and hyperlink insertion with a Codex worker only for unresolved splits |
 | Legal Library | Lightweight A2AJ/journal pointers and a structured source viewer |
 | Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Beaver sibling route |
@@ -668,36 +754,18 @@ Acceptance:
 
 ### P1.1 Normalize all provider structure
 
-Status: **Partial**
+Status: **Active cutover**
 
-Current implementation includes the `SourceDoc` core; A2AJ legislation/case
-compilation with mature spine/ladder recovery; CourtListener native HTML
-paragraph, footnote/endnote, and reporter-page compilation; public native
-markup, journal, and local-PDF compilation; shared locator lookup; and corpus
-audit/index scripts. Provider consumers and evidence paths are not all
-converged, and the cross-provider matrix is not yet the single release gate.
-P0.0 adopts `SourceDoc` as the linear source projection and deletes remaining
-consumer-specific extraction/query paths rather than creating another model.
+The observable `SourceDoc` behavior, native provider adapters, recovery rules,
+and parity fixtures already exist. The remaining work is ownership cleanup:
+move the adapters and final projection behind the shared Rust model, make
+`sourcedoc` the one direct/bulk entry point, then delete the TypeScript bridge
+and old detector code.
 
-Provider compilation and semantic detection are now separate planned
-boundaries. Provider adapters emit canonical text, trustworthy native blocks,
-anchors, exclusions, and provenance. The same shared semantic structure engine
-used by Legal PDF Parser reconciles missing paragraphs, numbered units,
-headings, notes, and relations before SourceDoc projection. In particular,
-PAGE-XML/BLLA or native-PDF geometry may infer unnumbered prose boundaries for
-reflow and chunking, while only a source/provider enumerator accepted by the
-document-wide grammar becomes a numbered legal paragraph.
-
-- Prefer provider-supplied sections, subsections, paragraphs, subparagraphs,
-  pages, neutral citations, and anchors.
-- Build stable structure where the provider omits it, using the proven
-  A2AJ/ALR heuristics and Legal PDF Parser artifacts.
-- Preserve distinct locator kinds even where a provider encodes them in one
-  string.
-- Test SCC/Ontario `#par`/`#sec`, A2AJ, CourtListener, TNA, GOV.UK ET,
-  GovInfo, legislation, and journal article variants using a cross-provider
-  fixture matrix.
-- Record whether each locator is native, hybrid, heuristic, or model-repaired.
+The rules are simple: preserve trustworthy provider structure exactly; recover
+only kinds declared missing; keep provider locators and provenance; and never
+turn geometry-derived prose slices into numbered legal paragraphs. Provider
+names select adapters, not detector algorithms.
 
 Acceptance:
 
@@ -710,66 +778,25 @@ Acceptance:
 
 #### P1.1a Execution: the SourceDoc consolidation (adopted 2026-07-27)
 
-P1.1 is executed as one consolidation rather than per-provider patches.
-Three audits (provider structure, link/anchor compatibility, performance —
-2026-07-27, live-probed) traced thirteen structure defects, four hot-path
-pathologies, and six duplication clusters to a single cause: no canonical
-representation of a fetched source. Providers each grew a pipeline; consumers
-re-derive structure from raw strings per call (measured: up to 21
-full-document tokenizations per quote, ~62 s worst-case on a 256-handle DOCX
-evidence resolve).
+P1.1 is the provider-facing slice of the canonical legal-document stack
+above. It is not a separate TypeScript compiler project. Each provider owns
+only acquisition and exact source-to-`DocumentInput` translation; the shared
+Rust library returns final `SourceDoc` records for both direct and bulk calls.
 
-The design: one immutable, content-hashed artifact per fetched source.
+Implementation order is deliberately short:
 
-```ts
-type SourceDoc = {
-  provider: "a2aj" | "courtlistener" | "tna" | "govinfo" | "govuk-et" | "journal" | "local-pdf";
-  id: string; url: string | null;
-  revision: string;            // content sha256 — cache key and staleness key
-  text: string;                // ONE canonical rendition; no second exists
-  tokens: WordSpan[];          // tokenized exactly once
-  blocks: Block[];             // { kind, label, start, end, anchor?, origin: native|heuristic }
-  index: Map<string, number>;  // normalized locator -> block
-};
-```
+1. freeze the real provider inputs and public SourceDoc outputs;
+2. land the Rust `DocumentInput`/`SourceDoc` model and generic file/JSONL CLI;
+3. move A2AJ SQLite, native-markup, and authoritative journal adapters into
+   `sourcedoc`, using the same functions for one-row and corpus operation;
+4. update Beaver to invoke one provider job and consume final SourceDocs;
+5. prove the frozen 24-vector and full 323,374-row gates; and
+6. delete the TypeScript sidecar, wire model, projector, detector remnants,
+   and transition tests in that same cutover.
 
-Providers become compilers into SourceDoc (~150–300 lines each: A2AJ
-markdown, Harvard XML + star-pagination, Akoma Ntoso eIds, PDF artifacts,
-journal rows). Everything else becomes queries over it: locator lookup is an
-index hit, quote verification scans prebuilt tokens, pinpoint URLs come from
-a host/anchor table (the Decisia predicate landed 2026-07-27) plus token-built
-text fragments, one label formatter, one content-addressed cache sized in
-blocks. Evidence-handle wire formats (mike-evidence:v1 family) are unchanged;
-they verify against `revision + block + text hash`.
-
-Stages, each gated on parity (byte-identical lookups and URLs against the
-old path over the live-probed fixture corpus) before the old code is deleted:
-
-1. **Gate first**: cross-provider fixture matrix from the audits' live
-   probes (the P1.1 acceptance test that never existed). Includes the real
-   federal A2AJ markdown shape (`**231** (1) …`) that the current
-   `SECTION_MARK_RE` misses — today the entire laws-lois corpus has zero
-   structure index.
-2. SourceDoc core + A2AJ compiler. The compiler subsumes the audit's fix
-   list: federal emphasis markers, truncation signalling on a2aj_fetch,
-   locator ranges instead of bare counts, not_found vs unavailable, honest
-   page-locator advertising.
-3. Cut consumers over one at a time — lookup tools, pinpoint links, DOCX
-   evidence resolution — deleting the old path per provider as its gate
-   passes.
-4. CourtListener (unify the divergent text renditions), TNA/GovInfo/GOV.UK
-   ET/journals, local PDF.
-
-Expected effect: the ~5,600-line provider/pinpoint/evidence stack contracts
-to roughly 3,000 lines while the defect classes (divergent renditions,
-duplicated quote gates, per-call retokenization) become impossible by
-construction. Link-heavy answers drop from ~230 ms to ~35 ms of CPU
-(measured on the tokenization-hoist prototype); worst-case evidence resolves
-from ~62 s to seconds.
-
-Explicitly not in scope: renaming persisted formats, changing evidence
-handle wire shapes, adding dependencies, or building structure for
-providers Beaver does not ship.
+Evidence handles remain valid because they bind final SourceDoc revision,
+locator, and text. There is no second provider rendition, graph DTO, or cache
+identity to reconcile.
 
 ### P1.2 Durable provider cache and bulk paths
 
@@ -1495,9 +1522,10 @@ Acceptance:
 4. **Canonicalize product resources**: shared project, workflow, tabular, and
    chat behavior with mechanical SQLite/Supabase persistence encodings and the
    same automatically enumerated tests.
-5. **Canonicalize document intelligence**: finish SourceDoc/grid projections,
-   one raw-preserving DOCX session, provider/evidence/artifact convergence, and
-   thin universal-PDF integration. Delete each superseded path as callers move.
+5. **Canonicalize document intelligence**: land the one-model/three-command
+   legal-document stack above, finish SourceDoc/grid projections and one
+   raw-preserving DOCX session, and delete each superseded bridge as callers
+   move.
 6. **Replace the browser runtime outright**: convert the complete route and
    deep-link inventory to Vite/React Router, serve it from the Express origin,
    retain bearer authentication, and delete Next/OpenNext, API-base/CORS
