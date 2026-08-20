@@ -44,9 +44,10 @@ async function configure(mode: "local" | "cloud") {
     const { initializeRuntimeConfig } = await import("@/app/lib/runtimeConfig");
     const config =
         mode === "local"
-            ? { mode }
+            ? { mode, capabilities: { connectors: false } }
             : {
                   mode,
+                  capabilities: { connectors: true },
                   supabaseUrl: "https://example.supabase.co",
                   supabasePublishableKey: "test-key",
               };

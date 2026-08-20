@@ -27,7 +27,6 @@ describe("local app", () => {
     expect((await request(api).patch("/user/profile")
       .send({ displayName: "Not an account" })).status).toBe(501);
     const response = await request(api).get("/user/mcp-connectors");
-    expect(response.status).toBe(501);
-    expect(response.body.detail).toContain("account-free");
+    expect(response.status).toBe(404);
   });
 });

@@ -57,8 +57,12 @@ fi
 
 echo "Running stack integration tests against $SUPABASE_TEST_URL"
 cd "$BACKEND_DIR"
-exec npx vitest run \
-    src/__tests__/integration/stack.supabase.test.ts \
-    src/__tests__/integration/access.supabase.test.ts \
-    src/lib/__tests__/relationalRepositories.postgres.test.ts \
-    "$@"
+TESTS=(
+    src/__tests__/integration/stack.supabase.test.ts
+    src/__tests__/integration/access.supabase.test.ts
+    src/lib/__tests__/relationalRepositories.postgres.test.ts
+)
+if [[ "${S3_CONTRACT_TEST:-false}" == "true" ]]; then
+    TESTS+=(src/lib/__tests__/storage.test.ts)
+fi
+exec npx vitest run "${TESTS[@]}" "$@"

@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { isLocalMode } from "@/app/lib/authMode";
+import { connectorsEnabled, isLocalMode } from "@/app/lib/authMode";
 import { accountTabButtonClassName } from "./accountStyles";
 
 const TABS = [
@@ -15,11 +15,10 @@ const TABS = [
 export default function AccountLayout() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const tabs = isLocalMode
-        ? TABS.filter(({ href }) =>
-              href === "/account/features" || href === "/account/api-keys"
-          )
-        : TABS;
+    const tabs = TABS.filter(({ href }) =>
+        (href !== "/account/connectors" || connectorsEnabled) &&
+        (!isLocalMode || ["/account/features", "/account/api-keys", "/account/connectors"].includes(href))
+    );
     const activeTab =
         tabs.find(({ href }) =>
             pathname === href ||

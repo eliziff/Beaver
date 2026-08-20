@@ -64,6 +64,7 @@ describe("GET /config", () => {
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             mode: "cloud",
+            capabilities: { connectors: true },
             supabaseUrl: "https://supabase.test.local",
             supabasePublishableKey: "test-publishable-key",
         });

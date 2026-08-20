@@ -4,13 +4,6 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-import { resolveUniqueGroundedQuote } from "../../../backend/experiments/a2aj-decision-roster/caseSemanticMvp";
-import {
-  ATTRIBUTIONS,
-  DIRECT_HISTORY_LABELS,
-  SUBSTANTIVE_LABELS,
-  TREATMENT_SCOPES,
-} from "../../../backend/experiments/a2aj-decision-roster/caseTreatment";
 import { fetchLocalA2AJDocumentById } from "../../../backend/src/lib/a2ajLocalBulk";
 import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
@@ -21,10 +14,8 @@ import {
   runStructuredLuna,
   validateCaseTargetSubmission,
 } from "../runner";
+import { groundedEvidence, validateFrozenGoldCase, validateGold } from "./gold_validation";
 
-const RESULT_POSITIONS = ["supports_disposition", "opposes_disposition", "mixed", "unclear"] as const;
-const OPINION_LINK_RELATIONS = ["authors", "joins", "joins_in_part"] as const;
-const ISSUE_RELATIONS = ["dispositive", "independent_alternative", "non_dispositive", "unclear"] as const;
 const GRADER_MODEL = "gpt-5.6-sol";
 // Ultra is a Codex orchestration preset. Keep each adjudication to one isolated
 // model response by using the strongest flat-subscription inference effort.
@@ -257,7 +248,7 @@ async function rawCandidates(files: string[]) {
       if (!Number.isSafeInteger(documentId)) continue;
       const current = byDocument.get(documentId) ?? { raw: null, canonical: null };
       if (event.kind === "model_output") {
-        byDocument.set(documentId, { ...current, raw: parsedOutput(event.raw_model_output) });
+        byDocument.set(documentId, { ...current, raw: parsedOutput(event.raw_model_output) ?? event.raw_model_output ?? null });
       } else if (event.kind === "canonical_model_output") {
         const explicit = parsedOutput(event.canonical_model_output ?? event.canonical_output ?? event.model_output);
         const canonical = explicit ?? {
@@ -265,9 +256,13 @@ async function rawCandidates(files: string[]) {
           validator_version: event.validator_version,
           source_sha256: event.source_sha256,
           raw_output_sha256: event.raw_output_sha256,
+          target_occurrence_version: event.target_occurrence_version,
+          target_occurrence_set_sha256: event.target_occurrence_set_sha256,
           prediction: event.prediction ?? null,
           case_target_mvp: event.case_target_mvp ?? null,
           compiler_errors: event.compiler_errors ?? [],
+          opinion_validation: event.opinion_validation ?? null,
+          recompile_receipt: event.recompile_receipt ?? null,
         };
         byDocument.set(documentId, {
           raw: parsedOutput(event.raw_model_output) ?? current.raw,
@@ -376,155 +371,6 @@ ${JSON.stringify(candidates, null, 2)}
 ${packet(record)}`;
 }
 
-function groundedEvidence(source: string, value: unknown, pathLabel: string, errors: string[]) {
-  if (typeof value !== "string" || value.length < 4) {
-    errors.push(`${pathLabel}: expected an exact quote of at least four characters`);
-    return null;
-  }
-  const resolved = resolveUniqueGroundedQuote(source, 0, value);
-  if (typeof resolved === "string") {
-    errors.push(`${pathLabel}: ${resolved}`);
-    return null;
-  }
-  return resolved;
-}
-
-function validateGold(source: string, gold: Record<string, any>, expectedOccurrences: string[] = []) {
-  const errors: string[] = [];
-  const requiredArrays = ["opinions", "participants", "issues", "target_mentions", "target_treatments", "target_direct_history"];
-  for (const key of requiredArrays) if (!Array.isArray(gold[key])) errors.push(`${key}: expected an array`);
-  if (Array.isArray(gold.opinions) && !gold.opinions.length) errors.push("opinions: expected at least one substantive opinion");
-  if (Array.isArray(gold.participants) && !gold.participants.length) errors.push("participants: expected at least one decision-maker");
-  if (gold.disposition_quote !== null) groundedEvidence(source, gold.disposition_quote, "disposition_quote", errors);
-
-  const opinions = new Set<string>();
-  for (const [index, opinion] of (gold.opinions ?? []).entries()) {
-    const label = `opinions[${index}]`;
-    if (typeof opinion.opinion_key !== "string" || !/^o[1-9][0-9]*$/u.test(opinion.opinion_key) || opinions.has(opinion.opinion_key)) {
-      errors.push(`${label}: invalid or duplicate opinion_key`);
-    } else opinions.add(opinion.opinion_key);
-    if (!Array.isArray(opinion.writer_names) || opinion.writer_names.some((name: unknown) => typeof name !== "string" || !name.trim())) {
-      errors.push(`${label}.writer_names: expected names`);
-    }
-    if (opinion.collective_writer !== null && (typeof opinion.collective_writer !== "string" || !opinion.collective_writer.trim())) {
-      errors.push(`${label}.collective_writer: expected a string or null`);
-    }
-    const hasWriter = (opinion.writer_names?.length ?? 0) > 0 || opinion.collective_writer !== null;
-    if (hasWriter) groundedEvidence(source, opinion.writer_evidence_quote, `${label}.writer_evidence_quote`, errors);
-    else if (opinion.writer_evidence_quote !== null) errors.push(`${label}.writer_evidence_quote: must be null when the writer is unknown`);
-    if (!RESULT_POSITIONS.includes(opinion.result_position)) errors.push(`${label}.result_position: invalid value`);
-    if (opinion.result_position !== "unclear") groundedEvidence(source, opinion.position_evidence_quote, `${label}.position_evidence_quote`, errors);
-    const start = groundedEvidence(source, opinion.start_quote, `${label}.start_quote`, errors);
-    const end = groundedEvidence(source, opinion.end_quote, `${label}.end_quote`, errors);
-    if (start && end && start.start > end.start) errors.push(`${label}: opinion ends before it starts`);
-  }
-
-  const participantNames = new Set<string>();
-  const participantLinks: Array<{ label: string; link: Record<string, any> }> = [];
-  for (const [index, participant] of (gold.participants ?? []).entries()) {
-    const label = `participants[${index}]`;
-    const name = typeof participant.name === "string" ? participant.name.trim().toLocaleLowerCase() : "";
-    if (!name || participantNames.has(name)) errors.push(`${label}.name: missing or duplicate participant`);
-    else participantNames.add(name);
-    groundedEvidence(source, participant.panel_evidence_quote, `${label}.panel_evidence_quote`, errors);
-    if (!RESULT_POSITIONS.includes(participant.result_position)) errors.push(`${label}.result_position: invalid value`);
-    if (participant.result_position !== "unclear") groundedEvidence(source, participant.result_evidence_quote, `${label}.result_evidence_quote`, errors);
-    if (typeof participant.result_only !== "boolean") errors.push(`${label}.result_only: expected boolean`);
-    if (!Array.isArray(participant.opinion_links)) errors.push(`${label}.opinion_links: expected an array`);
-    const links = participant.opinion_links ?? [];
-    if (participant.result_only && links.length) errors.push(`${label}: result-only participant cannot link to reasons`);
-    if (participant.result_only === false && !links.length) errors.push(`${label}: participant needs an authorship or joinder link`);
-    for (const [linkIndex, link] of links.entries()) {
-      const linkLabel = `${label}.opinion_links[${linkIndex}]`;
-      participantLinks.push({ label: linkLabel, link });
-      if (!opinions.has(link.opinion_key)) errors.push(`${linkLabel}: unknown opinion ${String(link.opinion_key)}`);
-      if (!OPINION_LINK_RELATIONS.includes(link.relation)) errors.push(`${linkLabel}.relation: invalid value`);
-      if (!Array.isArray(link.issue_keys)) errors.push(`${linkLabel}.issue_keys: expected an array`);
-      if (link.relation === "joins_in_part" && !link.issue_keys?.length) errors.push(`${linkLabel}: joins_in_part needs issue_keys`);
-      if (link.relation !== "joins_in_part" && link.issue_keys?.length) errors.push(`${linkLabel}: only joins_in_part may specify issue_keys`);
-      groundedEvidence(source, link.evidence_quote, `${linkLabel}.evidence_quote`, errors);
-    }
-  }
-
-  const issues = new Set<string>();
-  for (const [index, issue] of (gold.issues ?? []).entries()) {
-    const label = `issues[${index}]`;
-    if (typeof issue.issue_key !== "string" || !/^s[1-9][0-9]*$/u.test(issue.issue_key) || issues.has(issue.issue_key)) {
-      errors.push(`${label}: invalid or duplicate issue_key`);
-    } else issues.add(issue.issue_key);
-    if (typeof issue.question !== "string" || issue.question.trim().length < 4) errors.push(`${label}.question: expected a legal question`);
-    if (!Array.isArray(issue.answer_groups) || !issue.answer_groups.length) errors.push(`${label}.answer_groups: expected at least one answer group`);
-    const positionedOpinions = new Set<string>();
-    const answerGroups = new Set<string>();
-    for (const [groupIndex, group] of (issue.answer_groups ?? []).entries()) {
-      const groupLabel = `${label}.answer_groups[${groupIndex}]`;
-      if (typeof group.answer_group_key !== "string" || !group.answer_group_key.trim() || answerGroups.has(group.answer_group_key)) {
-        errors.push(`${groupLabel}: invalid or duplicate answer_group_key`);
-      } else answerGroups.add(group.answer_group_key);
-      if (typeof group.answer !== "string" || !group.answer.trim()) errors.push(`${groupLabel}.answer: expected an answer`);
-      if (!Array.isArray(group.positions) || !group.positions.length) errors.push(`${groupLabel}.positions: expected at least one opinion position`);
-      for (const [positionIndex, position] of (group.positions ?? []).entries()) {
-        const positionLabel = `${groupLabel}.positions[${positionIndex}]`;
-        if (!opinions.has(position.opinion_key)) errors.push(`${positionLabel}: unknown opinion ${String(position.opinion_key)}`);
-        if (positionedOpinions.has(position.opinion_key)) errors.push(`${positionLabel}: opinion already belongs to an answer group on this issue`);
-        else positionedOpinions.add(position.opinion_key);
-        if (!ISSUE_RELATIONS.includes(position.relation_to_disposition)) errors.push(`${positionLabel}.relation_to_disposition: invalid value`);
-        if (!Array.isArray(position.answer_evidence_quotes) || !position.answer_evidence_quotes.length) {
-          errors.push(`${positionLabel}.answer_evidence_quotes: expected at least one quote`);
-        }
-        for (const [quoteIndex, quote] of (position.answer_evidence_quotes ?? []).entries()) {
-          groundedEvidence(source, quote, `${positionLabel}.answer_evidence_quotes[${quoteIndex}]`, errors);
-        }
-      }
-    }
-  }
-  for (const { label, link } of participantLinks) {
-    for (const issue of link.issue_keys ?? []) if (!issues.has(issue)) errors.push(`${label}: unknown issue ${issue}`);
-  }
-
-  const mentions = new Set<string>();
-  const occurrenceCounts = new Map<string, number>();
-  for (const [index, item] of (gold.target_mentions ?? []).entries()) {
-    const label = `target_mentions[${index}]`;
-    groundedEvidence(source, item.evidence_quote, `${label}.evidence_quote`, errors);
-    if (typeof item.mention_key !== "string" || !/^m[1-9][0-9]*$/u.test(item.mention_key) || mentions.has(item.mention_key)) errors.push(`${label}: invalid or duplicate mention_key`);
-    else mentions.add(item.mention_key);
-    const hasOccurrence = typeof item.occurrence_id === "string";
-    const hasMentionQuote = typeof item.mention_quote === "string";
-    if (hasOccurrence === hasMentionQuote) errors.push(`${label}: provide exactly one of occurrence_id or mention_quote`);
-    if (hasOccurrence) occurrenceCounts.set(item.occurrence_id, (occurrenceCounts.get(item.occurrence_id) ?? 0) + 1);
-    if (hasMentionQuote) groundedEvidence(source, item.mention_quote, `${label}.mention_quote`, errors);
-    if (!ATTRIBUTIONS.includes(item.voice)) errors.push(`${label}.voice: invalid value`);
-    if (!Array.isArray(item.issue_keys)) errors.push(`${label}.issue_keys: expected an array`);
-    for (const issue of item.issue_keys ?? []) if (!issues.has(issue)) errors.push(`${label}: unknown issue ${issue}`);
-  }
-  for (const occurrence of expectedOccurrences) {
-    if (occurrenceCounts.get(occurrence) !== 1) errors.push(`target_mentions: expected occurrence ${occurrence} exactly once`);
-  }
-  for (const [index, item] of (gold.target_treatments ?? []).entries()) {
-    const label = `target_treatments[${index}]`;
-    groundedEvidence(source, item.evidence_quote, `${label}.evidence_quote`, errors);
-    if (!Array.isArray(item.mention_keys) || !item.mention_keys.length) errors.push(`${label}.mention_keys: expected at least one mention`);
-    for (const mention of item.mention_keys ?? []) if (!mentions.has(mention)) errors.push(`${label}: unknown mention ${mention}`);
-    if (!Array.isArray(item.issue_keys)) errors.push(`${label}.issue_keys: expected an array`);
-    for (const issue of item.issue_keys ?? []) if (!issues.has(issue)) errors.push(`${label}: unknown issue ${issue}`);
-    if (!ATTRIBUTIONS.includes(item.attribution)) errors.push(`${label}.attribution: invalid value`);
-    if (!SUBSTANTIVE_LABELS.includes(item.label)) errors.push(`${label}.label: invalid value`);
-    if (!TREATMENT_SCOPES.includes(item.scope)) errors.push(`${label}.scope: invalid value`);
-    if (item.target_proposition_as_characterized !== null && (typeof item.target_proposition_as_characterized !== "string" || !item.target_proposition_as_characterized.trim())) {
-      errors.push(`${label}.target_proposition_as_characterized: expected a string or null`);
-    }
-  }
-  for (const [index, item] of (gold.target_direct_history ?? []).entries()) {
-    const label = `target_direct_history[${index}]`;
-    groundedEvidence(source, item.evidence_quote, `${label}.evidence_quote`, errors);
-    if (!Array.isArray(item.mention_keys) || !item.mention_keys.length) errors.push(`${label}.mention_keys: expected at least one mention`);
-    for (const mention of item.mention_keys ?? []) if (!mentions.has(mention)) errors.push(`${label}: unknown mention ${mention}`);
-    if (!DIRECT_HISTORY_LABELS.includes(item.label)) errors.push(`${label}.label: invalid value`);
-  }
-  return errors;
-}
-
 function validateGrade(source: string, grade: Record<string, any>) {
   const errors: string[] = [];
   for (const [index, item] of (grade.critical_errors ?? []).entries()) groundedEvidence(source, item.evidence_quote, `critical_errors[${index}]`, errors);
@@ -563,9 +409,13 @@ function validateCandidate(record: NonNullable<Awaited<ReturnType<typeof loadCas
   if (candidate && typeof candidate === "object" && !Array.isArray(candidate) && "case_target_mvp" in candidate) {
     const canonical = candidate as Record<string, any>;
     const target = canonical.case_target_mvp;
+    const opinionValidation = canonical.opinion_validation;
+    const opinionOk = typeof opinionValidation?.ok === "boolean"
+      ? opinionValidation.ok
+      : canonical.prediction != null;
     return {
-      opinion_ok: canonical.prediction !== null,
-      opinion_error: canonical.prediction === null ? "opinion extraction rejected" : null,
+      opinion_ok: opinionOk,
+      opinion_error: opinionOk ? null : opinionValidation?.error ?? opinionValidation?.errors?.join("; ") ?? "opinion extraction rejected",
       target_ok: target?.ok ?? false,
       target_errors: target?.errors ?? (canonical.compiler_errors?.length ? canonical.compiler_errors : ["case-target extraction missing"]),
     };
@@ -788,15 +638,7 @@ async function main() {
       })?.text;
       const gold = byDocument.get(documentId);
       if (!source || !gold?.annotation) throw new Error(`missing source or human gold for ${documentId}`);
-      const receipt = pair.selection_receipt ?? {};
-      if (Number(receipt.source_chars) !== source.length || receipt.source_text_sha256 !== createHash("sha256").update(source, "utf8").digest("hex")) {
-        throw new Error(`frozen source identity mismatch for ${documentId}`);
-      }
-      const occurrences = Array.isArray(receipt.target_occurrences)
-        ? receipt.target_occurrences.map((item: Record<string, unknown>) => String(item.id))
-        : [];
-      if (!occurrences.length) throw new Error(`missing frozen target occurrences for ${documentId}`);
-      const errors = validateGold(source, gold.annotation, occurrences);
+      const errors = validateFrozenGoldCase(source, pair, gold.annotation);
       if (errors.length) throw new Error(`invalid human gold for ${documentId}: ${errors.join("; ")}`);
     }
     console.log(JSON.stringify({ cases: pairs.length, valid_human_gold: pairs.length, gold_files: files }, null, 2));

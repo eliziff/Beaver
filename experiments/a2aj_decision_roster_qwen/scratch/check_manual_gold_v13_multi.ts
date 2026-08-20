@@ -7,7 +7,7 @@ const quoteKeys = new Set(["disposition_quote", "writer_evidence_quote", "positi
 async function main() {
   const bulk = (bulkModule as any).default ?? bulkModule;
   const semantic = (semanticModule as any).default ?? semanticModule;
-  const rows = JSON.parse(await readFile(new URL("./manual-case-target-gold-v13-multi.json", import.meta.url), "utf8")) as Array<Record<string, any>>;
+  const rows = JSON.parse(await readFile(new URL("../manual-case-target-gold-v13-multi.json", import.meta.url), "utf8")) as Array<Record<string, any>>;
   let failures = 0;
   for (const row of rows) {
     const source = bulk.fetchLocalA2AJDocumentById({ id: Number(row.document_id), language: "en", maxChars: Number.MAX_SAFE_INTEGER })?.text;

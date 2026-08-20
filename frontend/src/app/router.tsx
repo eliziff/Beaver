@@ -160,7 +160,7 @@ const appRoutes: RouteObject[] = [
       route(
         "connectors",
         page(() => import("@/app/(pages)/account/connectors/page")),
-        { handle: { cloudOnly: true } },
+        { handle: { capability: "connectors" } },
       ),
     ],
   }),
