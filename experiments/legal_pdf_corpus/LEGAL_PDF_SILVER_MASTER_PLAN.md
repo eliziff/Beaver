@@ -1960,9 +1960,26 @@ No stage is being called complete prematurely:
   pages/s / 30 s gate remains red. Its 7.803 GB exact pretty-byte surface is
   now dominated by Python common-input materialization, Rust reparse, sorted
   value construction, and serialization; the next slice must remove that
-  boundary rather than add buffers or relax the gate. Post-edit `cargo quick`
-  (9.53 s) and the production-feature link (42.16 s) also remain red against
-  the 2 s median / 4 s p95 and 30 s budgets.
+  boundary rather than add buffers or relax the gate. The direct-cache adapter
+  is now committed at `f2775d9`: the worst document remains exact but drops
+  only from a combined 9.874 s to 7.984 s, projecting the heavy lane near 48 s.
+  The guard therefore correctly forbade another full run. Exact sorted pretty
+  serialization and its peak memory are now the measured next target; a full
+  rerun remains forbidden until the heavy-lane projection is at most 30 s.
+  Profiling has narrowed that target: on the exact 553,317,754-byte worst-case
+  output, gzip decode plus typed parse takes 2.821 s, replay plus generic sorted
+  value construction takes 2.382 s (only 1.030 s is structure work), and exact
+  pretty serialization plus SHA-256 takes 1.427 s, about 388 MB/s. A page-level
+  wrapper around `serde_json::to_value` remained exact but regressed wall time
+  to 13.16--14.80 s and invalidated enough Rust code to make quick/link builds
+  take 29.85 s/159 s; it was reverted and recorded at `3cbd044`. The next
+  admissible attempt must serialize typed fields directly in frozen key order,
+  not move generic value construction into a different loop.
+  A true no-edit warm `cargo quick` was 3.224 s (within p95 but not evidence of
+  the <=2 s median), while the production-feature link was 44.24 s and remains
+  red against 30 s. The latest actual source counter is under the production
+  ceiling at 125,883/125,896, but the test/authored ceilings and final
+  contraction targets remain red.
 - The SourceDoc compact parity ledger now covers every shipping provider: 16
   of 17 provider/mode rows are frozen from real captures, including real A2AJ
   native-only, CourtListener hybrid/flat, journal final-contract
@@ -1974,16 +1991,32 @@ No stage is being called complete prematurely:
   0.613 s, acceptance is 0.568 s, and the canonical battery is about 0.08 s.
   Synthetic/mocked cases remain unit tests only. Full installed-provider
   corpus output freezes are the next provider gate; compact captures alone do
-  not establish corpus-scale parity.
+  not establish corpus-scale parity. The full-run preflight freezes 323,374
+  provider attempts: 248,685 A2AJ rows, 55,504 CourtListener opinions, 18,958
+  journal source rows, and 227 registered final contracts unreachable from the
+  source store (explicit provider failures, separately validatable as native
+  packages). Fixed 4,000-row real samples measured 74.9 MiB/s A2AJ, 37.0
+  MiB/s CourtListener, and 107.0 MiB/s journal; CourtListener therefore leaves
+  the per-provider 50 MiB/s gate red. The single baseline freeze is projected
+  at about seven minutes over roughly 29.7 GB, with a ~4 KiB phase summary and
+  ~29.6 MB ignored compressed row manifest. This is an admissible red baseline
+  measurement, not completion or permission to repeat the full run.
+  The one authorized full freeze is now executing that exact denominator.
+  A2AJ completed all 248,685 rows with 248,640 passes, 45 explicit
+  provider-unavailable failures, zero skips, and flat mode for every success.
+  CourtListener completed all 55,504 opinions with 55,503 passes, one explicit
+  provider-unavailable failure, and zero skips. Journal and the separate 6,937
+  final-contract package proof remain in progress. These failures stay in the
+  baseline; they are not removed by narrowing the selected corpus.
 - The non-digital runner has verified the full local manifest and exact
   denominator of 750 documents / 86,763 physical pages. Its first CUDA product
   smoke correctly failed when all CPU execution-provider fallback was
   forbidden: the settled model has a small unavoidable CPU-node assignment.
   The exact run is now live without a rebuild using the same frozen binary and
   model, with `fallback=cpu` explicitly enabled and identity-pinned. At the
-  latest durable product checkpoint has 448/750 document receipts. The launch
-  runner reports 446 passed and two explicit failures, but strict receipt
-  audit shows only 56/448 are raw-byte replay exact: 390 launch-era “passes”
+  latest durable product checkpoint has 464/750 document receipts. The launch
+  runner reports 461 passed and three explicit failures. At 448 documents,
+  strict receipt audit showed only 56/448 raw-byte replay exact: 390 launch-era “passes”
   have `byte_identical_structure_replay=false` and therefore become raw-float
   drift failures, plus the two explicit failures. At the earlier 409-document
   accounting checkpoint, 3,840/86,763 physical pages passed, 1,138 were
@@ -2002,7 +2035,12 @@ No stage is being called complete prematurely:
   denominator. This prevalence proves a production canonical-float
   serialization/quantization defect rather than 390 independent structure
   regressions; semantic-equivalence diagnostics remain separate and cannot
-  turn the strict gate green. At this small-document
+  turn the strict gate green. The third explicit failure is another real
+  threshold-sensitive case: on a 41-page monograph, a tiny bbox round trip
+  changes pairing score 7.5 to 8.2, reclassifies page-39 lines 32–54/regions
+  from body to footnote, and reduces emitted paragraphs from 1,414 to 1,391
+  (89 normalized differences). This makes quantization-before-decision, not
+  comparator tolerance, a prerequisite for note/paragraph repair. At this small-document
   prefix, end-to-end wall is 55.7 minutes; warmed larger documents amortize
   startup, with roughly four to five hours still projected. This is progress,
   not a corpus completion claim, and the image-only 6.263 pages/s result
