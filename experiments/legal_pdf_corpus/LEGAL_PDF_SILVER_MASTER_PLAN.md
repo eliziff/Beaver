@@ -1642,7 +1642,7 @@ to fields exercised by a current provider or the PDF/OCR lane:
 ```text
 StructureEvidenceV1
   schema_version, document_id, provider, provider_revision
-  text, text_sha256, offset_unit = "unicode-scalar"
+  text, text_sha256, source_sha256?, offset_unit = "unicode-scalar"
   scope = { kind: "complete" | "excerpt", excerpt_of? }
   origins[] = { id, producer, representation, revision, authority }
   units[] = {
@@ -1650,9 +1650,10 @@ StructureEvidenceV1
     parent_id?, source_order,
     provider_order?, range, origin_id, page_index?, page_number?, flow_id?,
     raw_geometry?: { coordinate_space, page_width, page_height, bbox }
-    page_layout?: { column_separator? }
-    region_layout?: { kind?, member_line_ids? }
+    page_layout?: { column_separator?, source?, text_quality? }
+    region_layout?: { kind?, member_line_ids?, reading_order? }
     line_layout?: {
+      source_index?, reading_order?, block_index?, source?, exclude_from_body?,
       region_id?, region_type?, note_region_mode?, suppress_footnote_label?,
       detached_references?: { note_id?, range?, selected_text?,
                                source_line_id? }[]
@@ -1684,14 +1685,21 @@ The role-specific layout blocks and every field in them are optional. Word and
 region units are likewise optional; a region's kind/membership and a line's
 region identity/type must agree when both are supplied. `page_layout` carries
 the current optional per-page column separator in that page's raw coordinate
-frame; detector use goes through the same decision-key policy. `span_style`
-preserves the font, size, flags, and superscript evidence used by heading/note
-inference.
+frame plus page source/quality. Detector use goes through the same decision-key
+policy. Region/line layout preserves its separate page-local reading, source,
+and block order; document-global `source_order` cannot substitute for them.
+`span_style` preserves the font, size, flags, and superscript evidence used by
+heading/note inference.
 Line layout preserves source note-region mode, label suppression, and detached
 reference evidence; its reference ranges use the same document-global scalar
 unit and are checked/projected to line-local offsets only at the PDF seam.
 Absence means no layout claim, not an instruction to invent defaults. A
 provider with only text therefore emits none of these fields.
+
+`source_sha256` is the optional original PDF/source-byte identity, distinct
+from the required canonical `text_sha256`. Page-backed evidence requires its
+full lowercase 64-hex value; text-only providers omit it. Printed-page label
+fields are derived/reset during preparation and do not enter evidence.
 
 Raw finite provider/PDF geometry is retained unchanged for projection and
 provenance. Separately, the engine derives a versioned fixed-point decision key
@@ -2225,6 +2233,18 @@ No stage is being called complete prematurely:
   against 30 s. The binary shrank to 16,556,032 bytes and whole production is
   under its ceiling at 125,890/125,896, but the test/authored ceilings and final
   contraction targets remain red.
+  Stage 3 now has an explicitly unaccepted working-tree boundary: strict Rust
+  evidence validation/sidecar transport is +635 nonblank production lines and
+  the TypeScript client is +477. The TS frozen-offset/transport suite passes
+  3 tests in 0.449 s and its backend build is green, but the real-Rust test is
+  skipped honestly. The only two authorized Rust links failed quickly on
+  compile-only ownership/borrow errors (2.884 s and 2.327 s), so no new binary,
+  11-document proof, real handshake, or commit exists. Against 1,693 planned
+  detector lines removed, the present additions leave only 281 implementation
+  lines while still meeting the required 300-line contraction. The boundary
+  therefore remains uncommitted until it is simplified and completes the same
+  atomic detector cutover; moving code to tooling or weakening validation is
+  forbidden.
 - The SourceDoc compact parity ledger now covers every shipping provider: 16
   of 17 provider/mode rows are frozen from real captures, including real A2AJ
   native-only, CourtListener hybrid/flat, journal final-contract
@@ -2276,19 +2296,14 @@ No stage is being called complete prematurely:
   forbidden: the settled model has a small unavoidable CPU-node assignment.
   The exact run is now live without a rebuild using the same frozen binary and
   model, with `fallback=cpu` explicitly enabled and identity-pinned. The
-  latest durable product checkpoint has 501/750 document receipts and 7,537
-  passed physical pages. The launch runner reports 498 passed and three
-  explicit failures. It routed 6,756 OCR attempts, emitted OCR on 6,325 pages,
-  and retained 431 unresolved pages with exact routing partitions. Strict
-  replay has only 56 raw-byte-exact passes, 442 launch-era raw-drift failures,
-  and the three explicit failures. At 448 documents,
-  strict receipt audit showed only 56/448 raw-byte replay exact: 390 launch-era “passes”
-  have `byte_identical_structure_replay=false` and therefore become raw-float
-  drift failures, plus the two explicit failures. At the earlier 409-document
-  accounting checkpoint, 3,840/86,763 physical pages passed, 1,138 were
-  detector-marked, 3,299 OCR attempts were routed, 3,082 OCR pages were
-  emitted, and 217 remained unresolved, with no
-  route/output/partition mismatch. The first failure is not OCR drift: source
+  latest durable checkpoint has 573/750 document receipts and accounts for
+  13,520 physical pages, including 203 pages in failed receipts. The launch
+  runner reports 568 passes and five explicit failures. It routed 12,173 OCR
+  attempts, emitted OCR on 11,305 pages, and retained 868 unresolved pages
+  with exact routing partitions. Strict replay has 57 raw-byte-exact passes,
+  511 launch-era raw-drift failures, one explicit diagnostic-only numeric
+  drift, and four explicit semantic instabilities (two threshold flips and two
+  reading-order swaps). The first semantic failure is not OCR drift: source
   pages, lines, paragraphs,
   eight notes, and their pairs are identical, while an extraction-cache f64
   round trip moved one line across the exact `0.92 * body_median` small-font
@@ -2311,11 +2326,13 @@ No stage is being called complete prematurely:
   drift swaps tied lines/regions, changing line IDs, source order, and
   paragraph order. Therefore geometry must be canonical before every sort,
   threshold, and sequence decision, with an explicit stable tie-break; merely
-  canonicalizing the final JSON cannot recover deterministic structure. At this small-document
-  prefix, end-to-end wall is 1 h 38 min 52 s; warmed larger documents amortize
-  startup, with roughly four to six hours still projected. This is progress,
-  not a corpus completion claim, and the image-only 6.263 pages/s result
-  remains distinct from end-to-end product throughput.
+  canonicalizing the final JSON cannot recover deterministic structure. At
+  this checkpoint, end-to-end wall is 2 h 36 min 53 s and the measured rate is
+  only 1.57 physical pages/s. The remaining 177 documents contain 73,243
+  pages; even with larger-document batching, the honest end-to-end estimate is
+  now 8--12 hours. The image-only 6.263 pages/s result is only an unattainable
+  roughly 3.3-hour lower bound for remaining recognition and is not product
+  throughput. This is progress, not a corpus completion claim.
   Separately, all 425 pages across five 85-page parts of one historical
   English-law volume were routed, but only 185 became accepted OCR source and
   240 remained unresolved. Manual side-by-side inspection shows the rejected
