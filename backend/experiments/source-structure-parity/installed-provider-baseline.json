@@ -34,6 +34,6 @@
     "canonical.ts": "8f4b75f86ecf70f456af01b1b1e679fa0e58c85155701ac11f9bfbdbf5f0c3c4",
     "freezeInstalledProviders.ts": "75f722a5dfcf933d024e2876119397de646d5261debee5597d9f6a2b110b3546",
     "freezeInstalledProvidersParallel.ts": "bf7f8efbd9c0d2fcd9bf75fdf9fe222efe30e9ac227064f7d01f36d4245b4b68",
-    "verifyInstalledFreeze.ts": "af9b3fb26e8820a22c8534f3fcea5f0f65b929e7aec0f7f3c5a9cb0f7239cd44"
+    "verifyInstalledFreeze.ts": "ff6177843610a8dd377678a316399ccb4266ceed45633d432f95a53ae592ad1b"
   }
 }

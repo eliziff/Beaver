@@ -28,6 +28,8 @@ const receipt = path.resolve(args.get("receipt") ?? path.join(
 ));
 const hash = (value: Buffer | string) =>
   createHash("sha256").update(value).digest("hex");
+const sourceHash = (filename: string) =>
+  hash(readFileSync(filename, "utf8").replace(/\r\n/gu, "\n"));
 const hex = (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 const allowed = new Set([
   "v", "provider", "source_id", "source_kind", "source_bytes", "source_sha256",
@@ -46,7 +48,7 @@ const same = (left: unknown, right: unknown, label: string) => {
 
 const summaryFile = path.join(receipt, "summary.json");
 for (const [name, digest] of Object.entries(expected.reproduction_harness_sha256)) {
-  same(hash(readFileSync(path.join(__dirname, name))), digest, `reproduction harness ${name}`);
+  same(sourceHash(path.join(__dirname, name)), digest, `reproduction harness ${name}`);
 }
 const summaryBytes = readFileSync(summaryFile);
 if (summaryBytes.length > 64 * 1024) fail("Phase summary exceeds 64 KiB");
