@@ -5,18 +5,18 @@
   "corpora": [
     {
       "id": "checked-in/a2aj-sourcedoc",
-      "documents": 20,
-      "detail": "Twenty real provider captures plus one baseline recording in fixtures/sourcedoc."
+      "documents": 21,
+      "detail": "Twenty-one real provider captures plus one baseline recording in fixtures/sourcedoc."
     },
     {
       "id": "checked-in/native-markup",
-      "documents": 5,
-      "detail": "Real TNA, CAP, GovInfo, GOV.UK ET, and journal captures plus two recordings."
+      "documents": 9,
+      "detail": "Nine real TNA, CourtListener/CAP, GovInfo, GOV.UK ET, and journal captures plus two recordings."
     },
     {
       "id": "local/a2aj-bulk",
       "documents": 248685,
-      "detail": "Installed schema-v3 full-text store: 225,017 cases and 23,668 laws at pinned case/law revisions."
+      "detail": "Installed schema-v3 primary store: 225,162 cases and 23,523 laws at pinned case/law revisions. The separate cases-search database has 225,017 rows."
     },
     {
       "id": "local/courtlistener-bulk",
@@ -25,8 +25,8 @@
     },
     {
       "id": "local/courtlistener-structure-audit-v2",
-      "documents": 69393,
-      "detail": "Real audited opinion rows in 71 completed compressed parts; available for compact hybrid/flat capture selection."
+      "documents": 23300,
+      "detail": "Currently located partial audit JSONL has 23,300 real opinion rows. The historical 69,393-row/71-part audit is not presently materialized and is not counted."
     },
     {
       "id": "local/journals",
@@ -36,7 +36,7 @@
     {
       "id": "local/legal-pdf-corpus",
       "documents": 1500,
-      "detail": "The program corpus; 748 of 750 digital-native documents currently have parser artifacts, but no compact Rust source_doc capture is frozen here."
+      "detail": "The program corpus; 748 of 750 digital-native documents currently have parser artifacts. Three compact real source_doc responses were emitted by frozen Rust binary SHA-256 85be89d29d6cfde928eaac66a7834d26568bbca25b467fbccf6945b1bd3075b4 and retain their input PDF hashes."
     }
   ],
   "anti_cheat": [
@@ -45,7 +45,34 @@
     "The raw capture hash, baseline commit, serializer contract, canonical byte length, and canonical SHA-256 must all match.",
     "Canonical bytes include text, ordered full blocks with origin/aliases/parents, ranges, all label/alias/anchor lookups, status, mode, and revision.",
     "Changing or weakening a fixture, serializer, lookup battery, or assertion fails rather than refreshing a baseline automatically.",
-    "Missing and unavailable rows remain explicit and make the opt-in acceptance gate fail; they cannot be skipped or counted as parity."
+    "Missing rows make the opt-in acceptance gate fail. Proven-inapplicable rows never count as parity and close only while their query-hashed live inventory remains exact; corpus discovery fails closed."
+  ],
+  "applicability_proofs": [
+    {
+      "id": "journal/flat-text",
+      "status": "not_applicable",
+      "corpus": "local/journals",
+      "query_sha256": "010664f20ba47369f6513d062cc0ffb0e47984ed1d2e07d1a72168aa1b3029f3",
+      "observed": {
+        "shippable_articles": 18595,
+        "shippable_articles_with_page_claims": 18595,
+        "shippable_articles_without_page_claims": 0
+      },
+      "reason": "Every provider-shippable local journal article has at least one authoritative article_pages row. The journal compiler therefore always emits a native page claim; the flat mode is unreachable for this provider contract. Counts cover the complete pinned public_endpoint.db export (18,958 total articles, 18,595 shippable text rows, 404,506 page rows)."
+    },
+    {
+      "id": "tna/hybrid-akn",
+      "status": "not_applicable",
+      "corpus": "checked-in/native-markup",
+      "query_sha256": "aa3a070867006f859bfd8dd0687d824af9b245d68ed8796c4472475f87ab6f5e",
+      "observed": {
+        "checked_in_tna_captures": 1,
+        "checked_in_tna_native_captures": 1,
+        "checked_in_tna_hybrid_captures": 0,
+        "installed_provider_tna_stores": 0
+      },
+      "reason": "The exhaustive current TNA inventory is one lawful checked-in AKN capture, which compiles native-only, and no installed TNA provider store. Hybrid is not parity-passed: it is inapplicable to the current local denominator. The harness recounts TNA fixtures and the installed provider path so any newly discovered capture/store fails closed and requires reclassification."
+    }
   ],
   "rows": [
     {
@@ -85,10 +112,12 @@
       "id": "a2aj/native-section-map",
       "provider": "a2aj",
       "mode": "native",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "No real captured provider payload currently produces native-only section-map blocks."
+      "capture": "sourcedoc/a2aj-laws-ab-abc-benefits-s8.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "af8060afc4c3f44afad767af21e39b94eb83afe0b5f49d00c2a760e44496c50d",
+      "baseline_sha256": "674fa266a7c38dfb9489c8b1bcef5186b7a0abe05aa938bf7d32b8488506eb13",
+      "baseline_bytes": 959
     },
     {
       "id": "courtlistener/native-cap",
@@ -105,19 +134,23 @@
       "id": "courtlistener/hybrid-opinion",
       "provider": "courtlistener",
       "mode": "hybrid",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "Real local audit rows exist, but no compact row has been promoted to a checked-in frozen baseline."
+      "capture": "nativemarkup/courtlistener-hybrid-2072234.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "78fe595f4be743cfb86bf7a762892054aa9f7b2891fc667487ac81822d0472c3",
+      "baseline_sha256": "99b20fb22f276f8abfe60a17fcc6e7ad56dce2e9d2ed64515dc8127ba2c31b19",
+      "baseline_bytes": 9307
     },
     {
       "id": "courtlistener/flat-opinion",
       "provider": "courtlistener",
       "mode": "flat",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "Real local audit rows exist, but no compact row has been promoted to a checked-in frozen baseline."
+      "capture": "nativemarkup/courtlistener-flat-5134833.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "3d9b2ed32d0258035d4839d7dd870ad4dc9cd474b099196e2bfd9add83e9819f",
+      "baseline_sha256": "3ddb2f0c639c788d1b1aa4e21ec680e6d414a9c5ec61e1d3425505612ddb8d80",
+      "baseline_bytes": 2973
     },
     {
       "id": "tna/native-akn",
@@ -136,8 +169,8 @@
       "mode": "hybrid",
       "capture": null,
       "provenance": null,
-      "status": "missing",
-      "blocker": "No real TNA capture exercises inference filling an absent native locator kind."
+      "status": "not_applicable",
+      "blocker": "Proven inapplicable to the current local corpus; not parity-passed. Any new checked-in TNA capture or installed TNA provider store reopens this row."
     },
     {
       "id": "govinfo/flat-text",
@@ -176,46 +209,56 @@
       "id": "journal/native-final-contract",
       "provider": "journal",
       "mode": "native",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "The current final-contract package is constructed in-test, not a frozen real capture."
+      "capture": "nativemarkup/journal-final-native-12027.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "1caded1bf4373d8e12d64c607b3a75d3c399031389591b85483636be271691ed",
+      "baseline_sha256": "3478192e80c39f81010747ce55a202d69d9cb6a72fb00c28ed04211683097005",
+      "baseline_bytes": 6242
     },
     {
-      "id": "journal/flat-text",
+      "id": "journal/hybrid-final-contract-recovery",
       "provider": "journal",
-      "mode": "flat",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "No real captured journal row without provider page/final-contract claims is frozen."
+      "mode": "hybrid",
+      "capture": "nativemarkup/journal-final-recovery-9284.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "2ddc966cb09532f4fc05663e6c0ceddbdc1e8eb86103e1d85ed53b73434d9cf1",
+      "baseline_sha256": "821cbc5d2f1e5935836d8a64615613f7d9be4cad7bd4c5653d0b54849f5702ba",
+      "baseline_bytes": 5523
     },
     {
       "id": "local-pdf/native-source-doc",
       "provider": "local-pdf",
       "mode": "native",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "No compact real Rust-produced native-only legalpdf.source-doc.v1 capture exists."
+      "capture": "legalpdf/local-pdf-native.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "d78fc2fdf86af0abaa9280aca3852185507f2585158306e1cbc3771ee8055f58",
+      "baseline_sha256": "ddc0a6960c1ae2f50c4144d653c1134ec723d8dec44fee16874d4ba88dfc20b1",
+      "baseline_bytes": 4737
     },
     {
       "id": "local-pdf/hybrid-source-doc",
       "provider": "local-pdf",
       "mode": "hybrid",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "No compact real Rust-produced mixed-origin legalpdf.source-doc.v1 capture exists; backend coverage is mock-only."
+      "capture": "legalpdf/local-pdf-hybrid.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "704cdd70a05f18586ee1ce6a3b77ab001dd51d6635c76b2ebd5247bcf50614b7",
+      "baseline_sha256": "9149101a634f9138c9c7cb2badde202f45dd4dc187b538f6fa616ba3015ee56b",
+      "baseline_bytes": 2358
     },
     {
       "id": "local-pdf/flat-source-doc",
       "provider": "local-pdf",
       "mode": "flat",
-      "capture": null,
-      "provenance": null,
-      "status": "missing",
-      "blocker": "Applicability is not yet classified over the 748 real artifacts and no compact real flat/recovered capture is frozen."
+      "capture": "legalpdf/local-pdf-flat.json",
+      "provenance": "real-captured",
+      "status": "frozen",
+      "capture_sha256": "55d10734b4882455f75e63d82c296a9ec3fa609f9693f01dc867646c233ed86f",
+      "baseline_sha256": "564ab22f390ecddbcc682bf6e65b6e9f6786987c58aff930a50db30a309853ee",
+      "baseline_bytes": 4681
     }
   ]
 }
