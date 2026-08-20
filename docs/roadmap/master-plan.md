@@ -92,87 +92,64 @@ These decisions are not open backlog items:
 
 ## Canonical legal-document stack
 
-Status: **Active cutover**
+Status: **Active exact port**
 
-The permanent shape is one shared Rust model and two operations:
+The permanent design is deliberately small:
 
 ```text
-adapt(source) -> DocumentInput
-compose(DocumentInput, native-only | recover-missing) -> SourceDoc
+provider record -> thin native-fact adapter -> DocumentInput
+DocumentInput -> copy native facts -> recover declared gaps -> SourceDoc
 ```
 
-`adapt` is source-specific but contains no detector. `compose` is
-provider-neutral and uses native claims first; raw-text recovery runs only for
-facts the input says are missing. `SourceDoc` is the final, canonical legal-text
-record. No intermediate graph or second text rendition crosses a process
-boundary.
+Existing repositories continue to own SQLite, HTTP, files, selection, paging,
+and retries. Structure code does not rebuild provider clients or database
+access. An adapter only translates the record already obtained by that code;
+it contains no detector. One record and many records are the same function in
+a loop, not separate products or protocols.
 
-Three thin commands expose that library:
+`DocumentInput` contains canonical text, provenance, native claims, coverage,
+exclusions, and factual boundaries. Native facts always win. The exact port of
+the existing TypeScript recovery rules runs only for kinds explicitly marked
+absent or incomplete. `SourceDoc` is the only result.
 
-- `sourcedoc` reads provider APIs, OpenLegalData SQLite, authoritative journal
-  exports, files, or stdin and emits final SourceDocs;
-- `legal-structure` accepts generic `DocumentInput` records and is the
-  standalone structure utility; and
-- `legalpdf` extracts PDF text and geometry, optionally uses OCR/layout, and
-  feeds the same composer.
+The journal adapter is especially literal: `pages.jsonl` already contains the
+final page, heading, section, note, annotation, and geometry facts. Copy them.
+Only unnumbered prose slices may be formed from its geometry segmentation
+boundaries. Do not rediscover numbered paragraphs or any other structure.
 
-This is one data path, not three pipelines. Direct and bulk commands call the
-same adapter. For example, `sourcedoc a2aj --db ... --id ...` reads one SQLite
-row while the bulk form iterates that same query and function. A2AJ needs no
-JSON input, socket, sidecar, or provider-specific IPC. Serialization happens
-once, when the final SourceDoc leaves the command.
+Rust callers use the library directly. Standalone tools may accept and emit
+JSONL for interoperability, but Beaver's hot path is not required to serialize
+an intermediate graph or raw evidence stream. Do not add a provider-specific
+transport, daemon, cache, worker pool, alternate schema, or database layer.
 
-The journal path is intentionally uneventful. `pages.jsonl` is the final export
-and its recorded pages, headings, sections, notes, annotations, and geometry are
-authoritative. The adapter copies them. It may form unnumbered prose slices
-from the recorded geometry segmentation boundaries; it must not rediscover
-headings, sections, pages, notes, or numbered paragraphs.
+Implementation order is a gate, not a suggestion:
 
-The public contract stays ordinary and easy to use:
+1. freeze the current TypeScript public bytes;
+2. port the same rules into Rust and pass every frozen byte comparison;
+3. delete the TypeScript implementation in the same change;
+4. connect existing provider repositories through thin adapters; and
+5. measure and remove remaining overhead.
 
-- Rust callers use the library directly;
-- a single result is versioned JSON on stdout;
-- bulk results are JSONL, one success or typed failure per input, with progress
-  on stderr and usable partial output after interruption; and
-- an outside provider can supply generic `DocumentInput` JSONL instead of
-  writing a plugin or adopting Beaver internals.
+No transport, corpus runner, provider database reader, or performance
+architecture is built before step 2 is green.
 
-`DocumentInput` owns identity, canonical UTF-8 text, provenance, truthful
-native claims, coverage, exclusions, and factual boundaries. `SourceDoc` owns
-that text plus final blocks, relations, diagnostics, and provider locators.
-Indexes and token postings are derived views, not another persisted schema.
-
-Shipping remains capability-based. The native-only structure artifact excludes
-raw recovery. Recovery excludes providers and PDF. Provider builds exclude
-PDF/OCR. PDF, Kraken OCR, and PPDoc layout are selectable independently, and
-model/runtime packs ship separately. Publish prebuilt Windows, macOS, and Linux
-binaries; Cargo is an optional developer installation path.
-
-Delete the old TypeScript wire model, validator, sidecar client/lifecycle,
-projector, retry bridge, and detector remnants in the same cutover. Do not add a
-daemon, N-API layer, gRPC service, SQLite extension, cache hierarchy, worker
-pool, compatibility wrapper, or alternate SourceDoc schema. The work is a few
-linear adapters plus one shared composer; performance should come from doing
-less, not orchestration.
+Shipping remains capability-based: native-only composition, raw recovery,
+PDF, OCR, and layout can ship separately. A minimal artifact does not carry an
+unselected engine, model, or runtime.
 
 Acceptance:
 
-- each artifact works alone and closure checks prove omitted capabilities are
-  actually absent;
-- direct and bulk use the same functions and produce byte-identical SourceDoc
-  JSON for the same source;
-- the 24 frozen provider vectors, all 323,374 installed-provider rows, the
-  1,500-PDF registry, and the full available DOCX corpus keep exact
+- all 24 frozen provider vectors and all 323,374 installed-provider rows are
+  byte-identical before integration proceeds;
+- the 1,500-PDF registry and full available DOCX corpus retain their exact
   denominators and fail closed on the first unexplained delta;
-- journal processing performs no semantic recovery beyond geometry-informed
-  prose slicing;
-- source acquisition, composition, and final encoding are timed separately;
-  the structure step must be cheap enough that I/O dominates, and the existing
-  0.8-second-per-2,000-document result is not accepted as the target;
-- release builds remain below 15 seconds on the reference machine, with one to
-  five seconds the target;
-- long corpus runs use below-normal priority, stream durable progress, and
-  remove disposable candidate/target artifacts after recording hashes; and
+- journal work is only final-export consumption plus geometry-informed prose
+  slicing;
+- structure is cheap enough that source I/O dominates; 0.8 seconds per 2,000
+  A2AJ records is not the target;
+- release builds remain below 15 seconds, with one to five seconds the target;
+- long runs use below-normal priority and remove disposable artifacts after
+  recording their compact receipts; and
 - the accepted cutover removes at least 300 more maintained production/test
   nonblank lines than it adds, without deleting behavioral coverage.
 
@@ -757,10 +734,8 @@ Acceptance:
 Status: **Active cutover**
 
 The observable `SourceDoc` behavior, native provider adapters, recovery rules,
-and parity fixtures already exist. The remaining work is ownership cleanup:
-move the adapters and final projection behind the shared Rust model, make
-`sourcedoc` the one direct/bulk entry point, then delete the TypeScript bridge
-and old detector code.
+and parity fixtures already exist. This is an exact Rust port followed by a
+deletion, not a provider-infrastructure project.
 
 The rules are simple: preserve trustworthy provider structure exactly; recover
 only kinds declared missing; keep provider locators and provenance; and never
@@ -778,21 +753,20 @@ Acceptance:
 
 #### P1.1a Execution: the SourceDoc consolidation (adopted 2026-07-27)
 
-P1.1 is the provider-facing slice of the canonical legal-document stack
-above. It is not a separate TypeScript compiler project. Each provider owns
-only acquisition and exact source-to-`DocumentInput` translation; the shared
-Rust library returns final `SourceDoc` records for both direct and bulk calls.
+P1.1 is the provider-facing slice of the canonical legal-document stack above.
+Existing provider code keeps acquisition. Each adapter only translates an
+already-selected record into `DocumentInput`; the shared Rust library returns
+the final `SourceDoc`.
 
 Implementation order is deliberately short:
 
-1. freeze the real provider inputs and public SourceDoc outputs;
-2. land the Rust `DocumentInput`/`SourceDoc` model and generic file/JSONL CLI;
-3. move A2AJ SQLite, native-markup, and authoritative journal adapters into
-   `sourcedoc`, using the same functions for one-row and corpus operation;
-4. update Beaver to invoke one provider job and consume final SourceDocs;
-5. prove the frozen 24-vector and full 323,374-row gates; and
-6. delete the TypeScript sidecar, wire model, projector, detector remnants,
-   and transition tests in that same cutover.
+1. freeze the real provider inputs and public SourceDoc bytes;
+2. port `DocumentInput -> SourceDoc` and the existing recovery rules exactly;
+3. prove the frozen 24-vector and full 323,374-row gates;
+4. replace each TypeScript adapter with the smallest record translation that
+   preserves its provider-native facts; and
+5. delete the TypeScript wire, projector, detector, and transition tests in
+   that same cutover.
 
 Evidence handles remain valid because they bind final SourceDoc revision,
 locator, and text. There is no second provider rendition, graph DTO, or cache
