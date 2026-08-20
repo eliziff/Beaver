@@ -21,7 +21,10 @@
   "buildSeconds": {
     "cargoQuickWarmMedian": 2.0,
     "cargoQuickWarmP95": 4.0,
-    "incrementalReleaseLink": 30.0,
+    "cargoColdBuildTarget": 5.0,
+    "cargoColdBuildMaximum": 15.0,
+    "incrementalReleaseLinkTarget": 5.0,
+    "incrementalReleaseLinkMaximum": 15.0,
     "providerParitySmoke": 1.0,
     "providerRegressionSuite": 8.0,
     "backendTargeted": 15.0
