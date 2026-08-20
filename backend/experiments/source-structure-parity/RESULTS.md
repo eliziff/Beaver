@@ -56,8 +56,8 @@ red gates; it must not redefine the denominator or exclude slow rows.
 
 The frozen fixture suite remains below one second: smoke was 609 ms and the
 final opt-in real-capture acceptance suite was 922 ms. Both passed. The four
-executable experiment files total 1,103 physical lines, while factoring 70 net
-lines out of the fixture test (net +1,033 executable lines in this experiment
+executable experiment files total 1,105 physical lines, while factoring 70 net
+lines out of the fixture test (net +1,035 executable lines in this experiment
 lane). Raw receipts remain ignored and compact.
 
 Executed harness source hashes used for the one full freeze:
