@@ -1250,7 +1250,9 @@ the structure layer during development.
 | Gate | Required result |
 | --- | ---: |
 | Warm `cargo quick` median / p95 | at most 2.0 s / 4.0 s |
-| Final incremental release link | at most 30 s |
+| Clean/cold build, hard ceiling | at most 15 s |
+| Clean/cold build, design target | at most 5 s |
+| Final incremental release link, hard ceiling / target | at most 15 s / 5 s |
 | Inner-loop SourceDoc provider parity smoke | at most 1 s |
 | Complete SourceDoc provider regression suite | at most 8 s |
 | Any focused backend structure test command | at most 15 s |
@@ -1263,9 +1265,12 @@ the structure layer during development.
 
 Do not run a clean whole-workspace build during an ordinary edit. Use one
 package-scoped metadata/check command, batch edits, then link once for the final
-behavioral gate. Do not spawn one structure process per document in production
-or corpus gates; use an in-process library or one warmed persistent/batched
-sidecar.
+behavioral gate. A clean build over 15 seconds is rejected even if runtime and
+parity are green; 1--5 seconds is the intended cold-build envelope. Keep the
+shared structure crate/binary dependency-light rather than making its edit loop
+relink the full PDF/OCR feature graph. Do not spawn one structure process per
+document in production or corpus gates; use an in-process library or one warmed
+persistent/batched sidecar.
 
 The budgets above are completion gates, not invented baseline claims. Current
 measured reference points are a 0.799 s warm `cargo quick`, a 0.513 s
@@ -1661,7 +1666,8 @@ StructureEvidenceV1
     span_style?: { font?, size?, flags?, superscript? }
   }
   native_claims[] = {
-    id, kind: "paragraph" | "page" | "section" | "footnote", label,
+    id, kind: "paragraph" | "prose" | "page" | "section" | "heading" |
+              "footnote" | "endnote", label?,
     aliases[], parent_label?, anchor?, range, provider_order, origin_id
   }
   coverage[] = { kind, range, state: "absent" | "augment" | "complete",
@@ -1680,6 +1686,14 @@ text-only adapters do not create lines. An astral-character round trip is a
 mandatory contract test. IDs are stable and unique. `source_order` is
 document-global and one-based for each unit role; `provider_order` preserves a
 different upstream order rather than overwriting it.
+
+All seven semantic kinds are legal native claims and coverage families.
+`paragraph` means a numbered/addressable legal paragraph; `prose` means an
+unnumbered segmentation group or boundary. `heading` is not promoted to
+`section`, and `footnote` and `endnote` remain distinct apparatus streams.
+Existing parity adapters may emit only their frozen four public locator kinds,
+but richer providers must not lose ontology at ingress. SourceDoc projection
+filters or maps only the locator kinds its public contract currently exposes.
 
 The role-specific layout blocks and every field in them are optional. Word and
 region units are likewise optional; a region's kind/membership and a line's
@@ -1780,18 +1794,18 @@ or `SourceDoc` projection:
 
 | Provider family | Exact obsolete detector ranges | Gross lines removed |
 | --- | --- | ---: |
-| A2AJ case/law, also supplying today's generic CourtListener fallback | `backend/src/lib/sourceDocA2AJ.ts:50-54,57-75,127-261,297-471,659-1870` | 1,546 |
-| CourtListener/TNA/GovInfo/GOV.UK shared native-markup recovery and precedence merge | `backend/src/lib/sourceDocNativeMarkup.ts:602-629,648-701` | 82 |
+| A2AJ case/law, also supplying today's generic CourtListener fallback | `backend/src/lib/sourceDocA2AJ.ts:11-12,50-54,57-75,83-125,127-261,297-471,532-535,550,553,590-631,640-649,659-1870,1907,1926,1930-1933` | 1,655 |
+| CourtListener/TNA/GovInfo/GOV.UK shared native-markup recovery and precedence merge | `backend/src/lib/sourceDocNativeMarkup.ts:11-15,602-629,648-701` | 87 |
 | Journal reconstructed blocks and per-kind merge | `backend/src/lib/legalSources/journal.ts:802-859,868-874` | 65 |
 | Local PDF | no detector deletion: `rust/src/structure.rs`, `pairing.rs`, `pairing_support.rs`, and grammar tables are the shared-core seed; `pdf.rs` remains its evidence adapter and `engine.rs` transport | 0 |
-| **Unique gross detector deletion** | shared ranges are counted once, never once per provider | **1,693** |
+| **Unique gross detector deletion** | shared ranges are counted once, never once per provider | **1,807** |
 
 TNA, GovInfo, and GOV.UK add zero further unique lines because they share the
 82-line native-markup merge; this is not permission to count that deletion
 three times. `backend/src/lib/legalPdfSourceDoc.ts` is a validator/projector,
 not a detector, and has a zero deletion budget. Rust extraction is a move into
 one public structure module, not a second implementation. Adapter/schema/client
-additions must fit under the 1,693-line gross removal, meet the Stage-3 net
+additions must fit under the 1,807-line gross removal, meet the Stage-3 net
 production contraction of at least 300 lines, and not increase whole-project
 LoC after subrepositories are included.
 
@@ -1806,6 +1820,15 @@ not one child per document. The minimal protocol is versioned NDJSON:
 error. The host packs by both negotiated bounds, applies backpressure, and
 records batch size and hashes. The chosen bounds must fit the largest locally
 registered single document and are frozen only after that proof.
+
+The shared success result is strict `legalpdf.structure-graph.v1`, never the
+PDF replay model. It carries document/text/source identity, status, scalar
+range nodes (`paragraph`, `prose`, `page`, `section`, `heading`, `footnote`, or
+`endnote`), point boundaries, typed relations, and range/node diagnostics.
+Nodes preserve origin and `native | heuristic | model` source plus optional
+locator metadata. No arbitrary attribute bag or fabricated page/line ID is
+allowed. The byte-identical PDF `ReplayOutput` remains a separate internal
+`PdfReplayProjection` used only for Legal PDF Parser parity.
 
 Invalid evidence returns a per-item error without losing valid siblings. A
 malformed envelope, missing/duplicate ID, schema/hash mismatch, truncated
@@ -2232,23 +2255,44 @@ No stage is being called complete prematurely:
   durability defect as well as oversubscription. It left no temp/raw output or
   process and is recorded at `97362fc`; future qualifiers must checkpoint
   exact completed hashes and measured aggregate peak incrementally.
-  The latest `cargo quick` was 2.759 s (within individual p95, median unproven)
-  and the incremental production-feature build/link was 50.121 s, still red
-  against 30 s. The binary shrank to 16,556,032 bytes and whole production is
+  The latest accepted ownership-slice `cargo quick` was 2.759 s (within
+  individual p95, median unproven) and its incremental production-feature
+  build/link was 50.121 s, still red. The binary shrank to 16,556,032 bytes and whole production is
   under its ceiling at 125,890/125,896, but the test/authored ceilings and final
   contraction targets remain red.
-  Stage 3 now has an explicitly unaccepted working-tree boundary: strict Rust
-  evidence validation/sidecar transport is +635 nonblank production lines and
-  the TypeScript client is +477. The TS frozen-offset/transport suite passes
-  3 tests in 0.449 s and its backend build is green, but the real-Rust test is
-  skipped honestly. The only two authorized Rust links failed quickly on
-  compile-only ownership/borrow errors (2.884 s and 2.327 s), so no new binary,
-  11-document proof, real handshake, or commit exists. Against 1,693 planned
-  detector lines removed, the present additions leave only 281 implementation
-  lines while still meeting the required 300-line contraction. The boundary
-  therefore remains uncommitted until it is simplified and completes the same
-  atomic detector cutover; moving code to tooling or weakening validation is
-  forbidden.
+  Stage 3 remains an explicitly unaccepted working-tree boundary. The exact
+  formatted Rust delta is +1,027 nonblank production lines and the contracted
+  TypeScript client is +343, against 1,807 uniquely mapped obsolete provider
+  lines: projected net contraction is 437 lines, leaving a hard 137-line
+  integration ceiling above the required 300-line contraction. Rust's
+  Page-backed proof is green at 11/11 documents, 401 pages twice, aggregate
+  SHA-256 `ea4531f82513c99bacea0b5a5bfef9d1aeb85bfca7113b595b6ae0aa47fb109d`;
+  the corrected seven-kind/optional-label binary retained exact parity at
+  470.7 pages/s and hashes to
+  `b1e853186675366b0d7cab257bf3bbc432dd5ef2d07519123739d38ad57a6d0e`.
+  That boundary's `cargo quick` passed in 3.74 s, but its 33.70 s incremental
+  release link is rejected by the newer 15 s hard cold/link ceiling as well as
+  the 5 s design target. It cannot be promoted until the structure build is
+  separated from the full PDF/OCR feature graph and a clean build proves the
+  new envelope.
+  The first frozen-A2AJ handshake honestly exposed the old four-kind Rust
+  schema. After that narrow correction, the one authorized retry is green:
+  4/4 focused tests in 0.914 s. The strict client validated document ID
+  `frozen-a2aj-text`, text SHA-256
+  `e8ba92ba0ba5ba74420ca5000397041220fa588444c669f8919642a46e11d865`,
+  status `partial`, every scalar range/reference against the 58-scalar source,
+  and the current two-node graph (`paragraph`: 1, `prose`: 1; both `[0,58)`).
+  This is a protocol/validation proof only, not a structure-quality or cutover
+  proof: overlapping whole-document paragraph and prose nodes are not an
+  acceptable replacement for SourceDocs. The Rust detector must port the
+  existing SourceDoc marker, monotone-chain, root/gap, exclusion, page,
+  note/endnote, heading, section, native-precedence, and range mechanics as
+  closely as possible. The old implementation remains an independent oracle
+  until real intermediate vectors and final blocks agree; its heuristic output
+  may never be relabelled as native input to manufacture parity.
+  The one backend build is green in 3.894 s. No provider edit, detector
+  deletion, commit, or four-kind weakening is accepted; the provider
+  cutover/deletion remains atomic.
 - The SourceDoc compact parity ledger now covers every shipping provider: 16
   of 17 provider/mode rows are frozen from real captures, including real A2AJ
   native-only, CourtListener hybrid/flat, journal final-contract
