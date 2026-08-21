@@ -343,16 +343,15 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(article.text).toContain("[page 100]");
+    expect(article.text).not.toContain("[page 100]");
     expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
     );
-    expect(journal.lookup(article, "section", "I").block?.origin).toBe(
-      "heuristic",
-    );
+    expect(journal.lookup(article, "section", "I").status).toBe("unavailable");
+    expect(article.structure.blocks.every(({ kind }) => kind === "page")).toBe(true);
   });
 
-  it("searches candidates, resolves stable locators, and builds multi-text links", async () => {
+  it("searches candidates, resolves page locators, and builds multi-text links", async () => {
     const match = journal.find("Fixture Article")[0];
     expect(match.hitId).toBe("journal:7");
     expect(match.citation).toBe(
@@ -361,12 +360,8 @@ describe("local journal articles", () => {
 
     const article = (await journal.document(String(match.articleId)))!;
     const page = journal.lookup(article, "page", "101");
-    const section = journal.lookup(article, "section", "II");
-    const footnote = journal.lookup(article, "footnote", "2");
     expect(page.hitId).toBe("journal:7:page:page101");
     expect(page.anchor).toBe("page=2");
-    expect(section.block?.text).toContain("II. Analysis");
-    expect(footnote.block?.text).toContain("second footnote");
 
     const url = buildLegalSourcePinpointUrl(
       {
@@ -510,7 +505,7 @@ describe("local journal articles", () => {
     expect(await journal.document("7")).not.toBe(first);
   });
 
-  it("uses captured plaintext and unnumbered prose when pages.jsonl is absent", async () => {
+  it("removes plaintext page markers and exposes only pages when pages.jsonl is absent", async () => {
     const fixtureDir = path.join(__dirname, "fixtures", "nativemarkup");
     const captured = JSON.parse(
       readFileSync(path.join(fixtureDir, "journal-alr-13.json"), "utf8"),
@@ -574,13 +569,9 @@ describe("local journal articles", () => {
     process.env.MIKE_PUBLIC_ENDPOINT_DB = filename;
 
     const article = (await journal.document("13"))!;
-    expect(article.text).toBe(row.text);
-    const paragraphs = article.structure.blocks.filter(({ kind }) => kind === "paragraph");
-    expect(paragraphs.length).toBeGreaterThan(0);
-    expect(paragraphs.map(({ label }) => label)).toEqual(
-      paragraphs.map((_, index) => `par${index + 1}`),
-    );
-    expect(paragraphs.every(({ origin }) => origin === "heuristic")).toBe(true);
+    expect(article.text).not.toMatch(/^\[page [^\]]+\]\r?$/m);
+    expect(article.structure.blocks.every(({ kind }) => kind === "page")).toBe(true);
+    expect(article.structure.blocks.every(({ origin }) => origin === "native")).toBe(true);
     expect(journal.lookup(article, "page", captured.pageRows[0].page_label)).toMatchObject({
       status: "found",
       block: { origin: "native" },
