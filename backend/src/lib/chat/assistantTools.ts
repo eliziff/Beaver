@@ -71,16 +71,23 @@ import {
 } from "../tableOfAuthorities";
 import {
   a2ajLookupEvidenceBlocks,
+  assistantReadEvidenceActivityLabel,
   assistantToolActivityLabel,
   readA2AJReferenceNeighborhood,
   type A2AJReferenceDirection,
 } from "./tools/a2ajTools";
 import {
   createA2AJLookupEvidence,
-  createBenchmarkEvidence,
+  createA2AJPassageEvidence,
+  createCourtlistenerEvidence,
+  createGovInfoEvidence,
+  createGovUkEmploymentTribunalEvidence,
+  createHansardEvidence,
+  createTnaEvidence,
   createLibraryEvidence,
   createPublicJournalPassageEvidence,
   legalEvidenceProseIntegrityErrors,
+  modelEvidencePassage,
   registerLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
@@ -682,7 +689,10 @@ async function readNonDocumentResource(
       ...result({
         ...compactProviderPdfLookup(resolved),
         ...(evidence.length
-          ? { evidence_ids: evidence.map(({ evidence_id }) => evidence_id) }
+          ? {
+              passages: evidence.map(modelEvidencePassage),
+              evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+            }
           : {}),
         resource: requested,
       }),
@@ -698,13 +708,29 @@ async function readNonDocumentResource(
   }
 }
 
-function legalSourceEvidence(passage: LegalSourcePassage): LegalEvidenceReceipt | undefined {
+function legalSourceEvidence(
+  passage: LegalSourcePassage,
+  span?: { text: string; start: number; end: number },
+): LegalEvidenceReceipt | undefined {
   if (passage.source.provider === "a2aj") {
     const native = objectRecord(passage.native);
     if (typeof native?.citation === "string" &&
         typeof native.dataset === "string" &&
         typeof native.text === "string" &&
-        (native.language === "en" || native.language === "fr")) return undefined;
+        (native.language === "en" || native.language === "fr")) {
+      return span ? createA2AJPassageEvidence({
+        citation: native.citation,
+        name: typeof native.name === "string" ? native.name : null,
+        dataset: native.dataset,
+        language: native.language,
+        sourceText: native.text,
+        spanText: span.text,
+        start: span.start,
+        end: span.end,
+        externalUrl: typeof native.url === "string" ? native.url : null,
+        sourceClass: passage.source.kind === "legislation" ? "legislation" : "case",
+      }) : undefined;
+    }
     const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
     const block = objectRecord(native?.block) as A2AJLocatorLookup["block"];
     if (lookup?.status === "found" && block) return createA2AJLookupEvidence({
@@ -720,7 +746,7 @@ function legalSourceEvidence(passage: LegalSourcePassage): LegalEvidenceReceipt 
       after: [],
     }, passage.source.kind === "legislation" ? "legislation" : "case") ?? undefined;
   }
-  if (passage.role === "document" && passage.source.provider !== "hansard") {
+  if (!span && passage.role === "document" && passage.source.provider !== "hansard") {
     return undefined;
   }
   if (passage.source.provider === "journal") {
@@ -729,7 +755,7 @@ function legalSourceEvidence(passage: LegalSourcePassage): LegalEvidenceReceipt 
       name: passage.source.title ?? null,
       date: passage.source.date ?? null,
       url: passage.source.url ?? null,
-      text: passage.text,
+      text: span?.text ?? passage.text,
       articleId: passage.source.id,
       language: passage.source.language,
       locatorKind: passage.locator.requested?.kind ?? "paragraph",
@@ -749,26 +775,35 @@ function legalSourceEvidence(passage: LegalSourcePassage): LegalEvidenceReceipt 
       ? "UK"
       : "CA-ON";
   const artifact = objectRecord(passage.documentArtifact);
-  return createBenchmarkEvidence({
+  const createEvidence = {
+    courtlistener: createCourtlistenerEvidence,
+    tna: createTnaEvidence,
+    "govuk-et": createGovUkEmploymentTribunalEvidence,
+    govinfo: createGovInfoEvidence,
+    hansard: createHansardEvidence,
+  }[passage.source.provider];
+  if (!createEvidence) return undefined;
+  return createEvidence({
     jurisdiction,
     sourceClass,
     stableSourceId: [
-      passage.source.provider,
       passage.source.id,
       passage.source.part ?? "",
     ].join(":"),
     sourceText: typeof passage.documentArtifact === "string"
       ? passage.documentArtifact
       : typeof artifact?.text === "string" ? artifact.text : passage.text,
-    spanText: passage.text,
+    spanText: span?.text ?? passage.text,
     citation: passage.source.citation ?? passage.source.id,
     name: passage.source.title,
     dataset: passage.source.collection ?? passage.source.provider,
     language: passage.source.language,
     version: passage.source.date,
     externalUrl: passage.source.url,
-    locatorKind: passage.locator.requested?.kind ?? "document",
-    locatorLabel: passage.locator.label,
+    locatorKind: span ? "document" : passage.locator.requested?.kind ?? "document",
+    locatorLabel: span
+      ? `characters ${span.start + 1}–${span.end}`
+      : passage.locator.label,
   });
 }
 
@@ -923,19 +958,36 @@ async function readLegalSourceResource(
           startIndex: total,
         });
         total += found.totalMatches;
-        return found.hits.map((hit) => ({
-          ...hit,
-          locator: passage.locator.label,
-          ...(passage.source.part && {
-            resource: resourceReference.source(
-              passage.source.provider === "courtlistener" ? "courtlistener-opinion" : passage.source.provider,
-              passage.source.provider === "courtlistener"
-                ? JSON.stringify([passage.source.id, Number(passage.source.part)])
-                : passage.source.id,
-            ),
-          }),
-        }));
+        return found.hits.map((hit) => {
+          const start = Math.max(0, hit.at - contextChars);
+          const end = Math.min(
+            passage.text.length,
+            hit.at + hit.excerpt.length + contextChars,
+          );
+          const receipt = legalSourceEvidence(passage, {
+            text: passage.text.slice(start, end),
+            start,
+            end,
+          });
+          return {
+            ...hit,
+            locator: passage.locator.label,
+            ...(receipt && { evidence_id: receipt.evidence_id, receipt }),
+            ...(passage.source.part && {
+              resource: resourceReference.source(
+                passage.source.provider === "courtlistener" ? "courtlistener-opinion" : passage.source.provider,
+                passage.source.provider === "courtlistener"
+                  ? JSON.stringify([passage.source.id, Number(passage.source.part)])
+                  : passage.source.id,
+              ),
+            }),
+          };
+        });
       });
+      const evidence = [...new Map(hits.flatMap(({ receipt }) =>
+        receipt ? [[receipt.evidence_id, receipt] as const] : [],
+      )).values()];
+      const visibleHits = hits.map(({ receipt: _receipt, ...hit }) => hit);
       return {
         ...result({
           ok: true,
@@ -947,19 +999,14 @@ async function readLegalSourceResource(
           total_matches: total,
           returned: hits.length,
           truncated: total > hits.length,
-          hits,
+          hits: visibleHits,
+          ...(evidence.length ? {
+            passages: evidence.map(modelEvidencePassage),
+            evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+          } : {}),
           ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}),
         }),
-        metadata: {
-          evidenceRefs: hits.map((hit, index) => ({
-            handle: `${source.provider}:${source.id}:match:${index}:${sha256(hit.context)}`,
-            filename: read.values[0].source.title ?? read.values[0].source.citation ?? source.id,
-            locator: `${hit.locator}, search hit ${index + 1}`,
-            text: hit.context,
-            exactSha256: sha256(hit.context),
-            kind: "candidate" as const,
-          })),
-        },
+        ...(evidence.length ? { evidence } : {}),
       };
     }
 
@@ -1284,6 +1331,7 @@ async function runCodingShapeCall(
         return {
           ...result({
             ...compactPdfLookup(file.filename, lookup),
+            passages: evidence.map(modelEvidencePassage),
             evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
             resource: codingPath(meta, file.version.id),
           }),
@@ -2030,10 +2078,15 @@ function providerPdfLegalEvidence(
     const page = source.pageNumbers[0];
     const url = new URL(resolved.params.url);
     if (page) url.hash = `page=${page}`;
-    return createBenchmarkEvidence({
+    const createEvidence = provider === "tna"
+      ? createTnaEvidence
+      : provider === "govuk-et"
+        ? createGovUkEmploymentTribunalEvidence
+        : createGovInfoEvidence;
+    return createEvidence({
       jurisdiction,
       sourceClass,
-      stableSourceId: `${provider}:${resolved.state.source_reference}:${source.key}`,
+      stableSourceId: `${resolved.state.source_reference}:${source.key}`,
       sourceText: source.documentText,
       spanText: source.blockText,
       citation: title,
@@ -2063,18 +2116,16 @@ function pdfLegalEvidence(
         : unit.kind === "paragraph"
           ? "paragraph"
           : "section";
-    return [createBenchmarkEvidence({
-      jurisdiction: "matter",
-      sourceClass: "commentary",
-      stableSourceId: `library-pdf:${documentId}:${versionId}:${unit.id}`,
+    return [createLibraryEvidence({
+      documentId,
+      versionId,
+      filename,
       sourceText: unit.text,
       spanText: unit.text,
-      citation: filename,
-      name: filename,
-      dataset: "library-pdf",
-      version: versionId,
-      locatorKind,
-      locatorLabel: unit.locator,
+      start: 0,
+      end: unit.text.length,
+      blockId: `pdf:${unit.id}`,
+      locator: { kind: locatorKind, label: unit.locator },
     })];
   });
 }
@@ -2733,8 +2784,8 @@ export function assistantTools<Context extends {
   const documentActivity = (verb: string, toolName: string, key: string) =>
     (input: Record<string, unknown>) => {
       const name = documentName(input[key]);
-      return name ? `${verb} ${name}`
-        : assistantToolActivityLabel(toolName, input) ?? null;
+      if (toolName === "Edit" && name) return `${verb} ${name}`;
+      return assistantToolActivityLabel(toolName, input, name) ?? null;
     };
   const present = (
     output: BeaverOutcome,
@@ -2779,6 +2830,14 @@ export function assistantTools<Context extends {
     async execute(input, context, signal, call) {
       const output = await run(call, input, signal, (label) =>
         context.updateActivity?.(call.id, label));
+      if (schema.name === "Read" && !input.pattern && output.evidence?.length) {
+        const label = assistantReadEvidenceActivityLabel(
+          output.evidence,
+          documentName(input.file_path),
+          input,
+        );
+        if (label) context.updateActivity?.(call.id, label);
+      }
       if (legalEvidenceState)
         output.evidence?.forEach((evidence) => registerLegalEvidence(legalEvidenceState, evidence));
       if (signal.aborted && !output.mutated) {

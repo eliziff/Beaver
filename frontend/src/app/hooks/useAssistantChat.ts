@@ -112,6 +112,7 @@ export function useAssistantChat({
     targetChatId: string,
     baselineVersion: number,
     runId = crypto.randomUUID(),
+    preserveFinal = false,
   ) => {
     const generation = ++pollGenerationRef.current;
     dispatch({ type: "run_resumed", runId, chatId: targetChatId });
@@ -121,7 +122,8 @@ export function useAssistantChat({
         try {
           const latest = await getChat(targetChatId);
           const version = latest.chat.transcript_version ?? seenVersion;
-          if (version > seenVersion || latest.chat.turn_in_progress === false) {
+          if ((!preserveFinal || latest.chat.turn_in_progress === false) &&
+              (version > seenVersion || latest.chat.turn_in_progress === false)) {
             seenVersion = version;
             dispatch({
               type: "transcript_loaded",
@@ -364,9 +366,16 @@ export function useAssistantChat({
         try {
           const latest = await getChat(targetChatId);
           const version = latest.chat.transcript_version ?? stateRef.current.transcriptVersion;
-          dispatch({ type: "transcript_loaded", chatId: targetChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
+          const finalAssistant = stateRef.current.messages.findLast(
+            (candidate) => candidate.role === "assistant",
+          );
+          const preserveFinal = finalAssistant?.role === "assistant" &&
+            finalAssistant.contentFinal;
+          if (!latest.chat.turn_in_progress || !preserveFinal) {
+            dispatch({ type: "transcript_loaded", chatId: targetChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
+          }
           if (latest.chat.turn_in_progress) {
-            pollForCompletedTurn(targetChatId, version, runId);
+            pollForCompletedTurn(targetChatId, version, runId, preserveFinal);
             return null;
           }
           return null;

@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { ChatView } from "./ChatView";
-import { createAssistantSessionState } from "@/app/lib/assistantSession";
+import {
+    assistantSessionReducer,
+    createAssistantSessionState,
+} from "@/app/lib/assistantSession";
 
 const mocks = vi.hoisted(() => ({
     clearDraft: vi.fn(),
@@ -32,7 +35,11 @@ vi.mock("@/app/contexts/SidebarContext", () => ({
     useSidebar: () => ({ setSidebarOpen: vi.fn() }),
 }));
 vi.mock("./UserMessage", () => ({ UserMessage: () => null }));
-vi.mock("./AssistantMessage", () => ({ AssistantMessage: () => null }));
+vi.mock("./AssistantMessage", () => ({
+    AssistantMessage: ({ isStreaming }: { isStreaming?: boolean }) => (
+        <div data-testid="assistant-streaming">{String(isStreaming)}</div>
+    ),
+}));
 vi.mock("./AskInputPopup", () => ({ AskInputPopup: () => null }));
 vi.mock("./AssistantSidePanel", () => ({ AssistantSidePanel: () => null }));
 vi.mock("./AssistantWorkflowModal", () => ({
@@ -163,6 +170,32 @@ describe("ChatView rejected normal turn", () => {
             firstTurnId,
         );
         expect(mocks.clearDraft).toHaveBeenCalledOnce();
+    });
+
+    it("stops the activity spinner when final content arrives before transport cleanup", () => {
+        let session = assistantSessionReducer(createAssistantSessionState({ chatId: "chat-1" }), {
+            type: "run_started",
+            runId: "run-1",
+            chatId: "chat-1",
+            message: { role: "user", content: "Answer" },
+        });
+        session = assistantSessionReducer(session, {
+            type: "protocol",
+            runId: "run-1",
+            chatId: "chat-1",
+            event: { type: "content_final", text: "Done.", citations: [] },
+        });
+
+        render(
+            <ChatView
+                chatId="chat-1"
+                session={session}
+                handleChat={vi.fn()}
+                cancel={vi.fn()}
+            />,
+        );
+
+        expect(screen.getByTestId("assistant-streaming")).toHaveTextContent("false");
     });
 
     it("announces response progress and only reports successful completion", async () => {

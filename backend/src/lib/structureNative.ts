@@ -4,7 +4,7 @@ import path from "node:path";
 import {
   validateStructureGraph,
   type StructureEvidenceV1,
-  type StructureGraphV1,
+  type StructureGraphV2,
 } from "./structureWire";
 import { tokenizeSourceText, type SourceDoc, type SourceDocBlock } from "./sourceDoc";
 import type { NativeMarkupSourceInput } from "./sourceDocNativeMarkup";
@@ -132,7 +132,7 @@ function sourceDocsNative(requests: SourceDocNativeRequest[]) {
 
 export function deriveStructureGraphsNative(
   evidence: StructureEvidenceV1[], scalarLengths: readonly number[],
-): StructureGraphV1[] {
+): StructureGraphV2[] {
   const values = loadAddon().deriveStructures(evidence);
   if (!Array.isArray(values) || values.length !== evidence.length) {
     throw new Error("Legal structure native module returned an invalid batch");

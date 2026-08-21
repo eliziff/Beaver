@@ -108,7 +108,7 @@ describe("AssistantMessage activity", () => {
         expect(screen.getByText("three")).not.toHaveClass("line-through");
     });
 
-    it("collapses running readers and keeps completed findings in a panel pill", async () => {
+    it("shows running readers and keeps completed findings in a panel pill", async () => {
         const onSubagentClick = vi.fn();
         const onSubagentSourceClick = vi.fn();
         const running = ["one", "two", "three"].map((id) => ({
@@ -144,7 +144,6 @@ describe("AssistantMessage activity", () => {
             />,
         );
 
-        await userEvent.click(screen.getByRole("button", { name: /Activity/ }));
         expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane two...")).toBeVisible();
         expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane three...")).toBeVisible();
         expect(
@@ -185,8 +184,8 @@ describe("AssistantMessage activity", () => {
         const disclosure = screen.getByRole("button", {
             name: "Activity — Editing document",
         });
-        await userEvent.click(disclosure);
-        screen.getByText("Editing document...");
+        expect(disclosure).toBeInTheDocument();
+        expect(screen.getByText("Editing document...")).toBeVisible();
     });
 
     it("shows a single compact thinking row before the first event", () => {
@@ -236,7 +235,7 @@ describe("AssistantMessage activity", () => {
         ).toBeVisible();
     });
 
-    it("prefers deterministic tool activity over model-authored reasoning", async () => {
+    it("keeps reasoning and deterministic tool activity visible in order", () => {
         render(
             <AssistantMessage
                 events={[
@@ -256,9 +255,12 @@ describe("AssistantMessage activity", () => {
             />,
         );
 
-        await userEvent.click(screen.getByRole("button", { name: /Activity/u }));
+        const rows = screen.getAllByRole("listitem");
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toHaveTextContent("I should probably inspect something.");
+        expect(rows[1]).toHaveTextContent("Reading document...");
         expect(screen.getByText("Reading document...")).toBeVisible();
-        expect(screen.queryByText("I should probably inspect something.")).toBeNull();
+        expect(screen.getByText("I should probably inspect something.")).toBeVisible();
     });
 
     it("shows completed compaction as a quiet conversation receipt", () => {
@@ -293,7 +295,7 @@ describe("AssistantMessage activity", () => {
         expect(steering.nextElementSibling).toHaveTextContent("Revised answer.");
     });
 
-    it("does not expose grounded-answer internals", async () => {
+    it("shows reasoning history without exposing raw tool names", async () => {
         render(
             <AssistantMessage
                 events={[
@@ -316,7 +318,7 @@ describe("AssistantMessage activity", () => {
             name: "Activity — Finalizing answer",
         });
         await userEvent.click(disclosure);
-        expect(document.body).not.toHaveTextContent("ID 3");
+        expect(document.body).toHaveTextContent("Submitting conclusion with ID 3.");
         expect(document.body).not.toHaveTextContent("submit_grounded_answer");
     });
 

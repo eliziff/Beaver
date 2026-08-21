@@ -352,7 +352,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
     const automations = messages.flatMap((message) => message.role === "assistant" ? message.automations : []);
     const latestAssistant = messages[lastAssistantIndex];
-    const responseAnnouncement = isResponseLoading
+    const responseInProgress = session.run?.status === "running" &&
+        !(latestAssistant?.role === "assistant" && latestAssistant.contentFinal);
+    const responseAnnouncement = responseInProgress
         ? "Assistant is responding."
         : latestAssistant?.role === "assistant" &&
             !latestAssistant.error &&
@@ -854,7 +856,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             message={msg}
                                             isStreaming={
                                                 i === messages.length - 1 &&
-                                                isResponseLoading
+                                                responseInProgress &&
+                                                !msg.contentFinal
                                             }
                                             onCitationClick={openCitation}
                                             citationTitle={citationTitle}

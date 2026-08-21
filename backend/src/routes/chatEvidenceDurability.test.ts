@@ -367,7 +367,7 @@ describe("chat PDF evidence durability", () => {
     expect((await first).status).toBe(200);
   });
 
-  it("streams and persists every response character through the final period", async () => {
+  it("reveals and persists one complete final response", async () => {
     const expected =
       "It will need local-law review before use because tenancy rules vary by jurisdiction.";
     mocks.streamChatWithTools.mockImplementation(async (params) => {
@@ -388,15 +388,15 @@ describe("chat PDF evidence durability", () => {
         expected_version: 0,
         current_turn: { kind: "message", content: "Draft a lease" },
       });
-    const streamedText = response.text
+    const finalEvents = response.text
       .split("\n")
       .filter((line) => line.startsWith("data: {"))
-      .map((line) => JSON.parse(line.slice(6)) as { type?: string; text?: string })
-      .filter((event) => event.type === "content_delta")
-      .map((event) => event.text ?? "")
-      .join("");
+      .map((line) => JSON.parse(line.slice(6)) as {
+        type?: string; text?: string; citations?: unknown[];
+      })
+      .filter((event) => event.type === "content_final");
 
-    expect(streamedText).toBe(expected);
+    expect(finalEvents).toEqual([{ type: "content_final", text: expected, citations: [] }]);
     expect(
       await storedChat(loaded.store, created.body.id),
     ).toMatchObject({
@@ -845,7 +845,8 @@ describe("chat PDF evidence durability", () => {
 
     expect(asked.status).toBe(200);
     expect(asked.text).toContain('"type":"ask_inputs"');
-    expect(asked.text).toContain('"type":"content_reset"');
+    expect(asked.text).not.toContain('"type":"content_reset"');
+    expect(asked.text).not.toContain('"type":"content_final"');
     expect(asked.text).not.toContain("This must be suppressed");
     expect(
       await storedChat(loaded.store, created.body.id),
@@ -1201,7 +1202,7 @@ describe("chat PDF evidence durability", () => {
 
     expect(response.status).toBe(200);
     expect(response.text).toContain(
-      JSON.stringify({ type: "content_final", text: expected }),
+      JSON.stringify({ type: "content_final", text: expected, citations: [] }),
     );
     const assistant = (await storedChat(loaded.store, created.body.id))!
       .messages.find((message) => message.role === "assistant");

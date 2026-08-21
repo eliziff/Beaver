@@ -25,7 +25,7 @@ import {
   type ProvisionReference,
 } from "./legalReferenceGrammar";
 import { deriveSourceStructureGraphs } from "./sourceStructureEngine";
-import { documentScalarOffsets, type StructureGraphV1 } from "./structureWire";
+import { documentScalarOffsets, type StructureGraphV2 } from "./structureWire";
 
 export type SkeletonNodeKind =
   | "article"
@@ -751,7 +751,7 @@ export function clearSkeletonCache(): void {
   skeletonCache.clear();
 }
 
-function graphSkeleton(text: string, graph: StructureGraphV1): DiscoveredNodes {
+function graphSkeleton(text: string, graph: StructureGraphV2): DiscoveredNodes {
   const offsets = documentScalarOffsets(text);
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const depth = (id: string): number => byId.get(id)?.parent_id

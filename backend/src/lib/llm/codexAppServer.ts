@@ -4,7 +4,6 @@ import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
-import { legalDataHome } from "../legalDataPath";
 import { isolatedProcessEnv } from "../subprocessEnv";
 
 type JsonObject = Record<string, unknown>;
@@ -34,7 +33,8 @@ export type CodexAppServer = {
 export function beaverCodexHome() {
   return (
     process.env.BEAVER_CODEX_HOME?.trim() ||
-    path.join(legalDataHome(), "apps", "mike", "codex-home")
+    process.env.CODEX_HOME?.trim() ||
+    path.join(os.homedir(), ".codex")
   );
 }
 

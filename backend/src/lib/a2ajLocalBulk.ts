@@ -91,7 +91,7 @@ function sectionMap(row: Row, language: Language) {
   }
 }
 
-export function a2ajDocumentFromRow(
+function a2ajDocumentFromRow(
   row: Record<string, unknown>, language: Language,
 ): A2AJDocument | null {
   const requestedText = languageField(row, "unofficial_text", language, false);

@@ -156,7 +156,7 @@ async function main() {
     .filter((e) => e.type === "tool_activity" && e.status === "running")
     .map((e) => String(e.tool ?? ""));
   const answer = events
-    .filter((e) => e.type === "content_delta")
+    .filter((e) => e.type === "content_final")
     .map((e) => String(e.text ?? ""))
     .join("");
 

@@ -61,7 +61,7 @@ describe("readAssistantEventStream", () => {
     const body = new ReadableStream<Uint8Array>({
       start(value) {
         controller = value;
-        value.enqueue(encoder.encode('data: {"type":"content_delta","text":"before"}\n\n'));
+        value.enqueue(encoder.encode('data: {"type":"tool_activity","id":"read-1","tool":"Read","label":"Reading","status":"running"}\n\n'));
       },
       cancel() { cancelled = true; },
     });
@@ -71,6 +71,6 @@ describe("readAssistantEventStream", () => {
     expect(result.sawDone).toBe(false);
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(cancelled).toBe(true);
-    expect(() => controller.enqueue(encoder.encode('data: {"type":"content_delta","text":"late"}\n\n'))).toThrow();
+    expect(() => controller.enqueue(encoder.encode('data: {"type":"tool_activity","id":"read-1","tool":"Read","label":"Read","status":"completed"}\n\n'))).toThrow();
   });
 });

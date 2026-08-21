@@ -1,20 +1,29 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createBenchmarkEvidence,
+  createTnaEvidence,
+  createLibraryEvidence,
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
+  GROUNDED_QUOTATION_POLICY,
+  GROUNDED_QUOTATION_POLICY_CLASSIC,
+  GROUNDED_QUOTATION_POLICY_CURRENT,
   hasCaseNameInText,
+  LEGAL_EVIDENCE_SUBMIT_TOOL,
   legalEvidenceReceiptEvent,
+  legalEvidenceRequested,
   priorLegalEvidenceReceipts,
   registerLegalEvidence,
+  registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  selectGroundedQuotationPolicy,
   submitLegalEvidenceAnswer,
 } from "../legalEvidence";
 import { createLegalEvidenceCitations } from "../citations";
+import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
 
 function passage(locatorLabel = "par12") {
-  return createBenchmarkEvidence({
+  return createTnaEvidence({
     jurisdiction: "CA",
     sourceClass: "case",
     stableSourceId: "courtlistener:1",
@@ -55,12 +64,54 @@ describe("production legal evidence", () => {
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
   });
 
+  it("uses the approved quotation and paraphrase instruction everywhere", () => {
+    expect(GROUNDED_QUOTATION_POLICY_CURRENT).toBe(
+      "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.",
+    );
+    expect(selectGroundedQuotationPolicy()).toBe(GROUNDED_QUOTATION_POLICY_CURRENT);
+    expect(selectGroundedQuotationPolicy("classic")).toBe(
+      GROUNDED_QUOTATION_POLICY_CLASSIC,
+    );
+    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(GROUNDED_QUOTATION_POLICY);
+    expect(LEGAL_EVIDENCE_SUBMIT_TOOL.description).toContain(GROUNDED_QUOTATION_POLICY);
+    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
+      "paragraph range (locator plus end_locator)",
+    );
+  });
+
+  it("carries an immediate citation correction across the follow-up", () => {
+    expect(legalEvidenceRequested([
+      { role: "user", content: "Give me a cite." },
+      { role: "assistant", content: "Here is one." },
+      { role: "user", content: "to the PDF" },
+    ])).toBe(true);
+    expect(legalEvidenceRequested([
+      { role: "user", content: "Read the PDF." },
+      { role: "assistant", content: "Done." },
+      { role: "user", content: "Tell me more." },
+    ])).toBe(false);
+  });
+
+  it("persists newly read passages for later turns without grounding the answer", () => {
+    const firstTurn = createLegalEvidenceTurnState();
+    const evidence = passage();
+    registerLegalEvidence(firstTurn, evidence);
+    const event = legalEvidenceReceiptEvent(firstTurn)!;
+    expect(event).toMatchObject({ mode: null, status: "passed", claims: [] });
+    expect(event.evidence).toEqual([evidence]);
+
+    const followUp = createLegalEvidenceTurnState();
+    registerPriorLegalEvidence(followUp, priorLegalEvidenceReceipts([event]));
+    expect(legalEvidenceReceiptEvent(followUp)).toBeNull();
+    expect(followUp.evidence.get(evidence.evidence_id)?.receipt).toEqual(evidence);
+  });
+
   it("emits typed public-source citations from provider receipts", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = createBenchmarkEvidence({
+    const evidence = createTnaEvidence({
       jurisdiction: "UK",
       sourceClass: "case",
-      stableSourceId: "tna:uksc/2026/1:page-3",
+      stableSourceId: "uksc/2026/1:page-3",
       sourceText: "The appeal is allowed.",
       spanText: "The appeal is allowed.",
       citation: "Example v State",
@@ -75,9 +126,11 @@ describe("production legal evidence", () => {
       evidence_ids: [evidence.evidence_id],
     }] }, state);
 
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
     expect(createLegalEvidenceCitations(state)).toEqual([
       expect.objectContaining({
         kind: "public_legal",
+        ref: 1,
         provider: "tna",
         identifier: "uksc/2026/1:page-3",
         url: expect.stringContaining("judgment.pdf#page=3:~:text="),
@@ -85,7 +138,39 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("rejects unknown evidence and renders linked citation structure", () => {
+  it("emits document citations for attached PDF passages", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const evidence = createLibraryEvidence({
+      documentId: "document-1",
+      versionId: "version-1",
+      filename: "record.pdf",
+      sourceText: "The appeal is allowed.",
+      spanText: "The appeal is allowed.",
+      start: 0,
+      end: 22,
+      blockId: "pdf:page-5",
+      locator: { kind: "page", label: "page 5" },
+    });
+    registerLegalEvidence(state, evidence);
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "The appeal is allowed.",
+      evidence_ids: [evidence.evidence_id],
+    }] }, state);
+
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
+    expect(createLegalEvidenceCitations(state)).toEqual([
+      expect.objectContaining({
+        kind: "document",
+        ref: 1,
+        document_id: "document-1",
+        version_id: "version-1",
+        filename: "record.pdf",
+        quotes: [{ quote: "The appeal is allowed." }],
+      }),
+    ]);
+  });
+
+  it("rejects unknown evidence and keeps citation presentation out of prose", () => {
     const rejected = createLegalEvidenceTurnState();
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "Unsupported.",
@@ -99,24 +184,43 @@ describe("production legal evidence", () => {
       text: "The appeal is allowed.",
       evidence_ids: [evidence.evidence_id],
     }] }, state);
-    expect(renderLegalEvidenceAnswer(state)).toContain("[Example v Example, 2024 SCC 1 at para 12](https://example.test/case#par12:~:text=");
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal is allowed. [1]");
   });
 
-  it("does not rewrite a citation pill when one claim cites several passages", () => {
+  it("rejects paragraph-sized claims and broad evidence bundles", () => {
+    const state = createLegalEvidenceTurnState();
+    const evidence = ["par1", "par2", "par3", "par4", "par5"].map(passage);
+    evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
+
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "x".repeat(1_201),
+      evidence_ids: [evidence[0].evidence_id],
+    }] }, state).errors).toContain("claims[0].text is invalid");
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "One proposition.",
+      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+    }] }, state).errors).toContain(
+      "claims[0].evidence_ids must contain 1 to 4 unique handles",
+    );
+  });
+
+  it("attaches each verified passage without synthesizing citation text or URLs", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const first = passage();
     const second = passage("par13");
     registerLegalEvidence(state, first);
     registerLegalEvidence(state, second);
     submitLegalEvidenceAnswer({ claims: [{
-      text: "The court in 2024 SCC 1 allowed the appeal.",
+      text: "The court allowed the appeal.",
       evidence_ids: [first.evidence_id, second.evidence_id],
     }] }, state);
 
     const rendered = renderLegalEvidenceAnswer(state)!;
-    expect(rendered).toContain("[Example v Example, 2024 SCC 1 at para 12](https://example.test/case#par12:~:text=");
-    expect(rendered).toContain("[Example v Example, 2024 SCC 1 at para 13](https://example.test/case#par13:~:text=");
-    expect(rendered).not.toContain("[[");
+    expect(rendered).toBe("The court allowed the appeal. [1][2]");
+    expect(rendered).not.toContain("http");
+    expect(rendered.match(/\[\d+\]/gu)).toHaveLength(
+      createLegalEvidenceCitations(state).length,
+    );
   });
 
   it("rejects an unstructured legal draft", () => {
@@ -127,7 +231,7 @@ describe("production legal evidence", () => {
   });
 
   it("runs quote and unmarked-copy gates at grounded submission", () => {
-    const quoteSource = createBenchmarkEvidence({
+    const quoteSource = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "case:quote",
@@ -140,7 +244,7 @@ describe("production legal evidence", () => {
       locatorKind: "paragraph",
       locatorLabel: "par9",
     });
-    const copiedSource = createBenchmarkEvidence({
+    const copiedSource = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "case:copy",

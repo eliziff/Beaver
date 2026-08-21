@@ -5,7 +5,7 @@ import {
   projectSourceStructure,
   type SourceStructureInput,
 } from "../sourceStructureAdapter";
-import type { StructureGraphV1 } from "../structureWire";
+import type { StructureGraphV2 } from "../structureWire";
 
 const input = (text: string, start: number, end: number): SourceStructureInput => ({
   provider: "courtlistener",
@@ -40,8 +40,8 @@ describe("SourceDoc structure evidence", () => {
       ],
     } satisfies SourceStructureInput;
     const materialized = materializeSourceStructure(tied);
-    const graph: StructureGraphV1 = {
-      schema_version: "legalpdf.structure-graph.v1",
+    const graph: StructureGraphV2 = {
+      schema_version: "legalpdf.structure-graph.v2",
       document_id: tied.id,
       text_sha256: materialized.evidence.text_sha256,
       source_sha256: tied.sourceSha256,
