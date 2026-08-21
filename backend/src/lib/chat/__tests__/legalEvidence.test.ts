@@ -70,6 +70,23 @@ describe("production legal evidence", () => {
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
   });
 
+  it("strips DOCX citation-handle markers that leak into chat claims", () => {
+    // The model sometimes over-applies the Write.citations "[@id]" marker
+    // convention to submit_grounded_answer prose. Pills come from
+    // evidence_ids at render time, so the inline token is dropped rather
+    // than leaking a raw handle into the answer.
+    const state = createLegalEvidenceTurnState();
+    const evidence = passage();
+    registerLegalEvidence(state, evidence);
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: 'Every parent has an obligation [@id1] to provide support.',
+      evidence_ids: [evidence.evidence_id],
+    }] }, state)).toEqual({ ok: true, terminal: true });
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "Every parent has an obligation to provide support. [1]",
+    );
+  });
+
   it("uses the approved quotation and paraphrase instruction everywhere", () => {
     expect(GROUNDED_QUOTATION_POLICY_CURRENT).toBe(
       "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.",
