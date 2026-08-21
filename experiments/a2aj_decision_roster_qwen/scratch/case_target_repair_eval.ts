@@ -10,7 +10,7 @@ import {
   modelCallLedgerUsage,
   type CaseTargetPromptVariant,
 } from "../runner";
-import { setBelowNormalProcessPriority } from "../../../backend/src/lib/structureEngineClient";
+import { setBelowNormalProcessPriority } from "../../../backend/src/lib/processPriority";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WORKER = path.join(HERE, "case_target_repair_worker.ts");

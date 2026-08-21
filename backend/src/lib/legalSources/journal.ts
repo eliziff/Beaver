@@ -493,7 +493,7 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   if (!row) return null;
   const sourceDir = string(row, "source_dir");
   const filename = sourceDir ? registeredPages(registered.filename, sourceDir) : null;
-  if (!filename) throw new Error(`Invalid final journal contract for article ${articleId}`);
+  if (!filename) return null;
   const source = statSync(filename);
   return { filename, signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}` };
 }
