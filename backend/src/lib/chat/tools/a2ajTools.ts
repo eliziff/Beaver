@@ -7,6 +7,7 @@ import {
   bakedSkeleton,
 } from "../../legalStructureSidecar";
 import { readSection, skeletonSubtreeLabels } from "../../legalTextSkeleton";
+import { collapseProvisionLabels } from "../../provisionLabels";
 import { parseResourceReference } from "../../resourceReferences";
 import {
   createA2AJLookupEvidence,
@@ -166,17 +167,6 @@ function activityLocatorNoun(kind: string, plural: boolean) {
   return plural ? `${kind}s` : kind;
 }
 
-function compactSectionActivityScope(labels: readonly string[]) {
-  if (labels.length < 8) return null;
-  const root = labels[0].match(/^([A-Za-z]?\d+(?:\.\d+)?)(?=\()/u)?.[1];
-  if (!root || !labels.every((label) => label.startsWith(`${root}(`))) {
-    return null;
-  }
-  const outer = labels.filter((label) =>
-    /^\([^()]+\)$/u.test(label.slice(root.length)));
-  return outer.length > 1 ? `${outer[0]}–${outer.at(-1)}` : null;
-}
-
 export function assistantToolActivityLabel(
   name: string,
   args: Record<string, unknown>,
@@ -330,26 +320,15 @@ export function assistantReadEvidenceActivityLabel(
   if (first.locator.kind !== last.locator.kind) {
     return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}${context}`;
   }
-  const compactSectionScope = first.locator.kind === "section"
-    ? compactSectionActivityScope(labels)
-    : null;
-  if (compactSectionScope) {
-    return `Reading ss ${compactSectionScope} of ${title}${context}`;
+  // Collapsed display groups (nested provisions subsumed by their parent,
+  // endpoint pairing per root section, paragraph run-lengths). Falls back
+  // to plain enumeration when labels leave the locator grammar.
+  const groups = collapseProvisionLabels(labels, first.locator.kind);
+  if (!groups) {
+    const plural = labels.length > 1 || /[–—-]/u.test(firstLabel);
+    const scope = labels.length === 1 ? firstLabel : labels.join(", ");
+    return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope} of ${title}${context}`;
   }
-  const sequential = labels.every((label, index) => !index || (
-    first.locator.kind === "paragraph"
-      ? Number(label) === Number(labels[index - 1]) + 1
-      : first.locator.kind === "section"
-        ? (() => {
-            const prior = labels[index - 1].match(/^(.*)\((\d+)\)$/u);
-            const current = label.match(/^(.*)\((\d+)\)$/u);
-            return prior && current && prior[1] === current[1] &&
-              Number(current[2]) === Number(prior[2]) + 1;
-          })()
-        : false
-  ));
-  const plural = labels.length > 1 || /[–—-]/u.test(firstLabel);
-  const scope = labels.length === 1 ? firstLabel
-    : sequential ? `${firstLabel}–${lastLabel}` : labels.join(", ");
-  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope} of ${title}${context}`;
+  const plural = groups.length > 1 || /[–—-]/u.test(groups[0]);
+  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${groups.join(", ")} of ${title}${context}`;
 }
