@@ -26,9 +26,19 @@ vi.mock("../lib/remoteUrlSafety", async (importOriginal) => ({
 let temporaryDirectory: string | null = null;
 const originalAuthMode = process.env.AUTH_MODE;
 
+async function sourceApp() {
+  const [{ createLegalLibraryRouter }, { createLegalSourceStore }, { relationalDatabase }] =
+    await Promise.all([import("./legalLibrary"), import("../lib/legalSourceStore"),
+      import("../lib/relationalDatabase")]);
+  const store = createLegalSourceStore(await relationalDatabase());
+  const app = express();
+  app.use(express.json());
+  app.use("/sources", createLegalLibraryRouter(store));
+  return { app, store };
+}
+
 afterEach(async () => {
   try {
-    const store = await import("../lib/sqlitePersistence");
     await (await import("../lib/relationalDatabase")).closeRelationalDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
@@ -86,10 +96,7 @@ describe("legal Library provider PDF rendition", () => {
         }),
       }),
     );
-    const { legalLibraryRouter } = await import("./legalLibrary");
-    const app = express();
-    app.use(express.json());
-    app.use("/sources", legalLibraryRouter);
+    const { app, store } = await sourceApp();
 
     const viewed = await request(app).get(
       "/sources/document?citation=2099%20SCC%207&doc_type=cases&language=en&dataset=SCC",
@@ -113,8 +120,8 @@ describe("legal Library provider PDF rendition", () => {
       reference_id: "provider-reference",
       status_url: `/api/sources/${saved.body.id}/pdf-status`,
     });
-    const persisted = await (await import("../lib/sqlitePersistence"))
-      .getSqliteLegalSource("00000000-0000-0000-0000-000000000001", saved.body.id);
+    const persisted = await store.get(
+      "00000000-0000-0000-0000-000000000001", saved.body.id);
     expect(persisted?.pdfRendition).toEqual({
       provider: "a2aj",
       identity: "SCC:2099 SCC 7",
@@ -188,10 +195,7 @@ describe("legal Library provider PDF rendition", () => {
         }),
       }),
     );
-    const { legalLibraryRouter } = await import("./legalLibrary");
-    const app = express();
-    app.use(express.json());
-    app.use("/sources", legalLibraryRouter);
+    const { app } = await sourceApp();
 
     const saved = await request(app).post("/sources").send({
       citation: "2099 SCC 8",

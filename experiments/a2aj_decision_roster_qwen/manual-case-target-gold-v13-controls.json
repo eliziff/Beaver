@@ -3,79 +3,124 @@
     "document_id": 18750,
     "citation": "2013 BCSC 1099",
     "annotator": "human_primary_source_review",
-    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
     "semantic_audit": {
-      "status": "audited_corrected",
+      "status": "audited",
       "reviewer_identity": "codex_independent_primary_source_auditor_gold30_controls",
       "reviewer_version": "controls-audit-v1",
-      "reviewed_on": "2026-08-20",
-      "correction_summary": "Expanded the operative disposition to include the reserved costs ruling and completed the contractual-damages answer and evidence with the assignment and closing-readiness holdings; removed the obsolete v13 mention_quote member."
+      "reviewed_on": "2026-08-20"
     },
     "annotation": {
-      "disposition_quote": "[130] The defendant 083 is liable for breach of the contract of purchase and sale in respect of the Property. The plaintiff 388 is entitled to a return of the $100,000 deposit currently held in trust by Century 21 Coastal Realty Ltd., and to damages in the amount of $300,000 against 083.\n[131] The plaintiffs' action in deceit is dismissed.\n[132] The counterclaim of 083 is dismissed.\n[133] The parties have leave to make submissions on costs.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": ["Fisher"],
-          "collective_writer": null,
-          "writer_evidence_quote": "Before: The Honourable Madam Justice Fisher",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "[130] The defendant 083 is liable for breach of the contract of purchase and sale in respect of the Property.",
-          "start_quote": "[1] In June 2011, the plaintiff 388028 B.C. Ltd. (388) contracted to purchase property from the defendant 0834618 B.C. Ltd. (083)",
-          "end_quote": "[133] The parties have leave to make submissions on costs."
+          "start_line": 230,
+          "end_line": 233
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Fisher",
-          "panel_evidence_quote": "Before: The Honourable Madam Justice Fisher",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Fisher",
+                "evidence_lines": {
+                  "start_line": 18,
+                  "end_line": 18
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "[130] The defendant 083 is liable for breach of the contract of purchase and sale in respect of the Property.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Before: The Honourable Madam Justice Fisher"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 230,
+            "end_line": 230
+          },
+          "start_line": 31,
+          "end_line": 233,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Did 083 have the right to terminate the contract on or before July 2, 2011?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "No. The contract required the deposit to be paid in trust to the named brokerage, and 388 complied with that obligation.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[71] Given my interpretation of clause 5.3, I conclude that 083 did not have the right to terminate the contract on or before July 2, 2011."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 139,
+                      "end_line": 139,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Was 083 in breach, and was 388 entitled to contractual damages?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. Selling the property before completion breached the contract. The assignment did not defeat 388's accrued rights, its inability to close on July 28 was caused by 083's prior breach and did not bar damages, and the $300,000 liquidated-damages clause was enforceable.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "[77] The contract between the parties was binding and 083's act of selling the Property to VPCH before the completion date was clearly a breach.",
-                    "[83] However, it does not follow that 388 lost its rights as against 083 under the contract, particularly since the breach occurred prior to the assignment being made and executed. I agree with the plaintiffs that the assignment to 091 has no bearing on 388's rights under the contract.",
-                    "[97] For all of these reasons, 388's inability to complete the transaction on July 28, 2011 does not disentitle it to a remedy in damages for 083's breach of contract.",
-                    "[104] Accordingly, 388 is entitled to damages in the amount of $300,000."
+                  "answer_evidence": [
+                    {
+                      "start_line": 149,
+                      "end_line": 149,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 156,
+                      "end_line": 156,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 178,
+                      "end_line": 178,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 187,
+                      "end_line": 187,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 185,
+                        "end_line": 185
+                      },
+                      "target_proposition_as_characterized": "A liquidated-damages clause is enforceable when it is a genuine pre-estimate of loss rather than a penalty."
+                    }
                   ]
                 }
               ]
@@ -83,155 +128,188 @@
           ]
         },
         {
-          "issue_key": "s3",
           "question": "Was 388 entitled to the return of its $100,000 deposit?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. Because 083 breached and could not transfer title, it had no claim to the deposit.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[105] As 083 was in breach of contract, 388 is entitled to a return of its deposit."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 189,
+                      "end_line": 189,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s4",
           "question": "Were the defendants liable in deceit?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "No. The evidence did not prove a false representation made with the required intent or reliance.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[129] For these reasons, despite the conduct of Mr. Minhas, I have concluded that the action in deceit cannot succeed."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 228,
+                      "end_line": 228,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "voice": "current_court",
-          "issue_keys": ["s2"],
-          "evidence_quote": "A liquidated damages clause is enforceable provided it is a genuine pre-estimate of damage and not a penalty: see HF Clarke Ltd. v Thermidaire Corp. Ltd., [1976] 1 SCR 319 at 327."
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": ["m1"],
-          "issue_keys": ["s2"],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "I find that the liquidated damages clause was a genuine pre-estimate of damages and is enforceable by 388 against 083.",
-          "target_proposition_as_characterized": "A liquidated-damages clause is enforceable when it is a genuine pre-estimate of loss rather than a penalty."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 66893,
     "citation": "2024 CART 36",
     "annotator": "human_primary_source_review",
-    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
     "semantic_audit": {
-      "status": "audited_corrected",
+      "status": "audited",
       "reviewer_identity": "codex_independent_primary_source_auditor_gold30_controls",
       "reviewer_version": "controls-audit-v1",
-      "reviewed_on": "2026-08-20",
-      "correction_summary": "Removed the obsolete v13 mention_quote member. Full-source review otherwise confirmed the sole writer, all three issues and answers, disposition relations, current-court voice, and applied specific-proposition treatment of Chu."
+      "reviewed_on": "2026-08-20"
     },
     "annotation": {
-      "disposition_quote": "[14] The Notice and its penalty are confirmed.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": ["Emily Crocco"],
-          "collective_writer": null,
-          "writer_evidence_quote": "BEFORE:\nEmily Crocco, Chairperson",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "[14] The Notice and its penalty are confirmed.",
-          "start_quote": "[1] On February 12, 2024, the Applicant arrived in Canada at an airport in Calgary, Alberta.",
-          "end_quote": "[14] The Notice and its penalty are confirmed."
+          "start_line": 44,
+          "end_line": 44
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Emily Crocco",
-          "panel_evidence_quote": "BEFORE:\nEmily Crocco, Chairperson",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Emily Crocco",
+                "evidence_lines": {
+                  "start_line": 24,
+                  "end_line": 25
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "[14] The Notice and its penalty are confirmed.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "BEFORE:\nEmily Crocco, Chairperson"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 44,
+            "end_line": 44
+          },
+          "start_line": 31,
+          "end_line": 44,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Was the alleged importation violation established?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. The applicant admitted importing and failing to present the animal product for inspection.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[4] The violation is established given that the Applicant has acknowledged, and I accept, that she imported and failed to present the animal product for inspection."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 34,
+                      "end_line": 34,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Could the applicant's honest mistake excuse the violation?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "No. The absolute-liability scheme excludes an honest-mistake defence.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[9] As a result, I cannot cancel the Notice due to the Applicant’s mistake."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 39,
+                      "end_line": 39,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s3",
           "question": "Was the penalty properly calculated, and could the Tribunal reduce it?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "The $1,300 penalty was properly calculated, and the Tribunal could not reduce it.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "This means that if I determine that the penalty was properly calculated, I cannot reduce it.",
-                    "[13] Paragraph 5(1)(c) of the AAAMP Regulations states that the amount of the penalty for a “very serious violation” by an individual (who is not a business or trying to make a profit) is $1,300.00. As a result, the penalty amount was properly calculated."
+                  "answer_evidence": [
+                    {
+                      "start_line": 41,
+                      "end_line": 41,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 43,
+                      "end_line": 43,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 41,
+                        "end_line": 41
+                      },
+                      "target_proposition_as_characterized": "After a violation is established, the Tribunal may decide only whether the regulatory penalty was properly calculated and may not reduce a correctly calculated amount."
+                    }
                   ]
                 }
               ]
@@ -239,370 +317,384 @@
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "voice": "current_court",
-          "issue_keys": ["s3"],
-          "evidence_quote": "[11] In Canada (Attorney General) v Chu, 2022 FCA 105 at para 7, the Federal Court of Appeal wrote that once the Tribunal has determined that there was a violation of subsection 16(1) of the HA Act, “the role of the Tribunal [is] limited to determining whether the penalty was established according to the Regulations.”"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": ["m1"],
-          "issue_keys": ["s3"],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "specific_proposition",
-          "evidence_quote": "This means that if I determine that the penalty was properly calculated, I cannot reduce it.",
-          "target_proposition_as_characterized": "After a violation is established, the Tribunal may decide only whether the regulatory penalty was properly calculated and may not reduce a correctly calculated amount."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 202094,
     "citation": "2015 SSTGDIS 147",
     "annotator": "human_primary_source_review",
-    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
     "semantic_audit": {
-      "status": "audited_corrected",
+      "status": "audited",
       "reviewer_identity": "codex_independent_primary_source_auditor_gold30_controls",
       "reviewer_version": "controls-audit-v1",
-      "reviewed_on": "2026-08-20",
-      "correction_summary": "Added the omitted operative finding that disability arose in November 2014 and CPP payments therefore began in March 2015, including it in the disposition and issue map; removed both obsolete v13 mention_quote members."
+      "reviewed_on": "2026-08-20"
     },
     "annotation": {
-      "disposition_quote": "According to section 69 of the CPP, payments start four months after the date of disability. Payments start as of March 2015.\n[48] The appeal is allowed.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": ["Gerry McCarthy"],
-          "collective_writer": null,
-          "writer_evidence_quote": "Member\nGerry McCarthy",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "[48] The appeal is allowed.",
-          "start_quote": "[1] The Appellant’s application for a Canada Pension Plan (CPP) disability pension was date stamped by the Respondent on April 8, 2013.",
-          "end_quote": "[48] The appeal is allowed."
+          "start_line": 83,
+          "end_line": 84
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Gerry McCarthy",
-          "panel_evidence_quote": "Member\nGerry McCarthy",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Gerry McCarthy",
+                "evidence_lines": {
+                  "start_line": 10,
+                  "end_line": 11
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "[48] The appeal is allowed.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Member\nGerry McCarthy"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 84,
+            "end_line": 84
+          },
+          "start_line": 22,
+          "end_line": 84,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Was the appellant's disability severe by the end of the minimum qualifying period?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. In the appellant's real-world circumstances, her combined limitations left her regularly incapable of substantially gainful work.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["The Tribunal finds that on a balance of probabilities the Appellant was incapable regularly of pursuing any gainful occupation on or before her MQP date in light of her failed attempt at law school, significant physical limitations, chronic pain, anxiety and major depressive disorder."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 72,
+                      "end_line": 72,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 72,
+                        "end_line": 72
+                      },
+                      "target_proposition_as_characterized": "Severity under the CPP must be assessed in the claimant's real-world circumstances, including age, education, language, and work and life experience."
+                    }
+                  ]
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Was the appellant's disability prolonged?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. Her disability was long continued and of indefinite duration.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[46] In the final analysis, the Tribunal accepts there is little likelihood of the Appellant’s condition improving and finds the Appellant’s disability is long continued and of indefinite duration."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 82,
+                      "end_line": 82,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s3",
           "question": "From what month were CPP disability pension payments payable?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "March 2015, four months after the disability date of November 2014.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["According to section 69 of the CPP, payments start four months after the date of disability. Payments start as of March 2015."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 83,
+                      "end_line": 83,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "voice": "current_court",
-          "issue_keys": ["s1"],
-          "evidence_quote": "[30] The severe criterion must be assessed in a real world context (Villani v. Canada (A.G.), 2001 FCA 248)."
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "voice": "current_court",
-          "issue_keys": ["s1"],
-          "evidence_quote": "In order to make this assessment, the Tribunal must look at the Appellant’s circumstances in a “real world” context (Villani v. Canada (A.G.), 2001 FCA 248)"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": ["m1", "m2"],
-          "issue_keys": ["s1"],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "The Tribunal finds the Appellant was only 37-years-old on her MQP date. The Tribunal further recognizes the Appellant has a good education. Nevertheless, the Appellant’s life experience with cerebral palsy, chronic pain, anxiety, and a major depressive disorder are important considerations in assessing her capacity to work.",
-          "target_proposition_as_characterized": "Severity under the CPP must be assessed in the claimant's real-world circumstances, including age, education, language, and work and life experience."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 121168,
     "citation": "2019 FPSLREB 31",
     "annotator": "human_primary_source_review",
-    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
     "semantic_audit": {
-      "status": "audited_corrected",
+      "status": "audited",
       "reviewer_identity": "codex_independent_primary_source_auditor_gold30_controls",
       "reviewer_version": "controls-audit-v1",
-      "reviewed_on": "2026-08-20",
-      "correction_summary": "Removed the obsolete v13 mention_quote member. Full-source review otherwise confirmed the sole writer, both expressly framed abuse-of-authority issues, their answers and disposition relations, current-court voice, and application of Makoundi's nature-and-seriousness test."
+      "reviewed_on": "2026-08-20"
     },
     "annotation": {
-      "disposition_quote": "I declare that an abuse of authority in the application of merit occurred in the appointment process.\n137 I am aware of the fact that the appointment on an acting basis at issue to the branch financial officer position (classified FI-03) has ended. However, this fact does not make revoking the appointment moot. In light of the finding that the appointee did not meet the language proficiency qualification for the acting appointment, I order the respondent to revoke the appointment.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": ["Nathalie Daigle"],
-          "collective_writer": null,
-          "writer_evidence_quote": "Before: Nathalie Daigle, a panel of the Federal Public Sector Labour Relations and Employment Board",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I declare that an abuse of authority in the application of merit occurred in the appointment process.",
-          "start_quote": "REASONS FOR DECISION\nI. Introduction 1 Andrew Burt, the complainant, filed a complaint of abuse of authority",
-          "end_quote": "In light of the finding that the appointee did not meet the language proficiency qualification for the acting appointment, I order the respondent to revoke the appointment."
+          "start_line": 219,
+          "end_line": 220
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Nathalie Daigle",
-          "panel_evidence_quote": "Before: Nathalie Daigle, a panel of the Federal Public Sector Labour Relations and Employment Board",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Nathalie Daigle",
+                "evidence_lines": {
+                  "start_line": 42,
+                  "end_line": 42
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "I declare that an abuse of authority in the application of merit occurred in the appointment process.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Before: Nathalie Daigle, a panel of the Federal Public Sector Labour Relations and Employment Board"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 219,
+            "end_line": 219
+          },
+          "start_line": 45,
+          "end_line": 220,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Was there abuse of authority in the application of merit and the evaluation of the appointee?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "Yes. The respondent improperly relied on the language-proficiency exemption, so the acting appointment was not based on merit.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["Given my finding that the respondent contravened s. 15(1) of the PSER and that the appointee did not meet the language proficiency qualification for the acting appointment, I conclude that the appointment was not made on the basis of merit."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 216,
+                      "end_line": 216,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Was there abuse of authority in choosing a non-advertised process?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "No. The lack of transparency, delays, and other errors were improper but not serious enough, alone or together, to constitute abuse of authority.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": ["[133] Therefore, I find that the complainant has not proven on a balance of probabilities that the respondent committed an abuse of authority by choosing a non-advertised process."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 215,
+                      "end_line": 215,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 213,
+                        "end_line": 213
+                      },
+                      "target_proposition_as_characterized": "Whether an error amounts to abuse of authority depends on the error's nature and seriousness."
+                    }
+                  ]
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "voice": "current_court",
-          "issue_keys": ["s2"],
-          "evidence_quote": "Whether an error constitutes an abuse of authority depends on its nature and seriousness; see Makoundi v. Deputy Minister of Transport, Infrastructure and Communities, 2014 PSST 5 at para. 22."
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": ["m1"],
-          "issue_keys": ["s2"],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "In my view, the errors and omissions that arose during the course of the appointment process (the lack of transparency and the delays), while improper, are not serious enough on their own to constitute an abuse of authority.",
-          "target_proposition_as_characterized": "Whether an error amounts to abuse of authority depends on the error's nature and seriousness."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 153903,
     "citation": "2025 ONCA 336",
     "annotator": "human_primary_source_review",
-    "gold_schema_version": "a2aj-case-target-gold-v14",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
     "semantic_audit": {
-      "status": "audited_corrected",
+      "status": "audited",
       "reviewer_identity": "codex_independent_primary_source_auditor_gold30_controls",
       "reviewer_version": "controls-audit-v1",
-      "reviewed_on": "2026-08-20",
-      "correction_summary": "Replaced roster-only joinder evidence with the three-judge signature block and removed the obsolete v13 mention_quote member. Full-source review confirmed that no individual drafter is identified, so opinion authorship remains unknown rather than being assigned to the panel roster."
+      "reviewed_on": "2026-08-20"
     },
     "annotation": {
-      "disposition_quote": "[7] The motion is dismissed.\n[8] The respondent is entitled to its costs of this motion payable by the appellant fixed in the sum of $3,500, inclusive of disbursements and applicable taxes.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [],
-          "collective_writer": null,
-          "writer_evidence_quote": null,
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "[7] The motion is dismissed.",
-          "start_quote": "[1] The appellant moves, under s. 7(5) of the Courts of Justice Act",
-          "end_quote": "[8] The respondent is entitled to its costs of this motion payable by the appellant fixed in the sum of $3,500, inclusive of disbursements and applicable taxes."
+          "start_line": 38,
+          "end_line": 39
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Zarnett",
-          "panel_evidence_quote": "Zarnett, Monahan and Madsen JJ.A.",
+          "authorship": {
+            "kind": "unstated"
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "[7] The motion is dismissed.",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 38,
+            "end_line": 38
+          },
+          "start_line": 31,
+          "end_line": 39,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "B. Zarnett J.A."
+              "name": "Zarnett",
+              "evidence_lines": {
+                "start_line": 40,
+                "end_line": 40
+              }
+            },
+            {
+              "name": "Monahan",
+              "evidence_lines": {
+                "start_line": 41,
+                "end_line": 41
+              }
+            },
+            {
+              "name": "Madsen",
+              "evidence_lines": {
+                "start_line": 42,
+                "end_line": 42
+              }
             }
           ]
-        },
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
         {
-          "name": "Monahan",
-          "panel_evidence_quote": "Zarnett, Monahan and Madsen JJ.A.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "[7] The motion is dismissed.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "P.J. Monahan J.A."
-            }
-          ]
-        },
-        {
-          "name": "Madsen",
-          "panel_evidence_quote": "Zarnett, Monahan and Madsen JJ.A.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "[7] The motion is dismissed.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "L. Madsen J.A."
-            }
-          ]
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Should the panel interfere with the single judge's discretionary refusal to include the transcript?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "g1",
               "answer": "No. The single judge applied the relevant factors and reached a reasonable result.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": ["[5] We see no such error. Roberts J.A. reviewed the relevant factors and reached a reasonable result."]
+                  "answer_evidence": [
+                    {
+                      "start_line": 36,
+                      "end_line": 36,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 36,
+                        "end_line": 36
+                      },
+                      "target_proposition_as_characterized": "A reviewing panel may interfere with a single judge's discretionary order only for a failure to identify applicable principles, an error in principle, or an unreasonable result."
+                    }
+                  ]
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "voice": "current_court",
-          "issue_keys": ["s1"],
-          "evidence_quote": "A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364, 462 D.L.R. (4th) 228, at para. 18."
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": ["m1"],
-          "issue_keys": ["s1"],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "[5] We see no such error. Roberts J.A. reviewed the relevant factors and reached a reasonable result.",
-          "target_proposition_as_characterized": "A reviewing panel may interfere with a single judge's discretionary order only for a failure to identify applicable principles, an error in principle, or an unreasonable result."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   }
 ]

@@ -3,7 +3,6 @@ import {
     useState,
 } from "react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { isLocalMode } from "@/app/lib/authMode";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import {
     DocTable,
@@ -66,7 +65,7 @@ export function ProjectDocumentsView() {
                                   ]
                                 : []),
                             {
-                                label: isLocalMode ? "Remove" : "Delete",
+                                label: "Remove",
                                 onSelect: () => void selectionActions.onDelete(),
                             },
                         ]}
@@ -123,9 +122,7 @@ export function ProjectDocumentsView() {
                     ) : null
                 }
                 onOwnerOnlyAction={setOwnerOnlyAction}
-                documentRemovalMode={
-                    isLocalMode ? "detach" : "delete"
-                }
+                documentRemovalMode="detach"
                 hasMoreParents={files.hasMoreParents}
                 loadingParents={files.loadingParents}
                 onFolderExpanded={files.onFolderExpanded}

@@ -4,7 +4,8 @@ import {
   legalKnowledgeGraphStore,
   type LegalKnowledgeGraphStore,
 } from "./store";
-import { getLocalLegalSource } from "../../src/lib/sqlitePersistence";
+import { createLegalSourceStore } from "../../src/lib/legalSourceStore";
+import { relationalDatabase } from "../../src/lib/relationalDatabase";
 
 type SourceExists = (userId: string, sourceId: string) => Promise<boolean>;
 
@@ -36,7 +37,7 @@ function userId(res: Response) {
 }
 
 async function storedSourceExists(user: string, sourceId: string) {
-  return Boolean(await getLocalLegalSource(user, sourceId));
+  return Boolean(await createLegalSourceStore(await relationalDatabase()).get(user, sourceId));
 }
 
 export function createLegalKnowledgeRouter(options?: {

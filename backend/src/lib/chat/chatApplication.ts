@@ -182,14 +182,14 @@ export type ChatApplicationFeatures = {
     }): Promise<{
       continuationId?: string;
       promptCacheKey?: string;
-      save(continuationId: string | undefined, version: number): void;
+      save(continuationId: string | undefined, version: number): Promise<void>;
     } | null>;
     compact(input: {
       auth: AuthContext;
       chatId: string;
       model: string;
       signal: AbortSignal;
-    }): Promise<{ handled: boolean; save(version: number): void }>;
+    }): Promise<{ handled: boolean; save(version: number): Promise<void> }>;
   };
   audit?(auth: AuthContext, input: {
     chatId: string;
@@ -479,7 +479,7 @@ export function createChatApplication(deps: Dependencies) {
       if (appended.status === "conflict") {
         conflict("chat_version_conflict", appended.currentVersion);
       }
-      provider.save(appended.currentVersion);
+      await provider.save(appended.currentVersion);
       return { compacted: true, transcriptVersion: appended.currentVersion };
     },
 
@@ -853,7 +853,7 @@ export function createChatApplication(deps: Dependencies) {
             });
           }
         }
-        providerSession?.save(activeContinuationId, version);
+        await providerSession?.save(activeContinuationId, version);
         sink.emit({ type: "transcript_version", transcriptVersion: version });
         deps.features.audit?.(auth, {
           chatId: chat.id, projectId, title: chat.title, model: selectedModel,
@@ -876,7 +876,7 @@ export function createChatApplication(deps: Dependencies) {
           ]).catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
-          providerSession?.save(activeContinuationId, version);
+          await providerSession?.save(activeContinuationId, version);
         }
         deps.features.audit?.(auth, {
           chatId: chat.id, projectId, title: chat.title, model: selectedModel,

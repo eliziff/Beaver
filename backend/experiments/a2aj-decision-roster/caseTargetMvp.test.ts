@@ -7,6 +7,7 @@ import {
   footnoteReferenceContext,
   resolveCaseTargetMvp,
   type ModelOpinionIssuePosition,
+  type ModelTargetMention,
 } from "./caseTargetMvp";
 import { createTextSourceDoc } from "../../src/lib/sourceDoc";
 
@@ -16,6 +17,9 @@ it("permits empty issue maps and case-level direct history without weakening opi
   assert.deepEqual(CASE_TARGET_MVP_SCHEMA_EXTENSION.target_direct_history.items.properties.opinion_id.type, ["string", "null"]);
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.partial_issue_joins.items.properties.opinion_id.type, "string");
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.target_treatments.items.properties.opinion_id.type, "string");
+  assert.deepEqual(CASE_TARGET_MVP_SCHEMA_EXTENSION.target_mentions.items.required, [
+    "id", "occurrence_id", "opinion_id", "target_identity", "source_origin", "voice", "case_issue_ids",
+  ]);
 });
 
 it("pre-registers conservative case-name mentions without duplicating a decorated citation", () => {
@@ -33,6 +37,81 @@ it("pre-registers conservative case-name mentions without duplicating a decorate
     { id: "tm1", kind: "citation", quote: "2014 SCC 53" },
     { id: "tn1", kind: "case_name", quote: "Sattva" },
     { id: "tn2", kind: "case_name", quote: "Sattva Capital" },
+  ]);
+});
+
+it("requires legal-reference syntax for short names while retaining a full style of cause", () => {
+  const text = [
+    "[1] Mr. Crocco filed an affidavit. Crocco then testified.\n",
+    "[2] The ruling was indistinguishable from Crocco (para. 12).\n",
+    "[3] That route would be an end run around Crocco (para. 26).\n",
+    "[4] It had not been shown that Crocco was \u201cmanifestly wrong\u201d.\n",
+    "[5] On the basis of Crocco, the claim was barred.\n",
+    "[6] Crocco v Ontario at para. 15; Smith v Jones, 2008 FCA 2, concerned another issue.\n",
+  ].join("");
+  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(text), {
+    citation: "2007 FCA 1",
+    citationAliases: [],
+    name: "Crocco v. Ontario",
+  });
+  assert.deepEqual(occurrences.map(({ id, kind, quote }) => ({ id, kind, quote })), [
+    { id: "tn1", kind: "case_name", quote: "Crocco" },
+    { id: "tn2", kind: "case_name", quote: "Crocco" },
+    { id: "tn3", kind: "case_name", quote: "Crocco" },
+    { id: "tn4", kind: "case_name", quote: "Crocco" },
+    { id: "tn5", kind: "case_name", quote: "Crocco v Ontario" },
+  ]);
+});
+
+it("retains an exact two-word case title without demanding a surrounding cue", () => {
+  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc("The result in Re Spectrum remains controversial."), {
+    citation: "[2000] 1 SCR 1",
+    citationAliases: [],
+    name: "Re Spectrum",
+  });
+  assert.deepEqual(occurrences.map(({ kind, quote }) => ({ kind, quote })), [
+    { kind: "case_name", quote: "Re Spectrum" },
+  ]);
+});
+
+it("retains a supplied external reporter citation outside the Canadian citation grammar", () => {
+  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc("The court did not follow Fairclough, [1951] 2 All E.R. 834."), {
+    citation: "[1951] 2 All E.R. 834",
+    citationAliases: [],
+    name: "Fairclough v. Whipp",
+  });
+  assert.deepEqual(occurrences.map(({ id, kind, quote }) => ({ id, kind, quote })), [
+    { id: "tm1", kind: "citation", quote: "[1951] 2 All E.R. 834" },
+  ]);
+});
+
+it("does not turn a generic government party or an incompatible reporter citation into the target", () => {
+  const generic = detectCaseTargetOccurrences(createTextSourceDoc("The claimant arrived in Canada yesterday."), {
+    citation: "2022 FCA 105",
+    citationAliases: [],
+    name: "Canada v. Chu",
+  });
+  assert.deepEqual(generic, []);
+
+  const incompatible = detectCaseTargetOccurrences(createTextSourceDoc([
+    "Abbott Laboratories v. Canada, 2007 FCA 187, addressed a different patent.",
+    "In Abbott, the court discussed the burden of proof.",
+  ].join("\n")), {
+    citation: "2007 FCA 153",
+    citationAliases: [],
+    name: "Abbott Laboratories v. Canada",
+  });
+  assert.deepEqual(incompatible.map(({ id, kind, quote }) => ({ id, kind, quote })), [
+    { id: "tn1", kind: "case_name", quote: "Abbott" },
+  ]);
+
+  const reporterLabel = detectCaseTargetOccurrences(createTextSourceDoc("The earlier case was affirmed, 2007 FCA 153 [Abbott Laboratories 2005]. Abbott Laboratories 2005 was then discussed."), {
+    citation: "2007 FCA 153",
+    citationAliases: [],
+    name: "Abbott Laboratories v. Canada",
+  });
+  assert.deepEqual(reporterLabel.map(({ id, kind, quote }) => ({ id, kind, quote })), [
+    { id: "tm1", kind: "citation", quote: "2007 FCA 153" },
   ]);
 });
 
@@ -126,8 +205,14 @@ function validInput() {
       evidence_quotes: ["B J. joins these reasons on the notice issue only."],
     }],
     targetMentions: [
-      { id: "m1", occurrence_id: "tm1", opinion_id: "o1", voice: "current_court" as const, case_issue_ids: ["i1"] },
-      { id: "m2", occurrence_id: "tm2", opinion_id: "o2", voice: "current_court" as const, case_issue_ids: ["i1"] },
+      {
+        id: "m1", occurrence_id: "tm1", opinion_id: "o1", target_identity: "target" as ModelTargetMention["target_identity"],
+        source_origin: "court_words" as const, voice: "current_court" as const, case_issue_ids: ["i1"],
+      },
+      {
+        id: "m2", occurrence_id: "tm2", opinion_id: "o2", target_identity: "target" as ModelTargetMention["target_identity"],
+        source_origin: "court_words" as const, voice: "current_court" as const, case_issue_ids: ["i1"],
+      },
     ],
     targetTreatments: [
       {
@@ -190,6 +275,33 @@ it("rejects a target mention whose host-owned occurrence ID is unknown", () => {
   assert.equal(result.ok, false);
   assert(result.errors.some((error) => error.includes("references unknown occurrence missing")));
   assert(!result.target_mentions.some(({ id }) => id === "m1"));
+});
+
+it("receipts non-target assessments without admitting them to treatment or flat authority", () => {
+  const input = validInput();
+  input.targetMentions[0].target_identity = "not_target";
+  input.targetMentions[0].case_issue_ids = [];
+  input.targetDirectHistory.push({
+    id: "h1",
+    mention_ids: ["m1"],
+    opinion_id: "o1",
+    label: "varied",
+    evidence_quote: "The target decision's order is varied.",
+  });
+  const result = resolveCaseTargetMvp(input);
+  assert.equal(result.ok, false);
+  assert.equal(result.target_mentions.find(({ id }) => id === "m1")?.target_identity, "not_target");
+  assert.equal(result.target_mentions.find(({ id }) => id === "m1")?.source_origin, "court_words");
+  assert(!result.target_treatments.some(({ id }) => id === "t1"));
+  assert(!result.target_direct_history.some(({ id }) => id === "h1"));
+  assert(!result.flat_treatment.controlling_labels.includes("followed"));
+  assert.equal(result.flat_treatment.flags.target_occurrences_complete, true);
+  assert(result.rejections.target_treatments.some(({ treatment_id, errors }) =>
+    treatment_id === "t1" && errors.some((error) => error.includes("not_target assessment"))
+  ));
+  assert(result.rejections.target_direct_history.some(({ history_id, errors }) =>
+    history_id === "h1" && errors.some((error) => error.includes("not_target assessment"))
+  ));
 });
 
 it("drops unused evidence and recovers a uniquely defined cross-position evidence ID", () => {
@@ -345,10 +457,12 @@ it("accepts case-level direct history proved in provider metadata", () => {
       end: occurrence.end + header.length,
     })),
   ];
-  input.targetMentions.unshift({
+  (input.targetMentions as ModelTargetMention[]).unshift({
     id: "m0",
     occurrence_id: "tm0",
     opinion_id: null,
+    target_identity: "target",
+    source_origin: "metadata",
     voice: "procedural_recounting",
     case_issue_ids: [],
   });

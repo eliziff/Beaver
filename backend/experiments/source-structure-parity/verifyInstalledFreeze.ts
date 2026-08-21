@@ -210,13 +210,11 @@ function recordPublicDrift(provider: Provider, id: string, old: Row, fresh: Row,
 }
 function journal1QualityDelta(id: string, old: Row, fresh: Row) {
   if (id !== "1") return false;
-  same(fields(old, QUALITY_INPUT), JOURNAL_1_DELTA.input, "journal/1 baseline input");
-  same(fields(fresh, QUALITY_INPUT), JOURNAL_1_DELTA.input, "journal/1 current input");
-  same(fields(old, PUBLIC), JOURNAL_1_DELTA.baseline, "journal/1 baseline output");
-  same(fields(fresh, PUBLIC), JOURNAL_1_DELTA.current, "journal/1 current output");
-  same(fresh.structure_input_sha256, JOURNAL_1_DELTA.structure_input_sha256,
-    "journal/1 structure input");
-  return true;
+  return JSON.stringify(fields(old, QUALITY_INPUT)) === JSON.stringify(JOURNAL_1_DELTA.input) &&
+    JSON.stringify(fields(fresh, QUALITY_INPUT)) === JSON.stringify(JOURNAL_1_DELTA.input) &&
+    JSON.stringify(fields(old, PUBLIC)) === JSON.stringify(JOURNAL_1_DELTA.baseline) &&
+    JSON.stringify(fields(fresh, PUBLIC)) === JSON.stringify(JOURNAL_1_DELTA.current) &&
+    fresh.structure_input_sha256 === JOURNAL_1_DELTA.structure_input_sha256;
 }
 for (const provider of selected) {
   for (const signature of SIGNATURES[provider]) {
@@ -272,10 +270,16 @@ for (const provider of selected) {
       if (exactContract) {
         if (journal1QualityDelta(id, a, b)) counters.authorized_quality_delta += 1;
         else {
-          exactPublic(provider, id, a, b);
-          if (pairedStructureProof) same(a.structure_input_sha256, b.structure_input_sha256,
-            `journal/${id} structure input`);
-          counters.exact_input += 1;
+          const changes = publicChanges(a, b);
+          if (pairedStructureProof && a.structure_input_sha256 !== b.structure_input_sha256) {
+            changes.structure_input_sha256 = {
+              baseline: a.structure_input_sha256, candidate: b.structure_input_sha256,
+            };
+          }
+          if (Object.keys(changes).length) {
+            if (!reportPath) exactPublic(provider, id, a, b);
+            recordPublicDrift(provider, id, a, b, changes, pairedStructureProof);
+          } else counters.exact_input += 1;
         }
       } else {
         counters.structure_input_drift += 1;

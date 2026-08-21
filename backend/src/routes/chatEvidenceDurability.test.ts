@@ -111,7 +111,7 @@ async function loadApp() {
     { chatRepository },
     { generateChatTitle },
     { createChatApplication },
-    { sqliteChatFeatures },
+    { providerSessionFeatures },
     { localDocuments, localLibraryStore, localProjects },
   ] = await Promise.all([
     import("./chat"),
@@ -120,7 +120,7 @@ async function loadApp() {
     import("../lib/relationalRepositories"),
     import("../lib/chatTitle"),
     import("../lib/chat/chatApplication"),
-    import("../lib/sqliteChatFeatures"),
+    import("../lib/providerSessionFeatures"),
     import("../lib/__tests__/support/localDocumentFixtures"),
   ]);
   const chats = createChatStore(
@@ -142,7 +142,7 @@ async function loadApp() {
     tabular: tabularRepository,
     features: {
       load: async () => ({ includeResearchTools: true }),
-      ...sqliteChatFeatures,
+      ...providerSessionFeatures,
     },
   });
   const app = express();
@@ -1462,7 +1462,7 @@ describe("chat PDF evidence durability", () => {
     ]);
     const sessions = await import("../lib/providerSessionStore");
     expect(
-      sessions.readProviderSession(USER_ID, created.body.id),
+      await sessions.readProviderSession(USER_ID, created.body.id),
     ).toMatchObject({
       continuation_id: replacementThread,
       transcript_version: 4,

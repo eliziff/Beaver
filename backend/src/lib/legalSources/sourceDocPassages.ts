@@ -37,7 +37,7 @@ export function sourceDocPassages<
       locator: { requested: null, label: "document" },
       role: "document",
       text: document.text,
-      textSha256: sha256(document.text),
+      textSha256: document.revision,
       documentSha256: document.revision,
       revision,
       blockArtifact: document,

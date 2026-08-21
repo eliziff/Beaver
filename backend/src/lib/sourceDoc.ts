@@ -231,7 +231,11 @@ export function createSourceDoc(args: {
   const blocks = args.blocks;
   const index = new Map<string, number>();
   const duplicates = new Set<string>();
+  const byKind: Record<SourceDocLocatorKind, SourceDocBlock[]> = {
+    paragraph: [], page: [], section: [], footnote: [],
+  };
   blocks.forEach((block, position) => {
+    byKind[block.kind].push(block);
     for (const label of new Set(
       [block.label, ...(block.aliases ?? []), block.anchor].filter(
         (value): value is string => Boolean(value),
@@ -246,10 +250,7 @@ export function createSourceDoc(args: {
   const ranges = Object.fromEntries(
     LOCATOR_KINDS.map((kind) => [
       kind,
-      locatorRange(
-        kind,
-        blocks.filter((block) => block.kind === kind),
-      ),
+      locatorRange(kind, byKind[kind]),
     ]),
   ) as Record<SourceDocLocatorKind, SourceDocLocatorRange>;
 

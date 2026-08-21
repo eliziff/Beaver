@@ -20,7 +20,6 @@ create table if not exists user_profiles (
   title_model text, tabular_model text, quote_model text,
   mfa_on_login boolean not null default false,
   legal_research_us boolean not null default true,
-  drafting_style jsonb not null default '{"version":1}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -226,6 +225,16 @@ create table if not exists workflow_open_source_submissions (
   contributor_mode text not null, snapshot jsonb not null, status text not null,
   submitted_at text not null, updated_at text not null, reviewed_at text
 );
+create table if not exists audit_events (
+  id text primary key, user_id text not null, user_email text,
+  action text not null, status text not null default 'completed', title text, surface text,
+  project_id text, chat_id text, document_id text, review_id text, model text, detail jsonb,
+  created_at text not null, check(status in ('completed','cancelled','failed'))
+);
+create table if not exists user_preferences (
+  user_id text primary key, drafting_style jsonb not null default '{"version":1}',
+  updated_at text not null
+);
 
 create index if not exists projects_owner_page on projects(user_id,created_at desc,id desc);
 create index if not exists project_members_email on project_members(email,project_id);
@@ -246,6 +255,8 @@ create index if not exists application_jobs_document on
   application_jobs(document_version_id,updated_at desc,id desc);
 create index if not exists workflows_page on workflows(user_id,created_at desc,id);
 create index if not exists workflow_shares_email on workflow_shares(shared_with_email,workflow_id);
+create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
+create index if not exists audit_events_project_created on audit_events(project_id,created_at desc);
 -- BEAVER_CORE_END
 
 -- Supabase administration/export code also writes shared_with. Keep the
@@ -275,20 +286,12 @@ create trigger reviews_sync_members after insert or update of shared_with on tab
   for each row execute procedure sync_shared_members();
 revoke execute on function public.sync_shared_members() from public,anon,authenticated;
 
-create table if not exists audit_events (
-  id uuid primary key default gen_random_uuid(), user_id text not null, user_email text,
-  action text not null, status text not null default 'completed', title text, surface text,
-  project_id text, chat_id text, document_id text, review_id text, model text, detail jsonb,
-  created_at timestamptz not null default now()
-);
-create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
-
 -- Core application data is reachable only through Beaver's scoped HTTP API.
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
-  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events
+  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -296,7 +299,7 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
-  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events
+  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -330,3 +333,4 @@ alter table hidden_workflows enable row level security;
 alter table workflow_shares enable row level security;
 alter table workflow_open_source_submissions enable row level security;
 alter table audit_events enable row level security;
+alter table user_preferences enable row level security;

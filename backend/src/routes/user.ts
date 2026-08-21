@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
-import { recordAudit } from "../lib/audit";
 import { normalizeDraftingStyleSettings } from "../lib/draftingStyle";
 import { getDraftingStyleSettings, saveDraftingStyleSettings } from "../lib/draftingStyleStore";
 import { sha256 } from "../lib/hash";
@@ -10,6 +9,7 @@ import { isSupportedModel, resolveModel } from "../lib/llm";
 import { isLocalRuntime } from "../lib/localMode";
 import { publicOrigin } from "../lib/publicOrigin";
 import { safeErrorLog, safeErrorMessage, safePublicErrorMessage } from "../lib/safeError";
+import { downloadHeaders } from "../lib/storage";
 import { createServerSupabase } from "../lib/supabase";
 import {
   API_KEY_PROVIDERS, getEnvironmentApiKeyStatus, getUserApiKeyStatus,
@@ -26,7 +26,7 @@ type ProfileRow = {
   display_name: string | null; organisation: string | null;
   message_credits_used: number; credits_reset_date: string; tier: string;
   title_model: string | null; tabular_model: string | null;
-  mfa_on_login: boolean | null; legal_research_us: boolean | null; drafting_style: unknown;
+  mfa_on_login: boolean | null; legal_research_us: boolean | null;
 };
 type Identity = { userId: string; userEmail?: string };
 
@@ -34,7 +34,7 @@ class HttpError extends Error {
   constructor(readonly status: number, message: string, readonly code?: string) { super(message); }
 }
 
-const PROFILE_COLUMNS = "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us, drafting_style";
+const PROFILE_COLUMNS = "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us";
 const MONTHLY_CREDITS = 999_999;
 const nextReset = () => {
   const date = new Date();
@@ -72,7 +72,7 @@ function identity(res: Response): Identity {
   return { userId: String(res.locals.userId), userEmail: res.locals.userEmail || undefined };
 }
 
-function serializeProfile(row: ProfileRow, apiKeyStatus: ApiKeyStatus) {
+function serializeProfile(row: ProfileRow, apiKeyStatus: ApiKeyStatus, draftingStyle: unknown) {
   const used = row.message_credits_used ?? 0;
   return {
     displayName: row.display_name, organisation: row.organisation,
@@ -81,7 +81,7 @@ function serializeProfile(row: ProfileRow, apiKeyStatus: ApiKeyStatus) {
     titleModel: resolveModel(row.title_model, resolveAvailableModel(apiKeyStatus)),
     tabularModel: resolveModel(row.tabular_model, resolveAvailableModel(apiKeyStatus, true)),
     mfaOnLogin: row.mfa_on_login === true, legalResearchUs: row.legal_research_us !== false,
-    draftingStyle: normalizeDraftingStyleSettings(row.drafting_style), apiKeyStatus,
+    draftingStyle: normalizeDraftingStyleSettings(draftingStyle), apiKeyStatus,
   };
 }
 
@@ -115,7 +115,10 @@ class AccountApplication {
       }).eq("user_id", userId);
       if (resetError) throw resetError;
     }
-    return serializeProfile(row, await getUserApiKeyStatus(userId, db));
+    const [keys, draftingStyle] = await Promise.all([
+      getUserApiKeyStatus(userId, db), getDraftingStyleSettings(userId),
+    ]);
+    return serializeProfile(row, keys, draftingStyle);
   }
 
   async profile({ userId }: Identity) {
@@ -125,8 +128,7 @@ class AccountApplication {
       display_name: null, organisation: null, message_credits_used: 0,
       credits_reset_date: nextReset(), tier: "Free", title_model: null,
       tabular_model: null, mfa_on_login: false, legal_research_us: true,
-      drafting_style: await getDraftingStyleSettings(userId),
-    }, apiKeyStatus);
+    }, apiKeyStatus, await getDraftingStyleSettings(userId));
   }
 
   async updateProfile(account: Identity, body: unknown) {
@@ -144,7 +146,7 @@ class AccountApplication {
     if (input.titleModel) update.title_model = input.titleModel;
     if (input.tabularModel) update.tabular_model = input.tabularModel;
     if (input.legalResearchUs !== undefined) update.legal_research_us = input.legalResearchUs;
-    if (input.draftingStyle) update.drafting_style = normalizeDraftingStyleSettings(input.draftingStyle);
+    if (input.draftingStyle) await saveDraftingStyleSettings(account.userId, input.draftingStyle);
     const db = this.db();
     const { error } = await db.from("user_profiles").upsert(
       { user_id: account.userId, ...update }, { onConflict: "user_id" },
@@ -340,9 +342,11 @@ function exportRoute(
   return endpoint(async (_req, res) => {
     const id = identity(res), db = account.db();
     const data = await build(db, id.userId, id.userEmail);
-    res.attachment(dataExport.userExportFilename(kind, id.userId)).json(data);
-    void recordAudit(db, { userId: id.userId, userEmail: id.userEmail,
-      action, surface: "account" });
+    res.set(downloadHeaders("application/json; charset=utf-8",
+      dataExport.userExportFilename(kind, id.userId))).json(data);
+    void runtime.audit().then((audit) => audit.record({ userId: id.userId,
+      userEmail: id.userEmail, action, surface: "account" }))
+      .catch((error) => console.error("[audit] unavailable", safeErrorLog(error)));
   });
 }
 for (const [path, kind, action, build] of [

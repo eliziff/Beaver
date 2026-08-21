@@ -1,0 +1,1583 @@
+[
+  {
+    "document_id": 190708,
+    "citation": "2025 SCC 7",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 60,
+          "end_line": 60
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Richard Wagner",
+                "evidence_lines": {
+                  "start_line": 31,
+                  "end_line": 33
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 56,
+            "end_line": 56
+          },
+          "start_line": 55,
+          "end_line": 60,
+          "full_joiners": [
+            {
+              "name": "Andromache Karakatsanis",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Suzanne Côté",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Malcolm Rowe",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Sheilah Martin",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Nicholas Kasirer",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Mahmud Jamal",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Michelle O’Bonsawin",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            },
+            {
+              "name": "Mary Moreau",
+              "evidence_lines": {
+                "start_line": 56,
+                "end_line": 56
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Does an adult commit an assault by intentionally precipitating sexual contact with a child when the child physically initiates the touching?",
+          "answers": [
+            {
+              "answer": "Yes. Intentional sexual contact precipitated by the adult satisfies the element of force regardless of whose physical movement initiates the contact.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 57,
+                      "end_line": 57,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 59,
+                      "end_line": 59,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "not_followed",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 59,
+                        "end_line": 59
+                      },
+                      "target_proposition_as_characterized": "That no assault occurs unless the accused directly and intentionally applies force through the accused’s own physical movement."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 193620,
+    "citation": "[1999] 1 SCR 619",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 227,
+          "end_line": 227
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Frank Iacobucci",
+                "evidence_lines": {
+                  "start_line": 62,
+                  "end_line": 63
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 227,
+            "end_line": 227
+          },
+          "start_line": 65,
+          "end_line": 227,
+          "full_joiners": [
+            {
+              "name": "Antonio Lamer",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            },
+            {
+              "name": "Peter deCarteret Cory",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            },
+            {
+              "name": "Beverley McLachlin",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            },
+            {
+              "name": "John C. Major",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            },
+            {
+              "name": "Michel Bastarache",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            },
+            {
+              "name": "William Ian Corneil Binnie",
+              "evidence_lines": {
+                "start_line": 62,
+                "end_line": 63
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn7",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did Contract A arise on M.J.B.’s submission of its tender, and what determined its terms?",
+          "answers": [
+            {
+              "answer": "Yes. The parties intended contractual relations upon submission, and the tender-call terms governed Contract A.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 111,
+                      "end_line": 111,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 112,
+                      "end_line": 112,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tn1"
+                        },
+                        {
+                          "occurrence_id": "tn6"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "explained",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 65,
+                        "end_line": 66
+                      },
+                      "target_proposition_as_characterized": "A tender submission can create Contract A, distinct from Contract B, with terms determined by the tender call."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn2"
+                        },
+                        {
+                          "occurrence_id": "tn3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "not_followed",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 103,
+                        "end_line": 103
+                      },
+                      "target_proposition_as_characterized": "That Contract A always arises on tender submission and always makes the bid irrevocable."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "questioned",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 104,
+                        "end_line": 104
+                      },
+                      "target_proposition_as_characterized": "The characterization of Contract A as a unilateral contract."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was there an express term requiring the owner to award Contract B to the lowest valid tender?",
+          "answers": [
+            {
+              "answer": "No. The bid-depository rules did not bind the owner in that way.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 118,
+                      "end_line": 118,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did Contract A contain an implied obligation concerning compliant tenders?",
+          "answers": [
+            {
+              "answer": "Yes. The presumed intentions of the parties implied that only a compliant tender would be accepted, but not that the lowest compliant tender had to be accepted.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 165,
+                      "end_line": 165,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the privilege clause permit acceptance of a non-compliant bid?",
+          "answers": [
+            {
+              "answer": "No. It preserved discretion not to take the lowest bid, but remained compatible with the obligation to accept only compliant bids.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 176,
+                      "end_line": 176,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 176,
+                      "end_line": 176,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did Defence Construction breach Contract A by accepting Sorochan’s bid?",
+          "answers": [
+            {
+              "answer": "Yes. Sorochan’s bid was conceded to be non-compliant, and good-faith misinterpretation was no defence.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 192,
+                      "end_line": 192,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 193,
+                      "end_line": 193,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What damages and further proceedings followed from the breach?",
+          "answers": [
+            {
+              "answer": "M.J.B. was entitled to its lost Contract B profits: judgment for the agreed $398,121.27, with two disputed damage items remanded for assessment.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 222,
+                      "end_line": 222,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 224,
+                      "end_line": 224,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 196170,
+    "citation": "2010 SCC 64",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 113,
+          "end_line": 113
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Marshall Rothstein",
+                "evidence_lines": {
+                  "start_line": 36,
+                  "end_line": 36
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 113,
+            "end_line": 113
+          },
+          "start_line": 67,
+          "end_line": 113,
+          "full_joiners": [
+            {
+              "name": "William Ian Corneil Binnie",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            },
+            {
+              "name": "Louis LeBel",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            },
+            {
+              "name": "Marie Deschamps",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            },
+            {
+              "name": "Rosalie Silberman Abella",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            },
+            {
+              "name": "Louise Charron",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            },
+            {
+              "name": "Thomas Albert Cromwell",
+              "evidence_lines": {
+                "start_line": 36,
+                "end_line": 36
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Must a plaintiff first succeed on judicial review of federal licensing decisions before pursuing a damages action against the Crown in Federal Court?",
+          "answers": [
+            {
+              "answer": "No. Sections 17 and 18 preserve the Federal Court’s concurrent damages jurisdiction and impose no judicial-review prerequisite.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 108,
+                      "end_line": 108,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 111,
+                      "end_line": 111,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        },
+                        {
+                          "occurrence_id": "tn3"
+                        },
+                        {
+                          "occurrence_id": "tn1"
+                        },
+                        {
+                          "occurrence_id": "tn2"
+                        },
+                        {
+                          "occurrence_id": "tn4"
+                        }
+                      ],
+                      "treated_by": "decision_under_review",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 84,
+                        "end_line": 84
+                      },
+                      "target_proposition_as_characterized": "Grenier required prior judicial review before a damages action that challenged the lawfulness of federal administrative decisions could proceed."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn5"
+                        }
+                      ],
+                      "treated_by": "party_or_counsel",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 106,
+                        "end_line": 106
+                      },
+                      "target_proposition_as_characterized": "A damages claim attacking the lawfulness of licensing decisions must first proceed by judicial review."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn5"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "overruled",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 107,
+                        "end_line": 107
+                      },
+                      "target_proposition_as_characterized": "A damages plaintiff must first invalidate the challenged federal decision through judicial review."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Where should any Crown defence of statutory authority be determined?",
+          "answers": [
+            {
+              "answer": "At the trial of the damages action, if the Crown raises it.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 110,
+                      "end_line": 110,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm2"
+            }
+          ],
+          "treated_by": "metadata",
+          "label": "overruled",
+          "scope": "rule_or_proposition",
+          "evidence_lines": {
+            "start_line": 57,
+            "end_line": 57
+          },
+          "target_proposition_as_characterized": "A plaintiff cannot pursue damages that depend on the invalidity of a federal administrative decision without first setting that decision aside on judicial review."
+        }
+      ],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 198059,
+    "citation": "2006 SCC 16",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 90,
+          "end_line": 90
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Morris J. Fish",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 37
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 90,
+            "end_line": 90
+          },
+          "start_line": 69,
+          "end_line": 90,
+          "full_joiners": [
+            {
+              "name": "Beverley McLachlin",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            },
+            {
+              "name": "Michel Bastarache",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            },
+            {
+              "name": "William Ian Corneil Binnie",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            },
+            {
+              "name": "Rosalie Silberman Abella",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            },
+            {
+              "name": "Louise Charron",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            }
+          ]
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Louis LeBel",
+                "evidence_lines": {
+                  "start_line": 91,
+                  "end_line": 92
+                }
+              }
+            ]
+          },
+          "result_position": "opposes_disposition",
+          "position_evidence_lines": {
+            "start_line": 110,
+            "end_line": 110
+          },
+          "start_line": 92,
+          "end_line": 110,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "quoted_material",
+          "legal_actor": "other_source"
+        },
+        {
+          "occurrence_id": "tm5",
+          "target_identity": "target",
+          "source_origin": "quoted_material",
+          "legal_actor": "other_source"
+        },
+        {
+          "occurrence_id": "tm6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What must the Crown show to obtain a new trial on an appeal from a jury acquittal?",
+          "answers": [
+            {
+              "answer": "The Crown bears a heavy burden to show with a reasonable degree of certainty that the legal error may well have materially affected the acquittal; it need not prove the verdict necessarily would have differed.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 82,
+                      "end_line": 82,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 83,
+                        "end_line": 84
+                      },
+                      "target_proposition_as_characterized": "A Crown appeal from acquittal succeeds only where the error may well have affected the outcome with a reasonable degree of certainty."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm4"
+                        }
+                      ],
+                      "treated_by": "other_source",
+                      "label": "explained",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 86,
+                        "end_line": 86
+                      },
+                      "target_proposition_as_characterized": "The Crown’s onus to overturn an acquittal is heavy and must be met with a reasonable degree of certainty."
+                    }
+                  ]
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 107,
+                      "end_line": 107,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm5"
+                        }
+                      ],
+                      "treated_by": "other_source",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 105,
+                        "end_line": 105
+                      },
+                      "target_proposition_as_characterized": "Cumulative trial errors justify a new trial where a properly charged jury may well have reached a different verdict."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm6"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 107,
+                        "end_line": 107
+                      },
+                      "target_proposition_as_characterized": "The reviewing court assesses whether trial error may have affected the verdict rather than demanding proof that the outcome necessarily would have differed."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did putting self-defence to the jury and misdirecting the jury on it amount to legal error?",
+          "answers": [
+            {
+              "answer": "Yes, in LeBel J.’s dissent: self-defence lacked a sufficient factual basis and the instructions omitted its subjective and objective requirements.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 98,
+                      "end_line": 98,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the Crown discharge its burden to have Graveline’s acquittal set aside?",
+          "answers": [
+            {
+              "answer": "No. The Crown could not justify a new trial by speculating that the jury rejected the properly available automatism defence and instead acquitted on the weak self-defence theory.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 89,
+                      "end_line": 89,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes, in dissent. The connected defences, inadequate factual basis and erroneous charge could have affected the common evidence and verdict.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 108,
+                      "end_line": 108,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm5"
+                        }
+                      ],
+                      "treated_by": "other_source",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 105,
+                        "end_line": 105
+                      },
+                      "target_proposition_as_characterized": "Cumulative trial errors justify a new trial where a properly charged jury may well have reached a different verdict."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 198390,
+    "citation": "2016 SCTC 8",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 281,
+          "end_line": 281
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Johanne Mainville",
+                "evidence_lines": {
+                  "start_line": 33,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 281,
+            "end_line": 281
+          },
+          "start_line": 72,
+          "end_line": 284,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the federal Crown owe legal and fiduciary obligations concerning the size and creation of the Opitciwan Reserve?",
+          "answers": [
+            {
+              "answer": "Yes. The Crown had a legal duty to complete the reserve-creation process and, because its discretionary control engaged a fiduciary obligation, had to act with loyalty, good faith, full disclosure and ordinary prudence in the Atikamekw’s best interest.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 192,
+                      "end_line": 192,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 195,
+                      "end_line": 195,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 196,
+                      "end_line": 196,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "referred_to",
+                      "scope": "facts",
+                      "evidence_lines": {
+                        "start_line": 193,
+                        "end_line": 193
+                      },
+                      "target_proposition_as_characterized": "The Opitciwan Reserve was created in January 1944."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the Crown breach those obligations in determining the reserve’s area?",
+          "answers": [
+            {
+              "answer": "Yes. It failed to make a serious effort to obtain the promised 3,000 acres, changed its position without informing the Atikamekw or explaining why, failed to verify its surveyor’s actual area, and failed to seek an area suited to the growing population and its own acres-per-family ratio. The Crown was entirely responsible for the breach.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 266,
+                      "end_line": 269,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 274,
+                      "end_line": 274,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the Crown also breach its fiduciary duties concerning the Hudson’s Bay Company’s presence on the reserve?",
+          "answers": [
+            {
+              "answer": "Yes. It allowed the HBC to establish itself against the Atikamekw’s wishes without compensation, and the HBC occupied the reserve unlawfully from 1944 to 1958.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 275,
+                      "end_line": 275,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 276,
+                      "end_line": 276,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "followed",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 275,
+                        "end_line": 275
+                      },
+                      "target_proposition_as_characterized": "The Crown breached its fiduciary duties by permitting the HBC to establish itself on the reserve against the Atikamekw’s wishes and without compensation."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm5"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "referred_to",
+                      "scope": "facts",
+                      "evidence_lines": {
+                        "start_line": 277,
+                        "end_line": 277
+                      },
+                      "target_proposition_as_characterized": "The DIA issued the HBC a one-year occupation licence on January 22, 1958, but the document stated that it was valid from June 1956 to May 1957."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What losses would proceed to the compensation stage?",
+          "answers": [
+            {
+              "answer": "The loss of value and use of the acreage shortfall and losses from the HBC’s unlawful 1944–1958 occupation; quantum would be determined in the second stage.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 279,
+                      "end_line": 279,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 280,
+                      "end_line": 280,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm6"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "followed",
+                      "scope": "remedy",
+                      "evidence_lines": {
+                        "start_line": 280,
+                        "end_line": 280
+                      },
+                      "target_proposition_as_characterized": "The HBC’s unlawful occupation from 1944 to 1958 is a compensable loss."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 198395,
+    "citation": "2017 SCTC 1",
+    "annotator": "codex_primary_source_author_holdout_c",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_c",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 567,
+          "end_line": 567
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Johanne Mainville",
+                "evidence_lines": {
+                  "start_line": 33,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 567,
+            "end_line": 567
+          },
+          "start_line": 121,
+          "end_line": 569,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What cognizable Aboriginal interest and corresponding fiduciary obligations did the Crown assume in creating the Essipit Reserve?",
+          "answers": [
+            {
+              "answer": "The Crown recognized a minimum 230-acre interest on Lot 11 and part of Block A and assumed discretionary control requiring it to complete that reserve-creation process with loyalty, good faith, full disclosure, ordinary prudence, consultation and diligence in the Essipit Innu’s best interest.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 505,
+                      "end_line": 505,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 508,
+                      "end_line": 508,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 509,
+                      "end_line": 509,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        },
+                        {
+                          "occurrence_id": "tm4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 540,
+                        "end_line": 540
+                      },
+                      "target_proposition_as_characterized": "An Aboriginal interest in reserve land has a unique cultural component."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the Crown breach its fiduciary duty and the honour of the Crown in acquiring only 97 acres?",
+          "answers": [
+            {
+              "answer": "Yes. It failed to inform or consult the band about the drastic reduction, failed to investigate the band’s needs, and persistently mishandled the purchase despite its 230-acre commitment.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 512,
+                      "end_line": 512,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 557,
+                      "end_line": 557,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        },
+                        {
+                          "occurrence_id": "tm4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 540,
+                        "end_line": 540
+                      },
+                      "target_proposition_as_characterized": "An Aboriginal interest in reserve land has a unique cultural component."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What compensation followed from the established breach?",
+          "answers": [
+            {
+              "answer": "Compensation for the value and loss of use of the difference between the planned 230 acres and granted 97 acres, with interest; quantum was reserved to the second stage.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 568,
+                      "end_line": 568,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 569,
+                      "end_line": 569,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  }
+]

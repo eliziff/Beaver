@@ -23,7 +23,6 @@ import { TableToolbar } from "../shared/TableToolbar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { isLocalMode } from "@/app/lib/authMode";
 import { Modal } from "../modals/Modal";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import { projectBreadcrumbLabel, ProjectPageHeader, type ProjectWorkspaceSection } from "./ProjectPageParts";
@@ -251,9 +250,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
           }}
         >
           <p className="pb-3 text-sm text-gray-700">
-            {isLocalMode
-              ? "This will delete the project and its chats. Library files and their links in other projects will be kept."
-              : "This will permanently delete the project and its related documents, chats, and tabular reviews."}
+            This will permanently delete the project and its related documents, chats, and tabular reviews.
           </p>
         </Modal>
         {project && (

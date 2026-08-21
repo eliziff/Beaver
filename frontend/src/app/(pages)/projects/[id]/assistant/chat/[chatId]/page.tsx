@@ -19,7 +19,6 @@ import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
-import { isLocalMode } from "@/app/lib/authMode";
 import { deleteChat } from "@/app/lib/beaverApi";
 
 export default function ProjectAssistantChatPage() {
@@ -186,7 +185,7 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
                 await files.deleteDocument(id);
                 chat.current?.closeDocument(id);
               }}
-              documentRemovalMode={isLocalMode ? "detach" : "delete"}
+              documentRemovalMode="detach"
               onMoveDoc={files.moveDocument}
               onMoveFolder={files.moveFolder}
             />

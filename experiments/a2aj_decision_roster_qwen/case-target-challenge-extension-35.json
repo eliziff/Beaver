@@ -7,7 +7,7 @@
   "combined_manifest": "case-target-challenge-50.json",
   "extends": {
     "file": "case-target-challenge-15.json",
-    "file_sha256": "4567dc7f1b2c27f36aa32b542b7e21bad76d385db629f9afd4c6f127c0f9ac3b"
+    "file_sha256": "180163940db85e46894aecc4d44f68b2bdd57089ddd417a3ab5dcbfdab8f2ea2"
   },
   "selection": {
     "algorithm": "curated-plus-seeded-metadata-strata-v3",
@@ -249,7 +249,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -302,21 +302,6 @@
               "end_exclusive": 86634,
               "quote": " reply.”\n[38] Exhibit NQ-2021-005-39; citing Bauer Hockey Ltd. v. Sport Maska Inc., 2020 FC 212 at paras. 12–13, citing R. v. Krause, [1986] 2 SCR 466 [R. v. Krause] at 473.\n[39] Exhibit NQ-2021-005-40; citing Decorative and Other Non-structural Plywood (19 February 2021), NQ‑2020‑002 (CITT) [Decorative Plywood].\n[40] R. v. Krause at para. 15; Allcock, Laight & Westwood Ltd. v. Patten Bernard and Dynamic Displays Ltd., [1967] 1 O.R. 18; Halford v. Seed Hawk Inc., 2003 FCT 141 [Halford] at paras. 12–15.\n[41] Halford at paras. 14–15; Angelcare at paras. 16–17.\n[42] Amgen Canada Inc. v. Apotex Inc., 2016 FCA 121 at para. 10.\n[43] Decorative Plywood at para. 58.\n[44] Ibid.\n[45] Heavy Plate (5 February 2021), NQ-2020-001 (CITT) at para. 28, citing",
               "sha256": "f422f295fbbf8fe1778f384550a38388754b41f3b7dbb0778d212f0a03a6d702"
-            }
-          },
-          {
-            "id": "tn3",
-            "kind": "case_name",
-            "quote": "Krause",
-            "start": 86208,
-            "end": 86214,
-            "citationKey": "19862scr466",
-            "linkedContext": null,
-            "context": {
-              "start": 85888,
-              "end_exclusive": 86634,
-              "quote": ".”\n[38] Exhibit NQ-2021-005-39; citing Bauer Hockey Ltd. v. Sport Maska Inc., 2020 FC 212 at paras. 12–13, citing R. v. Krause, [1986] 2 SCR 466 [R. v. Krause] at 473.\n[39] Exhibit NQ-2021-005-40; citing Decorative and Other Non-structural Plywood (19 February 2021), NQ‑2020‑002 (CITT) [Decorative Plywood].\n[40] R. v. Krause at para. 15; Allcock, Laight & Westwood Ltd. v. Patten Bernard and Dynamic Displays Ltd., [1967] 1 O.R. 18; Halford v. Seed Hawk Inc., 2003 FCT 141 [Halford] at paras. 12–15.\n[41] Halford at paras. 14–15; Angelcare at paras. 16–17.\n[42] Amgen Canada Inc. v. Apotex Inc., 2016 FCA 121 at para. 10.\n[43] Decorative Plywood at para. 58.\n[44] Ibid.\n[45] Heavy Plate (5 February 2021), NQ-2020-001 (CITT) at para. 28, citing",
-              "sha256": "17ab1fe4e2470b78b48c781e90b798f239a8547cc50be55181a265d2b8738f05"
             }
           }
         ],
@@ -382,7 +367,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -525,7 +510,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -611,7 +596,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -699,7 +684,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -727,16 +712,16 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "R. v. J.J.C.",
+            "quote": "R. v. J.J.C",
             "start": 3091,
-            "end": 3103,
+            "end": 3102,
             "citationKey": "2012nspc110",
             "linkedContext": null,
             "context": {
               "start": 2771,
-              "end_exclusive": 3523,
-              "quote": "at essentially prevented A.B. from returning to the Bridges Program, the residence chosen for him by the Minister of Community Services. This is an issue that has been well covered by this court, and, indeed, by the Nova Scotia Supreme Court in a decision rendered approximately seven months ago in a judicial review of R. v. J.J.C.[2] Ultimately, the police operate as a branch of the executive division of government; the Minister of Community Services is a member of the executive division of government. The Minister has full and plenary authority over the placement of young persons in care. And based on the outcome of the review of J.J.C. I am satisfied that I would not have the authority as a Youth Justice Court Judge to make an order prevent",
-              "sha256": "36361586ccadd7c462f28ee659aca26122a7da9bc384166a8d3628045d6af30f"
+              "end_exclusive": 3522,
+              "quote": "at essentially prevented A.B. from returning to the Bridges Program, the residence chosen for him by the Minister of Community Services. This is an issue that has been well covered by this court, and, indeed, by the Nova Scotia Supreme Court in a decision rendered approximately seven months ago in a judicial review of R. v. J.J.C.[2] Ultimately, the police operate as a branch of the executive division of government; the Minister of Community Services is a member of the executive division of government. The Minister has full and plenary authority over the placement of young persons in care. And based on the outcome of the review of J.J.C. I am satisfied that I would not have the authority as a Youth Justice Court Judge to make an order preven",
+              "sha256": "1e6197b35a10a3d1ac22feb52318489c4dc3dca2bffddceb98abba0480eb49d7"
             }
           }
         ],
@@ -800,7 +785,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -918,7 +903,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1008,7 +993,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1126,7 +1111,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1208,15 +1193,13 @@
           "rule": "lightweight-exact-evidence-v2",
           "source_structure_engine_used": false,
           "semantic_gold": false,
-          "attribution_cue_rules": [
-            "quotation_boundary_cue"
-          ],
+          "attribution_cue_rules": [],
           "direct_history_cue_rules": [],
           "reviewed_multi_opinion_evidence_spans": 0,
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1379,28 +1362,58 @@
           {
             "id": "tn10",
             "kind": "case_name",
-            "quote": "El-Helou v. Courts Administration Service",
-            "start": 4914,
-            "end": 4955,
+            "quote": "El-Helou v Courts Administration Service",
+            "start": 39086,
+            "end": 39126,
             "citationKey": "2011psdpt8",
             "linkedContext": null,
             "context": {
-              "start": 4594,
-              "end_exclusive": 5375,
-              "quote": "gument was premature. Evidence regarding allegations which the Commissioner did not refer to the Tribunal may still be relevant to proceedings related to the Application.\nDecision Content\nPublic Servants Disclosure Protection Tribunal Canada\nTribunal de la protection des fonctionnaires divulgateurs du Canada\nCitation: El-Helou v. Courts Administration Service, 2012 PSDPT 1\nFile No.: T-2011-01\nIssued at: Ottawa, Ontario\nFebruary 8, 2012\nIn the Matter of an Application by the Public Sector Integrity Commissioner of Canada to the Public Servants Disclosure Protection Tribunal\nBETWEEN:\nCHARBEL EL-HELOU\nComplainant\n-and-\nOFFICE OF THE PUBLIC SECTOR INTEGRITY COMMISSIONER\nCommissioner\nand\nCOURTS ADMINISTRATION SERVICE\nEmployer\nand\nDAVID POWER\nIndividual Respondent\nand\nÉRIC DEL",
-              "sha256": "bf7743999ad431abb24fee78e45abcc5c5410ed98fd4d5a4cf1d846550e90157"
+              "start": 38766,
+              "end_exclusive": 39546,
+              "quote": "dibility. The fact that its decision-makers are federally appointed judges is not determinative, but it is significant in the context of the Act and its values. The Act creates this Tribunal as a new and specialized body. The Tribunal makes decisions that affect the rights and duties of the parties before it (See also El-Helou v Courts Administration Service, 2011-PT-01 at paragraphs 85-89). There is no requirement to hold a proceeding in camera. Conversely, the inclusion of a provision in the Act, that allows the Tribunal to determine that proceedings may be held in camera, makes it clear that the proceedings are presumptively open to the public (See section 21.3 of the Act.)\n[62] A framework of procedural rules is in place to ensure fairness, transparency and objectiv",
+              "sha256": "299187b8a789d2c7b071a397bf210e90f4ecd151c94237242f1172657e6bb56e"
+            }
+          },
+          {
+            "id": "tn11",
+            "kind": "case_name",
+            "quote": "El Helou v Courts Administration Service",
+            "start": 48230,
+            "end": 48270,
+            "citationKey": "2011psdpt8",
+            "linkedContext": null,
+            "context": {
+              "start": 47910,
+              "end_exclusive": 48690,
+              "quote": "levant to the proceedings related to the allegation that actually warranted the Application before this Tribunal. In addition, the facts relating to the allegations that were dismissed might be relevant. The evidence related to the initial complaint and all of its allegations may be considered at the hearing (See also El Helou v Courts Administration Service, 2011-PT-01 at paragraph 97).\n[76] The Tribunal does not dispute the important purpose of the Privacy Act. However, its purpose must be balanced with other values. This balancing is even more compelling because the open court principle is constitutionally protected. It should also be noted that tribunals, such as this tribunal, do not actively seek out and “obtain” information. Tribunals receive information from the",
+              "sha256": "443183a2b11f2dd25a8d8ce611263d50de88dc8572586f236532fa864b158daf"
+            }
+          },
+          {
+            "id": "tn12",
+            "kind": "case_name",
+            "quote": "El-Helou v Courts Administration Service",
+            "start": 58688,
+            "end": 58728,
+            "citationKey": "2011psdpt8",
+            "linkedContext": null,
+            "context": {
+              "start": 58368,
+              "end_exclusive": 59148,
+              "quote": "y order, dated June 10, 2011, is rescinded, effective the date of this decision; and\nThe publication ban, dated August 23, 2011, remains in effect.\n“Luc Martineau”\nChairperson\nPUBLIC SERVANTS DISCLOSURE PROTECTION TRIBUNAL\nPARTIES OF RECORD\nDECISION NUMBER:\n2012 PSDPT 2\nTRIBUNAL FILE:\nT-2011-01\nSTYLE OF CAUSE:\nCharbel El-Helou v Courts Administration Service and David Power and Éric Delage\nBEFORE:\nThe Honourable Mr. Justice Luc Martineau\nDECISION OF THE TRIBUNAL DATED:\nFebruary 8, 2012\nDECISION RENDERED ON THE BASIS OF THE WRITTEN ARGUMENTS AND RECORDS FILED\nAPPEARANCES:\nMr. Andrew Raven\nRaven, Cameron, Ballantyne and Yazbeck LLP/s.r.l.\nFor the Complainant\nM. Brian Radford\nFor the Office of the Public Sector Integrity Commissioner\nMr. Ronald Caza\nMs. Julie Paquette\nHeen",
+              "sha256": "ef13bee55777ea1b8f58a3282cc972915254435906c907cf7feb0cf597777a1f"
             }
           }
         ],
         "category_evidence": [
           {
             "kind": "attribution_cue_context",
-            "rule": "quotation_boundary_cue",
-            "occurrence_id": "tn10",
-            "start": 4594,
-            "end_exclusive": 5375,
-            "quote": "gument was premature. Evidence regarding allegations which the Commissioner did not refer to the Tribunal may still be relevant to proceedings related to the Application.\nDecision Content\nPublic Servants Disclosure Protection Tribunal Canada\nTribunal de la protection des fonctionnaires divulgateurs du Canada\nCitation: El-Helou v. Courts Administration Service, 2012 PSDPT 1\nFile No.: T-2011-01\nIssued at: Ottawa, Ontario\nFebruary 8, 2012\nIn the Matter of an Application by the Public Sector Integrity Commissioner of Canada to the Public Servants Disclosure Protection Tribunal\nBETWEEN:\nCHARBEL EL-HELOU\nComplainant\n-and-\nOFFICE OF THE PUBLIC SECTOR INTEGRITY COMMISSIONER\nCommissioner\nand\nCOURTS ADMINISTRATION SERVICE\nEmployer\nand\nDAVID POWER\nIndividual Respondent\nand\nÉRIC DEL",
-            "sha256": "bf7743999ad431abb24fee78e45abcc5c5410ed98fd4d5a4cf1d846550e90157"
+            "rule": "curated_attribution_or_metadata_trap",
+            "occurrence_id": "tm1",
+            "start": 1039,
+            "end_exclusive": 1791,
+            "quote": "identiality See also - El-Helou v. Courts Administration Service - 2011 PSDPT 6 - 2011-06-10 - Publication Ban Order See also - El-Helou v. Courts Administration Service - 2011 PSDPT 7 - 2011-06-10 - Order Granting Interested Party Status for Confidentiality Order See also - El-Helou v. Courts Administration Service - 2011 PSDPT 8 - 2011-06-10 - Exemption and Scheduling Order See also - El-Helou v. Courts Administration Service - 2011 PSDPT 9 - 2011-08-23 - Order Granting Interested Party Status in Respect of the Complainant's Motion for an Order regarding the Tribunal's Jurisdiction\nSummary:\nKey words: Charter of Rights and Freedoms (Charter), Dagenais/Mentuck test, confidentiality order, interlocutory motion, open court principle, Privacy A",
+            "sha256": "baebeee547ca17659c9ada6d2bfd9237cdac75462b67f45afd8342242631b8df"
           }
         ],
         "feature_evidence": [],
@@ -1454,7 +1467,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1492,21 +1505,6 @@
               "end_exclusive": 7258,
               "quote": "ess make a final decision in respect of the refugee claim.\n[17] It is up to the RAD to determine in its analysis whether the RPD had an advantage owing to the fact that it heard the testimony, and having done so, to see what degree of deference the RPD should be granted in this matter.\n[18] Paragraph 103 of Huruglica (2016 FCA 93) specifies the standard of review to be applied by the RAD:\n[103] I conclude from my statutory analysis that with respect to findings of fact (and mixed fact and law) such as the one involved here, which raised no issue of credibility of oral evidence, the RAD is to review RPD decisions applying the correctness standard. Thus, after carefully considering the RPD decision, the RAD carries out its own analysis of the ",
               "sha256": "7da44bac14e199e6b2cda8548e10b651db63ed92e8c9d9f91d2e9380dfb1f6e4"
-            }
-          },
-          {
-            "id": "tn1",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 2297,
-            "end": 2303,
-            "citationKey": "2016fca93",
-            "linkedContext": null,
-            "context": {
-              "start": 1977,
-              "end_exclusive": 2723,
-              "quote": "ng given the XXXX XXXX XXXX of MOPROJEPH.\n[6] The appellant allegedly filed a complaint with a court on XXXX XXXX, 2015. She reportedly sought shelter in XXXX, but the threatening calls continued.\n[7] The appellant allegedly obtained a Canadian visa on XXXX XXXX, 2015. She left her country on June 24, 2015, arrived in Canada on the same day and claimed refugee protection in July 2015.\nRPD DECISION\n[8] The RPD rendered a negative decision, finding that the appellant was not credible.\n- The appellant contradicted herself by saying that she was the only person within her organization, MOPROJEPH, to have received anonymous calls. She then stated that other members of this organization had also received such calls. The RPD found the appellan",
-              "sha256": "8495865f42ee3c918bf751cc1042b4774a5c299ff204678dd34a5e5bf22fec0e"
             }
           }
         ],
@@ -1572,7 +1570,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1595,81 +1593,6 @@
               "end_exclusive": 16157,
               "quote": "] National Documentation Package, Nigeria, 29 November 2019, tab 6. 7: Information on how bisexuality is understood and perceived in Nigeria; whether bisexuality is distinguished from both male and female homosexuality (2014-June 2015). Immigration and Refugee Board of Canada. 9 September 2015. NGA105219.E.\n[11] (Ward [1993] 2 S.C.R. 689)",
               "sha256": "05362460ac7c79208765e64f126d74f2e8e7cbd21c65a43d2243b1268e932638"
-            }
-          },
-          {
-            "id": "tn1",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 4549,
-            "end": 4555,
-            "citationKey": "19932scr689",
-            "linkedContext": null,
-            "context": {
-              "start": 4229,
-              "end_exclusive": 4975,
-              "quote": "l, at which time the claimant admitted that she was involved in a same sex relationship with this female. The claimant alleged that Ms. E became upset about her sexual orientation and told the claimant to leave her home immediately. The claimant then fled to Canada where she had family friends. The claimant arrived in Canada on [XXX] 2018.\n[11] The claimant stated that her relatives in Nigeria have become aware of her sexual orientation and her father has disowned her. The claimant stated that members of her family and community in Nigeria have vowed to kill her for bringing shame to the family name.\nFailure to Claim Asylum Does Not Undermine the Claimant’s Subjective Fear\n[12] The claimant testified that she resided in United States be",
-              "sha256": "2e3a86eca7f140ab73bcc3b7f7554e57a9a688fb2a97c80b4dc058cc60252a05"
-            }
-          },
-          {
-            "id": "tn2",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 9052,
-            "end": 9058,
-            "citationKey": "19932scr689",
-            "linkedContext": null,
-            "context": {
-              "start": 8732,
-              "end_exclusive": 9478,
-              "quote": "hat the claimant would delete evidence of communications between herself and her same sex partner.\n[16] The clamant provided support letters from her mother and cousin, including photo identification of each.[6] The letters corroborate the information provided in the claimant’s claim.\nLGBTQ+ Services and Experience in Canada\n[17] The claimant testified that she is not aware of any LGBTQ+ organizations in Canada. She stated that she has never considered attending any type of LGBTQ+ services as she is not used to engaging in such programs. The claimant declared that she wants to be open about her sexuality in Canada however she finds it challenging to be completely open about her sexuality after having to be secretive about her sexual ori",
-              "sha256": "10801a1c1f2be3971110e98610cff32df9790633fb85cf91c0a0234e85d6019a"
-            }
-          },
-          {
-            "id": "tn3",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 9140,
-            "end": 9146,
-            "citationKey": "19932scr689",
-            "linkedContext": null,
-            "context": {
-              "start": 8820,
-              "end_exclusive": 9566,
-              "quote": "x partner.\n[16] The clamant provided support letters from her mother and cousin, including photo identification of each.[6] The letters corroborate the information provided in the claimant’s claim.\nLGBTQ+ Services and Experience in Canada\n[17] The claimant testified that she is not aware of any LGBTQ+ organizations in Canada. She stated that she has never considered attending any type of LGBTQ+ services as she is not used to engaging in such programs. The claimant declared that she wants to be open about her sexuality in Canada however she finds it challenging to be completely open about her sexuality after having to be secretive about her sexual orientation for her entire life. The claimant testified that she does not use any social me",
-              "sha256": "4acd823dc39cabd8c52267d9aecef85fbaa88b0c46149ea032302d7832a6c226"
-            }
-          },
-          {
-            "id": "tn4",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 9347,
-            "end": 9353,
-            "citationKey": "19932scr689",
-            "linkedContext": null,
-            "context": {
-              "start": 9027,
-              "end_exclusive": 9773,
-              "quote": "rvices and Experience in Canada\n[17] The claimant testified that she is not aware of any LGBTQ+ organizations in Canada. She stated that she has never considered attending any type of LGBTQ+ services as she is not used to engaging in such programs. The claimant declared that she wants to be open about her sexuality in Canada however she finds it challenging to be completely open about her sexuality after having to be secretive about her sexual orientation for her entire life. The claimant testified that she does not use any social media apps to meet people in Canada. The claimant testified that she was involved in two same sex relationships during her adolescence and at this time she is single and not interested in entering a relationsh",
-              "sha256": "3e84245a6b48eb0dac930240e92443b578bfa6d51fea07597154c44f7f75edf4"
-            }
-          },
-          {
-            "id": "tn5",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 9593,
-            "end": 9599,
-            "citationKey": "19932scr689",
-            "linkedContext": null,
-            "context": {
-              "start": 9273,
-              "end_exclusive": 10019,
-              "quote": "s. The claimant declared that she wants to be open about her sexuality in Canada however she finds it challenging to be completely open about her sexuality after having to be secretive about her sexual orientation for her entire life. The claimant testified that she does not use any social media apps to meet people in Canada. The claimant testified that she was involved in two same sex relationships during her adolescence and at this time she is single and not interested in entering a relationship at this time.\n[18] The panel finds the claimant to be a credible witness and accepts that the above noted events have occurred as alleged by the claimant in her oral and written testimonies. Accordingly, the panel finds that the claimant has e",
-              "sha256": "9c0a000936bda5f90bd3344501f485bfb8e30d6962e8dcdcd32681d6f0d61b14"
             }
           }
         ],
@@ -1735,7 +1658,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -1838,7 +1761,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -2018,7 +1941,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -2125,7 +2048,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -2319,7 +2242,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -2898,7 +2821,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -3041,7 +2964,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -3321,7 +3244,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -3349,16 +3272,16 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "Systèmes Equinox Inc. v. Canada (Public Works and Government Services)",
+            "quote": "Systèmes Equinox Inc. v. Canada (Public Works and Government Services",
             "start": 84097,
-            "end": 84167,
+            "end": 84166,
             "citationKey": "2008fca36",
             "linkedContext": null,
             "context": {
               "start": 83777,
-              "end_exclusive": 84587,
-              "quote": "awarding Equinox costs in the amount of $4,100.\n4 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2008 FCA 36 (CanLII).\n5 . Re Complaint Filed by Les Systèmes Equinox Inc., PR-2006-045R (CITT) [Equinox Remand].\n6 . Canada (Attorney General) v. Systèmes Equinox Inc., 2009 FCA 304 (CanLII).\n7 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2009 FCA 305 (CanLII). The Tribunal notes that, on October 14, 2009, Equinox filed a notice of discontinuance in respect of its application for judicial review of the Tribunal’s June 20, 2007, determination.\n8 . S.O.R./93-602 [Regulations].\n9 . Subsection 30.15(2) of the CITT Act simply provides that, where the Tribunal determines that a procurement complaint is valid, it may recommend any remedy that it considers ",
-              "sha256": "e072052d5da058debf64962388bbb2bf943e1f7c3e662278db8ca8e7e85ee451"
+              "end_exclusive": 84586,
+              "quote": "awarding Equinox costs in the amount of $4,100.\n4 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2008 FCA 36 (CanLII).\n5 . Re Complaint Filed by Les Systèmes Equinox Inc., PR-2006-045R (CITT) [Equinox Remand].\n6 . Canada (Attorney General) v. Systèmes Equinox Inc., 2009 FCA 304 (CanLII).\n7 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2009 FCA 305 (CanLII). The Tribunal notes that, on October 14, 2009, Equinox filed a notice of discontinuance in respect of its application for judicial review of the Tribunal’s June 20, 2007, determination.\n8 . S.O.R./93-602 [Regulations].\n9 . Subsection 30.15(2) of the CITT Act simply provides that, where the Tribunal determines that a procurement complaint is valid, it may recommend any remedy that it considers",
+              "sha256": "2bf113b718f8213a860704974580a47cc98b9398171d0a9505eb1eec9e0d58a4"
             }
           }
         ],
@@ -3379,9 +3302,9 @@
             "rule": "prior_stage_relation",
             "occurrence_id": "tn1",
             "start": 83777,
-            "end_exclusive": 84587,
-            "quote": "awarding Equinox costs in the amount of $4,100.\n4 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2008 FCA 36 (CanLII).\n5 . Re Complaint Filed by Les Systèmes Equinox Inc., PR-2006-045R (CITT) [Equinox Remand].\n6 . Canada (Attorney General) v. Systèmes Equinox Inc., 2009 FCA 304 (CanLII).\n7 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2009 FCA 305 (CanLII). The Tribunal notes that, on October 14, 2009, Equinox filed a notice of discontinuance in respect of its application for judicial review of the Tribunal’s June 20, 2007, determination.\n8 . S.O.R./93-602 [Regulations].\n9 . Subsection 30.15(2) of the CITT Act simply provides that, where the Tribunal determines that a procurement complaint is valid, it may recommend any remedy that it considers ",
-            "sha256": "e072052d5da058debf64962388bbb2bf943e1f7c3e662278db8ca8e7e85ee451"
+            "end_exclusive": 84586,
+            "quote": "awarding Equinox costs in the amount of $4,100.\n4 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2008 FCA 36 (CanLII).\n5 . Re Complaint Filed by Les Systèmes Equinox Inc., PR-2006-045R (CITT) [Equinox Remand].\n6 . Canada (Attorney General) v. Systèmes Equinox Inc., 2009 FCA 304 (CanLII).\n7 . Systèmes Equinox Inc. v. Canada (Public Works and Government Services), 2009 FCA 305 (CanLII). The Tribunal notes that, on October 14, 2009, Equinox filed a notice of discontinuance in respect of its application for judicial review of the Tribunal’s June 20, 2007, determination.\n8 . S.O.R./93-602 [Regulations].\n9 . Subsection 30.15(2) of the CITT Act simply provides that, where the Tribunal determines that a procurement complaint is valid, it may recommend any remedy that it considers",
+            "sha256": "2bf113b718f8213a860704974580a47cc98b9398171d0a9505eb1eec9e0d58a4"
           }
         ],
         "evaluation_stratum": "direct_history_cue",
@@ -3428,15 +3351,13 @@
           "rule": "lightweight-exact-evidence-v2",
           "source_structure_engine_used": false,
           "semantic_gold": false,
-          "attribution_cue_rules": [
-            "party_attribution_cue"
-          ],
+          "attribution_cue_rules": [],
           "direct_history_cue_rules": [],
           "reviewed_multi_opinion_evidence_spans": 0,
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -3474,366 +3395,6 @@
               "end_exclusive": 11058,
               "quote": "he Federal Court of Appeal dismissed Kobo’s appeal (Rakuten Kobo Inc v Canada (Commissioner of Competition), 2015 FCA 149).\n[26] On January 14, 2016, the Supreme Court of Canada dismissed Kobo’s request for leave to appeal the Federal Court of Appeal’s decision (Rakuten Kobo Inc v Canada (Commissioner of Competition), 2015 FCA 149, leave to appeal to SCC refused, 36554 (14 January 2016)).\n[27] In the meantime, during a case management conference on December 22, 2014, the Commissioner’s counsel confirmed his previous statement to Kobo and the Respondent Publishers that, in light of the Reference Decision, the Commissioner was prepared to consent to the primary relief sought by Kobo in the 106(2) application.\n[28] On November 30, 2015, Kobo fil",
               "sha256": "cf037a0c98f18a41ccdf370626f4089291c8b5ac49c5d9953c9c7660695fbcbf"
-            }
-          },
-          {
-            "id": "tn1",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 4769,
-            "end": 4775,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 4449,
-              "end_exclusive": 5195,
-              "quote": "missioner of Competition v Pearson Canada Inc, 2014 FC 376, in mid-2012 the Commissioner commenced an inquiry (the “Inquiry”) under subparagraph 10(1)(b)(ii) of the Act with respect to certain alleged anti-competitive conduct to restrict electronic book (“E-book”) retail price competition in the markets for E-books in Canada. Among other things, that conduct involved a change by the largest publishers of general interest fiction and non-fiction E-books from a wholesale distribution model to an agency distribution model. As a result of that change, retail price competition in the markets for E-books in Canada is alleged to have been restricted.\n[10] The initiation of the Inquiry followed investigations and subsequent enforcement action t",
-              "sha256": "bfb06e5921de7b15b045d7cce30636266f30756b500d7b422f5a11d8db51ea21"
-            }
-          },
-          {
-            "id": "tn2",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 5058,
-            "end": 5064,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 4738,
-              "end_exclusive": 5484,
-              "quote": " in the markets for E-books in Canada. Among other things, that conduct involved a change by the largest publishers of general interest fiction and non-fiction E-books from a wholesale distribution model to an agency distribution model. As a result of that change, retail price competition in the markets for E-books in Canada is alleged to have been restricted.\n[10] The initiation of the Inquiry followed investigations and subsequent enforcement action taken in the United States and Europe in relation to a similar change from a wholesale distribution model to an agency distribution model that occurred in those jurisdictions.\n[11] In February 2014, the Commissioner and four of the publishers targeted by the Inquiry (the “Respondent Publis",
-              "sha256": "c0797ad625a30a974c9b5e47548bb5f1ff3c11539abd8b50b386105d07e88e66"
-            }
-          },
-          {
-            "id": "tn3",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 6142,
-            "end": 6148,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 5822,
-              "end_exclusive": 6568,
-              "quote": "Collins”) and Simon & Schuster Canada, a division of CBS Canada Holdings Co. (“Simon & Schuster”).\n[13] One of the recitals to the CA states that “the Commissioner alleges that further to an agreement or arrangement, the Respondents have engaged in conduct with the result that competition in the markets for E-books in Canada has been substantially prevented or lessened, contrary to section 90.1 of the Act.”\n[14] Broadly speaking, the CA is directed towards distribution agreements between the Respondent Publishers and retailers of E-books. Among other things, the CA prohibits the Respondent Publishers from directly or indirectly restricting, limiting or impeding an E-book retailer’s ability to set, alter or reduce the retail price of any",
-              "sha256": "893e89ba97492b03a22dfc91100dabc5c9cb6f69f6507ebc49e0c7c484d454a2"
-            }
-          },
-          {
-            "id": "tn4",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 6601,
-            "end": 6607,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 6281,
-              "end_exclusive": 7027,
-              "quote": "s distribution agreements between the Respondent Publishers and retailers of E-books. Among other things, the CA prohibits the Respondent Publishers from directly or indirectly restricting, limiting or impeding an E-book retailer’s ability to set, alter or reduce the retail price of any E-book for sale to consumers in Canada, or to offer price discounts or any other form of promotions to encourage consumers in Canada to purchase one or more E-books. The CA also prohibits the Respondent Publishers from entering into an agreement with any E-book retailer that has one of those effects. These prohibitions apply for 18 months, commencing on the fortieth day following the registration of the CA.\n[15] Certain other terms in the CA prohibit the",
-              "sha256": "04e9dd4d3044c61e45098d05c2ed076a6aceddaedf3fd0c5bfc96859b831422a"
-            }
-          },
-          {
-            "id": "tn5",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 6695,
-            "end": 6701,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 6375,
-              "end_exclusive": 7121,
-              "quote": "her things, the CA prohibits the Respondent Publishers from directly or indirectly restricting, limiting or impeding an E-book retailer’s ability to set, alter or reduce the retail price of any E-book for sale to consumers in Canada, or to offer price discounts or any other form of promotions to encourage consumers in Canada to purchase one or more E-books. The CA also prohibits the Respondent Publishers from entering into an agreement with any E-book retailer that has one of those effects. These prohibitions apply for 18 months, commencing on the fortieth day following the registration of the CA.\n[15] Certain other terms in the CA prohibit the Respondent Publishers from entering into agreements with E-book retailers relating to the sal",
-              "sha256": "cc130f6846f5507f83f77cbe3d7506deee902a0a592607e21b51af6888dd354b"
-            }
-          },
-          {
-            "id": "tn6",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 7150,
-            "end": 7156,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 6830,
-              "end_exclusive": 7576,
-              "quote": " retailer that has one of those effects. These prohibitions apply for 18 months, commencing on the fortieth day following the registration of the CA.\n[15] Certain other terms in the CA prohibit the Respondent Publishers from entering into agreements with E-book retailers relating to the sale of E-books to consumers in Canada that contain particular types of most-favoured nation (“MFN”) clauses, for a period of four years and six months from the date of the registration of the CA.\n[16] In addition, the CA requires the Respondent Publishers to take steps to terminate, and not renew or extend, existing agreements with E-book retailers that have certain types of provisions. In lieu of such action, the CA permits the Respondent Publishers to",
-              "sha256": "b86b164c9fc14aab580fee521fca3f047ec49b1ffbef09125885ce3b119231b1"
-            }
-          },
-          {
-            "id": "tn7",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 29015,
-            "end": 29021,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 28695,
-              "end_exclusive": 29441,
-              "quote": "existing or proposed;\nthe identity of two or more parties to the agreement or arrangement;\nthe fact that two or more parties to the agreement or arrangement are competitors;\nthe fact that the agreement or arrangement prevents or lessens, or is likely to prevent or lessen competition substantially; and\nthe market(s) in Canada in which that effect is occurring or is likely to occur.\n[57] The Tribunal agrees with the Commissioner that, in respect of the reviewable practice described in subsection 90.1(1), these constitute the only elements that must be sufficiently identified and that must be the subject of one of the two statements described at paragraph 4.ii.b) above, before it would have jurisdiction as contemplated by subsection 105(2)",
-              "sha256": "b5e690286a1c9ea2f97538ff7374b2943a40fc387adb59b168477ff628121391"
-            }
-          },
-          {
-            "id": "tn8",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 29911,
-            "end": 29917,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 29591,
-              "end_exclusive": 30337,
-              "quote": "Publishers are parties to an unidentified existing agreement that is not otherwise described, (ii) two or more persons who are competitors are parties to that agreement, and (iii) the agreement prevents or lessens, or is likely to prevent or lessen, competition in one or more markets for the distribution of E-books in Canada.\n[59] To establish that the terms of the CA could be the subject of an order against the Respondent Publishers, as contemplated by subsection 105(2), the CA must not only repeat the elements of subsection 90.1(1) as they appear in the Act. It must also explain how those elements are met.\n[60] Therefore, with respect to the element of “agreement or arrangement,” the CA must go beyond stating, in one of the ways descr",
-              "sha256": "06143551c722783fb424cb68fb5f3785cf90a9d43d3e4aee73e6a234e6f302cf"
-            }
-          },
-          {
-            "id": "tn9",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 33604,
-            "end": 33610,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 33284,
-              "end_exclusive": 34030,
-              "quote": "r provide some description of the nature of such parties and their relationship to the Respondent Publishers; (iv) that the agreement prevents or lessens, or is likely to prevent or lessen, competition substantially; and (v) this anti- competitive effect is occurring or is likely to occur in the markets for E-books in Canada.\n[64] For greater certainty, insofar as the identity of the parties to the impugned agreement or arrangement is concerned, it is not necessary for the Tribunal to know the exact identities of all of the parties to the agreement or arrangement in question. The Tribunal simply needs to know whether the Respondent Publishers are parties to the agreement. If not all of them are parties to the agreement, the Tribunal nee",
-              "sha256": "adb6afc6a1abb382fe47b17fdd1b9c1fafcd38e9ffdd155aace9453b52e495a7"
-            }
-          },
-          {
-            "id": "tn10",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 38691,
-            "end": 38697,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 38371,
-              "end_exclusive": 39117,
-              "quote": "estiture or other relief. Such press releases, as well as the consent agreements filed with the Tribunal, also generally provide a general description of the businesses and their products.\n[72] The same is true for agreed statements of facts in the context of criminal proceedings brought under the Act. For example, in Canada v Maxzone Auto Parts (Canada) Corp, 2012 FC 1117, the information provided included a brief description of the businesses and of what was included in the agreement, the identity of the parties to the agreement and how the agreement was reached, the fact that directives, instructions and other communications were carried out by the respondent for the purpose of giving effect to the agreement in Canada, the total sale",
-              "sha256": "cb829dd73cc80fbb67d6b1ee1a7f92f9eaf9054650648c64e75e6f2e951444f0"
-            }
-          },
-          {
-            "id": "tn11",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 39095,
-            "end": 39101,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 38775,
-              "end_exclusive": 39521,
-              "quote": "cluded a brief description of the businesses and of what was included in the agreement, the identity of the parties to the agreement and how the agreement was reached, the fact that directives, instructions and other communications were carried out by the respondent for the purpose of giving effect to the agreement in Canada, the total sales of the respondent during the relevant period for the relevant product, and finally the fact that the respondent agreed that its admissions established all of the constituent elements of the specific offence under the Act.\n[73] For greater certainty, the Tribunal is not suggesting that the level of disclosure regarding the six elements of subsection 90.1(1) must be any more extensive than that which ",
-              "sha256": "8886a68dfd37dae3eef56419c43e1a002eb10e9354b2cd24888b7b28143d1191"
-            }
-          },
-          {
-            "id": "tn12",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 40104,
-            "end": 40110,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 39784,
-              "end_exclusive": 40530,
-              "quote": "hat the CA does not sufficiently identify the six elements of subsection 90.1(1).\n[75] The Tribunal acknowledges that it can infer from the CA that the Respondent Publishers are competitors and are parties to an alleged existing agreement that prevents or lessens competition substantially in the markets for E-books in Canada, as contemplated by subsection 90.1(1).\n[76] However, explicit statements with respect to these elements are not made anywhere in the CA. Rather, the second recital to the CA simply states that “the Commissioner alleges that further to an agreement or arrangement, the Respondents have engaged in conduct with the result that competition in the markets for E-books in Canada has been substantially prevented or lessened",
-              "sha256": "bc829bbb1baeb6659e42644d53abbc557e105821be1c1fff3bdb83ef20bda536"
-            }
-          },
-          {
-            "id": "tn13",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 40479,
-            "end": 40485,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 40159,
-              "end_exclusive": 40905,
-              "quote": "ever, explicit statements with respect to these elements are not made anywhere in the CA. Rather, the second recital to the CA simply states that “the Commissioner alleges that further to an agreement or arrangement, the Respondents have engaged in conduct with the result that competition in the markets for E-books in Canada has been substantially prevented or lessened, contrary to section 90.1 of the Act” (emphasis added).\n[77] Even if the Tribunal were to give the Commissioner the benefit of the doubt with respect to the bare identification of some of the six elements in subsection 90.1(1), others are not even identified at all. For example, neither the statement quoted in the immediately preceding paragraph, nor any other provision i",
-              "sha256": "aee482381c1b75ecea68349fbead5d2a9df43c47d09b1a4f5f1ce9a02af733d3"
-            }
-          },
-          {
-            "id": "tn14",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 43455,
-            "end": 43461,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 43135,
-              "end_exclusive": 43881,
-              "quote": " to an existing or proposed agreement or arrangement; that two or more of them are competitors (or that one or more other identified or unidentified parties to the agreement or arrangement are competitors); or that the agreement or arrangement prevents or lessens competition substantially in the markets for E-books in Canada, or is likely to do so. Alternatively, the CA does not state any conclusions that the Commissioner has reached with respect to these matters.\n[82] The Tribunal acknowledges that paragraphs 4 and 5 of the CA make references to agreements between the Respondent Publishers and E-book retailers, in force at the date of registration of the CA. However, the language of those paragraphs may be read as pertaining to any suc",
-              "sha256": "3f9aee2a7817c2fea54da4b6b370828d95abe178ef0bc7484da77ca0a3456fd4"
-            }
-          },
-          {
-            "id": "tn15",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 44212,
-            "end": 44218,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 43892,
-              "end_exclusive": 44638,
-              "quote": "s that may exist, as opposed to disclosing that such agreements do in fact actually exist.\n[83] The Tribunal also acknowledges that the terms defining each of the Respondent Publishers include their subsidiaries, successors and assigns “that are engaged in the business of publishing, Selling or distributing E-books in Canada.” However, those words are qualified by the words “if any and wherever located.”\n[84] Therefore, the Tribunal concludes that the test set forth at paragraph 4.ii.b) above is not satisfied in this case, as the CA contains neither (i) a statement to the effect that the Commissioner and the Respondent Publishers agree that each of the six elements of subsection 90.1(1) has been met, nor (ii) a statement that the Commis",
-              "sha256": "e52b866b63cd2eb26e000ae2b59482b3903b58266ba28b1d60dc8b26bb7c2396"
-            }
-          },
-          {
-            "id": "tn16",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 45499,
-            "end": 45505,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 45179,
-              "end_exclusive": 45925,
-              "quote": "graphs 2 and 4 of this Agreement, a Respondent may enter into agreements and amend agreements with E-book Retailers, and may enforce terms in agreements with E-book Retailers in force as of the date of registration of this Agreement, under which price discounts or any other form of promotions to encourage consumers in Canada to Purchase one or more of the Respondent’s E-books (as opposed to advertising or promotions engaged in by the E-book Retailer not specifically tied or directed to the Respondent’s E-books) are restricted, provided that:\n(a) such restriction shall not interfere with the E-book Retailer’s ability to reduce the final price paid by consumers in Canada to Purchase the Respondent’s E-books by an aggregate amount (the “Ag",
-              "sha256": "86190ddc722198a80c979d2552eba5d72d3bdf53ee8c2b711d98b52649e4a22b"
-            }
-          },
-          {
-            "id": "tn17",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 45850,
-            "end": 45856,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 45530,
-              "end_exclusive": 46276,
-              "quote": "of the Respondent’s E-books (as opposed to advertising or promotions engaged in by the E-book Retailer not specifically tied or directed to the Respondent’s E-books) are restricted, provided that:\n(a) such restriction shall not interfere with the E-book Retailer’s ability to reduce the final price paid by consumers in Canada to Purchase the Respondent’s E-books by an aggregate amount (the “Agreed Funds”) equal to the total commissions the Respondent pays to the E-book Retailer, over a period of at least one year, in connection with the Sale of the Respondent’s E-books to consumers in Canada;\n(b) the Respondent shall not restrict, limit or impede the E-book Retailer’s use of the Agreed Funds to offer price discounts or any other form of ",
-              "sha256": "07ef432db465a68584a99e4359bffb1177708ff8d3cd6511beb398517f8dca1e"
-            }
-          },
-          {
-            "id": "tn18",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 46121,
-            "end": 46127,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 45801,
-              "end_exclusive": 46547,
-              "quote": "y to reduce the final price paid by consumers in Canada to Purchase the Respondent’s E-books by an aggregate amount (the “Agreed Funds”) equal to the total commissions the Respondent pays to the E-book Retailer, over a period of at least one year, in connection with the Sale of the Respondent’s E-books to consumers in Canada;\n(b) the Respondent shall not restrict, limit or impede the E-book Retailer’s use of the Agreed Funds to offer price discounts or any other form of promotions to encourage consumers in Canada to Purchase one or more of the Respondent's E-books; and\n(c) the method of accounting for the E-book Retailer’s promotional activity does not restrict, limit or impede the E-book Retailer from engaging in any form of retail act",
-              "sha256": "0d8f0f62c2e23e02f7cbdf7b3d2d84f7660c5659bf1167143f72ef1251bf31d7"
-            }
-          },
-          {
-            "id": "tn19",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 46313,
-            "end": 46319,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 45993,
-              "end_exclusive": 46739,
-              "quote": "he E-book Retailer, over a period of at least one year, in connection with the Sale of the Respondent’s E-books to consumers in Canada;\n(b) the Respondent shall not restrict, limit or impede the E-book Retailer’s use of the Agreed Funds to offer price discounts or any other form of promotions to encourage consumers in Canada to Purchase one or more of the Respondent's E-books; and\n(c) the method of accounting for the E-book Retailer’s promotional activity does not restrict, limit or impede the E-book Retailer from engaging in any form of retail activity or promotion.\n[87] As the Tribunal understands it, paragraph 5 provides a limited exception to the prohibitions in paragraph 2 and the notification requirements in subparagraph 4(d) of t",
-              "sha256": "0f55e3b489b4500e894f360f347acdcb78470950333edf7a16f008ce971018ab"
-            }
-          },
-          {
-            "id": "tn20",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 48257,
-            "end": 48263,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 47937,
-              "end_exclusive": 48683,
-              "quote": "unting – in essence, a “maximum discount.” That is to say, an E-book retailer can discount up to an aggregate amount equal to the total commissions the Respondent Publisher may have paid to the retailer, over a period of at least a year, in connection with the sale of the Respondent Publisher’s E-books to consumers in Canada. Kobo adds that the words “at least one year” can be interpreted to enable a Respondent Publisher to fund an E-book retailer to engage in limitless discounting, and even to use commissions it receives to discount E- books below their net cost to the retailer.\n[89] The Tribunal recognizes that the interpretations of paragraph 5 that have been adopted by the Commissioner, as described immediately above, are not as cle",
-              "sha256": "6ae593710ab6964845dec642cf0289558d51a08100cb379c62e233e33a176282"
-            }
-          },
-          {
-            "id": "tn21",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 49793,
-            "end": 49799,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 49473,
-              "end_exclusive": 50219,
-              "quote": " degree of discounting over time. That degree is an aggregate amount of discounting which exceeds the total commissions that a Respondent Publisher pays to the retailer during a defined period, the duration of which is at least one year, in connection with the sale of the Respondent Publisher’s E-books to consumers in Canada.\n[92] The Tribunal recognizes that this formula may allow E-book retailers who receive such commissions to sell, below their net cost, some of the E-books they obtain from a Respondent Publisher. However, the terms of paragraph 5 would permit a Respondent Publisher to prevent an E-book retailer from engaging in an aggregate degree of discounting, over a specified period of time that is at least one year in duration,",
-              "sha256": "4b5ce79f3d0c60e33ae0a9f2dac8c1ff1af3d7d2edb71f2b177590471d725433"
-            }
-          },
-          {
-            "id": "tn22",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 51382,
-            "end": 51388,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 51062,
-              "end_exclusive": 51808,
-              "quote": "ption, this would contravene the terms of both subparagraph 5(a) and paragraph 2 of the CA. Among other things, paragraph 2 explicitly prohibits the Respondent Publishers from restricting, limiting or impeding “an E-book Retailer’s ability to set, alter or reduce the Retail Price of any E-book for Sale to consumers in Canada or to offer price discounts or any other form of promotions to encourage consumers in Canada to Purchase one or more E-books,” as those capitalized terms are defined in the CA. Such a contravention of the clear terms of paragraph 2 of the CA would be enforceable by the Commissioner, presumably after having received a complaint by an E-book retailer.\n[95] If there were any doubt in that regard, paragraph 22 of the CA",
-              "sha256": "49c4271b43497607008113266fc7540c88fc9513f01441714b42091134bc3daa"
-            }
-          },
-          {
-            "id": "tn23",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 51475,
-            "end": 51481,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 51155,
-              "end_exclusive": 51901,
-              "quote": "mong other things, paragraph 2 explicitly prohibits the Respondent Publishers from restricting, limiting or impeding “an E-book Retailer’s ability to set, alter or reduce the Retail Price of any E-book for Sale to consumers in Canada or to offer price discounts or any other form of promotions to encourage consumers in Canada to Purchase one or more E-books,” as those capitalized terms are defined in the CA. Such a contravention of the clear terms of paragraph 2 of the CA would be enforceable by the Commissioner, presumably after having received a complaint by an E-book retailer.\n[95] If there were any doubt in that regard, paragraph 22 of the CA provides as follows:\nIn the event of a dispute as to the interpretation or application of th",
-              "sha256": "1927ae4cee08b99705ebc1993e329a11f946e877dd9902d70e8534ea17c9e2ce"
-            }
-          },
-          {
-            "id": "tn24",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 77051,
-            "end": 77057,
-            "citationKey": "2015fca149",
-            "linkedContext": null,
-            "context": {
-              "start": 76731,
-              "end_exclusive": 77477,
-              "quote": "tain a status akin to a court order. For this reason, it maintains that a prospective order that would prevent the registration of a second consent agreement is necessary and appropriate.\n[140] In seeking such a prospective order, Kobo relies on the fact that Donald J. Lange’s treatise, The Doctrine of Res Judicata in Canada, 4th ed (Markham: LexisNexis Canada Inc, 2015) at p. 138, notes that cause of action estoppel has been considered prospectively. However, what Kobo failed to also note is that, in the very next sentence of the treatise, it is stated that “a court should not rule prospectively in respect of issues and evidence of which it is not seized.” As the Commissioner correctly points out, the Tribunal is not yet seized of any ",
-              "sha256": "70f3669b8696bdf22d6d5ebd5d5417ed1560d3559d3e8e061b9d99ed96e7e776"
             }
           }
         ],
@@ -3909,7 +3470,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4026,7 +3587,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4084,16 +3645,76 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "Canada",
-            "start": 3120,
-            "end": 3126,
+            "quote": "Grenier",
+            "start": 9025,
+            "end": 9032,
             "citationKey": "2005fca348",
             "linkedContext": null,
             "context": {
-              "start": 2800,
-              "end_exclusive": 3546,
-              "quote": "ike the statement of claim on the basis that, absent a successful challenge of the licensing decisions by way of judicial review, the Federal Court did not have jurisdiction to hear the matter in light of Canada v. Grenier, 2005 FCA 348, [2006] 2 F.C.R. 287.\nHeld: The appeal should be allowed.\nFor the reasons given in Canada (Attorney General) v. TeleZone Inc., 2010 SCC 62, [2010] 3 S.C.R. 585, the Federal Court should have decided P&H’s claim for damages without requiring it to first be successful on judicial review. Section 17 of the Federal Courts Act gives the Federal Court concurrent jurisdiction over claims for damages against the Crown. Section 18 of the Act does not derogate from this concurrent jurisdiction. Nothing in ss. 17 o",
-              "sha256": "a9a3b5d3e660dab864e727ab88440fead7238ea326cafbb6d42ac81278ee46a7"
+              "start": 8705,
+              "end_exclusive": 9452,
+              "quote": "(CanLII)\n[11] Parrish appealed the decision of the Prothonotary and, alternatively, sought an extension of time to file an application for judicial review. Barnes J. decided the appeal de novo, but reached the same conclusion as Prothonotary Morneau. Barnes J. concluded that the present case was indistinguishable from Grenier (para. 12). He permitted Parrish an extension of time to file its application for judicial review, but refused to merge the application and action, as it would constitute an “end run” around Grenier (para. 26).\nC. Federal Court of Appeal, 2008 FCA 362, [2009] 3 F.C.R. 568\n[12] Pelletier J.A. upheld the lower court decisions, again concluding that Parrish’s claim “falls squarely within the principle stated in Grenier",
+              "sha256": "04d8f49addd8c2fa566b86b22799576ecea9ad68fe789dd6e0a82451f3f7ff7e"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Grenier",
+            "start": 9224,
+            "end": 9231,
+            "citationKey": "2005fca348",
+            "linkedContext": null,
+            "context": {
+              "start": 8904,
+              "end_exclusive": 9651,
+              "quote": "eached the same conclusion as Prothonotary Morneau. Barnes J. concluded that the present case was indistinguishable from Grenier (para. 12). He permitted Parrish an extension of time to file its application for judicial review, but refused to merge the application and action, as it would constitute an “end run” around Grenier (para. 26).\nC. Federal Court of Appeal, 2008 FCA 362, [2009] 3 F.C.R. 568\n[12] Pelletier J.A. upheld the lower court decisions, again concluding that Parrish’s claim “falls squarely within the principle stated in Grenier” (para. 13). He upheld Barnes J.’s decision to extend the time to file an application for judicial review and the decision not to merge the application and the action.\n[13] Nadon J.A. concurred with",
+              "sha256": "6cd4eceaeda00953eaa9c42c4b0187e90f0d0100d035a8d259f500464f9f0b9f"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "Grenier",
+            "start": 9445,
+            "end": 9452,
+            "citationKey": "2005fca348",
+            "linkedContext": null,
+            "context": {
+              "start": 9125,
+              "end_exclusive": 9872,
+              "quote": "eview, but refused to merge the application and action, as it would constitute an “end run” around Grenier (para. 26).\nC. Federal Court of Appeal, 2008 FCA 362, [2009] 3 F.C.R. 568\n[12] Pelletier J.A. upheld the lower court decisions, again concluding that Parrish’s claim “falls squarely within the principle stated in Grenier” (para. 13). He upheld Barnes J.’s decision to extend the time to file an application for judicial review and the decision not to merge the application and the action.\n[13] Nadon J.A. concurred with Pelletier J.A. In his view, it had not been shown that Grenier was “manifestly wrong” (para. 29). It was therefore binding authority and barred Parrish from bringing its action without first seeking judicial review.\n[14]",
+              "sha256": "e700ea6d74dfba65af2e174627ba0dc9080814857696d7ee05b2755bb1f0f093"
+            }
+          },
+          {
+            "id": "tn4",
+            "kind": "case_name",
+            "quote": "Grenier",
+            "start": 9707,
+            "end": 9714,
+            "citationKey": "2005fca348",
+            "linkedContext": null,
+            "context": {
+              "start": 9387,
+              "end_exclusive": 10134,
+              "quote": "sh’s claim “falls squarely within the principle stated in Grenier” (para. 13). He upheld Barnes J.’s decision to extend the time to file an application for judicial review and the decision not to merge the application and the action.\n[13] Nadon J.A. concurred with Pelletier J.A. In his view, it had not been shown that Grenier was “manifestly wrong” (para. 29). It was therefore binding authority and barred Parrish from bringing its action without first seeking judicial review.\n[14] Sharlow J.A. dissented. She acknowledged that Parrish’s action for damages would require an evaluation of the lawfulness of the licensing decisions. She stated: “The question that arises in this case is who is to determine, in the first instance, whether the ex",
+              "sha256": "e947459a2a4091a5862ceb2034f2d3a8f02b6f8c3102013f096b8e3139625eb3"
+            }
+          },
+          {
+            "id": "tn5",
+            "kind": "case_name",
+            "quote": "Grenier",
+            "start": 13549,
+            "end": 13556,
+            "citationKey": "2005fca348",
+            "linkedContext": null,
+            "context": {
+              "start": 13229,
+              "end_exclusive": 13976,
+              "quote": "urce of the infestation that is the subject-matter of the contravention; and\n(c) the foreign exporter or the phytosanitary authorities referred to in paragraph (b) have given a written undertaking to comply with the provisions of the Act and all regulations and orders made thereunder.\nIV. Analysis\n[16] On the basis of Grenier, the Crown argues that Parrish’s action is a collateral attack on its administrative decisions to revoke the import licences and issue another one. It argues that “Parrish cannot succeed in its claims without attacking the lawfulness or validity of the revocation decisions” (R.F., at para. 23). According to the Crown, this attack on the licensing decisions must first occur by way of judicial review.\n[17] For the rea",
+              "sha256": "f2d506ccf431170fe9fb2e4313e2060a97cffa4d00718c6bc4ad486cd2a45590"
             }
           }
         ],
@@ -4169,7 +3790,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4310,7 +3931,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4440,7 +4061,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4658,7 +4279,7 @@
           "reviewed_collective_evidence_spans": 2
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4715,51 +4336,6 @@
           },
           {
             "id": "tn3",
-            "kind": "case_name",
-            "quote": "Public Service Alliance of Canada v. Library of Parliament",
-            "start": 3203,
-            "end": 3261,
-            "citationKey": "2016pslreb90",
-            "linkedContext": null,
-            "context": {
-              "start": 2883,
-              "end_exclusive": 3681,
-              "quote": " list of additional terms and conditions of employment that had been tentatively agreed to.\n6 The terms of reference for the arbitration board deemed to form the Public Service Labour Relations and Employment Board (PSLREB) were forwarded to the board members on February 10, 2016, by the Chairperson of the PSLREB (see Public Service Alliance of Canada v. Library of Parliament, 2016 PSLREB 14). On September 23, 2016, the Chairperson of the PSLREB rescinded the appointment of one of the arbitration board members (see Public Service Alliance of Canada v. Library of Parliament, 2016 PSLREB 91) and confirmed that the new panel was to render an arbitral award based on the matters set out as outstanding in paragraph 4 of the previous decision of February 10, 2016 (2016 PSLREB 14).\nB. Board File",
-              "sha256": "d75f0d0089370eb1ddeb2b73ef2a31add32def4aebbdadbe04fd0a931626e41b"
-            }
-          },
-          {
-            "id": "tn4",
-            "kind": "case_name",
-            "quote": "Public Service Alliance of Canada v. Library of Parliament",
-            "start": 3404,
-            "end": 3462,
-            "citationKey": "2016pslreb90",
-            "linkedContext": null,
-            "context": {
-              "start": 3084,
-              "end_exclusive": 3882,
-              "quote": "loyment Board (PSLREB) were forwarded to the board members on February 10, 2016, by the Chairperson of the PSLREB (see Public Service Alliance of Canada v. Library of Parliament, 2016 PSLREB 14). On September 23, 2016, the Chairperson of the PSLREB rescinded the appointment of one of the arbitration board members (see Public Service Alliance of Canada v. Library of Parliament, 2016 PSLREB 91) and confirmed that the new panel was to render an arbitral award based on the matters set out as outstanding in paragraph 4 of the previous decision of February 10, 2016 (2016 PSLREB 14).\nB. Board File No. 485-LP-56: Clerical and General Services and Library Technicians Sub-Group bargaining unit 7 On July 3, 2014, the bargaining agent served notice to bargain on behalf of employees in the Library Cl",
-              "sha256": "9bc4ce9ddce791caddedb219248b5250b47d9c6326a81f210356200d02d2dd33"
-            }
-          },
-          {
-            "id": "tn5",
-            "kind": "case_name",
-            "quote": "Public",
-            "start": 5339,
-            "end": 5345,
-            "citationKey": "2016pslreb90",
-            "linkedContext": null,
-            "context": {
-              "start": 5019,
-              "end_exclusive": 5765,
-              "quote": "suant to s. 51 of the PESRA. The employer also provided a list of additional terms and conditions of employment it wished to refer to arbitration.\n12 The terms of reference for the arbitration board deemed to form the PSLREB were forwarded to the board members on February 1, 2016, by the Chairperson of the PSLREB (see Public Service Alliance of Canada v. Library of Parliament, 2016 PSLREB 8). On September 23, 2016, the Chairperson of the PSLREB rescinded the appointment of one of the arbitration board members (2016 PSLREB 90) and confirmed that the new arbitration board was to render an arbitral award based on the matters set out as outstanding in paragraph 4 of the previous decision of February 1, 2016 (2016 PSLREB 8).\n13 On June 19, 2",
-              "sha256": "e2a183a634c8d3335ea26cc1ff65831b767d5eed1312970e8b49770212f5f04d"
-            }
-          },
-          {
-            "id": "tn6",
             "kind": "case_name",
             "quote": "Public Service Alliance of Canada",
             "start": 62461,
@@ -4847,15 +4423,13 @@
           "rule": "lightweight-exact-evidence-v2",
           "source_structure_engine_used": false,
           "semantic_gold": false,
-          "attribution_cue_rules": [
-            "party_attribution_cue"
-          ],
+          "attribution_cue_rules": [],
           "direct_history_cue_rules": [],
           "reviewed_multi_opinion_evidence_spans": 0,
           "reviewed_collective_evidence_spans": 2
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -4878,81 +4452,6 @@
               "end_exclusive": 130320,
               "quote": "e four decisions in Propane (Propane 1, at para. 48, rev’d on other grounds 2001 FCA 104, [2001] 3 F.C. 185 (“Propane 2”), leave to appeal to SCC refused, 28593 (September 13, 2001), redetermination, The Commissioner of Competition v. Superior Propane Inc., 2002 Comp. Trib. 16, 18 C.P.R. (4th) 417 (“Propane 3”), aff’d 2003 FCA 53, [2003] 3 F.C. 529 (“Propane 4”)). “The effects of any prevention or lessening of competition” must be demonstrated by the Commissioner on balance of probabilities (Propane 1, above, at para. 402; Propane 2, above, at para. 177, Propane 4, at para. 17). Her burden is to prove (i) the extent of the anti-competitive effects in question where they are quantifiable, even if only roughly so (Propane 4, at paras. 35 38), ",
               "sha256": "baa2d561bb1e3df7d2a2f5b7c74a87d1e76cd377983edf5c650630e122cbb37f"
-            }
-          },
-          {
-            "id": "tn1",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 20586,
-            "end": 20592,
-            "citationKey": "2003fca53",
-            "linkedContext": null,
-            "context": {
-              "start": 20266,
-              "end_exclusive": 21012,
-              "quote": "ibunal has concluded that soil contaminated with heavy-end hydrocarbons is not amenable to cost effective bioremediation because it is difficult, unpredictable, and very time consuming. Further, waste contaminated with metals and salts cannot be effectively bioremediated with technologies currently approved for use in Canada.\n[45] Once bioremediation is complete, an operator will normally hire a consultant to determine whether the Hazardous Waste can be certified as “delisted” in accordance with a delisting protocol. If so, there is no further liability associated with that particular waste.\n[46] Mr. Watson testified that his company, Integrated Resource Technologies Ltd. (“IRTL”), had successfully bioremediated hydrocarbon-contaminated",
-              "sha256": "e3d3ac6ce2e46342831016a3b179358b07dc69f4c9a607f0c2c52520d2c84596"
-            }
-          },
-          {
-            "id": "tn2",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 150842,
-            "end": 150848,
-            "citationKey": "2003fca53",
-            "linkedContext": null,
-            "context": {
-              "start": 150522,
-              "end_exclusive": 151268,
-              "quote": "s of gains include savings that result solely from a reduction in output, service, quality or product choice, as well as from increases in bargaining leverage and reductions in taxes. The fourth screen filters out claimed efficiency gains that would be achieved outside Canada and would not flow back to shareholders in Canada as well as any savings from operations in Canada that would flow through to foreign shareholders.\n[263] In the case at bar, the application of the first four screens does not result in the elimination of any of the claimed efficiencies.\n[264] The fifth screen filters out claimed efficiencies that either (a) would likely be attained through alternative means if the Tribunal were to make the order that it determines w",
-              "sha256": "c82746be126b6a2e8fa610136eedfa75ecad3229ecc71df5f97be75fdd4edc6c"
-            }
-          },
-          {
-            "id": "tn3",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 150891,
-            "end": 150897,
-            "citationKey": "2003fca53",
-            "linkedContext": null,
-            "context": {
-              "start": 150571,
-              "end_exclusive": 151317,
-              "quote": "m a reduction in output, service, quality or product choice, as well as from increases in bargaining leverage and reductions in taxes. The fourth screen filters out claimed efficiency gains that would be achieved outside Canada and would not flow back to shareholders in Canada as well as any savings from operations in Canada that would flow through to foreign shareholders.\n[263] In the case at bar, the application of the first four screens does not result in the elimination of any of the claimed efficiencies.\n[264] The fifth screen filters out claimed efficiencies that either (a) would likely be attained through alternative means if the Tribunal were to make the order that it determines would be necessary to ensure that the merger in qu",
-              "sha256": "91d8613027dbe6cb2d5a48c1269dd7ae924826a3fb5bd35093b3cbfb9ee27fb7"
-            }
-          },
-          {
-            "id": "tn4",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 206138,
-            "end": 206144,
-            "citationKey": "2003fca53",
-            "linkedContext": null,
-            "context": {
-              "start": 205818,
-              "end_exclusive": 206564,
-              "quote": "in. In the case at bar, this would include Complete’s Roll-off Bin Business, which was fully operational at the time of Complete’s acquisition by CCS. It would also include Complete’s management of municipal dumps.\nB. MARKET DEFINITION\n[360] Market definition has traditionally been a central part of merger analysis in Canada and abroad for several reasons. These include (i) helping to focus the assessment on products and locations that are close substitutes for the products and locations of the merging parties, (ii) helping to focus the assessment on the central issue of market power, (iii) helping to identify the merging parties’ competitors, (iv) helping to understand the basis for existing levels of price and non-price competition, a",
-              "sha256": "5513527706e494a4c2d5284519f75773251edc1e9423418df38429d1eff39321"
-            }
-          },
-          {
-            "id": "tn5",
-            "kind": "case_name",
-            "quote": "Canada",
-            "start": 235640,
-            "end": 235646,
-            "citationKey": "2003fca53",
-            "linkedContext": null,
-            "context": {
-              "start": 235320,
-              "end_exclusive": 236066,
-              "quote": "\n[406] Where the balancing weights tool does not facilitate a determination of the weights to be assigned to any identified socially adverse effects, other evidence may be relied upon to assist in this regard. For example, in Propane 3, the Tribunal relied upon Statistics Canada’s report entitled Family Expenditure in Canada, 1996, which suggested that only 4.7% of purchasers of bottled propane were from the lowest-income quintile, while 29.1% were from the highest- income quintile. The Tribunal ultimately determined that the redistributive effects of the merger on customers in the lowest-income quintile would be socially adverse, and included in its trade- off analysis an estimate of $2.6 million to reflect those adverse effects. Altho",
-              "sha256": "59e5c2f2a947ed3eabf18e604eb54fd9f4227bd62915dfb0002b6f2993933629"
             }
           }
         ],
@@ -5035,7 +4534,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5063,46 +4562,46 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)",
+            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General",
             "start": 0,
-            "end": 58,
+            "end": 57,
             "citationKey": "2007nssc291",
             "linkedContext": null,
             "context": {
               "start": 0,
-              "end_exclusive": 478,
-              "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\nCourt\nCourt of Appeal\nDate\n2010-04-06\nCitation\n2010 NSCA 28\nDocket\nCA 313566\nJudge/Registrar/Adjudicator\nMacDonald, J. Michael (Honourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA SC",
-              "sha256": "8f1252294043849d0f65290c082a53819c76625a9253d93f99ffcef427c1cab4"
+              "end_exclusive": 477,
+              "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\nCourt\nCourt of Appeal\nDate\n2010-04-06\nCitation\n2010 NSCA 28\nDocket\nCA 313566\nJudge/Registrar/Adjudicator\nMacDonald, J. Michael (Honourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA S",
+              "sha256": "f80ecae434ed52aa5ad8defed6f9099f90db36f87ec7e9a810ac08947dbe3a9e"
             }
           },
           {
             "id": "tn2",
             "kind": "case_name",
-            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)",
+            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General",
             "start": 351,
-            "end": 409,
+            "end": 408,
             "citationKey": "2007nssc291",
             "linkedContext": null,
             "context": {
               "start": 31,
-              "end_exclusive": 829,
-              "quote": "a Scotia (Attorney General)\nCourt\nCourt of Appeal\nDate\n2010-04-06\nCitation\n2010 NSCA 28\nDocket\nCA 313566\nJudge/Registrar/Adjudicator\nMacDonald, J. Michael (Honourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA SCOTIA COURT OF APPEAL\nCitation: Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\n2010 NSCA 28\nDate: 20100406\nDocket: CA 313566\nRegistry: Halifax\nBetween:\nSilver Sands Realty Ltd.\nAppellant\nv.\nThe Attorney General for the Province of\nNova Scotia, the Registrar General of Land Titles\nand Service Nova Scotia and Municipal Relations\nRespondents",
-              "sha256": "8e5f6abd596ec0fbcc141a58dd2dc26bbd2eabb32c48ce5b29eb75cd88e762c0"
+              "end_exclusive": 828,
+              "quote": "a Scotia (Attorney General)\nCourt\nCourt of Appeal\nDate\n2010-04-06\nCitation\n2010 NSCA 28\nDocket\nCA 313566\nJudge/Registrar/Adjudicator\nMacDonald, J. Michael (Honourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA SCOTIA COURT OF APPEAL\nCitation: Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\n2010 NSCA 28\nDate: 20100406\nDocket: CA 313566\nRegistry: Halifax\nBetween:\nSilver Sands Realty Ltd.\nAppellant\nv.\nThe Attorney General for the Province of\nNova Scotia, the Registrar General of Land Titles\nand Service Nova Scotia and Municipal Relations\nRespondent",
+              "sha256": "ddb5f5bf42c6866fb182a1d5c028b2b7645bc4dff121a2395521a8cb12f956a9"
             }
           },
           {
             "id": "tn3",
             "kind": "case_name",
-            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)",
+            "quote": "Silver Sands Realty Ltd. v. Nova Scotia (Attorney General",
             "start": 509,
-            "end": 567,
+            "end": 566,
             "citationKey": "2007nssc291",
             "linkedContext": null,
             "context": {
               "start": 189,
-              "end_exclusive": 987,
-              "quote": "nourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA SCOTIA COURT OF APPEAL\nCitation: Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\n2010 NSCA 28\nDate: 20100406\nDocket: CA 313566\nRegistry: Halifax\nBetween:\nSilver Sands Realty Ltd.\nAppellant\nv.\nThe Attorney General for the Province of\nNova Scotia, the Registrar General of Land Titles\nand Service Nova Scotia and Municipal Relations\nRespondents\nJudges: MacDonald, C.J.N.S.; Oland and Farrar, JJ.A.\nAppeal Heard: April 6, 2010, in Halifax, Nova Scotia\nWritten Judgment: April 12, 2010\nHeld: Appeal is di",
-              "sha256": "82097e01a7fa06aee9b8837d92e692238a3adee4883ad9930a009dab1dbda379"
+              "end_exclusive": 986,
+              "quote": "nourable Chief Justice) (CA); Oland, Linda L. (Honourable Justice); Farrar, David P.S. (Honourable Justice) (CA)\nDocument Type\nDecision\nRelations\nLibrary Sheet - Silver Sands Realty Ltd. v. Nova Scotia (Attorney General) - 2010 NSCA 28 - 2010-04-06 - Library Sheet\nDecision Content\nNOVA SCOTIA COURT OF APPEAL\nCitation: Silver Sands Realty Ltd. v. Nova Scotia (Attorney General)\n2010 NSCA 28\nDate: 20100406\nDocket: CA 313566\nRegistry: Halifax\nBetween:\nSilver Sands Realty Ltd.\nAppellant\nv.\nThe Attorney General for the Province of\nNova Scotia, the Registrar General of Land Titles\nand Service Nova Scotia and Municipal Relations\nRespondents\nJudges: MacDonald, C.J.N.S.; Oland and Farrar, JJ.A.\nAppeal Heard: April 6, 2010, in Halifax, Nova Scotia\nWritten Judgment: April 12, 2010\nHeld: Appeal is d",
+              "sha256": "40f21304be41ec6c76cc213e31a8c71dc030cd03c2ffa73b124d266c24da94f3"
             }
           }
         ],
@@ -5180,7 +4679,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5208,16 +4707,16 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "Soft-Moc Inc. v. Canada (National Revenue)",
+            "quote": "Soft-Moc Inc. v. Canada (National Revenue",
             "start": 0,
-            "end": 42,
+            "end": 41,
             "citationKey": "2013fc291",
             "linkedContext": null,
             "context": {
               "start": 0,
-              "end_exclusive": 462,
-              "quote": "Soft-Moc Inc. v. Canada (National Revenue)\nCourt (s) Database\nFederal Court of Appeal Decisions\nDate\n2014-01-21\nNeutral citation\n2014 FCA 10\nFile numbers\nA-116-13\nDecision Content\nDate: 20140121\nDocket:\nA-116-13\nCitation: 2014 FCA 10\nCORAM:\nSHARLOW J.A.\nWEBB J.A.\nNEAR J.A.\nBETWEEN:\nSOFT-MOC INC.\nAppellant\nand\nTHE MINISTER OF NATIONAL REVENUE\nAS REPRESENTED BY THE ATTORNEY GENERAL OF CANADA\nRespondent\nHeard at Toronto, Ontario, on January 21, 2014.\nJudgment d",
-              "sha256": "6ba84050694ab5cf0cfd38349812aa0962d805a6156818c0fe3161091a6b4b16"
+              "end_exclusive": 461,
+              "quote": "Soft-Moc Inc. v. Canada (National Revenue)\nCourt (s) Database\nFederal Court of Appeal Decisions\nDate\n2014-01-21\nNeutral citation\n2014 FCA 10\nFile numbers\nA-116-13\nDecision Content\nDate: 20140121\nDocket:\nA-116-13\nCitation: 2014 FCA 10\nCORAM:\nSHARLOW J.A.\nWEBB J.A.\nNEAR J.A.\nBETWEEN:\nSOFT-MOC INC.\nAppellant\nand\nTHE MINISTER OF NATIONAL REVENUE\nAS REPRESENTED BY THE ATTORNEY GENERAL OF CANADA\nRespondent\nHeard at Toronto, Ontario, on January 21, 2014.\nJudgment ",
+              "sha256": "0e8e734bab97db1551fd3b7b1f79aceffdf900f30e04072d421a941bc471c341"
             }
           }
         ],
@@ -5293,7 +4792,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5321,16 +4820,16 @@
           {
             "id": "tn1",
             "kind": "case_name",
-            "quote": "Bauer Hockey Ltd. v. Sport Maska Inc. (CCM Hockey)",
+            "quote": "Bauer Hockey Ltd. v. Sport Maska Inc. (CCM Hockey",
             "start": 0,
-            "end": 50,
+            "end": 49,
             "citationKey": "2020fc624",
             "linkedContext": null,
             "context": {
               "start": 0,
-              "end_exclusive": 470,
-              "quote": "Bauer Hockey Ltd. v. Sport Maska Inc. (CCM Hockey)\nCourt (s) Database\nFederal Court of Appeal Decisions\nDate\n2021-08-12\nNeutral citation\n2021 FCA 166\nFile numbers\nA-143-20\nDecision Content\nDate: 20210812\nDocket: A-143-20\nCitation: 2021 FCA 166\nCORAM:\nDE MONTIGNY J.A.\nRIVOALEN J.A.\nLOCKE J.A.\nBETWEEN:\nBAUER HOCKEY LTD.\nAppellant\nand\nSPORT MASKA INC. d.b.a. CCM HOCKEY\nRespondent\nHeard by online video conference hosted by the registry, on June 8, 2021.\nJudgment deliver",
-              "sha256": "2f4f0f91c1aedd56186fa12e313d071324aee2089227152361d6181e1d3180da"
+              "end_exclusive": 469,
+              "quote": "Bauer Hockey Ltd. v. Sport Maska Inc. (CCM Hockey)\nCourt (s) Database\nFederal Court of Appeal Decisions\nDate\n2021-08-12\nNeutral citation\n2021 FCA 166\nFile numbers\nA-143-20\nDecision Content\nDate: 20210812\nDocket: A-143-20\nCitation: 2021 FCA 166\nCORAM:\nDE MONTIGNY J.A.\nRIVOALEN J.A.\nLOCKE J.A.\nBETWEEN:\nBAUER HOCKEY LTD.\nAppellant\nand\nSPORT MASKA INC. d.b.a. CCM HOCKEY\nRespondent\nHeard by online video conference hosted by the registry, on June 8, 2021.\nJudgment delive",
+              "sha256": "acc3317c7aa09e0efb461e455e4c7a49e1aea84933adb55230a4516f68c916fa"
             }
           },
           {
@@ -5454,7 +4953,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5567,7 +5066,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5682,7 +5181,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true
@@ -5812,7 +5311,7 @@
           "reviewed_collective_evidence_spans": 0
         },
         "occurrence_contract": {
-          "detector": "lightweight-literal-citation-and-name-v1",
+          "detector": "a2aj-case-target-occurrences-v5",
           "source_view": "byte-identical-source-text",
           "citation_and_case_name_offsets_frozen": true,
           "linked_footnote_context_deferred": true

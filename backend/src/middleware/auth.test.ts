@@ -24,7 +24,9 @@ const db = vi.hoisted(() => ({
   }),
 }));
 vi.mock("../lib/supabase", () => ({ createServerSupabase: () => db }));
-vi.mock("../lib/userLookup", () => ({ syncProfileEmail: vi.fn(async () => null) }));
+vi.mock("../lib/userLookup", () => ({
+  syncProfileIdentity: vi.fn(async () => state.profile.mfa_on_login),
+}));
 
 import { requireAuth, requireMfaIfEnrolled } from "./auth";
 

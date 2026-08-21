@@ -3,12 +3,17 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  CASE_TARGET_OCCURRENCE_VERSION,
+  detectCaseTargetOccurrences,
+  type CaseTargetOccurrence,
+} from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
 import { citationLookupKey } from "../../../backend/src/lib/citationKey";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
+import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
 type Target = { document_id: number | null; citation: string; citation_aliases: string[]; name: string | null };
-type CaseTargetOccurrence = { id: string; kind: "citation" | "case_name"; quote: string; start: number; end: number; citationKey: string; linkedContext: null };
 type Occurrence = CaseTargetOccurrence & { context: { start: number; end_exclusive: number; quote: string; sha256: string } };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,7 +27,6 @@ const CONTEXT_BEFORE = 320;
 const CONTEXT_AFTER = 420;
 const EXPECTED_MISSING = ["CITT", "CMAC", "CT", "NSFC", "NSPC", "NSSC", "NSSM", "OHSTC", "OIC", "PSDPT", "RAD", "RLLR", "RPD", "SCT", "TATC"];
 const EXPECTED_FEATURES = { multi_opinion: 4, direct_history_cue: 6, explicit_treatment_cue: 3, attribution_cue: 1, collective_tribunal: 2, short_decision: 2, long_decision: 2 };
-const GENERIC_PARTY_WORDS = new Set(["applicant", "association", "board", "canada", "commission", "company", "corporation", "defendant", "director", "estate", "minister", "ontario", "plaintiff", "quebec", "respondent", "tribunal", "union"]);
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -36,70 +40,12 @@ function rank(...parts: Array<string | number | null>) {
   return sha256([SEED, "challenge-extension", ...parts].join(":"));
 }
 
-function phraseWords(value: string) {
-  return value.match(/[\p{L}\p{N}]+/gu) ?? [];
-}
-
-function targetNamePhrases(name: string | null) {
-  if (!name?.trim()) return [];
-  const full = name.trim();
-  const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
-  const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
-  const party = (crown ? sides[1] : sides[0]).replace(/^the\s+/iu, "").replace(/\s*\([^)]*\)\s*$/u, "").replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "").trim();
-  const words = phraseWords(party);
-  const first = words[0] ?? "";
-  const short = sides.length === 1 ? words.slice(0, 2) : first.length >= 5 && !GENERIC_PARTY_WORDS.has(first.toLocaleLowerCase()) ? [first] : words.slice(0, 2);
-  return [...new Set([full, party, short.join(" ")].map((value) => value.trim()).filter((value) => phraseWords(value).length > 0))];
-}
-
-function shortNameReferenceCue(text: string, start: number, end: number) {
-  const before = text.slice(Math.max(0, start - 120), start);
-  const after = text.slice(end, Math.min(text.length, end + 140));
-  return /\b(?:in|see|cf\.?|following|appl(?:y|ied)|distinguish(?:ed|ing)?|consider(?:ed|ing)|discuss(?:ed|ing)|our\s+decision\s+in|as\s+(?:held|stated|explained)\s+in)\s*$/iu.test(before)
-    || /^\s*,?\s*(?:supra|above|below|ibid\.?|at\s+paras?\.?|held\b|holds?\b|confirm(?:ed|s)?\b|establish(?:ed|es)?\b|requires?\b|stands?\s+for\b|makes?\s+clear\b)/iu.test(after);
-}
-
-function literalSpans(text: string, phrase: string) {
-  const spans: Array<{ start: number; end: number }> = [];
-  for (let start = text.indexOf(phrase); start >= 0; start = text.indexOf(phrase, start + 1)) {
-    const end = start + phrase.length;
-    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
-    spans.push({ start, end });
-  }
-  if (spans.length) return spans;
-  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/\s+/gu, "\\s+");
-  for (const match of text.matchAll(new RegExp(escaped, "giu"))) {
-    const start = match.index;
-    const end = start + match[0].length;
-    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
-    spans.push({ start, end });
-  }
-  return spans;
-}
-
-function lightweightOccurrences(text: string, target: Target): CaseTargetOccurrence[] {
-  const citations: Array<{ quote: string; start: number; end: number }> = [];
-  for (const surface of [target.citation, ...target.citation_aliases]) {
-    for (const span of literalSpans(text, surface)) {
-      if (!citations.some(({ start, end }) => start === span.start && end === span.end)) citations.push({ quote: text.slice(span.start, span.end), ...span });
-    }
-  }
-  citations.sort((left, right) => left.start - right.start || left.end - right.end);
-  const citationOccurrences = citations.map((match, index): CaseTargetOccurrence => ({ id: `tm${index + 1}`, kind: "citation", ...match, citationKey: citationLookupKey(match.quote), linkedContext: null }));
-  const fullName = target.name?.trim() ?? "";
-  const nameSpans = targetNamePhrases(target.name).flatMap((phrase) => literalSpans(text, phrase).map((span) => ({ ...span, phrase })))
-    .filter(({ start, end, phrase }) => phrase === fullName || shortNameReferenceCue(text, start, end))
-    .filter(({ start, end }) => !citations.some((citation) => start < citation.end && end > citation.start))
-    .filter(({ end }) => !citations.some((citation) => citation.start >= end && citation.start - end <= 180 && !text.slice(end, citation.start).includes("\n") && !/[!?]/u.test(text.slice(end, citation.start))))
-    .sort((left, right) => left.start - right.start || right.end - left.end);
-  const names = [...new Map(nameSpans.map(({ start, end }) => [`${start}:${end}`, { start, end }])).values()]
-    .filter((span, index, spans) => !spans.some((other, otherIndex) => otherIndex !== index && other.start === span.start && other.end > span.end))
-    .sort((left, right) => left.start - right.start || left.end - right.end);
-  return [...citationOccurrences, ...names.map((span, index): CaseTargetOccurrence => ({ id: `tn${index + 1}`, kind: "case_name", quote: text.slice(span.start, span.end), ...span, citationKey: citationLookupKey(target.citation), linkedContext: null }))];
-}
-
 function expectedOccurrences(text: string, target: Target): Occurrence[] {
-  return lightweightOccurrences(text, target).map((occurrence) => {
+  return detectCaseTargetOccurrences(createTextSourceDoc(text), {
+    citation: target.citation,
+    citationAliases: target.citation_aliases,
+    name: target.name,
+  }).map((occurrence) => {
     const start = Math.max(0, occurrence.start - CONTEXT_BEFORE);
     const end = Math.min(text.length, occurrence.end + CONTEXT_AFTER);
     const quote = text.slice(start, end);
@@ -193,7 +139,7 @@ async function main() {
     assert(document.dataset === pair.source.dataset && document.citation === pair.source.citation && document.name === pair.source.name, `${label}: source identity changed`);
     assert((document.date?.slice(0, 10) ?? null) === pair.source.date && document.language === pair.source.language && document.url === pair.source.url, `${label}: source metadata changed`);
     assert(document.text.length === pair.selection_receipt.source_chars && sha256(document.text) === pair.selection_receipt.source_text_sha256, `${label}: source bytes changed`);
-    assert(pair.selection_receipt.occurrence_contract.detector === "lightweight-literal-citation-and-name-v1" && pair.selection_receipt.occurrence_contract.citation_and_case_name_offsets_frozen === true, `${label}: occurrence contract changed`);
+    assert(pair.selection_receipt.occurrence_contract.detector === CASE_TARGET_OCCURRENCE_VERSION && pair.selection_receipt.occurrence_contract.citation_and_case_name_offsets_frozen === true, `${label}: occurrence contract changed`);
     assert(pair.selection_receipt.classification.source_structure_engine_used === false && pair.selection_receipt.classification.semantic_gold === false, `${label}: receipt claims unperformed inference`);
     assert(pair.selection_receipt.evaluation_stratum === evaluationStratum(pair), `${label}: evaluation stratum changed`);
     assert(pair.selection_receipt.evaluation_split_rank_sha256 === rank("evaluation-pair", evaluationStratum(pair), pair.challenge_id, pair.document_id), `${label}: evaluation rank changed`);

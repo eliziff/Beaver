@@ -21,7 +21,7 @@ const modeFiles = allow(
 );
 const adapterFiles = allow(
   ["backend/src", "runtime middleware/auth routes/user"],
-  ["backend/src/lib", "access audit draftingStyleStore filesystemObjectStorage jobQueue pdfJobs postgresChatFeatures providerSessionStore relationalDatabase relationalRepositories sqlitePersistence storage supabase userApiKeys userDataCleanup userDataExport userLookup userSettings"],
+  ["backend/src/lib", "access audit draftingStyleStore filesystemObjectStorage jobQueue pdfJobs postgresChatFeatures providerSessionStore relationalDatabase relationalRepositories storage supabase userApiKeys userDataCleanup userDataExport userLookup userSettings"],
   ["backend/src/lib/mcp", "oauth servers types"],
   ["frontend/src/app", "(pages)/account/security/page components/account/AuthPage components/popups/MfaVerificationPopup contexts/AuthContext", "tsx"],
   ["frontend/src/app/lib", "beaverApi supabase"],

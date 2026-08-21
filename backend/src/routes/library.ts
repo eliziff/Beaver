@@ -13,11 +13,8 @@ import {
 } from "../lib/normalize";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { singleFileUpload } from "../lib/upload";
-import {
-  documentProjectionService,
-  type PdfLocatorKind,
-} from "../lib/documentProjectionService";
-import { enqueuePdfReprocess, preparePdf } from "../lib/pdfJobs";
+import { documentProjectionService } from "../lib/documentProjectionService";
+import { enqueuePdfReprocess } from "../lib/pdfJobs";
 import {
   fixDocumentSupras,
   inspectDocxAutomation,
@@ -212,53 +209,6 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       file.bytes, file.version.source_sha256,
     ) };
   };
-
-  router.get("/:kind/documents/:documentId/pdf-parse", libraryRoute(async (req, res, scope) => {
-    const file = await pdf(scope, req.params.documentId, req.query.version_id);
-    const state = await documentProjectionService.pdfState({
-      documentId: req.params.documentId,
-      versionId: file.version.id,
-      sourcePath: file.path,
-      sourceSha256: file.version.source_sha256,
-    });
-    if (!state) reject(404, "No structural PDF parse state exists for this version");
-    res.json(state);
-  }));
-
-  router.post("/:kind/documents/:documentId/lookup", libraryRoute(async (req, res, scope) => {
-    const file = await pdf(scope, req.params.documentId, req.body?.version_id);
-    const cacheKey = await preparePdf({ userId: scope.userId,
-      documentId: req.params.documentId, versionId: file.version.id,
-      sourceSha256: file.version.source_sha256 });
-    const lookup = await documentProjectionService.lookupPdf(file.path, {
-      locatorKind: req.body?.locator_kind as PdfLocatorKind,
-      locator: typeof req.body?.locator === "string" ? req.body.locator : "",
-      endLocator: typeof req.body?.end_locator === "string" ? req.body.end_locator : undefined,
-      contextBlocks: typeof req.body?.context_blocks === "number" ? req.body.context_blocks : undefined,
-      page: typeof req.body?.page === "number" ? req.body.page : undefined,
-      occurrence: typeof req.body?.occurrence === "number" ? req.body.occurrence : undefined,
-    }, {
-      cacheKey,
-      documentId: req.params.documentId,
-      versionId: file.version.id,
-    });
-    res.status(lookup.status === "invalid" ? 400 : 200).json(lookup);
-  }));
-
-  router.post("/:kind/evidence/rehydrate", libraryRoute(async (req, res, scope) => {
-    const handle = typeof req.body?.handle === "string" ? req.body.handle.trim() : "";
-    if (!handle) reject(400, "handle is required");
-    const receipt = await documentProjectionService.readPdfEvidence(handle).catch((error) =>
-      reject((error as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 409,
-        (error as NodeJS.ErrnoException).code === "ENOENT"
-          ? "PDF evidence receipt not found" : "PDF evidence receipt is invalid"));
-    try {
-      const file = await pdf(scope, receipt.source.document_id, receipt.source.version_id);
-      res.json(await documentProjectionService.rehydratePdfEvidence(file.path, handle));
-    } catch {
-      reject(409, "PDF evidence source or artifact is unavailable");
-    }
-  }));
 
   router.post("/:kind/documents/:documentId/actions/retry-pdf-parse",
     libraryRoute(async (req, res, scope) => {

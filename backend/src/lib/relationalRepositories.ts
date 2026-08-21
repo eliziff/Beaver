@@ -19,6 +19,8 @@ import type { LibraryFolder, LibraryRepository, LibraryScope } from "./librarySt
 import { normalizeDocumentMetadata, normalizeDocumentNotes } from "./normalize";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import {
+  decodeJson as decode,
+  encodeJson as encode,
   relationalDatabase,
   sql,
   type RelationalDatabase,
@@ -42,12 +44,6 @@ import { enqueuePdfPreparation } from "./pdfJobs";
 type Row = Record<string, any>;
 const now = () => new Date().toISOString();
 const email = (scope: ApplicationScope) => scope.userEmail?.trim().toLowerCase() || "";
-const encode = (value: unknown) => JSON.stringify(value ?? null);
-const decode = <T>(value: unknown, fallback: T): T => {
-  if (typeof value !== "string") return value === null || value === undefined
-    ? fallback : value as T;
-  try { return JSON.parse(value) as T; } catch { return fallback; }
-};
 const pdfParseState = (row: Row): DocumentParseState | null => {
   const status = row.pdf_job_status;
   if (typeof status !== "string") return null;
@@ -812,11 +808,8 @@ export const tabularRepository: TabularRepository = {
   },
   async recordGeneration(scope, input) {
     const db = await relationalDatabase();
-    if (db.engine === "sqlite") return;
-    const [{ recordAudit }, { createServerSupabase }] = await Promise.all([
-      import("./audit"), import("./supabase"),
-    ]);
-    await recordAudit(createServerSupabase(), { userId: scope.userId,
+    const { recordAudit } = await import("./audit");
+    await recordAudit(db, { userId: scope.userId,
       userEmail: scope.userEmail, action: "tabular.generated",
       ...(input.failed ? { status: "failed" as const } : {}), title: input.title,
       surface: "tabular", projectId: input.projectId, reviewId: input.reviewId,

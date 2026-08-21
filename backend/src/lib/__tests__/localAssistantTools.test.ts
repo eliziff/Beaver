@@ -126,7 +126,6 @@ async function expectReadRecipesAccepted(
 
 afterEach(async () => {
   try {
-    const store = await import("../sqlitePersistence");
     await (await import("../relationalDatabase")).closeRelationalDatabase();
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
@@ -134,7 +133,6 @@ afterEach(async () => {
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
-  vi.doUnmock("../sqlitePersistence");
   vi.doUnmock("../legalStructureSidecar");
   vi.doUnmock("../chat/tools/sourceSearchTools");
   vi.doUnmock("node:fs/promises");

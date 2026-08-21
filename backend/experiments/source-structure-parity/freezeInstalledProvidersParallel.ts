@@ -38,7 +38,9 @@ const output = path.resolve(args.get("output") ?? path.join(
   __dirname, "results", "installed-provider-freeze-candidate",
 ));
 const workers = Number(args.get("workers") ?? 1);
-if (workers !== 1) throw new Error("The bounded freeze permits one persistent sidecar per provider");
+if (!Number.isInteger(workers) || workers < 1 || workers > 8) {
+  throw new Error("workers must be an integer from 1 through 8");
+}
 const requiredMib = Math.max(0, Number(args.get("require-mib-s") ?? 50));
 const maxWallMs = Math.max(1, Number(args.get("max-wall-ms") ?? 600_000));
 const limit = Math.max(0, Number(args.get("limit") ?? 0));
@@ -49,7 +51,6 @@ const providers = (args.get("providers") ?? "a2aj,courtlistener,journal")
     ["a2aj", "courtlistener", "journal"].includes(value),
   );
 if (!providers.length) throw new Error("At least one installed provider is required");
-if (!limit && providers.length !== 3) throw new Error("A full freeze requires every provider");
 mkdirSync(output, { recursive: true });
 
 function atomicJson(filename: string, value: unknown) {
@@ -72,7 +73,8 @@ function forwarded(provider: Provider) {
     "journal-contract-root", "limit"]
     .flatMap((key) => args.has(key) ? [`--${key}`, args.get(key)!] : [])
     .concat(["--batch", args.get(`${provider}-batch`) ?? args.get("batch") ??
-      (provider === "journal" ? "25" : "1000")]);
+      (provider === "journal" ? "25" : "1000")])
+    .concat(args.has("retain-structure") ? ["--retain-structure"] : []);
 }
 function child(provider: Provider, shard: number) {
   const shardOutput = path.join(output, provider, String(shard));
@@ -112,11 +114,11 @@ function child(provider: Provider, shard: number) {
 async function main() {
 const wallMs: Record<Provider, number> = { a2aj: 0, courtlistener: 0, journal: 0 };
 const runStarted = performance.now();
-await Promise.all(providers.map(async (provider) => {
+for (const provider of providers) {
   const started = performance.now();
   await Promise.all(Array.from({ length: workers }, (_value, shard) => child(provider, shard)));
   wallMs[provider] = performance.now() - started;
-}));
+}
 const summaries = providers.flatMap((provider) =>
   Array.from({ length: workers }, (_value, shard) => {
     const directory = path.join(output, provider, String(shard));
@@ -190,7 +192,7 @@ const aggregate = Object.fromEntries(providers.map((provider) => {
 })) as Record<Provider, Counts>;
 const artifactBytes = summaries.reduce((sum, item) =>
   sum + item.summary.parts.reduce((partSum, part) => partSum + part.bytes, 0), 0);
-if (!limit) {
+if (!limit && providers.includes("journal")) {
   const journal = aggregate.journal;
   const matchedContracts = first.inventory.journal.final_contracts -
     first.inventory.journal.orphan_final_contracts;

@@ -92,16 +92,19 @@ for (const path of ["/single-documents", "/library/:kind/documents",
 api.put("/single-documents/:documentId/versions/:versionId/file", uploadLimiter);
 for (const path of ["/user/export", "/user/chats/export",
   "/user/tabular-reviews/export", "/tabular-review/:reviewId/export",
-  "/workflows/:workflowId/export"]) api.get(path, exportLimiter);
-api.post("/single-documents/download-zip", exportLimiter);
-if (runtime.mode === "cloud") api.get("/audit/export", exportLimiter);
+  "/workflows/:workflowId/export"]) api.get(path, exportLimiter, workSlot);
+api.post("/single-documents/download-zip", exportLimiter, workSlot);
+api.get("/audit/export", exportLimiter, workSlot);
 for (const path of ["/user/account", "/user/chats", "/user/projects",
   "/user/tabular-reviews"]) api.delete(path, dataDeleteLimiter);
 api.get("/user/lookup", lookupLimiter);
 for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
-  "/user/mcp-connectors/:connectorId/refresh-tools",
+  "/user/mcp-connectors/:connectorId/refresh-tools", "/sources",
+  "/library/:kind/documents/:documentId/actions/retry-pdf-parse",
   "/table-of-authorities/jobs"])
   api.post(path, lookupLimiter, workSlot);
+for (const path of ["/sources/coverage", "/sources/search", "/sources/document",
+  "/sources/:referenceId/document"]) api.get(path, lookupLimiter, workSlot);
 
 api.use(
   "/table-of-authorities/workspace",
@@ -147,9 +150,8 @@ api.use(
 );
 api.use(
   "/sources",
-  lazyRouter(() =>
-    import("./routes/legalLibrary").then((mod) => mod.legalLibraryRouter),
-  ),
+  lazyRouter(async () => (await import("./routes/legalLibrary"))
+    .createLegalLibraryRouter(await runtime.legalSources())),
 );
 api.use(
   "/library",
@@ -177,12 +179,8 @@ api.use(
     return createWorkflowsRouter(workflows.repository, workflows.collaboration);
   }),
 );
-if (runtime.mode === "cloud") {
-  api.use(
-    "/audit",
-    lazyRouter(() => import("./routes/audit").then((mod) => mod.auditRouter)),
-  );
-}
+api.use("/audit", lazyRouter(async () => (await import("./routes/audit"))
+  .createAuditRouter(await runtime.audit())));
 const userRouter = lazyRouter(() =>
   import("./routes/user").then((mod) => mod.userRouter),
 );

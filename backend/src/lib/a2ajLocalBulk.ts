@@ -19,6 +19,7 @@ const documentSectionMaps = new WeakMap<
   A2AJDocument,
   Record<string, string>
 >();
+const documentSourceIds = new WeakMap<A2AJDocument, string>();
 const EMPTY_STRUCTURE: A2AJStructureSummary = {
   status: "unavailable",
   source: "flat_text",
@@ -29,6 +30,10 @@ export function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
   return legalProviderDatabase("a2aj", "a2aj.sqlite");
+}
+
+export function a2ajSourceDocCachePath() {
+  return legalProviderDatabase("a2aj", "sourcedocs.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
@@ -86,7 +91,9 @@ function sectionMap(row: Row, language: Language) {
   }
 }
 
-function document(row: Row, language: Language): A2AJDocument | null {
+export function a2ajDocumentFromRow(
+  row: Record<string, unknown>, language: Language,
+): A2AJDocument | null {
   const requestedText = languageField(row, "unofficial_text", language, false);
   const actualLanguage = requestedText
     ? language
@@ -114,6 +121,9 @@ function document(row: Row, language: Language): A2AJDocument | null {
     structure: EMPTY_STRUCTURE,
   };
   if (mappedSections) documentSectionMaps.set(document, mappedSections);
+  const sourceId = Number(row.id);
+  if (Number.isSafeInteger(sourceId) && sourceId > 0)
+    documentSourceIds.set(document, `${sourceId}:${actualLanguage}`);
   return document;
 }
 
@@ -138,7 +148,7 @@ export function fetchLocalA2AJDocumentById(args: {
       )
       .get(args.id, args.docType ?? "cases") as Row | undefined;
     const result = row
-      ? document(row, args.language === "fr" ? "fr" : "en")
+      ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en")
       : null;
     if (!result) return null;
     const maxChars = boundedSize(
@@ -189,7 +199,7 @@ export function fetchLocalA2AJDocumentsByIds(args: {
       ).all(...chunk, docType) as Row[]).map((row) => [Number(row.id), row]));
       for (const id of chunk) {
         const row = rows.get(id);
-        const result = row ? document(row, language) : null;
+        const result = row ? a2ajDocumentFromRow(row, language) : null;
         if (!result) continue;
         if (result.text.length > maxChars) {
           result.text = result.text.slice(0, maxChars);
@@ -203,6 +213,10 @@ export function fetchLocalA2AJDocumentsByIds(args: {
 
 export function getLocalA2AJSectionMap(document: A2AJDocument) {
   return documentSectionMaps.get(document) ?? null;
+}
+
+export function getLocalA2AJSourceId(document: A2AJDocument) {
+  return documentSourceIds.get(document) ?? null;
 }
 
 function addDatasetFilter(
@@ -251,7 +265,7 @@ export function fetchLocalA2AJDocument(args: {
       )
       .get(...values) as Row | undefined;
     const result = row
-      ? document(row, args.language === "fr" ? "fr" : "en")
+      ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en")
       : null;
     if (!result) return null;
     const maxChars = boundedSize(

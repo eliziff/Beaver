@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
-import { fetchLocalA2AJDocument, getLocalA2AJSectionMap,
+import { a2ajLocalBulkPath, a2ajSourceDocCachePath, fetchLocalA2AJDocument, getLocalA2AJSectionMap,
+  getLocalA2AJSourceId,
   searchLocalA2AJ } from "../a2ajLocalBulk";
 import { citationAuthorityMetricsBatch } from "../caselawCitator";
 import { sha256 } from "../hash";
@@ -17,6 +18,7 @@ import {
   type SourceDocLocatorKind,
   type SourceDocLookup,
 } from "../sourceDoc";
+import { readCachedSourceDoc } from "../sourceDocCache";
 import { summarizeA2AJSourceDoc, type A2AJStructureSummary } from "../sourceDocA2AJ";
 import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
@@ -188,6 +190,23 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
 async function sourceDoc(document: A2AJDocument) {
   const cached = sourceDocs.get(document);
   if (cached) return cached;
+  const sourceId = getLocalA2AJSourceId(document);
+  if (sourceId) {
+    try {
+      const stored = readCachedSourceDoc(
+        a2ajSourceDocCachePath(), a2ajLocalBulkPath(), "a2aj", sourceId, document.text,
+      );
+      if (stored) {
+        sourceDocs.set(document, Promise.resolve(stored));
+        resolvedSourceDocs.set(document, stored);
+        document.text = stored.text;
+        document.structure = summarizeA2AJSourceDoc(stored);
+        return stored;
+      }
+    } catch {
+      // An API-only or not-yet-enriched provider database takes the same direct path below.
+    }
+  }
   const pending = deriveA2AJSourceDoc({
     citation: document.citation,
     docType: document.docType ?? "cases",
@@ -196,6 +215,7 @@ async function sourceDoc(document: A2AJDocument) {
     alternateCitation: document.alternateCitation,
     dataset: document.dataset,
     name: document.name,
+    sectionMap: getLocalA2AJSectionMap(document) ?? sectionMaps.get(document),
   });
   sourceDocs.set(document, pending);
   const compiled = await pending;
@@ -617,7 +637,7 @@ const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
       const artifact = await sourceDoc(found);
       return [{ source: reference(found, request.source.kind as "case" | "legislation"),
         locator: { requested: null, label: "document" }, role: "document",
-        text: artifact.text, textSha256: sha256(artifact.text),
+        text: artifact.text, textSha256: artifact.revision,
         documentSha256: artifact.revision, revision: artifact.revision,
         blockArtifact: artifact, documentArtifact: artifact, native: found }];
     }

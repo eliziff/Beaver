@@ -4,11 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CASE_TARGET_OCCURRENCE_VERSION,
+  detectCaseTargetOccurrences,
+} from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
+import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
 import { citationLookupKey } from "../../../backend/src/lib/citationKey";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
+import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,11 +25,25 @@ function sha256(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function expectedOccurrences(text: string, target: Record<string, any>) {
+  return detectCaseTargetOccurrences(createTextSourceDoc(text), {
+    citation: target.citation,
+    citationAliases: target.citation_aliases,
+    name: target.name,
+  }).map((occurrence) => {
+    const start = Math.max(0, occurrence.start - 320);
+    const end = Math.min(text.length, occurrence.end + 420);
+    const quote = text.slice(start, end);
+    return { ...occurrence, context: { start, end_exclusive: end, quote, sha256: sha256(quote) } };
+  });
+}
+
 async function main() {
   const file = path.resolve(process.argv[2] ?? path.join(ROOT, "case-target-challenge-15.json"));
   const manifest = JSON.parse(await readFile(file, "utf8")) as Record<string, any>;
   const pairs = manifest.pairs as Array<Record<string, any>>;
-  assert(manifest.format === "a2aj-case-target-challenge-v1", "wrong manifest format");
+  assert(manifest.format === "a2aj-case-target-challenge-v2", "wrong manifest format");
+  assert(manifest.selection.occurrence_contract_version === CASE_TARGET_OCCURRENCE_VERSION, "wrong occurrence contract version");
   assert(Array.isArray(pairs) && pairs.length === 15 && manifest.requested_pairs === 15, "challenge must contain exactly 15 pairs");
   assert(new Set(pairs.map(({ document_id }) => document_id)).size === 15, "citing decisions must be unique");
 
@@ -60,10 +79,14 @@ async function main() {
     assert(targetKeys.get(pair.target.document_id), `${label}: target citation no longer resolves to target document`);
 
     const occurrences = pair.selection_receipt.target_occurrences as Array<Record<string, any>>;
-    assert(occurrences.length > 0, `${label}: no target occurrence evidence`);
-    occurrences.forEach((occurrence, index) => {
-      assert(occurrence.id === `tm${index + 1}`, `${label}: target occurrence IDs are unstable`);
-      assert(document.text.slice(occurrence.start, occurrence.end_exclusive) === occurrence.quote, `${label}: target occurrence ${occurrence.id} moved`);
+    assert(pair.selection_receipt.occurrence_contract.detector === CASE_TARGET_OCCURRENCE_VERSION, `${label}: occurrence detector changed`);
+    assert(pair.selection_receipt.occurrence_contract.citation_and_case_name_offsets_frozen === true, `${label}: occurrence offsets are not frozen`);
+    assert(pair.selection_receipt.occurrence_contract.linked_footnote_context_frozen === true, `${label}: linked context is not frozen`);
+    const expected = expectedOccurrences(document.text, pair.target);
+    assert(expected.some(({ kind }) => kind === "citation"), `${label}: target citation disappeared`);
+    assert(JSON.stringify(occurrences) === JSON.stringify(expected), `${label}: target occurrence receipt changed`);
+    occurrences.forEach((occurrence) => {
+      assert(document.text.slice(occurrence.start, occurrence.end) === occurrence.quote, `${label}: target occurrence ${occurrence.id} moved`);
       const context = occurrence.context;
       assert(document.text.slice(context.start, context.end_exclusive) === context.quote, `${label}: target context ${occurrence.id} moved`);
       assert(sha256(context.quote) === context.sha256, `${label}: target context ${occurrence.id} hash changed`);

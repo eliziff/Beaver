@@ -10,6 +10,7 @@ import { isLocalRuntime } from "./lib/localMode";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
 import { publicOrigin } from "./lib/publicOrigin";
+import { safeErrorLog } from "./lib/safeError";
 
 const lazy = <T>(load: () => Promise<T>) => {
   let value: Promise<T> | undefined;
@@ -32,9 +33,11 @@ const connectors = lazy(async () => {
   return createMcpApplication(await relationalDatabase());
 });
 const persistence = lazy(async () => {
-  const repositories = await import("./lib/relationalRepositories");
-  const features = local ? (await import("./lib/sqliteChatFeatures")).sqliteChatFeatures
-    : (await import("./lib/postgresChatFeatures")).postgresChatFeatures;
+  const [repositories, shared] = await Promise.all([
+    import("./lib/relationalRepositories"), import("./lib/providerSessionFeatures"),
+  ]);
+  const features = { ...shared.providerSessionFeatures, ...(local ? {}
+    : (await import("./lib/postgresChatFeatures")).postgresChatFeatures) };
   const objects = local
     ? (await import("./lib/filesystemObjectStorage")).filesystemDocumentObjects()
     : await import("./lib/storage").then((storage) => storage.scopeObjectStorage(
@@ -69,6 +72,10 @@ const workflows = lazy(async () => {
   const ports = await persistence();
   return { repository: ports.workflows, collaboration: ports.workflowCollaboration };
 });
+const legalSources = lazy(async () => (await import("./lib/legalSourceStore"))
+  .createLegalSourceStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
+const audit = lazy(async () => (await import("./lib/audit"))
+  .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 const jobs = lazy(async () => {
   const [{ startJobWorker }, { pdfJobHandlers }, { providerPdfJobHandlers }, documentStore] = await Promise.all([
     import("./lib/jobQueue"),
@@ -81,13 +88,6 @@ const jobs = lazy(async () => {
     ...providerPdfJobHandlers(),
   });
 });
-async function modelApiKeys(userId: string) {
-  if (local) return undefined;
-  const [{ getUserModelSettings }, { createServerSupabase }] = await Promise.all([
-    import("./lib/userSettings"), import("./lib/supabase"),
-  ]);
-  return (await getUserModelSettings(userId, createServerSupabase())).api_keys;
-}
 async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContext>[]> {
   if (!capabilities.connectors) return [];
   const mcp = await connectors();
@@ -104,7 +104,13 @@ const chat = lazy(async () => {
   const [chatStore, documentStore, libraryStore, projectStore, tabularStore, ports] = await Promise.all([chats(), documents(), library(), projects(), tabular(), persistence()]);
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, tabular: tabularStore,
-    features: { ...ports.features, async load(auth) {
+    features: { ...ports.features, audit(auth, input) {
+      void audit().then((store) => store.recordChatTurn({ userId: auth.userId,
+        userEmail: auth.userEmail, chatId: input.chatId, projectId: input.projectId,
+        title: input.title, model: input.model,
+        ...(input.status ? { status: input.status } : {}) }, input.events))
+        .catch((error) => console.error("[audit] unavailable", safeErrorLog(error)));
+    }, async load(auth) {
       const loadedFeatures: ReturnType<ChatApplicationFeatures["load"]> =
         ports.features.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
       const [loaded, custom, extraTools, { SYSTEM_ASSISTANT_WORKFLOWS }] = await Promise.all([
@@ -142,4 +148,4 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
     await (await documents()).resumeCleanup();
     await jobs();
   }, chat, chats, documents,
-  connectors, library, projects, tabular, workflows, modelApiKeys, shutdown };
+  audit, connectors, legalSources, library, projects, tabular, workflows, shutdown };

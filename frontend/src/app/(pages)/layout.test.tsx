@@ -42,7 +42,6 @@ const children: RouteObject[] = [
     },
     {
         path: "history",
-        handle: { localRedirect: "/assistant" },
         element: <p>History</p>,
     },
     { path: "assistant", element: <p>Assistant route</p> },
@@ -67,10 +66,9 @@ describe("local route access", () => {
         expect(screen.getByText("Feature settings")).toBeVisible();
     });
 
-    it("redirects cloud-only history to the assistant", async () => {
+    it("renders shared local history", async () => {
         renderPath("/history");
-        expect(await screen.findByText("Assistant route")).toBeVisible();
-        expect(screen.queryByText("History")).not.toBeInTheDocument();
+        expect(await screen.findByText("History")).toBeVisible();
     });
 
     it("hides capabilities disabled by the server", () => {

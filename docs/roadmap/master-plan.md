@@ -97,15 +97,19 @@ Status: **Active exact port**
 The permanent design is deliberately small:
 
 ```text
-provider record -> thin native-fact adapter -> DocumentInput
-DocumentInput -> copy native facts -> recover declared gaps -> SourceDoc
+API record ----------------------> thin provider adapter --+
+provider SQLite -- install-time adapter -------------------+--> Rust -> SourceDoc
+pages.jsonl ---------------------> literal journal adapter -+
+                                                             |
+                                                             +--> optional SourceDoc SQLite
 ```
 
-Existing repositories continue to own SQLite, HTTP, files, selection, paging,
-and retries. Structure code does not rebuild provider clients or database
-access. An adapter only translates the record already obtained by that code;
-it contains no detector. One record and many records are the same function in
-a loop, not separate products or protocols.
+The Rust library owns composition and recovery. Thin adapters own only the
+provider field mapping. An ordinary API caller passes one or many already-read
+records directly through the native function. A bulk installer may read a
+provider SQLite snapshot directly and call the same function per selected row;
+that is an install adapter, not a second engine or transport. One record and
+many records are the same function in a loop.
 
 `DocumentInput` contains canonical text, provenance, native claims, coverage,
 exclusions, and factual boundaries. Native facts always win. The exact port of
@@ -117,18 +121,30 @@ final page, heading, section, note, annotation, and geometry facts. Copy them.
 Only unnumbered prose slices may be formed from its geometry segmentation
 boundaries. Do not rediscover numbered paragraphs or any other structure.
 
-Rust callers use the library directly. Standalone tools may accept and emit
-JSONL for interoperability, but Beaver's hot path is not required to serialize
-an intermediate graph or raw evidence stream. Do not add a provider-specific
-transport, daemon, cache, worker pool, alternate schema, or database layer.
+Rust callers use the library directly. Node callers use one in-process native
+API over ordinary objects; Beaver does not stringify documents, spawn a
+sidecar, or project an intermediate graph. Standalone tools may accept and emit
+JSONL for interoperability. The optional store is a separate capability: it
+materializes exact final SourceDocs into SQLite during provider installation,
+then runtime lookup reads those rows directly. It never ships inside the core
+engine and never replaces the immutable provider snapshot.
+
+The stored row is identified by provider source key, source snapshot identity,
+and SourceDoc engine/schema version. A changed source or engine rebuilds it.
+Provider text already present in the immutable snapshot need not be copied into
+the SourceDoc store; it is reattached on lookup and the stored revision remains
+the integrity identity. No read-through heuristics, cache protocol, daemon,
+worker pool, provider-specific wire format, or separate bulk engine exists.
 
 Implementation order is a gate, not a suggestion:
 
 1. freeze the current TypeScript public bytes;
-2. port the same rules into Rust and pass every frozen byte comparison;
-3. delete the TypeScript implementation in the same change;
-4. connect existing provider repositories through thin adapters; and
-5. measure and remove remaining overhead.
+2. port the same rules into Rust and pass the direct differential;
+3. connect existing provider repositories through thin adapters while the
+   TypeScript implementation remains available as the oracle;
+4. pass the integrated frozen-vector and full-corpus differential; and
+5. delete the superseded TypeScript implementation, then measure and remove
+   remaining overhead.
 
 No transport, corpus runner, provider database reader, or performance
 architecture is built before step 2 is green.
@@ -140,7 +156,7 @@ unselected engine, model, or runtime.
 Acceptance:
 
 - all 24 frozen provider vectors and all 323,374 installed-provider rows are
-  byte-identical before integration proceeds;
+  byte-identical both before cutover and through the integrated Rust path;
 - the 1,500-PDF registry and full available DOCX corpus retain their exact
   denominators and fail closed on the first unexplained delta;
 - journal work is only final-export consumption plus geometry-informed prose
@@ -383,9 +399,9 @@ Account-free local mode and cloud mode now use the same document, Library,
 project, chat, workflow, tabular, assistant, and account application services.
 Runtime composition selects thin SQLite/filesystem or Postgres/S3 repositories;
 ordinary routes and tools contain no paired local/cloud implementation. Local
-custom workflows are durable. Cloud-only identity, sharing, contribution, and
-audit administration fail explicitly when unavailable rather than acquiring a
-second local product path.
+custom workflows and audit history are durable. Cloud-only identity, sharing,
+and contribution administration fail explicitly when unavailable rather than
+acquiring a second local product path.
 
 Acceptance:
 
@@ -397,8 +413,8 @@ Acceptance:
 - Ordinary routes and tools cannot import a mode flag, SQLite, Supabase, or S3;
   adding a persistence capability fails compilation until both data-port
   encodings implement it.
-- Cloud mode also passes its account, authentication, sharing, audit, and
-  storage-extension tests.
+- Cloud mode also passes its account, authentication, sharing, and
+  storage-extension tests; both modes pass the shared audit contract.
 
 ### P0.4 Freeze and commit the current baseline
 
@@ -762,11 +778,12 @@ Implementation order is deliberately short:
 
 1. freeze the real provider inputs and public SourceDoc bytes;
 2. port `DocumentInput -> SourceDoc` and the existing recovery rules exactly;
-3. prove the frozen 24-vector and full 323,374-row gates;
-4. replace each TypeScript adapter with the smallest record translation that
-   preserves its provider-native facts; and
-5. delete the TypeScript wire, projector, detector, and transition tests in
-   that same cutover.
+3. prove the direct frozen 24-vector and full 323,374-row gates;
+4. replace each provider call with the smallest record translation while the
+   TypeScript implementation remains available for the integrated
+   differential;
+5. prove the same gates through the integrated Rust path; and
+6. delete the TypeScript wire, projector, detector, and transition tests last.
 
 Evidence handles remain valid because they bind final SourceDoc revision,
 locator, and text. There is no second provider rendition, graph DTO, or cache
@@ -774,10 +791,14 @@ identity to reconcile.
 
 ### P1.2 Durable provider cache and bulk paths
 
-Status: **Partial**
+Status: **Active cutover**
 
-- Add shared read-through caches with schema version, source checksum/ETag,
-  fetch time, license/provenance, retry metadata, and atomic replacement.
+- Materialize exact final SourceDocs during provider installation into the
+  optional versioned SQLite output store described above. Runtime reads are
+  direct indexed lookups; a miss uses the same in-process Rust function.
+- Bind each output store to its provider snapshot identity and engine/schema
+  version, preserve resumable bounded transactions, and replace completed
+  stores atomically.
 - Keep provider databases independent immutable snapshots.
 - Retain and test A2AJ/CourtListener bulk import/update.
 - Survey official bulk/download options for every integrated provider; add

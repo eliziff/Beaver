@@ -2,257 +2,369 @@
   {
     "document_id": 190426,
     "citation": "2021 SCC 26",
-    "annotator": "human_primary_v13",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_multi",
+      "reviewer_version": "multi-audit-v1",
+      "reviewed_on": "2026-08-20"
+    },
     "annotation": {
-      "disposition_quote": "Appeal allowed and cross-appeal dismissed, Abella J. dissenting in part and Côté J. dissenting.\nSolicitor for the appellant/respondent",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [
-            "Moldaver J.",
-            "Brown J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Moldaver and Brown JJ. (Wagner C.J. concurring)",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "We would allow the Crown’s appeal, set aside the Court of Appeal’s decision, and restore Mr. Chouhan’s conviction.",
-          "start_quote": "[1] Moldaver and Brown JJ. — Jury selection in Pardeep Singh Chouhan’s trial",
-          "end_quote": "[104] We would allow the Crown’s appeal, set aside the Court of Appeal’s decision, and restore Mr. Chouhan’s conviction."
-        },
-        {
-          "opinion_key": "o2",
-          "writer_names": [
-            "Martin J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Martin J. (Karakatsanis and Kasirer JJ. concurring)",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I agree that the Crown’s appeal should be allowed, the cross-appeal dismissed and Mr. Chouhan’s conviction restored.",
-          "start_quote": "[105] Martin J. — For the reasons of my colleagues Justices Moldaver and Brown",
-          "end_quote": "[123] Any premature determination is fraught with risks"
-        },
-        {
-          "opinion_key": "o3",
-          "writer_names": [
-            "Rowe J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Rowe J.\nReasons Dissenting in Part",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "For the reasons of Justices Moldaver and Brown, as well as for the foregoing reasons, I would allow the Crown’s appeal and restore Mr. Chouhan’s conviction.",
-          "start_quote": "[124] Rowe J. — I agree with my colleagues Moldaver and Brown JJ.",
-          "end_quote": "[147] For the reasons of Justices Moldaver and Brown, as well as for the foregoing reasons, I would allow the Crown’s appeal and restore Mr. Chouhan’s conviction."
-        },
-        {
-          "opinion_key": "o4",
-          "writer_names": [
-            "Abella J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Reasons Dissenting in Part: (paras. 148 to 220)\nAbella J.\nDissenting Reasons",
-          "result_position": "mixed",
-          "position_evidence_quote": "I would therefore dismiss the Crown’s appeal from the Court of Appeal’s conclusion that the repeal did not apply to Mr. Chouhan’s trial and Mr. Chouhan’s cross-appeal.",
-          "start_quote": "[148] Abella J. (dissenting in part) — On September 19, 2019",
-          "end_quote": "[220] I would therefore dismiss the Crown’s appeal from the Court of Appeal’s conclusion that the repeal did not apply to Mr. Chouhan’s trial"
-        },
-        {
-          "opinion_key": "o5",
-          "writer_names": [
-            "Côté J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Côté J.\nHer Majesty The Queen Appellant/Respondent",
-          "result_position": "opposes_disposition",
-          "position_evidence_quote": "I would order that s. 269 of the Amending Act be struck down to the extent that it repeals s. 634 of the Code.",
-          "start_quote": "[221] Edmund Burke once wrote that",
-          "end_quote": "[317] I would order that s. 269 of the Amending Act be struck down to the extent that it repeals s. 634 of the Code."
+          "start_line": 838,
+          "end_line": 839
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Richard Wagner",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Moldaver J.",
+                "evidence_lines": {
+                  "start_line": 31,
+                  "end_line": 31
+                }
+              },
+              {
+                "name": "Brown J.",
+                "evidence_lines": {
+                  "start_line": 31,
+                  "end_line": 31
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "Appeal allowed and cross-appeal dismissed, Abella J. dissenting in part and Côté J. dissenting.\nSolicitor for the appellant/respondent",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 456,
+            "end_line": 456
+          },
+          "start_line": 249,
+          "end_line": 456,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Wagner C.J. concurring"
+              "name": "Richard Wagner",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 31
+              }
+            },
+            {
+              "name": "Malcolm Rowe",
+              "evidence_lines": {
+                "start_line": 485,
+                "end_line": 485
+              }
             }
           ]
         },
         {
-          "name": "Michael J. Moldaver",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Martin J.",
+                "evidence_lines": {
+                  "start_line": 33,
+                  "end_line": 33
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the Crown’s appeal, set aside the Court of Appeal’s decision, and restore Mr. Chouhan’s conviction.",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 458,
+            "end_line": 458
+          },
+          "start_line": 458,
+          "end_line": 483,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Moldaver and Brown JJ. (Wagner C.J. concurring)"
+              "name": "Andromache Karakatsanis",
+              "evidence_lines": {
+                "start_line": 33,
+                "end_line": 33
+              }
+            },
+            {
+              "name": "Nicholas Kasirer",
+              "evidence_lines": {
+                "start_line": 33,
+                "end_line": 33
+              }
             }
           ]
         },
         {
-          "name": "Russell Brown",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Rowe J.",
+                "evidence_lines": {
+                  "start_line": 35,
+                  "end_line": 36
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the Crown’s appeal, set aside the Court of Appeal’s decision, and restore Mr. Chouhan’s conviction.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Moldaver and Brown JJ. (Wagner C.J. concurring)"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 536,
+            "end_line": 536
+          },
+          "start_line": 485,
+          "end_line": 536,
+          "full_joiners": []
         },
         {
-          "name": "Rosalie Silberman Abella",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Abella J.",
+                "evidence_lines": {
+                  "start_line": 36,
+                  "end_line": 38
+                }
+              }
+            ]
+          },
           "result_position": "mixed",
-          "result_evidence_quote": "I would therefore dismiss the Crown’s appeal from the Court of Appeal’s conclusion that the repeal did not apply to Mr. Chouhan’s trial",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o4",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Reasons Dissenting in Part: (paras. 148 to 220)\nAbella J.\nDissenting Reasons"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 656,
+            "end_line": 656
+          },
+          "start_line": 538,
+          "end_line": 656,
+          "full_joiners": []
         },
         {
-          "name": "Andromache Karakatsanis",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I agree that the Crown’s appeal should be allowed, the cross-appeal dismissed and Mr. Chouhan’s conviction restored.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Karakatsanis and Kasirer JJ. concurring"
-            }
-          ]
-        },
-        {
-          "name": "Suzanne Côté",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Côté J.",
+                "evidence_lines": {
+                  "start_line": 39,
+                  "end_line": 40
+                }
+              }
+            ]
+          },
           "result_position": "opposes_disposition",
-          "result_evidence_quote": "I would order that s. 269 of the Amending Act be struck down to the extent that it repeals s. 634 of the Code.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o5",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Dissenting Reasons: (paras. 221 to 317)\nCôté J."
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 837,
+            "end_line": 837
+          },
+          "start_line": 660,
+          "end_line": 837,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
         },
         {
-          "name": "Malcolm Rowe",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I would allow the Crown’s appeal and restore Mr. Chouhan’s conviction.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o3",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Concurring Reasons: (paras. 124 to 147)\nRowe J."
-            }
-          ]
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
         },
         {
-          "name": "Sheilah Martin",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I agree that the Crown’s appeal should be allowed, the cross-appeal dismissed and Mr. Chouhan’s conviction restored.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Concurring Reasons: (paras. 105 to 123)\nMartin J."
-            }
-          ]
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
         },
         {
-          "name": "Nicholas Kasirer",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I agree that the Crown’s appeal should be allowed, the cross-appeal dismissed and Mr. Chouhan’s conviction restored.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Karakatsanis and Kasirer JJ. concurring"
-            }
-          ]
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm7",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm8",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Is abolishing accused persons’ peremptory jury challenges constitutional under the Charter?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "Yes; the abolition is constitutional.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "The abolition of peremptory challenges is purely procedural and therefore applies immediately"
+                  "answer_evidence": [
+                    {
+                      "start_line": 456,
+                      "end_line": 456,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm5"
+                        },
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "explained",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 266,
+                        "end_line": 266
+                      },
+                      "target_proposition_as_characterized": "Jury-selection procedures, including peremptory challenges, support independence, impartiality, representativeness, and public trust."
+                    }
                   ]
                 },
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "I agree with my colleagues Moldaver and Brown JJ. that the abolition of peremptory challenges is constitutionally valid"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 462,
+                      "end_line": 462,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o3",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "I agree with my colleagues Moldaver and Brown JJ. that the abolition of peremptory challenges is constitutionally valid"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 485,
+                      "end_line": 485,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o4",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the safeguards in the jury selection system after Bill C-75 make the repeal of peremptory challenges constitutional"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 562,
+                      "end_line": 562,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             },
             {
-              "answer_group_key": "a2",
               "answer": "No; the repeal substantially diminished the constitutional benefit of trial by jury.",
               "positions": [
                 {
-                  "opinion_key": "o5",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "In doing so, it substantially diminished the benefit of trial by jury for Mr. Chouhan"
+                  "answer_evidence": [
+                    {
+                      "start_line": 672,
+                      "end_line": 672,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm8"
+                        },
+                        {
+                          "occurrence_id": "tn4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 757,
+                        "end_line": 757
+                      },
+                      "target_proposition_as_characterized": "Sherratt links jury legitimacy to impartiality and representativeness and recognizes that peremptory challenges can advance representativeness and perceived fairness."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 756,
+                        "end_line": 756
+                      },
+                      "target_proposition_as_characterized": "The core of jury representativeness is a representative cross-section of society that is honestly and fairly chosen."
+                    }
                   ]
                 }
               ]
@@ -260,52 +372,149 @@
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Did the repeal apply to Chouhan’s jury selection even though it began when the amendment came into force?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "Yes; the procedural repeal applied retrospectively to jury selections commencing on September 19, 2019.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "They do not affect any of the accused’s relevant substantive rights"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 454,
+                      "end_line": 454,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "Mr. Chouhan’s conviction restored"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 462,
+                      "end_line": 462,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o3",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "I would allow the Crown’s appeal and restore Mr. Chouhan’s conviction."
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 485,
+                      "end_line": 485,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             },
             {
-              "answer_group_key": "a2",
               "answer": "No; the repeal affected substantive rights and lacked transitional application to this trial.",
               "positions": [
                 {
-                  "opinion_key": "o4",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the repeal did not apply to Mr. Chouhan’s trial"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 656,
+                      "end_line": 656,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o5",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "Mr. Chouhan receive a new trial, including jury selection complete with peremptory challenges"
+                  "answer_evidence": [
+                    {
+                      "start_line": 791,
+                      "end_line": 791,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "May trial judges use the amended s. 633 stand-aside power to promote or enhance diversity on a petit jury?",
+          "answers": [
+            {
+              "answer": "No; s. 633 cannot be used to shape a petit jury's diversity.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 413,
+                      "end_line": 413,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Côté J.",
+                      "evidence_lines": {
+                        "start_line": 835,
+                        "end_line": 835
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 485,
+                      "end_line": 485,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes; trial judges can use the amended tools to actively promote jury diversity case by case.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 561,
+                      "end_line": 561,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm7"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 561,
+                        "end_line": 561
+                      },
+                      "target_proposition_as_characterized": "A jury should be a fairly selected representative cross-section of society."
+                    }
                   ]
                 }
               ]
@@ -313,562 +522,566 @@
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "considered: R. v. Sherratt, [1991] 1 S.C.R. 509;"
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "R. v. Gladue, [1999] 1 S.C.R. 688; R. v. Sherratt, [1991] 1 S.C.R. 509;"
-        },
-        {
-          "mention_key": "m3",
-          "occurrence_id": "tm3",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "R. v. Parks (1993), 15 O.R. (3d) 324; R. v. Sherratt, [1991] 1 S.C.R. 509;"
-        },
-        {
-          "mention_key": "m4",
-          "occurrence_id": "tm4",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "Cloutier v. The Queen, [1979] 2 S.C.R. 709; R. v. Sherratt, [1991] 1 S.C.R. 509;"
-        },
-        {
-          "mention_key": "m5",
-          "occurrence_id": "tm5",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "By fostering the independence, impartiality, and representativeness of the jury"
-        },
-        {
-          "mention_key": "m6",
-          "occurrence_id": "tm6",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "Randomness plays a key role in the selection of juries (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 525)"
-        },
-        {
-          "mention_key": "m7",
-          "occurrence_id": "tm7",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "The goal is the selection of a “representative cross-section of society, honestly and fairly chosen”"
-        },
-        {
-          "mention_key": "m8",
-          "occurrence_id": "tm8",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "In R. v. Sherratt, [1991] 1 S.C.R. 509, L’Heureux-Dubé J. found that"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": [
-            "m5"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "explained",
-          "scope": "specific_proposition",
-          "evidence_quote": "By fostering the independence, impartiality, and representativeness of the jury",
-          "target_proposition_as_characterized": "Jury-selection procedures, including peremptory challenges, support independence, impartiality, representativeness, and public trust."
-        },
-        {
-          "mention_keys": [
-            "m6"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "referred_to",
-          "scope": "specific_proposition",
-          "evidence_quote": "Randomness plays a key role in the selection of juries (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 525)",
-          "target_proposition_as_characterized": "Random selection advances representativeness and impartiality but is not an independent constitutional end."
-        },
-        {
-          "mention_keys": [
-            "m7"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "referred_to",
-          "scope": "specific_proposition",
-          "evidence_quote": "The goal is the selection of a “representative cross-section of society, honestly and fairly chosen”",
-          "target_proposition_as_characterized": "A jury should be a fairly selected representative cross-section of society."
-        },
-        {
-          "mention_keys": [
-            "m8"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "explained",
-          "scope": "specific_proposition",
-          "evidence_quote": "In R. v. Sherratt, [1991] 1 S.C.R. 509, L’Heureux-Dubé J. found that",
-          "target_proposition_as_characterized": "Peremptory challenges can improve representativeness and the accused’s perception of a fair tribunal."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 193954,
     "citation": "2020 SCC 32",
-    "annotator": "human_primary_v13",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_multi",
+      "reviewer_version": "multi-audit-v1",
+      "reviewed_on": "2026-08-20"
+    },
     "annotation": {
-      "disposition_quote": "Appeal allowed.\nSolicitor for the appellant the Attorney General of Quebec",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [
-            "Brown J.",
-            "Rowe J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Brown and Rowe JJ. (Wagner C.J. and Moldaver and Côté JJ. concurring)",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "We would allow the appeal and set aside the judgment of the Court of Appeal.",
-          "start_quote": "[1] This appeal requires this Court to decide whether s. 12",
-          "end_quote": "[48] We would allow the appeal and set aside the judgment of the Court of Appeal."
-        },
-        {
-          "opinion_key": "o2",
-          "writer_names": [
-            "Abella J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Abella J. (Karakatsanis and Martin JJ. concurring)",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "Accordingly, I would allow the appeal.",
-          "start_quote": "[49] The Canadian Charter of Rights and Freedoms constitutionalized protection",
-          "end_quote": "[137] Accordingly, I would allow the appeal."
-        },
-        {
-          "opinion_key": "o3",
-          "writer_names": [
-            "Kasirer J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Kasirer J. —",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I therefore find it unnecessary to consider questions relating to the proper approach to constitutional interpretation",
-          "start_quote": "[138] For the reasons given by Chamberland J.A.",
-          "end_quote": "[142] In this case, all the relevant factors are to the same effect"
+          "start_line": 439,
+          "end_line": 440
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Richard Wagner",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Brown J.",
+                "evidence_lines": {
+                  "start_line": 35,
+                  "end_line": 35
+                }
+              },
+              {
+                "name": "Rowe J.",
+                "evidence_lines": {
+                  "start_line": 35,
+                  "end_line": 35
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "Appeal allowed.\nSolicitor for the appellant the Attorney General of Quebec",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 254,
+            "end_line": 254
+          },
+          "start_line": 171,
+          "end_line": 254,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Wagner C.J. and Moldaver and Côté JJ. concurring"
+              "name": "Richard Wagner",
+              "evidence_lines": {
+                "start_line": 35,
+                "end_line": 35
+              }
+            },
+            {
+              "name": "Michael J. Moldaver",
+              "evidence_lines": {
+                "start_line": 35,
+                "end_line": 35
+              }
+            },
+            {
+              "name": "Suzanne Côté",
+              "evidence_lines": {
+                "start_line": 35,
+                "end_line": 35
+              }
             }
           ]
         },
         {
-          "name": "Rosalie Silberman Abella",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Abella J.",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 37
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "Accordingly, I would allow the appeal.",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 430,
+            "end_line": 430
+          },
+          "start_line": 257,
+          "end_line": 430,
+          "full_joiners": [
             {
-              "opinion_key": "o2",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "The reasons of Abella, Karakatsanis and Martin JJ. were delivered by\nAbella J. —"
+              "name": "Andromache Karakatsanis",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
+            },
+            {
+              "name": "Sheilah Martin",
+              "evidence_lines": {
+                "start_line": 37,
+                "end_line": 37
+              }
             }
           ]
         },
         {
-          "name": "Michael J. Moldaver",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Kasirer J.",
+                "evidence_lines": {
+                  "start_line": 432,
+                  "end_line": 432
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the appeal and set aside the judgment of the Court of Appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Moldaver and Côté JJ. concurring"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 438,
+            "end_line": 438
+          },
+          "start_line": 433,
+          "end_line": 438,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
         },
         {
-          "name": "Andromache Karakatsanis",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "Accordingly, I would allow the appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Karakatsanis and Martin JJ. concurring"
-            }
-          ]
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
         },
         {
-          "name": "Suzanne Côté",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the appeal and set aside the judgment of the Court of Appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Moldaver and Côté JJ. concurring"
-            }
-          ]
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         },
         {
-          "name": "Russell Brown",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the appeal and set aside the judgment of the Court of Appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "The judgment of Wagner C.J. and Moldaver, Côté, Brown and Rowe JJ. was delivered by\nBrown and Rowe JJ. —"
-            }
-          ]
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         },
         {
-          "name": "Malcolm Rowe",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "We would allow the appeal and set aside the judgment of the Court of Appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "The judgment of Wagner C.J. and Moldaver, Côté, Brown and Rowe JJ. was delivered by\nBrown and Rowe JJ. —"
-            }
-          ]
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         },
         {
-          "name": "Sheilah Martin",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "Accordingly, I would allow the appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Karakatsanis and Martin JJ. concurring"
-            }
-          ]
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         },
         {
-          "name": "Nicholas Kasirer",
-          "panel_evidence_quote": "Coram: Wagner C.J. and Abella, Moldaver, Karakatsanis, Côté, Brown, Rowe, Martin and Kasirer JJ.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I therefore find it unnecessary to consider questions relating to the proper approach to constitutional interpretation",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o3",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Kasirer J. —"
-            }
-          ]
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "quoted_material",
+          "legal_actor": "other_source"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Does Charter s. 12 protect a corporation from cruel and unusual treatment or punishment?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "No; s. 12 protects human beings, not corporations.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "Simply put, the text “cruel and unusual” denotes protection that “only human beings can enjoy”"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 171,
+                      "end_line": 171,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "Since it cannot be said that corporations have an interest that falls within the purpose of the guarantee, they do not fall within s. 12’s scope."
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 429,
+                      "end_line": 429,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o3",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the protection offered by s. 12 does not extend to corporations"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 438,
+                      "end_line": 438,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         },
         {
-          "issue_key": "s2",
-          "question": "What interpretive approach governs determining the scope of a Charter right?",
-          "answer_groups": [
+          "question": "Does constitutional text have primacy within purposive Charter interpretation?",
+          "answers": [
             {
-              "answer_group_key": "a1",
-              "answer": "A large, liberal, purposive interpretation is required, with disagreement only over the role of international and comparative sources.",
+              "answer": "Yes; text is the first and primordial constraint within the purposive inquiry.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": [
-                    "Our colleague Abella J. applies the primacy of constitutional text and considerations of purpose"
+                  "answer_evidence": [
+                    {
+                      "start_line": 182,
+                      "end_line": 182,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 175,
+                        "end_line": 175
+                      },
+                      "target_proposition_as_characterized": "The scope of a Charter right is determined purposively by reference to the interests the guarantee protects."
+                    }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "answer": "No; text begins but does not receive special primacy in the balanced purposive framework.",
+              "positions": [
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": [
-                    "Big M Drug Mart provides the definitive account of this approach"
+                  "answer_evidence": [
+                    {
+                      "start_line": 309,
+                      "end_line": 309,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 285,
+                        "end_line": 285
+                      },
+                      "target_proposition_as_characterized": "Big M supplies the definitive purposive-interpretation approach to defining Charter rights."
+                    }
                   ]
-                },
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What role may international and comparative sources play in Charter interpretation?",
+          "answers": [
+            {
+              "answer": "They ordinarily support or confirm an interpretation reached through the Big M framework, with their source and persuasive weight explained.",
+              "positions": [
                 {
-                  "opinion_key": "o3",
                   "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": [
-                    "Charter rights must be given a large, liberal and purposive interpretation, a principle whose relevance was emphasized again recently"
+                  "answer_evidence": [
+                    {
+                      "start_line": 221,
+                      "end_line": 221,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        },
+                        {
+                          "occurrence_id": "tn2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 234,
+                        "end_line": 234
+                      },
+                      "target_proposition_as_characterized": "International and comparative sources may support or confirm, but cannot displace, the Big M purposive methodology."
+                    }
                   ]
+                }
+              ]
+            },
+            {
+              "answer": "Binding and non-binding sources may persuasively assist in defining rights without a mandatory hierarchy or confirmatory-only limit.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 373,
+                      "end_line": 373,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "By Brown and Rowe JJ.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295;"
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "mention_quote": null,
-          "voice": "document_metadata",
-          "issue_keys": [],
-          "evidence_quote": "By Abella J.\nApplied: R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295;"
-        },
-        {
-          "mention_key": "m3",
-          "occurrence_id": "tm3",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s2"
-          ],
-          "evidence_quote": "purposive approach adopted in R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295"
-        },
-        {
-          "mention_key": "m4",
-          "occurrence_id": "tm4",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s2"
-          ],
-          "evidence_quote": "Big M Drug Mart provides the definitive account of this approach"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": [
-            "m3"
-          ],
-          "issue_keys": [
-            "s2"
-          ],
-          "attribution": "current_court",
-          "label": "referred_to",
-          "scope": "legal_test",
-          "evidence_quote": "purposive approach adopted in R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295",
-          "target_proposition_as_characterized": "The scope of a Charter right is determined purposively by reference to the interests the guarantee protects."
-        },
-        {
-          "mention_keys": [
-            "m4"
-          ],
-          "issue_keys": [
-            "s2"
-          ],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "Big M Drug Mart provides the definitive account of this approach",
-          "target_proposition_as_characterized": "Big M supplies the definitive purposive-interpretation approach to defining Charter rights."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 7330,
     "citation": "2014 BCCA 146",
-    "annotator": "human_primary_v13",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_multi",
+      "reviewer_version": "multi-audit-v1",
+      "reviewed_on": "2026-08-20"
+    },
     "annotation": {
-      "disposition_quote": "Based on my conclusion on the ground of appeal concerning the mode of trial, I would quash the convictions against Mr. Porisky. So, too, I would quash the conviction against Ms. Gould.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [
-            "Saunders J.A."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Written Reasons by:\nThe Honourable Madam Justice Saunders",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I would order a new trial on the charges before a court composed of judge and jury.",
-          "start_quote": "[1] These two appeals brought by Mr. Porisky and Ms. Gould",
-          "end_quote": "[52] Based on my conclusion on the ground of appeal concerning the mode of trial"
-        },
-        {
-          "opinion_key": "o2",
-          "writer_names": [
-            "Willcock J.A."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Dissenting Reasons for Judgment of the Honourable Mr. Justice Willcock:",
-          "result_position": "opposes_disposition",
-          "position_evidence_quote": "I cannot accede to the argument that the trial judge erred in trying the accused without a jury.",
-          "start_quote": "[53] I have had the benefit of reading, in draft form, the reasons of Madam Justice Saunders.",
-          "end_quote": "[73] In light of the conclusion of my colleagues that the convictions against both accused should be quashed"
+          "start_line": 174,
+          "end_line": 174
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Mary Saunders",
-          "panel_evidence_quote": "Before:\nThe Honourable Madam Justice Saunders\nThe Honourable Mr. Justice Chiasson\nThe Honourable Mr. Justice Willcock",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Saunders J.A.",
+                "evidence_lines": {
+                  "start_line": 45,
+                  "end_line": 46
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "I would order a new trial on the charges before a court composed of judge and jury.",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 174,
+            "end_line": 174
+          },
+          "start_line": 57,
+          "end_line": 174,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Written Reasons by:\nThe Honourable Madam Justice Saunders"
+              "name": "Ian Donaldson Chiasson",
+              "evidence_lines": {
+                "start_line": 47,
+                "end_line": 48
+              }
             }
           ]
         },
         {
-          "name": "Ian Donaldson Chiasson",
-          "panel_evidence_quote": "Before:\nThe Honourable Madam Justice Saunders\nThe Honourable Mr. Justice Chiasson\nThe Honourable Mr. Justice Willcock",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I AGREE:\n\"The Honourable Mr. Justice Chiasson\"",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Concurred in by:\nThe Honourable Mr. Justice Chiasson"
-            }
-          ]
-        },
-        {
-          "name": "David Willcock",
-          "panel_evidence_quote": "Before:\nThe Honourable Madam Justice Saunders\nThe Honourable Mr. Justice Chiasson\nThe Honourable Mr. Justice Willcock",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Willcock J.A.",
+                "evidence_lines": {
+                  "start_line": 178,
+                  "end_line": 178
+                }
+              }
+            ]
+          },
           "result_position": "opposes_disposition",
-          "result_evidence_quote": "I cannot accede to the argument that the trial judge erred in trying the accused without a jury.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Dissenting Reasons for Judgment of the Honourable Mr. Justice Willcock:"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 179,
+            "end_line": 179
+          },
+          "start_line": 179,
+          "end_line": 216,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "Did Porisky clearly and validly re-elect trial by judge alone after failing to attend jury selection?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "No; the record does not establish a clear, informed waiver of the jury right.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the certainty required to alter the mode of trial elected by Mr. Porisky"
+                  "answer_evidence": [
+                    {
+                      "start_line": 158,
+                      "end_line": 158,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 153,
+                        "end_line": 153
+                      },
+                      "target_proposition_as_characterized": "A re-election or waiver of the jury right must be clear, unequivocal, and informed about the right being surrendered."
+                    }
                   ]
                 }
               ]
             },
             {
-              "answer_group_key": "a2",
               "answer": "Yes; the re-election was valid and the trial judge had jurisdiction.",
               "positions": [
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the trial judge was correct to find there had been re-election"
+                  "answer_evidence": [
+                    {
+                      "start_line": 215,
+                      "end_line": 215,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tn4"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "distinguished",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 207,
+                        "end_line": 207
+                      },
+                      "target_proposition_as_characterized": "Korponay required a clear, informed waiver of mandatory re-election wording, unlike this case where only verbal confirmation of the re-election was material."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 212,
+                        "end_line": 212
+                      },
+                      "target_proposition_as_characterized": "Prior representation can support an inference that an accused received advice about the available modes of trial."
+                    }
                   ]
                 }
               ]
@@ -876,179 +1089,308 @@
           ]
         },
         {
-          "issue_key": "s2",
-          "question": "Should Gould’s conviction be separated from Porisky’s and should the tax grounds produce an acquittal?",
-          "answer_groups": [
+          "question": "Could the procedural error concerning the mode of trial be cured under s. 686(1)(b)(iv)?",
+          "answers": [
             {
-              "answer_group_key": "a1",
-              "answer": "No; the convictions were intertwined and the tax grounds did not require acquittal, so a new trial was ordered for both.",
+              "answer": "No; prejudice from losing the jury trial prevented use of the curative provision.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "In my view Ms. Gould's trial was incurably tangled with Mr. Porisky's."
-                  ]
-                },
+                  "answer_evidence": [
+                    {
+                      "start_line": 165,
+                      "end_line": 165,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes; the ordering error caused no prejudice and was curable.",
+              "positions": [
                 {
-                  "opinion_key": "o2",
-                  "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": [
-                    "I agree with and adopt her analysis of the grounds of appeal advanced by Ms. Gould alone"
-                  ]
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 198,
+                      "end_line": 198,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was Gould's trial too intertwined with Porisky's for her conviction to stand separately?",
+          "answers": [
+            {
+              "answer": "Yes; her conviction also had to be quashed and remitted for a new trial.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 168,
+                      "end_line": 168,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "No; the judge-alone trial was valid for both appellants, so Gould's conviction did not fall with Porisky's.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 179,
+                      "end_line": 179,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did Gould's taxable-income and mens rea grounds require an acquittal rather than a new trial?",
+          "answers": [
+            {
+              "answer": "No; there was evidence supporting both taxable income and mens rea.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 172,
+                      "end_line": 172,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Willcock J.A.",
+                      "evidence_lines": {
+                        "start_line": 179,
+                        "end_line": 179
+                      }
+                    }
+                  ],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "The requirements of a valid waiver were comprehensively addressed in Korponay v. Attorney General of Canada"
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "the procedural steps considered in Korponay v. Canada (Attorney General)"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": [
-            "m1",
-            "m2"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "applied",
-          "scope": "legal_test",
-          "evidence_quote": "In Korponay, of course it was the form of re-election, the words used, that was material. The Court held, at 50 - 51:",
-          "target_proposition_as_characterized": "A re-election or waiver of the jury right must be clear, unequivocal, and informed about the right being surrendered."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 112050,
     "citation": "2007 FCA 24",
-    "annotator": "human_primary_v13",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_multi",
+      "reviewer_version": "multi-audit-v1",
+      "reviewed_on": "2026-08-20"
+    },
     "annotation": {
-      "disposition_quote": "I would therefore dismiss this appeal and would answer the two certified questions as follows:",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [
-            "Décary J.A."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I would allow the appeal, set aside the decision of the applications judge, allow the application for judicial review, set aside the decision of the Board and send the matter back to the Board for reconsideration by a differently constituted panel.",
-          "start_quote": "[1] I have read in draft the reasons for judgment of my colleague Madam Justice Desjardins.",
-          "end_quote": "[25] I would answer the first one in the negative and state that the appropriate standard of review is that of reasonableness."
-        },
-        {
-          "opinion_key": "o2",
-          "writer_names": [
-            "Desjardins J.A."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "DESJARDINS J.A. (Dissenting Reasons)",
-          "result_position": "opposes_disposition",
-          "position_evidence_quote": "I would therefore dismiss this appeal and would answer the two certified questions as follows:",
-          "start_quote": "[26] This is an appeal of a decision rendered by Lutfy C.J.",
-          "end_quote": "[61] I would therefore dismiss this appeal and would answer the two certified questions as follows:"
+          "start_line": 87,
+          "end_line": 87
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Robert Décary",
-              "panel_evidence_quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.\nCONCURRED IN BY: MALONE J.A.\nDISSENTING REASONS BY: DESJARDINS J.A.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Décary J.A.",
+                "evidence_lines": {
+                  "start_line": 27,
+                  "end_line": 27
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "I would allow the appeal, set aside the decision of the applications judge",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 87,
+            "end_line": 87
+          },
+          "start_line": 44,
+          "end_line": 91,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.\nCONCURRED IN BY: MALONE J.A."
+              "name": "B. Malone",
+              "evidence_lines": {
+                "start_line": 94,
+                "end_line": 95
+              }
             }
           ]
         },
         {
-          "name": "B. Malone",
-              "panel_evidence_quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.\nCONCURRED IN BY: MALONE J.A.\nDISSENTING REASONS BY: DESJARDINS J.A.",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "I agree.\nB. Malone J.A.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "I agree.\nB. Malone J.A."
-            }
-          ]
-        },
-        {
-          "name": "Alice Desjardins",
-              "panel_evidence_quote": "REASONS FOR JUDGMENT BY: DÉCARY J.A.\nCONCURRED IN BY: MALONE J.A.\nDISSENTING REASONS BY: DESJARDINS J.A.",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Desjardins J.A.",
+                "evidence_lines": {
+                  "start_line": 96,
+                  "end_line": 96
+                }
+              }
+            ]
+          },
           "result_position": "opposes_disposition",
-          "result_evidence_quote": "I would therefore dismiss this appeal and would answer the two certified questions as follows:",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "DESJARDINS J.A. (Dissenting Reasons)"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 184,
+            "end_line": 184
+          },
+          "start_line": 97,
+          "end_line": 186,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
           "question": "What standard of review governs the IAD’s humanitarian-and-compassionate decision?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "Reasonableness, not patent unreasonableness.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the appropriate standard of review is that of reasonableness"
+                  "answer_evidence": [
+                    {
+                      "start_line": 91,
+                      "end_line": 91,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 51,
+                        "end_line": 51
+                      },
+                      "target_proposition_as_characterized": "Because the IAD adjudicates individual rights rather than managing policy, its decision receives less deferential review."
+                    }
                   ]
                 }
               ]
             },
             {
-              "answer_group_key": "a2",
               "answer": "Patent unreasonableness.",
               "positions": [
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "one of patent unreasonableness? Yes."
+                  "answer_evidence": [
+                    {
+                      "start_line": 185,
+                      "end_line": 185,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tn2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 134,
+                        "end_line": 134
+                      },
+                      "target_proposition_as_characterized": "Chieu confirms the Ribic factors used in humanitarian-and-compassionate relief analysis."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 136,
+                        "end_line": 136
+                      },
+                      "target_proposition_as_characterized": "The IAD has broad statutory discretion to grant equitable relief from a removal order."
+                    }
                   ]
                 }
               ]
@@ -1056,255 +1398,268 @@
           ]
         },
         {
-          "issue_key": "s2",
           "question": "Did the IAD commit a reviewable error in refusing special relief to Khosa?",
-          "answer_groups": [
+          "answers": [
             {
-              "answer_group_key": "a1",
               "answer": "Yes; the IAD decision should be set aside and reconsidered by a differently constituted panel.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "the decision of the Board should be set aside"
+                  "answer_evidence": [
+                    {
+                      "start_line": 86,
+                      "end_line": 86,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 54,
+                        "end_line": 54
+                      },
+                      "target_proposition_as_characterized": "The Ribic factors, including rehabilitation, govern the IAD's assessment of whether special relief is warranted."
+                    }
                   ]
                 }
               ]
             },
             {
-              "answer_group_key": "a2",
               "answer": "No; the applications judge correctly found no patently unreasonable error.",
               "positions": [
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "The intervention of this Court is not warranted."
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 179,
+                      "end_line": 179,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was denial of special relief patently unreasonable merely because Khosa had not been incarcerated for the crimes?",
+          "answers": [
+            {
+              "answer": "No; non-incarceration was not determinative.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 182,
+                      "end_line": 182,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 }
               ]
             }
           ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "the Board “is not involved in a managing or supervisory function, but in adjudicating the rights of individuals vis-à-vis the state”"
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s2"
-          ],
-          "evidence_quote": "the factors developed in Ribic v. Canada (Minister of Employment and Immigration), [1985] I.A.D.D. No. 4 (QL), subsequently confirmed by the Supreme Court of Canada in Chieu v. Canada (Minister of Citizenship and Immigration), [2002] 1 S.C.R. 84"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": [
-            "m1"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "followed",
-          "scope": "legal_test",
-          "evidence_quote": "a factor which weighs in favour of a less deferential standard of review",
-          "target_proposition_as_characterized": "Because the IAD adjudicates individual rights rather than managing policy, its decision receives less deferential review."
-        },
-        {
-          "mention_keys": [
-            "m2"
-          ],
-          "issue_keys": [
-            "s2"
-          ],
-          "attribution": "current_court",
-          "label": "followed",
-          "scope": "legal_test",
-          "evidence_quote": "subsequently confirmed by the Supreme Court of Canada in Chieu",
-          "target_proposition_as_characterized": "Chieu confirms the Ribic factors used in humanitarian-and-compassionate relief analysis."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   },
   {
     "document_id": 225088,
     "citation": "2015 YKCA 17",
-    "annotator": "human_primary_v13",
+    "annotator": "human_primary",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_independent_primary_source_auditor_gold30_multi",
+      "reviewer_version": "multi-audit-v1",
+      "reviewed_on": "2026-08-20"
+    },
     "annotation": {
-      "disposition_quote": "In the result, I would grant leave to appeal but would dismiss the appeal.",
-      "opinions": [
+      "disposition_lines": [
         {
-          "opinion_key": "o1",
-          "writer_names": [
-            "Fenlon J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Written Reasons by:\nThe Honourable Madam Justice Fenlon",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "In the result, I would grant leave to appeal but would dismiss the appeal.",
-          "start_quote": "[1] The Crown applies for leave to appeal",
-          "end_quote": "[38] In the result, I would grant leave to appeal but would dismiss the appeal."
-        },
-        {
-          "opinion_key": "o2",
-          "writer_names": [
-            "D. Smith J."
-          ],
-          "collective_writer": null,
-          "writer_evidence_quote": "Reasons for Judgment of the Honourable Madam Justice D. Smith:",
-          "result_position": "supports_disposition",
-          "position_evidence_quote": "I am unable to find that the sentence was unfit.",
-          "start_quote": "[39] I have had the privilege of reading the draft reasons of my colleague Madam Justice Fenlon",
-          "end_quote": "[45] I would add the following postscript."
+          "start_line": 131,
+          "end_line": 131
         }
       ],
-      "participants": [
+      "opinions": [
         {
-          "name": "Donald Bauman",
-          "panel_evidence_quote": "Before:\nThe Honourable Chief Justice Bauman\nThe Honourable Madam Justice D. Smith\nThe Honourable Madam Justice Fenlon",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Fenlon J.",
+                "evidence_lines": {
+                  "start_line": 29,
+                  "end_line": 30
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "I AGREE:\n\"The Honourable Chief Justice Bauman\"",
-          "result_only": false,
-          "opinion_links": [
+          "position_evidence_lines": {
+            "start_line": 131,
+            "end_line": 131
+          },
+          "start_line": 39,
+          "end_line": 131,
+          "full_joiners": [
             {
-              "opinion_key": "o1",
-              "relation": "joins",
-              "issue_keys": [],
-              "evidence_quote": "Concurred in by:\nThe Honourable Chief Justice Bauman"
+              "name": "Donald Bauman",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 32
+              }
             }
           ]
         },
         {
-          "name": "D. Smith",
-          "panel_evidence_quote": "Before:\nThe Honourable Chief Justice Bauman\nThe Honourable Madam Justice D. Smith\nThe Honourable Madam Justice Fenlon",
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "D. Smith J.",
+                "evidence_lines": {
+                  "start_line": 135,
+                  "end_line": 135
+                }
+              }
+            ]
+          },
           "result_position": "supports_disposition",
-          "result_evidence_quote": "I am unable to find that the sentence was unfit.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o2",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Reasons for Judgment of the Honourable Madam Justice D. Smith:\n[39]"
-            }
-          ]
+          "position_evidence_lines": {
+            "start_line": 143,
+            "end_line": 143
+          },
+          "start_line": 136,
+          "end_line": 145,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
         },
         {
-          "name": "Fenlon",
-          "panel_evidence_quote": "Before:\nThe Honourable Chief Justice Bauman\nThe Honourable Madam Justice D. Smith\nThe Honourable Madam Justice Fenlon",
-          "result_position": "supports_disposition",
-          "result_evidence_quote": "In the result, I would grant leave to appeal but would dismiss the appeal.",
-          "result_only": false,
-          "opinion_links": [
-            {
-              "opinion_key": "o1",
-              "relation": "authors",
-              "issue_keys": [],
-              "evidence_quote": "Written Reasons by:\nThe Honourable Madam Justice Fenlon\nConcurred in by:"
-            }
-          ]
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
         }
       ],
       "issues": [
         {
-          "issue_key": "s1",
-          "question": "Was the sentence demonstrably unfit because the trial judge misapplied parity and sentencing ranges?",
-          "answer_groups": [
+          "question": "Did the sentencing judge err by overemphasizing or misapplying the parity principle?",
+          "answers": [
             {
-              "answer_group_key": "a1",
-              "answer": "No; the sentence was not demonstrably unfit and the trial judge’s weighing of sentencing factors receives deference.",
+              "answer": "No; the sentencing judge properly accounted for the offenders' material differences.",
               "positions": [
                 {
-                  "opinion_key": "o1",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "[37] In my view, the judge in this case properly considered and carefully balanced the relevant objectives and principles of sentencing codified in ss. 718 to 718.2 of the Criminal Code"
-                  ]
+                  "answer_evidence": [
+                    {
+                      "start_line": 119,
+                      "end_line": 119,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes; the co-accused were not similarly situated, but the error did not make the sentence unfit.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 136,
+                      "end_line": 136,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was the sentence demonstrably unfit or outside the acceptable range?",
+          "answers": [
+            {
+              "answer": "No; the individualized sentence remained within the broad acceptable range.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 130,
+                      "end_line": 130,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
                 },
                 {
-                  "opinion_key": "o2",
                   "relation_to_disposition": "dispositive",
-                  "answer_evidence_quotes": [
-                    "although I am not persuaded that the error resulted in an unfit sentence in the circumstances of this offence and this offender"
+                  "answer_evidence": [
+                    {
+                      "start_line": 143,
+                      "end_line": 143,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 141,
+                        "end_line": 141
+                      },
+                      "target_proposition_as_characterized": "Sentencing ranges are guidelines rather than rigid categories and do not preclude a sentence outside the range when the circumstances warrant."
+                    }
                   ]
                 }
               ]
             }
           ]
-        },
-        {
-          "issue_key": "s2",
-          "question": "Did the trial judge err in applying the parity principle?",
-          "answer_groups": [
-            {
-              "answer_group_key": "a1",
-              "answer": "Yes, but the error did not make the sentence unfit.",
-              "positions": [
-                {
-                  "opinion_key": "o2",
-                  "relation_to_disposition": "non_dispositive",
-                  "answer_evidence_quotes": [
-                    "I am of the view that the judge erred in his application of the parity principle"
-                  ]
-                }
-              ]
-            }
-          ]
         }
       ],
-      "target_mentions": [
-        {
-          "mention_key": "m1",
-          "occurrence_id": "tm1",
-          "mention_quote": null,
-          "voice": "party_submission",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "Defence counsel further relies on the comments of Justice Labelle in R. v. Nasogaluak, 2010 SCC 6 at para. 44"
-        },
-        {
-          "mention_key": "m2",
-          "occurrence_id": "tm2",
-          "mention_quote": null,
-          "voice": "current_court",
-          "issue_keys": [
-            "s1"
-          ],
-          "evidence_quote": "see also R. v. Nasogaluak, 2010 SCC 6 at para. 44"
-        }
-      ],
-      "target_treatments": [
-        {
-          "mention_keys": [
-            "m2"
-          ],
-          "issue_keys": [
-            "s1"
-          ],
-          "attribution": "current_court",
-          "label": "followed",
-          "scope": "legal_test",
-          "evidence_quote": "[t]hey are general guidelines, not hard and fast categories",
-          "target_proposition_as_characterized": "Sentencing ranges are guidelines rather than rigid categories and do not preclude a sentence outside the range when the circumstances warrant."
-        }
-      ],
-      "target_direct_history": []
+      "unscoped_target_treatments": [],
+      "case_history": []
     }
   }
 ]

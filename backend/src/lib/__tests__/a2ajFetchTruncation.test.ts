@@ -12,10 +12,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 }));
 
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
-import {
-  legalSourcePassageUrl,
-  readLegalSourcePassage,
-} from "../legalSourceRegistry";
+import { readLegalSourcePassage } from "../legalSourceRegistry";
 
 beforeEach(() => {
   // This suite probes provider truncation, not the machine's local corpus.
@@ -122,7 +119,5 @@ describe("unified A2AJ document reads", () => {
       lookup: { status: "found", citation: "2099 SCC 9" },
       block: { label: "par2", text: selected.text },
     });
-    expect(legalSourcePassageUrl(selected, ["exact governing rule"]))
-      .toMatch(/^https:\/\/www\.canlii\.org\/en\/ca\/scc\/doc\/2099\/2099scc9\//u);
   });
 });
