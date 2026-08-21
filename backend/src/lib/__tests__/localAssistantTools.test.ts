@@ -1020,6 +1020,93 @@ describe("local assistant tools", () => {
       .toBe(true);
   });
 
+  it("turns A2AJ pattern hits into native pinpoint evidence", async () => {
+    const text = Array.from({ length: 6 }, (_, index) =>
+      `[${index + 1}] Decision paragraph ${index + 1} contains enough substantive judicial language ${
+        index === 2 ? "and states the distinctive governing principle" : "to preserve structure"
+      } for a reliable source passage.`).join("\n");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [{
+        dataset: "SCC",
+        citation_en: "2099 SCC 3",
+        source_url_en: "https://example.test/case-3",
+        unofficial_text_en: text,
+      }] }),
+    }));
+    const [{ createLegalEvidenceTurnState }, tools] = await Promise.all([
+      import("../chat/legalEvidence"),
+      import("./support/localAssistantTools"),
+    ]);
+    const state = createLegalEvidenceTurnState();
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "call-pattern",
+      name: "Read",
+      input: {
+        file_path: resourceReference.source(
+          "a2aj",
+          JSON.stringify(["2099 SCC 3", "cases", "SCC"]),
+        ),
+        pattern: "distinctive governing principle",
+        context_chars: 40,
+      },
+    }], { legalEvidence: state });
+    const receipt = response.evidence?.[0];
+    const entry = receipt && state.evidence.get(receipt.evidence_id);
+
+    expect(receipt?.locator).toEqual({ kind: "paragraph", label: "par3" });
+    expect(receipt?.span_text).toBe(text.split("\n")[2]);
+    expect(entry?.source).toBeDefined();
+    const { presentLegalEvidence } = await import("../chat/citationPresentation");
+    expect(presentLegalEvidence(entry!).passageUrl)
+      .toContain("#par3:~:text=");
+  });
+
+  it("keeps unstructured A2AJ pattern evidence on clean text-fragment boundaries", async () => {
+    const text = [
+      "Case summary",
+      "This preliminary case summary provides background framing material before saying that effective notice requires clear communication with records and permits meaningful assessment by the recipient parent after disclosure.",
+      "A separate concluding summary addresses disposition.",
+    ].join("\n");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [{
+        dataset: "SCC",
+        citation_en: "2099 SCC 4",
+        source_url_en: "https://example.test/case-4",
+        unofficial_text_en: text,
+      }] }),
+    }));
+    const [{ createLegalEvidenceTurnState }, tools] = await Promise.all([
+      import("../chat/legalEvidence"),
+      import("./support/localAssistantTools"),
+    ]);
+    const state = createLegalEvidenceTurnState();
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "call-unstructured-pattern",
+      name: "Read",
+      input: {
+        file_path: resourceReference.source(
+          "a2aj",
+          JSON.stringify(["2099 SCC 4", "cases", "SCC"]),
+        ),
+        pattern: "effective notice requires clear communication",
+        context_chars: 40,
+      },
+    }], { legalEvidence: state });
+    const receipt = response.evidence?.[0];
+    const entry = receipt && state.evidence.get(receipt.evidence_id);
+
+    expect(receipt?.locator.kind).toBe("document");
+    expect(receipt?.span_text).toBe(text.split("\n")[1]);
+    expect(receipt?.span_text).not.toContain("\n");
+    const { presentLegalEvidence } = await import("../chat/citationPresentation");
+    expect(presentLegalEvidence(entry!).passageUrl)
+      .toContain("#:~:text=");
+  });
+
   it("does not mint document-wide evidence for an unlocated A2AJ Read", async () => {
     const text = [
       "[1] First native decision paragraph with enough text to be addressable.",

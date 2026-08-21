@@ -5,6 +5,7 @@ import {
   type A2AJDocument,
   type A2AJLocatorLookup,
 } from "../legalSources/a2aj";
+import type { SourceDoc } from "../sourceDoc";
 import { hasCitationInText } from "../citationKey";
 import {
   hasCanadianDecisionLink,
@@ -86,6 +87,7 @@ export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
   document?: A2AJDocument;
   lookup?: A2AJLocatorLookup;
+  source?: SourceDoc;
 };
 
 export type GroundedLegalClaim = {
@@ -199,15 +201,20 @@ export function createA2AJPassageEvidence(args: {
   end: number;
   externalUrl: string | null;
   sourceClass: LegalSourceClass;
+  blockId?: string;
+  locator?: LegalEvidenceReceipt["locator"];
 }): LegalEvidenceReceipt {
-  const locator = `characters ${args.start + 1}–${args.end}`;
+  const locator = args.locator ?? {
+    kind: "document" as const,
+    label: `characters ${args.start + 1}–${args.end}`,
+  };
   return passageEvidence({
     provider: "a2aj",
     jurisdiction: "CA",
     source_class: args.sourceClass,
     stable_source_id: stableA2AJSourceId(args),
     sourceText: args.sourceText,
-    block_id: `chars:${args.start}-${args.end}`,
+    block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
     spanText: args.spanText,
     citation: args.citation,
     name: args.name,
@@ -215,7 +222,7 @@ export function createA2AJPassageEvidence(args: {
     language: args.language,
     version: null,
     external_url: args.externalUrl,
-    locator: { kind: "document", label: locator },
+    locator,
     resolver_version: "a2aj-inline-v1",
   });
 }
@@ -449,7 +456,7 @@ function createJournalEvidence(args: {
 
 export function createPublicJournalPassageEvidence(
   args: Omit<Parameters<typeof createJournalEvidence>[0], "locatorKind"> & {
-    locatorKind: "paragraph" | "section" | "page" | "footnote";
+    locatorKind: LegalEvidenceReceipt["locator"]["kind"];
   },
 ) {
   return createJournalEvidence(args);
@@ -458,7 +465,7 @@ export function createPublicJournalPassageEvidence(
 export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
   receipt: LegalEvidenceReceipt | undefined,
-  source: { document?: A2AJDocument; lookup?: A2AJLocatorLookup } = {},
+  source: Omit<RegisteredEvidence, "receipt"> = {},
 ) {
   if (receipt) state.evidence.set(receipt.evidence_id, { receipt, ...source });
 }
