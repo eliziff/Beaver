@@ -370,7 +370,7 @@ describe("verified legal-source links", () => {
     expect(result).not.toContain("canlii.org");
   });
 
-  it("keeps a unique long passage intact instead of pairing a common start", () => {
+  it("pairs a long passage into a verified range without early-match starts", () => {
     const quote =
       "[101] Delay in seeking child support can prejudice both parties, but the applicable factors must not be decided arbitrarily not to apply.";
     const text = [
@@ -388,8 +388,125 @@ describe("verified legal-source links", () => {
     )!;
     const directive = result.split(":~:text=")[1];
 
-    expect(directive).not.toContain(",");
-    expect(decodeURIComponent(directive)).toBe(quote.replace(/^\[101\]\s*/u, ""));
+    // A whole-quote target this long is one punctuation drift away from
+    // dead. The range's short boundaries are each verified against the full
+    // document, and the start boundary keeps its disambiguating continuation
+    // ("...support CAN") - the bare prefix also opens the earlier paragraph.
+    const [head, tail] = directive.split(",").map(decodeURIComponent);
+    expect(head).toBe("Delay in seeking child support can");
+    expect(tail).toBe("be decided arbitrarily not to apply");
   });
 
+  it("never carries A2AJ pin-range artifacts into fragment targets", () => {
+    const passage =
+      "The court must ensure that the quantum of a retroactive award fits the circumstances.";
+    const blockText = `${passage} [99-135]`;
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2311/index.do",
+        anchor: "par135",
+        blockText,
+        documentText: blockText,
+      },
+      [blockText],
+    )!;
+
+    // The bracketed range is citation presentation appended to the receipt
+    // span; it never appears on the page, so a target containing it can
+    // only fail.
+    expect(decodeURIComponent(result.split(":~:text=")[1])).toBe(passage);
+  });
+
+  it("starts fragment targets after margin numbers and provision labels", () => {
+    const decisia = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2311/index.do",
+        anchor: "par5",
+        blockText:
+          "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+        documentText:
+          "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+      },
+      [
+        "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+      ],
+    )!;
+    expect(
+      decodeURIComponent(decisia.split(":~:text=")[1]),
+    ).toBe(
+      "Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+    );
+
+    const kingsPrinter =
+      "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm&leg_type=Acts&isbncln=9780779854820&display=html";
+    const subsection = buildLegalSourcePinpointUrl(
+      {
+        url: kingsPrinter,
+        blockText: "(2) The court may make a child support order only if",
+        documentText: "(2) The court may make a child support order only if",
+      },
+      ["(2) The court may make a child support order only if"],
+    )!;
+    expect(decodeURIComponent(subsection.split(":~:text=")[1])).toBe(
+      "The court may make a child support order only if",
+    );
+
+    const section = buildLegalSourcePinpointUrl(
+      {
+        url: kingsPrinter,
+        blockText:
+          "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+        documentText:
+          "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+      },
+      [
+        "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+      ],
+    )!;
+    expect(decodeURIComponent(section.split(":~:text=")[1])).toBe(
+      "In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+    );
+  });
+
+  it("ranges across source lines instead of emitting impossible targets", () => {
+    const para =
+      "[130] A second way courts can affect the quantum of retroactive awards is by altering the time period that the award captures while keeping fairness in view.";
+    const blockText = `${para}\n5.5 Summary`;
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
+        anchor: "par130",
+        blockText,
+        documentText: `${blockText}\n[131] A later paragraph continues with further distinct reasoning.`,
+      },
+      [blockText],
+    )!;
+    const raw = result.split(":~:text=")[1];
+
+    // A passage crossing a source line break cannot sit inside one publisher
+    // block either: the honest fragment is a start,end range whose each half
+    // stays within one block.
+    const [head, tail] = raw.split(",").map(decodeURIComponent);
+    expect(head).toBe("A second way courts can affect");
+    expect(tail).toBe("Summary");
+    expect(raw).not.toMatch(/%0A/iu);
+  });
+
+  it("falls back to the anchor when a cross-line passage cannot be verified", () => {
+    const para =
+      "An unverifiable cross-line passage repeats twice in the judgment with no distinguishing context anywhere.";
+    const blockText = `${para}\nAppendix`;
+    const url = "https://example.test/decision";
+    expect(
+      buildLegalSourcePinpointUrl(
+        {
+          url,
+          anchor: "par7",
+          blockText,
+          documentText: `${blockText}\n${blockText}`,
+        },
+        [blockText],
+      ),
+    ).toBe(`${url}#par7`);
+  });
 });
