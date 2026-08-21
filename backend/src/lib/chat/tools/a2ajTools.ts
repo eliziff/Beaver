@@ -145,11 +145,36 @@ function activityText(value: unknown, maximum: number) {
     : `${text.slice(0, maximum - 1).trimEnd()}…`;
 }
 
-function activityLocatorLabel(label: string) {
-  return label
+function activityLocatorLabel(label: string, kind?: string) {
+  const value = label
     .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
     .replace(/^[a-z]+=/iu, "")
     .trim();
+  const prefix = kind === "paragraph"
+    ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
+    : kind === "section"
+      ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu
+      : null;
+  return prefix
+    ? value.replace(prefix, "").replace(new RegExp(`([–—-])${prefix.source.slice(1)}`, "giu"), "$1")
+    : value;
+}
+
+function activityLocatorNoun(kind: string, plural: boolean) {
+  if (kind === "paragraph") return plural ? "paras" : "para";
+  if (kind === "section") return plural ? "ss" : "s";
+  return plural ? `${kind}s` : kind;
+}
+
+function compactSectionActivityScope(labels: readonly string[]) {
+  if (labels.length < 8) return null;
+  const root = labels[0].match(/^([A-Za-z]?\d+(?:\.\d+)?)(?=\()/u)?.[1];
+  if (!root || !labels.every((label) => label.startsWith(`${root}(`))) {
+    return null;
+  }
+  const outer = labels.filter((label) =>
+    /^\([^()]+\)$/u.test(label.slice(root.length)));
+  return outer.length > 1 ? `${outer[0]}–${outer.at(-1)}` : null;
 }
 
 export function assistantToolActivityLabel(
@@ -206,8 +231,10 @@ export function assistantToolActivityLabel(
     const locator = activityText(args.locator, 80);
     const end = activityText(args.end_locator, 80);
     if (kind && locator) {
-      const noun = end && end !== locator ? `${kind}s` : kind;
-      return `Reading ${noun} ${locator}${end && end !== locator ? `–${end}` : ""} of ${title}${context}`;
+      const first = activityLocatorLabel(locator, kind);
+      const last = end ? activityLocatorLabel(end, kind) : undefined;
+      const plural = Boolean(last && last !== first);
+      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
@@ -290,8 +317,10 @@ export function assistantReadEvidenceActivityLabel(
   const last = passages.at(-1);
   if (!first || !last) return null;
   const title = sourceName ?? first.name ?? first.citation;
-  const firstLabel = activityText(activityLocatorLabel(first.locator.label), 80);
-  const lastLabel = activityText(activityLocatorLabel(last.locator.label), 80);
+  const labels = [...new Set(passages.map(({ locator }) =>
+    activityLocatorLabel(locator.label, locator.kind)))];
+  const firstLabel = activityText(labels[0], 80);
+  const lastLabel = activityText(labels.at(-1), 80);
   const contextBlocks = Number.isInteger(args.context_blocks) && Number(args.context_blocks) > 0
     ? Number(args.context_blocks) : 0;
   const context = contextBlocks
@@ -299,9 +328,28 @@ export function assistantReadEvidenceActivityLabel(
     : "";
   if (!firstLabel || !lastLabel) return `Reading ${title}${context}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `Reading ${first.locator.kind} ${firstLabel} through ${last.locator.kind} ${lastLabel} of ${title}${context}`;
+    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}${context}`;
   }
-  const range = firstLabel === lastLabel ? firstLabel : `${firstLabel}–${lastLabel}`;
-  const noun = firstLabel === lastLabel ? first.locator.kind : `${first.locator.kind}s`;
-  return `Reading ${noun} ${range} of ${title}${context}`;
+  const compactSectionScope = first.locator.kind === "section"
+    ? compactSectionActivityScope(labels)
+    : null;
+  if (compactSectionScope) {
+    return `Reading ss ${compactSectionScope} of ${title}${context}`;
+  }
+  const sequential = labels.every((label, index) => !index || (
+    first.locator.kind === "paragraph"
+      ? Number(label) === Number(labels[index - 1]) + 1
+      : first.locator.kind === "section"
+        ? (() => {
+            const prior = labels[index - 1].match(/^(.*)\((\d+)\)$/u);
+            const current = label.match(/^(.*)\((\d+)\)$/u);
+            return prior && current && prior[1] === current[1] &&
+              Number(current[2]) === Number(prior[2]) + 1;
+          })()
+        : false
+  ));
+  const plural = labels.length > 1 || /[–—-]/u.test(firstLabel);
+  const scope = labels.length === 1 ? firstLabel
+    : sequential ? `${firstLabel}–${lastLabel}` : labels.join(", ");
+  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope} of ${title}${context}`;
 }

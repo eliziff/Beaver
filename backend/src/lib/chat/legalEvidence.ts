@@ -90,6 +90,8 @@ export type RegisteredEvidence = {
   source?: SourceDoc;
 };
 
+export type PriorLegalEvidence = LegalEvidenceReceipt | RegisteredEvidence;
+
 export type GroundedLegalClaim = {
   text: string;
   evidence_ids: string[];
@@ -512,12 +514,55 @@ export function priorLegalEvidenceReceipts(events: readonly unknown[]) {
 
 export function registerPriorLegalEvidence(
   state: LegalEvidenceTurnState,
-  receipts: readonly LegalEvidenceReceipt[],
+  values: readonly PriorLegalEvidence[],
 ) {
-  for (const receipt of receipts) {
-    registerLegalEvidence(state, receipt);
+  for (const value of values) {
+    const entry = "receipt" in value ? value : { receipt: value };
+    const { receipt, ...source } = entry;
+    registerLegalEvidence(state, receipt, source);
     state.priorEvidenceIds.add(receipt.evidence_id);
   }
+}
+
+export async function restorePriorLegalEvidence(
+  receipts: readonly LegalEvidenceReceipt[],
+  signal?: AbortSignal,
+): Promise<RegisteredEvidence[]> {
+  const sources = new Map<string, Promise<{
+    document: A2AJDocument;
+    source: SourceDoc;
+  } | null>>();
+  const a2ajSource = (receipt: LegalEvidenceReceipt) => {
+    let pending = sources.get(receipt.stable_source_id);
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const document = await a2ajLegalSourceProvider.document({
+            citation: receipt.citation,
+            docType: receipt.source_class === "legislation" ? "laws" : "cases",
+            language: receipt.language,
+            dataset: receipt.dataset,
+            signal,
+          });
+          if (!document) return null;
+          const source = a2ajLegalSourceProvider.source(document);
+          return source && sha256(source.text) === receipt.source_sha256
+            ? { document, source }
+            : null;
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          return null;
+        }
+      })();
+      sources.set(receipt.stable_source_id, pending);
+    }
+    return pending;
+  };
+  return Promise.all(receipts.map(async (receipt) => {
+    if (receipt.provider !== "a2aj") return { receipt };
+    const restored = await a2ajSource(receipt);
+    return { receipt, ...(restored ?? {}) };
+  }));
 }
 
 const CITATION_REQUEST = /\b(?:cite|cites|citation|citations|source|sources|pinpoint|footnote)\b/iu;

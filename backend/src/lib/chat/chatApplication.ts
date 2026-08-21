@@ -35,6 +35,7 @@ import { normalizeAskInputsEvent } from "./askInputs";
 import {
   priorLegalEvidencePrompt,
   priorLegalEvidenceReceipts,
+  restorePriorLegalEvidence,
 } from "./legalEvidence";
 import {
   READ_SUBAGENT_SYSTEM_PROMPT,
@@ -647,16 +648,12 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const priorEvidence = priorLegalEvidenceReceipts(rows.flatMap((row) =>
+      const priorEvidenceReceipts = priorLegalEvidenceReceipts(rows.flatMap((row) =>
         Array.isArray(row.content) ? row.content : []));
-      const evidencePrompt = priorLegalEvidencePrompt(priorEvidence);
-      if (evidencePrompt) {
-        const last = messages.map(({ role }) => role).lastIndexOf("user");
-        if (last >= 0) messages[last] = {
-          ...messages[last],
-          content: `${messages[last].content}\n\n${evidencePrompt}`,
-        };
-      }
+      const priorEvidence = await restorePriorLegalEvidence(
+        priorEvidenceReceipts,
+        signal,
+      );
       const images = await loadImages(deps.documents, auth, messages, context.records);
       if (images.size && !modelSupportsImageInput(selectedModel)) {
         throw new ChatApplicationError(400,
@@ -810,12 +807,24 @@ export function createChatApplication(deps: Dependencies) {
               onStatus: onCompaction,
             });
             version = (await deps.chats.get(auth, chat!.id))?.transcript_version ?? version;
-            return prepared.messages.map((message) => ({
+            const preparedMessages = prepared.messages.map((message) => ({
               role: message.role === "assistant" ? "assistant" as const : "user" as const,
               content: formatChatMessageContent(message, slugByDocumentId),
               images: imageForMessage(message, images),
               contextCheckpoint: message.contextCheckpoint,
             }));
+            const evidencePrompt = priorLegalEvidencePrompt(
+              priorEvidenceReceipts.filter(({ evidence_id }) =>
+                !preparedMessages.some(({ content }) => content.includes(evidence_id))),
+            );
+            if (evidencePrompt) {
+              const last = preparedMessages.map(({ role }) => role).lastIndexOf("user");
+              if (last >= 0) preparedMessages[last] = {
+                ...preparedMessages[last],
+                content: `${preparedMessages[last].content}\n\n${evidencePrompt}`,
+              };
+            }
+            return preparedMessages;
           },
           subagentMode: input.subagent_mode as SubagentMode,
           subagentModel: input.subagent_model,

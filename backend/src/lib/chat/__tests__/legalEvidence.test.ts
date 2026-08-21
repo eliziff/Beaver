@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import crypto from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createTnaEvidence,
@@ -16,11 +17,14 @@ import {
   registerLegalEvidence,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
+  restorePriorLegalEvidence,
   selectGroundedQuotationPolicy,
   submitLegalEvidenceAnswer,
 } from "../legalEvidence";
 import { createLegalEvidenceCitations } from "../citations";
 import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
+import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
+import { createTextSourceDoc } from "../../sourceDoc";
 
 function passage(locatorLabel = "par12") {
   return createTnaEvidence({
@@ -39,6 +43,8 @@ function passage(locatorLabel = "par12") {
 }
 
 describe("production legal evidence", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("recognizes named cases even when the model omits their citations", () => {
     expect(hasCaseNameInText("My favourite is *R. v. Oakes*.")).toBe(true);
     expect(hasCaseNameInText("I prefer Baker v. Canada for this point.")).toBe(true);
@@ -77,6 +83,15 @@ describe("production legal evidence", () => {
     expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
       "paragraph range (locator plus end_locator)",
     );
+    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
+      "Never cite its headnote unless the user specifically requests the headnote.",
+    );
+    expect(CODING_PRODUCTION_SYSTEM_PROMPT).not.toContain(
+      "A successful final Write call ends the turn.",
+    );
+    expect(CODING_PRODUCTION_SYSTEM_PROMPT).toContain(
+      "Use submit_grounded_answer for evidence-dependent prose returned in chat.",
+    );
   });
 
   it("carries an immediate citation correction across the follow-up", () => {
@@ -104,6 +119,50 @@ describe("production legal evidence", () => {
     registerPriorLegalEvidence(followUp, priorLegalEvidenceReceipts([event]));
     expect(legalEvidenceReceiptEvent(followUp)).toBeNull();
     expect(followUp.evidence.get(evidence.evidence_id)?.receipt).toEqual(evidence);
+  });
+
+  it("restores a prior A2AJ receipt against its unchanged full source", async () => {
+    const text = [
+      "Delay in seeking child support may arise for unrelated reasons.",
+      "Delay in seeking child support requires a distinct final proposition.",
+    ].join("\n");
+    const source = createTextSourceDoc(text);
+    const receipt = {
+      ...passage("par101"),
+      provider: "a2aj" as const,
+      stable_source_id: "a2aj:en:scc:2006 scc 37",
+      source_sha256: `sha256:${crypto.createHash("sha256").update(text).digest("hex")}`,
+      citation: "2006 SCC 37",
+      dataset: "SCC",
+      external_url:
+        "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
+      resolver_version: "a2aj-inline-v1" as const,
+    };
+    const document = {
+      docType: "cases" as const,
+      dataset: "SCC",
+      citation: "2006 SCC 37",
+      alternateCitation: null,
+      name: "D.B.S. v S.R.G.",
+      date: "2006-07-31",
+      url: receipt.external_url,
+      text,
+      language: "en" as const,
+      upstreamLicense: null,
+      structure: {
+        status: "unavailable" as const,
+        source: "flat_text" as const,
+        counts: { paragraph: 0, page: 0, section: 0 },
+      },
+    };
+    vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
+    vi.spyOn(a2ajLegalSourceProvider, "source").mockReturnValue(source);
+
+    expect(await restorePriorLegalEvidence([receipt])).toEqual([{
+      receipt,
+      document,
+      source,
+    }]);
   });
 
   it("emits typed public-source citations from provider receipts", () => {

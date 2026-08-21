@@ -227,6 +227,66 @@ describe("chat PDF evidence durability", () => {
     expect((await request(loaded.app).get(`/chat/${empty.body.id}`)).status).toBe(200);
   });
 
+  it("keeps prior evidence in model history without appending it to each user turn", async () => {
+    const { createTnaEvidence } = await import("../lib/chat/legalEvidence");
+    const evidence = createTnaEvidence({
+      jurisdiction: "CA",
+      sourceClass: "case",
+      stableSourceId: "case:retained",
+      sourceText: "The retained passage answers the question.",
+      spanText: "The retained passage answers the question.",
+      citation: "2026 SCC 1",
+      name: "Example v State",
+      dataset: "fixture",
+      externalUrl: "https://example.test/case",
+      locatorKind: "paragraph",
+      locatorLabel: "par12",
+    });
+    mocks.runLocalAssistantTool.mockImplementation(
+      async (_userId: unknown, call: { id: string }) => ({
+        result: { tool_use_id: call.id, content: JSON.stringify({ ok: true }) },
+        mutated: false,
+        events: [],
+        terminal: false,
+        evidence: [evidence],
+      }),
+    );
+    let turn = 0;
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      mocks.providerMessages.push(
+        params.messages.map(({ role, content }) => ({ role, content })),
+      );
+      if (turn++ === 0) {
+        await params.runTools?.([{
+          id: "read-1",
+          name: "Read",
+          input: { file_path: "source" },
+        }]);
+      }
+      const text = "Done.";
+      params.callbacks?.onContentDelta?.(text);
+      return { fullText: text };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+    expect((await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      current_turn: { kind: "message", content: "Inspect this." },
+    })).status).toBe(200);
+    const current = await storedChat(loaded.store, created.body.id);
+    expect((await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: current!.transcript_version,
+      current_turn: { kind: "message", content: "Use it again." },
+    })).status).toBe(200);
+
+    const followUp = mocks.providerMessages.at(-1)!;
+    expect(followUp.some(({ role, content }) =>
+      role === "assistant" && content.includes(evidence.evidence_id))).toBe(true);
+    expect(followUp.at(-1)).toEqual({ role: "user", content: "Use it again." });
+  });
+
   it("uses an explicitly selected owned document without changing the project", async () => {
     const localDocuments = await import(
       "../lib/__tests__/support/localDocumentFixtures"

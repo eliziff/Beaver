@@ -1,6 +1,7 @@
 import {
   a2ajLegalSourceProvider,
   type A2AJDocument,
+  type A2AJLocatorKind,
   type A2AJLocatorLookup,
 } from "./legalSources/a2aj";
 import {
@@ -51,9 +52,6 @@ function asDoc(source: QuoteSource): SourceDoc {
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
-const LONG_FRAGMENT_WORDS = 30;
-const LONG_FRAGMENT_CHARS = 220;
-const RANGE_BOUNDARY_WORDS = 5;
 // Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
 // decisia.lexum.com tenants). Their default document URL is an iframe shell
 // with no text and no anchors; `?iframe=true` serves the document inline
@@ -141,85 +139,27 @@ function textRangeDirective(start: string, end: string) {
   return `text=${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
 }
 
-function textRangeTargets(block: SourceDoc, span: SourceDocQuoteSpan) {
-  let firstWord = span.firstWord;
-  const secondWord = block.tokens[firstWord + 1];
-  if (
-    secondWord &&
-    /^(?:\[\s*)?\d{1,4}(?:\s*\])?[.)]?\s*$/u.test(
-      block.text.slice(span.start, secondWord.start),
-    )
-  ) {
-    firstWord += 1;
-  }
-  const words = block.tokens.slice(firstWord, span.lastWord + 1);
-  if (words.length < RANGE_BOUNDARY_WORDS * 2) return null;
-  const count = Math.min(
-    RANGE_BOUNDARY_WORDS,
-    Math.max(3, Math.floor(words.length / 3)),
-  );
-  const first = words.slice(0, count);
-  const last = words.slice(-count);
-  if (first.at(-1)!.end >= last[0].start) return null;
-  return {
-    start: normalizeWhitespace(
-      block.text.slice(first[0].start, first.at(-1)!.end),
-    ),
-    end: normalizeWhitespace(
-      block.text.slice(last[0].start, span.end),
-    ),
-  };
-}
-
-function rangeDirectiveMatchCount(
-  document: SourceDoc,
-  start: string,
-  end: string,
+function a2ajLocatorAnchor(
+  rawUrl: string | null,
+  kind: A2AJLocatorKind,
+  label: string,
 ) {
-  const starts = sourceDocPhraseSpans(document, sourceDocQuoteWords(start), {
-    sameLine: true,
-    limit: 2,
-  });
-  const ends = sourceDocPhraseSpans(document, sourceDocQuoteWords(end), {
-    sameLine: true,
-  });
-  let count = 0;
-  for (const startSpan of starts) {
-    if (
-      ends.some(
-        (endSpan) =>
-          endSpan.start >= startSpan.end &&
-          !document.text.slice(startSpan.end, endSpan.end).includes("\n"),
-      )
-    ) {
-      count += 1;
-      if (count === 2) break;
-    }
-  }
-  return count;
-}
-
-function locatorAnchor(
-  lookup: A2AJLocatorLookup,
-  block: A2AJLookupBlock | null = lookup.block,
-) {
-  if (!lookup.url) return undefined;
+  if (!rawUrl) return undefined;
   let url: URL;
   try {
-    url = new URL(lookup.url);
+    url = new URL(rawUrl);
   } catch {
     return undefined;
   }
-  const label = block?.label || lookup.requested.label;
   const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
-  if (lookup.requested.kind === "paragraph") {
+  if (kind === "paragraph") {
     const number = label.match(/^par(\d+)/iu)?.[1];
     return number &&
       ((canlii && url.pathname.includes("/doc/")) || isDecisiaDocument(url))
       ? `par${Number(number)}`
       : undefined;
   }
-  if (lookup.requested.kind === "page") {
+  if (kind === "page") {
     const number = label.match(/^page=?(\d+)/iu)?.[1];
     return number && url.pathname.toLowerCase().endsWith(".pdf")
       ? `page=${Number(number)}`
@@ -231,40 +171,6 @@ function locatorAnchor(
   return topLevelSection && canlii && url.pathname.includes("/laws/")
     ? `sec${topLevelSection}`
     : undefined;
-}
-
-function preferredA2AJUrl(
-  source: Pick<
-    A2AJLocatorLookup | A2AJDocument,
-    "dataset" | "citation" | "alternateCitation" | "language" | "url"
-  >,
-  hasQuotes: boolean,
-  anchor?: string,
-) {
-  const canlii = buildCanliiCaseUrl({
-    dataset: source.dataset,
-    citations: [source.citation, source.alternateCitation],
-    language: source.language,
-  });
-  if (!canlii) return source.url;
-
-  // ALR keeps the ordinary citation link on CanLII, but SCC quote highlights
-  // use the official decision when a native paragraph target is known. The
-  // official source and the user-facing deep link are deliberately different
-  // roles; sourceUrl() adds the required inline/mobile Decisia parameters.
-  if (
-    hasQuotes &&
-    anchor?.startsWith("par") &&
-    source.dataset.toUpperCase() === "SCC" &&
-    source.url
-  ) {
-    try {
-      if (isDecisiaDocument(new URL(source.url))) return source.url;
-    } catch {
-      // Fall through to the identity-locked CanLII URL.
-    }
-  }
-  return canlii;
 }
 
 function sourceUrl(rawUrl: string, anchor?: string): string | null {
@@ -430,22 +336,6 @@ function buildDirective(
   if (!targetWords.length) return null;
 
   const targetCount = directiveMatchCount(document, target);
-  if (
-    targetCount === 1 &&
-    (targetWords.length >= LONG_FRAGMENT_WORDS ||
-      target.length >= LONG_FRAGMENT_CHARS)
-  ) {
-    const range = textRangeTargets(block, span);
-    if (
-      range &&
-      rangeDirectiveMatchCount(document, range.start, range.end) === 1
-    ) {
-      return {
-        directive: textRangeDirective(range.start, range.end),
-        start: span.start,
-      };
-    }
-  }
   const needsContext =
     targetWords.length <= 3 ||
     targetCount !== 1 ||
@@ -491,29 +381,42 @@ function appendDirectives(url: string, directives: string[]) {
     : `${url}#:~:${directives.join("&")}`;
 }
 
+function buildA2AJSourcePinpointUrl(
+  source: Pick<
+    A2AJLocatorLookup | A2AJDocument,
+    "dataset" | "citation" | "alternateCitation" | "language" | "url"
+  >,
+  locator: { kind: A2AJLocatorKind; label: string },
+  blockText: QuoteSource,
+  quotes: string[],
+  document: SourceDoc | null,
+) {
+  if (!source.url) return null;
+  const anchor = a2ajLocatorAnchor(source.url, locator.kind, locator.label);
+  const baseUrl = sourceUrl(source.url, anchor);
+  return baseUrl
+    ? buildLegalSourcePinpointUrl({
+        url: baseUrl,
+        blockText,
+        ...(document && { documentText: document }),
+        pageScoped: locator.kind === "page",
+      }, quotes)
+    : null;
+}
+
 export function buildA2AJPinpointUrl(
   lookup: A2AJLocatorLookup,
   quotes: string[],
   document: SourceDoc | null = a2ajLegalSourceProvider.source(lookup),
   block: A2AJLookupBlock | null = lookup.block,
 ) {
-  const sourceAnchor = locatorAnchor(lookup, block);
-  const preferredUrl =
-    lookup.requested.kind === "paragraph"
-      ? preferredA2AJUrl(lookup, quotes.length > 0, sourceAnchor)
-      : lookup.url;
-  if (!preferredUrl) return null;
-  const anchor = locatorAnchor({ ...lookup, url: preferredUrl }, block);
-  const baseUrl = sourceUrl(preferredUrl, anchor);
-  if (!baseUrl) return null;
-  return buildLegalSourcePinpointUrl(
-    {
-      url: baseUrl,
-      blockText: lookup.status === "found" && block ? block.text : "",
-      documentText: document ?? undefined,
-      pageScoped: lookup.requested.kind === "page",
-    },
+  const label = block?.label || lookup.requested.label;
+  return buildA2AJSourcePinpointUrl(
+    lookup,
+    { kind: lookup.requested.kind, label },
+    lookup.status === "found" && block ? block.text : "",
     quotes,
+    document,
   );
 }
 
@@ -642,6 +545,23 @@ function isCanadianDecisionUrl(url: URL) {
     ((url.hostname === "scc-csc.ca" ||
       url.hostname === "www.scc-csc.ca") &&
       url.pathname.toLowerCase().includes("/case-dossier/"))
+  );
+}
+
+/** Rebuild the same A2AJ link after a prior-turn receipt has been rehydrated. */
+export function buildA2AJDocumentPinpointUrl(
+  document: A2AJDocument,
+  locator: { kind: A2AJLocatorKind; label: string },
+  blockText: QuoteSource,
+  quotes: string[],
+  source: SourceDoc | null = a2ajLegalSourceProvider.source(document),
+) {
+  return buildA2AJSourcePinpointUrl(
+    document,
+    locator,
+    blockText,
+    quotes,
+    source,
   );
 }
 
@@ -819,8 +739,7 @@ export function buildA2AJParagraphRangeUrl(
   const endTarget = uniqueParagraphEdge(endSource, source, "end");
   if (!startTarget || !endTarget) return null;
   const anchor = `par${Number(start)}`;
-  const preferred = preferredA2AJUrl(metadata, true, anchor);
-  const baseUrl = preferred ? sourceUrl(preferred, anchor) : null;
+  const baseUrl = metadata.url ? sourceUrl(metadata.url, anchor) : null;
   return baseUrl
     ? appendDirectives(baseUrl, [
         textRangeDirective(startTarget, endTarget),

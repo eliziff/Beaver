@@ -61,7 +61,18 @@ describe("legal-source assistant activity", () => {
       locator: "42",
       end_locator: "44",
       context_blocks: 1,
-    })).toBe("Reading paragraphs 42–44 of 2012 SCC 45 with 1 adjacent context block");
+    })).toBe("Reading paras 42–44 of 2012 SCC 45 with 1 adjacent context block");
+    expect(assistantToolActivityLabel("Read", {
+      file_path: source,
+      locator_kind: "section",
+      locator: "sec49(1)",
+    })).toBe("Reading s 49(1) of 2012 SCC 45");
+    expect(assistantToolActivityLabel("Read", {
+      file_path: source,
+      locator_kind: "section",
+      locator: "sec49(1)",
+      end_locator: "sec49(4)",
+    })).toBe("Reading ss 49(1)–49(4) of 2012 SCC 45");
     expect(assistantToolActivityLabel("Read", {
       file_path: "document://record/version/v1",
       section: "Damages",
@@ -95,5 +106,25 @@ describe("legal-source assistant activity", () => {
       ...evidence,
       locator: { kind: "page", label: "[page 8]" },
     }], "1988canlii30.pdf")).toBe("Reading page 8 of 1988canlii30.pdf");
+    expect(assistantReadEvidenceActivityLabel([{
+      ...evidence,
+      locator: { kind: "section", label: "sec49(1)–sec49(4)" },
+    }], "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
+    expect(assistantReadEvidenceActivityLabel([1, 2, 3].map((number) => ({
+      ...evidence,
+      locator: { kind: "paragraph" as const, label: `par${number}` },
+    })), "Case")).toBe("Reading paras 1–3 of Case");
+    expect(assistantReadEvidenceActivityLabel([1, 4].map((number) => ({
+      ...evidence,
+      locator: { kind: "paragraph" as const, label: `par${number}` },
+    })), "Case")).toBe("Reading paras 1, 4 of Case");
+    expect(assistantReadEvidenceActivityLabel([
+      "17(1)", "17(1)(a)", "17(1)(b)", "17(1)(b)(i)",
+      "17(2)", "17(2.1)", "17(3)", "17(4)", "17(4.1)", "17(5)",
+      "17(6)", "17(7)", "17(8)", "17(9)", "17(10)", "17(11)",
+    ].map((label) => ({
+      ...evidence,
+      locator: { kind: "section" as const, label: `sec${label}` },
+    })), "Divorce Act")).toBe("Reading ss 17(1)–17(11) of Divorce Act");
   });
 });

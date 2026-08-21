@@ -5,6 +5,7 @@ import {
   projectChatTranscript,
   visibleChatMessages,
 } from "./chatTranscript";
+import { createTnaEvidence } from "./legalEvidence";
 
 function message(
   role: "user" | "assistant",
@@ -202,5 +203,43 @@ describe("visibleChatMessages", () => {
         status: "completed",
       },
     ]);
+  });
+
+  it("keeps created documents and verified evidence in model history", () => {
+    const evidence = createTnaEvidence({
+      jurisdiction: "CA",
+      sourceClass: "case",
+      stableSourceId: "case:1",
+      sourceText: "The appeal is allowed.",
+      spanText: "The appeal is allowed.",
+      citation: "2026 SCC 1",
+      name: "Example v State",
+      dataset: "fixture",
+      externalUrl: "https://example.test/case",
+      locatorKind: "paragraph",
+      locatorLabel: "par12",
+    });
+    const projected = projectChatTranscript([message("assistant", [
+      { type: "content", text: "The memo is ready." },
+      {
+        type: "document_artifact",
+        filename: "Memo.docx",
+        document_id: "document-1",
+        version_id: "version-1",
+      },
+      {
+        type: "legal_evidence_receipt",
+        status: "passed",
+        evidence: [evidence],
+      },
+    ])]);
+
+    expect(projected).toHaveLength(1);
+    expect(projected[0].content).toContain(
+      '[Created document: "Memo.docx"; resource: document://document-1/version/version-1]',
+    );
+    expect(projected[0].content).toContain("VERIFIED EVIDENCE AVAILABLE FROM PRIOR TURNS");
+    expect(projected[0].content).toContain(evidence.evidence_id);
+    expect(projected[0].content).toContain('"exact_passage":"The appeal is allowed."');
   });
 });

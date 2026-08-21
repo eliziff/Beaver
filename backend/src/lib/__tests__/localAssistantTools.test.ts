@@ -337,6 +337,7 @@ describe("local assistant tools", () => {
       mutated: true,
       events: [{ type: "document_artifact", action: "created", filename: "Requested memo.docx" }],
     });
+    expect(created.terminal).toBeUndefined();
     expect([workbook, presentation].map(({ content }) =>
       JSON.parse(content).file_type)).toEqual(["xlsx", "pptx"]);
   }, 10_000);
@@ -1060,7 +1061,8 @@ describe("local assistant tools", () => {
     expect(entry?.source).toBeDefined();
     const { presentLegalEvidence } = await import("../chat/citationPresentation");
     expect(presentLegalEvidence(entry!).passageUrl)
-      .toContain("#par3:~:text=");
+      .toContain("https://example.test/case-3#:~:text=");
+    expect(presentLegalEvidence(entry!).passageUrl).not.toContain("#par3");
   });
 
   it("keeps unstructured A2AJ pattern evidence on clean text-fragment boundaries", async () => {
