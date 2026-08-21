@@ -7,7 +7,7 @@ import { isLocalRuntime } from "./localMode";
 import { type QueryResult, type RelationalDatabase, type SqlStatement,
   type SqlValue } from "./relational";
 export { sql, type QueryResult, type RelationalDatabase, type SqlStatement,
-  type SqlValue } from "./relational";
+  type SqlValue, decodeJson, encodeJson } from "./relational";
 
 const bind = (params: SqlValue[]) => Object.fromEntries(
   params.map((value, index) => [String(index + 1), value]),
@@ -114,19 +114,6 @@ function openLocalDatabase() {
 export function localDatabaseSync() {
   if (!isLocalRuntime()) throw new Error("The native database is available only in local mode");
   return localState.native ??= openLocalDatabase();
-}
-
-export function localTransaction<T>(run: (database: DatabaseSync) => T) {
-  const database = localDatabaseSync();
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    const result = run(database);
-    database.exec("COMMIT");
-    return result;
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
 }
 
 function remoteDatabase() {

@@ -88,6 +88,7 @@ export async function deleteUserAccountData(
             : Promise.resolve({ error: null }),
         db.from("workflows").delete().eq("user_id", userId),
         db.from("audit_events").delete().eq("user_id", userId),
+        db.from("user_preferences").delete().eq("user_id", userId),
         db.from("object_cleanup").delete().eq("user_id", userId),
         db.from("projects").delete().eq("user_id", userId),
     ];

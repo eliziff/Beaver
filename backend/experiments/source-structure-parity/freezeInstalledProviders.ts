@@ -8,26 +8,16 @@ import { execFileSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { DatabaseSync } from "node:sqlite";
 import {
-  fetchLocalA2AJDocumentsByIds, getLocalA2AJSectionMap,
+  a2ajDocumentFromRow, getLocalA2AJSectionMap,
 } from "../../src/lib/a2ajLocalBulk";
 import {
   journalLegalSourceProvider as journal,
 } from "../../src/lib/legalSources/journal";
 import {
-  finalizeA2AJSourceStructure,
-  prepareA2AJSourceStructure,
-  type CompileInput,
-} from "../../src/lib/sourceDocA2AJ";
-import {
-  journalFinalContractSource,
-  prepareJournalSourceStructure,
-  type JournalPageRow,
-  type JournalStructureInput,
-} from "../../src/lib/sourceDocJournal";
-import {
-  prepareNativeMarkupSourceStructure,
-  type NativeMarkupSourceInput,
-} from "../../src/lib/sourceDocNativeMarkup";
+  a2ajSourceDocsNative, journalSourceDocNative, sourceDocsNative,
+  type A2ajNativeInput,
+} from "../../src/lib/structureNative";
+import type { NativeMarkupSourceInput } from "../../src/lib/sourceDocNativeMarkup";
 import type { SourceDoc } from "../../src/lib/sourceDoc";
 import {
   deriveSourceStructureGraphs,
@@ -36,13 +26,21 @@ import {
 } from "../../src/lib/sourceStructureEngine";
 import { projectSourceStructure, type SourceStructureInput } from "../../src/lib/sourceStructureAdapter";
 import {
-  legalStructureBinary,
   setBelowNormalProcessPriority,
   type StructurePriorityReceipt,
 } from "../../src/lib/structureEngineClient";
+import { structureNativeBinary } from "../../src/lib/structureNative";
 import {
   SOURCE_DOC_BYTES_CONTRACT, sourceDocMode, sourceDocPublicBytes,
 } from "./canonical";
+
+type JournalPageRow = { page_label: unknown; pdf_page: unknown };
+type JournalTextInput = {
+  articleId: number;
+  url: string;
+  text: string;
+  pageRows: JournalPageRow[];
+};
 import {
   STRUCTURE_INPUT_BYTES_CONTRACT,
   structureInputSha256,
@@ -274,16 +272,32 @@ if (args.has("inventory")) {
   process.exit(0);
 }
 
-function bounds(database: DatabaseSync, table: string, id: string, total: number) {
-  const from = Math.floor(total * shardIndex / shardCount);
-  const to = Math.floor(total * (shardIndex + 1) / shardCount);
+function bounds(
+  database: DatabaseSync, table: string, id: string, total: number,
+  index = shardIndex, parts = shardCount, where = "", finalEnd: number | null = null,
+) {
+  const from = Math.floor(total * index / parts);
+  const to = Math.floor(total * (index + 1) / parts);
   const at = (offset: number) => offset >= total ? null : Number((database.prepare(
-    `SELECT ${id} AS id FROM ${table} ORDER BY ${id} LIMIT 1 OFFSET ?`,
+    `SELECT ${id} AS id FROM ${table} ${where} ORDER BY ${id} LIMIT 1 OFFSET ?`,
   ).get(offset) as Row).id);
-  return { start: at(from) ?? 1, end: at(to), count: to - from };
+  return { start: at(from) ?? 1, end: at(to) ?? finalEnd, count: to - from };
+}
+function a2ajBounds() {
+  if (shardCount === 1) return bounds(a2ajDb, "document", "id", a2ajTotal);
+  const caseShards = Math.floor(shardCount / 2);
+  if (shardIndex < caseShards) {
+    const firstLaw = Number((a2ajDb.prepare(
+      "SELECT MIN(id) AS id FROM document WHERE doc_type='laws'",
+    ).get() as Row).id);
+    return bounds(a2ajDb, "document", "id", a2ajCases, shardIndex, caseShards,
+      "WHERE doc_type='cases'", firstLaw);
+  }
+  return bounds(a2ajDb, "document", "id", a2ajLaws,
+    shardIndex - caseShards, shardCount - caseShards, "WHERE doc_type='laws'");
 }
 const providerBounds = {
-  a2aj: bounds(a2ajDb, "document", "id", a2ajTotal),
+  a2aj: a2ajBounds(),
   courtlistener: bounds(courtlistenerDb, "opinion", "id", courtlistenerTotal),
   journal: bounds(journalDb, "articles", "article_id", journalTotal),
 };
@@ -294,14 +308,14 @@ const baselineCommit = execFileSync("git", ["rev-parse", "HEAD"], {
 const serializerHash = sha(SOURCE_DOC_BYTES_CONTRACT);
 const structureInputContractHash = sha(STRUCTURE_INPUT_BYTES_CONTRACT);
 const harnessRevision = "batched-shared-engine-v4-structure-input-proof";
-const engineBinaryHash = sha(readFileSync(legalStructureBinary()));
+const engineBinaryHash = sha(readFileSync(structureNativeBinary()));
 const harnessHash = sha(readFileSync(__filename));
 const adapterCodeHash = sourceDigest([
   "../../src/lib/sourceDocA2AJ.ts", "../../src/lib/sourceDocNativeMarkup.ts",
-  "../../src/lib/sourceDocJournal.ts", "../../src/lib/sourceDocStructureHost.ts",
+  "../../src/lib/sourceDocStructureHost.ts",
   "../../src/lib/legalSources/journal.ts", "../../src/lib/sourceStructureAdapter.ts",
   "../../src/lib/sourceStructureEngine.ts", "../../src/lib/structureWire.ts",
-  "../../src/lib/structureEngineClient.ts", "../../src/lib/sourceDoc.ts",
+  "../../src/lib/structureNative.ts", "../../src/lib/sourceDoc.ts",
   "../../src/lib/a2ajLocalBulk.ts", "../../src/lib/hash.ts", "canonical.ts",
 ].map((filename) => readFileSync(path.resolve(__dirname, filename)))).source_sha256;
 const configHash = sha(JSON.stringify({
@@ -480,48 +494,27 @@ async function runA2AJ() {
       WHERE id > ? AND (? IS NULL OR id < ?) ORDER BY id LIMIT ?`)
       .all(cursor, range.end, range.end, wanted) as Row[];
     if (!rows.length) break;
-    const ids = rows.map((row) => Number(row.id));
-    const documents = fetchLocalA2AJDocumentsByIds({
-      ids, docType: String(rows[0].doc_type) === "laws" ? "laws" : "cases",
-      maxChars: Number.MAX_SAFE_INTEGER,
-    });
-    // A batch cannot cross a doc_type boundary without asking production twice.
-    if (rows.some((row) => row.doc_type !== rows[0].doc_type)) {
-      for (const docType of ["cases", "laws"] as const) {
-        const typed = rows.filter((row) => row.doc_type === docType).map((row) => Number(row.id));
-        if (typed.length) for (const [id, value] of fetchLocalA2AJDocumentsByIds({
-          ids: typed, docType, maxChars: Number.MAX_SAFE_INTEGER,
-        })) documents.set(id, value);
-      }
-    }
     const available = rows.flatMap((row) => {
-      const id = Number(row.id), document = documents.get(id);
+      const id = Number(row.id), document = a2ajDocumentFromRow(row, "en");
       if (!document) return [];
+      const sectionMap = getLocalA2AJSectionMap(document);
       return [{ id, input: {
-        structureDocumentId: String(id),
-        docType: document.docType ?? (row.doc_type === "laws" ? "laws" : "cases"),
+        source_kind: document.docType ?? (row.doc_type === "laws" ? "laws" : "cases"),
         dataset: document.dataset,
-        citation: document.citation, alternateCitation: document.alternateCitation,
+        citation: document.citation, alternate_citation: document.alternateCitation,
         name: document.name, url: document.url, text: document.text,
-        sectionMap: getLocalA2AJSectionMap(document),
-      } satisfies CompileInput }];
+        ...(sectionMap ? { section_map: Object.entries(sectionMap) } : {}),
+      } satisfies A2ajNativeInput }];
     });
     addElapsed(state, "prepare_ms", batchStarted);
-    const structures = available.map(({ id, input }) => ({
-      id, prepared: prepareA2AJSourceStructure(input),
-    }));
     const deriveStarted = performance.now();
-    const derived = await derivePreparedStructures(structures.map(({ prepared }) => prepared.structure));
+    const derived = a2ajSourceDocsNative(available.map(({ input }) => input));
     addElapsed(state, "derive_wall_ms", deriveStarted);
-    const byId = new Map(structures.map(({ id, prepared }, index) => [id, {
-      ...derived[index], doc: finalizeA2AJSourceStructure(prepared, derived[index].doc),
-    }]));
+    const byId = new Map(available.map(({ id }, index) => [id, derived[index]]));
     const recordStarted = performance.now();
     const records = rows.map((row) => {
       const id = Number(row.id), result = byId.get(id), digest = rowDigest([row]);
-      return result ? success("a2aj", String(id), String(row.doc_type), digest, result.doc, {
-        structure_input_sha256: result.structure_input_sha256,
-      })
+      return result ? success("a2aj", String(id), String(row.doc_type), digest, result)
         : failure("a2aj", String(id), String(row.doc_type), digest, "provider_unavailable");
     });
     addElapsed(state, "record_ms", recordStarted);
@@ -578,17 +571,19 @@ async function runCourtlistener() {
       (item): item is typeof item & { input: NativeMarkupSourceInput } => !!item.input,
     );
     addElapsed(state, "prepare_ms", batchStarted);
-    const structures = available.map(({ input }) => prepareNativeMarkupSourceStructure(input));
     const deriveStarted = performance.now();
-    const derived = await derivePreparedStructures(structures);
+    const derived = sourceDocsNative(available.map(({ input }) => ({
+      kind: "native_markup" as const, input,
+    })));
     const fallback = available.flatMap((item, index) => {
-      const text = !derived[index].doc.text && item.markup ? opinionText(item.markup) : null;
+      const text = !derived[index].text && item.markup ? opinionText(item.markup) : null;
       return text ? [{ index, input: { provider: "courtlistener" as const,
         id: item.id, text, markup: item.markup } }] : [];
     });
     if (fallback.length) {
-      const retried = await derivePreparedStructures(fallback.map(({ input }) =>
-        prepareNativeMarkupSourceStructure(input)));
+      const retried = sourceDocsNative(fallback.map(({ input }) => ({
+        kind: "native_markup" as const, input,
+      })));
       fallback.forEach(({ index }, at) => { derived[index] = retried[at]; });
     }
     addElapsed(state, "derive_wall_ms", deriveStarted);
@@ -596,9 +591,7 @@ async function runCourtlistener() {
     const recordStarted = performance.now();
     const records = prepared.map(({ id, digest }) => {
       const result = byId.get(id);
-      return result?.doc.text ? success("courtlistener", id, "opinion", digest, result.doc, {
-        structure_input_sha256: result.structure_input_sha256,
-      })
+      return result?.text ? success("courtlistener", id, "opinion", digest, result)
         : failure("courtlistener", id, "opinion", digest, "provider_unavailable");
     });
     addElapsed(state, "record_ms", recordStarted);
@@ -646,10 +639,11 @@ function readFinalState(articleId: number, filename: string | null, pageRows: Jo
   try {
     const raw = readFileSync(filename);
     const rawSha = sha(raw);
-    const parsed = journalFinalContractSource(articleId, raw, pageRows);
+    const parsed = journalSourceDocNative(articleId, null, filename, pageRows);
+    const pages = raw.toString("utf8").split(/\r?\n/u).filter((line) => line.trim()).length;
     return {
       state: parsed ? "applicable" as const : "invalid" as const,
-      raw, rawSha, pages: parsed?.pages ?? 0, canonical: parsed,
+      raw, rawSha, pages, canonical: parsed,
     };
   } catch { return { state: "invalid" as const, raw: null, rawSha: null,
     pages: 0, canonical: null }; }
@@ -707,30 +701,41 @@ async function runJournal() {
     ]);
     const prepared = rows.map((row) => {
       const id = Number(row.article_id);
-      const pages = (byArticle.get(id) ?? []).map(({ page_label, pdf_page }) =>
+      const pageRecords = byArticle.get(id) ?? [];
+      const pages = pageRecords.map(({ page_label, pdf_page }) =>
         ({ page_label, pdf_page }) satisfies JournalPageRow);
       const registration = registrations.get(id), final = finalStates(id, registration, pages);
       const production = "production" in final ? final.production! : final;
       const contract = "standalone" in final ? final.standalone! : null;
-      const digest = rowDigest([row, ...pages, ...(registration ? [registration] : [])],
+      const digest = rowDigest([row, ...pageRecords, ...(registration ? [registration] : [])],
         contract?.raw ? [contract.raw] : []);
       const canonical = production.canonical;
       const text = canonical?.text ?? (typeof row.text === "string" ? row.text.trim() : "");
       const url = publicUrl(row);
-      const input: JournalStructureInput | null = text && url ? {
-        articleId: id, url, text, pageRows: pages, nativeBlocks: canonical?.blocks,
+      const input: JournalTextInput | null = text && url ? {
+        articleId: id, url, text, pageRows: pages,
       } : null;
-      return { id, pages, production, contract, digest, input };
+      return { id, pages, production, contract, digest, input, canonical };
     });
     const available = prepared.filter(
-      (item): item is typeof item & { input: JournalStructureInput } => !!item.input,
+      (item): item is typeof item & { input: JournalTextInput } => !!item.input,
     );
     addElapsed(state, "prepare_ms", batchStarted);
     const deriveStarted = performance.now();
-    const derived = await derivePreparedStructures(available.map(({ input }) =>
-      prepareJournalSourceStructure(input)));
+    const recovered = available.filter((item) => !item.canonical);
+    const derived = sourceDocsNative(recovered.map(({ input }) => ({
+      kind: "journal" as const,
+      article_id: input.articleId,
+      url: input.url,
+      text: input.text,
+      page_rows: input.pageRows,
+    }))).map((doc) => ({ doc }));
     addElapsed(state, "derive_wall_ms", deriveStarted);
-    const byId = new Map(available.map(({ id }, index) => [id, derived[index]]));
+    const byId = new Map<number, { doc: SourceDoc; structure_input_sha256?: string }>();
+    for (const item of available) {
+      if (item.canonical) byId.set(item.id, { doc: item.canonical });
+    }
+    recovered.forEach(({ id }, index) => byId.set(id, derived[index]));
     const recordStarted = performance.now();
     const records = prepared.map(({ id, pages, production, contract, digest }) => {
       const result = byId.get(id);

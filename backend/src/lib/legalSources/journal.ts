@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import {
   existsSync,
-  readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
@@ -10,10 +9,8 @@ import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { deriveJournalSourceDoc } from "../sourceDocStructureHost";
 import { positiveInteger as integer } from "../value";
-import {
-  journalFinalContractSource,
-  type JournalPageRow,
-} from "../sourceDocJournal";
+import type { JournalPageRow } from "../sourceDocStructureHost";
+import { journalSourceDocNative } from "../structureNative";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
@@ -488,37 +485,23 @@ function registeredPages(filename: string, sourceDir: string) {
 }
 
 function finalContractPages(articleId: number): FinalContractPages | null {
-  try {
-    const registered = finalContractDatabase();
-    if (!registered) return null;
-    const row = registered.connection
-      .prepare(
-        "SELECT source_dir FROM article_final_contracts WHERE article_id = ?",
-      )
-      .get(articleId) as Row | undefined;
-    const sourceDir = row ? string(row, "source_dir") : null;
-    const filename = sourceDir
-      ? registeredPages(registered.filename, sourceDir)
-      : null;
-    if (!filename) return null;
-    const source = statSync(filename);
-    return {
-      filename,
-      signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}`,
-    };
-  } catch {
-    return null;
-  }
+  const registered = finalContractDatabase();
+  if (!registered) return null;
+  const row = registered.connection
+    .prepare("SELECT source_dir FROM article_final_contracts WHERE article_id = ?")
+    .get(articleId) as Row | undefined;
+  if (!row) return null;
+  const sourceDir = string(row, "source_dir");
+  const filename = sourceDir ? registeredPages(registered.filename, sourceDir) : null;
+  if (!filename) throw new Error(`Invalid final journal contract for article ${articleId}`);
+  const source = statSync(filename);
+  return { filename, signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}` };
 }
 
 function finalContractSource(
-  articleId: number, pages: FinalContractPages, pageRows: JournalPageRow[],
+  articleId: number, url: string, pages: FinalContractPages, pageRows: JournalPageRow[],
 ) {
-  try {
-    return journalFinalContractSource(articleId, readFileSync(pages.filename), pageRows);
-  } catch {
-    return null;
-  }
+  return journalSourceDocNative(articleId, url, pages.filename, pageRows);
 }
 
 function articleRow(identifier: string) {
@@ -559,7 +542,7 @@ async function document(
        WHERE article_id = ? ORDER BY page_order`,
     )
     .all(articleId) as JournalPageRow[];
-  const canonical = registered ? finalContractSource(articleId, registered, pageRows) : null;
+  const canonical = registered ? finalContractSource(articleId, url, registered, pageRows) : null;
   const text = canonical?.text ?? publicText;
   const document: JournalArticleDocument = {
     provider: "journal",
@@ -571,13 +554,7 @@ async function document(
     date: string(row, "document_date_en"),
     url,
     text,
-    structure: await deriveJournalSourceDoc(
-      articleId,
-      url,
-      text,
-      pageRows,
-      canonical?.blocks,
-    ),
+    structure: canonical ?? await deriveJournalSourceDoc(articleId, url, text, pageRows),
     upstreamLicense: string(row, "upstream_license"),
     journalName: string(row, "journal_name"),
     authors: string(row, "authors"),

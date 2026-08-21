@@ -1,0 +1,1774 @@
+[
+  {
+    "document_id": 69897,
+    "citation": "CITT PR-2006-045Ra",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 30,
+          "end_line": 31
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Diane Vincent",
+                "evidence_lines": {
+                  "start_line": 32,
+                  "end_line": 34
+                }
+              },
+              {
+                "name": "Pasquale Michaele Saroli",
+                "evidence_lines": {
+                  "start_line": 32,
+                  "end_line": 34
+                }
+              },
+              {
+                "name": "Jason W. Downey",
+                "evidence_lines": {
+                  "start_line": 32,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 240,
+            "end_line": 240
+          },
+          "start_line": 37,
+          "end_line": 241,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What period should the lost-opportunity compensation cover?",
+          "answers": [
+            {
+              "answer": "Only the initial five-year contract period, not the option years or a further extension.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 97,
+                      "end_line": 97,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What base amount represented Equinox's lost opportunity to profit?",
+          "answers": [
+            {
+              "answer": "$290,505, being one quarter of the estimated $1,162,018 profit on $2,532,009 revenue and $1,369,991 costs.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 161,
+                      "end_line": 161,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 188,
+                      "end_line": 188,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 189,
+                      "end_line": 189,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should Equinox's compensation be reduced for mitigation through the transition contracts?",
+          "answers": [
+            {
+              "answer": "No. Equinox would still have provided the transition support had it won the procurement.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 197,
+                      "end_line": 197,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the compensation include an adjustment for the time value of money?",
+          "answers": [
+            {
+              "answer": "Yes. The award was increased by $31,872, based on 3 percent interest compounded monthly.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 230,
+                      "end_line": 230,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the compensation be increased for an alleged additional tax burden?",
+          "answers": [
+            {
+              "answer": "No. Equinox did not adequately support the alleged tax burden.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 237,
+                      "end_line": 237,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What complaint costs should be awarded?",
+          "answers": [
+            {
+              "answer": "$4,100.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 239,
+                      "end_line": 239,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "quashed",
+          "evidence_lines": {
+            "start_line": 44,
+            "end_line": 44
+          }
+        },
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "remanded",
+          "evidence_lines": {
+            "start_line": 44,
+            "end_line": 44
+          }
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 70603,
+    "citation": "CITT NQ-2021-005",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 52,
+          "end_line": 52
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Randolph W. Heggart",
+                "evidence_lines": {
+                  "start_line": 64,
+                  "end_line": 65
+                }
+              },
+              {
+                "name": "Susan D. Beaubien",
+                "evidence_lines": {
+                  "start_line": 64,
+                  "end_line": 65
+                }
+              },
+              {
+                "name": "Frédéric Seppey",
+                "evidence_lines": {
+                  "start_line": 64,
+                  "end_line": 65
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": null,
+          "start_line": 92,
+          "end_line": 468,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Should the contested portions of Max-Atlas's reply evidence be admitted?",
+          "answers": [
+            {
+              "answer": "Yes. They directly responded to the opposing parties and caused no serious prejudice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 164,
+                      "end_line": 164,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "party_or_counsel",
+                      "label": "referred_to",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 146,
+                        "end_line": 146
+                      },
+                      "target_proposition_as_characterized": "A moving party must put forward its complete case initially and may not split its case by holding evidence for reply."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 154,
+                        "end_line": 154
+                      },
+                      "target_proposition_as_characterized": "A responding party is entitled to know the case it must meet, so the moving party should put its complete and best case forward at the outset."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should GSH be ordered to provide the requested additional benchmark-product information?",
+          "answers": [
+            {
+              "answer": "No. The benchmark tables already compared selling price to selling price, and late production would cause disproportionate prejudice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 169,
+                      "end_line": 169,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 169,
+                      "end_line": 169,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What were the like goods and classes of goods for the injury inquiry?",
+          "answers": [
+            {
+              "answer": "Domestically produced container chassis and the subject goods were like goods comprising one class.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 185,
+                      "end_line": 185,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Which producers constituted the domestic industry for this inquiry?",
+          "answers": [
+            {
+              "answer": "Max-Atlas and ITD, which represented a major proportion of domestic production.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 193,
+                      "end_line": 193,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the effects of dumping and subsidizing be assessed cumulatively?",
+          "answers": [
+            {
+              "answer": "Yes. The effects were too closely intertwined to allocate separately.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 195,
+                      "end_line": 195,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the dumped and subsidized subject goods cause material injury to the domestic industry?",
+          "answers": [
+            {
+              "answer": "Yes. They caused material injury including price undercutting and suppression and losses in sales, market share, profitability, employment, capacity use and investment.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 301,
+                      "end_line": 301,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the Tribunal initiate a public-interest inquiry at this time?",
+          "answers": [
+            {
+              "answer": "No. The opposing parties had not provided enough information to justify one.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 314,
+                      "end_line": 314,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 75090,
+    "citation": "2001 CMAC 2",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 118,
+          "end_line": 118
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Gilles Létourneau",
+                "evidence_lines": {
+                  "start_line": 29,
+                  "end_line": 29
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 118,
+            "end_line": 118
+          },
+          "start_line": 47,
+          "end_line": 118,
+          "full_joiners": []
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Perry Meyer",
+                "evidence_lines": {
+                  "start_line": 123,
+                  "end_line": 123
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 130,
+            "end_line": 130
+          },
+          "start_line": 124,
+          "end_line": 130,
+          "full_joiners": []
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Ross Goodwin",
+                "evidence_lines": {
+                  "start_line": 135,
+                  "end_line": 135
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 136,
+            "end_line": 136
+          },
+          "start_line": 136,
+          "end_line": 166,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the post-charge delay breach Larocque's right under s. 11(b) to trial within a reasonable time?",
+          "answers": [
+            {
+              "answer": "No. The six-month post-charge period was not unreasonable, and the pre-charge delay did not impair trial fairness or full answer and defence.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 71,
+                      "end_line": 71,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 75,
+                      "end_line": 75,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "No. The military judge correctly found no actual prejudice under s. 11(b).",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 137,
+                      "end_line": 137,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the 13-month pre-charge delay breach Larocque's s. 7 rights?",
+          "answers": [
+            {
+              "answer": "Yes. The unexplained delay after arrest infringed liberty and security of the person contrary to fundamental justice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 107,
+                      "end_line": 107,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 78,
+                        "end_line": 78
+                      },
+                      "target_proposition_as_characterized": "Section 7 condemns prosecutorial conduct whose effect is so unfair or vexatious that it undermines fundamental justice; an intent to prejudice is unnecessary."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "answer": "Not decided. Meyer J.A. doubted that s. 7 was infringed but assumed a breach for the remedy analysis.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 125,
+                      "end_line": 125,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "No. The restrictions and effects of the delay were not sufficiently significant to infringe s. 7.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was a stay of proceedings or another appellate remedy warranted?",
+          "answers": [
+            {
+              "answer": "No stay or appellate sentence intervention was warranted; the appeal should be dismissed.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 114,
+                      "end_line": 114,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 118,
+                      "end_line": 118,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Perry Meyer",
+                      "evidence_lines": {
+                        "start_line": 128,
+                        "end_line": 128
+                      }
+                    },
+                    {
+                      "participant_name": "Ross Goodwin",
+                      "evidence_lines": {
+                        "start_line": 162,
+                        "end_line": 162
+                      }
+                    }
+                  ],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 112,
+                        "end_line": 112
+                      },
+                      "target_proposition_as_characterized": "A stay is an exceptional remedy reserved for the clearest cases, including irremediable prejudice to trial fairness or the integrity of the justice system."
+                    }
+                  ]
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 128,
+                      "end_line": 128,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 130,
+                      "end_line": 130,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 136,
+                      "end_line": 136,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 162,
+                      "end_line": 162,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 75285,
+    "citation": "2026 Comp Trib 22",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 129,
+          "end_line": 129
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Andrew D. Little",
+                "evidence_lines": {
+                  "start_line": 34,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 66,
+            "end_line": 66
+          },
+          "start_line": 38,
+          "end_line": 129,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Should the Commissioner receive costs of Google's unsuccessful constitutional challenge?",
+          "answers": [
+            {
+              "answer": "Yes. The Commissioner prevailed overall, and the public-interest character of the challenge did not displace the usual costs rule.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 67,
+                      "end_line": 67,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 73,
+                      "end_line": 73,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "At what scale and amount should legal costs be fixed, including the effect of the Commissioner's motion to strike?",
+          "answers": [
+            {
+              "answer": "$54,000 on an elevated scale, subject to a modest reduction because the motion to strike was unnecessary and procedurally ill-advised but was not an abuse of process.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 103,
+                      "end_line": 103,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 107,
+                      "end_line": 107,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 113,
+                      "end_line": 113,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "party_or_counsel",
+                      "label": "referred_to",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 61,
+                        "end_line": 61
+                      },
+                      "target_proposition_as_characterized": "A procedural step that was not an abuse of process should not reduce a costs award."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "distinguished",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 106,
+                        "end_line": 106
+                      },
+                      "target_proposition_as_characterized": "Although the motion was not an abuse of process, Rule 400(3)(k)(i) did not require abuse before the unnecessary procedural step could justify a modest costs reduction."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What amount should be reimbursed for expert-fee disbursements?",
+          "answers": [
+            {
+              "answer": "$277,647.70, after reducing the claim by $4,500 for duplicative senior attendance at a cross-examination.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 122,
+                      "end_line": 122,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What amount should be reimbursed for transcripts and printing?",
+          "answers": [
+            {
+              "answer": "$26,624.08.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 123,
+                      "end_line": 123,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 75502,
+    "citation": "2016 Comp Trib 11",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 287,
+          "end_line": 289
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Denis Gascon",
+                "evidence_lines": {
+                  "start_line": 38,
+                  "end_line": 38
+                }
+              },
+              {
+                "name": "Paul Crampton",
+                "evidence_lines": {
+                  "start_line": 38,
+                  "end_line": 38
+                }
+              },
+              {
+                "name": "Donald McFetridge",
+                "evidence_lines": {
+                  "start_line": 38,
+                  "end_line": 38
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 287,
+            "end_line": 287
+          },
+          "start_line": 42,
+          "end_line": 289,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Were the CA's terms within the kinds of orders authorized by subsection 90.1(1)?",
+          "answers": [
+            {
+              "answer": "Yes. Its prohibitions fell within paragraph 90.1(1)(a), and its affirmative terms fell within paragraph 90.1(1)(b).",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 133,
+                      "end_line": 133,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the CA sufficiently identify the six substantive elements of subsection 90.1(1)?",
+          "answers": [
+            {
+              "answer": "No. It did not adequately identify the agreement, its parties and competitors, its temporal status, its competitive effects, or the Canadian markets affected.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 185,
+                      "end_line": 185,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the CA state the necessary agreement or uncontested conclusions that the six elements were met?",
+          "answers": [
+            {
+              "answer": "No. It contained neither an agreement that the elements were met nor the Commissioner's conclusions accompanied by the publishers' non-contestation.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 191,
+                      "end_line": 191,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Were any material terms of the CA vague or unenforceable?",
+          "answers": [
+            {
+              "answer": "No. Paragraph 5 was clear enough and paragraph 22 supplied an effective dispute-resolution mechanism.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 212,
+                      "end_line": 212,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the Tribunal exercise its discretion to rescind the CA?",
+          "answers": [
+            {
+              "answer": "Yes. The CA was fatally deficient, and the Commissioner and three respondent publishers also consented to rescission.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 252,
+                      "end_line": 252,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should rescission bar the Commissioner from filing another consent agreement?",
+          "answers": [
+            {
+              "answer": "Only in part: a new agreement could not rest on the same mere allegations, but could rest on conclusions addressing the six statutory elements.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 288,
+                      "end_line": 288,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "affirmed",
+          "evidence_lines": {
+            "start_line": 75,
+            "end_line": 75
+          }
+        },
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm2"
+            }
+          ],
+          "label": "leave_refused",
+          "evidence_lines": {
+            "start_line": 76,
+            "end_line": 76
+          }
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 75548,
+    "citation": "2012 Comp Trib 14",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 677,
+          "end_line": 677
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Sandra J. Simpson",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 37
+                }
+              },
+              {
+                "name": "Paul Crampton",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 37
+                }
+              },
+              {
+                "name": "Wiktor Askanas",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 37
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 117,
+            "end_line": 117
+          },
+          "start_line": 109,
+          "end_line": 678,
+          "full_joiners": []
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Paul Crampton",
+                "evidence_lines": {
+                  "start_line": 38,
+                  "end_line": 38
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 743,
+            "end_line": 743
+          },
+          "start_line": 743,
+          "end_line": 827,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Was CCS's acquisition of Complete a merger under s. 91 of the Competition Act?",
+          "answers": [
+            {
+              "answer": "Yes. Complete was a business in development when acquired.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 204,
+                      "end_line": 204,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes, and the statutory term business was broad enough to include Complete's roll-off-bin and municipal-dump businesses too.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 755,
+                      "end_line": 755,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What was the product dimension of the relevant market?",
+          "answers": [
+            {
+              "answer": "Secure-landfill services for solid hazardous waste generated by oil and gas producers.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 216,
+                      "end_line": 216,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What was the geographic dimension of the relevant market?",
+          "answers": [
+            {
+              "answer": "At least the Potentially Contestable Area; the evidence did not permit exact outer boundaries.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 282,
+                      "end_line": 282,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was the merger pro-competitive because it would bring the Babkirk landfill to market sooner?",
+          "answers": [
+            {
+              "answer": "No. A merger eliminating all actual or likely rivalry is not pro-competitive, although it might produce efficiencies considered under s. 96.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 306,
+                      "end_line": 306,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What analytical framework governed the alleged substantial prevention of competition?",
+          "answers": [
+            {
+              "answer": "A forward-looking but-for comparison asking whether effective competition would likely have emerged absent the merger.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 320,
+                      "end_line": 320,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "The Commissioner must prove likely entry or expansion within a reasonable time and at a scale producing a material competitive effect.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 792,
+                      "end_line": 792,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the merger likely prevent competition substantially?",
+          "answers": [
+            {
+              "answer": "Yes. It prevented likely future rivalry from Babkirk, maintained CCS's materially greater market power and preserved a monopoly.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 499,
+                      "end_line": 499,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Who bore the burdens of proof on the s. 96 efficiencies defence?",
+          "answers": [
+            {
+              "answer": "The Commissioner had to prove quantifiable and qualitative anti-competitive effects; CCS bore the ultimate burden to show efficiencies greater than and offsetting those effects.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 504,
+                      "end_line": 504,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 506,
+                      "end_line": 506,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 505,
+                        "end_line": 505
+                      },
+                      "target_proposition_as_characterized": "When s. 96 is pleaded, the Commissioner must prove the extent of quantifiable anti-competitive effects, even roughly, as well as qualitative and any socially adverse effects; respondents bear the ultimate efficiencies burden."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did CCS establish the s. 96 efficiencies defence?",
+          "answers": [
+            {
+              "answer": "No. The cognizable efficiencies were not greater than and did not offset the merger's quantitative and qualitative effects.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 639,
+                      "end_line": 639,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was dissolution or divestiture the appropriate remedy?",
+          "answers": [
+            {
+              "answer": "Divestiture of BLS's shares or assets was effective and less intrusive; dissolution was overbroad and uncertain.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 670,
+                      "end_line": 670,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 116912,
+    "citation": "2021 FCA 166",
+    "annotator": "codex_primary_source_author_holdout_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 124,
+          "end_line": 124
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "George R. Locke",
+                "evidence_lines": {
+                  "start_line": 125,
+                  "end_line": 126
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 124,
+            "end_line": 124
+          },
+          "start_line": 47,
+          "end_line": 124,
+          "full_joiners": [
+            {
+              "name": "Yves de Montigny",
+              "evidence_lines": {
+                "start_line": 127,
+                "end_line": 128
+              }
+            },
+            {
+              "name": "Marianne Rivoalen",
+              "evidence_lines": {
+                "start_line": 129,
+                "end_line": 130
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the Federal Court make a reviewable error in finding the patent claims obvious?",
+          "answers": [
+            {
+              "answer": "No. Its factual and mixed-fact-and-law analysis disclosed no palpable and overriding error, so the obviousness finding stood.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 98,
+                      "end_line": 98,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Does s. 53.1 of the Patent Act permit unrestricted use of prosecution history whenever claim construction is in issue?",
+          "answers": [
+            {
+              "answer": "No. A litigant must identify the patentee's representation in the proceeding that the prosecution-history communication is offered to rebut.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 119,
+                      "end_line": 119,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "affirmed",
+          "evidence_lines": {
+            "start_line": 124,
+            "end_line": 124
+          }
+        }
+      ]
+    }
+  }
+]

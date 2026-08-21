@@ -4,6 +4,7 @@ import { applicationScope, notFound as missing, reject } from "../lib/applicatio
 import { asyncRoute } from "../lib/asyncRoute";
 import { requireAuth } from "../middleware/auth";
 import { pageRequest, pageResponse } from "../lib/pagination";
+import { downloadHeaders } from "../lib/storage";
 import { tabularDtos } from "../lib/tabular/application";
 import {
   SYSTEM_WORKFLOW_IDS,
@@ -214,7 +215,7 @@ export function createWorkflowsRouter(
     const { slug, files } = workflowArchive(workflow);
     const JSZip = (await import("jszip")).default, archive = new JSZip();
     files.forEach(({ path, content }) => archive.file(path, content));
-    res.attachment(`${slug}.zip`).send(
+    res.set(downloadHeaders("application/zip", `${slug}.zip`)).send(
       await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
     );
   }));

@@ -121,8 +121,14 @@ vi.mock("../../lib/userDataExport", () => ({
         `beaver-${kind}-export-${userId.slice(0, 8)}.json`,
 }));
 
+vi.mock("../../lib/draftingStyleStore", () => ({
+    getDraftingStyleSettings: vi.fn(async () => ({ version: 1 })),
+    saveDraftingStyleSettings: vi.fn(async (_userId: string, value: unknown) => value),
+}));
+
 vi.mock("../../runtime", () => ({
     runtime: {
+        audit: vi.fn(async () => ({ record: vi.fn(async () => undefined) })),
         documents: vi.fn(async () => ({})),
         chats: vi.fn(async () => ({ deleteAll: deleteChats })),
         projects: vi.fn(async () => ({ deleteAll: vi.fn() })),

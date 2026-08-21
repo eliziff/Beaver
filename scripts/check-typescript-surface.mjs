@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Candidate-only scan: exported declarations whose name occurs in one file. */
+/** Find small TypeScript surface-area and duplication cleanup candidates. */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -13,6 +13,8 @@ const showOneCallers = process.argv.includes("--one-callers");
 const passThroughsOnly = process.argv.includes("--pass-throughs");
 const showDuplicates = process.argv.includes("--duplicates");
 const showTestOnly = process.argv.includes("--test-only");
+const showTestOnlyModules = process.argv.includes("--test-only-modules");
+const showObjectSurfaces = process.argv.includes("--object-surfaces");
 const roots = [
   "backend/src",
   "backend/scripts",
@@ -83,15 +85,17 @@ for (const [file, tree] of syntaxTrees) {
     ) {
       continue;
     }
-    const names = ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)
-      ? statement.name ? [statement.name.text] : []
+    const declarations = ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)
+      ? statement.name ? [statement.name] : []
       : ts.isVariableStatement(statement)
         ? statement.declarationList.declarations
           .filter(({ name }) => ts.isIdentifier(name))
-          .map(({ name }) => name.text)
+          .map(({ name }) => name)
         : [];
-    for (const name of names) {
+    for (const declaration of declarations) {
+      const name = declaration.text;
       const exported = { name, file: path.relative(repo, file),
+        line: tree.getLineAndCharacterOfPosition(declaration.getStart(tree)).line + 1,
         occurrences: counts.get(name) ?? 0 };
       exports.push(exported);
       if (filesByName.get(name)?.length === 1) {
@@ -104,6 +108,8 @@ const dead = candidates.filter(({ occurrences }) => occurrences === 1);
 const isProduction = ({ file }) =>
   /^(?:backend|frontend)\\src\\/u.test(file) &&
   !/\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(file);
+const isTest = (file) =>
+  /\\(?:__tests__|tests|fixtures|support)\\|\.test\.[cm]?[jt]sx?$/u.test(file);
 const productionDead = dead.filter(isProduction);
 const nonproductionDead = dead.filter((candidate) => !productionDead.includes(candidate));
 const privateOnly = candidates.filter(({ occurrences }) => occurrences > 1);
@@ -115,9 +121,91 @@ const report = {
   nonproductionDeadCount: nonproductionDead.length,
   privateOnlyCount: privateOnly.length,
 };
-if (showTestOnly) report.testOnlyProduction = exports.filter((candidate) =>
-  isProduction(candidate) && candidate.occurrences > 1 &&
-  productionCounts.get(candidate.name) === 1);
+if (showTestOnly) {
+  report.nonproductionOnlyExports = exports.flatMap((candidate) => {
+    if (!isProduction(candidate) || productionCounts.get(candidate.name) !== 1) return [];
+    const referenceFiles = (filesByName.get(candidate.name) ?? [])
+      .map((file) => path.relative(repo, file))
+      .filter((file) => file !== candidate.file)
+      .sort();
+    return referenceFiles.length ? [{ ...candidate, referenceFiles }] : [];
+  });
+  report.testOnlyProduction = report.nonproductionOnlyExports.filter(({ referenceFiles }) =>
+    referenceFiles.every(isTest));
+}
+if (showTestOnlyModules) {
+  const existing = new Set(files.map((file) => path.resolve(file)));
+  const resolveImport = (file, specifier) => {
+    if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return null;
+    let base = specifier.startsWith("@/")
+      ? path.join(repo, "frontend/src", specifier.slice(2))
+      : path.resolve(path.dirname(file), specifier);
+    base = base.replace(/\.[cm]?jsx?$/u, "");
+    return [base, `${base}.ts`, `${base}.tsx`, path.join(base, "index.ts"),
+      path.join(base, "index.tsx")].map((candidate) => path.resolve(candidate)).find((candidate) =>
+      existing.has(candidate)) ?? null;
+  };
+  const dependencies = new Map([...contents].map(([file, source]) => [
+    path.resolve(file),
+    ts.preProcessFile(source, true, true).importedFiles
+      .map(({ fileName }) => resolveImport(file, fileName)).filter(Boolean),
+  ]));
+  const walk = (entries) => {
+    const visited = new Set(entries.map((file) => path.resolve(file))
+      .filter((file) => existing.has(file)));
+    for (const file of visited) {
+      for (const dependency of dependencies.get(file) ?? []) visited.add(dependency);
+    }
+    return visited;
+  };
+  const productionFiles = files.filter((file) =>
+    isProduction({ file: path.relative(repo, file) }));
+  const product = walk([
+    path.join(repo, "backend/src/index.ts"),
+    path.join(repo, "frontend/src/main.tsx"),
+  ]);
+  const tests = walk(files.filter((file) => isTest(path.relative(repo, file))));
+  const other = walk(files.filter((file) => {
+    const relative = path.relative(repo, file);
+    return !isProduction({ file: relative }) && !isTest(relative);
+  }));
+  report.testOnlyModules = productionFiles
+    .filter((file) => !product.has(file) && tests.has(file) && !other.has(file))
+    .map((file) => ({
+      file: path.relative(repo, file),
+      lines: contents.get(file).split(/\r?\n/u).filter((line) => line.trim()).length,
+    }));
+}
+if (showObjectSurfaces) {
+  report.objectSurfaceOnly = [];
+  for (const [file, tree] of syntaxTrees) {
+    if (!isProduction({ file: path.relative(repo, file) })) continue;
+    const declarations = new Map();
+    for (const statement of tree.statements) {
+      if (ts.isFunctionDeclaration(statement) && statement.name)
+        declarations.set(statement.name.text, statement.name);
+      if (ts.isVariableStatement(statement)) for (const declaration of
+        statement.declarationList.declarations) if (ts.isIdentifier(declaration.name))
+          declarations.set(declaration.name.text, declaration.name);
+    }
+    const visit = (node) => {
+      if (ts.isIdentifier(node) && declarations.has(node.text) &&
+          node !== declarations.get(node.text) && counts.get(node.text) === 2 &&
+          ts.isShorthandPropertyAssignment(node.parent)) {
+        let ancestor = node.parent;
+        while (ancestor.parent && !ts.isVariableStatement(ancestor)) ancestor = ancestor.parent;
+        if (ts.isVariableStatement(ancestor) && ancestor.modifiers?.some(({ kind }) =>
+          kind === ts.SyntaxKind.ExportKeyword)) report.objectSurfaceOnly.push({
+          name: node.text,
+          file: path.relative(repo, file),
+          line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1,
+        });
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(tree);
+  }
+}
 if (verbose) {
   report.nonproductionDead = nonproductionDead;
   report.privateOnly = privateOnly;
@@ -190,5 +278,13 @@ if (showDuplicates) {
     .filter((matches) => matches.length > 1 &&
       new Set(matches.map(({ file }) => file)).size > 1);
 }
-console.log(JSON.stringify(report, null, 2));
+console.log(JSON.stringify(showTestOnly || showTestOnlyModules || showObjectSurfaces ? {
+  files: report.files,
+  ...(showTestOnly ? {
+    testOnlyProduction: report.testOnlyProduction,
+    nonproductionOnlyExports: report.nonproductionOnlyExports,
+  } : {}),
+  ...(showTestOnlyModules ? { testOnlyModules: report.testOnlyModules } : {}),
+  ...(showObjectSurfaces ? { objectSurfaceOnly: report.objectSurfaceOnly } : {}),
+} : report, null, 2));
 process.exitCode = productionDead.length || productionPrivateOnly.length ? 1 : 0;

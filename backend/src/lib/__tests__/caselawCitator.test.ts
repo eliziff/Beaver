@@ -308,11 +308,6 @@ describe("caselaw citator note-up graph", () => {
         { citation: "2020 FC 100", occurrences: 1, paragraph: 5 },
       ]);
 
-      // The batch alias surface is the single-citation one, on one handle:
-      // element i must equal citationAliasKeys(citations[i]) exactly,
-      // including the "" input that normalizes to no key at all. Callers
-      // scanning a query's fragments use it to avoid reopening the graph
-      // per fragment; it may never answer differently.
       const batchInputs = [
         "2015 SCC 5",
         "2015 S.C.C. 5",
@@ -322,9 +317,15 @@ describe("caselaw citator note-up graph", () => {
         "no citation here",
         "",
       ];
-      expect(citator.citationAliasKeysBatch(batchInputs)).toEqual(
-        batchInputs.map((citation) => citator.citationAliasKeys(citation)),
-      );
+      expect(citator.citationAliasKeysBatch(batchInputs)).toEqual([
+        ["2015scc5"],
+        ["2015scc5"],
+        ["2015csc5"],
+        ["20151scr331"],
+        ["384us436"],
+        ["nocitationhere"],
+        [],
+      ]);
       expect(citator.citationAliasKeysBatch([])).toEqual([]);
 
       // Stands-for profile: attested characterizations ranked by citing
@@ -708,17 +709,12 @@ describe("caselaw citator note-up graph", () => {
     );
     const citator = await import("../caselawCitator");
     expect(citator.noteUpCitations({ citation: "2015 SCC 5" })).toBeNull();
-    // Absent graph: both alias surfaces degrade to the literal key, and
-    // text that normalizes to nothing to no key. Same contract, batched
-    // or not.
+    // An absent graph degrades to literal normalized keys.
     const inputs = ["2015 SCC 5", "prose that keys anyway", "  -- "];
     expect(citator.citationAliasKeysBatch(inputs)).toEqual([
       ["2015scc5"],
       ["prosethatkeysanyway"],
       [],
     ]);
-    expect(citator.citationAliasKeysBatch(inputs)).toEqual(
-      inputs.map((citation) => citator.citationAliasKeys(citation)),
-    );
   });
 });

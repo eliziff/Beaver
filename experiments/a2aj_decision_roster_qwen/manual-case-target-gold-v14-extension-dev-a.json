@@ -1,0 +1,1796 @@
+[
+  {
+    "document_id": 9633,
+    "citation": "2012 BCCA 140",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 280,
+          "end_line": 280
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Levine",
+                "evidence_lines": {
+                  "start_line": 33,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 280,
+            "end_line": 280
+          },
+          "start_line": 39,
+          "end_line": 282,
+          "full_joiners": [
+            {
+              "name": "Bennett",
+              "evidence_lines": {
+                "start_line": 35,
+                "end_line": 36
+              }
+            }
+          ]
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Tysoe",
+                "evidence_lines": {
+                  "start_line": 37,
+                  "end_line": 38
+                }
+              }
+            ]
+          },
+          "result_position": "mixed",
+          "position_evidence_lines": {
+            "start_line": 338,
+            "end_line": 338
+          },
+          "start_line": 286,
+          "end_line": 338,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Was a material change of circumstances required before the child-support review contemplated by the separation agreement?",
+          "answers": [
+            {
+              "answer": "No. The agreement expressly contemplated a Guidelines review after two years, and no prior substantive child-support order was being varied.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 275,
+                      "end_line": 275,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 287,
+                      "end_line": 287,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did clauses 10(c) and 10(h) require one child-support top-up payment or two separate payments?",
+          "answers": [
+            {
+              "answer": "Two separate payments. The majority upheld the chambers judge's interpretation.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 276,
+                      "end_line": 276,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "One payment. Clause 10(h) specified the amount of the top-up already contemplated by clause 10(c).",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 292,
+                      "end_line": 292,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What income was available to the appellant for child-support purposes in 2009 and 2010?",
+          "answers": [
+            {
+              "answer": "$100,000, not $130,000; the chambers judge wrongly added $12,000 in rental income, exaggerated expenses, and unreported personal benefits.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 247,
+                      "end_line": 247,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 277,
+                      "end_line": 277,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "decision_under_review",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 215,
+                        "end_line": 215
+                      },
+                      "target_proposition_as_characterized": "Chapman relied on Kowalewich when determining income available from a family-controlled corporation for support."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 229,
+                        "end_line": 229
+                      },
+                      "target_proposition_as_characterized": "A court assessing a shareholder parent's income must determine whether total income fairly reflects money actually available for child support while balancing legitimate business needs."
+                    }
+                  ]
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 338,
+                      "end_line": 338,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "How should the parties share section 7 extraordinary expenses after correcting their incomes?",
+          "answers": [
+            {
+              "answer": "The appellant must pay 62.5 percent and the respondent 37.5 percent.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 278,
+                      "end_line": 278,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 287,
+                      "end_line": 287,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was Scale C appropriate for the costs of the chambers hearing?",
+          "answers": [
+            {
+              "answer": "No. The respondent was entitled to Scale B costs because the case did not involve more than ordinary difficulty.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 279,
+                      "end_line": 279,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 338,
+                      "end_line": 338,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Who should bear the costs of the appeal?",
+          "answers": [
+            {
+              "answer": "Each party should bear its own costs because success was divided.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 282,
+                      "end_line": 282,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 287,
+                      "end_line": 287,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the appellant's proposed new tax and corporate evidence be admitted on appeal?",
+          "answers": [
+            {
+              "answer": "No. The material either confirmed his existing position or raised new matters outside the appeal.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 255,
+                      "end_line": 255,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [
+                    {
+                      "participant_name": "Tysoe",
+                      "evidence_lines": {
+                        "start_line": 287,
+                        "end_line": 287
+                      }
+                    }
+                  ],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 287,
+                      "end_line": 287,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 68148,
+    "citation": "2013 CHRT 13",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 401,
+          "end_line": 401
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Edward P. Lustig",
+                "evidence_lines": {
+                  "start_line": 32,
+                  "end_line": 32
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 401,
+            "end_line": 401
+          },
+          "start_line": 53,
+          "end_line": 401,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Was the complaint a challenge to section 6 of the Indian Act and nothing else?",
+          "answers": [
+            {
+              "answer": "Yes. It challenged the statutory entitlement criteria, not any discretionary registration service supplied by the respondent.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 163,
+                      "end_line": 163,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did Murphy bind the Tribunal to dismiss a complaint that challenged legislation rather than a discriminatory practice under the Canadian Human Rights Act?",
+          "answers": [
+            {
+              "answer": "Yes. Supreme Court primacy cases did not supersede Murphy, and the Act did not authorize a free-standing challenge to the discriminatory impact of another federal law.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 378,
+                      "end_line": 378,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 381,
+                      "end_line": 381,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the complaint impugn a discriminatory practice in a service customarily available to the public under section 5 of the Canadian Human Rights Act?",
+          "answers": [
+            {
+              "answer": "No. The complaint attacked legislation itself, which is not a service, so it could not establish a section 5 discriminatory practice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 382,
+                      "end_line": 382,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 122844,
+    "citation": "2017 FPSLREB 35",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 138,
+          "end_line": 138
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "collective",
+            "name": "the Federal Public Sector Labour Relations and Employment Board",
+            "evidence_lines": {
+              "start_line": 31,
+              "end_line": 31
+            }
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 138,
+            "end_line": 138
+          },
+          "start_line": 34,
+          "end_line": 405,
+          "full_joiners": [
+            {
+              "name": "Margaret Shannon",
+              "evidence_lines": {
+                "start_line": 407,
+                "end_line": 409
+              }
+            },
+            {
+              "name": "Joe Herbert",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 31
+              }
+            },
+            {
+              "name": "Kathryn Butler Malette",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 31
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What bereavement-leave terms should apply to both bargaining units?",
+          "answers": [
+            {
+              "answer": "Employees receive five consecutive working days, timed to include the funeral or begin within two days after death, plus up to two paid travel days; the proposed change to clause 19.02(b) was accepted.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 159,
+                      "end_line": 159,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 163,
+                      "end_line": 163,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "How much paid time should employees receive for medical and dental appointments?",
+          "answers": [
+            {
+              "answer": "Three paid hours per visit, with additional time potentially deducted from sick leave and 48 hours' advance written notice where possible.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 199,
+                      "end_line": 201,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should paid personal leave replace volunteer leave in both agreements?",
+          "answers": [
+            {
+              "answer": "Yes. Volunteer leave was deleted and replaced by one period of up to seven paid hours of personal leave, subject to operational requirements and notice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 212,
+                      "end_line": 212,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "When may the employer require an LS employee to provide a medical certificate?",
+          "answers": [
+            {
+              "answer": "Only for absences exceeding three consecutive days unless there is reasonable cause to suspect sick-leave abuse, and the employer must reimburse the certificate cost.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 223,
+                      "end_line": 225,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What overtime threshold should apply, and could the Board decide the untabled LT-CGS proposal?",
+          "answers": [
+            {
+              "answer": "For the LS Group, double time begins after ten hours worked in a 24-hour period; the LT-CGS proposal was outside jurisdiction because it had not been negotiated.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 258,
+                      "end_line": 258,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 259,
+                      "end_line": 259,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What overtime meal allowance should apply?",
+          "answers": [
+            {
+              "answer": "The allowance increased from $10 to $11.50 for both groups, with no other changes.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 290,
+                      "end_line": 290,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What rest period should follow overtime during a late Parliamentary sitting?",
+          "answers": [
+            {
+              "answer": "Clause 24.05 remained unchanged, and clause 24.15 was replaced to require twelve hours before the employee starts work the next day.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 307,
+                      "end_line": 308,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What shift premium should apply to both bargaining units?",
+          "answers": [
+            {
+              "answer": "$2.25 per hour for hours worked between 18:00 and 06:00, with the rest of the clauses unchanged.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 331,
+                      "end_line": 331,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "When should the new collective agreements expire?",
+          "answers": [
+            {
+              "answer": "August 31, 2017.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 342,
+                      "end_line": 342,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What wage-grid and economic increases should be awarded?",
+          "answers": [
+            {
+              "answer": "The LT-CGS increment count remained unchanged; both groups received increases of 1.75%, 1.5%, and 1.5% effective in 2014, 2015, and 2016; the LS 10% market adjustment was denied.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 398,
+                      "end_line": 398,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 399,
+                      "end_line": 402,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 403,
+                      "end_line": 403,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What was the result for disputed provisions not expressly changed in the award?",
+          "answers": [
+            {
+              "answer": "They remained unchanged.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 138,
+                      "end_line": 138,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 124598,
+    "citation": "2010 NSCA 28",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 40,
+          "end_line": 40
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Oland",
+                "evidence_lines": {
+                  "start_line": 34,
+                  "end_line": 34
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 40,
+            "end_line": 40
+          },
+          "start_line": 37,
+          "end_line": 40,
+          "full_joiners": [
+            {
+              "name": "MacDonald",
+              "evidence_lines": {
+                "start_line": 42,
+                "end_line": 43
+              }
+            },
+            {
+              "name": "Farrar",
+              "evidence_lines": {
+                "start_line": 42,
+                "end_line": 44
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the trial judge err in finding that Cow Bay Pond was a watercourse vested in the Crown?",
+          "answers": [
+            {
+              "answer": "No. The factual findings and application of legal standards disclosed no palpable and overriding error.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 40,
+                      "end_line": 40,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the trial judge err in interpreting the Land Registration Act?",
+          "answers": [
+            {
+              "answer": "No. His statutory interpretation was correct.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 40,
+                      "end_line": 40,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the trial judge err in interpreting section 268(2) of the Municipal Government Act?",
+          "answers": [
+            {
+              "answer": "No. His statutory interpretation was correct.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 40,
+                      "end_line": 40,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What costs should be awarded on the appeal?",
+          "answers": [
+            {
+              "answer": "$5,000, including disbursements, to the respondents.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 40,
+                      "end_line": 40,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "affirmed",
+          "evidence_lines": {
+            "start_line": 40,
+            "end_line": 40
+          }
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 127807,
+    "citation": "2009 NSFC 26",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 260,
+          "end_line": 260
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "James C. Wilson",
+                "evidence_lines": {
+                  "start_line": 44,
+                  "end_line": 45
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 260,
+            "end_line": 260
+          },
+          "start_line": 58,
+          "end_line": 262,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Had the mother achieved adequate parenting within the statutory period, or was a permanent-care order required?",
+          "answers": [
+            {
+              "answer": "She had adequately addressed the protection concerns and offered a viable parenting plan; the Agency failed to prove the child remained in need of protection, so permanent care was refused and the proceeding dismissed.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 260,
+                      "end_line": 260,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 260,
+                      "end_line": 260,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 260,
+                      "end_line": 260,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 215,
+                        "end_line": 215
+                      },
+                      "target_proposition_as_characterized": "Permanent care turns on whether adequate parenting can be achieved within the statutory, presumptively reasonable time, not on whether future parental improvement is impossible."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What custody and access order should replace the child-protection proceeding?",
+          "answers": [
+            {
+              "answer": "S.D.G. was placed in A.J.G.'s sole custody without access to J.A.G., subject to notice to child-protection authorities if he later sought access.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 261,
+                      "end_line": 261,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 128664,
+    "citation": "2013 NSPC 111",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 43,
+          "end_line": 43
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Del Atwood",
+                "evidence_lines": {
+                  "start_line": 26,
+                  "end_line": 26
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 43,
+            "end_line": 43
+          },
+          "start_line": 35,
+          "end_line": 57,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What sentence was appropriate for A.B.'s admitted threat in light of the police delay and its rehabilitative consequences?",
+          "answers": [
+            {
+              "answer": "An absolute discharge. A.B. pleaded guilty early and had already suffered serious treatment and rehabilitation consequences from the delayed charge and relocation.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 43,
+                      "end_line": 43,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Could a police undertaking or Youth Justice Court order prevent A.B. from returning to the placement chosen by the Minister of Community Services?",
+          "answers": [
+            {
+              "answer": "No. The Minister had plenary placement authority; neither the Youth Justice Court nor police could override that placement through such a condition.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 40,
+                      "end_line": 40,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        },
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 40,
+                        "end_line": 40
+                      },
+                      "target_proposition_as_characterized": "The Minister of Community Services controls the placement of a young person in care, and a Youth Justice Court judge or police officer cannot impose a condition that overrides that placement."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the delay in bringing the youth charge comply with the government's seven-day Nunn Inquiry response timeline?",
+          "answers": [
+            {
+              "answer": "No. The charge was not sworn until 17 days after the offence despite process having been prepared on the offence date.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 38,
+                      "end_line": 38,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 135892,
+    "citation": "2002 NSSC 243",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 142,
+          "end_line": 142
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "David W. Gruchy",
+                "evidence_lines": {
+                  "start_line": 28,
+                  "end_line": 28
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 142,
+            "end_line": 142
+          },
+          "start_line": 32,
+          "end_line": 142,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Should the proposed $22,000 infant settlement be approved?",
+          "answers": [
+            {
+              "answer": "Yes. The settlement was reasonable, subject to amendment of the supporting documents.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Could the court approve the claimed 25-percent contingency fee on the existing record?",
+          "answers": [
+            {
+              "answer": "No. Counsel had not addressed the necessary fairness factors, so the court invited further written submissions before fixing the fee.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 133,
+                      "end_line": 133,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 133,
+                      "end_line": 133,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "referred_to",
+                      "scope": "facts",
+                      "evidence_lines": {
+                        "start_line": 46,
+                        "end_line": 49
+                      },
+                      "target_proposition_as_characterized": "The first-instance McIntyre decision considered whether a proposed contingency-fee agreement offended Ontario's Champerty Act and, alternatively, whether constitutional relief should permit it."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Were the proposed trust arrangements and sureties adequate to protect the infant's funds?",
+          "answers": [
+            {
+              "answer": "Not as submitted. The security and documents required amendment; use of the Public Trustee was an acceptable alternative.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 141,
+                      "end_line": 141,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 141017,
+    "citation": "2005 OHSTC 41",
+    "annotator": "codex_primary_source_gold50_dev_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_dev",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 100,
+          "end_line": 100
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Richard Lafrance",
+                "evidence_lines": {
+                  "start_line": 31,
+                  "end_line": 31
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 100,
+            "end_line": 100
+          },
+          "start_line": 40,
+          "end_line": 105,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did Air Canada's appeal raise a serious question to be tried?",
+          "answers": [
+            {
+              "answer": "Yes; the parties agreed that it did.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 89,
+                      "end_line": 89,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 86,
+                        "end_line": 88
+                      },
+                      "target_proposition_as_characterized": "A stay requires a serious question, irreparable harm if relief is refused, and a balance of inconvenience favouring the applicant."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Would compliance with the direction cause Air Canada irreparable harm?",
+          "answers": [
+            {
+              "answer": "No. The asserted costs and employee effort were predominantly monetary and were not shown to constitute irreparable harm.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 90,
+                      "end_line": 91,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 86,
+                        "end_line": 88
+                      },
+                      "target_proposition_as_characterized": "A stay requires a serious question, irreparable harm if relief is refused, and a balance of inconvenience favouring the applicant."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Which side faced the greater harm or inconvenience pending the appeal?",
+          "answers": [
+            {
+              "answer": "The employees did, because their risk of mosquito bites and malaria outweighed Air Canada's possible effort and monetary cost.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 97,
+                      "end_line": 97,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 86,
+                        "end_line": 88
+                      },
+                      "target_proposition_as_characterized": "A stay requires a serious question, irreparable harm if relief is refused, and a balance of inconvenience favouring the applicant."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the health and safety officer's direction be stayed?",
+          "answers": [
+            {
+              "answer": "No. Air Canada's stay application was denied.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 100,
+                      "end_line": 100,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        },
+                        {
+                          "occurrence_id": "tm3"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 86,
+                        "end_line": 88
+                      },
+                      "target_proposition_as_characterized": "A stay requires a serious question, irreparable harm if relief is refused, and a balance of inconvenience favouring the applicant."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  }
+]

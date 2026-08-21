@@ -11,10 +11,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ) => fetch(input, init),
 }));
 
-import {
-  legalSourcePassageUrl,
-  readLegalSourcePassage,
-} from "../legalSourceRegistry";
+import { readLegalSourcePassage } from "../legalSourceRegistry";
 import { resourceReference } from "../resourceReferences";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 
@@ -121,8 +118,5 @@ describe("remote legal-source providers through the registry", () => {
       document: { provider: "tna", identity: "[2024] UKSC 1" },
       lookup: { status: "found", block: { label: "par24" } },
     });
-    expect(
-      legalSourcePassageUrl(passage, ["First exact proposition appears here"]),
-    ).toContain("#para_24:~:text=");
   });
 });

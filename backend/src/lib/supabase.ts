@@ -31,7 +31,11 @@ export function createServerSupabase() {
     (require("@supabase/supabase-js") as { createClient: CreateClient })
       .createClient;
   return serverClient ??= createClient(url, key, {
-    auth: { persistSession: false },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
     db: { timeout: REQUEST_TIMEOUT_MS },
     global: { fetch: timedFetch },
   });

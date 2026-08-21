@@ -24,8 +24,9 @@ local and cloud deployments. Only persistence and blob mechanics differ.
 | Workflows | system catalogue and detail; user workflow CRUD; hidden workflows; archive/open-source; sharing is an explicit cloud account extension | mode branches and separate catalogue rules in `routes/workflows.ts` |
 | Tabular reviews | page/create/read/update/delete; columns/cells; clear/generate; attached documents; chat list/read/update/delete; deterministic citations | local-store and Supabase branches plus a separate model loop in `routes/tabular.ts` |
 | Chats | page/create/read/update/delete/restore/permanent-delete; project scope; optimistic transcript version; stop; title generation; user turn, input continuation, assistant events, citations, and partial-turn recovery | JSON local store and local turn loop versus Supabase rows and `runLLMStream` |
+| Activity history | scoped chat, document, and tabular events; literal title search; bounded paging; CSV export safe from spreadsheet formulas | shared relational audit store in both modes |
 | Legal sources | provider search/fetch, native/recovered structure, exact lookup, evidence rehydration, safe links, optional local PDF artifacts | provider-specific caches, SourceDoc paths, and tool-specific result shaping |
-| User/account | local profile and environment keys; cloud profile, account, authentication, keys, connectors, audit, MFA, sharing, and export | intentionally deployment-specific administration; not an excuse for ordinary resource branches |
+| User/account | shared preferences; local environment keys; cloud identity, account, authentication, keys, connectors, MFA, sharing, and export | intentionally deployment-specific administration; not an excuse for ordinary resource branches |
 
 Collection contracts are common across resources:
 

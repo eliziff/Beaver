@@ -3,7 +3,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   scanDocxPathology,
-  scanTextTraps,
   type DocxPathologyReport,
 } from "../docx/pathology";
 import { buildPathologyFixtures } from "./fixtures/docx-pathologies/generate";
@@ -12,20 +11,8 @@ const reports = new Map<string, DocxPathologyReport>();
 const packages = new Map<string, Buffer>();
 
 /** Named, not pasted: a literal would be invisible in this source. */
-const RIGHT_TO_LEFT_OVERRIDE = String.fromCodePoint(0x202e);
-const FIRST_STRONG_ISOLATE = String.fromCodePoint(0x2068);
 const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
 const BYTE_ORDER_MARK = String.fromCodePoint(0xfeff);
-const CYRILLIC_IE = String.fromCodePoint(0x0435);
-const CYRILLIC_O = String.fromCodePoint(0x043e);
-const GREEK_OMICRON = String.fromCodePoint(0x03bf);
-const GREEK_ALPHA = String.fromCodePoint(0x03b1);
-const PRIVATE_USE = String.fromCodePoint(0xe000);
-const INVISIBLE_TIMES = String.fromCodePoint(0x2062);
-const NUL = String.fromCodePoint(0x00);
-const BELL = String.fromCodePoint(0x07);
-const VERTICAL_TAB = String.fromCodePoint(0x0b);
-const UNIT_SEPARATOR = String.fromCodePoint(0x1f);
 
 /** What a sample must never still carry, by code point. */
 const INVISIBLE_RANGES = [
@@ -292,66 +279,6 @@ describe("scanDocxPathology text plane", () => {
     );
     expect(found.unicode_traps.zero_width).toBe(1);
     expect(found.text_boxes.count).toBe(1);
-  });
-});
-
-describe("scanTextTraps", () => {
-  it("counts characters, one per occurrence", () => {
-    const traps = scanTextTraps(
-      `${RIGHT_TO_LEFT_OVERRIDE}fee${FIRST_STRONG_ISOLATE} ${ZERO_WIDTH_SPACE}per${BYTE_ORDER_MARK} unit${PRIVATE_USE}${INVISIBLE_TIMES}`,
-    );
-    expect(traps).toEqual({
-      ...NO_TRAPS,
-      bidi_controls: 2,
-      zero_width: 2,
-      private_use: 1,
-      invisible_math: 1,
-    });
-  });
-
-  it("counts C0 controls but not tab, newline or carriage return", () => {
-    expect(scanTextTraps("a\tb\nc\r\nd").control_chars).toBe(0);
-    expect(
-      scanTextTraps(`a${NUL}b${BELL}c${VERTICAL_TAB}d${UNIT_SEPARATOR}`)
-        .control_chars,
-    ).toBe(4);
-  });
-
-  it("leaves accented Latin, CJK and emoji alone", () => {
-    // An accent is Latin script; nothing about it is confusable.
-    expect(scanTextTraps("café naïve coöperate Ontario 世界 🌍")).toEqual(
-      NO_TRAPS,
-    );
-  });
-
-  it("counts a Latin word carrying a look-alike once, however many it carries", () => {
-    expect(
-      scanTextTraps(`This Agr${CYRILLIC_IE}ement is signed.`)
-        .homoglyph_suspects,
-    ).toBe(1);
-    expect(
-      scanTextTraps(`Pr${CYRILLIC_O}t${CYRILLIC_O}c${CYRILLIC_O}l`)
-        .homoglyph_suspects,
-    ).toBe(1);
-    expect(
-      scanTextTraps(`Sched${GREEK_OMICRON}le and Ann${GREEK_OMICRON}x`)
-        .homoglyph_suspects,
-    ).toBe(2);
-  });
-
-  it("leaves single-script words alone whatever the script", () => {
-    // Cyrillic and Greek words are not Latin words wearing a disguise.
-    expect(scanTextTraps("Договор подписан сторонами")).toEqual(NO_TRAPS);
-    expect(scanTextTraps("λόγος καὶ ἔργον")).toEqual(NO_TRAPS);
-    // A hyphen is not a letter, so it cannot fuse two single-script words.
-    expect(scanTextTraps(`${GREEK_ALPHA}-particle`)).toEqual(NO_TRAPS);
-    // Nor can a paragraph break.
-    expect(scanTextTraps("governing law\nДоговор")).toEqual(NO_TRAPS);
-  });
-
-  it("reads nothing at all as no traps", () => {
-    expect(scanTextTraps("")).toEqual(NO_TRAPS);
-    expect(scanTextTraps(undefined as unknown as string)).toEqual(NO_TRAPS);
   });
 });
 

@@ -1,77 +1,61 @@
-import { readFileSync } from "node:fs";
-
-import { sha256 } from "./hash";
 import {
   materializeSourceStructure,
-  projectSourceStructure,
   type SourceStructureInput,
 } from "./sourceStructureAdapter";
-import {
-  legalStructureBinary,
-  startStructureEngineClient,
-  type StructureEngineClient,
-} from "./structureEngineClient";
+import { deriveStructureGraphsNative, sourceDocsNative } from "./structureNative";
+import { getPriority } from "node:os";
 
-let sharedClient: Promise<StructureEngineClient> | undefined;
 const timing = { materialize_ms: 0, derive_ms: 0, project_ms: 0 };
-function client() {
-  if (!sharedClient) {
-    const binary = legalStructureBinary();
-    sharedClient = startStructureEngineClient({
-      expectedEngineSha256: sha256(readFileSync(binary)),
-      requiredCapabilities: ["native_claims", "raw_recovery"],
-      requireBelowNormalPriority: process.env.STRUCTURE_ENGINE_BELOW_NORMAL === "1",
-      binary,
-    });
-  }
-  return sharedClient;
-}
+let documents = 0;
+let batches = 0;
 
 export async function deriveSourceStructureGraphs(inputs: readonly SourceStructureInput[]) {
   const materializeStarted = performance.now();
   const materialized = inputs.map(materializeSourceStructure);
   const evidence = materialized.map(({ evidence }) => evidence);
   timing.materialize_ms += performance.now() - materializeStarted;
-  let items: Awaited<ReturnType<StructureEngineClient["derive"]>>;
   const deriveStarted = performance.now();
-  for (let attempt = 0; ; attempt += 1) {
-    const activePromise = client();
-    const active = await activePromise;
-    try {
-      items = await active.derive(evidence, materialized.map(({ offsets }) => offsets.scalarLength));
-      break;
-    } catch (error) {
-      if (attempt > 0 || active.alive()) throw error;
-      if (sharedClient === activePromise) sharedClient = undefined;
-    }
-  }
+  const graphs = deriveStructureGraphsNative(
+    evidence, materialized.map(({ offsets }) => offsets.scalarLength),
+  );
   timing.derive_ms += performance.now() - deriveStarted;
-  return items.map((item, index) => {
-    if (!item.ok) throw new Error(
-      `Shared structure engine rejected ${inputs[index].id}: ${item.error.code}: ${item.error.message}`,
-    );
-    return { materialized: materialized[index], graph: item.result };
-  });
+  documents += graphs.length;
+  batches += 1;
+  return graphs.map((graph, index) => ({ materialized: materialized[index], graph }));
 }
 
 export async function deriveSourceStructures(inputs: readonly SourceStructureInput[]) {
-  const graphs = await deriveSourceStructureGraphs(inputs);
-  const projectStarted = performance.now();
-  const documents = graphs.map(({ materialized, graph }) =>
-    projectSourceStructure(materialized, graph));
-  timing.project_ms += performance.now() - projectStarted;
-  return documents;
+  const materializeStarted = performance.now();
+  const materialized = inputs.map(materializeSourceStructure);
+  timing.materialize_ms += performance.now() - materializeStarted;
+  const deriveStarted = performance.now();
+  const output = sourceDocsNative(materialized.map(({ evidence, originalClaims }) => ({
+    kind: "evidence" as const,
+    input: evidence,
+    original_claims: Object.fromEntries(originalClaims),
+    original_claim_orders: Object.fromEntries(
+      [...originalClaims].map(([id, block]) => [id, Object.keys(block)]),
+    ),
+  })));
+  timing.derive_ms += performance.now() - deriveStarted;
+  documents += output.length;
+  batches += 1;
+  return output;
 }
 
 export async function shutdownSourceStructureEngine() {
-  const active = sharedClient;
-  sharedClient = undefined;
-  if (active) (await active).stop();
+  documents = 0;
+  batches = 0;
   timing.materialize_ms = timing.derive_ms = timing.project_ms = 0;
 }
 
 export async function sourceStructureEngineState() {
-  const active = await client();
-  return { limits: active.limits, capabilities: active.capabilities, priority: active.priority,
-    ...active.stats(), ...timing };
+  const priority = getPriority(0);
+  return {
+    limits: { max_documents: Number.MAX_SAFE_INTEGER, max_bytes: Number.MAX_SAFE_INTEGER },
+    capabilities: ["native_claims", "raw_recovery"] as const,
+    priority: { class: "BELOW_NORMAL" as const, parent_pid: process.pid, child_pid: process.pid,
+      parent_priority: priority, child_priority: priority },
+    batches, documents, request_bytes: 0, ...timing,
+  };
 }

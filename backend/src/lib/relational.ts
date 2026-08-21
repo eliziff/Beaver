@@ -8,6 +8,12 @@ export type RelationalDatabase = {
   close(): Promise<void>;
 };
 
+export const encodeJson = (value: unknown) => JSON.stringify(value ?? null);
+export const decodeJson = <T>(value: unknown, fallback: T): T => {
+  if (typeof value !== "string") return value == null ? fallback : value as T;
+  try { return JSON.parse(value) as T; } catch { return fallback; }
+};
+
 const fragment = Symbol("sql-fragment");
 type Fragment = SqlStatement & { [fragment]: true };
 const isFragment = (value: unknown): value is Fragment =>

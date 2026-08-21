@@ -27,11 +27,8 @@ async function configure(mode: "local" | "cloud") {
 
 describe("removeProjectDocument", () => {
   it.each([
-    [
-      "local",
-      "/api/projects/matter-1/documents/document-1",
-    ],
-    ["cloud", "/api/single-documents/document-1"],
+    ["local", "/api/projects/matter-1/documents/document-1"],
+    ["cloud", "/api/projects/matter-1/documents/document-1"],
   ] as const)("uses the %s removal route", async (authMode, expectedUrl) => {
     await configure(authMode);
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));

@@ -1,0 +1,735 @@
+{
+  "format": "a2aj-case-target-court-extension-v1",
+  "created_utc": "2026-08-20T23:45:00.000Z",
+  "requested_pairs": 10,
+  "source_manifests": [
+    {
+      "file": "runs/case-target-budget-5000-seed-20260820.json",
+      "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9"
+    },
+    {
+      "file": "case-target-challenge-50.json",
+      "file_sha256": "2b45aafb55b9be09c2a7afa3dafcedbca4f65d4f1a74fd8f16ea4c83efa6a8e0"
+    }
+  ],
+  "selection": {
+    "algorithm": "first-eligible-parent-order-distinct-court-datasets-v1",
+    "parent_seed": 20260820,
+    "court_datasets": [
+      "BCCA",
+      "BCSC",
+      "CMAC",
+      "FC",
+      "FCA",
+      "NSCA",
+      "NSFC",
+      "NSPC",
+      "NSSC",
+      "NSSM",
+      "ONCA",
+      "SCC",
+      "TCC",
+      "YKCA"
+    ],
+    "maximum_source_chars": 150000,
+    "frozen_pair_keys_sha256": "df8be127988456f4854145b97deb1bf825445bd70cf3d833705121940bd66f0a"
+  },
+  "dataset_counts": {
+    "BCCA": 1,
+    "BCSC": 1,
+    "CMAC": 1,
+    "FC": 1,
+    "FCA": 1,
+    "NSFC": 1,
+    "NSPC": 1,
+    "NSSC": 1,
+    "NSSM": 1,
+    "ONCA": 1
+  },
+  "pairs": [
+    {
+      "challenge_id": "court-extension-01",
+      "challenge_category": "seeded_court_control",
+      "document_id": 10502,
+      "source": {
+        "dataset": "BCCA",
+        "citation": "2010 BCCA 469",
+        "name": "Canadian Petcetera Limited Partnership v. 2876 R Holdings Ltd.",
+        "date": "2010-10-26",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/CA/10/04/2010BCCA0469.htm"
+      },
+      "target": {
+        "document_id": 192885,
+        "citation": "[1994] 2 S.C.R. 490",
+        "citation_aliases": [
+          "[1994] 2 SCR 490",
+          "[1994] 2 RCS 490"
+        ],
+        "name": "Saskatchewan River Bungalows Ltd. v. Maritime Life Assurance Co."
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 0
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 38796,
+        "source_text_sha256": "1335d61e7c2212bed6e4960831a66ccfd5459cbca8cb64608d3f52b1c94227be",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1994] 2 S.C.R. 490",
+            "start": 10384,
+            "end": 10403,
+            "citationKey": "19942scr490",
+            "linkedContext": null,
+            "context": {
+              "start": 10064,
+              "end_exclusive": 10823,
+              "quote": "e to be invalid, then he was satisfied that it was appropriate to grant Petcetera relief from forfeiture under s. 24 of the Law and Equity Act, R.S.B.C. 1996, c. 253. In that regard, he considered the principles set out in several authorities, including Saskatchewan River Bungalows Ltd. v. Maritime Life Assurance Co., [1994] 2 S.C.R. 490, 115 D.L.R. (4th) 478, and rejected three arguments the Landlord said prevented the court from granting the relief.\n[14] The Landlord had also argued that it was entitled to be reimbursed its legal and other expenses in connection with the termination and the legal proceedings pursuant to a provision in the Lease (para. 25(a)). The judge held the Landlord was not entitled to be reimbursed for those expenses because ",
+              "sha256": "edfc218db8fd1a53e7f99d57d056b0d35159c402451ce1767576c22ca2400d48"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Saskatchewan River Bungalows",
+            "start": 30030,
+            "end": 30058,
+            "citationKey": "19942scr490",
+            "linkedContext": null,
+            "context": {
+              "start": 29710,
+              "end_exclusive": 30478,
+              "quote": "in holding, in the alternative, that Petcetera was entitled to relief from the forfeiture of the Lease.\nRelief from Forfeiture\n[34] In addition to arguing generally that the summary trial judge should not exercise his discretion to grant relief against the forfeiture of the Lease on the basis of the factors set out in Saskatchewan River Bungalows Ltd., the Landlord submitted to the judge that there were three reasons why the relief should not be granted. At the hearing of the appeal, the Landlord conceded that, with the exception of two of these matters, the judge could not be said to have erred in principle when he exercised his discretion in favour of the Trustee.\n[35] The first matter relied on by the Landlord was the fact that Petcetera had sub-leased a ",
+              "sha256": "6331df310faaeabf93027f903d1054d9ad4d083485c1b0c820e326d9097081b6"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-02",
+      "challenge_category": "seeded_court_control",
+      "document_id": 40897,
+      "source": {
+        "dataset": "BCSC",
+        "citation": "2015 BCSC 2581",
+        "name": "R. v. McGrath",
+        "date": "2015-05-29",
+        "language": "en",
+        "url": "https://www.bccourts.ca/jdb-txt/sc/15/25/2015BCSC2581.htm"
+      },
+      "target": {
+        "document_id": 36970,
+        "citation": "2010 BCSC 1855",
+        "citation_aliases": [],
+        "name": "R. v. Singleton"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 1
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 50040,
+        "source_text_sha256": "c49e573e7828bb4ab9b822ba6dd16d36386bdf9d83f91126b2b0c881722716e2",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2010 BCSC 1855",
+            "start": 38294,
+            "end": 38308,
+            "citationKey": "2010bcsc1855",
+            "linkedContext": null,
+            "context": {
+              "start": 37974,
+              "end_exclusive": 38728,
+              "quote": "and 11(d) of the Charter have been infringed.\n[81] In my opinion, the pre‑charge delay was inordinate and, to a great extent, unexplained. I say this recognizing that it is not for the court to dictate how the police and the Crown allocate their resources to investigate and prosecute alleged offences: R. v. Singleton, 2010 BCSC 1855 at para 57. I have also kept in mind that it is not the length of the delay that triggers the Charter breach but the effect the delay has on an accused's right to a fair trial.\n[82] I am satisfied that there was relevant documentary evidence that was likely available from Bingo Bingo during the pre‑charge period that was not collected or secured. Because of the pre-charge delay that evidence has been destroyed or lo",
+              "sha256": "5871fdbae1b51610e46e93db4c6f2e692bd06984653afff133f3f81dde7a7dfd"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-03",
+      "challenge_category": "seeded_court_control",
+      "document_id": 75183,
+      "source": {
+        "dataset": "CMAC",
+        "citation": "2022 CMAC 5",
+        "name": "R. v. Euler",
+        "date": "2022-05-09",
+        "language": "en",
+        "url": "https://decisions.cmac-cacm.ca/cmac-cacm/cmac-cacm/en/item/521020/index.do"
+      },
+      "target": {
+        "document_id": 191031,
+        "citation": "[1988] 2 S.C.R. 345",
+        "citation_aliases": [
+          "[1988] 2 SCR 345",
+          "[1988] 2 RCS 345"
+        ],
+        "name": "R. v. Morin"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 6
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 19008,
+        "source_text_sha256": "ff23aab247c37473ae2ab8454f106cd09dedc022025f92b9a52bbee11cfc279d",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1988] 2 S.C.R. 345",
+            "start": 12890,
+            "end": 12909,
+            "citationKey": "19882scr345",
+            "linkedContext": null,
+            "context": {
+              "start": 12570,
+              "end_exclusive": 13329,
+              "quote": "at para. 13; NDA, s. 228, s. 230.1. It is also trite law that not just any error of law will be sufficient to justify allowing an appeal from acquittal. The error of law must reasonably have had a bearing on the acquittal: Graveline, at para. 14; R. v. Sutton, 2000 SCC 50, [2000] 2 S.C.R. 595, at para. 2; R. v. Morin, [1988] 2 S.C.R. 345 at p. 374, 44 C.C.C. (3d) 193; Vézeau v. The Queen (1976), [1977] 2 S.C.R. 277, 28 C.C.C. (2d) 81.\n[12] Crown counsel, in their written and oral submissions, repeated on numerous occasions that the military judge erred in law by requiring corroboration. However, in my view, the issue in is not as simple as that framed by the Crown. While no one would dispute that a judge may convict on the uncorroborated testimony o",
+              "sha256": "ffb5003893aba0bd0203ce05a6d4247dc0746c02f81ea0a743d73b8f7d828d2d"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-04",
+      "challenge_category": "seeded_court_control",
+      "document_id": 109208,
+      "source": {
+        "dataset": "FC",
+        "citation": "2007 FC 676",
+        "name": "Vargas v. Canada (Citizenship and Immigration)",
+        "date": "2007-06-25",
+        "language": "en",
+        "url": "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/54067/index.do"
+      },
+      "target": {
+        "document_id": 79594,
+        "citation": "2002 FCT 1272",
+        "citation_aliases": [
+          "2002 CFPI 1272"
+        ],
+        "name": "Singh v. Canada (Minister of Citizenship and Immigration)"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 8
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 8826,
+        "source_text_sha256": "a9dbb6cff1a211cedd188fa7e54028ab84ce07667a3349a5b0921dfbc08aeb76",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2002 FCT 1272",
+            "start": 6101,
+            "end": 6114,
+            "citationKey": "2002fct1272",
+            "linkedContext": null,
+            "context": {
+              "start": 5781,
+              "end_exclusive": 6534,
+              "quote": "oes not change the fact that the evidence must be considered as a whole: Sylla v. Canada (Minister of Employment and Immigration), [1994] F.C.J. No. 793 (F.C.A.) (QL); Wen v. Canada (Minister of Employment and Immigration), [1994] F.C.J. No. 907 (F.C.A.) (QL); Singh v. Canada (Minister of Citizenship and Immigration), 2002 FCT 1272, [2002] F.C.J. No. 1724 (QL). Considered from this perspective, the panel’s decision is entirely justifiable and is certainly not patently unreasonable.\n[11] It strikes me as especially improbable that the applicant, detained in a room for two weeks, could not identify his assailants. The different versions he has given of this story can only increase doubt as to the truth of it. First of all, it is difficult to ima",
+              "sha256": "44e069a1b7786e002b7667d32f8acaa093023adc75fdb45b1e438651f0eea588"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-05",
+      "challenge_category": "seeded_court_control",
+      "document_id": 116787,
+      "source": {
+        "dataset": "FCA",
+        "citation": "2024 FCA 109",
+        "name": "Khawaja v. Canada",
+        "date": "2024-06-11",
+        "language": "en",
+        "url": "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/521421/index.do"
+      },
+      "target": {
+        "document_id": 81875,
+        "citation": "2022 FC 1592",
+        "citation_aliases": [],
+        "name": "Khawaja v. Canada"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 9
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 4501,
+        "source_text_sha256": "931591081e0d4fe1f2759537b467b40b45e4d20dc402c72d3d2c2e5bfcc3c7cd",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2022 FC 1592",
+            "start": 1748,
+            "end": 1760,
+            "citationKey": "2022fc1592",
+            "linkedContext": null,
+            "context": {
+              "start": 1428,
+              "end_exclusive": 2180,
+              "quote": " remedies along with damages of $390,000 for loss of income and $600,000 for pain and suffering. The Federal Court granted an order for summary judgment dismissing Mr. Khawaja’s claim because it was filed after the expiry of the two-year period set out in Alberta’s Limitations Act, RSA 2000, c L-12: Khawaja v. Canada, 2022 FC 1592. Mr. Khawaja appeals this order, asking our Court to reverse the Federal Court’s decision and allow his claim against Transport Canada to proceed.\n[3] The sole issue in this appeal is whether the Federal Court erred in concluding that Mr. Khawaja filed his claim after the two-year limitation period.\n[4] Subsection 3(1) of Alberta’s Limitations Act provides that a defendant is immune from liability if the claimant di",
+              "sha256": "842a43836d633761c6f28a27d7f9bbd5fa044bd5e5b61886b57916ec60de947e"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Khawaja v. Canada",
+            "start": 0,
+            "end": 17,
+            "citationKey": "2022fc1592",
+            "linkedContext": null,
+            "context": {
+              "start": 0,
+              "end_exclusive": 437,
+              "quote": "Khawaja v. Canada\nCourt (s) Database\nFederal Court of Appeal Decisions\nDate\n2024-06-11\nNeutral citation\n2024 FCA 109\nFile numbers\nA-260-22\nNotes\nA correction was made on June 21, 2024\nDecision Content\nDate: 20240611\nDocket: A-260-22\nCitation: 2024 FCA 109\nCORAM:\nLASKIN J.A.\nGOYETTE J.A.\nDAWSON D.J.C.A.\nBETWEEN:\nMANSOOR KHAWAJA\nAppellant\nand\nHIS MAJESTY THE KING IN RIGHT OF CANADA\nRespondent\nHeard at Calgary, Alberta, on June 11, 2024",
+              "sha256": "d68eecba1e6af86836b0b498fc31c2c799255300814935e3435f8fadfaf18e91"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-06",
+      "challenge_category": "seeded_court_control",
+      "document_id": 127670,
+      "source": {
+        "dataset": "NSFC",
+        "citation": "2017 NSFC 10",
+        "name": "Nova Scotia (Community Services) v. D.C.",
+        "date": "2017-04-28",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nsfc/en/item/235974/index.do"
+      },
+      "target": {
+        "document_id": 127807,
+        "citation": "2009 NSFC 26",
+        "citation_aliases": [],
+        "name": "Children's Aid Society of Pictou County v. A.J.G."
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 12
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 34457,
+        "source_text_sha256": "2be92bbe2063428d6a35d8fefc2f99cf0f36e7774d645521ae9de2b4e4cfacc4",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2009 NSFC 26",
+            "start": 29342,
+            "end": 29354,
+            "citationKey": "2009nsfc26",
+            "linkedContext": null,
+            "context": {
+              "start": 29022,
+              "end_exclusive": 29774,
+              "quote": "stage in the proceedings to retry the matter that resulted in the original finding that the children were in need of protective services. Rather at this stage a Court must determine if the children continue to be in need of protective services.\n[80] Wilson, J.F.C., in Children’s Aid Society of Pictou County v. A.J.G., 2009 NSFC 26, stated: “Children are at risk and in need of protection when parenting is not ‘good enough’ to protect them from harm… Children are at risk when parents lack the basic skills to provide a stable and secure environment. Conversely, children are not at risk if parents can protect them from harm by providing a stable and nurturing home even though they may fall short of optimal parenting.”\n[81] The Court finds the Res",
+              "sha256": "195481de30f3267eed4eca691873f41f2c3562702a79a5fbcd1a9670a45b3a6d"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-07",
+      "challenge_category": "seeded_court_control",
+      "document_id": 128872,
+      "source": {
+        "dataset": "NSPC",
+        "citation": "2010 NSPC 11",
+        "name": "R. v. Naugle",
+        "date": "2010-02-12",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nspc/en/item/15490/index.do"
+      },
+      "target": {
+        "document_id": 195729,
+        "citation": "[2008] 3 S.C.R. 309",
+        "citation_aliases": [
+          "2008 SCC 62",
+          "[2008] 3 SCR 309",
+          "2008 CSC 62",
+          "[2008] 3 RCS 309"
+        ],
+        "name": "R. v. Solowan"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 13
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 92788,
+        "source_text_sha256": "541daa61faa732f8a21a1d20c352f8b446b78f657645206a495c1007da1632fd",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[2008] 3 S.C.R. 309",
+            "start": 36796,
+            "end": 36815,
+            "citationKey": "20083scr309",
+            "linkedContext": null,
+            "context": {
+              "start": 36476,
+              "end_exclusive": 37235,
+              "quote": " in rehabilitation. Generally, the sad life principle is applied in the context of the offender establishing a solid evidentiary basis showing not only a sad life, but also the existence of a comprehensive plan to assist in rehabilitation.\nMaximum Sentences\n[65] Recently, the Supreme Court of Canada, in R. v. Solowan, [2008] 3 S.C.R. 309, at para. 3, held the “worst offender, worst offence” principle has been laid to rest. It no longer operates as a constraint on the imposition of a maximum sentence where a maximum is otherwise appropriate, bearing in mind the principles of sentencing set out in Part XXIII of the Criminal Code. The court further stated that unwarranted resort to maximum sentences is adequately precluded by a proper application of th",
+              "sha256": "8306a8efc0a6cf5fc77f8f3ec755af22bfb82311ffb85db25524f3bf9f3ce4b7"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Solowan",
+            "start": 59435,
+            "end": 59442,
+            "citationKey": "20083scr309",
+            "linkedContext": null,
+            "context": {
+              "start": 59115,
+              "end_exclusive": 59862,
+              "quote": ". R. 294 ( C.A.); Archie, [1997] B.C.J.No. 2908 (C.A.); Howes, [1998] O.J. No. 3749 (C.A.); Hawkins, [2000] B.C.J. NO. 352(C.A.); Decorte (2001), 15 M.V.R. (4th) 291 (Ont. Sup. Crt. Jus.); Rania (2006), 37 M.V.R. (5th) 104 (Ont. Crt. Jus.); Moreau, [2007] B.C.W.L.D.4520 (C.A.); Tschritter, [2006] B.C.J.No. 910 (C.A.); Solowan, supra ; L.M.,supra,; Malicia (2006), 211 C.C.C. (3d) 449 (Ont. C.A.); Burke (1988), 5 M.V.R. (2d) 170 (Ont. C.A.); Bill (1991), 31 M.V.R. (2d) 235 ( B.C.C.A.); and E.T.P., supra.\n[93] In addition to these cases, I have also reviewed others. While, all of cases reviewed are helpful, they are distinguishable, particularly as they relate to the circumstances of Mr. Naugle.\n[94] It would appear from a review of the cas",
+              "sha256": "31f71b96683b0b37672ce48d1a8fa206a6cb1a9997eb54a9c193f3d4b00c5ff8"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-08",
+      "challenge_category": "seeded_court_control",
+      "document_id": 129926,
+      "source": {
+        "dataset": "NSSC",
+        "citation": "2001 NSSC 169",
+        "name": "R. v. Lalo",
+        "date": "2001-11-07",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nssc/en/item/18401/index.do"
+      },
+      "target": {
+        "document_id": 193089,
+        "citation": "[1994] 1 S.C.R. 601",
+        "citation_aliases": [
+          "[1994] 1 SCR 601",
+          "[1994] 1 RCS 601"
+        ],
+        "name": "R. v. Power"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 14
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 26812,
+        "source_text_sha256": "fc16b64621427c964118dfac8a5712e1476dd7d93768daaaa517548d49614e94",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1994] 1 S.C.R. 601",
+            "start": 23879,
+            "end": 23898,
+            "citationKey": "19941scr601",
+            "linkedContext": null,
+            "context": {
+              "start": 23559,
+              "end_exclusive": 24318,
+              "quote": "l meaning. The court said at para [10]:\nIt does not expressly or by implication require that an indictment even be filed before the pretrial conference is held. The wording of s. 625.1 does not provide any basis for the trial Court to interfere with the proper exercise of prosecutorial discretion.\n¶¶ 11 In R. v Power, [1994] 1 S.C.R. 601 the Supreme Court of Canada endorses the need for respect for prosecutorial authority. The Court confirms both the existence of prosecutorial discretion and that its exercise is not subject to the control of the Court beyond the Court's power to control an abuse of its process. L'Heureux-Dubéé J., speaking for the majority, writes that \"my colleague invites the courts of appeal to invade the exclusive domain of the ",
+              "sha256": "bbf1ddff6bf13203d9278d0b1c3431cea020a64821cd1a2935fd0ea15a489d42"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-09",
+      "challenge_category": "seeded_court_control",
+      "document_id": 139365,
+      "source": {
+        "dataset": "NSSM",
+        "citation": "2024 NSSM 70",
+        "name": "Safeguard Property Management & Services Inc. v. Chambers",
+        "date": "2024-08-30",
+        "language": "en",
+        "url": "https://decisia.lexum.com/nsc/nssm/en/item/522605/index.do"
+      },
+      "target": {
+        "document_id": 138095,
+        "citation": "2023 NSSC 300",
+        "citation_aliases": [],
+        "name": "Bastarache v. Hoque"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 15
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 9280,
+        "source_text_sha256": "f9b101fc1b0498be9dfd8d4d51163ea2453d9fc2f3e0ae6662a2c61173aeb632",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "2023 NSSC 300",
+            "start": 6896,
+            "end": 6909,
+            "citationKey": "2023nssc300",
+            "linkedContext": null,
+            "context": {
+              "start": 6576,
+              "end_exclusive": 7329,
+              "quote": "his would be toward the high end of abatements ordered in residential tenancies.\n[19] Further, Adjudicator Greenwood’s determination that a tenant was “entitled to rent abatement as a result of the incremental manner in which the maintenance issues were addressed” was upheld by Justice Brothers in Bastarache v. Hoque, 2023 NSSC 300.\nAnalysis\n[20] The Act provides that the Director may order compensation to be paid for any loss that has been suffered or will be suffered as a direct result of the breach of a lease or an obligation pursuant to the Act (subsection 17A(D)).\n[21] Based on the testimony of the Design1 specialists, it was not clear that the premises were rendered unfit for general habitation. Rather, it is apparent that Ms. Chapplain ",
+              "sha256": "88044c09f1487f1f9e48a989808a97b437375019f87cfd69c945917d6437caab"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    },
+    {
+      "challenge_id": "court-extension-10",
+      "challenge_category": "seeded_court_control",
+      "document_id": 153056,
+      "source": {
+        "dataset": "ONCA",
+        "citation": "C28760",
+        "name": "789538 Ontario Limited v. Gambin Associates",
+        "date": "1999-10-25",
+        "language": "en",
+        "url": "https://coadecisions.ontariocourts.ca/coa/coa/en/item/914/index.do"
+      },
+      "target": {
+        "document_id": 191266,
+        "citation": "[1970] S.C.R. 865",
+        "citation_aliases": [
+          "[1970] SCR 865",
+          "[1970] RCS 865"
+        ],
+        "name": "Wilson et al. v. Rowswell"
+      },
+      "selection_receipt": {
+        "source_lineage": {
+          "kind": "seeded_parent_manifest_order",
+          "file": "runs/case-target-budget-5000-seed-20260820.json",
+          "file_sha256": "c639dfa67a47f70be52c93f74e770cb6fdd3f29ecd0215654f53951a25edbeb9",
+          "seed": 20260820,
+          "zero_based_pair_index": 18
+        },
+        "eligibility": {
+          "court_dataset": true,
+          "resolved_target": true,
+          "source_chars_at_most": 150000,
+          "distinct_dataset_within_extension": true,
+          "excluded_existing_gold50_document_ids": true
+        },
+        "source_chars": 17326,
+        "source_text_sha256": "d6cf0c668e0eb0434294b87d2d51702230897bbc30267bd00409e003abff6850",
+        "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
+        "target_occurrences": [
+          {
+            "id": "tm1",
+            "kind": "citation",
+            "quote": "[1970] S.C.R. 865",
+            "start": 13849,
+            "end": 13866,
+            "citationKey": "1970scr865",
+            "linkedContext": null,
+            "context": {
+              "start": 13529,
+              "end_exclusive": 14286,
+              "quote": "with the appellants that the nature of their liability is secondary and once they make the respondent whole, they should be entitled to an assignment of the respondent’s judgment against the co-defendants. (See Reaney et al. v. National Trust Co. et al. (1964), 1 O.R. (4th) 61 (Ont. H.C.) and Wilson et al. v. Roswell, [1970] S.C.R. 865.) Accordingly, an order will go varying paragraphs 1 and 5 of the judgment in accordance with these reasons. CROSS-APPEAL [23] The respondent cross-appeals and raises one ground of appeal, namely, that the trial judge erred in fixing the rate of post-judgment interest at 10 per cent instead of 14 per cent.2 [24] In support of its position, the respondent submits that it is implicit from this court’s decision in Tilc",
+              "sha256": "bd7e22964b569d87fcc0045e27f025b3ccad3cf635b1fe8e88eb62d394853af7"
+            }
+          }
+        ]
+      },
+      "evaluation_partition": "locked_holdout"
+    }
+  ]
+}

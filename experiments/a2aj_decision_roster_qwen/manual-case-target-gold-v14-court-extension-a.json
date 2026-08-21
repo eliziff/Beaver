@@ -1,0 +1,599 @@
+[
+  {
+    "document_id": 10502,
+    "citation": "2010 BCCA 469",
+    "annotator": "codex_sol_max_primary_source_author_court_extension_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_a",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 152,
+          "end_line": 152
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Tysoe",
+                "evidence_lines": {
+                  "start_line": 40,
+                  "end_line": 41
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 152,
+            "end_line": 152
+          },
+          "start_line": 45,
+          "end_line": 152,
+          "full_joiners": [
+            {
+              "name": "Hall",
+              "evidence_lines": {
+                "start_line": 42,
+                "end_line": 43
+              }
+            },
+            {
+              "name": "D. Smith",
+              "evidence_lines": {
+                "start_line": 42,
+                "end_line": 44
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did sections 65.1 or 69(1) of the Bankruptcy and Insolvency Act prevent the Landlord from terminating the Lease on April 2, 2009?",
+          "answers": [
+            {
+              "answer": "No. Section 65.1 did not bar termination based on post-filing non-payment and the relevant prior late payments, and section 69(1) does not stay lease termination.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 105,
+                      "end_line": 110,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 121,
+                      "end_line": 121,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 130,
+                      "end_line": 130,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the summary trial judge err in deciding that relief from forfeiture should be granted if the Lease termination was valid?",
+          "answers": [
+            {
+              "answer": "No. The Landlord did not establish an error in the judge's alternative decision to grant relief from forfeiture.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 135,
+                      "end_line": 135,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 140,
+                      "end_line": 141,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "decision_under_review",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 70,
+                        "end_line": 70
+                      },
+                      "target_proposition_as_characterized": "The principles governing whether equitable relief from forfeiture should be granted."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "party_or_counsel",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 132,
+                        "end_line": 132
+                      },
+                      "target_proposition_as_characterized": "The factors governing the discretionary grant of relief from forfeiture."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the Court formulate conditions for the relief from forfeiture?",
+          "answers": [
+            {
+              "answer": "No. Conditions were academic and moot because later events had already brought the Lease to an end.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was the Landlord entitled in the summary proceeding to disturb the trial costs order, impose personal liability on the Trustee, or recover contractual expenses?",
+          "answers": [
+            {
+              "answer": "No. The costs order stood, the Trustee was not personally liable, and contractual-expense claims against Petco or the estate were left to the counterclaim or bankruptcy process.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 147,
+                      "end_line": 150,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Who should bear the costs of the appeal?",
+          "answers": [
+            {
+              "answer": "Each party should bear its own costs because the Landlord achieved only limited success.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 152,
+                      "end_line": 152,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 40897,
+    "citation": "2015 BCSC 2581",
+    "annotator": "codex_sol_max_primary_source_author_court_extension_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_a",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 175,
+          "end_line": 175
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "G.R.J. Gaul",
+                "evidence_lines": {
+                  "start_line": 176,
+                  "end_line": 176
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 175,
+            "end_line": 175
+          },
+          "start_line": 29,
+          "end_line": 175,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the pre-charge delay cause sufficient prejudice and abuse of process to breach the McGraths' rights under sections 7 and 11(d) of the Charter and justify a stay?",
+          "answers": [
+            {
+              "answer": "Yes. The delay caused real trial prejudice, the state's treatment also undermined the integrity of the process, and a judicial stay was warranted.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 144,
+                      "end_line": 145,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 150,
+                      "end_line": 156,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 145,
+                        "end_line": 145
+                      },
+                      "target_proposition_as_characterized": "A court should not dictate how police and Crown resources are allocated to investigate and prosecute alleged offences."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the post-charge delay breach the McGraths' section 11(b) right to trial within a reasonable time?",
+          "answers": [
+            {
+              "answer": "Yes. The post-charge delay was unreasonable and unjustifiable and caused inferred and actual prejudice.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 160,
+                      "end_line": 160,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 165,
+                      "end_line": 166,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Apart from the Charter breaches, did the general abuse of the court's process independently warrant a judicial stay?",
+          "answers": [
+            {
+              "answer": "Yes. Repeated arrests, contrary official assurances, the impact on the family, and lost defence evidence made this one of the clearest cases for a stay.",
+              "positions": [
+                {
+                  "relation_to_disposition": "independent_alternative",
+                  "answer_evidence": [
+                    {
+                      "start_line": 169,
+                      "end_line": 175,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 75183,
+    "citation": "2022 CMAC 5",
+    "annotator": "codex_sol_max_primary_source_author_court_extension_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_a",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 52,
+          "end_line": 52
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Bell",
+                "evidence_lines": {
+                  "start_line": 29,
+                  "end_line": 30
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 52,
+            "end_line": 52
+          },
+          "start_line": 47,
+          "end_line": 95,
+          "full_joiners": [
+            {
+              "name": "Heneghan",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 32
+              }
+            },
+            {
+              "name": "Scanlan",
+              "evidence_lines": {
+                "start_line": 31,
+                "end_line": 33
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the military judge commit an error of law by requiring corroboration of the complainant's testimony?",
+          "answers": [
+            {
+              "answer": "No. The military judge permissibly distinguished credibility from reliability, required context rather than corroboration, and properly applied the reasonable-doubt standard.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 82,
+                      "end_line": 83,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 93,
+                      "end_line": 95,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "followed",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 81,
+                        "end_line": 81
+                      },
+                      "target_proposition_as_characterized": "A Crown appeal from an acquittal succeeds only where an error of law reasonably had a bearing on the acquittal."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 109208,
+    "citation": "2007 FC 676",
+    "annotator": "codex_sol_max_primary_source_author_court_extension_a",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_a",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 54,
+          "end_line": 55
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Yves de Montigny",
+                "evidence_lines": {
+                  "start_line": 56,
+                  "end_line": 57
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 54,
+            "end_line": 55
+          },
+          "start_line": 26,
+          "end_line": 55,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Was the RPD's adverse credibility finding patently unreasonable?",
+          "answers": [
+            {
+              "answer": "No. Considered as a whole, the inconsistencies, contradictions, and omissions supported the RPD's credibility finding even though some individual reasons were weak.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 46,
+                      "end_line": 50,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 46,
+                        "end_line": 47
+                      },
+                      "target_proposition_as_characterized": "Credibility evidence must be considered as a whole even when some individual reasons are less convincing than others."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  }
+]

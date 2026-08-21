@@ -1,30 +1,38 @@
-import type { SourceDocBlock } from "./sourceDoc";
 import {
-  finalizeA2AJSourceStructure,
-  prepareA2AJSourceStructure,
   type CompileInput,
 } from "./sourceDocA2AJ";
 import {
-  prepareJournalSourceStructure,
-  type JournalPageRow,
-} from "./sourceDocJournal";
-import {
-  prepareNativeMarkupSourceStructure,
   type NativeMarkupSourceInput,
 } from "./sourceDocNativeMarkup";
-import { deriveSourceStructures } from "./sourceStructureEngine";
+import {
+  a2ajSourceDocNative,
+  journalJsonlSourceDocNative,
+  journalTextSourceDocNative,
+  nativeMarkupSourceDocNative,
+} from "./structureNative";
+
+export type JournalPageRow = { page_label: unknown; pdf_page: unknown };
 
 export async function deriveA2AJSourceDoc(
   input: CompileInput,
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
-  const prepared = prepareA2AJSourceStructure(input, scope);
-  const [document] = await deriveSourceStructures([prepared.structure]);
-  return finalizeA2AJSourceStructure(prepared, document);
+  return a2ajSourceDocNative({
+    citation: input.citation,
+    source_kind: input.docType,
+    text: input.text,
+    ...(input.id ? { id: input.id } : {}),
+    ...(input.url ? { url: input.url } : {}),
+    ...(input.dataset ? { dataset: input.dataset } : {}),
+    ...(input.name ? { name: input.name } : {}),
+    ...(input.alternateCitation ? { alternate_citation: input.alternateCitation } : {}),
+    ...(input.sectionMap ? { section_map: Object.entries(input.sectionMap) } : {}),
+    ...(scope.kind === "excerpt" && scope.excerptOf ? { excerpt_of: scope.excerptOf } : {}),
+  });
 }
 
 export async function deriveNativeMarkupSourceDoc(input: NativeMarkupSourceInput) {
-  return (await deriveSourceStructures([prepareNativeMarkupSourceStructure(input)]))[0];
+  return nativeMarkupSourceDocNative(input);
 }
 
 export async function deriveJournalSourceDoc(
@@ -32,9 +40,15 @@ export async function deriveJournalSourceDoc(
   url: string,
   text: string,
   pageRows: JournalPageRow[],
-  nativeBlocks?: SourceDocBlock[],
 ) {
-  return (await deriveSourceStructures([
-    prepareJournalSourceStructure({ articleId, url, text, pageRows, nativeBlocks }),
-  ]))[0];
+  return journalTextSourceDocNative(articleId, url, text, pageRows);
+}
+
+export async function deriveJournalJsonlSourceDoc(
+  articleId: number,
+  url: string,
+  jsonl: string,
+  pageRows: JournalPageRow[],
+) {
+  return journalJsonlSourceDocNative(articleId, url, jsonl, pageRows);
 }

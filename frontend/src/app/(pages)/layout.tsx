@@ -27,7 +27,6 @@ export default function AppShell() {
     const { pathname } = useLocation();
     const access = useMatches().reduce<{
         cloudOnly?: boolean;
-        localRedirect?: string;
         capability?: "connectors";
     }>(
         (current, match) => ({
@@ -39,6 +38,12 @@ export default function AppShell() {
     const authoritiesActive = pathname === "/table-of-authorities";
     const capabilityUnavailable = access.capability &&
         !getRuntimeConfig().capabilities[access.capability];
+    const unavailable = isLocalMode && access.cloudOnly
+        ? ["Unavailable in local mode", "This feature is not available locally yet."]
+        : capabilityUnavailable
+          ? ["Unavailable in this deployment",
+              "This feature is disabled by the server administrator."]
+          : null;
     const [authoritiesVisited, setAuthoritiesVisited] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const authoritiesMounted = authoritiesActive || authoritiesVisited;
@@ -49,9 +54,6 @@ export default function AppShell() {
 
     if (!authLoading && !isAuthenticated) {
         return <Navigate to="/login" replace />;
-    }
-    if (isLocalMode && access.localRedirect) {
-        return <Navigate to={access.localRedirect} replace />;
     }
     const toggleSidebar = () => setMobileSidebarOpen((open) => !open);
     const prepareAuthorities = () => {
@@ -107,22 +109,13 @@ export default function AppShell() {
                                         <p className="m-auto px-6 text-sm text-gray-500" role="status">
                                             Loading…
                                         </p>
-                                    ) : isLocalMode && access.cloudOnly ? (
+                                    ) : unavailable ? (
                                         <div className="m-auto px-6 text-center">
                                             <h1 className="font-serif text-2xl font-medium text-gray-900">
-                                                Unavailable in local mode
+                                                {unavailable[0]}
                                             </h1>
                                             <p className="mt-2 text-sm text-gray-500">
-                                                This feature is not available locally yet.
-                                            </p>
-                                        </div>
-                                    ) : capabilityUnavailable ? (
-                                        <div className="m-auto px-6 text-center">
-                                            <h1 className="font-serif text-2xl font-medium text-gray-900">
-                                                Unavailable in this deployment
-                                            </h1>
-                                            <p className="mt-2 text-sm text-gray-500">
-                                                This feature is disabled by the server administrator.
+                                                {unavailable[1]}
                                             </p>
                                         </div>
                                     ) : (

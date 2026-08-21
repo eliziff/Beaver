@@ -231,15 +231,20 @@ async function attachOpinionStructure(
   maxChars: number,
   pageCitations: string[],
 ) {
-  if (!text) return;
-  const compiled = await deriveNativeMarkupSourceDoc({
+  if (!text && !markup) return;
+  const input = {
     provider: "courtlistener",
     id: compacted.opinionId === null ? "" : String(compacted.opinionId),
     url: compacted.url,
-    text,
+    text: text ?? "",
     markup,
     pageCitations,
-  });
+  } as const;
+  let compiled = await deriveNativeMarkupSourceDoc(input);
+  if (!compiled.text && markup) {
+    const fallback = stripOpinionMarkup(markup);
+    if (fallback) compiled = await deriveNativeMarkupSourceDoc({ ...input, text: fallback });
+  }
   compacted.text = truncate(compiled.text, maxChars);
   opinionStructures.set(compacted, compiled);
 }
@@ -267,7 +272,9 @@ async function compactOpinion(
     "html",
   );
   const rawText = rawMarkup ?? firstString(opinion, "plainText", "plain_text");
-  const text = stripOpinionMarkup(rawText);
+  // Native markup is rendered by the Rust adapter. Preserve the historical
+  // stripper only as the fail-closed fallback for empty provider markup.
+  const text = rawMarkup ? null : stripOpinionMarkup(rawText);
   const compacted = {
     opinionId:
       asNumber(opinion.opinionId) ??

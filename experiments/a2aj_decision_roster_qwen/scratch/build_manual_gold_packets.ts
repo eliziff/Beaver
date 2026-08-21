@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { availableParallelism } from "node:os";
-import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
-
-import { detectCaseTargetOccurrences } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
+import {
+  CASE_TARGET_OCCURRENCE_VERSION,
+  detectCaseTargetOccurrences,
+} from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk.ts";
 import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 import { validateGold } from "./gold_validation.ts";
@@ -17,7 +17,6 @@ const PACKET_FORMAT = "a2aj-case-target-blind-review-packet-v1";
 const INDEX_FORMAT = "a2aj-case-target-blind-review-index-v1";
 const ANNOTATION_FORMAT = "a2aj-case-target-frozen-annotation-v1";
 const RECEIPT_FORMAT = "a2aj-case-target-adjudication-receipt-v1";
-const OCCURRENCE_VERSION = "a2aj-case-target-occurrences-v3";
 
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -82,48 +81,11 @@ function occurrenceContract(sourceText: string, target: Json) {
     },
   }));
   assert(occurrences.length, `target ${String(target.citation)} has no deterministic occurrences`);
-  return { version: OCCURRENCE_VERSION, occurrences };
+  return { version: CASE_TARGET_OCCURRENCE_VERSION, occurrences };
 }
 
-async function occurrenceContracts(cases: Array<{ sourceText: string; target: Json }>) {
-  const results: Json[] = Array(cases.length);
-  const workers: Worker[] = [];
-  let next = 0;
-  let complete = 0;
-  return await new Promise<Json[]>((resolve, reject) => {
-    const stop = (error: unknown) => {
-      for (const worker of workers) void worker.terminate();
-      reject(error);
-    };
-    const assign = (worker: Worker) => {
-      const index = next++;
-      if (index >= cases.length) return void worker.terminate();
-      worker.postMessage({ index, ...cases[index] });
-    };
-    for (let count = 0; count < Math.min(cases.length, availableParallelism(), 8); count += 1) {
-      const worker = new Worker("const { workerData } = require('node:worker_threads'); require(workerData.register).register(); require(workerData.script);", {
-        eval: true,
-        workerData: {
-          blindAuditOccurrenceWorker: true,
-          register: require.resolve("tsx/cjs/api", { paths: [path.resolve(__dirname, "../../../backend")] }),
-          script: __filename,
-        },
-      });
-      workers.push(worker);
-      worker.on("error", stop);
-      worker.on("message", (message: Json) => {
-        if (message.error) return stop(new Error(message.error));
-        results[message.index] = message.contract;
-        complete += 1;
-        if (complete === cases.length) {
-          for (const item of workers) void item.terminate();
-          resolve(results);
-        }
-        else assign(worker);
-      });
-      assign(worker);
-    }
-  });
+function occurrenceContracts(cases: Array<{ sourceText: string; target: Json }>) {
+  return cases.map(({ sourceText, target }) => occurrenceContract(sourceText, target));
 }
 
 function makePacket(pair: Json, document: Json, contract = occurrenceContract(String(document.text ?? ""), pair.target ?? {})) {
@@ -165,7 +127,7 @@ function validatePacket(packet: Json) {
   assert(Number.isSafeInteger(packet.document_id), "packet document_id is invalid");
   assert(typeof packet.source_text === "string" && packet.source_text.length > 0, "packet source is empty");
   assert(sha256(packet.source_text) === packet.source_text_sha256, "packet source hash mismatch");
-  assert(packet.occurrence_contract?.version === OCCURRENCE_VERSION, "packet occurrence version mismatch");
+  assert(packet.occurrence_contract?.version === CASE_TARGET_OCCURRENCE_VERSION, "packet occurrence version mismatch");
   assert(valueSha256(packet.occurrence_contract) === packet.occurrence_contract_sha256, "packet occurrence hash mismatch");
   const ids = new Set<string>();
   for (const occurrence of packet.occurrence_contract.occurrences ?? []) {
@@ -193,7 +155,7 @@ function assertFrozenOccurrences(pair: Json, contract: Json) {
   });
   const expected = frozen.map(identity);
   const actual = contract.occurrences.map(identity);
-  assert(encoded(expected) === encoded(actual), `${pair.document_id}: frozen manifest occurrences (${expected.length}) differ from production ${OCCURRENCE_VERSION} (${actual.length})`);
+  assert(encoded(expected) === encoded(actual), `${pair.document_id}: frozen manifest occurrences (${expected.length}) differ from production ${CASE_TARGET_OCCURRENCE_VERSION} (${actual.length})`);
 }
 
 function validateAnnotation(packet: Json, annotation: Json) {
@@ -338,7 +300,7 @@ async function prepare() {
     return { pair, document, sourceText: String(document.text ?? "") };
   });
   const occurrenceStarted = performance.now();
-  const contracts = await occurrenceContracts(sourced.map(({ pair, sourceText }) => ({ sourceText, target: pair.target ?? {} })));
+  const contracts = occurrenceContracts(sourced.map(({ pair, sourceText }) => ({ sourceText, target: pair.target ?? {} })));
   const occurrenceMs = +(performance.now() - occurrenceStarted).toFixed(1);
   sourced.forEach(({ pair }, index) => assertFrozenOccurrences(pair, contracts[index]));
   const rows = sourced.map(({ pair, document }, caseIndex) => {
@@ -356,7 +318,7 @@ async function prepare() {
   await mkdir(path.join(root, "packets"));
   await Promise.all(rows.map(({ bytes, index }) => writeFile(safePath(root, index.packet_file), bytes, { encoding: "utf8", flag: "wx" })));
   const cases = rows.map(({ index }) => index);
-  const index = { format: INDEX_FORMAT, occurrence_contract_version: OCCURRENCE_VERSION, cases, cohort_sha256: valueSha256(cases) };
+  const index = { format: INDEX_FORMAT, occurrence_contract_version: CASE_TARGET_OCCURRENCE_VERSION, cases, cohort_sha256: valueSha256(cases) };
   await writeNew(path.join(root, "index.json"), index);
   console.log(JSON.stringify({ command: "prepare", root, cases: cases.length, source_chars: rows.reduce((sum, { packet }) => sum + packet.source_text.length, 0), cohort_sha256: index.cohort_sha256, occurrence_ms: occurrenceMs, elapsed_ms: +(performance.now() - started).toFixed(1) }, null, 2));
 }
@@ -495,14 +457,7 @@ async function main() {
   throw new Error("usage: build_manual_gold_packets.ts prepare|freeze|adjudicate|verify|--self-test");
 }
 
-if (!isMainThread && workerData?.blindAuditOccurrenceWorker) {
-  parentPort?.on("message", ({ index, sourceText, target }: Json) => {
-    try { parentPort?.postMessage({ index, contract: occurrenceContract(sourceText, target) }); }
-    catch (error) { parentPort?.postMessage({ index, error: error instanceof Error ? error.stack ?? error.message : String(error) }); }
-  });
-} else {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.stack ?? error.message : String(error));
-    process.exitCode = 1;
-  });
-}
+main().catch((error) => {
+  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  process.exitCode = 1;
+});
