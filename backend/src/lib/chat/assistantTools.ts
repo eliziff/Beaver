@@ -5,7 +5,11 @@ import {
   parseResourceReference,
   resourceReference,
 } from "../resourceReferences";
-import type { A2AJLocatorLookup } from "../legalSources/a2aj";
+import {
+  a2ajLegalSourceProvider,
+  type A2AJDocument,
+  type A2AJLocatorLookup,
+} from "../legalSources/a2aj";
 import {
   readLegalSourcePassage,
   type LegalSourcePassage,
@@ -56,6 +60,11 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import { countLegalPdfPages } from "../legalPdfSourceDoc";
+import {
+  sourceDocBlockText,
+  type SourceDoc,
+  type SourceDocBlock,
+} from "../sourceDoc";
 import { preparePdf, preparePdfPages } from "../pdfJobs";
 import {
   lookupProviderPdfReference,
@@ -91,6 +100,7 @@ import {
   registerLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceTurnState,
+  type RegisteredEvidence,
 } from "./legalEvidence";
 import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
 import {
@@ -708,9 +718,74 @@ async function readNonDocumentResource(
   }
 }
 
+type EvidenceSource = Omit<RegisteredEvidence, "receipt">;
+type EvidenceSpan = {
+  text: string;
+  start: number;
+  end: number;
+  blockId?: string;
+  locator?: LegalEvidenceReceipt["locator"];
+};
+
+function sourceDocArtifact(value: unknown): SourceDoc | undefined {
+  const artifact = objectRecord(value);
+  return artifact && typeof artifact.text === "string" &&
+      Array.isArray(artifact.tokens) && Array.isArray(artifact.blocks)
+    ? artifact as unknown as SourceDoc
+    : undefined;
+}
+
+function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
+  const source = sourceDocArtifact(passage.documentArtifact);
+  if (passage.source.provider !== "a2aj") return source ? { source } : {};
+  const native = objectRecord(passage.native);
+  const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
+  if (lookup?.status === "found") return { lookup, ...(source && { source }) };
+  return typeof native?.citation === "string" && typeof native.text === "string"
+    ? { document: native as unknown as A2AJDocument, ...(source && { source }) }
+    : source ? { source } : {};
+}
+
+function smallestContainingBlock(
+  source: SourceDoc,
+  start: number,
+  end: number,
+): SourceDocBlock | undefined {
+  return source.blocks
+    .filter((block) => block.start <= start && block.end >= end)
+    .sort((left, right) =>
+      left.end - left.start - (right.end - right.start))[0];
+}
+
+function cleanSearchEvidenceSpan(
+  passage: LegalSourcePassage,
+  hit: { at: number; excerpt: string },
+): EvidenceSpan {
+  const matchEnd = hit.at + hit.excerpt.length;
+  const source = sourceDocArtifact(passage.documentArtifact);
+  if (passage.role === "document" && source?.text === passage.text) {
+    const block = smallestContainingBlock(source, hit.at, matchEnd);
+    if (block) return {
+      text: sourceDocBlockText(source, block),
+      start: block.start,
+      end: block.end,
+      blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
+      locator: { kind: block.kind, label: block.label },
+    };
+  }
+
+  const text = passage.text;
+  let start = text.lastIndexOf("\n", Math.max(0, hit.at - 1)) + 1;
+  const nextLine = text.indexOf("\n", matchEnd);
+  let end = nextLine < 0 ? text.length : nextLine;
+  while (start < end && /\s/u.test(text[start])) start += 1;
+  while (end > start && /\s/u.test(text[end - 1])) end -= 1;
+  return { text: text.slice(start, end), start, end };
+}
+
 function legalSourceEvidence(
   passage: LegalSourcePassage,
-  span?: { text: string; start: number; end: number },
+  span?: EvidenceSpan,
 ): LegalEvidenceReceipt | undefined {
   if (passage.source.provider === "a2aj") {
     const native = objectRecord(passage.native);
@@ -729,6 +804,8 @@ function legalSourceEvidence(
         end: span.end,
         externalUrl: typeof native.url === "string" ? native.url : null,
         sourceClass: passage.source.kind === "legislation" ? "legislation" : "case",
+        blockId: span.blockId,
+        locator: span.locator,
       }) : undefined;
     }
     const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
@@ -758,8 +835,8 @@ function legalSourceEvidence(
       text: span?.text ?? passage.text,
       articleId: passage.source.id,
       language: passage.source.language,
-      locatorKind: passage.locator.requested?.kind ?? "paragraph",
-      locatorLabel: passage.locator.label,
+      locatorKind: span?.locator?.kind ?? passage.locator.requested?.kind ?? "document",
+      locatorLabel: span?.locator?.label ?? passage.locator.label,
     });
   }
   const sourceClass = passage.source.kind === "legislation"
@@ -800,10 +877,10 @@ function legalSourceEvidence(
     language: passage.source.language,
     version: passage.source.date,
     externalUrl: passage.source.url,
-    locatorKind: span ? "document" : passage.locator.requested?.kind ?? "document",
-    locatorLabel: span
-      ? `characters ${span.start + 1}–${span.end}`
-      : passage.locator.label,
+    locatorKind: span?.locator?.kind ??
+      (span ? "document" : passage.locator.requested?.kind ?? "document"),
+    locatorLabel: span?.locator?.label ??
+      (span ? `characters ${span.start + 1}–${span.end}` : passage.locator.label),
   });
 }
 
@@ -920,7 +997,12 @@ async function readLegalSourceResource(
     const registered = read.values.map((passage) => ({
       passage,
       receipt: legalSourceEvidence(passage),
+      source: legalEvidenceSource(passage),
     }));
+    const evidenceSources = new Map<string, EvidenceSource>();
+    for (const { receipt, source } of registered) {
+      if (receipt) evidenceSources.set(receipt.evidence_id, source);
+    }
     const remoteSources = new Map<string, RemoteLegalSourceDocument>();
     const courtCases = new Map<string, Record<string, unknown>>();
     for (const { passage } of registered) {
@@ -959,16 +1041,15 @@ async function readLegalSourceResource(
         });
         total += found.totalMatches;
         return found.hits.map((hit) => {
-          const start = Math.max(0, hit.at - contextChars);
-          const end = Math.min(
-            passage.text.length,
-            hit.at + hit.excerpt.length + contextChars,
-          );
-          const receipt = legalSourceEvidence(passage, {
-            text: passage.text.slice(start, end),
-            start,
-            end,
-          });
+          const receipt = passage.locator.requested
+            ? legalSourceEvidence(passage)
+            : legalSourceEvidence(
+                passage,
+                cleanSearchEvidenceSpan(passage, hit),
+              );
+          if (receipt) {
+            evidenceSources.set(receipt.evidence_id, legalEvidenceSource(passage));
+          }
           return {
             ...hit,
             locator: passage.locator.label,
@@ -1007,6 +1088,7 @@ async function readLegalSourceResource(
           ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}),
         }),
         ...(evidence.length ? { evidence } : {}),
+        ...(evidenceSources.size ? { evidenceSources } : {}),
       };
     }
 
@@ -1025,7 +1107,13 @@ async function readLegalSourceResource(
         );
         const sections = related.lookups.map((lookup) => {
           const evidence = a2ajLookupEvidenceBlocks(lookup, "legislation");
+          const source = a2ajLegalSourceProvider.source(lookup);
           relatedEvidence.push(...evidence.map(({ receipt }) => receipt));
+          evidence.forEach(({ receipt }) =>
+            evidenceSources.set(receipt.evidence_id, {
+              lookup,
+              ...(source && { source }),
+            }));
           return {
             label: lookup.block?.label,
             text: lookup.block?.text,
@@ -1104,6 +1192,7 @@ async function readLegalSourceResource(
     return {
       ...result(payload),
       evidence: evidences,
+      ...(evidenceSources.size ? { evidenceSources } : {}),
     };
   } catch (error) {
     return fail(
@@ -2838,8 +2927,13 @@ export function assistantTools<Context extends {
         );
         if (label) context.updateActivity?.(call.id, label);
       }
-      if (legalEvidenceState)
-        output.evidence?.forEach((evidence) => registerLegalEvidence(legalEvidenceState, evidence));
+      if (legalEvidenceState) {
+        output.evidence?.forEach((evidence) => registerLegalEvidence(
+          legalEvidenceState,
+          evidence,
+          output.evidenceSources?.get(evidence.evidence_id),
+        ));
+      }
       if (signal.aborted && !output.mutated) {
         throw signal.reason ?? new Error("Tool call cancelled");
       }

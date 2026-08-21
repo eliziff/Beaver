@@ -3,6 +3,7 @@ import {
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
 import { buildCanliiCaseUrl } from "../canliiUrls";
+import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import {
   tokenizeLegalInline,
   type LegalInlineToken,
@@ -57,6 +58,9 @@ export function presentLegalEvidence(
   quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
 ): CitationPresentation {
   const { receipt, lookup, document } = entry;
+  const source = entry.source ?? (lookup
+    ? a2ajLegalSourceProvider.source(lookup)
+    : document ? a2ajLegalSourceProvider.source(document) : null);
   const sourceUrl =
     (receipt.source_class === "case"
       ? buildCanliiCaseUrl({
@@ -79,7 +83,12 @@ export function presentLegalEvidence(
     : null;
   const passageUrl = sourceUrl && receipt.span_text
     ? rangeUrl ?? buildLegalSourcePinpointUrl(
-          { url: sourceUrl, anchor: receiptAnchor(entry), blockText: receipt.span_text },
+          {
+            url: sourceUrl,
+            anchor: receiptAnchor(entry),
+            blockText: receipt.span_text,
+            ...(source && { documentText: source }),
+          },
           quotes,
         )
     : sourceUrl;
