@@ -116,10 +116,12 @@ exclusions, and factual boundaries. Native facts always win. The exact port of
 the existing TypeScript recovery rules runs only for kinds explicitly marked
 absent or incomplete. `SourceDoc` is the only result.
 
-The journal adapter is especially literal: `pages.jsonl` already contains the
-final page, heading, section, note, annotation, and geometry facts. Copy them.
-Only unnumbered prose slices may be formed from its geometry segmentation
-boundaries. Do not rediscover numbered paragraphs or any other structure.
+The journal adapter is especially literal. When `pages.jsonl` exists, copy its
+exported page, heading, section, note, annotation, and geometry facts; its
+`type: "text"` regions are the only native paragraph blocks. Otherwise, split
+the captured plaintext at standalone `[page <label>]` lines, remove those
+marker lines, and emit only native page blocks. Do not infer any structure from
+journal plaintext.
 
 Rust callers use the library directly. Node callers use one in-process native
 API over ordinary objects; Beaver does not stringify documents, spawn a
@@ -155,12 +157,13 @@ unselected engine, model, or runtime.
 
 Acceptance:
 
-- all 24 frozen provider vectors and all 323,374 installed-provider rows are
-  byte-identical both before cutover and through the integrated Rust path;
+- all frozen A2AJ and CourtListener rows are byte-identical through the
+  integrated Rust path; every journal row satisfies the explicit native
+  `pages.jsonl` or page-only plaintext contract above;
 - the 1,500-PDF registry and full available DOCX corpus retain their exact
   denominators and fail closed on the first unexplained delta;
-- journal work is only final-export consumption plus geometry-informed prose
-  slicing;
+- journal work is only literal final-export consumption or plaintext page
+  marker removal and pagination;
 - structure is cheap enough that source I/O dominates; 0.8 seconds per 2,000
   A2AJ records is not the target;
 - release builds remain below 15 seconds, with one to five seconds the target;

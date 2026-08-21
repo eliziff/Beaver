@@ -6,12 +6,8 @@ import {
 } from "./sourceDocNativeMarkup";
 import {
   a2ajSourceDocNative,
-  journalJsonlSourceDocNative,
-  journalTextSourceDocNative,
   nativeMarkupSourceDocNative,
 } from "./structureNative";
-
-export type JournalPageRow = { page_label: unknown; pdf_page: unknown };
 
 export async function deriveA2AJSourceDoc(
   input: CompileInput,
@@ -33,22 +29,4 @@ export async function deriveA2AJSourceDoc(
 
 export async function deriveNativeMarkupSourceDoc(input: NativeMarkupSourceInput) {
   return nativeMarkupSourceDocNative(input);
-}
-
-export async function deriveJournalSourceDoc(
-  articleId: number,
-  url: string,
-  text: string,
-  pageRows: JournalPageRow[],
-) {
-  return journalTextSourceDocNative(articleId, url, text, pageRows);
-}
-
-export async function deriveJournalJsonlSourceDoc(
-  articleId: number,
-  url: string,
-  jsonl: string,
-  pageRows: JournalPageRow[],
-) {
-  return journalJsonlSourceDocNative(articleId, url, jsonl, pageRows);
 }

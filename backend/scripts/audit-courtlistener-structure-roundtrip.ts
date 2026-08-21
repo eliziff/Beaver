@@ -19,7 +19,6 @@ import type {
   SourceDocBlock,
   SourceDocLocatorKind,
 } from "../src/lib/sourceDoc";
-import { shutdownSourceStructureEngine } from "../src/lib/sourceStructureEngine";
 
 const kinds: SourceDocLocatorKind[] = [
   "paragraph",
@@ -318,7 +317,6 @@ const temporarySummary = `${summaryPath}.tmp`;
 writeFileSync(temporarySummary, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 renameSync(temporarySummary, summaryPath);
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-await shutdownSourceStructureEngine();
 }
 
 void main();
