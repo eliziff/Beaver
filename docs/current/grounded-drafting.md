@@ -241,6 +241,15 @@ would need different evidence to verify a proposition. One citation may support
 several closely connected propositions when the same narrow block genuinely
 supports them; different paragraphs require different handles.
 
+Open test (noted 2026-08-21): when several references share one narrow
+receipt, every pill currently highlights the whole receipt span, so two
+pinpoints into the same paragraph carry identical quotes regardless of which
+slice each claim actually used. Per-claim sub-span slicing would sharpen
+highlights but adds selection surface; being too granular may do more harm
+than good. Keep observing whether slice-level highlighting helps or hurts,
+and if it earns its place, take sub-spans from server-side verified slices
+at claim validation - never from model prose.
+
 ## 2. Exact quotation fidelity
 
 Run one deterministic quote gate before `submit_grounded_answer` succeeds and

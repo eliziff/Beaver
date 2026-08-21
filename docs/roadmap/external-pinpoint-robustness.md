@@ -82,6 +82,66 @@ silently swap providers while constructing a fragment.
 This should reduce anchor-only fallbacks without pretending that A2AJ
 normalization alone guarantees an external highlight.
 
+## Provider DOM projection and directive variants
+
+Observed: 2026-08-21, live Chrome verification against SCC Decisia
+(Colucci, item 18909).
+
+The relationship between A2AJ text and a publisher page is an engine-level
+projection, deterministic per provider class, and it matters because
+Chromium matches text fragments positionally:
+
+- one NBSP folds onto one space, but whitespace runs are never collapsed
+  across element boundaries;
+- each `text=` directive that matches nothing is silently ignored, while
+  every matching directive renders its own highlight.
+
+Known projection entries so far:
+
+| Source (A2AJ) | Rendered form | Fragment consequence |
+| --- | --- | --- |
+| `s. 17` mid-target | linkified `s.<NBSP>17<NBSP>` + plain `" of"` | target continuing past a cluster needs the padded spelling |
+| `s. 17` at target end | same padding | plain ASCII works; the match ends at the digit |
+| `[n]` paragraph markers | anchor element plus NBSP-run span | strip from targets and boundaries |
+| prose punctuation restyled by the engine (`—` → `,` observed between an SCC headnote and body para 138 of Colucci) | silently different characters | such directives fail closed; catalog via corpus alignment |
+
+A2AJ source text includes publisher-front matter (the SCC headnote and its
+Cases Cited list ship inside the retrieved document), so every DOM duplicate
+of a target is also a source duplicate. That keeps the generic duplication
+check fully informed: repeated phrases raise `directiveMatchCount`, context
+windows qualify the directive, and range pairing counts reject ambiguity -
+all computed against immutable source text, with no per-provider or
+per-region logic.
+
+Two safety properties follow:
+
+1. **Variants share one proof.** A padded spelling of a target whose
+   uniqueness was proven against immutable source text needs no separate
+   check; emit plain and padded as sibling directives and exactly one can
+   match on any rendering.
+2. **Duplication is not variant-safe.** When a phrase occurs more than once
+   in the document, every matching directive highlights its own first match,
+   so bare and context-qualified spellings must never be emitted together -
+   qualification replaces, never joins. The existing generic guard is the
+   right and sufficient infrastructure: because the retrieved source text
+   includes publisher-front matter, source-side duplicate counting sees what
+   the DOM sees (verified 5=5 on Colucci), so context windows and range
+   pairing counts prevent headnote or body lock-ons without any special
+   handling. The fidelity gate keeps an after-the-first-body-anchor landing
+   check purely as a verification metric that this agreement continues to
+   hold at corpus scale.
+
+Long-term default: one form per proven provider projection; variants are
+the bridge until the fidelity corpus proves each class.
+
+## Corpus-scale fidelity loop
+
+Random passage seeds drawn from local corpora, built through production
+link code, verified against live pages (scroll landing plus screenshot),
+then aligned source-vs-rendered to mine new projection rows. See
+`benchmarks/text_fragment_fidelity/`; wrong-place lock-on rate and silent
+directive failure rate are its acceptance metrics.
+
 ## Acceptance
 
 - A fixture-backed provider emits a text fragment only when a fresh browser
