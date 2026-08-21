@@ -2,7 +2,6 @@ import { isJsonRecord as record } from "./value";
 
 export const STRUCTURE_EVIDENCE_SCHEMA = "legalpdf.structure-evidence.v1";
 export const STRUCTURE_RESULT_SCHEMA = "legalpdf.structure-graph.v1";
-export const STRUCTURE_SIDECAR_PROTOCOL = "legalpdf.structure-sidecar.v1";
 export const STRUCTURE_CAPABILITIES = ["native_claims", "raw_recovery"] as const;
 
 export type StructureCapability = typeof STRUCTURE_CAPABILITIES[number];

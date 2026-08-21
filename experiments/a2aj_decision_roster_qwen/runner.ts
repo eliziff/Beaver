@@ -44,7 +44,7 @@ import {
 } from "../../backend/src/lib/sourceDoc";
 import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocStructureHost";
 import { shutdownSourceStructureEngine } from "../../backend/src/lib/sourceStructureEngine";
-import { setBelowNormalProcessPriority } from "../../backend/src/lib/structureEngineClient";
+import { setBelowNormalProcessPriority } from "../../backend/src/lib/processPriority";
 import {
   citationLookupKey,
   citationsInText,

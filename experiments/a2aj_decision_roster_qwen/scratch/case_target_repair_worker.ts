@@ -19,7 +19,7 @@ import {
   validateCaseTargetSubmission,
   type CaseTargetPromptVariant,
 } from "../runner";
-import { setBelowNormalProcessPriority } from "../../../backend/src/lib/structureEngineClient";
+import { setBelowNormalProcessPriority } from "../../../backend/src/lib/processPriority";
 
 type JsonObject = Record<string, unknown>;
 let interruptedBy: NodeJS.Signals | null = null;
