@@ -105,3 +105,57 @@ export function collapseProvisionLabels(
   if (kind === "section") return collapseSectionLabels(labels);
   return null;
 }
+
+const LOCATOR_PREFIX = /^(?:sections?|secs?|ss?|paragraphs?|paras?|par)\.?/iu;
+
+function parseLocatorProvision(label: string): Provision | null {
+  const stripped = label
+    .split(/[\u2013\u2014-]/u)
+    .map((part) => part.replace(LOCATOR_PREFIX, "").trim())
+    .join("-");
+  return parseProvision(stripped);
+}
+
+/**
+ * Minimal citation form for provisions cited together. Unlike tool-label
+ * display, a citation keeps every attached receipt: when an ancestor is
+ * present it stands in for its descendants ("s 50(1)" covers "(a)-(c)",
+ * because the parent provision legally encompasses them); otherwise
+ * siblings pair under their shared token prefix ("49(1)\u2013(4)").
+ * Returns null when any label is not a well-formed provision.
+ */
+export function renderSectionSpan(labels: readonly string[]): string | null {
+  const parsed: Provision[] = [];
+  for (const label of labels) {
+    const parts = label
+      .split(/[\u2013\u2014-]/u)
+      .map(parseLocatorProvision);
+    if (parts.some((part) => !part)) return null;
+    parsed.push(...(parts as Provision[]));
+  }
+  const unique = [...new Map(parsed.map((provision) => [provisionText(provision), provision])).values()];
+  const minimal = unique.filter(
+    (provision) =>
+      !unique.some((other) => other !== provision && isDescendantOf(provision, other)),
+  );
+  if (minimal.length === 1) return provisionText(minimal[0]);
+  const tokenLists = minimal.map(
+    (provision) => [provision.root, ...provision.tokens] as const,
+  );
+  let shared = 0;
+  while (tokenLists.every((list) => list.length > shared + 1)) {
+    const token = tokenLists[0]![shared];
+    if (tokenLists.some((list) => list[shared] !== token)) break;
+    shared += 1;
+  }
+  if (shared === 0) return null;
+  const first = tokenLists[0]!.slice(shared).join("");
+  const last = tokenLists.at(-1)!.slice(shared).join("");
+  if (!first || !last) return null;
+  return `${tokenLists[0]!.slice(0, shared).join("")}${first}\u2013${last}`;
+}
+
+/** The root section number of a locator label ("sec50(2)" -> "50"), or null. */
+export function provisionRoot(label: string): string | null {
+  return parseLocatorProvision(label)?.root ?? null;
+}

@@ -12,6 +12,7 @@ import {
 } from "../legalSourceLinks";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
+import { provisionRoot, renderSectionSpan } from "../provisionLabels";
 import { groundedProseIntegrityErrors } from "./quoteRepair";
 import { jsonRecord as object } from "../value";
 
@@ -743,13 +744,78 @@ export function finalizeLegalEvidence(
 export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string | null {
   if (state.failure) return null;
   if (!state.answer) return null;
-  const refs = new Map(legalEvidenceCitationEntries(state)
-    .map(({ ref, receipt }) => [receipt.evidence_id, ref]));
+  const refs = new Map<string, number>();
+  for (const group of legalEvidenceCitationGroups(state)) {
+    for (const member of group.members) {
+      refs.set(member.receipt.evidence_id, group.ref);
+    }
+  }
   return state.answer.map((claim) => {
     const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
       refs.has(id) ? [`[${refs.get(id)}]`] : []))];
     return `${claim.text}${markers.length ? ` ${markers.join("")}` : ""}`;
   }).join("\n\n");
+}
+
+/**
+ * Citation entries grouped into display citations: consecutive entries from
+ * the same instrument whose section locators form one provision family
+ * share a ref and render as a single range pinpoint ("s 50(1)" for a
+ * parent plus its clauses). Everything else stays one-to-one.
+ */
+export type LegalEvidenceCitationGroup = {
+  ref: number;
+  members: Array<RegisteredEvidence & { ref: number }>;
+  collapsedLabel?: string;
+};
+
+function joinsSectionFamily(
+  members: Array<RegisteredEvidence & { ref: number }>,
+  entry: RegisteredEvidence,
+): boolean {
+  const first = members[0]!.receipt.locator;
+  return (
+    entry.receipt.provider === "a2aj" &&
+    members[0]!.receipt.provider === "a2aj" &&
+    entry.receipt.citation === members[0]!.receipt.citation &&
+    entry.receipt.dataset === members[0]!.receipt.dataset &&
+    entry.receipt.locator.kind === first.kind &&
+    first.kind === "section" &&
+    provisionRoot(first.label) !== null &&
+    provisionRoot(entry.receipt.locator.label) === provisionRoot(first.label)
+  );
+}
+
+export function legalEvidenceCitationGroups(
+  state: LegalEvidenceTurnState,
+): LegalEvidenceCitationGroup[] {
+  const groups: LegalEvidenceCitationGroup[] = [];
+  for (const entry of legalEvidenceCitationEntries(state)) {
+    const last = groups.at(-1)!;
+    let joinedLabel: string | null = null;
+    if (last && joinsSectionFamily(last.members, entry)) {
+      joinedLabel = renderSectionSpan([
+        ...last.members.map(({ receipt }) => receipt.locator.label),
+        entry.receipt.locator.label,
+      ]);
+    }
+    if (last && joinedLabel) {
+      last.members.push(entry);
+      last.collapsedLabel = joinedLabel;
+      continue;
+    }
+    groups.push({
+      ref: 0,
+      members: [entry],
+      ...(entry.receipt.locator.kind === "section"
+        ? { collapsedLabel: renderSectionSpan([entry.receipt.locator.label]) ?? undefined }
+        : {}),
+    });
+  }
+  groups.forEach((group, index) => {
+    group.ref = index + 1;
+  });
+  return groups;
 }
 
 export function legalEvidenceCitationEntries(

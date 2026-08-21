@@ -1,5 +1,5 @@
 import {
-  legalEvidenceCitationEntries,
+  legalEvidenceCitationGroups,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
@@ -45,16 +45,19 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
 export function createLegalEvidenceCitations(
   state: LegalEvidenceTurnState,
 ): Record<string, unknown>[] {
-  return legalEvidenceCitationEntries(state).flatMap<Record<string, unknown>>(
-    (entry) => {
-      const { ref, receipt } = entry;
+  return legalEvidenceCitationGroups(state).flatMap<Record<string, unknown>>(
+    (group) => {
+      const lead = group.members[0];
+      const { receipt } = lead;
       const quote = receipt.span_text;
       if (!quote) return [];
       // Quotes are verified source passages, never model prose. Fragments,
       // highlights, and DOCX links all derive from the same receipt span.
-      const quotes = [{ quote }];
-      const presentation = presentLegalEvidence(entry);
-      const locator = receiptLocator(entry, presentation);
+      const quotes = group.members.flatMap(({ receipt }) =>
+        receipt.span_text ? [{ quote: receipt.span_text }] : [],
+      );
+      const presentation = presentLegalEvidence(lead);
+      const locator = receiptLocator(lead, presentation);
       const display = {
         authority: citationPresentationText(presentation.authority),
         short_authority: citationPresentationText(presentation.shortAuthority),
@@ -65,7 +68,7 @@ export function createLegalEvidenceCitations(
       if (receipt.tabular) {
         return [{
           kind: "tabular" as const,
-          ref,
+          ref: group.ref,
           ...receipt.tabular,
           quotes,
           ...display,
@@ -74,7 +77,7 @@ export function createLegalEvidenceCitations(
       if (receipt.provider === "library") {
         return [{
           kind: "document" as const,
-          ref,
+          ref: group.ref,
           document_id: receipt.stable_source_id,
           version_id: receipt.version,
           filename: receipt.name ?? receipt.citation,
@@ -89,7 +92,7 @@ export function createLegalEvidenceCitations(
           : receipt.stable_source_id;
         return [{
           kind: "public_legal" as const,
-          ref,
+          ref: group.ref,
           provider: "journal" as const,
           identifier,
           title: receipt.name,
@@ -107,7 +110,7 @@ export function createLegalEvidenceCitations(
       )) {
         return [{
           kind: "public_legal" as const,
-          ref,
+          ref: group.ref,
           provider: receipt.provider,
           identifier: receipt.stable_source_id,
           title: receipt.name,
@@ -121,9 +124,38 @@ export function createLegalEvidenceCitations(
         }];
       }
       if (receipt.provider !== "a2aj" && receipt.provider !== "citator") return [];
+      // A provision family (one instrument, adjacent sections) renders one
+      // range pinpoint instead of a pill per clause. The link lands on the
+      // first member's verified fragment; every member's span stays in
+      // quotes for export fidelity.
+      if (group.members.length > 1 && group.collapsedLabel) {
+        // collapsedLabel is bare ("49(1)\u2013(4)"); the locator field keeps
+        // the receipt-style kind prefix ("sec49(1)\u2013(4)").
+        const collapsedDisplay = group.collapsedLabel;
+        const collapsedRaw =
+          `${receipt.locator.label.match(/^[A-Za-z]+/u)?.[0] ?? ""}${collapsedDisplay}`;
+        return [{
+          kind: "a2aj" as const,
+          ref: group.ref,
+          citation: receipt.citation,
+          name: receipt.name,
+          dataset: receipt.dataset,
+          url: presentation.passageUrl,
+          external_url: presentation.sourceUrl,
+          source_class: receipt.source_class,
+          quotes,
+          ...display,
+          locator_kind: receipt.locator.kind,
+          locator: collapsedRaw,
+          locator_separator: ", ",
+          // A family shares one instrument section by construction, so the
+          // pinpoint noun is always the singular "s".
+          pinpoint: `s ${collapsedDisplay}`,
+        }];
+      }
       return [{
         kind: "a2aj" as const,
-        ref,
+        ref: group.ref,
         citation: receipt.citation,
         name: receipt.name,
         dataset: receipt.dataset,
