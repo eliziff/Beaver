@@ -1,0 +1,46 @@
+{
+  "tier": "smoke",
+  "run": "2026-08-21",
+  "total": 6,
+  "failures": 0,
+  "verdicts": {
+    "colucci-framework-range": {
+      "providerClass": "decisia-scc",
+      "verdict": "landed",
+      "scrollY": 13021,
+      "pastBodyAnchor": true,
+      "finding": "Production-built range URL with plain+padded citation variants lands exactly at para 1 through 's. 17 of the Divorce Act'."
+    },
+    "dbs-multi-directive-known-good": {
+      "providerClass": "decisia-scc",
+      "verdict": "landed",
+      "scrollY": 15850,
+      "finding": "Known-good multi-directive pair still lands; regression guard."
+    },
+    "colucci-headnote-trap-negative": {
+      "providerClass": "decisia-scc",
+      "verdict": "no-landing (negative control)",
+      "finding": "Bare comma-form directive matches nothing live; headnote copies render with further differences. Trap mechanism confirmed manually by operator; alignment mining owes an exact rendered-form entry."
+    },
+    "kp-subsection-prose": {
+      "providerClass": "kings-printer",
+      "verdict": "landed",
+      "scrollY": 21760,
+      "finding": "Prose-only King's Printer targets land. Earlier 'KP fragments fail' evidence applies to structural-label targets only."
+    },
+    "kp-label-prefix-negative": {
+      "providerClass": "kings-printer",
+      "verdict": "no-landing (negative control)",
+      "finding": "Raw label-prefixed target fails as documented; production builder strips such labels before emission."
+    },
+    "canlii-anchor-plus-short-fragment": {
+      "providerClass": "canlii",
+      "verdict": "no-landing (automation-challenged)",
+      "finding": "CanLII serves slider/soft challenges to automation, flaky between runs. Needs undetected-driver tier for live coverage; links verified manually in operator Chrome."
+    }
+  },
+  "notes": [
+    "iframe=true&site_preference=mobile reconfirmed load-bearing: bare index.do fragment URLs 404.",
+    "Decisia transport normalization must apply to every seed path; manual seeds now mirror sourceUrl()."
+  ]
+}
