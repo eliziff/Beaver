@@ -537,16 +537,8 @@ export const addDocumentToProject = (
   projectId: string,
   documentId: string,
 ) => post<Document>(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
-export const removeProjectDocument = async (
-  projectId: string,
-  documentId: string,
-): Promise<void> => {
-  if (!isLocalMode) {
-    await deleteDocument(documentId);
-    return;
-  }
-  await remove(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
-};
+export const removeProjectDocument = (projectId: string, documentId: string) =>
+  remove<void>(`/projects/${segment(projectId)}/documents/${segment(documentId)}`);
 export interface DocumentVersion {
   id: string;
   version_number: number | null;

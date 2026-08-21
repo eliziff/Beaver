@@ -1,0 +1,622 @@
+[
+  {
+    "document_id": 116787,
+    "citation": "2024 FCA 109",
+    "annotator": "Sol Max",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_b",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 53,
+          "end_line": 53
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "collective",
+            "name": "The Court",
+            "evidence_lines": {
+              "start_line": 43,
+              "end_line": 43
+            }
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 53,
+            "end_line": 53
+          },
+          "start_line": 43,
+          "end_line": 53,
+          "full_joiners": [
+            {
+              "name": "Laskin J.A.",
+              "evidence_lines": {
+                "start_line": 66,
+                "end_line": 67
+              }
+            },
+            {
+              "name": "Goyette J.A.",
+              "evidence_lines": {
+                "start_line": 66,
+                "end_line": 67
+              }
+            },
+            {
+              "name": "Dawson D.J.C.A.",
+              "evidence_lines": {
+                "start_line": 66,
+                "end_line": 67
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the Federal Court err in finding that Mr. Khawaja's claim was filed outside the two-year limitation period?",
+          "answers": [
+            {
+              "answer": "No. Continued communications with Transport Canada did not extend the limitation period, and the Federal Court made no palpable and overriding error.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 52,
+                      "end_line": 52,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "explained",
+                      "scope": "whole_decision",
+                      "evidence_lines": {
+                        "start_line": 47,
+                        "end_line": 47
+                      },
+                      "target_proposition_as_characterized": "The Federal Court granted summary judgment dismissing the claim because it was filed after Alberta's two-year limitation period."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "followed",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 52,
+                        "end_line": 52
+                      },
+                      "target_proposition_as_characterized": "Continuing to communicate with Transport Canada did not extend the two-year limitation period."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "affirmed",
+          "evidence_lines": {
+            "start_line": 52,
+            "end_line": 53
+          }
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 127670,
+    "citation": "2017 NSFC 10",
+    "annotator": "Sol Max",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_b",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 144,
+          "end_line": 146
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Marci Lin Melvin",
+                "evidence_lines": {
+                  "start_line": 27,
+                  "end_line": 28
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 144,
+            "end_line": 146
+          },
+          "start_line": 39,
+          "end_line": 147,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "other_source"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the Minister prove that permanent care was in the children's best interests?",
+          "answers": [
+            {
+              "answer": "No. The parents had separated, the risk was seriously diminished, less intrusive services had succeeded, and the mother could provide a stable and nurturing home, so the children were no longer in need of protective services.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 121,
+                      "end_line": 121,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 123,
+                      "end_line": 123,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 126,
+                      "end_line": 126,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 135,
+                      "end_line": 135,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 141,
+                      "end_line": 141,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 134,
+                        "end_line": 135
+                      },
+                      "target_proposition_as_characterized": "Children are not at risk where parents can protect them by providing a stable and nurturing home, even if the parenting is not optimal."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the children be returned to their mother or placed with a third-party family member?",
+          "answers": [
+            {
+              "answer": "They should be returned to their mother; deciding a third-party placement was unnecessary.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 136,
+                      "end_line": 136,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 142,
+                      "end_line": 142,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 144,
+                      "end_line": 146,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 134,
+                        "end_line": 135
+                      },
+                      "target_proposition_as_characterized": "Children are not at risk where parents can protect them by providing a stable and nurturing home, even if the parenting is not optimal."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 128872,
+    "citation": "2010 NSPC 11",
+    "annotator": "Sol Max",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_court_extension_b",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 461,
+          "end_line": 461
+        },
+        {
+          "start_line": 469,
+          "end_line": 469
+        },
+        {
+          "start_line": 506,
+          "end_line": 506
+        },
+        {
+          "start_line": 509,
+          "end_line": 509
+        },
+        {
+          "start_line": 511,
+          "end_line": 513
+        },
+        {
+          "start_line": 515,
+          "end_line": 519
+        },
+        {
+          "start_line": 521,
+          "end_line": 521
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Frank P. Hoskins",
+                "evidence_lines": {
+                  "start_line": 27,
+                  "end_line": 27
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 515,
+            "end_line": 519
+          },
+          "start_line": 34,
+          "end_line": 521,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What custodial sentences and global term are fit for Mr. Naugle's three offences?",
+          "answers": [
+            {
+              "answer": "A five-year maximum sentence for impaired driving, three years consecutive for driving while disqualified, and six months consecutive for failing to remain, producing a global sentence of eight and one-half years before credit for pre-sentence custody.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 447,
+                      "end_line": 448,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 451,
+                      "end_line": 452,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 456,
+                      "end_line": 461,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 515,
+                      "end_line": 519,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "explained",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 173,
+                        "end_line": 173
+                      },
+                      "target_proposition_as_characterized": "The worst-offender, worst-offence principle no longer constrains a maximum sentence where a maximum is otherwise appropriate under the governing sentencing principles."
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "party_or_counsel",
+                      "label": "referred_to",
+                      "scope": "unclear",
+                      "evidence_lines": {
+                        "start_line": 395,
+                        "end_line": 395
+                      },
+                      "target_proposition_as_characterized": null
+                    },
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tn1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "distinguished",
+                      "scope": "facts",
+                      "evidence_lines": {
+                        "start_line": 395,
+                        "end_line": 396
+                      },
+                      "target_proposition_as_characterized": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "At what ratio should Mr. Naugle's pre-sentence custody be credited?",
+          "answers": [
+            {
+              "answer": "At the usual two-for-one ratio because the Crown did not justify a departure, yielding twenty-one months of credit.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 433,
+                      "end_line": 435,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 518,
+                      "end_line": 518,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What driving prohibition should be imposed on Mr. Naugle?",
+          "answers": [
+            {
+              "answer": "A lifetime driving prohibition, effective immediately.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 468,
+                      "end_line": 469,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should a DNA order be imposed on Mr. Naugle?",
+          "answers": [
+            {
+              "answer": "Yes. The order was in the best interests of the administration of justice after balancing the statutory factors.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 503,
+                      "end_line": 506,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should Mr. Naugle's motor vehicle be forfeited?",
+          "answers": [
+            {
+              "answer": "Yes. The vehicle was offence-related property and the offences were committed in relation to it.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 508,
+                      "end_line": 509,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should restitution be ordered for the accident losses?",
+          "answers": [
+            {
+              "answer": "Yes. Restitution of $250 to David and Julia McMillan and $3,598.59 to the Sovereign General Insurance Company was ordered.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 511,
+                      "end_line": 513,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the victim surcharge be waived?",
+          "answers": [
+            {
+              "answer": "Yes. The victim surcharge was waived because of Mr. Naugle's personal circumstances.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 521,
+                      "end_line": 521,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  }
+]

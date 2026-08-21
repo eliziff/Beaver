@@ -131,20 +131,20 @@ describe("local chat store", () => {
     const store = await loadStore();
     const sessions = await import("../providerSessionStore");
     const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
-    sessions.writeProviderSession({
+    await sessions.writeProviderSession({
       userId: owner, chatId: chat.id, projectId: null,
       continuationId: randomUUID(), compatibilityKey: "a".repeat(64),
       transcriptVersion: 0,
     });
 
     await expect(store.trash(scope(), chat.id)).resolves.toBe(true);
-    expect(sessions.readProviderSession(owner, chat.id)).not.toBeNull();
+    expect(await sessions.readProviderSession(owner, chat.id)).not.toBeNull();
     await expect(store.commitTurn(scope(), chat.id, {
       expectedVersion: 0,
       userMessage: { id: randomUUID(), content: "stale" },
     })).resolves.toEqual({ status: "missing" });
     await expect(store.remove(scope(), chat.id)).resolves.toBe(true);
-    expect(sessions.readProviderSession(owner, chat.id)).toBeNull();
+    expect(await sessions.readProviderSession(owner, chat.id)).toBeNull();
   });
 
   it("restores before expiry and purges at exactly thirty days", async () => {

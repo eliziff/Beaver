@@ -16,22 +16,15 @@ import type {
   LegalSourceSearchHit,
 } from "../lib/legalSources";
 import {
-  deleteSqliteLegalSource,
-  getSqliteLegalSource,
-  listSqliteLegalSources,
-  saveSqliteLegalSource,
-  type SqliteLegalSourcePdfRendition,
-} from "../lib/sqlitePersistence";
+  type LegalSourcePdfRendition,
+  type LegalSourceStore,
+} from "../lib/legalSourceStore";
 import {
   providerPdfRequestReference,
   queueProviderPdfAttachment,
   readProviderPdfAttachmentState,
   type ProviderPdfAttachment,
 } from "../lib/providerPdfLibraryBridge";
-
-export const legalLibraryRouter = Router();
-
-legalLibraryRouter.use(requireAuth);
 
 function text(value: unknown, name: string, maximum = 500) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -120,7 +113,7 @@ async function sendViewer(
     language: "en" | "fr";
     dataset?: string | null;
     sourceId?: string | null;
-    pdfRendition?: SqliteLegalSourcePdfRendition;
+    pdfRendition?: LegalSourcePdfRendition;
   },
 ) {
   const started = performance.now();
@@ -161,10 +154,14 @@ async function sendViewer(
   res.json(resolved.payload);
 }
 
-legalLibraryRouter.get("/", asyncRoute(async (_req, res) => {
-  res.json({ references: await listSqliteLegalSources(userId(res)) });
+export function createLegalLibraryRouter(store: LegalSourceStore) {
+const router = Router();
+router.use(requireAuth);
+
+router.get("/", asyncRoute(async (_req, res) => {
+  res.json({ references: await store.list(userId(res)) });
 }));
-legalLibraryRouter.get("/coverage", asyncRoute(async (_req, res) => {
+router.get("/coverage", asyncRoute(async (_req, res) => {
   const [cases, laws] = await providerCall("Legal source coverage unavailable", () =>
     Promise.all([
       a2ajLegalSourceProvider.coverage("cases"),
@@ -205,7 +202,7 @@ function searchResult(result: LegalSourceSearchHit) {
   };
 }
 
-legalLibraryRouter.get("/search", asyncRoute(async (req, res) => {
+router.get("/search", asyncRoute(async (req, res) => {
   const selected = req.query.doc_type === "hansard"
     ? "hansard"
     : docType(req.query.doc_type);
@@ -237,7 +234,7 @@ legalLibraryRouter.get("/search", asyncRoute(async (req, res) => {
   res.json({ results: results.map(searchResult) });
 }));
 
-legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
+router.post("/", asyncRoute(async (req, res) => {
   const requestedDocType = docType(req.body?.doc_type);
   const expectedProvider = requestedDocType === "articles" ? "journal" : "a2aj";
   const sourceKind: LegalSourceKind = requestedDocType === "articles"
@@ -262,7 +259,7 @@ legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
   }
   const source = matched.value;
   if (requestedDocType === "articles") {
-    res.status(201).json(await saveSqliteLegalSource({
+    res.status(201).json(await store.save({
       userId: userId(res),
       provider: "journal",
       docType: "articles",
@@ -286,7 +283,7 @@ legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
   }
   const reference = resolved.payload.reference;
   const pdfRenditionRequest = a2ajPdfRenditionRequest(resolved.payload);
-  let pdfRenditionPointer: SqliteLegalSourcePdfRendition | undefined;
+  let pdfRenditionPointer: LegalSourcePdfRendition | undefined;
   if (pdfRenditionRequest) {
     try {
       pdfRenditionPointer = {
@@ -302,7 +299,7 @@ legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
       // A bad optional attachment must not prevent saving valid provider text.
     }
   }
-  const saved = await saveSqliteLegalSource({
+  const saved = await store.save({
     userId: userId(res),
     provider: "a2aj",
     docType: reference.docType,
@@ -320,7 +317,7 @@ legalLibraryRouter.post("/", asyncRoute(async (req, res) => {
   res.status(201).json(saved);
 }));
 
-legalLibraryRouter.get("/document", asyncRoute(async (req, res) => {
+router.get("/document", asyncRoute(async (req, res) => {
   await sendViewer(req, res, {
     citation: text(req.query.citation, "citation"),
     provider: req.query.provider === "journal" ? "journal" : "a2aj",
@@ -331,8 +328,8 @@ legalLibraryRouter.get("/document", asyncRoute(async (req, res) => {
   });
 }));
 
-legalLibraryRouter.get("/:referenceId/pdf-status", asyncRoute(async (req, res) => {
-  const pointer = await getSqliteLegalSource(
+router.get("/:referenceId/pdf-status", asyncRoute(async (req, res) => {
+  const pointer = await store.get(
     userId(res),
     req.params.referenceId,
   );
@@ -350,8 +347,8 @@ legalLibraryRouter.get("/:referenceId/pdf-status", asyncRoute(async (req, res) =
   );
 }));
 
-legalLibraryRouter.get("/:referenceId/document", asyncRoute(async (req, res) => {
-  const pointer = await getSqliteLegalSource(
+router.get("/:referenceId/document", asyncRoute(async (req, res) => {
+  const pointer = await store.get(
     userId(res),
     req.params.referenceId,
   );
@@ -362,8 +359,8 @@ legalLibraryRouter.get("/:referenceId/document", asyncRoute(async (req, res) => 
   await sendViewer(req, res, pointer);
 }));
 
-legalLibraryRouter.delete("/:referenceId", asyncRoute(async (req, res) => {
-  const deleted = await deleteSqliteLegalSource(
+router.delete("/:referenceId", asyncRoute(async (req, res) => {
+  const deleted = await store.delete(
     userId(res),
     req.params.referenceId,
   );
@@ -373,3 +370,5 @@ legalLibraryRouter.delete("/:referenceId", asyncRoute(async (req, res) => {
   }
   res.status(204).end();
 }));
+return router;
+}

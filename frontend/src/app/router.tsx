@@ -80,9 +80,7 @@ const appRoutes: RouteObject[] = [
     "assistant/chat/:id",
     page(() => import("@/app/(pages)/assistant/chat/[id]/page")),
   ),
-  route("history", page(() => import("@/app/(pages)/history/page")), {
-    handle: { localRedirect: "/assistant" },
-  }),
+  route("history", page(() => import("@/app/(pages)/history/page"))),
   route("projects", namedPage(
     () => import("@/app/components/projects/ProjectsOverview"),
     "ProjectsOverview",

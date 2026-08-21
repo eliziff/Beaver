@@ -1,0 +1,1586 @@
+[
+  {
+    "document_id": 117893,
+    "citation": "2014 FCA 10",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 49,
+          "end_line": 49
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "K. Sharlow",
+                "evidence_lines": {
+                  "start_line": 28,
+                  "end_line": 28
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 49,
+            "end_line": 49
+          },
+          "start_line": 47,
+          "end_line": 49,
+          "full_joiners": [
+            {
+              "name": "Webb",
+              "evidence_lines": {
+                "start_line": 59,
+                "end_line": 62
+              }
+            },
+            {
+              "name": "Near",
+              "evidence_lines": {
+                "start_line": 59,
+                "end_line": 62
+              }
+            }
+          ]
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the Federal Court decision disclose an error warranting appellate intervention?",
+          "answers": [
+            {
+              "answer": "No. The panel found no error of law or other reviewable error and dismissed the appeal with costs.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 48,
+                      "end_line": 48,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 49,
+                      "end_line": 49,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": [
+        {
+          "target_mentions": [
+            {
+              "occurrence_id": "tm1"
+            }
+          ],
+          "label": "affirmed",
+          "evidence_lines": {
+            "start_line": 48,
+            "end_line": 49
+          }
+        }
+      ]
+    }
+  },
+  {
+    "document_id": 139389,
+    "citation": "2024 NSSM 46",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 67,
+          "end_line": 67
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Eric K. Slone",
+                "evidence_lines": {
+                  "start_line": 26,
+                  "end_line": 28
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 67,
+            "end_line": 67
+          },
+          "start_line": 33,
+          "end_line": 67,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Should the misnamed defendant be corrected in the style of cause?",
+          "answers": [
+            {
+              "answer": "Yes. The adjudicator treated the correction to name the Royal Bank of Canada as an unopposed technical amendment.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 34,
+                      "end_line": 34,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did RBC commit conversion by debiting the resort’s account and refunding the client’s deposit?",
+          "answers": [
+            {
+              "answer": "No. RBC was authorized and obliged to administer the Visa dispute process, the cancellation policy was ambiguous and construed against the resort, and the client was properly refunded.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 63,
+                      "end_line": 63,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 64,
+                      "end_line": 64,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 65,
+                      "end_line": 65,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 64,
+                        "end_line": 64
+                      },
+                      "target_proposition_as_characterized": "Conversion is a strict-liability tort requiring wrongful interference with another’s goods in a manner inconsistent with that person’s right of possession."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 141319,
+    "citation": "2024 OIC 06",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 43,
+          "end_line": 46
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "collective",
+            "name": "Information Commissioner",
+            "evidence_lines": {
+              "start_line": 10,
+              "end_line": 10
+            }
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 43,
+            "end_line": 43
+          },
+          "start_line": 15,
+          "end_line": 47,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the remaining withheld information satisfy the harm-based requirements of subsection 15(1) of the Access to Information Act?",
+          "answers": [
+            {
+              "answer": "No. DND relied on generalized assertions and did not establish a direct, reasonably expected injury from disclosing the titles, document numbers and dates.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 35,
+                      "end_line": 35,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 38,
+                      "end_line": 38,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 39,
+                      "end_line": 39,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 35,
+                        "end_line": 35
+                      },
+                      "target_proposition_as_characterized": "An institution invoking subsection 15(1) cannot rely on an umbrella rationale; it must establish a direct relationship between disclosure and the alleged injury."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Was it necessary to review DND’s exercise of discretion under subsection 15(1)?",
+          "answers": [
+            {
+              "answer": "No. Because the remaining information did not meet the exemption’s threshold requirements, the discretion question did not arise.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 41,
+                      "end_line": 41,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 165639,
+    "citation": "2012 PSDPT 1",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 209,
+          "end_line": 212
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Luc Martineau",
+                "evidence_lines": {
+                  "start_line": 213,
+                  "end_line": 214
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 210,
+            "end_line": 210
+          },
+          "start_line": 50,
+          "end_line": 212,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn5",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn6",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn7",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn8",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn9",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn10",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn11",
+          "target_identity": "not_target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn12",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Does the open court principle apply to the Tribunal’s quasi-judicial proceedings and filed materials?",
+          "answers": [
+            {
+              "answer": "Yes. The Tribunal performs an adjudicative, quasi-judicial function, its proceedings are presumptively public, and the principle extends to its foundational pleadings and supporting material.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 133,
+                      "end_line": 133,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 136,
+                      "end_line": 136,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 188,
+                      "end_line": 188,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the Privacy Act require or support continued confidentiality of Appendices A and B?",
+          "answers": [
+            {
+              "answer": "No. The consistent-use, statutory-purpose, public-interest and publicly-available-information exceptions applied, and the Privacy Act could not override the Tribunal’s statutory purpose or the constitutional open court principle.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 176,
+                      "end_line": 176,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 185,
+                      "end_line": 185,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 190,
+                      "end_line": 190,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Could information about complaint allegations not referred for determination still be relevant and considered at the hearing?",
+          "answers": [
+            {
+              "answer": "Yes. The relevance objection was premature because evidence and facts surrounding dismissed allegations could still bear on the referred reprisal allegation.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 183,
+                      "end_line": 183,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 183,
+                      "end_line": 183,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the moving parties satisfy the adapted Dagenais/Mentuck test for continuing the confidentiality order?",
+          "answers": [
+            {
+              "answer": "No. Assertions of possible reputational harm did not establish a serious risk, so the first branch failed; the evidence also did not show benefits outweighing harm to expression and open proceedings.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 201,
+                      "end_line": 201,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 204,
+                      "end_line": 204,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 205,
+                      "end_line": 205,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Should the existing publication ban protecting identities connected to the threats against a member of the judiciary remain in force?",
+          "answers": [
+            {
+              "answer": "Yes. The distinct August 23, 2011 publication ban remained effective despite rescission of the interim confidentiality order.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 207,
+                      "end_line": 207,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 212,
+                      "end_line": 212,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 165653,
+    "citation": "2013 PSDPT 2",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 44,
+          "end_line": 46
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Luc Martineau",
+                "evidence_lines": {
+                  "start_line": 23,
+                  "end_line": 23
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 46,
+            "end_line": 46
+          },
+          "start_line": 35,
+          "end_line": 46,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "not_target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Should the scheduled hearing be cancelled and the application summarily dismissed on consent following settlement?",
+          "answers": [
+            {
+              "answer": "Yes. The complainant and Commissioner consented after settlement, and cancellation and dismissal were in the interests of justice and the parties.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 42,
+                      "end_line": 42,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 43,
+                      "end_line": 43,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 46,
+                      "end_line": 46,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 169514,
+    "citation": "MB5-05590",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 78,
+          "end_line": 79
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Roxane Cyr",
+                "evidence_lines": {
+                  "start_line": 18,
+                  "end_line": 20
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 79,
+            "end_line": 79
+          },
+          "start_line": 32,
+          "end_line": 79,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "What standard should the RAD apply when reviewing RPD findings, particularly credibility findings based on oral evidence?",
+          "answers": [
+            {
+              "answer": "Correctness generally, with case-specific restraint where the RPD enjoyed a meaningful advantage from hearing and seeing oral testimony; the RAD deferred to the RPD on credibility here.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 62,
+                      "end_line": 62,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 63,
+                      "end_line": 63,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm1"
+                        },
+                        {
+                          "occurrence_id": "tm2"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 62,
+                        "end_line": 62
+                      },
+                      "target_proposition_as_characterized": "The RAD reviews RPD fact and mixed-law findings for correctness, but may exercise case-specific restraint where the RPD had a meaningful advantage from hearing oral evidence; it should ordinarily make the final determination itself."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did the RPD make a determinative error in its credibility assessment that required RAD intervention?",
+          "answers": [
+            {
+              "answer": "No. The ownership and organizational use of the phone did not undermine the adverse inference from failing to change its number, and the RPD’s other credibility findings were also error-free and probative.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 73,
+                      "end_line": 73,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 75,
+                      "end_line": 75,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 76,
+                      "end_line": 76,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  },
+  {
+    "document_id": 189668,
+    "citation": "2009 SCC 1",
+    "annotator": "codex_primary_source_author_gold50_holdout_b",
+    "gold_schema_version": "a2aj-case-target-extraction-v1",
+    "semantic_audit": {
+      "status": "audited",
+      "reviewer_identity": "codex_sol_max_independent_auditor_holdout_ab",
+      "reviewer_version": "gpt-5.6-sol-max",
+      "reviewed_on": "2026-08-20"
+    },
+    "annotation": {
+      "disposition_lines": [
+        {
+          "start_line": 414,
+          "end_line": 414
+        }
+      ],
+      "opinions": [
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "LeBel",
+                "evidence_lines": {
+                  "start_line": 98,
+                  "end_line": 99
+                }
+              }
+            ]
+          },
+          "result_position": "supports_disposition",
+          "position_evidence_lines": {
+            "start_line": 200,
+            "end_line": 200
+          },
+          "start_line": 101,
+          "end_line": 200,
+          "full_joiners": [
+            {
+              "name": "Fish",
+              "evidence_lines": {
+                "start_line": 98,
+                "end_line": 98
+              }
+            },
+            {
+              "name": "Abella",
+              "evidence_lines": {
+                "start_line": 98,
+                "end_line": 98
+              }
+            },
+            {
+              "name": "Charron",
+              "evidence_lines": {
+                "start_line": 98,
+                "end_line": 98
+              }
+            }
+          ]
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Binnie",
+                "evidence_lines": {
+                  "start_line": 201,
+                  "end_line": 202
+                }
+              }
+            ]
+          },
+          "result_position": "opposes_disposition",
+          "position_evidence_lines": {
+            "start_line": 298,
+            "end_line": 298
+          },
+          "start_line": 202,
+          "end_line": 298,
+          "full_joiners": [
+            {
+              "name": "Deschamps",
+              "evidence_lines": {
+                "start_line": 201,
+                "end_line": 201
+              }
+            }
+          ]
+        },
+        {
+          "authorship": {
+            "kind": "named",
+            "authors": [
+              {
+                "name": "Rothstein",
+                "evidence_lines": {
+                  "start_line": 299,
+                  "end_line": 300
+                }
+              }
+            ]
+          },
+          "result_position": "opposes_disposition",
+          "position_evidence_lines": {
+            "start_line": 350,
+            "end_line": 350
+          },
+          "start_line": 302,
+          "end_line": 350,
+          "full_joiners": []
+        }
+      ],
+      "other_decision_makers": [],
+      "nonparticipants": [],
+      "occurrence_assessments": [
+        {
+          "occurrence_id": "tm1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm3",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "metadata"
+        },
+        {
+          "occurrence_id": "tm4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tm6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn1",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn2",
+          "target_identity": "target",
+          "source_origin": "metadata",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn3",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "decision_under_review"
+        },
+        {
+          "occurrence_id": "tn4",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn5",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn6",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "party_or_counsel"
+        },
+        {
+          "occurrence_id": "tn7",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn8",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn9",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn10",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn11",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn12",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn13",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn14",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn15",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn16",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn17",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn18",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn19",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn20",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn21",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn22",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn23",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        },
+        {
+          "occurrence_id": "tn24",
+          "target_identity": "target",
+          "source_origin": "court_words",
+          "legal_actor": "current_court"
+        }
+      ],
+      "issues": [
+        {
+          "question": "Did the share-purchase borrowing and mortgage refinancing misuse or abuse the interest-deduction provisions in subsections 20(1)(c) and 20(3)?",
+          "answers": [
+            {
+              "answer": "No. The debt financed income-producing shares and refinancing preserved that use; all three opinions agreed those provisions were not abused.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 174,
+                      "end_line": 174,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm4"
+                        },
+                        {
+                          "occurrence_id": "tn7"
+                        },
+                        {
+                          "occurrence_id": "tn8"
+                        },
+                        {
+                          "occurrence_id": "tn9"
+                        },
+                        {
+                          "occurrence_id": "tn10"
+                        },
+                        {
+                          "occurrence_id": "tn11"
+                        },
+                        {
+                          "occurrence_id": "tn12"
+                        },
+                        {
+                          "occurrence_id": "tn13"
+                        },
+                        {
+                          "occurrence_id": "tn14"
+                        },
+                        {
+                          "occurrence_id": "tn15"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 177,
+                        "end_line": 177
+                      },
+                      "target_proposition_as_characterized": "The GAAR requires a tax benefit, an avoidance transaction, and abuse established by the Minister; abuse is tested by identifying the object, spirit and purpose of the specific provisions through unified textual, contextual and purposive interpretation and asking whether the transaction, viewed in its series context, frustrates them."
+                    }
+                  ]
+                },
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 235,
+                      "end_line": 235,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 241,
+                      "end_line": 241,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                },
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 302,
+                      "end_line": 302,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Did using the spousal rollover and attribution rules to attribute the interest loss to Mr. Lipson amount to abusive tax avoidance under the GAAR?",
+          "answers": [
+            {
+              "answer": "Yes. The majority held that using subsection 74.1(1) to shift the wife’s interest deduction to reduce the husband’s income frustrated the attribution rules’ anti-avoidance purpose.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 177,
+                      "end_line": 177,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm4"
+                        },
+                        {
+                          "occurrence_id": "tn7"
+                        },
+                        {
+                          "occurrence_id": "tn8"
+                        },
+                        {
+                          "occurrence_id": "tn9"
+                        },
+                        {
+                          "occurrence_id": "tn10"
+                        },
+                        {
+                          "occurrence_id": "tn11"
+                        },
+                        {
+                          "occurrence_id": "tn12"
+                        },
+                        {
+                          "occurrence_id": "tn13"
+                        },
+                        {
+                          "occurrence_id": "tn14"
+                        },
+                        {
+                          "occurrence_id": "tn15"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 177,
+                        "end_line": 177
+                      },
+                      "target_proposition_as_characterized": "The GAAR requires a tax benefit, an avoidance transaction, and abuse established by the Minister; abuse is tested by identifying the object, spirit and purpose of the specific provisions through unified textual, contextual and purposive interpretation and asking whether the transaction, viewed in its series context, frustrates them."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "answer": "No. Binnie J. held that the rules operated as Parliament contemplated, the share transfer had real substance, and the Minister failed to identify a clearly frustrated specific policy.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 207,
+                      "end_line": 207,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 286,
+                      "end_line": 286,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm5"
+                        },
+                        {
+                          "occurrence_id": "tn16"
+                        },
+                        {
+                          "occurrence_id": "tn17"
+                        },
+                        {
+                          "occurrence_id": "tn18"
+                        },
+                        {
+                          "occurrence_id": "tn19"
+                        },
+                        {
+                          "occurrence_id": "tn20"
+                        },
+                        {
+                          "occurrence_id": "tn21"
+                        },
+                        {
+                          "occurrence_id": "tn22"
+                        },
+                        {
+                          "occurrence_id": "tn23"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 230,
+                        "end_line": 230
+                      },
+                      "target_proposition_as_characterized": "The Minister must anchor the alleged abuse in the text, context and purpose of specific provisions, and where abusive tax avoidance is not clear the taxpayer receives the benefit of the doubt."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "answer": "No under the GAAR. Rothstein J. held that subsection 74.5(11) precluded the attribution and therefore left no misuse or abuse of subsection 74.1(1) for the GAAR to address.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 331,
+                      "end_line": 331,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "Could subsection 74.5(11) be applied in this appeal, and if so did that specific anti-avoidance rule preclude use of the GAAR?",
+          "answers": [
+            {
+              "answer": "No. The majority held the Court should not decide the dispute on a statutory basis expressly disavowed and not litigated by the parties; the GAAR remained the proper basis for reassessment.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 179,
+                      "end_line": 179,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 181,
+                      "end_line": 181,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Not decided. Binnie J. would not apply subsection 74.5(11) without a party-supported factual basis and would leave that provision for another case; he separately concluded that the GAAR failed on its merits.",
+              "positions": [
+                {
+                  "relation_to_disposition": "non_dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 212,
+                      "end_line": 212,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Yes. Rothstein J. held subsection 74.5(11) applied as a matter of law and, as the relevant specific anti-avoidance rule, pre-empted the GAAR even though neither party relied on it.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 304,
+                      "end_line": 304,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 339,
+                      "end_line": 339,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": [
+                    {
+                      "target_mentions": [
+                        {
+                          "occurrence_id": "tm6"
+                        },
+                        {
+                          "occurrence_id": "tn24"
+                        }
+                      ],
+                      "treated_by": "current_court",
+                      "label": "applied",
+                      "scope": "rule_or_proposition",
+                      "evidence_lines": {
+                        "start_line": 336,
+                        "end_line": 336
+                      },
+                      "target_proposition_as_characterized": "The GAAR is a supplementary provision of last resort and cannot be invoked where a relevant specific anti-avoidance rule applies."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "question": "What disposition and tax consequences followed from each opinion’s analysis?",
+          "answers": [
+            {
+              "answer": "The majority dismissed both appeals and treated disallowing the interest in Mr. Lipson’s attributed income while allocating it back to Mrs. Lipson as reasonable GAAR consequences.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 195,
+                      "end_line": 195,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 200,
+                      "end_line": 200,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Binnie J. would allow the appeals because the Minister had not proved abusive tax avoidance.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 298,
+                      "end_line": 298,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            },
+            {
+              "answer": "Rothstein J. would allow the appeals because the Minister could not use the GAAR for the attribution reassessment; a proper subsection 74.5(11) reassessment would instead leave both dividend income and interest deduction with Mrs. Lipson.",
+              "positions": [
+                {
+                  "relation_to_disposition": "dispositive",
+                  "answer_evidence": [
+                    {
+                      "start_line": 347,
+                      "end_line": 347,
+                      "origin": "court_words"
+                    },
+                    {
+                      "start_line": 350,
+                      "end_line": 350,
+                      "origin": "court_words"
+                    }
+                  ],
+                  "issue_only_joiners": [],
+                  "target_treatments": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "unscoped_target_treatments": [],
+      "case_history": []
+    }
+  }
+]

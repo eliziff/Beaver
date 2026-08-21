@@ -3,10 +3,16 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  CASE_TARGET_OCCURRENCE_VERSION,
+  detectCaseTargetOccurrences,
+  type CaseTargetOccurrence,
+} from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
 import { citationLookupKey } from "../../../backend/src/lib/citationKey";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import type { A2AJDocument } from "../../../backend/src/lib/legalSources/a2aj";
+import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
 type Category = "multi_opinion_or_partial_join" | "attribution_trap" | "ordinary_control";
 type HardFeature = "multi_opinion" | "attribution_cue" | "collective_tribunal" | "direct_history_cue" | "explicit_treatment_cue" | "short_decision" | "long_decision";
@@ -34,15 +40,6 @@ type ParentPair = {
     context_kinds: string[];
     first_occurrence_start: number;
   };
-};
-type CaseTargetOccurrence = {
-  id: string;
-  kind: "citation" | "case_name";
-  quote: string;
-  start: number;
-  end: number;
-  citationKey: string;
-  linkedContext: null;
 };
 type Occurrence = CaseTargetOccurrence & {
   context: { start: number; end_exclusive: number; quote: string; sha256: string };
@@ -127,71 +124,6 @@ function rank(...parts: Array<string | number | null>) {
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
-}
-
-const GENERIC_PARTY_WORDS = new Set(["applicant", "association", "board", "canada", "commission", "company", "corporation", "defendant", "director", "estate", "minister", "ontario", "plaintiff", "quebec", "respondent", "tribunal", "union"]);
-
-function phraseWords(value: string) {
-  return value.match(/[\p{L}\p{N}]+/gu) ?? [];
-}
-
-function targetNamePhrases(name: string | null) {
-  if (!name?.trim()) return [];
-  const full = name.trim();
-  const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
-  const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
-  const party = (crown ? sides[1] : sides[0]).replace(/^the\s+/iu, "").replace(/\s*\([^)]*\)\s*$/u, "").replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "").trim();
-  const words = phraseWords(party);
-  const first = words[0] ?? "";
-  const short = sides.length === 1 ? words.slice(0, 2) : first.length >= 5 && !GENERIC_PARTY_WORDS.has(first.toLocaleLowerCase()) ? [first] : words.slice(0, 2);
-  return [...new Set([full, party, short.join(" ")].map((value) => value.trim()).filter((value) => phraseWords(value).length > 0))];
-}
-
-function shortNameReferenceCue(text: string, start: number, end: number) {
-  const before = text.slice(Math.max(0, start - 120), start);
-  const after = text.slice(end, Math.min(text.length, end + 140));
-  return /\b(?:in|see|cf\.?|following|appl(?:y|ied)|distinguish(?:ed|ing)?|consider(?:ed|ing)|discuss(?:ed|ing)|our\s+decision\s+in|as\s+(?:held|stated|explained)\s+in)\s*$/iu.test(before)
-    || /^\s*,?\s*(?:supra|above|below|ibid\.?|at\s+paras?\.?|held\b|holds?\b|confirm(?:ed|s)?\b|establish(?:ed|es)?\b|requires?\b|stands?\s+for\b|makes?\s+clear\b)/iu.test(after);
-}
-
-function literalSpans(text: string, phrase: string) {
-  const spans: Array<{ start: number; end: number }> = [];
-  for (let start = text.indexOf(phrase); start >= 0; start = text.indexOf(phrase, start + 1)) {
-    const end = start + phrase.length;
-    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
-    spans.push({ start, end });
-  }
-  if (spans.length) return spans;
-  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/\s+/gu, "\\s+");
-  for (const match of text.matchAll(new RegExp(escaped, "giu"))) {
-    const start = match.index;
-    const end = start + match[0].length;
-    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
-    spans.push({ start, end });
-  }
-  return spans;
-}
-
-function lightweightOccurrences(text: string, target: ParentPair["target"]): CaseTargetOccurrence[] {
-  const surfaces = [target.citation, ...target.citation_aliases];
-  const citations: Array<{ quote: string; start: number; end: number }> = [];
-  for (const surface of surfaces) {
-    for (const span of literalSpans(text, surface)) {
-      if (!citations.some(({ start, end }) => start === span.start && end === span.end)) citations.push({ quote: text.slice(span.start, span.end), ...span });
-    }
-  }
-  citations.sort((left, right) => left.start - right.start || left.end - right.end);
-  const citationOccurrences = citations.map((match, index): CaseTargetOccurrence => ({ id: `tm${index + 1}`, kind: "citation", ...match, citationKey: citationLookupKey(match.quote), linkedContext: null }));
-  const fullName = target.name?.trim() ?? "";
-  const nameSpans = targetNamePhrases(target.name).flatMap((phrase) => literalSpans(text, phrase).map((span) => ({ ...span, phrase })))
-    .filter(({ start, end, phrase }) => phrase === fullName || shortNameReferenceCue(text, start, end))
-    .filter(({ start, end }) => !citations.some((citation) => start < citation.end && end > citation.start))
-    .filter(({ end }) => !citations.some((citation) => citation.start >= end && citation.start - end <= 180 && !text.slice(end, citation.start).includes("\n") && !/[!?]/u.test(text.slice(end, citation.start))))
-    .sort((left, right) => left.start - right.start || right.end - left.end);
-  const names = [...new Map(nameSpans.map(({ start, end }) => [`${start}:${end}`, { start, end }])).values()]
-    .filter((span, index, spans) => !spans.some((other, otherIndex) => otherIndex !== index && other.start === span.start && other.end > span.end))
-    .sort((left, right) => left.start - right.start || left.end - right.end);
-  return [...citationOccurrences, ...names.map((span, index): CaseTargetOccurrence => ({ id: `tn${index + 1}`, kind: "case_name", quote: text.slice(span.start, span.end), ...span, citationKey: citationLookupKey(target.citation), linkedContext: null }))];
 }
 
 function contextOccurrence(document: A2AJDocument, occurrence: CaseTargetOccurrence): Occurrence {
@@ -451,7 +383,11 @@ async function main() {
     const document = documents.get(item.parent.document_id);
     assert(document, `${item.parent.selection_receipt.source_dataset}/${item.parent.document_id}: source disappeared`);
     assert(document.dataset === item.parent.selection_receipt.source_dataset, `${item.parent.document_id}: source dataset changed`);
-    const occurrences = lightweightOccurrences(document.text, item.parent.target).map((occurrence) => contextOccurrence(document, occurrence));
+    const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(document.text), {
+      citation: item.parent.target.citation,
+      citationAliases: item.parent.target.citation_aliases,
+      name: item.parent.target.name,
+    }).map((occurrence) => contextOccurrence(document, occurrence));
     assert(occurrences.some(({ kind }) => kind === "citation"), `${document.dataset}/${item.parent.document_id}: exact target citation not found`);
     const cues = occurrences.flatMap((occurrence) => {
       const rule = attributionCue(document.text, occurrence);
@@ -523,7 +459,7 @@ async function main() {
           reviewed_collective_evidence_spans: candidate.collectiveEvidence.length,
         },
         occurrence_contract: {
-          detector: "lightweight-literal-citation-and-name-v1",
+          detector: CASE_TARGET_OCCURRENCE_VERSION,
           source_view: "byte-identical-source-text",
           citation_and_case_name_offsets_frozen: true,
           linked_footnote_context_deferred: true,

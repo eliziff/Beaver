@@ -38,21 +38,22 @@ describe("local relational database", () => {
 
   it("rolls back failed transactions and cascades project state", async () => {
     const module = await store(), database = module.localDatabaseSync();
-    expect(() => module.localTransaction((tx) => {
-      tx.prepare(`INSERT INTO projects
-        (user_id,id,name,created_at,updated_at) VALUES ('owner','rollback','Matter','now','now')`).run();
+    const relational = await module.relationalDatabase();
+    await expect(relational.transaction(async (tx) => {
+      await tx.query(module.sql`INSERT INTO projects(user_id,id,name,created_at,updated_at)
+        VALUES('owner','rollback','Matter','now','now')`);
       throw new Error("stop");
-    })).toThrow("stop");
+    })).rejects.toThrow("stop");
     expect(database.prepare("SELECT count(*) count FROM projects").get()).toEqual({ count: 0 });
-    module.localTransaction((tx) => tx.exec(`
-      INSERT INTO projects(user_id,id,name,created_at,updated_at)
-        VALUES('owner','project','Matter','now','now');
-      INSERT INTO chats(id,user_id,project_id,created_at,updated_at)
-        VALUES('chat','owner','project','now','now');
-      INSERT INTO provider_sessions(chat_id,user_id,continuation_id,compatibility_key,
-        transcript_version,created_at,updated_at)
-        VALUES('chat','owner','continuation','key',0,'now','now');
-    `));
+    await relational.transaction(async (tx) => {
+      await tx.query(module.sql`INSERT INTO projects(user_id,id,name,created_at,updated_at)
+        VALUES('owner','project','Matter','now','now')`);
+      await tx.query(module.sql`INSERT INTO chats(id,user_id,project_id,created_at,updated_at)
+        VALUES('chat','owner','project','now','now')`);
+      await tx.query(module.sql`INSERT INTO provider_sessions(chat_id,user_id,continuation_id,
+        compatibility_key,transcript_version,created_at,updated_at)
+        VALUES('chat','owner','continuation','key',0,'now','now')`);
+    });
     database.prepare("DELETE FROM projects WHERE id='project'").run();
     expect(database.prepare("SELECT count(*) count FROM chats").get()).toEqual({ count: 0 });
     expect(database.prepare("SELECT count(*) count FROM provider_sessions").get()).toEqual({ count: 0 });

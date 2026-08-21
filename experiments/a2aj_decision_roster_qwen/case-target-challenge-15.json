@@ -1,11 +1,12 @@
 {
-  "format": "a2aj-case-target-challenge-v1",
+  "format": "a2aj-case-target-challenge-v2",
   "created_utc": "2026-08-20T15:05:00.000Z",
   "seed": 20260820,
   "requested_pairs": 15,
   "selection": {
-    "algorithm": "seed-lineage-plus-source-evidence-freeze-v1",
-    "purpose": "v13 final-legal-quality challenge cell; no validator-stage scoring",
+    "algorithm": "seed-lineage-plus-source-evidence-freeze-v2",
+    "purpose": "case-target legal-quality challenge cell; no validator-stage scoring",
+    "occurrence_contract_version": "a2aj-case-target-occurrences-v5",
     "one_full_citing_decision_per_call": true,
     "one_target_per_call": true,
     "target_decision_text_included": false,
@@ -68,14 +69,21 @@
         "source_chars": 306876,
         "source_text_sha256": "bd793622dd0d6e0ce1777393af924f5fd5fd08a23d80818dd2e2ffafb92eceaf",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 37748,
-            "end_exclusive": 37767,
-            "citation_key": "19911scr509",
+            "end": 37767,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 37428,
               "end_exclusive": 38187,
@@ -88,8 +96,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 40743,
-            "end_exclusive": 40762,
-            "citation_key": "19911scr509",
+            "end": 40762,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 40423,
               "end_exclusive": 41182,
@@ -102,8 +111,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 43750,
-            "end_exclusive": 43769,
-            "citation_key": "19911scr509",
+            "end": 43769,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 43430,
               "end_exclusive": 44189,
@@ -116,8 +126,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 45633,
-            "end_exclusive": 45652,
-            "citation_key": "19911scr509",
+            "end": 45652,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 45313,
               "end_exclusive": 46072,
@@ -130,8 +141,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 67353,
-            "end_exclusive": 67372,
-            "citation_key": "19911scr509",
+            "end": 67372,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 67033,
               "end_exclusive": 67792,
@@ -144,8 +156,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 158292,
-            "end_exclusive": 158311,
-            "citation_key": "19911scr509",
+            "end": 158311,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 157972,
               "end_exclusive": 158731,
@@ -158,8 +171,9 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 197036,
-            "end_exclusive": 197055,
-            "citation_key": "19911scr509",
+            "end": 197055,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 196716,
               "end_exclusive": 197475,
@@ -172,13 +186,74 @@
             "kind": "citation",
             "quote": "[1991] 1 S.C.R. 509",
             "start": 247708,
-            "end_exclusive": 247727,
-            "citation_key": "19911scr509",
+            "end": 247727,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
             "context": {
               "start": 247388,
               "end_exclusive": 248147,
               "quote": "hallenge, he found that it could be negated only by a clear legislative provision and that the accused, when erroneously denied a peremptory challenge, was automatically entitled to ask for a new trial without having to prove prejudice, because there was “préjudice de droit” (pp. 721 and 724).\n[240] In R. v. Sherratt, [1991] 1 S.C.R. 509, L’Heureux-Dubé J. found that\nperemptory challenges are justified on a number of grounds. The accused may, for example, not have sufficient information to challenge for cause a member of the panel he/she feels should be excluded. Peremptory challenges can also, in certain circumstances, produce a more representative jury depending upon both the nature of the community and the accused. Challenges of this nature also ",
               "sha256": "15a53962126f073bf1b305f873cb94b7af2bdeb2d08bbe4448599cb10b1ec534"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Sherratt",
+            "start": 67420,
+            "end": 67428,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
+            "context": {
+              "start": 67100,
+              "end_exclusive": 67848,
+              "quote": "lows the trial judge to direct that a prospective juror will not sit on the jury unless there are too few other jurors fit to serve.\n[12] These in‑court procedures emerged in their modern forms in the 16th and 17th centuries in England (R. v. Sherratt, [1991] 1 S.C.R. 509, at p. 523). As L’Heureux‑Dubé J. explained in Sherratt, their development was “neither fortuitous nor arbitrary” but rather emerged gradually over hundreds of years to support the purposes of the institution of the jury (p. 523). By fostering the independence, impartiality, and representativeness of the jury, the selection process ensures that the jury remains “an excellent fact finder”, that it acts as “the conscience of the community” and as a “final bulwark against o",
+              "sha256": "d882ac67aa2c7efb56b9dd86e3b4e060d84172155d71e873b3545bc2fa703328"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Sherratt",
+            "start": 209574,
+            "end": 209582,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
+            "context": {
+              "start": 209254,
+              "end_exclusive": 210002,
+              "quote": "ccused of even one peremptory challenge was such a fundamental error that it was enough to overturn a conviction, it can hardly be denied that the use of peremptory challenges had a substantive impact on the right of accused persons to meaningfully participate in the selection of their jury.\n[182] L’Heureux-Dubé J. in Sherratt, expanded on this theme as follows:\nThe perceived importance of the jury and the Charter right to jury trial is meaningless without some guarantee that it will perform its duties impartially and represent, as far as is possible and appropriate in the circumstances, the larger community. Indeed, without the two characteristics of impartiality and representativeness, a jury would be unable to perform properly many of ",
+              "sha256": "f9799f53e194182f291b09a4d473c8cdadb453ec49bbe1f786d05054ea8a8415"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "Sherratt",
+            "start": 272667,
+            "end": 272675,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
+            "context": {
+              "start": 272347,
+              "end_exclusive": 273095,
+              "quote": "individuals (Kokopenace, at para. 44).\n[273] While I accept that Kokopenace set the constitutional minimum required for representativeness, it did not exhaustively define representativeness. The core of representativeness remains a “representative cross-section of society, honestly and fairly chosen” (para. 39, citing Sherratt, at p. 524). The in-court selection processes can enhance representativeness and thus further the benefit of trial by jury, especially where the randomized jury roll has failed to result in an array that truly represents the diversity of the area.\n[274] In Sherratt, this Court confirmed the ability of peremptory challenges to further representativeness: “Peremptory challenges can also, in certain circumstances, prod",
+              "sha256": "451e8a5f5fcb1548f8ee8b510cb4a1bcaa16fb55f7fe5181e42274095828826d"
+            }
+          },
+          {
+            "id": "tn4",
+            "kind": "case_name",
+            "quote": "Sherratt",
+            "start": 272933,
+            "end": 272941,
+            "citationKey": "19911scr509",
+            "linkedContext": null,
+            "context": {
+              "start": 272613,
+              "end_exclusive": 273361,
+              "quote": "ociety, honestly and fairly chosen” (para. 39, citing Sherratt, at p. 524). The in-court selection processes can enhance representativeness and thus further the benefit of trial by jury, especially where the randomized jury roll has failed to result in an array that truly represents the diversity of the area.\n[274] In Sherratt, this Court confirmed the ability of peremptory challenges to further representativeness: “Peremptory challenges can also, in certain circumstances, produce a more representative jury depending upon both the nature of the community and the accused” (pp. 532-33). The uncontested evidence before the trial judge in the present case indicated that peremptory challenges were used by racialized persons to attempt to empan",
+              "sha256": "4a398c310524620478a3d4256d8dfbdf8f89af9b6e3d3590b00a261dd14907a9"
             }
           }
         ],
@@ -248,14 +323,21 @@
         "source_chars": 137850,
         "source_text_sha256": "b1e57181d19b33cdfde635308b6777b6f629dbfa64fc57d67fc398092c0d15ab",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "[1985] 1 S.C.R. 295",
             "start": 17828,
-            "end_exclusive": 17847,
-            "citation_key": "19851scr295",
+            "end": 17847,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
             "context": {
               "start": 17508,
               "end_exclusive": 18267,
@@ -268,8 +350,9 @@
             "kind": "citation",
             "quote": "[1985] 1 S.C.R. 295",
             "start": 19519,
-            "end_exclusive": 19538,
-            "citation_key": "19851scr295",
+            "end": 19538,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
             "context": {
               "start": 19199,
               "end_exclusive": 19958,
@@ -282,8 +365,9 @@
             "kind": "citation",
             "quote": "[1985] 1 S.C.R. 295",
             "start": 34761,
-            "end_exclusive": 34780,
-            "citation_key": "19851scr295",
+            "end": 34780,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
             "context": {
               "start": 34441,
               "end_exclusive": 35200,
@@ -296,13 +380,59 @@
             "kind": "citation",
             "quote": "[1985] 1 S.C.R. 295",
             "start": 79341,
-            "end_exclusive": 79360,
-            "citation_key": "19851scr295",
+            "end": 79360,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
             "context": {
               "start": 79021,
               "end_exclusive": 79780,
               "quote": "IP Inc., [1992] 1 S.C.R. 843, at p. 852).\n[68] Unlike the approach applied by the majority of the Court of Appeal, with respect, determining the scope requires first determining the purpose of the right. A Charter right must be interpreted “by an analysis of the purpose of [the] guarantee” (R. v. Big M Drug Mart Ltd., [1985] 1 S.C.R. 295, at p. 344 (emphasis deleted); Hunter v. Southam Inc., [1984] 2 S.C.R. 145, at pp. 155-57; see also Peter W. Hogg, Constitutional Law of Canada (5th ed. Supp.), at s. 36.8(c)). Big M Drug Mart provides the definitive account of this approach:\n. . . the proper approach to the definition of the rights and freedoms guaranteed by the Charter was a purposive one. The meaning of a right or freedom guaranteed by the Charte",
               "sha256": "1d787f8a318dab0813dd6423bf219bd18e32f2c74dbcd8b9bafa53ba4018274e"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Big M Drug Mart",
+            "start": 47584,
+            "end": 47599,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
+            "context": {
+              "start": 47264,
+              "end_exclusive": 48019,
+              "quote": "me Minister Pierre Elliot Trudeau, Federal‑Provincial Conference of First Ministers on the Constitution (morning session of November 2, 1981), at p. 10), the Charter and its provisions are primarily interpreted with regards to Canadian law and history.\n[21] This remains unchanged by the purposive approach developed in Big M Drug Mart. That judgment makes no reference to international and comparative law, except inasmuch as it relates to the historical origins of the concepts enshrined in the Charter .\n[22] While this Court has generally accepted that international norms can be considered when interpreting domestic norms, they have typically played a limited role of providing support or confirmation for the result reached by way of purposive inte",
+              "sha256": "90fa90cdbc4c6c822f54dec1630508bda166c8aa46a9def0ddafdf81adda9e9a"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Big M Drug Mart",
+            "start": 60262,
+            "end": 60277,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
+            "context": {
+              "start": 59942,
+              "end_exclusive": 60697,
+              "quote": "tor Vehicle Act, [1985] 2 S.C.R. 486, dealt with the meaning of the “principles of fundamental justice,” a point we address below in para. 45.\n[37] In addition to properly characterizing their use, courts must not allow consideration of such instruments to displace the methodology for Charter interpretation set out in Big M Drug Mart. This Court has been careful to proceed in this manner. For example, in Ktunaxa, the Court first reviewed Canadian case law on the scope of freedom of religion before confirming that scope with reference to binding international instruments: paras. 62‑65. It then briefly looked to non‑binding instruments that “also” supported the Canadian case law, being careful to specify that the instruments were “not binding on C",
+              "sha256": "1442a34e18153eb686face074295f1d988b54a7a57389909b928d1c231ec10cc"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "R. v. Big M Drug Mart Ltd",
+            "start": 86179,
+            "end": 86204,
+            "citationKey": "19851scr295",
+            "linkedContext": null,
+            "context": {
+              "start": 85859,
+              "end_exclusive": 86624,
+              "quote": "stating that “where questions of interpretation arise, a generous, purposive and contextual approach should be applied” (para. 15; see also para. 16). And more recently in R. v. Stillman, 2019 SCC 40, the Court reiterated that:\nA Charter right must be understood “in the light of the interests it was meant to protect” (R. v. Big M Drug Mart Ltd. . . . at p. 344; see also Hunter v. Southam Inc. . . . at p. 157), accounting for “the character and the larger objects of the Charter itself”, “the language chosen to articulate the specific right or freedom”, “the historical origins of the concepts enshrined” and, where applicable, “the meaning and purpose of the other specific rights and freedoms with which it is associated within the text of the Charter ” (Big ",
+              "sha256": "fae828855c3d85280e9e3d2103ddaa950b201798a3aba91fdd42e4f69533564a"
             }
           }
         ],
@@ -365,14 +495,21 @@
         "source_chars": 45173,
         "source_text_sha256": "734e3e36193c6660a3e5b18736086e96ffa17fff0fa26d9c560e4cb810da2a90",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "[1982] 1 S.C.R. 41",
             "start": 19767,
-            "end_exclusive": 19785,
-            "citation_key": "19821scr41",
+            "end": 19785,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
             "context": {
               "start": 19447,
               "end_exclusive": 20205,
@@ -385,13 +522,74 @@
             "kind": "citation",
             "quote": "[1982] 1 S.C.R. 41",
             "start": 41702,
-            "end_exclusive": 41720,
-            "citation_key": "19821scr41",
+            "end": 41720,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
             "context": {
               "start": 41382,
               "end_exclusive": 42140,
               "quote": " being asked to \"elect again\" or confirm his desire to have a trial by jury, which had been supplanted by the deemed election resulting from his non-appearance at jury selection.\n[67] This is not a case where the Crown must establish a waiver of the procedural steps considered in Korponay v. Canada (Attorney General), [1982] 1 S.C.R. 41, where the Court considered the effect of a failure to put the re-election in the then-mandatory terms of the Criminal Code. There is no suggestion that the failure to comply with any procedural requirement other than verbal confirmation of the re-election was material in this case.\n[68] In Korponay, of course it was the form of re-election, the words used, that was material. The Court held, at 50 - 51:\nThe procedur",
               "sha256": "bcb68d4c7c68f5d87f653ae92d43267a086f0c3930c110d3ea0a26dba694486a"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Korponay",
+            "start": 23395,
+            "end": 23403,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
+            "context": {
+              "start": 23075,
+              "end_exclusive": 23823,
+              "quote": "trial before a judge and jury, that he still has the right to such a trial but that he still has the right to re-elect for a trial before a judge sitting without a jury\".\n[34] Although the words in s. 561(7) lack the specificity of former s. 492, the purpose of s. 561 remains as it was under s. 492 and as discussed in Korponay: to ensure the accused understands the nature of the re-election. For example, in R. v. Nguyen, 2005 BCCA 221, 352 W.A.C. 4 this court referred to s. 561(7) and applied Korponay, finding in that case that the accused had waived the procedural requirements of s. 561.\n[35] It seems to me that, at a minimum, a valid waiver requires that the accused know the mode of trial that would take place absent a re-election.\n[36]",
+              "sha256": "da48ddef1dc20344800a4a39f76e9cbac7cd83a5de2ba01b0790e63232a320e2"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Korponay",
+            "start": 23573,
+            "end": 23581,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
+            "context": {
+              "start": 23253,
+              "end_exclusive": 24001,
+              "quote": "though the words in s. 561(7) lack the specificity of former s. 492, the purpose of s. 561 remains as it was under s. 492 and as discussed in Korponay: to ensure the accused understands the nature of the re-election. For example, in R. v. Nguyen, 2005 BCCA 221, 352 W.A.C. 4 this court referred to s. 561(7) and applied Korponay, finding in that case that the accused had waived the procedural requirements of s. 561.\n[35] It seems to me that, at a minimum, a valid waiver requires that the accused know the mode of trial that would take place absent a re-election.\n[36] How does this apply to the circumstances of Mr. Porisky? He was unrepresented by counsel on November 7, 2011. I have not replicated all of the discussion, but it is clear that t",
+              "sha256": "dea849e838d0d862469dc7baab9062e44f6e9521a9603c2dcd7ac57265bc98e1"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "Korponay",
+            "start": 42013,
+            "end": 42021,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
+            "context": {
+              "start": 41693,
+              "end_exclusive": 42441,
+              "quote": "eneral), [1982] 1 S.C.R. 41, where the Court considered the effect of a failure to put the re-election in the then-mandatory terms of the Criminal Code. There is no suggestion that the failure to comply with any procedural requirement other than verbal confirmation of the re-election was material in this case.\n[68] In Korponay, of course it was the form of re-election, the words used, that was material. The Court held, at 50 - 51:\nThe procedural step set out in s. 492(3), requiring the use of certain words, is there to ensure that an accused is properly informed of the choice he has made and the one he now proposes to adopt. His alternatives in the case at bar would be trial by a court composed of a judge and jury, which he has formerly c",
+              "sha256": "f174cd9925bc1e7cb4f791a430c6c64a8571d84289e7e0b2a04f26c7c52c538f"
+            }
+          },
+          {
+            "id": "tn4",
+            "kind": "case_name",
+            "quote": "Korponay",
+            "start": 43933,
+            "end": 43941,
+            "citationKey": "19821scr41",
+            "linkedContext": null,
+            "context": {
+              "start": 43613,
+              "end_exclusive": 44361,
+              "quote": "or any influence upon Mr. Porisky's choice of mode of trial.\n[70] Although Mr. Porisky was self-represented at the time of his re-election, he had previously had counsel and can be presumed to have received some advice with respect to the advantages and disadvantages of different modes of trial, just as the accused in Korponay was assumed to have discussed modes of trial and received appropriate advice from counsel.\n[71] While acknowledging the concerns expressed by Saunders J.A. and considered in Regina v. Sommerfeldt (1984), 14 C.C.C. (3d) 445, arising out of a lack of formality, I am of the view, with respect, that we should bear in mind the words of Esson J.A. in Sommerfeldt at 448:\nGenerally, the formalities take a very short time to",
+              "sha256": "88ec7da80aea2039f5f97c1aa6919ced932c1cf44a2db256fba7212b4afa21b3"
             }
           }
         ],
@@ -449,14 +647,21 @@
         "source_chars": 44551,
         "source_text_sha256": "e069328c493ce08123d3d561be5b7e244bd9680b4bd5df7c5172d3d2b2ba79ff",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "[2002] 1 S.C.R. 84",
             "start": 3571,
-            "end_exclusive": 3589,
-            "citation_key": "20021scr84",
+            "end": 3589,
+            "citationKey": "20021scr84",
+            "linkedContext": null,
             "context": {
               "start": 3251,
               "end_exclusive": 4009,
@@ -469,13 +674,59 @@
             "kind": "citation",
             "quote": "[2002] 1 S.C.R. 84",
             "start": 27297,
-            "end_exclusive": 27315,
-            "citation_key": "20021scr84",
+            "end": 27315,
+            "citationKey": "20021scr84",
+            "linkedContext": null,
             "context": {
               "start": 26977,
               "end_exclusive": 27735,
               "quote": "iness. Here, the IAD was called upon to consider, in light of the circumstances of the case, the factors developed in Ribic v. Canada (Minister of Employment and Immigration), [1985] I.A.D.D. No. 4 (QL), subsequently confirmed by the Supreme Court of Canada in Chieu v. Canada (Minister of Citizenship and Immigration), [2002] 1 S.C.R. 84, in order to determine whether it should exercise its discretion to grant an exemption on compassionate and humanitarian considerations having regard to the appellant’s inadmissibility for serious criminality. These are factors that the IAD itself has developed and has been applying for over fifteen years (Chieu at paragraph 41).\n[38] The third factor, the purpose of the legislation, reflects the intent of Parliamen",
               "sha256": "396f9e7ec38f4d380390f76349b6582451fe7dfc1c17dc683263405034a7000f"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Chieu",
+            "start": 5700,
+            "end": 5705,
+            "citationKey": "20021scr84",
+            "linkedContext": null,
+            "context": {
+              "start": 5380,
+              "end_exclusive": 6125,
+              "quote": "ar, the central issue, as noted by the applications judge, is the application by the Board of the “possibility of rehabilitation” factor, the second of the seven factors listed by the Board in Ribic v. Canada (Minister of Employment and Immigration), [1985] I.A.D.D. No. 4 and endorsed by the Supreme Court of Canada in Chieu at paragraphs 40, 41 and 90.\n[9] Rehabilitation is a criminal law concept with respect to which the Board cannot be said to have particular expertise. While the Board may come to a different conclusion from that reached by criminal courts on the basis of intervening events or new evidence such as the testimony of the offender before the Board, the Board should as a minimum pay deference to the findings of the crimin",
+              "sha256": "189a293aeb08c3c836589a7c42854815780984da2ba063b18dec0529c2f44596"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Chieu",
+            "start": 27624,
+            "end": 27629,
+            "citationKey": "20021scr84",
+            "linkedContext": null,
+            "context": {
+              "start": 27304,
+              "end_exclusive": 28049,
+              "quote": "1 S.C.R. 84, in order to determine whether it should exercise its discretion to grant an exemption on compassionate and humanitarian considerations having regard to the appellant’s inadmissibility for serious criminality. These are factors that the IAD itself has developed and has been applying for over fifteen years (Chieu at paragraph 41).\n[38] The third factor, the purpose of the legislation, reflects the intent of Parliament to grant to the IAD a broad discretion to allow permanent residents facing removal orders to remain in Canada if it would be equitable to do so: Chieu at paragraph 66. The fact, however, that the matter to be decided is not polycentric, since it relates directly to the rights and interests of an individual in r",
+              "sha256": "07b1b21d6780e4c236fc05b917c3db4646b6d705ac03623ab130221ce3ec271d"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "Chieu",
+            "start": 27882,
+            "end": 27887,
+            "citationKey": "20021scr84",
+            "linkedContext": null,
+            "context": {
+              "start": 27562,
+              "end_exclusive": 28307,
+              "quote": "f has developed and has been applying for over fifteen years (Chieu at paragraph 41).\n[38] The third factor, the purpose of the legislation, reflects the intent of Parliament to grant to the IAD a broad discretion to allow permanent residents facing removal orders to remain in Canada if it would be equitable to do so: Chieu at paragraph 66. The fact, however, that the matter to be decided is not polycentric, since it relates directly to the rights and interests of an individual in relation to the government rather than the balancing of interest of various constituencies, may diminish the expected deference.\n[39] Finally, the question of whether an individual is entitled to an exemption on compassionate and humanitarian considerations i",
+              "sha256": "6e76fc26c51eb5bd679e4787c9dbfad4f7c3c36afd14cc11d10e8ceef423d188"
             }
           }
         ],
@@ -532,14 +783,21 @@
         "source_chars": 35113,
         "source_text_sha256": "78e7b75e3a18e31f88112abf4bd3fda379ceecdd5d422258abd8e6e97cd9f273",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2010 SCC 6",
             "start": 27623,
-            "end_exclusive": 27633,
-            "citation_key": "2010scc6",
+            "end": 27633,
+            "citationKey": "2010scc6",
+            "linkedContext": null,
             "context": {
               "start": 27303,
               "end_exclusive": 28053,
@@ -552,8 +810,9 @@
             "kind": "citation",
             "quote": "2010 SCC 6",
             "start": 33372,
-            "end_exclusive": 33382,
-            "citation_key": "2010scc6",
+            "end": 33382,
+            "citationKey": "2010scc6",
+            "linkedContext": null,
             "context": {
               "start": 33052,
               "end_exclusive": 33802,
@@ -613,14 +872,21 @@
         "source_chars": 104357,
         "source_text_sha256": "3619c93ea19ea138de5b0f8a8441f2bf76305f77825bf27564a40510b47522a0",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2007 FCA 153",
             "start": 24372,
-            "end_exclusive": 24384,
-            "citation_key": "2007fca153",
+            "end": 24384,
+            "citationKey": "2007fca153",
+            "linkedContext": null,
             "context": {
               "start": 24052,
               "end_exclusive": 24804,
@@ -633,13 +899,29 @@
             "kind": "citation",
             "quote": "2007 FCA 153",
             "start": 88419,
-            "end_exclusive": 88431,
-            "citation_key": "2007fca153",
+            "end": 88431,
+            "citationKey": "2007fca153",
+            "linkedContext": null,
             "context": {
               "start": 88099,
               "end_exclusive": 88851,
               "quote": "t.\n[132] The respondent refers to the Supreme Court of Canada decision in Hoffman-La Roche & Co Ltd. v. Commissioner of Patents [1955] S.C.R. 414, 23 C.P.R. 1 at para. 5 (S.C.C.) [Hoffman], cited positively by the Federal Court in Abbott Laboratories v. Canada 2005 FC 1332, 45 C.P.R. (4th) 81 at para. 58 (F.C.), aff’d 2007 FCA 153 at paras. 11-14 [Abbott Laboratories 2005]. As was noted by this Court in Abbott Laboratories 2005 at para. 76, the Hoffman case stands for the principle that “one cannot obtain a patent on an old product even by use of a new process”. This however is not what the applicants did in their application for the ‘466 Patent. It is not a new process for an old product they discovered but an entirely new use.\n[133] The res",
               "sha256": "016b880fd9197cd66a4da2bc4a28c8f6aaae52113a85b12fedea7ec63d738e97"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Abbott",
+            "start": 94196,
+            "end": 94202,
+            "citationKey": "2007fca153",
+            "linkedContext": null,
+            "context": {
+              "start": 93876,
+              "end_exclusive": 94622,
+              "quote": "e respondent in a motion to dismiss the application made returnable on the opening day of the hearing. Counsel for the respondent explained that, while the issue had also been raised in their memorandum of fact and law, they had brought the motion at the 11th hour out of an abundance of caution because of a comment in Abbott Abbott Laboratories v. Canada (Minister of Health), 2007 FCA 187, [2007] F.C.J. No. 686, at paragraph 44, that a motion under paragraph 6(5)(a) of the Regulations was the proper means to challenge the eligibility of a patent for listing, in the context of a prohibition application. There is nothing in section 5 of the Regulations that specifically provides that the issue can be raised in the NOA.\n[144] Subsequent to",
+              "sha256": "7b3a0e2fd31c33929bb9246892b5f4e36c6eead6b7b5f89cef11b10d745d9728"
             }
           }
         ],
@@ -696,19 +978,71 @@
         "source_chars": 57006,
         "source_text_sha256": "d6ae2db76a6b7b421e3a84dd72362da3f4b3e234cde86b9d826ae39ae36b5821",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2014 SCC 53",
             "start": 46327,
-            "end_exclusive": 46338,
-            "citation_key": "2014scc53",
+            "end": 46338,
+            "citationKey": "2014scc53",
+            "linkedContext": null,
             "context": {
               "start": 46007,
               "end_exclusive": 46758,
               "quote": "ar.\n[80] Ms. Piper also asserts the judge erred in limiting her analysis to the written terms of the draft CRO. By doing so, she failed to consider relevant evidence of the surrounding circumstances and the objective intentions of the parties. Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:\n[43] Justice Cormier committed an error of mixed fact and law when she misapprehended the law of contractual interpretation. She misdirected herself when she stated: “If the plain wording of the document reveals a clear and unambiguous intent it is not necessary to go further. Indeed, once that has been done, it may not be possible to have recourse outside the document, either to ",
               "sha256": "5a76bedf8bb79ead0e1da094b2216e3b7ea8c550a76fd006587d6c66799d96c7"
+            }
+          },
+          {
+            "id": "tn1",
+            "kind": "case_name",
+            "quote": "Sattva",
+            "start": 47316,
+            "end": 47322,
+            "citationKey": "2014scc53",
+            "linkedContext": null,
+            "context": {
+              "start": 46996,
+              "end_exclusive": 47742,
+              "quote": "va does not apply to determine whether a contract exists, but rather to interpret the terms of the contract. Had a proper review been conducted, and if it were determined that the parties had made a binding agreement, it would be open to the judge to interpret the agreement in accordance with the principles set out in Sattva. As confirmed in Sattva, one can look to the factual matrix in interpreting the contract; the parol evidence rule does not apply to preclude evidence of the surrounding circumstances.\n[82] Turning to my analysis of how the judge erred, it is important to recognize that there is not “a” single document that can be referred to in deciding what the parties had manifested to each other—rather there are many. Mr. Piper’s",
+              "sha256": "7780c9ac6f4f8c1684c3bf461716cb382bed1c5a24d640d887f67cc7a6ba857f"
+            }
+          },
+          {
+            "id": "tn2",
+            "kind": "case_name",
+            "quote": "Sattva",
+            "start": 47340,
+            "end": 47346,
+            "citationKey": "2014scc53",
+            "linkedContext": null,
+            "context": {
+              "start": 47020,
+              "end_exclusive": 47766,
+              "quote": "ermine whether a contract exists, but rather to interpret the terms of the contract. Had a proper review been conducted, and if it were determined that the parties had made a binding agreement, it would be open to the judge to interpret the agreement in accordance with the principles set out in Sattva. As confirmed in Sattva, one can look to the factual matrix in interpreting the contract; the parol evidence rule does not apply to preclude evidence of the surrounding circumstances.\n[82] Turning to my analysis of how the judge erred, it is important to recognize that there is not “a” single document that can be referred to in deciding what the parties had manifested to each other—rather there are many. Mr. Piper’s own submissions confirm",
+              "sha256": "b0a3d51a6c8943cc4a43eb1e01ba7e9de5b2288889e5212a052ba38f0d41c8e3"
+            }
+          },
+          {
+            "id": "tn3",
+            "kind": "case_name",
+            "quote": "Sattva",
+            "start": 53579,
+            "end": 53585,
+            "citationKey": "2014scc53",
+            "linkedContext": null,
+            "context": {
+              "start": 53259,
+              "end_exclusive": 54005,
+              "quote": " Can/should the post conduct evidence be considered either as an interpretative aid or in determining whether this is a non-binding agreement to agree?\n• If this is not an agreement to agree, on what date did the agreement crystalize? What are the terms as of that date?\n[91] I am mindful of these principles set out in Sattva:\n[57] While the surrounding circumstances will be considered in interpreting the terms of a contract, they must never be allowed to overwhelm the words of that agreement (Hayes Forest Services, at para. 14; and Hall, at p. 30). The goal of examining such evidence is to deepen a decision-maker’s understanding of the mutual and objective intentions of the parties as expressed in the words of the contract. The interpre",
+              "sha256": "6acf96ccb5ef5682f13d9af0b4d7d4091384c5f3680f678adb9f7c8009bde46e"
             }
           }
         ],
@@ -749,7 +1083,8 @@
         "citation_aliases": [
           "2014 TCDP 3"
         ],
-        "name": "Carter v. Fisheries and Oceans Canada"
+        "name": "Carter v. Fisheries and Oceans Canada",
+        "same_litigation_eligible": true
       },
       "selection_receipt": {
         "challenge_seed": 20260820,
@@ -763,14 +1098,21 @@
         "source_chars": 6189,
         "source_text_sha256": "a92f49d65373e1f9bffeb3c0574e69cab9e0a1052208a3d7f24337406c02e5e4",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2014 CHRT 3",
             "start": 1112,
-            "end_exclusive": 1123,
-            "citation_key": "2014chrt3",
+            "end": 1123,
+            "citationKey": "2014chrt3",
+            "linkedContext": null,
             "context": {
               "start": 792,
               "end_exclusive": 1543,
@@ -783,8 +1125,9 @@
             "kind": "citation",
             "quote": "2014 CHRT 3",
             "start": 2814,
-            "end_exclusive": 2825,
-            "citation_key": "2014chrt3",
+            "end": 2825,
+            "citationKey": "2014chrt3",
+            "linkedContext": null,
             "context": {
               "start": 2494,
               "end_exclusive": 3245,
@@ -797,8 +1140,9 @@
             "kind": "citation",
             "quote": "2014 CHRT 3",
             "start": 4138,
-            "end_exclusive": 4149,
-            "citation_key": "2014chrt3",
+            "end": 4149,
+            "citationKey": "2014chrt3",
+            "linkedContext": null,
             "context": {
               "start": 3818,
               "end_exclusive": 4569,
@@ -811,8 +1155,9 @@
             "kind": "citation",
             "quote": "2014 CHRT 3",
             "start": 5086,
-            "end_exclusive": 5097,
-            "citation_key": "2014chrt3",
+            "end": 5097,
+            "citationKey": "2014chrt3",
+            "linkedContext": null,
             "context": {
               "start": 4766,
               "end_exclusive": 5517,
@@ -879,14 +1224,21 @@
         "source_chars": 69217,
         "source_text_sha256": "89b56755a411cac20268a54aa7dc8ae940372f5f3e24182b233bb29de006c7dd",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "1998 CAPPRT 028",
             "start": 28989,
-            "end_exclusive": 29004,
-            "citation_key": "1998capprt028",
+            "end": 29004,
+            "citationKey": "1998capprt028",
+            "linkedContext": null,
             "context": {
               "start": 28669,
               "end_exclusive": 29424,
@@ -899,8 +1251,9 @@
             "kind": "citation",
             "quote": "1998 CAPPRT 028",
             "start": 37409,
-            "end_exclusive": 37424,
-            "citation_key": "1998capprt028",
+            "end": 37424,
+            "citationKey": "1998capprt028",
+            "linkedContext": null,
             "context": {
               "start": 37089,
               "end_exclusive": 37844,
@@ -913,8 +1266,9 @@
             "kind": "citation",
             "quote": "1998 CAPPRT 028",
             "start": 38993,
-            "end_exclusive": 39008,
-            "citation_key": "1998capprt028",
+            "end": 39008,
+            "citationKey": "1998capprt028",
+            "linkedContext": null,
             "context": {
               "start": 38673,
               "end_exclusive": 39428,
@@ -981,14 +1335,21 @@
         "source_chars": 9561,
         "source_text_sha256": "3b3767165a690bbf76009dbfcb382c5840115d521c6611c8f98bed0aad2d0860",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2002 FCA 394",
             "start": 7117,
-            "end_exclusive": 7129,
-            "citation_key": "2002fca394",
+            "end": 7129,
+            "citationKey": "2002fca394",
+            "linkedContext": null,
             "context": {
               "start": 6797,
               "end_exclusive": 7549,
@@ -1048,14 +1409,21 @@
         "source_chars": 61152,
         "source_text_sha256": "c3f0965ea090f2ab85afbee910f4fbb2f35ae61c4903bb071b2029a81cf141a0",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "[1976] 1 SCR 319",
             "start": 45153,
-            "end_exclusive": 45169,
-            "citation_key": "19761scr319",
+            "end": 45169,
+            "citationKey": "19761scr319",
+            "linkedContext": null,
             "context": {
               "start": 44833,
               "end_exclusive": 45589,
@@ -1108,14 +1476,21 @@
         "source_chars": 4046,
         "source_text_sha256": "7ede14c5e2647e27150d924cb3918cf38a13311f406fa8321685cb3776083f0f",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2022 FCA 105",
             "start": 2892,
-            "end_exclusive": 2904,
-            "citation_key": "2022fca105",
+            "end": 2904,
+            "citationKey": "2022fca105",
+            "linkedContext": null,
             "context": {
               "start": 2572,
               "end_exclusive": 3324,
@@ -1168,14 +1543,21 @@
         "source_chars": 26680,
         "source_text_sha256": "2fd437e1dc29a8046793e138d0175cfcc1a9d187763bb123c4e54233c5f37d75",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2001 FCA 248",
             "start": 14205,
-            "end_exclusive": 14217,
-            "citation_key": "2001fca248",
+            "end": 14217,
+            "citationKey": "2001fca248",
+            "linkedContext": null,
             "context": {
               "start": 13885,
               "end_exclusive": 14637,
@@ -1188,8 +1570,9 @@
             "kind": "citation",
             "quote": "2001 FCA 248",
             "start": 20854,
-            "end_exclusive": 20866,
-            "citation_key": "2001fca248",
+            "end": 20866,
+            "citationKey": "2001fca248",
+            "linkedContext": null,
             "context": {
               "start": 20534,
               "end_exclusive": 21286,
@@ -1242,14 +1625,21 @@
         "source_chars": 61354,
         "source_text_sha256": "6388d4a93e8af22a305972838ad70467e209747f6a43df2b563338cbb2dd2e74",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2014 PSST 5",
             "start": 59144,
-            "end_exclusive": 59155,
-            "citation_key": "2014psst5",
+            "end": 59155,
+            "citationKey": "2014psst5",
+            "linkedContext": null,
             "context": {
               "start": 58824,
               "end_exclusive": 59575,
@@ -1300,14 +1690,21 @@
         "source_chars": 3533,
         "source_text_sha256": "e9cea9feefab9b79e7f0259b106b7204497a332c7e06db15533248963b83a529",
         "target_resolved_in_a2aj": true,
+        "occurrence_contract": {
+          "detector": "a2aj-case-target-occurrences-v5",
+          "source_view": "byte-identical-source-text",
+          "citation_and_case_name_offsets_frozen": true,
+          "linked_footnote_context_frozen": true
+        },
         "target_occurrences": [
           {
             "id": "tm1",
             "kind": "citation",
             "quote": "2021 ONCA 364",
             "start": 2675,
-            "end_exclusive": 2688,
-            "citation_key": "2021onca364",
+            "end": 2688,
+            "citationKey": "2021onca364",
+            "linkedContext": null,
             "context": {
               "start": 2355,
               "end_exclusive": 3108,

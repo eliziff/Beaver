@@ -267,17 +267,6 @@ function addTrapSample(
 }
 
 /**
- * The same text-plane scan without a package around it, for callers that
- * hold extracted text. Never throws; a non-string reads as no traps.
- */
-export function scanTextTraps(text: string): UnicodeTraps {
-  const traps = emptyTraps();
-  if (typeof text !== "string" || !text) return traps;
-  scanTraps(text, traps);
-  return traps;
-}
-
-/**
  * Red family: the red channel dominates and neither other channel is
  * near it. Excludes `auto`, theme colors, and every non-hex value.
  */

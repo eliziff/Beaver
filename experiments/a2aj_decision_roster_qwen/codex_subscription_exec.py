@@ -8,10 +8,13 @@ import base64
 import hashlib
 import importlib.metadata
 import json
+import socket
+import ssl
 import sys
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -51,6 +54,24 @@ def subscription_preflight() -> dict[str, Any]:
         "openai_sdk_version": importlib.metadata.version("openai"),
         "adapter_sha256": sha256_file(adapter_path),
         "helper_sha256": sha256_file(Path(__file__).resolve()),
+    }
+
+
+def transport_preflight() -> dict[str, Any]:
+    receipt = subscription_preflight()
+    endpoint = urlparse(str(receipt["endpoint"]))
+    if not endpoint.hostname:
+        raise RuntimeError("Codex subscription endpoint has no hostname")
+    port = endpoint.port or (443 if endpoint.scheme == "https" else 80)
+    started = time.perf_counter()
+    with socket.create_connection((endpoint.hostname, port), timeout=10) as connection:
+        if endpoint.scheme == "https":
+            with ssl.create_default_context().wrap_socket(connection, server_hostname=endpoint.hostname):
+                pass
+    return {
+        **receipt,
+        "network_reachable": True,
+        "transport_preflight_ms": round((time.perf_counter() - started) * 1000),
     }
 
 
@@ -182,7 +203,7 @@ def main() -> None:
         print(compact_json({"kind": "encoding_test", "text": "non‑breaking «UTF-8»"}))
         return
     if args.preflight:
-        print(compact_json(subscription_preflight()))
+        print(compact_json(transport_preflight()))
         return
     if args.output is None:
         parser.error("--output is required unless --preflight is used")

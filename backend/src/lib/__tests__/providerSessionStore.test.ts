@@ -43,7 +43,7 @@ describe("Codex provider sessions", () => {
   it("survives reopen and is destructively claimed at one transcript version", async () => {
     let [store, chats] = await loadStores();
     const chat = await chats.create(scope, { projectId: null, tabularReviewId: null });
-    store.writeProviderSession({
+    await store.writeProviderSession({
       userId: USER_ID, chatId: chat.id, projectId: null,
       continuationId: CONTINUATION_ID, compatibilityKey: COMPATIBILITY_KEY,
       transcriptVersion: 2,
@@ -52,43 +52,43 @@ describe("Codex provider sessions", () => {
     await closeDatabase();
     vi.resetModules();
     [store, chats] = await loadStores();
-    expect(store.readProviderSession(USER_ID, chat.id)).toMatchObject({
+    expect(await store.readProviderSession(USER_ID, chat.id)).toMatchObject({
       continuation_id: CONTINUATION_ID, transcript_version: 2,
     });
-    expect(store.claimProviderSession({
+    expect((await store.claimProviderSession({
       userId: USER_ID, chatId: chat.id, projectId: null,
       compatibilityKey: COMPATIBILITY_KEY, transcriptVersion: 2,
-    })?.continuation_id).toBe(CONTINUATION_ID);
-    expect(store.readProviderSession(USER_ID, chat.id)).toBeNull();
+    }))?.continuation_id).toBe(CONTINUATION_ID);
+    expect(await store.readProviderSession(USER_ID, chat.id)).toBeNull();
   });
 
   it("destructively rejects a stale or cross-owner claim", async () => {
     const [store, chats] = await loadStores();
     const chat = await chats.create(scope, { projectId: null, tabularReviewId: null });
-    store.writeProviderSession({
+    await store.writeProviderSession({
       userId: USER_ID, chatId: chat.id, projectId: null,
       continuationId: CONTINUATION_ID, compatibilityKey: COMPATIBILITY_KEY,
       transcriptVersion: 2,
     });
-    expect(store.claimProviderSession({
+    expect(await store.claimProviderSession({
       userId: OTHER_USER_ID, chatId: chat.id, projectId: null,
       compatibilityKey: COMPATIBILITY_KEY, transcriptVersion: 2,
     })).toBeNull();
-    expect(store.readProviderSession(USER_ID, chat.id)).toBeNull();
+    expect(await store.readProviderSession(USER_ID, chat.id)).toBeNull();
   });
 
   it("retains a session in trash and deletes it with its chat", async () => {
     const [store, chats] = await loadStores();
     const chat = await chats.create(scope, { projectId: null, tabularReviewId: null });
-    store.writeProviderSession({
+    await store.writeProviderSession({
       userId: USER_ID, chatId: chat.id, projectId: null,
       continuationId: CONTINUATION_ID, compatibilityKey: COMPATIBILITY_KEY,
       transcriptVersion: 0,
     });
 
     await expect(chats.trash(scope, chat.id)).resolves.toBe(true);
-    expect(store.readProviderSession(USER_ID, chat.id)).not.toBeNull();
+    expect(await store.readProviderSession(USER_ID, chat.id)).not.toBeNull();
     await expect(chats.remove(scope, chat.id)).resolves.toBe(true);
-    expect(store.readProviderSession(USER_ID, chat.id)).toBeNull();
+    expect(await store.readProviderSession(USER_ID, chat.id)).toBeNull();
   });
 });

@@ -6,7 +6,6 @@ import {
 } from "./caseSemanticMvp";
 import {
   createTextSourceDoc,
-  sourceDocPhraseSpans,
   sourceDocQuoteWords,
   type SourceDoc,
 } from "../../src/lib/sourceDoc";
@@ -39,35 +38,112 @@ export type CaseTargetIdentity = {
   name: string | null;
 };
 
+export const CASE_TARGET_OCCURRENCE_VERSION = "a2aj-case-target-occurrences-v5";
+export const TARGET_IDENTITIES = ["target", "not_target", "unclear"] as const;
+export const SOURCE_ORIGINS = ["court_words", "quoted_material", "metadata", "unclear"] as const;
+
 const GENERIC_CASE_PARTY_WORDS = new Set([
   "applicant", "association", "board", "canada", "commission", "company",
   "corporation", "defendant", "director", "estate", "minister", "ontario",
   "plaintiff", "quebec", "respondent", "tribunal", "union",
 ]);
 
-function targetNamePhrases(name: string | null) {
+type TargetNamePhrase = {
+  words: string[];
+  fullStyleOfCause: boolean;
+};
+
+function targetNamePhrases(name: string | null): TargetNamePhrase[] {
   if (!name?.trim()) return [];
   const full = name.trim();
   const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
   const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
-  const preferredParty = (crown ? sides[1] : sides[0])
+  const firstSideWords = sourceDocQuoteWords(sides[0]);
+  const genericFirstSide = sides.length > 1 && firstSideWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(firstSideWords[0]);
+  const preferredParty = (crown || genericFirstSide ? sides[1] : sides[0])
     .replace(/^the\s+/iu, "")
     .replace(/\s*\([^)]*\)\s*$/u, "")
     .replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "")
     .trim();
   const partyWords = sourceDocQuoteWords(preferredParty);
   const first = partyWords[0] ?? "";
+  const derivedPartyWords = partyWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase()) ? [] : partyWords;
   const shortWords = sides.length === 1
-    ? partyWords.slice(0, Math.min(2, partyWords.length))
-    : first.length >= 5 && !GENERIC_CASE_PARTY_WORDS.has(first)
+    ? derivedPartyWords.slice(0, Math.min(2, derivedPartyWords.length))
+    : first.length >= 5 && !GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase())
       ? [first]
-      : partyWords.slice(0, 2);
-  const phrases = [full, preferredParty, shortWords.join(" ")]
-    .map((value) => value.trim())
-    .filter((value) => sourceDocQuoteWords(value).length > 0);
-  const keyed = new Map<string, string>();
-  for (const phrase of phrases) keyed.set(sourceDocQuoteWords(phrase).join("\0"), phrase);
+      : derivedPartyWords.slice(0, 2);
+  const fullWords = sourceDocQuoteWords(full);
+  const phrases = [
+    { words: fullWords, fullStyleOfCause: true },
+    { words: derivedPartyWords, fullStyleOfCause: false },
+    { words: shortWords, fullStyleOfCause: false },
+  ].filter(({ words }) => words.length > 0);
+  const keyed = new Map<string, TargetNamePhrase>();
+  for (const phrase of phrases) {
+    const key = phrase.words.join("\0");
+    const prior = keyed.get(key);
+    keyed.set(key, prior
+      ? { ...prior, fullStyleOfCause: prior.fullStyleOfCause || phrase.fullStyleOfCause }
+      : phrase);
+  }
   return [...keyed.values()];
+}
+
+function regexEscape(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+/** Fast, punctuation-tolerant equivalent of an exact SourceDoc word sequence. */
+function wordSequenceSpans(text: string, words: readonly string[]) {
+  if (!words.length) return [];
+  const separator = "[^\\p{L}\\p{N}]+";
+  const pattern = words.map(regexEscape).join(separator);
+  const spans: Array<{ start: number; end: number }> = [];
+  for (const match of text.matchAll(new RegExp(pattern, "giu"))) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
+    spans.push({ start, end });
+  }
+  return spans;
+}
+
+function literalSurfaceSpans(text: string, surface: string) {
+  const value = surface.trim();
+  if (!value) return [];
+  const pattern = regexEscape(value).replace(/\s+/gu, "\\s+");
+  const spans: Array<{ start: number; end: number; text: string }> = [];
+  for (const match of text.matchAll(new RegExp(pattern, "giu"))) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
+    spans.push({ start, end, text: match[0] });
+  }
+  return spans;
+}
+
+function citationSurfaceSpans(text: string, surface: string) {
+  const literal = literalSurfaceSpans(text, surface);
+  const tokens = surface.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!tokens.length) return literal;
+  const pattern = tokens.map(regexEscape).join("[^\\p{L}\\p{N}]*");
+  const flexible: Array<{ start: number; end: number; text: string }> = [];
+  for (const match of text.matchAll(new RegExp(pattern, "giu"))) {
+    let start = match.index;
+    const end = start + match[0].length;
+    if (/^[\p{L}\p{N}]$/u.test(text[start - 1] ?? "") || /^[\p{L}\p{N}]$/u.test(text[end] ?? "")) continue;
+    if (/^\s*[[(]/u.test(surface) && /[[(]/u.test(text[start - 1] ?? "")) start -= 1;
+    flexible.push({ start, end, text: text.slice(start, end) });
+  }
+  return [...literal, ...flexible];
+}
+
+function shortNameReferenceCue(text: string, start: number, end: number) {
+  const before = text.slice(Math.max(0, start - 140), start);
+  const after = text.slice(end, Math.min(text.length, end + 160));
+  return /(?:\b(?:in|see|cf\.?|citing|cite[sd]?|follow(?:s|ed|ing)?|appl(?:y|ied|ies|ying)|distinguish(?:ed|es|ing)?|consider(?:ed|s|ing)?|discuss(?:ed|es|ing)?|under|according\s+to|consistent\s+with)\s+|\b(?:rel(?:y|ies|ied)|reliance)\s+(?:on|upon)\s+|\b(?:our|the)\s+(?:decision|judgment|reasons?)\s+in\s+|\bas\s+(?:held|stated|explained|decided)\s+in\s+|\b(?:on\s+the\s+basis\s+of|indistinguishable\s+from)\s+)$/iu.test(before)
+    || /^\s*(?:[\u201c\u201d"']\s*)?(?:,?\s*(?:supra|above|below|ibid\.?|at\s+paras?\.?|held\b|holds?\b|confirm(?:ed|s)?\b|establish(?:ed|es)?\b|requires?\b|stands?\s+for\b|makes?\s+clear\b|(?:was|is)\s+(?:followed|applied|distinguished|considered|overruled|not\s+followed)\b)|\(\s*paras?\.?\s*\d+|was\s+[\u201c\u201d"']?manifestly\s+wrong\b)/iu.test(after);
 }
 
 function directlyDecoratesCitation(text: string, end: number, citations: readonly { start: number }[]) {
@@ -76,6 +152,25 @@ function directlyDecoratesCitation(text: string, end: number, citations: readonl
     const between = text.slice(end, citation.start);
     return !between.includes("\n") && !/[!?]/u.test(between);
   });
+}
+
+function directlyDecoratesIncompatibleCitation(text: string, end: number, targetKeys: ReadonlySet<string>) {
+  const tail = text.slice(end, Math.min(text.length, end + 180));
+  const hardStop = tail.search(/[!?\n]/u);
+  const sameSentence = hardStop < 0 ? tail : tail.slice(0, hardStop);
+  return citationsInText(sameSentence).some((citation) =>
+    !targetKeys.has(citationLookupKey(citation.text)) &&
+    /^\s*(?:\([^()\n]{1,100}\)\s*)?[,;:]?\s*$/u.test(sameSentence.slice(0, citation.start))
+  );
+}
+
+function isIncompatibleDatedShortForm(
+  text: string,
+  end: number,
+  targetYears: ReadonlySet<string>,
+) {
+  const dated = /^\s+((?:18|19|20)\d{2})(?:\b|\])/u.exec(text.slice(end, end + 8));
+  return Boolean(dated && !targetYears.has(dated[1]));
 }
 
 /**
@@ -89,12 +184,16 @@ export function detectCaseTargetOccurrences(
 ): CaseTargetOccurrence[] {
   const bodyEnd = source.blocks.filter(({ kind }) => kind === "paragraph").at(-1)?.end ?? source.text.length;
   const targetCitations = [target.citation, ...target.citationAliases];
-  const targetKeys = new Set(
-    targetCitations.map(citationLookupKey)
-      .filter(Boolean),
-  );
-  const citations = citationsInText(source.text)
-    .filter((match) => targetKeys.has(citationLookupKey(match.text)));
+  const targetKeys = new Set(targetCitations.map(citationLookupKey).filter(Boolean));
+  const targetYears = new Set(targetCitations.flatMap((citation) => citation.match(/\b(?:18|19|20)\d{2}\b/gu) ?? []));
+  const citationCandidates = targetCitations
+    .flatMap((surface) => citationSurfaceSpans(source.text, surface))
+    .sort((left, right) => left.start - right.start || right.end - left.end);
+  const citations: Array<{ start: number; end: number; text: string }> = [];
+  for (const candidate of citationCandidates) {
+    if (citations.some(({ start, end }) => candidate.start < end && candidate.end > start)) continue;
+    citations.push(candidate);
+  }
   const citationOccurrences = citations.map((match, index): CaseTargetOccurrence => ({
     id: `tm${index + 1}`,
     kind: "citation",
@@ -105,17 +204,26 @@ export function detectCaseTargetOccurrences(
     linkedContext: footnoteReferenceContext(source.text, match.start, bodyEnd),
   }));
 
-  const candidateSpans = targetNamePhrases(target.name).flatMap((phrase) =>
-    sourceDocPhraseSpans(source, sourceDocQuoteWords(phrase)).map(({ start, end }) => ({ start, end }))
-  ).filter(({ start, end }) =>
+  const allNameSpans = targetNamePhrases(target.name).flatMap(({ words, fullStyleOfCause }) =>
+    wordSequenceSpans(source.text, words).map(({ start, end }) => ({ start, end, fullStyleOfCause }))
+  );
+  const incompatibleNameSpans = allNameSpans.filter(({ end }) =>
+    directlyDecoratesIncompatibleCitation(source.text, end, targetKeys) ||
+    isIncompatibleDatedShortForm(source.text, end, targetYears)
+  );
+  const candidateSpans = allNameSpans.filter(({ start, end, fullStyleOfCause }) =>
+    (fullStyleOfCause || shortNameReferenceCue(source.text, start, end)) &&
     !citations.some((citation) => start < citation.end && end > citation.start) &&
-    !directlyDecoratesCitation(source.text, end, citations)
+    !directlyDecoratesCitation(source.text, end, citations) &&
+    !incompatibleNameSpans.some((incompatible) =>
+      incompatible.start <= start && incompatible.end >= end
+    )
   );
   const names = [...new Map(candidateSpans
     .sort((left, right) => left.start - right.start || right.end - left.end)
     .map((span) => [`${span.start}:${span.end}`, span])).values()]
     .filter((span, index, spans) => !spans.some((other, otherIndex) =>
-      otherIndex !== index && other.start === span.start && other.end > span.end
+      otherIndex !== index && other.start <= span.start && other.end >= span.end
     ))
     .sort((left, right) => left.start - right.start || left.end - right.end);
   const nameOccurrences = names.map((span, index): CaseTargetOccurrence => ({
@@ -176,6 +284,8 @@ export type ModelTargetMention = {
   id: string;
   occurrence_id: string;
   opinion_id: string | null;
+  target_identity: (typeof TARGET_IDENTITIES)[number];
+  source_origin: (typeof SOURCE_ORIGINS)[number];
   voice: (typeof ATTRIBUTIONS)[number];
   case_issue_ids: string[];
 };
@@ -270,11 +380,15 @@ export const CASE_TARGET_MVP_SCHEMA_EXTENSION = {
     items: {
       type: "object",
       additionalProperties: false,
-      required: ["id", "occurrence_id", "opinion_id", "voice", "case_issue_ids"],
+      required: [
+        "id", "occurrence_id", "opinion_id", "target_identity", "source_origin", "voice", "case_issue_ids",
+      ],
       properties: {
         id: { type: "string", pattern: "^m[1-9][0-9]*$" },
         occurrence_id: { type: "string", minLength: 1 },
         opinion_id: { type: ["string", "null"] },
+        target_identity: { type: "string", enum: TARGET_IDENTITIES },
+        source_origin: { type: "string", enum: SOURCE_ORIGINS },
         voice: { type: "string", enum: ATTRIBUTIONS },
         case_issue_ids: {
           type: "array",
@@ -557,6 +671,9 @@ export function resolveCaseTargetMvp(args: {
     if (new Set(normalizedMention.case_issue_ids).size !== normalizedMention.case_issue_ids.length) {
       local.push("duplicate case issue id");
     }
+    if (normalizedMention.target_identity !== "target" && normalizedMention.case_issue_ids.length > 0) {
+      local.push("non-target assessment cannot reference case issues");
+    }
     for (const issueId of normalizedMention.case_issue_ids) {
       if (!issueById.has(issueId) || duplicateIssueIds.has(issueId)) local.push(`references unavailable issue ${issueId}`);
       if (normalizedMention.opinion_id && !acceptedPositionByOpinionIssue.has(`${normalizedMention.opinion_id}:${issueId}`)) {
@@ -591,7 +708,8 @@ export function resolveCaseTargetMvp(args: {
     const mentions = treatment.mention_ids.flatMap((id) => {
       const mention = mentionById.get(id);
       if (!mention) local.push(`references unavailable mention ${id}`);
-      return mention ? [mention] : [];
+      else if (mention.target_identity !== "target") local.push(`references ${mention.target_identity} assessment ${id}`);
+      return mention?.target_identity === "target" ? [mention] : [];
     });
     const linkedOpinionIds = new Set(mentions.map(({ opinion_id }) => opinion_id));
     const derivedOpinionId = linkedOpinionIds.size === 1 ? [...linkedOpinionIds][0] : null;
@@ -651,7 +769,8 @@ export function resolveCaseTargetMvp(args: {
     const mentions = history.mention_ids.flatMap((id) => {
       const mention = mentionById.get(id);
       if (!mention) local.push(`references unavailable mention ${id}`);
-      return mention ? [mention] : [];
+      else if (mention.target_identity !== "target") local.push(`references ${mention.target_identity} assessment ${id}`);
+      return mention?.target_identity === "target" ? [mention] : [];
     });
     const evidence = typeof sourceEvidence !== "string"
       ? sourceEvidence
@@ -789,6 +908,7 @@ export function resolveCaseTargetMvp(args: {
   const attributedLabels = new Set(issueSlices.flatMap(({ attributed_labels }) => attributed_labels));
   const directHistoryLabels = [...new Set(acceptedHistory.map(({ label }) => label))];
   const occurrenceCoverageComplete = args.occurrences.every(({ id }) => seenOccurrenceIds.has(id));
+  const acceptedTargetMentionCount = [...mentionById.values()].filter(({ target_identity }) => target_identity === "target").length;
   const canonicalOpinionPositions = resolvedCards.cards.map(({ discussion_spans: _internalEvidenceEnvelope, ...position }) => position);
   const flatTreatment = {
     status: allErrors.length === 0 ? "complete" : "partial",
@@ -806,7 +926,7 @@ export function resolveCaseTargetMvp(args: {
       noncontrolling_judicial_adverse: [...otherJudicialLabels].some((label) => adverseLabels.has(label)),
       attributed_adverse: [...attributedLabels].some((label) => adverseLabels.has(label)),
       court_treatment_detected: controllingLabels.size > 0 || otherJudicialLabels.size > 0,
-      mention_only: occurrenceCoverageComplete && mentionById.size > 0 && acceptedTreatments.length === 0 && acceptedHistory.length === 0,
+      mention_only: occurrenceCoverageComplete && acceptedTargetMentionCount > 0 && acceptedTreatments.length === 0 && acceptedHistory.length === 0,
       direct_history: directHistoryLabels.length > 0,
     },
   };

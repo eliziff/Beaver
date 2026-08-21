@@ -55,17 +55,14 @@ export async function listUserMcpConnectors(
   const [tokens, rawTools] = await Promise.all([
     loadOAuthTokens(ids, db),
     rows(options.includeTools === false
-      ? sql`SELECT connector_id FROM user_mcp_connector_tools
-        WHERE connector_id IN(${sql.join(ids)})`
+      ? sql`SELECT connector_id,COUNT(*) tool_count FROM user_mcp_connector_tools
+        WHERE connector_id IN(${sql.join(ids)}) GROUP BY connector_id`
       : sql`SELECT * FROM user_mcp_connector_tools
         WHERE connector_id IN(${sql.join(ids)}) ORDER BY tool_name`, db),
   ]);
   if (options.includeTools === false) {
-    const counts = new Map<string, number>();
-    for (const row of rawTools) {
-      const id = String(row.connector_id);
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
+    const counts = new Map(rawTools.map((row) =>
+      [String(row.connector_id), Number(row.tool_count)]));
     return connectors.map((row) => connectorSummary(row, [], tokens.get(row.id), counts.get(row.id) ?? 0));
   }
   const tools = new Map<string, ToolRow[]>();
@@ -153,8 +150,7 @@ export async function updateUserMcpConnector(
       : !endpointChanged && current.auth_type === "oauth" && !("bearerToken" in input)
         ? "oauth" : "none";
   }
-  const connection = db;
-  await connection.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     const changed = await one(sql`UPDATE user_mcp_connectors SET name=${name},
       server_url=${serverUrl},auth_type=${authType},enabled=${Number(enabled)},
       encrypted_auth_config=${auth.encrypted_auth_config},auth_config_iv=${auth.auth_config_iv},
@@ -167,7 +163,7 @@ export async function updateUserMcpConnector(
     if (credentialsChanged) await tx.query(sql`DELETE FROM user_mcp_oauth_tokens
       WHERE connector_id=${connectorId}`);
   });
-  return getUserMcpConnector(userId, connectorId, connection);
+  return getUserMcpConnector(userId, connectorId, db);
 }
 
 export async function completeUserMcpConnectorOAuth(
@@ -196,13 +192,12 @@ export async function refreshUserMcpConnectorTools(
   connectorId: string,
   db: Db,
 ) {
-  const connection = db;
-  const connector = await loadConnector(userId, connectorId, connection);
+  const connector = await loadConnector(userId, connectorId, db);
   const [{ tools }, existing] = await Promise.all([
     withRemoteMcp(connector, (client) =>
-      client.listTools({}, { timeout: 30_000 }), connection),
+      client.listTools({}, { timeout: 30_000 }), db),
     rows(sql`SELECT * FROM user_mcp_connector_tools
-      WHERE connector_id=${connector.id}`, connection),
+      WHERE connector_id=${connector.id}`, db),
   ]);
   validateMcpCatalog(tools);
   const contract = (...parts: unknown[]) => JSON.stringify(parts);
@@ -230,7 +225,7 @@ export async function refreshUserMcpConnectorTools(
       last_seen_at: now,
     };
   });
-  await connection.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await tx.query(sql`DELETE FROM user_mcp_connector_tools WHERE connector_id=${connector.id}`);
     if (catalog.length) await tx.query(sql`INSERT INTO user_mcp_connector_tools(
       id,connector_id,tool_name,openai_tool_name,title,description,input_schema,output_schema,
@@ -241,7 +236,7 @@ export async function refreshUserMcpConnectorTools(
         ${json(tool.annotations)},${Number(tool.enabled)},${Number(tool.requires_confirmation)},
         ${tool.last_seen_at},${now},${now})`))}`);
   });
-  return getUserMcpConnector(userId, connectorId, connection);
+  return getUserMcpConnector(userId, connectorId, db);
 }
 
 export async function setUserMcpToolEnabled(

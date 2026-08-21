@@ -87,7 +87,7 @@ export async function buildUserAccountExport(db: Db, userId: string,
   const [profile, apiKeys, projects, standaloneDocuments, workflows,
     workflowOpenSourceSubmissions, hiddenWorkflows, workflowSharesByUser,
     workflowSharesWithUser, assistantChats, tabularReviews, sharedProjects,
-    sharedTabularReviews, auditEvents] = await Promise.all([
+    sharedTabularReviews, auditEvents, preferences] = await Promise.all([
     read.all("user_profiles", (query) => query.eq("user_id", userId)),
     apiKeyStatus, owned("projects"),
     read.all("documents", (query) => query.eq("user_id", userId)
@@ -104,7 +104,7 @@ export async function buildUserAccountExport(db: Db, userId: string,
     shared("projects", "id, user_id, name, cm_number, created_at, updated_at"),
     shared("tabular_reviews",
       "id, user_id, project_id, title, practice, created_at, updated_at"),
-    owned("audit_events"),
+    owned("audit_events"), owned("user_preferences", "updated_at"),
   ]);
   const projectIds = idsFrom(projects);
   const projectDocuments = await read.byIds("documents", "project_id", projectIds);
@@ -123,5 +123,5 @@ export async function buildUserAccountExport(db: Db, userId: string,
     workflow_shares_with_user: workflowSharesWithUser, chats: assistantChats,
     tabular_reviews: tabularReviews, tabular_cells: tabularCells,
     shared_access: { projects: sharedProjects, tabular_reviews: sharedTabularReviews },
-    audit_events: auditEvents };
+    audit_events: auditEvents, user_preferences: preferences };
 }

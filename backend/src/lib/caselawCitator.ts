@@ -178,28 +178,8 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
 }
 
 /**
- * `keysForQuery` for callers outside the graph: the key of `citation`
- * plus its resolution-proven twins. Scanner contract, so it differs from
- * the lookup surfaces here in two ways — text that normalizes to nothing
- * returns [] instead of throwing (a substring scan hands in arbitrary
- * text), and an absent citator graph degrades silently to the literal
- * key rather than to null.
- */
-export function citationAliasKeys(citation: string): string[] {
-  const key = sharedCitationLookupKey(citation);
-  if (!key) return [];
-  return withDatabase((database) => keysForQuery(database, key)) ?? [key];
-}
-
-/**
- * `citationAliasKeys` over a batch, on ONE citator handle. Element i is
- * the expansion of citations[i], exactly what the single-citation call
- * returns for it.
- *
- * Why a batch surface exists: `withDatabase` opens and closes the graph
- * per call, and a scanner asks about every citation-shaped fragment of
- * one query. Measured on the 2.3 GB noteup graph, 7 fragments of one
- * query: 13.76 ms handle-per-fragment vs 2.17 ms on one handle.
+ * Expand citation aliases on one database handle. Invalid text produces no
+ * key, and an absent graph degrades to the literal normalized key.
  */
 export function citationAliasKeysBatch(citations: string[]): string[][] {
   const keys = citations.map((citation) => sharedCitationLookupKey(citation));

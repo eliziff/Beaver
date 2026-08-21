@@ -4,11 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CASE_TARGET_OCCURRENCE_VERSION,
+  detectCaseTargetOccurrences,
+} from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
+import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
 import { citationLookupKey } from "../../../backend/src/lib/citationKey";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
+import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
 type Category = "multi_opinion_or_partial_join" | "attribution_trap" | "ordinary_control";
 type EvidenceKind = "opinion_boundary" | "party_or_reported_voice" | "current_decision_voice" | "current_decision_treatment";
@@ -19,7 +24,7 @@ type Spec = {
   documentId: number;
   targetDocumentId: number;
   targetCitation: string;
-  expectedOccurrences: number;
+  sameLitigationEligible?: boolean;
   lineage: Record<string, unknown>;
   evidence: Array<{ kind: EvidenceKind; quote: string }>;
   note: string;
@@ -49,7 +54,7 @@ const budgetLineage = (index: number) => ({
 const SPECS: Spec[] = [
   {
     id: "multi-01", category: "multi_opinion_or_partial_join", documentId: 190426,
-    targetDocumentId: 196690, targetCitation: "[1991] 1 S.C.R. 509", expectedOccurrences: 8,
+    targetDocumentId: 196690, targetCitation: "[1991] 1 S.C.R. 509",
     lineage: auditLineage(190426),
     evidence: [
       { kind: "opinion_boundary", quote: "Joint Reasons for Judgment: (paras. 1 to 104)" },
@@ -61,7 +66,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "multi-02", category: "multi_opinion_or_partial_join", documentId: 193954,
-    targetDocumentId: 191310, targetCitation: "[1985] 1 S.C.R. 295", expectedOccurrences: 4,
+    targetDocumentId: 191310, targetCitation: "[1985] 1 S.C.R. 295",
     lineage: auditLineage(193954),
     evidence: [
       { kind: "opinion_boundary", quote: "Joint Reasons for Judgment: (paras. 1 to 48)" },
@@ -72,7 +77,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "multi-03", category: "multi_opinion_or_partial_join", documentId: 7330,
-    targetDocumentId: 189816, targetCitation: "[1982] 1 S.C.R. 41", expectedOccurrences: 2,
+    targetDocumentId: 189816, targetCitation: "[1982] 1 S.C.R. 41",
     lineage: auditLineage(7330),
     evidence: [
       { kind: "opinion_boundary", quote: "Reasons for Judgment of the Honourable Madam Justice Saunders:" },
@@ -82,7 +87,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "multi-04", category: "multi_opinion_or_partial_join", documentId: 112050,
-    targetDocumentId: 190532, targetCitation: "[2002] 1 S.C.R. 84", expectedOccurrences: 2,
+    targetDocumentId: 190532, targetCitation: "[2002] 1 S.C.R. 84",
     lineage: {
       kind: "seeded_full_corpus_keyword_scan",
       seed: SEED,
@@ -97,7 +102,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "multi-05", category: "multi_opinion_or_partial_join", documentId: 225088,
-    targetDocumentId: 196235, targetCitation: "2010 SCC 6", expectedOccurrences: 2,
+    targetDocumentId: 196235, targetCitation: "2010 SCC 6",
     lineage: auditLineage(225088),
     evidence: [
       { kind: "opinion_boundary", quote: "Reasons for Judgment of the Honourable Madam Justice Fenlon:" },
@@ -107,7 +112,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "attribution-01", category: "attribution_trap", documentId: 109485,
-    targetDocumentId: 113763, targetCitation: "2007 FCA 153", expectedOccurrences: 2,
+    targetDocumentId: 113763, targetCitation: "2007 FCA 153",
     lineage: budgetLineage(1454),
     evidence: [
       { kind: "current_decision_voice", quote: "The issue of burden of proof and presumption of validity was recently dealt with by the Court of Appeal in Abbott Laboratories v. Canada (Minister of Health), 2007 FCA 153" },
@@ -117,7 +122,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "attribution-02", category: "attribution_trap", documentId: 123916,
-    targetDocumentId: 192670, targetCitation: "2014 SCC 53", expectedOccurrences: 1,
+    targetDocumentId: 192670, targetCitation: "2014 SCC 53",
     lineage: budgetLineage(1700),
     evidence: [
       { kind: "party_or_reported_voice", quote: "Referring to the law set out in Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53, it was put this way in her factum:" },
@@ -127,7 +132,8 @@ const SPECS: Spec[] = [
   },
   {
     id: "attribution-03", category: "attribution_trap", documentId: 67832,
-    targetDocumentId: 68517, targetCitation: "2014 CHRT 3", expectedOccurrences: 4,
+    targetDocumentId: 68517, targetCitation: "2014 CHRT 3",
+    sameLitigationEligible: true,
     lineage: budgetLineage(4537),
     evidence: [
       { kind: "party_or_reported_voice", quote: "Member Luftig issued four interim rulings: 2014 CHRT 3" },
@@ -138,7 +144,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "attribution-04", category: "attribution_trap", documentId: 68919,
-    targetDocumentId: 68923, targetCitation: "1998 CAPPRT 028", expectedOccurrences: 3,
+    targetDocumentId: 68923, targetCitation: "1998 CAPPRT 028",
     lineage: budgetLineage(2179),
     evidence: [
       { kind: "party_or_reported_voice", quote: "The Tribunal has commented on this provision in The Writers Union of Canada, 1998 CAPPRT 028 at paragraph 62:" },
@@ -149,7 +155,7 @@ const SPECS: Spec[] = [
   },
   {
     id: "attribution-05", category: "attribution_trap", documentId: 220204,
-    targetDocumentId: 111733, targetCitation: "2002 FCA 394", expectedOccurrences: 1,
+    targetDocumentId: 111733, targetCitation: "2002 FCA 394",
     lineage: budgetLineage(346),
     evidence: [
       { kind: "party_or_reported_voice", quote: "followed in Jaillet v. Canada (Minister of National Revenue - M.N.R.), 2002 FCA 394" },
@@ -159,35 +165,35 @@ const SPECS: Spec[] = [
   },
   {
     id: "control-01", category: "ordinary_control", documentId: 18750,
-    targetDocumentId: 191307, targetCitation: "[1976] 1 SCR 319", expectedOccurrences: 1,
+    targetDocumentId: 191307, targetCitation: "[1976] 1 SCR 319",
     lineage: budgetLineage(378),
     evidence: [{ kind: "current_decision_treatment", quote: "A liquidated damages clause is enforceable provided it is a genuine pre-estimate of damage and not a penalty: see HF Clarke Ltd. v Thermidaire Corp. Ltd., [1976] 1 SCR 319 at 327." }],
     note: "Single-judge, direct statement and application of the target rule.",
   },
   {
     id: "control-02", category: "ordinary_control", documentId: 66893,
-    targetDocumentId: 117159, targetCitation: "2022 FCA 105", expectedOccurrences: 1,
+    targetDocumentId: 117159, targetCitation: "2022 FCA 105",
     lineage: budgetLineage(60),
     evidence: [{ kind: "current_decision_treatment", quote: "In Canada (Attorney General) v Chu, 2022 FCA 105 at para 7" }],
     note: "Short tribunal decision applying a binding limit on its remedial authority.",
   },
   {
     id: "control-03", category: "ordinary_control", documentId: 202094,
-    targetDocumentId: 112500, targetCitation: "2001 FCA 248", expectedOccurrences: 2,
+    targetDocumentId: 112500, targetCitation: "2001 FCA 248",
     lineage: budgetLineage(112),
     evidence: [{ kind: "current_decision_treatment", quote: "The severe criterion must be assessed in a real world context (Villani v. Canada (A.G.), 2001 FCA 248)." }],
     note: "Routine tribunal use of the standard Villani real-world test.",
   },
   {
     id: "control-04", category: "ordinary_control", documentId: 121168,
-    targetDocumentId: 121892, targetCitation: "2014 PSST 5", expectedOccurrences: 1,
+    targetDocumentId: 121892, targetCitation: "2014 PSST 5",
     lineage: budgetLineage(2266),
     evidence: [{ kind: "current_decision_treatment", quote: "Whether an error constitutes an abuse of authority depends on its nature and seriousness; see Makoundi v. Deputy Minister of Transport, Infrastructure and Communities, 2014 PSST 5 at para. 22." }],
     note: "Single adjudicator states the target rule and applies it in the next sentence.",
   },
   {
     id: "control-05", category: "ordinary_control", documentId: 153903,
-    targetDocumentId: 164379, targetCitation: "2021 ONCA 364", expectedOccurrences: 1,
+    targetDocumentId: 164379, targetCitation: "2021 ONCA 364",
     lineage: budgetLineage(2328),
     evidence: [{ kind: "current_decision_treatment", quote: "A panel may only interfere if the judge failed to identify the applicable principles, erred in principle or reached an unreasonable result: Hillmount Capital Inc. v. Pizale, 2021 ONCA 364" }],
     note: "Short unanimous panel decision applying an ordinary deferential review rule.",
@@ -196,18 +202,6 @@ const SPECS: Spec[] = [
 
 function sha256(value: string) {
   return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-function exactMatches(text: string, surfaces: readonly string[]) {
-  const matches: Array<{ quote: string; start: number; end_exclusive: number }> = [];
-  for (const surface of surfaces) {
-    for (let start = text.indexOf(surface); start >= 0; start = text.indexOf(surface, start + 1)) {
-      matches.push({ quote: surface, start, end_exclusive: start + surface.length });
-    }
-  }
-  return matches
-    .sort((left, right) => left.start - right.start || right.end_exclusive - left.end_exclusive)
-    .filter((match, index, all) => !index || match.start >= all[index - 1].end_exclusive);
 }
 
 async function main() {
@@ -244,22 +238,23 @@ async function main() {
       targetRow.citation_fr,
       targetRow.citation2_fr,
     ].filter((value): value is string => typeof value === "string" && value.trim() !== "" && value !== spec.targetCitation))];
-    const rawOccurrences = exactMatches(document.text, [spec.targetCitation, ...aliases]);
-    if (rawOccurrences.length !== spec.expectedOccurrences) {
-      throw new Error(`${spec.id}: expected ${spec.expectedOccurrences} target occurrences, found ${rawOccurrences.length}`);
-    }
-    const targetOccurrences = rawOccurrences.map((occurrence, index) => {
+    const targetName = typeof targetRow.name_en === "string" ? targetRow.name_en : null;
+    const targetOccurrences = detectCaseTargetOccurrences(createTextSourceDoc(document.text), {
+      citation: spec.targetCitation,
+      citationAliases: aliases,
+      name: targetName,
+    }).map((occurrence) => {
       const contextStart = Math.max(0, occurrence.start - 320);
-      const contextEnd = Math.min(document.text.length, occurrence.end_exclusive + 420);
+      const contextEnd = Math.min(document.text.length, occurrence.end + 420);
       const context = document.text.slice(contextStart, contextEnd);
       return {
-        id: `tm${index + 1}`,
-        kind: "citation",
         ...occurrence,
-        citation_key: citationLookupKey(occurrence.quote),
         context: { start: contextStart, end_exclusive: contextEnd, quote: context, sha256: sha256(context) },
       };
     });
+    if (!targetOccurrences.some(({ kind }) => kind === "citation")) {
+      throw new Error(`${spec.id}: target citation is absent from the source decision`);
+    }
     const categoryEvidence = spec.evidence.map((evidence) => {
       const start = document.text.indexOf(evidence.quote);
       if (start < 0) throw new Error(`${spec.id}: missing category evidence: ${evidence.quote}`);
@@ -281,7 +276,8 @@ async function main() {
         document_id: spec.targetDocumentId,
         citation: spec.targetCitation,
         citation_aliases: aliases,
-        name: typeof targetRow.name_en === "string" ? targetRow.name_en : null,
+        name: targetName,
+        ...(spec.sameLitigationEligible ? { same_litigation_eligible: true } : {}),
       },
       selection_receipt: {
         challenge_seed: SEED,
@@ -290,6 +286,12 @@ async function main() {
         source_chars: document.text.length,
         source_text_sha256: sha256(document.text),
         target_resolved_in_a2aj: true,
+        occurrence_contract: {
+          detector: CASE_TARGET_OCCURRENCE_VERSION,
+          source_view: "byte-identical-source-text",
+          citation_and_case_name_offsets_frozen: true,
+          linked_footnote_context_frozen: true,
+        },
         target_occurrences: targetOccurrences,
         category_evidence: categoryEvidence,
         source_text_review_note: spec.note,
@@ -302,13 +304,14 @@ async function main() {
     .map((dataset) => [dataset, pairs.filter(({ source }) => source.dataset === dataset).length]));
   const freezeKeys = pairs.map(({ challenge_id, document_id, target }) => [challenge_id, document_id, target.document_id, target.citation]);
   const manifest = {
-    format: "a2aj-case-target-challenge-v1",
+    format: "a2aj-case-target-challenge-v2",
     created_utc: FROZEN_UTC,
     seed: SEED,
     requested_pairs: pairs.length,
     selection: {
-      algorithm: "seed-lineage-plus-source-evidence-freeze-v1",
-      purpose: "v13 final-legal-quality challenge cell; no validator-stage scoring",
+      algorithm: "seed-lineage-plus-source-evidence-freeze-v2",
+      purpose: "case-target legal-quality challenge cell; no validator-stage scoring",
+      occurrence_contract_version: CASE_TARGET_OCCURRENCE_VERSION,
       one_full_citing_decision_per_call: true,
       one_target_per_call: true,
       target_decision_text_included: false,

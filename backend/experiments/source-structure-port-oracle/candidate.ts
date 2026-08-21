@@ -6,13 +6,11 @@ import { gunzipSync } from "node:zlib";
 import { createSourceDoc, type SourceDocBlock } from "../../src/lib/sourceDoc";
 import type { CompileInput } from "../../src/lib/sourceDocA2AJ";
 import {
-  journalFinalContractSource,
-  type JournalPageRow,
-} from "../../src/lib/sourceDocJournal";
-import {
   deriveA2AJSourceDoc,
+  deriveJournalJsonlSourceDoc,
   deriveJournalSourceDoc,
   deriveNativeMarkupSourceDoc,
+  type JournalPageRow,
 } from "../../src/lib/sourceDocStructureHost";
 import { shutdownSourceStructureEngine } from "../../src/lib/sourceStructureEngine";
 import { setBelowNormalProcessPriority } from "../../src/lib/structureEngineClient";
@@ -65,16 +63,11 @@ async function journal(vector: Vector, value: Record<string, unknown>) {
   const pageRows = value.pageRows as JournalPageRow[];
   const id = Number(row.article_id);
   const url = String(row.galley_url ?? row.url_en ?? "");
-  let text = String(row.text ?? "");
-  let native: SourceDocBlock[] | undefined;
   if (typeof value.pages_gzip_base64 === "string") {
-    const pages = gunzipSync(Buffer.from(value.pages_gzip_base64, "base64"));
-    const source = journalFinalContractSource(id, pages, pageRows);
-    if (!source) throw new Error(`${vector.id}: invalid final contract fixture`);
-    text = source.text;
-    native = source.blocks;
+    const jsonl = gunzipSync(Buffer.from(value.pages_gzip_base64, "base64")).toString("utf8");
+    return deriveJournalJsonlSourceDoc(id, url, jsonl, pageRows);
   }
-  return deriveJournalSourceDoc(id, url, text, pageRows, native);
+  return deriveJournalSourceDoc(id, url, String(row.text ?? ""), pageRows);
 }
 
 function localPdf(value: Record<string, unknown>) {

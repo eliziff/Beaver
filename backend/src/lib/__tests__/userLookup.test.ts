@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
     normalizeEmail,
-    normalizeDisplayName,
     findProfileUserByEmail,
-    syncProfileEmail,
+    syncProfileIdentity,
 } from "../userLookup";
 
 type Row = Record<string, unknown>;
@@ -11,7 +10,7 @@ type Row = Record<string, unknown>;
 /**
  * Minimal user_profiles-shaped Supabase mock. Supports the query chains
  * userLookup uses (select/eq/in/not + single-row readers) plus insert and
- * update so syncProfileEmail can be exercised end to end.
+ * update so syncProfileIdentity can be exercised end to end.
  */
 function makeDb(initialRows: Row[]) {
     const tables: Record<string, Row[]> = {
@@ -90,7 +89,7 @@ function makeDb(initialRows: Row[]) {
 }
 
 // ---------------------------------------------------------------------------
-// normalizeEmail / normalizeDisplayName
+// normalizeEmail
 // ---------------------------------------------------------------------------
 
 describe("normalizeEmail", () => {
@@ -102,19 +101,6 @@ describe("normalizeEmail", () => {
         expect(normalizeEmail(null)).toBe("");
         expect(normalizeEmail(undefined)).toBe("");
         expect(normalizeEmail(42)).toBe("");
-    });
-});
-
-describe("normalizeDisplayName", () => {
-    it("trims usable names", () => {
-        expect(normalizeDisplayName("  Ada Lovelace ")).toBe("Ada Lovelace");
-    });
-
-    it("returns null for empty or non-string values", () => {
-        expect(normalizeDisplayName("   ")).toBeNull();
-        expect(normalizeDisplayName("")).toBeNull();
-        expect(normalizeDisplayName(null)).toBeNull();
-        expect(normalizeDisplayName(7)).toBeNull();
     });
 });
 
@@ -152,14 +138,14 @@ describe("findProfileUserByEmail", () => {
 });
 
 // ---------------------------------------------------------------------------
-// syncProfileEmail
+// syncProfileIdentity
 // ---------------------------------------------------------------------------
 
-describe("syncProfileEmail", () => {
+describe("syncProfileIdentity", () => {
     it("inserts a profile row when none exists", async () => {
         const db = makeDb([]);
-        const result = await syncProfileEmail(db as any, "u1", "New@Example.com");
-        expect(result).toBeNull();
+        const result = await syncProfileIdentity(db as any, "u1", "New@Example.com");
+        expect(result).toBe(false);
         expect(db.tables.user_profiles).toEqual([
             { user_id: "u1", email: "new@example.com" },
         ]);
@@ -169,8 +155,8 @@ describe("syncProfileEmail", () => {
         const db = makeDb([
             { user_id: "u1", email: "Same@Example.com", display_name: null },
         ]);
-        const result = await syncProfileEmail(db as any, "u1", "same@example.com");
-        expect(result).toBeNull();
+        const result = await syncProfileIdentity(db as any, "u1", "same@example.com");
+        expect(result).toBe(false);
         expect(db.tables.user_profiles[0].email).toBe("Same@Example.com");
     });
 
@@ -178,17 +164,17 @@ describe("syncProfileEmail", () => {
         const db = makeDb([
             { user_id: "u1", email: "old@example.com", display_name: null },
         ]);
-        const result = await syncProfileEmail(db as any, "u1", "New@Example.com");
-        expect(result).toBeNull();
+        const result = await syncProfileIdentity(db as any, "u1", "New@Example.com");
+        expect(result).toBe(false);
         expect(db.tables.user_profiles[0].email).toBe("new@example.com");
         expect(db.tables.user_profiles[0].updated_at).toEqual(expect.any(String));
     });
 
     it("returns null without touching the table for missing inputs", async () => {
         const db = makeDb([]);
-        await expect(syncProfileEmail(db as any, "", "a@b.com")).resolves.toBeNull();
-        await expect(syncProfileEmail(db as any, "u1", null)).resolves.toBeNull();
-        await expect(syncProfileEmail(db as any, "u1", "   ")).resolves.toBeNull();
+        await expect(syncProfileIdentity(db as any, "", "a@b.com")).resolves.toBe(false);
+        await expect(syncProfileIdentity(db as any, "u1", null)).resolves.toBe(false);
+        await expect(syncProfileIdentity(db as any, "u1", "   ")).resolves.toBe(false);
         expect(db.tables.user_profiles).toEqual([]);
     });
 });

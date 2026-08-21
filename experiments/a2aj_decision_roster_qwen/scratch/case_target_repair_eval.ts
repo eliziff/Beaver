@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import assert from "node:assert/strict";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ import {
   modelCallLedgerUsage,
   type CaseTargetPromptVariant,
 } from "../runner";
+import { setBelowNormalProcessPriority } from "../../../backend/src/lib/structureEngineClient";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WORKER = path.join(HERE, "case_target_repair_worker.ts");
@@ -34,14 +36,28 @@ function args() {
   return {
     pairFile: path.resolve(required("pair-file")),
     variant: (values.get("variant") ?? "nested") as CaseTargetPromptVariant,
-    documents: (values.get("documents") ?? "").split(",").map(Number).filter(Number.isSafeInteger),
+    documents: (values.get("documents") ?? "").split(",").filter(Boolean).map(Number).filter(Number.isSafeInteger),
     out: path.resolve(required("out")),
     ledger: path.resolve(required("call-ledger")),
     budget: Number(values.get("call-budget") ?? 15_000),
     workers: Math.min(10, Math.max(1, Number(values.get("workers") ?? 5))),
     runId: values.get("run-id") ?? path.basename(required("out")),
     resume: switches.has("resume"),
+    model: values.get("model")?.trim() || "gpt-5.6-luna",
+    effort: values.get("effort")?.trim() || "max",
+    maxCorrections: Math.min(5, Math.max(0, Number(values.get("max-corrections") ?? 2))),
   };
+}
+
+function terminal(receipt: unknown) {
+  if (!receipt || typeof receipt !== "object") return false;
+  return ["successful", "failed"].includes(String((receipt as { status?: unknown }).status));
+}
+
+async function readReceipt(file: string) {
+  return readFile(file, "utf8")
+    .then((value) => JSON.parse(value) as Record<string, unknown>)
+    .catch(() => null);
 }
 
 async function appendJsonl(file: string, row: unknown) {
@@ -49,7 +65,12 @@ async function appendJsonl(file: string, row: unknown) {
 }
 
 async function main() {
+  setBelowNormalProcessPriority();
   const cli = args();
+  if (!Number.isSafeInteger(cli.workers) || !Number.isSafeInteger(cli.maxCorrections)) {
+    throw new Error("--workers and --max-corrections must be integers");
+  }
+  if (!Number.isFinite(cli.budget) || cli.budget < 0) throw new Error("--call-budget must be non-negative");
   if (!(cli.variant in CASE_TARGET_MVP_PROMPTS)) throw new Error(`unknown prompt variant ${cli.variant}`);
   const candidates = await candidatesFromPairFile(cli.pairFile);
   const wanted = new Set(cli.documents.length ? cli.documents : candidates.map(({ documentId }) => documentId));
@@ -71,12 +92,21 @@ async function main() {
   for (const candidate of selected) {
     const receiptFile = path.join(caseDir, `${candidate.documentId}.receipt.json`);
     if (cli.resume) {
-      try { await readFile(receiptFile); continue; } catch { /* run missing case */ }
+      const receipt = await readReceipt(receiptFile);
+      if (terminal(receipt)) continue;
+    }
+    if (!cli.resume) {
+      await writeFile(receiptFile, `${JSON.stringify({
+        run_id: cli.runId,
+        document_id: candidate.documentId,
+        citation: candidate.citation,
+        status: "queued",
+      }, null, 2)}\n`, "utf8");
     }
     pending.push({ candidate, receiptFile, rawFile: path.join(caseDir, `${candidate.documentId}.raw-events.jsonl`) });
   }
   const used = await modelCallLedgerUsage(cli.ledger);
-  const plannedCeiling = pending.length * 3;
+  const plannedCeiling = pending.length * (1 + cli.maxCorrections);
   if (used + plannedCeiling > cli.budget) {
     throw new Error(`call budget exceeded: ${used} used + ${plannedCeiling} planned > ${cli.budget}`);
   }
@@ -85,7 +115,7 @@ async function main() {
     run_id: cli.runId,
     budget: cli.budget,
     attempted_before_run: used,
-    planned_calls: pending.length,
+    planned_calls: plannedCeiling,
     planned_attempt_ceiling: plannedCeiling,
   });
   await appendJsonl(progressFile, {
@@ -94,6 +124,9 @@ async function main() {
     prompt_variant: cli.variant,
     prompt_version: CASE_TARGET_MVP_PROMPTS[cli.variant].version,
     workers: cli.workers,
+    model: cli.model,
+    effort: cli.effort,
+    max_corrections: cli.maxCorrections,
     cases: selected.map(({ documentId, citation }) => ({ document_id: documentId, citation })),
     call_budget_attempted_before_run: used,
     planned_attempt_ceiling: plannedCeiling,
@@ -119,13 +152,28 @@ async function main() {
         "--raw-file", item.rawFile,
         "--call-ledger", cli.ledger,
         "--run-id", cli.runId,
+        "--model", cli.model,
+        "--effort", cli.effort,
+        "--max-corrections", String(cli.maxCorrections),
       ], { stdio: "inherit", windowsHide: true });
       const exitCode = await new Promise<number>((resolve, reject) => {
         child.once("error", reject);
         child.once("exit", (code) => resolve(code ?? 1));
       });
-      if (exitCode !== 0) failedDocuments.add(item.candidate.documentId);
-      const receipt = JSON.parse(await readFile(item.receiptFile, "utf8")) as Record<string, unknown>;
+      let receipt = await readReceipt(item.receiptFile);
+      if (!receipt) {
+        receipt = {
+          run_id: cli.runId,
+          document_id: item.candidate.documentId,
+          status: "worker_error",
+          error: `worker exited ${exitCode} without a receipt`,
+          raw_event_file: item.rawFile,
+        };
+        await writeFile(item.receiptFile, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+      }
+      if (exitCode !== 0 || receipt.status === "worker_error" || receipt.status === "interrupted") {
+        failedDocuments.add(item.candidate.documentId);
+      }
       await appendJsonl(receiptStream, { kind: "case_receipt", document: item.candidate.documentId, receipt });
       completed += 1;
       await appendJsonl(progressFile, { kind: "case_finished", document: item.candidate.documentId, exit_code: exitCode, completed, total: pending.length });
@@ -134,15 +182,17 @@ async function main() {
   };
   await Promise.all(Array.from({ length: Math.min(cli.workers, pending.length) }, runOne));
 
-  const receipts = [];
+  const receipts: Array<Record<string, unknown>> = [];
   for (const candidate of selected) {
     const receiptFile = path.join(caseDir, `${candidate.documentId}.receipt.json`);
-    receipts.push(JSON.parse(await readFile(receiptFile, "utf8")) as Record<string, unknown>);
+    const receipt = await readReceipt(receiptFile);
+    if (!receipt) throw new Error(`missing receipt for document ${candidate.documentId}`);
+    receipts.push(receipt);
   }
   const valid = (stage: unknown) => Boolean(stage && typeof stage === "object" && (stage as { ok?: unknown }).ok === true);
-  const comparable = receipts.filter((receipt) => receipt.persistent_repair && receipt.fresh_repair);
   for (const receipt of receipts) {
-    if (receipt.status === "worker_error" && typeof receipt.document_id === "number" && Number.isSafeInteger(receipt.document_id)) {
+    if (["worker_error", "interrupted"].includes(String(receipt.status)) &&
+        typeof receipt.document_id === "number" && Number.isSafeInteger(receipt.document_id)) {
       failedDocuments.add(receipt.document_id);
     }
   }
@@ -152,12 +202,16 @@ async function main() {
     prompt_version: CASE_TARGET_MVP_PROMPTS[cli.variant].version,
     transport: "codex_app_server_chatgpt_subscription",
     workers: cli.workers,
+    model: cli.model,
+    effort: cli.effort,
+    max_corrections: cli.maxCorrections,
     cases: receipts.length,
     worker_errors: failedDocuments.size,
-    initial_valid: receipts.filter((receipt) => valid(receipt.initial)).length,
-    comparable_repairs: comparable.length,
-    persistent_valid: comparable.filter((receipt) => valid(receipt.persistent_repair)).length,
-    fresh_valid: comparable.filter((receipt) => valid(receipt.fresh_repair)).length,
+    successful: receipts.filter((receipt) => receipt.status === "successful").length,
+    failed: receipts.filter((receipt) => receipt.status === "failed").length,
+    initial_valid: receipts.filter((receipt) => valid((receipt.attempts as unknown[] | undefined)?.[0])).length,
+    corrected_valid: receipts.filter((receipt) =>
+      receipt.status === "successful" && Number(receipt.accepted_attempt ?? 0) > 1).length,
     receipt_stream: receiptStream,
     case_directory: caseDir,
     receipts,
@@ -168,7 +222,17 @@ async function main() {
   if (summary.worker_errors) process.exitCode = 1;
 }
 
-main().catch((error) => {
+function selfTest() {
+  assert.equal(terminal({ status: "successful" }), true);
+  assert.equal(terminal({ status: "failed" }), true);
+  assert.equal(terminal({ status: "worker_error" }), false);
+  assert.equal(terminal({ status: "interrupted" }), false);
+  assert.equal(terminal({}), false);
+  console.log("case_target_repair_eval self-test passed");
+}
+
+const running = process.argv.includes("--self-test") ? Promise.resolve(selfTest()) : main();
+running.catch((error) => {
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exitCode = 1;
 });

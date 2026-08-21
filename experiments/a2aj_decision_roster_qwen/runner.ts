@@ -81,6 +81,7 @@ import {
   type TreatmentInput,
 } from "../../backend/experiments/a2aj-decision-roster/caseTreatment";
 import {
+  CASE_TARGET_OCCURRENCE_VERSION,
   detectCaseTargetOccurrences,
   resolveCaseTargetMvp,
   type CaseTargetOccurrence,
@@ -88,6 +89,8 @@ import {
 import {
   CASE_TARGET_MVP_REDUCED_JSON_SCHEMA,
   compileReducedCaseTargetSubmission,
+  modelSourceLines,
+  type ModelSourceLine,
   type ReducedCaseTargetSubmission,
 } from "../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced";
 
@@ -167,6 +170,7 @@ type CaseRecord = {
   preflight: Preflight;
   citationEdges: CitationEdgeCandidate[];
   targetOccurrences: CaseTargetOccurrence[];
+  sourceLines: ModelSourceLine[];
 };
 
 type DeterministicAuditRecord = Pick<
@@ -273,14 +277,13 @@ const CODEX_PROMPT_VERSION = "a2aj-opinion-codex-v6";
 const SEMANTIC_MVP_PROMPT_VERSION = "a2aj-semantic-mvp-combined-v2";
 const VALIDATOR_VERSION = "a2aj-opinion-validator-v7";
 const SEMANTIC_MVP_VALIDATOR_VERSION = "a2aj-semantic-mvp-validator-v2";
-export const CASE_TARGET_MVP_VALIDATOR_VERSION = "a2aj-case-target-mvp-validator-v15";
-export const CASE_TARGET_MVP_COMPILER_VERSION = "a2aj-case-target-mvp-compiler-v15";
-const CASE_TARGET_OCCURRENCE_VERSION = "a2aj-case-target-occurrences-v3";
+export const CASE_TARGET_MVP_VALIDATOR_VERSION = "a2aj-case-target-extraction-v1";
+export const CASE_TARGET_MVP_COMPILER_VERSION = "a2aj-case-target-extraction-v1";
 const DETERMINISTIC_VERSION = "a2aj-opinion-deterministic-v6";
 const RANDOM_SELECTION_VERSION = "a2aj-random-primary-key-rejection-v1";
 const RESPONSE_SCHEMA_NAME = "a2aj_opinion_votes";
 const SEMANTIC_MVP_SCHEMA_NAME = "a2aj_case_semantic_mvp";
-const CASE_TARGET_MVP_SCHEMA_NAME = "a2aj_case_target_mvp_v15";
+const CASE_TARGET_MVP_SCHEMA_NAME = "a2aj_case_target_extraction_v1";
 const SEMANTIC_MVP_CITATION_EDGES = 2;
 const MAX_LOOKUP_PARAGRAPHS = 12;
 const MAX_ATTEMPTS = 20;
@@ -431,6 +434,45 @@ export const CASE_TARGET_MVP_RESPONSES_SCHEMA = {
   schema: CASE_TARGET_MVP_JSON_SCHEMA,
 } as const;
 
+export function caseTargetMvpOutputSchema(
+  directHistoryEligible: boolean,
+  targetOccurrenceIds: readonly string[],
+  sourceLineCount: number,
+) {
+  if (!targetOccurrenceIds.length || new Set(targetOccurrenceIds).size !== targetOccurrenceIds.length) {
+    throw new Error("case-target schema requires unique supplied occurrence IDs");
+  }
+  if (!Number.isSafeInteger(sourceLineCount) || sourceLineCount < 1) {
+    throw new Error("case-target schema requires a positive source line count");
+  }
+  const schema = structuredClone(CASE_TARGET_MVP_JSON_SCHEMA) as any;
+  if (!directHistoryEligible) schema.properties.case_history.maxItems = 0;
+  schema.properties.occurrence_assessments.minItems = targetOccurrenceIds.length;
+  schema.properties.occurrence_assessments.maxItems = targetOccurrenceIds.length;
+  for (const group of [
+    schema.properties.occurrence_assessments,
+    schema.properties.issues.items.properties.answers.items.properties.positions.items.properties.target_treatments.items.properties.target_mentions,
+    schema.properties.unscoped_target_treatments.items.properties.target_mentions,
+    schema.properties.case_history.items.properties.target_mentions,
+  ]) {
+    group.maxItems = Math.max(group.maxItems ?? 0, targetOccurrenceIds.length);
+    group.items.properties.occurrence_id.enum = [...targetOccurrenceIds];
+  }
+  const bindLineNumbers = (node: any) => {
+    if (!node || typeof node !== "object") return;
+    if (node.properties) {
+      for (const [name, property] of Object.entries(node.properties) as Array<[string, any]>) {
+        if (name === "start_line" || name === "end_line") property.maximum = sourceLineCount;
+        bindLineNumbers(property);
+      }
+    }
+    if (node.items) bindLineNumbers(node.items);
+    for (const branch of node.anyOf ?? []) bindLineNumbers(branch);
+  };
+  bindLineNumbers(schema);
+  return schema;
+}
+
 const SUBMIT_TOOL = {
   type: "function",
   function: {
@@ -483,19 +525,63 @@ ISSUE CARDS: Emit one card for each separately answered legal question in each o
 TREATMENT: Return exactly one treatment item for every supplied citation_edge_id, even when both event arrays are empty. Classify what the identified passage does to that cited decision, not the general relationship between the two cases. current_court means the present opinion itself adopts the characterization. Keep counsel submissions, quotations, procedural recounting, and reported decisions in their own attribution classes. Direct appellate history applies only when this source decision and the cited target are themselves successive decisions in the same case; a passage merely recounting the cited authority's relationship to a third decision is not direct history for this edge. target_proposition_as_characterized is an optional concise paraphrase of the proposition this source attributes to the target; do not invent one or create an issue card merely because a citation exists.
 The citation-edge sample is deliberately incomplete. Do not add treatment records for other citations.`;
 
-const CASE_TARGET_MVP_NESTED_INSTRUCTIONS = `Extract this one closed-record citing decision and its treatment of the named target.
+const CASE_TARGET_MVP_NESTED_INSTRUCTIONS = `Analyze the citing decision and its use of the named target decision. Use only the supplied citing decision.
 
-OPINIONS: Return one opinion for each independently reasoned judicial body, with exact unique boundary quotes, named writers only when proved by exact authorship evidence, any collective author and its exact evidence, whole-opinion joiners, and whether it supports, opposes, or is mixed on the disposition. A collective_author must itself appear verbatim inside its evidence quote; otherwise leave both collective-author fields null. A signature, judge name, bare agreement, or disposition line is not a separate opinion. Do not list the same person as both author and joiner of one opinion. If every participating judge reaches the same result, that result is unanimous, not unknown. List every deciding participant and proved nonparticipant.
+JUDICIAL REASONS AND VOTES
 
-ISSUES: Create one issue per legal question actually answered, never one merely argued, quoted, recounted, or left undecided. Keep a governing test and its application to the same ultimate question together unless the court separately answers them or uses an independent ground. Inside each issue, group positions together only when they reach the same ultimate answer. Emit a position only for an opinion that addresses it. Give its answer, disposition relation, exact evidence, material rules/applications/qualifications, and any judge who joins only that position. At least one answer-evidence item must be the current court speaking. Do not output IDs, offsets, paragraphs, hierarchy, or discussion boundaries; the harness derives them from evidence and nesting.
+Identify each distinct set of substantive judicial reasons. A panel list, signature, order, or bare statement of agreement is not a separate set of reasons. Every numbered paragraph in the judicial reasons must fall inside exactly one opinion boundary. For each set, give its exact beginning and end; whether the writer is named, collective, or unstated; whether it supports, opposes, or is mixed on the disposition; and every judge who adopts all of it.
 
-TARGET: Account exactly once at the root for every supplied occurrence_id. The harness has already found citation and conservative case-name occurrences; do not find or copy mention text yourself. Classify the occurrence itself: a citation inside quoted reasons remains quoted_authority even when the current court introduces the quotation. Repeat an occurrence_id inside a position only when that mention concerns the position's issue. Put treatment inside that position when it bears on the issue. Use unscoped_target_treatments only for genuine treatment that cannot honestly be tied to an answered issue. Record each treatment's attribution, label, scope, exact evidence, and the target proposition only as this decision characterizes it. Direct history exists only when this source and the target are successive decisions in the same litigation. Citation alone is referred_to. Applied means the court uses the target's rule or test to decide an issue or remedy; followed means the court expressly endorses or adopts the target's reasoning as authoritative. Emit distinct events if the source genuinely does both.
+Use the schema fields directly. authorship identifies who wrote an opinion. full_joiners contains judges who adopt that complete opinion and its result. issue_only_joiners contains judges who adopt that opinion only on the enclosing issue. other_decision_makers contains deciding judges who did not write or fully join an opinion; use result_only_evidence_lines only when the source limits that judge's agreement to the result, outcome, disposition, or conclusion. Leave it null when the judge's relationship is not established.
 
-All quotes are contiguous source text. The target's full decision is not supplied. Use only the citing decision and return only schema JSON.`;
+These relationships may overlap: a judge may write separate reasons and join another opinion on an identified issue. A panel list proves participation, not authorship. A signature is not by itself a separate opinion. "I agree" ordinarily joins the preceding reasons unless the surrounding words limit it. A judge who writes separately is not necessarily a dissenter; compare the disposition that judge would order with the court's disposition. If the complete decision gives one set of reasons for an identified panel and no separate or dissenting reasons, the panel supports that disposition even if the word "unanimous" is absent. Do not label reasons majority, minority, plurality, concurrence, or dissent: the host derives those classifications from the judges' positions. A judge who does not address an issue does not adopt an answer to it unless a joinder establishes that.
+
+ISSUES
+
+Identify each material legal question actually answered by each set of reasons. Do not create a separate issue for every argument, fact, or element of a test, and do not create issues from party arguments, quoted sources, background discussion, or questions left undecided. Preserve a question separately when its answer, voting split, treatment of the target, or relationship to the disposition is materially distinct. Group materially equivalent answers together, but preserve different answers and opinions that do not address the question. Each answer must include the material basis or limit needed to distinguish that position. For each position, say whether the answer determines the disposition, is an independent alternative ground, or is non-dispositive; identify any issue-only joiners; and cite exact supporting lines.
+
+SOURCE OF WORDS AND LEGAL ACTOR
+
+Account for every supplied occurrence ID exactly once in occurrence_assessments. First decide whether it really refers to the named target decision. A similar party name, same style of cause, related proceeding, or citation to a different decision is not_target. Then distinguish where its words come from:
+- court_words: language composed by the court deciding this case;
+- quoted_material: language quoted from any judgment, submission, witness, statute, journal, or other source;
+- metadata: a headnote, cases-cited list, docket field, provider link, or other editorial material;
+- unclear: origin cannot be determined.
+
+Separately identify the legal actor responsible for each target occurrence or treatment:
+- current_court;
+- party_or_counsel;
+- decision_under_review;
+- other_source;
+- metadata;
+- unclear.
+
+target_identity, source_origin, and legal_actor answer different questions. The current court may use its own words to recount counsel's position: source_origin is court_words and legal_actor is party_or_counsel. It may quote the target and then adopt, distinguish, criticize, or reject it: the quotation is quoted_material/other_source, while the treatment must be proved by the current court's own words. Quoted language is not the current court's position merely because the current court reproduced it.
+
+TREATMENT OF THE TARGET
+
+Treatments and case_history may link only occurrence assessments whose target_identity is target. For each treatment, record who performs it, exact evidence, the proposition this citing decision attributes to the target, its scope, and one accurate label:
+- referred_to: cites the target without substantive analysis or use;
+- explained: states, summarizes, or interprets what the target decided;
+- followed: expressly accepts the target's rule or reasoning as authoritative;
+- applied: uses the target's rule or proposition to decide an issue or remedy;
+- distinguished: leaves the target authoritative but declines to apply it because of a material difference;
+- limited: confines the target to a narrower rule or set of circumstances;
+- not_followed: expressly declines an available approach from the target;
+- questioned: casts doubt on the target's correctness or continuing authority without displacing it;
+- overruled: expressly displaces a target rule as law by a court with authority to do so;
+- unclassified: performs a substantive operation none of the other labels describes.
+
+Do not use overruled for disagreement, distinguishing, refusal to follow, or reversal of the target judgment on appeal. Record affirmance, reversal, variation, quashing, remand, and leave outcomes as case_history only when the citing and target decisions are stages of the same proceeding. Attach treatment to the issue and reasons it concerns. Preserve separately different treatment of different target propositions, but do not stack near-synonymous labels for the same act.
+
+NUMBERED SOURCE LINES
+
+The decision is shown as numbered lines such as "12: text". The number before the colon is an index and is not part of the decision. Cite evidence with inclusive start_line and end_line numbers from this input. Select the smallest complete line range that proves the fact or classification. Do not invent line numbers or copy decision text into the response. Opinion boundaries identify the first and last substantive lines of those reasons; exclude panel metadata, signatures, bare joinders, solicitors, and corrections.
+
+Return only schema JSON.`;
 
 export type CaseTargetPromptVariant = "nested";
 export const CASE_TARGET_MVP_PROMPTS: Record<CaseTargetPromptVariant, { version: string; instructions: string }> = {
-  nested: { version: "a2aj-case-target-mvp-nested-v15", instructions: CASE_TARGET_MVP_NESTED_INSTRUCTIONS },
+  nested: { version: "a2aj-case-target-extraction-v2", instructions: CASE_TARGET_MVP_NESTED_INSTRUCTIONS },
 };
 
 const CASE_TARGET_MVP_SYSTEM_PROMPT = "Closed-record legal extraction. Use only the supplied citing decision. The response schema and its nesting are authoritative; return only schema JSON.";
@@ -606,7 +692,7 @@ function words(value: string): string[] {
   return value.toLocaleLowerCase().match(WORD_RE) ?? [];
 }
 
-function nameKey(value: string) {
+export function nameKey(value: string) {
   // `words()` splits dotted judicial suffixes (`J.A.`, `J.S.C.`, etc.) into
   // single letters. Ignore all initials/suffix components so the key remains the
   // judge's surname instead of collapsing an appellate panel to `a`.
@@ -616,7 +702,7 @@ function nameKey(value: string) {
   return tokens.at(-1) ?? "";
 }
 
-function judgeIdentityKey(value: string) {
+export function judgeIdentityKey(value: string) {
   const ignored = new Set([
     "a", "b", "c", "f", "j", "n", "o", "q", "s", "t", "acj", "cj", "ja", "jj", "jca",
     "chief", "honorable", "honourable", "judge", "justice", "madam", "madame", "mr", "mrs", "the",
@@ -658,7 +744,9 @@ function looksLikePanelRoster(value: string) {
 
 function explicitNamedAuthorshipByline(quote: string, name: string) {
   if (!sourceNameMatches(quote, name)) return false;
-  return /(?:^|[\r\n])\s*(?:(?:reasons?|opinion)\s+(?:for\s+(?:judg(?:e)?ment|decision)|of\s+the\s+court)(?:\s+of\s+the\s+court)?|delivered)\s+by\s*:/iu.test(quote);
+  if (/(?:^|[\r\n])\s*(?:(?:(?:written|oral|dissenting|concurring|separate|additional)\s+)?reasons?|opinion)(?:\s+for\s+(?:judg(?:e)?ment|decision)|\s+of\s+the\s+court)?\s+(?:of|by)\s*:|(?:^|[\r\n])\s*delivered\s+by\s*:/iu.test(quote)) return true;
+  const namedHeading = /^(?:(?:[\p{Lu}][\p{L}\p{M}'’.-]*|de|del|des|du|la|le|van|von|and|et)(?:\s+|,\s*)){1,16}(?:C\.?\s*J\.?|J\.?\s*A\.?|J\.?\s*C\.?\s*A\.?|J\.?J\.?|JJ\.?|J\.?)\s*(?:\([^\r\n)]{1,160}\))?$/u;
+  return quote.length <= 500 && quote.split(/\r?\n/u).some((line) => namedHeading.test(line.trim()));
 }
 
 function compressNumbers(numbers: number[]): Range[] {
@@ -720,7 +808,7 @@ function extractPreflight(source: SourceDoc, paragraphs: SourceDocBlock[]): Pref
   };
 }
 
-function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "targetOccurrences">): CitationEdgeCandidate[] {
+function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "targetOccurrences" | "sourceLines">): CitationEdgeCandidate[] {
   const currentCitationKey = citationLookupKey(record.candidate.citation);
   const bodyStart = record.paragraphs[0]?.start ?? 0;
   const candidates = citationsInText(record.source.text).flatMap((match) => {
@@ -829,7 +917,7 @@ function mechanicalReference(record: DeterministicAuditRecord): MechanicalRefere
   };
 }
 
-function deterministicPrediction(record: DeterministicAuditRecord): Prediction | null {
+export function deterministicPrediction(record: DeterministicAuditRecord): Prediction | null {
   if (record.deterministic.status !== "ready") return null;
   const prediction: Prediction = {
     disposition_quote: null,
@@ -982,6 +1070,10 @@ function semanticMvpPacket(record: CaseRecord) {
 
 export function caseTargetMvpPacket(record: CaseRecord, variant: CaseTargetPromptVariant) {
   if (!record.candidate.target) throw new Error("case-target MVP requires target metadata");
+  const lineRange = (start: number, end: number) => {
+    const lines = record.sourceLines.filter((line) => line.end > start && line.start < end);
+    return lines.length ? [lines[0].line, lines.at(-1)!.line] : [null, null];
+  };
   return [
     CASE_TARGET_MVP_SYSTEM_PROMPT,
     CASE_TARGET_MVP_PROMPTS[variant].instructions,
@@ -992,24 +1084,23 @@ export function caseTargetMvpPacket(record: CaseRecord, variant: CaseTargetPromp
       name: record.candidate.name,
       date: record.candidate.date,
     }),
-    "[TARGET CASE IDENTITY — IDENTITY ONLY, NOT TARGET DECISION TEXT]",
+    "[TARGET CASE — IDENTITY ONLY]",
     json({
       citation: record.candidate.target.citation,
       name: record.candidate.target.name,
-      same_litigation_eligible: record.candidate.target.sameLitigationEligible,
     }),
-    "[HOST-OWNED TARGET OCCURRENCES — columns: occurrence_id, kind, source_start, quote, linked_footnote_marker — ACCOUNT FOR EACH ID]",
+    "[TARGET OCCURRENCES — columns: id, type, start_line, end_line, text, linked_context]",
     json(record.targetOccurrences.map((occurrence) => [
       occurrence.id,
       occurrence.kind,
-      occurrence.start,
+      ...lineRange(occurrence.start, occurrence.end),
       occurrence.quote,
       occurrence.linkedContext === null
         ? null
-        : [occurrence.linkedContext.start, occurrence.linkedContext.quote],
+        : [...lineRange(occurrence.linkedContext.start, occurrence.linkedContext.end), occurrence.linkedContext.quote],
     ])),
-    "[COMPLETE CITING DECISION TEXT]",
-    record.source.text,
+    "[COMPLETE CITING DECISION — the line number before each colon is not decision text]",
+    record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n"),
   ].join("\n\n");
 }
 
@@ -1061,8 +1152,9 @@ function groundedQuoteSpans(text: string, quote: string, limit = 3) {
 const BOUNDARY_RECOVERY_MIN_WORDS = 8;
 
 function exactBoundaryRecoverySpans(text: string, quote: string, edge: "start" | "end") {
-  if (sourceDocQuoteWords(quote).length < BOUNDARY_RECOVERY_MIN_WORDS) return [];
-  const candidates: Array<{ start: number; end: number }> = [];
+  const quoteWords = sourceDocQuoteWords(quote);
+  if (quoteWords.length < BOUNDARY_RECOVERY_MIN_WORDS) return [];
+  const candidates: Array<{ start: number; end: number; matchedWords: number }> = [];
   let lineStart = 0;
   while (lineStart <= text.length) {
     const newline = text.indexOf("\n", lineStart);
@@ -1076,16 +1168,25 @@ function exactBoundaryRecoverySpans(text: string, quote: string, edge: "start" |
     const contentEnd = Math.max(contentStart, lineEnd - trailing);
     if (contentEnd > contentStart) {
       const content = text.slice(contentStart, contentEnd);
-      if (edge === "start" && content.startsWith(quote)) {
-        candidates.push({ start: contentStart, end: contentStart + quote.length });
-      } else if (edge === "end" && content.endsWith(quote)) {
-        candidates.push({ start: contentEnd - quote.length, end: contentEnd });
+      const tokens = tokenizeSourceText(content);
+      let matchedWords = 0;
+      const limit = Math.min(tokens.length, quoteWords.length);
+      while (
+        matchedWords < limit &&
+        tokens[edge === "start" ? matchedWords : tokens.length - 1 - matchedWords].word ===
+          quoteWords[edge === "start" ? matchedWords : quoteWords.length - 1 - matchedWords]
+      ) matchedWords += 1;
+      if (matchedWords >= BOUNDARY_RECOVERY_MIN_WORDS) {
+        candidates.push(edge === "start"
+          ? { start: contentStart, end: contentStart + tokens[matchedWords - 1].end, matchedWords }
+          : { start: contentStart + tokens[tokens.length - matchedWords].start, end: contentEnd, matchedWords });
       }
     }
     if (newline < 0) break;
     lineStart = newline + 1;
   }
-  return candidates;
+  const best = Math.max(0, ...candidates.map(({ matchedWords }) => matchedWords));
+  return candidates.filter(({ matchedWords }) => matchedWords === best).map(({ start, end }) => ({ start, end }));
 }
 
 function preferredGroundedSpans(
@@ -1677,20 +1778,33 @@ function objectRows(value: unknown): Array<Record<string, unknown>> {
 function sourceOrderedReducedOpinions(record: CaseRecord, raw: Record<string, unknown>) {
   const submitted = objectRows(raw.opinions);
   const anchored = submitted.map((opinion, submittedIndex) => {
-    const quote = typeof opinion.start_quote === "string" ? opinion.start_quote.trim() : "";
-    const spans = quote ? groundedQuoteSpans(record.source.text, quote, 2) : [];
-    return { opinion, submittedIndex, start: spans.length === 1 ? spans[0].start : null };
+    const line = record.sourceLines.find((candidate) => candidate.line === opinion.start_line);
+    return { opinion, submittedIndex, start: line?.start ?? null };
   });
   return anchored.every(({ start }) => start !== null)
     ? anchored.sort((left, right) => left.start! - right.start! || left.submittedIndex - right.submittedIndex).map(({ opinion }) => opinion)
     : submitted;
 }
 
+function reducedSourceLines(record: CaseRecord, value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const reference = value as { start_line?: unknown; end_line?: unknown };
+  if (!Number.isSafeInteger(reference.start_line) || !Number.isSafeInteger(reference.end_line)) return null;
+  const startIndex = record.sourceLines.findIndex(({ line }) => line === reference.start_line);
+  const endIndex = record.sourceLines.findIndex(({ line }) => line === reference.end_line);
+  if (startIndex < 0 || endIndex < startIndex) return null;
+  const start = record.sourceLines[startIndex].start;
+  const end = record.sourceLines[endIndex].end;
+  return { quote: record.source.text.slice(start, end), start, end };
+}
+
 function groundedReducedCollectiveAuthor(record: CaseRecord, opinion: Record<string, unknown>) {
-  const collective = typeof opinion.collective_author === "string" ? opinion.collective_author.trim() : "";
-  const evidence = typeof opinion.collective_author_evidence_quote === "string"
-    ? opinion.collective_author_evidence_quote.trim()
-    : "";
+  const authorship = opinion.authorship && typeof opinion.authorship === "object" && !Array.isArray(opinion.authorship)
+    ? opinion.authorship as Record<string, unknown>
+    : {};
+  const collective = authorship.kind === "collective" && typeof authorship.name === "string" ? authorship.name.trim() : "";
+  const evidence = authorship.kind === "collective"
+    ? reducedSourceLines(record, authorship.evidence_lines)?.quote ?? "" : "";
   if (!collective && !evidence) return { value: null, warning: null };
   const supported = Boolean(
     collective &&
@@ -1704,58 +1818,152 @@ function groundedReducedCollectiveAuthor(record: CaseRecord, opinion: Record<str
     : { value: null, warning: `unsupported collective-author claim dropped; writer remains unknown` };
 }
 
-/** Project the nested, ID-free v14 roster into the existing grounded roster validator. */
+function reducedNamedAuthors(opinion: Record<string, unknown>) {
+  const authorship = opinion.authorship && typeof opinion.authorship === "object" && !Array.isArray(opinion.authorship)
+    ? opinion.authorship as Record<string, unknown>
+    : {};
+  return authorship.kind === "named" ? objectRows(authorship.authors) : [];
+}
+
+function combinedResultPosition(left: unknown, right: unknown) {
+  if (left === undefined || left === "unclear") return right;
+  if (right === undefined || right === "unclear" || left === right) return left;
+  return "mixed";
+}
+
+/** Project the nested, ID-free roster into the existing grounded roster validator. */
 function reducedRosterSubmission(record: CaseRecord, raw: Record<string, unknown>) {
   const submittedOpinions = sourceOrderedReducedOpinions(record, raw);
   const opinions = submittedOpinions.map((opinion, index) => ({
     id: `o${index + 1}`,
-    author_names: objectRows(opinion.named_authors).flatMap((author) =>
+    author_names: reducedNamedAuthors(opinion).flatMap((author) =>
       typeof author.name === "string" && author.name.trim() ? [author.name.trim()] : []
     ),
     collective_author: groundedReducedCollectiveAuthor(record, opinion).value,
     result_position: opinion.result_position,
-    position_evidence_quote: opinion.position_evidence_quote ?? null,
-    start_quote: opinion.start_quote,
-    end_quote: opinion.end_quote,
+    position_evidence_quote: reducedSourceLines(record, opinion.position_evidence_lines)?.quote ?? null,
+    start_quote: reducedSourceLines(record, { start_line: opinion.start_line, end_line: opinion.start_line })?.quote ?? "",
+    end_quote: reducedSourceLines(record, { start_line: opinion.end_line, end_line: opinion.end_line })?.quote ?? "",
   }));
-  const participants = objectRows(raw.participants).map((participant) => {
-    const name = typeof participant.name === "string" ? participant.name.trim() : "";
-    const links: Array<{ opinion_id: string; relation: OpinionLinkRelation; evidence_quote: unknown }> = [];
-    submittedOpinions.forEach((opinion, index) => {
-      const opinionId = `o${index + 1}`;
-      const author = uniqueJudgeMatch(name, objectRows(opinion.named_authors), (item) => String(item.name ?? ""));
-      if (author) links.push({ opinion_id: opinionId, relation: "authors", evidence_quote: author.evidence_quote });
-      const joiner = uniqueJudgeMatch(name, objectRows(opinion.whole_opinion_joiners), (item) => String(item.name ?? ""));
-      if (joiner) links.push({ opinion_id: opinionId, relation: "joins", evidence_quote: joiner.evidence_quote });
-    });
-    return {
+  const participantMap = new Map<string, Record<string, any>>();
+  const addParticipant = (
+    nameValue: unknown,
+    evidence: unknown,
+    resultPosition: unknown,
+    link: { opinion_id: string; relation: OpinionLinkRelation; evidence_quote: unknown } | null,
+    resultOnlyEvidence: unknown = null,
+  ) => {
+    const name = typeof nameValue === "string" ? nameValue.trim() : "";
+    const key = judgeIdentityKey(name);
+    const existing = participantMap.get(key) ?? {
       name,
-      panel_evidence_quote: participant.panel_evidence_quote,
-      result_position: participant.result_position,
-      opinion_links: links,
-      result_only: participant.result_only,
-      result_only_evidence_quote: participant.result_only_evidence_quote ?? null,
+      panel_evidence_quote: evidence,
+      result_position: resultPosition,
+      opinion_links: [],
+      result_only: false,
+      result_only_evidence_quote: null,
     };
+    existing.result_position = combinedResultPosition(existing.result_position, resultPosition);
+    if (link && !existing.opinion_links.some((item: Record<string, unknown>) =>
+      item.opinion_id === link.opinion_id && item.relation === link.relation
+    )) existing.opinion_links.push(link);
+    if (!link && typeof resultOnlyEvidence === "string" && resultOnlyEvidence.trim()) {
+      existing.result_only = true;
+      existing.result_only_evidence_quote = resultOnlyEvidence;
+    }
+    participantMap.set(key, existing);
+  };
+  submittedOpinions.forEach((opinion, index) => {
+    const opinionId = `o${index + 1}`;
+    for (const author of reducedNamedAuthors(opinion)) {
+      const evidence = reducedSourceLines(record, author.evidence_lines)?.quote ?? null;
+      addParticipant(author.name, evidence, opinion.result_position,
+        { opinion_id: opinionId, relation: "authors", evidence_quote: evidence });
+    }
+    for (const joiner of objectRows(opinion.full_joiners)) {
+      const evidence = reducedSourceLines(record, joiner.evidence_lines)?.quote ?? null;
+      addParticipant(joiner.name, evidence, opinion.result_position,
+        { opinion_id: opinionId, relation: "joins", evidence_quote: evidence });
+    }
   });
+  for (const participant of objectRows(raw.other_decision_makers)) {
+    addParticipant(
+      participant.name,
+      reducedSourceLines(record, participant.panel_evidence_lines)?.quote ?? null,
+      participant.result_position,
+      null,
+      reducedSourceLines(record, participant.result_only_evidence_lines)?.quote ?? null,
+    );
+  }
+  const participants = [...participantMap.values()];
+  const dispositions = objectRows(raw.disposition_lines);
+  const disposition = dispositions.length
+    ? reducedSourceLines(record, {
+        start_line: dispositions[0].start_line,
+        end_line: dispositions.at(-1)!.end_line,
+      })?.quote ?? null
+    : null;
   return {
-    disposition_quote: raw.disposition_quote ?? null,
+    disposition_quote: disposition,
     opinions,
     participants,
-    nonparticipants: objectRows(raw.nonparticipants),
+    nonparticipants: objectRows(raw.nonparticipants).map((participant) => ({
+      name: participant.name,
+      evidence_quote: reducedSourceLines(record, participant.evidence_lines)?.quote ?? null,
+    })),
   };
 }
 
 function reducedRosterContractErrors(record: CaseRecord, raw: Record<string, unknown>) {
   const errors: string[] = [];
-  sourceOrderedReducedOpinions(record, raw).forEach((opinion, index) => {
+  const opinions = sourceOrderedReducedOpinions(record, raw);
+  opinions.forEach((opinion, index) => {
     const label = `opinions[${index}]`;
-    const authors = new Set(objectRows(opinion.named_authors).map((item) => judgeIdentityKey(String(item.name ?? ""))).filter(Boolean));
-    for (const joiner of objectRows(opinion.whole_opinion_joiners)) {
+    const authors = new Set(reducedNamedAuthors(opinion).map((item) => judgeIdentityKey(String(item.name ?? ""))).filter(Boolean));
+    for (const joiner of objectRows(opinion.full_joiners)) {
       if (authors.has(judgeIdentityKey(String(joiner.name ?? "")))) {
         errors.push(`${label} lists ${String(joiner.name ?? "(empty)")} as both author and joiner`);
       }
     }
   });
+  const ranges = opinions.flatMap((opinion) => {
+    const range = reducedSourceLines(record, { start_line: opinion.start_line, end_line: opinion.end_line });
+    return range ? [range] : [];
+  });
+  const requiredRanges = record.paragraphs.length
+    ? record.paragraphs.map((paragraph) => {
+        const newline = record.source.text.indexOf("\n", paragraph.start);
+        const end = newline >= 0 && newline < paragraph.end ? newline : paragraph.end;
+        return { start: paragraph.start, end, label: paragraph.label };
+      })
+    : record.deterministic.status === "ready"
+      ? record.sourceLines.filter((line) =>
+          sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 &&
+          record.deterministic.opinions.some((opinion) => line.start >= opinion.start && line.end <= opinion.end)
+        ).map((line) => ({ start: line.start, end: line.end, label: `source line ${line.line}` }))
+      : [];
+  const uncovered = requiredRanges.filter((required) =>
+    !ranges.some((range) => required.start >= range.start && required.end <= range.end)
+  );
+  if (ranges.length && uncovered.length) {
+    const first = uncovered[0];
+    const last = uncovered.at(-1)!;
+    const sourceLines = record.sourceLines.filter((line) => line.end > first.start && line.start < last.end);
+    const labels = first === last ? first.label : `${first.label}-${last.label}`;
+    const lineRange = sourceLines.length && !first.label.startsWith("source line ")
+      ? ` (source lines ${sourceLines[0].line}-${sourceLines.at(-1)!.line})`
+      : "";
+    errors.push(`opinion boundaries leave ${labels}${lineRange} outside every opinion`);
+  }
+  const affiliated = new Set(opinions.flatMap((opinion) => [
+    ...reducedNamedAuthors(opinion),
+    ...objectRows(opinion.full_joiners),
+  ]).map((item) => judgeIdentityKey(String(item.name ?? ""))).filter(Boolean));
+  for (const participant of objectRows(raw.other_decision_makers)) {
+    if (affiliated.has(judgeIdentityKey(String(participant.name ?? "")))) {
+      errors.push(`other_decision_makers lists ${String(participant.name ?? "(empty)")} despite an opinion relationship`);
+    }
+  }
   return errors;
 }
 
@@ -1834,13 +2042,17 @@ export function validateCaseTargetSubmission(record: CaseRecord, raw: unknown) {
     const warning = groundedReducedCollectiveAuthor(record, opinion).warning;
     return warning ? [`opinions[${index}] ${warning}`] : [];
   });
+  const coverageWarnings = record.paragraphs.length || (
+    record.deterministic.status === "ready" && record.deterministic.opinions.length
+  ) ? [] : ["substantive opinion coverage could not be checked deterministically"];
+  const validationWarnings = [...collectiveWarnings, ...coverageWarnings];
   const rosterResult = validatePrediction(record, reducedRosterSubmission(record, submission));
-  const roster = collectiveWarnings.length
+  const roster = validationWarnings.length
     ? {
         ...rosterResult,
         validation: {
           ...rosterResult.validation,
-          warnings: [...new Set([...(rosterResult.validation.warnings ?? []), ...collectiveWarnings])],
+          warnings: [...new Set([...(rosterResult.validation.warnings ?? []), ...validationWarnings])],
         },
       }
     : rosterResult;
@@ -1868,6 +2080,7 @@ export function validateCaseTargetSubmission(record: CaseRecord, raw: unknown) {
       submission as ReducedCaseTargetSubmission,
       {
         sourceText: record.source.text,
+        sourceLines: record.sourceLines,
         directHistoryEligible: record.candidate.target?.sameLitigationEligible === true,
         opinions: roster.prediction.opinions.map((opinion) => ({
           id: opinion.id,
@@ -1885,7 +2098,7 @@ export function validateCaseTargetSubmission(record: CaseRecord, raw: unknown) {
       },
     );
   } catch (error) {
-    const compilerErrors = [`v15 submission shape: ${errorMessage(error)}`];
+    const compilerErrors = [`submission shape: ${errorMessage(error)}`];
     return { prediction: roster.prediction, validation: roster.validation, case_target_mvp: null, compiler_errors: compilerErrors, compiler_warnings: [] as string[] };
   }
   const partialJoinConflicts = compiled.input.partialIssueJoins.flatMap((join) => {
@@ -2257,6 +2470,7 @@ export function codexSubscriptionPreflight() {
     receipt.endpoint !== CODEX_SUBSCRIPTION_ENDPOINT ||
     receipt.auth_mode !== "chatgpt" ||
     receipt.account_id_present !== true ||
+    receipt.network_reachable !== true ||
     (typeof receipt.access_token_valid_for_seconds === "number" && receipt.access_token_valid_for_seconds <= 0)
   ) {
     throw new Error(`Codex subscription preflight was not a valid flat-subscription receipt: ${JSON.stringify(receipt)}`);
@@ -2561,27 +2775,14 @@ async function runLuna(
   semanticMvp = false,
   caseTargetMvp = false,
   directHistoryEligible = false,
-  targetOccurrenceCount = 0,
+  targetOccurrenceIds: readonly string[] = [],
+  sourceLineCount = 0,
   onEvent?: CodexEventHandler,
 ) {
   if (semanticMvp && caseTargetMvp) throw new Error("Luna schema modes are mutually exclusive");
   const caseTargetSchema = caseTargetMvp
-    ? structuredClone(CASE_TARGET_MVP_JSON_SCHEMA) as any
+    ? caseTargetMvpOutputSchema(directHistoryEligible, targetOccurrenceIds, sourceLineCount)
     : null;
-  if (caseTargetSchema && !directHistoryEligible) {
-    caseTargetSchema.properties.direct_history.maxItems = 0;
-  }
-  if (caseTargetSchema) {
-    if (targetOccurrenceCount < 1) throw new Error("case-target schema requires at least one host-owned occurrence");
-    caseTargetSchema.properties.target_mentions.minItems = targetOccurrenceCount;
-    caseTargetSchema.properties.target_mentions.maxItems = targetOccurrenceCount;
-    for (const group of [
-      caseTargetSchema.properties.issues.items.properties.answer_groups.items.properties.positions.items.properties.target_mentions,
-      caseTargetSchema.properties.issues.items.properties.answer_groups.items.properties.positions.items.properties.target_treatments.items.properties.target_mentions,
-      caseTargetSchema.properties.unscoped_target_treatments.items.properties.target_mentions,
-      caseTargetSchema.properties.direct_history.items.properties.target_mentions,
-    ]) group.maxItems = Math.max(group.maxItems ?? 0, targetOccurrenceCount);
-  }
   const schema = caseTargetMvp
     ? caseTargetSchema
     : semanticMvp
@@ -3058,7 +3259,11 @@ async function selectedRunCandidates(args: Args, seed: number, sampleSize: numbe
   if ([direct, caseFile, pairFile].filter(Boolean).length > 1) {
     throw new Error("use only one of --document-ids, --case-file, or --pair-file");
   }
-  if (pairFile) return candidatesFromPairFile(pairFile);
+  if (pairFile) {
+    const pairs = await candidatesFromPairFile(pairFile);
+    if (args["sample-size"] === undefined || sampleSize >= pairs.length) return pairs;
+    return drawOffsets(seed, sampleSize, pairs.length).map((offset) => pairs[offset]);
+  }
   if (direct) return candidatesByDocumentIds(parseDocumentIds(direct));
   if (caseFile) {
     return candidatesByDocumentIds(await documentIdsFromFile(caseFile));
@@ -3111,7 +3316,7 @@ async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Pr
     deterministic,
     hints: extractMechanicalHints(source, paragraphs, structure),
     preflight: extractPreflight(source, paragraphs),
-  } satisfies Omit<CaseRecord, "citationEdges" | "targetOccurrences">;
+  } satisfies Omit<CaseRecord, "citationEdges" | "targetOccurrences" | "sourceLines">;
   const targetOccurrences = caseTargetOccurrences(source, candidate.target);
   if (candidate.target && targetOccurrences.length === 0) {
     throw new Error(`target citation ${candidate.target.citation} was not found in the citing decision`);
@@ -3120,6 +3325,7 @@ async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Pr
     ...record,
     citationEdges: semanticMvpCitationEdges(record),
     targetOccurrences,
+    sourceLines: modelSourceLines(source.text),
   };
 }
 
@@ -3206,6 +3412,7 @@ async function runCase(args: {
   let caseTargetMvpResult: NonNullable<ReturnType<typeof validateCaseTargetSubmission>["case_target_mvp"]> | null = null;
   let modelReceipt: Record<string, unknown> | null = null;
   let canonicalModelOutputSha256: string | null = null;
+  let modelExecutionFailed = false;
   const rawModelOutputSha256s: string[] = [];
   if (args.provider === "luna") {
     const prompt = args.caseTargetMvp
@@ -3244,7 +3451,8 @@ async function runCase(args: {
         args.semanticMvp,
         args.caseTargetMvp,
         record.candidate.target?.sameLitigationEligible === true,
-        record.targetOccurrences.length,
+        record.targetOccurrences.map(({ id }) => id),
+        record.sourceLines.length,
         async (event, rawLine) => {
           const summary = codexEventSummary(event);
           const providerAttempt = summary.attempt;
@@ -3343,10 +3551,18 @@ async function runCase(args: {
       output_sha256: teacher.outputSha256,
       output_bytes: Buffer.byteLength(teacher.raw),
     });
+    modelExecutionFailed = teacher.returnCode !== 0 || Boolean(teacher.error);
     const parsedRecord = teacher.parsed && typeof teacher.parsed === "object" && !Array.isArray(teacher.parsed)
       ? teacher.parsed as Record<string, unknown>
       : null;
-    if (args.caseTargetMvp) {
+    if (modelExecutionFailed) {
+      validation = {
+        ok: false,
+        error: "model_execution_failed",
+        errors: [teacher.error ?? `Codex subscription child exited ${teacher.returnCode ?? "without a status"}`],
+        next: "Retry this case; no extraction was evaluated.",
+      };
+    } else if (args.caseTargetMvp) {
       const result = validateCaseTargetSubmission(record, teacher.parsed);
       prediction = result.prediction;
       validation = result.validation;
@@ -3520,7 +3736,9 @@ async function runCase(args: {
   const evidence = prediction ? await hydratePrediction(record, prediction) : [];
   const metrics = prediction ? score(prediction, reference, paragraphNumbers(record.paragraphs)) : { reference: null };
   return {
-    status: prediction
+    status: modelExecutionFailed
+      ? "failed"
+      : prediction
       ? args.caseTargetMvp && !caseTargetMvpResult?.ok
         ? "accepted_with_target_rejections"
         : args.semanticMvp && !semanticMvpResult?.ok
@@ -3841,6 +4059,7 @@ async function readReceiptStreamIds(file: string) {
   await readJsonl(file, (event) => {
     if (event.kind !== "case_receipt") return;
     const receipt = event.receipt as Record<string, unknown> | undefined;
+    if (receipt?.status === "failed") return;
     const source = receipt?.source as Record<string, unknown> | undefined;
     const documentId = Number(source?.document_id ?? event.document);
     if (Number.isSafeInteger(documentId) && documentId > 0) ids.add(documentId);
@@ -3985,6 +4204,7 @@ async function run(args: Args) {
   const database = await initSidecar(sidecar);
   const receipts: unknown[] = [];
   let processedCount = completedIds.size;
+  const executionFailures: string[] = [];
   try {
     database.prepare("INSERT OR REPLACE INTO opinion_run VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(
       runId, now(), seed, cohortSize, scope, provider, model,
@@ -4055,6 +4275,7 @@ async function run(args: Args) {
         async (item, index) => {
           let receipt: Record<string, unknown>;
           if (!item.record || !item.result) {
+            executionFailures.push(`${item.candidate.documentId}: ${item.error ?? "case_failed"}`);
             receipt = {
               source: {
                 document_id: item.candidate.documentId,
@@ -4069,6 +4290,9 @@ async function run(args: Args) {
             };
           } else {
             const { candidate, record, result } = item;
+            if (result.status === "failed") {
+              executionFailures.push(`${candidate.documentId}: ${result.validation.error ?? "model_execution_failed"}`);
+            }
             saveCase(database, runId, record, result.prediction, result.evidence, result.reference, result.validation, result.metrics, result.status, result.route ?? provider);
             receipt = fullCaseReceipt(candidate, record, result, judgeRegistry);
           }
@@ -4084,6 +4308,9 @@ async function run(args: Args) {
           });
         },
       );
+      if (executionFailures.length) {
+        throw new Error(`model execution failed for ${executionFailures.length} case(s): ${executionFailures.join("; ")}`);
+      }
     } else {
       for (const [index, candidate] of candidates.entries()) {
         console.log(`[${index + 1}/${sampleSize}] ${candidate.citation} (${candidate.documentId})`);
@@ -5569,6 +5796,7 @@ async function selfTest() {
     preflight: extractPreflight(source, paragraphs),
     citationEdges: [],
     targetOccurrences: caseTargetOccurrences(source, candidate.target),
+    sourceLines: modelSourceLines(recordText),
   };
   if (record.targetOccurrences.length !== 1 || record.targetOccurrences[0].quote !== "2098 SCC 2") {
     throw new Error(`case-target occurrence self-test failed: ${json(record.targetOccurrences)}`);
@@ -5576,7 +5804,7 @@ async function selfTest() {
   const targetPacket = caseTargetMvpPacket(record, "nested");
   if (
     !targetPacket.includes('"tm1"') ||
-    !targetPacket.endsWith(record.source.text) ||
+    !targetPacket.includes(`1: ${record.source.text.slice(record.sourceLines[0].start, record.sourceLines[0].end)}`) ||
     targetPacket.includes("DETERMINISTIC TERM-SEARCH PREFLIGHT") ||
     targetPacket.includes(record.sourceSha256)
   ) {
@@ -5617,7 +5845,7 @@ async function selfTest() {
   ) {
     throw new Error(`explicit vote counts did not derive majority/dissent: ${json(result.prediction.opinions)}`);
   }
-  const nestedSubmission: ReducedCaseTargetSubmission = {
+  const nestedSubmission: any = {
     disposition_quote: raw.disposition_quote,
     opinions: raw.opinions.map((opinion, index) => ({
       named_authors: opinion.author_names.map((name) => ({
@@ -5632,7 +5860,7 @@ async function selfTest() {
       end_quote: opinion.end_quote,
       whole_opinion_joiners: [],
     })),
-    participants: raw.participants.map(({ opinion_links: _, ...participant }) => participant),
+    participants: raw.participants.map(({ opinion_links: _, result_only: __, ...participant }) => participant),
     nonparticipants: [],
     target_mentions: [{ occurrence_id: "tm1", voice: "current_court" }],
     issues: [{
@@ -5658,7 +5886,6 @@ async function selfTest() {
               participant_name: "Gamma J.",
               evidence_quote: "Gamma J.: I agree with the majority's jurisdictional rule",
             }],
-            target_mentions: [{ occurrence_id: "tm1" }],
             target_treatments: [{
               target_mentions: [{ occurrence_id: "tm1" }],
               attribution: "current_court",
@@ -5679,7 +5906,6 @@ async function selfTest() {
             }],
             basis_and_limits: [],
             partial_joins: [],
-            target_mentions: [],
             target_treatments: [],
           }],
         },
@@ -5698,7 +5924,20 @@ async function selfTest() {
       ({ opinion_id, relation }) => opinion_id === "o1" && relation === "joins_in_part"
     )
   ) {
-    throw new Error(`nested v15 compilation failed: ${json(nested)}`);
+    throw new Error(`case-target extraction compilation failed: ${json(nested)}`);
+  }
+  const reducedJoin = structuredClone(nestedSubmission);
+  reducedJoin.opinions[0].named_authors = reducedJoin.opinions[0].named_authors.filter(({ name }) => !name.startsWith("Beta"));
+  reducedJoin.opinions[0].whole_opinion_joiners.push({ name: "Beta J.", evidence_quote: "Beta J.: I agree." });
+  const reducedBeta = reducedJoin.participants.find(({ name }) => name.startsWith("Beta"))!;
+  reducedBeta.result_only_evidence_quote = "Beta J.: I agree.";
+  const normalizedReducedJoin = validateCaseTargetSubmission(record, reducedJoin);
+  const normalizedReducedBeta = normalizedReducedJoin.prediction?.participants.find(({ name }) => name.startsWith("Beta"));
+  if (
+    !normalizedReducedJoin.validation.ok || normalizedReducedBeta?.result_only ||
+    normalizedReducedBeta?.opinion_links[0]?.relation !== "joins"
+  ) {
+    throw new Error(`nested joinder/result-only conflict was not made impossible: ${json(normalizedReducedJoin.validation)}`);
   }
   const unsupportedCollective = structuredClone(nestedSubmission);
   unsupportedCollective.opinions = [unsupportedCollective.opinions[0]];
@@ -5780,9 +6019,26 @@ async function selfTest() {
   }
   if (
     !explicitNamedAuthorshipByline("REASONS FOR JUDGMENT OF THE COURT BY:\nGOYETTE J.A.", "Goyette J.A.") ||
+    !explicitNamedAuthorshipByline("Written Reasons by:\nThe Honourable Madam Justice Saunders", "The Honourable Madam Justice Saunders") ||
+    !explicitNamedAuthorshipByline("Brown and Rowe JJ. (Wagner C.J. and Moldaver and Côté JJ. concurring)", "Brown J.") ||
+    !explicitNamedAuthorshipByline("Abella J. (Karakatsanis and Martin JJ. concurring)", "Abella J.") ||
+    explicitNamedAuthorshipByline("Counsel quoted Brown J.", "Brown J.") ||
     explicitNamedAuthorshipByline("The reasons of the Court were quoted by counsel for Goyette J.A.", "Goyette J.A.")
   ) {
     throw new Error("explicit named-authorship byline detection changed");
+  }
+  const coverageOpinions = deterministic.opinions.map((opinion) => ({
+    start_line: record.sourceLines.find((line) => line.end > opinion.start)?.line,
+    end_line: record.sourceLines.findLast((line) => line.start < opinion.end)?.line,
+    full_joiners: [],
+  }));
+  if (reducedRosterContractErrors(record, { opinions: coverageOpinions }).length) {
+    throw new Error("complete substantive opinion coverage was rejected");
+  }
+  const missingParagraph = structuredClone(coverageOpinions);
+  missingParagraph[0].start_line = record.sourceLines.find((line) => line.end > paragraphs[1].start)?.line;
+  if (!reducedRosterContractErrors(record, { opinions: missingParagraph }).some((error) => error.includes("outside every opinion"))) {
+    throw new Error("uncovered substantive paragraph was accepted");
   }
   if (
     judgeIdentityKey("Feldman, Kathryn N.") !== judgeIdentityKey("Kathryn N. Feldman J.A.") ||
@@ -5884,6 +6140,15 @@ async function selfTest() {
     grounded.prediction.opinions[0].start_quote !== result.prediction.opinions[0].start_quote
   ) {
     throw new Error(`word-grounded boundary anchors changed the source span: ${json(grounded.validation)}`);
+  }
+  const boundarySource = "[1] The appellant moves under the Act to review an order. Her order denied permission to file the transcript.";
+  const boundaryRecovery = exactBoundaryRecoverySpans(
+    boundarySource,
+    "The appellant moves under the Act to review an order. Her order denied the request to file the transcript.",
+    "start",
+  );
+  if (boundaryRecovery.length !== 1 || boundaryRecovery[0].start !== 4) {
+    throw new Error(`unique long boundary prefix was not recovered: ${json(boundaryRecovery)}`);
   }
   const oracle = mechanicalReference(record);
   if (oracle.status !== "ready") throw new Error("mechanical reference self-test failed");
@@ -6028,6 +6293,15 @@ async function selfTest() {
     const appended = (await readFile(appendTestFile, "utf8")).trim().split(/\r?\n/u).map((line) => JSON.parse(line) as Record<string, unknown>);
     if (appended.length !== 32 || new Set(appended.map(({ index }) => Number(index))).size !== 32) {
       throw new Error("concurrent JSONL append lost or interleaved receipts");
+    }
+    const resumeTestFile = path.join(appendTestDirectory, "resume-receipts.jsonl");
+    await writeFile(resumeTestFile, [
+      { kind: "case_receipt", document: 1, receipt: { source: { document_id: 1 }, status: "accepted" } },
+      { kind: "case_receipt", document: 2, receipt: { source: { document_id: 2 }, status: "failed" } },
+    ].map((row) => JSON.stringify(row)).join("\n") + "\n", "utf8");
+    const resumableIds = await readReceiptStreamIds(resumeTestFile);
+    if (!resumableIds.has(1) || resumableIds.has(2)) {
+      throw new Error("resume must retry model execution failures without repeating completed cases");
     }
     const budgetTestFile = path.join(appendTestDirectory, "call-ledger.jsonl");
     await writeFile(budgetTestFile, [

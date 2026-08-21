@@ -17,10 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { journalLegalSourceProvider as journal } from "../legalSources/journal";
 import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
-import {
-  legalSourcePassageUrl,
-  readLegalSourcePassage,
-} from "../legalSourceRegistry";
+import { readLegalSourcePassage } from "../legalSourceRegistry";
 import { resourceReference } from "../resourceReferences";
 
 let directory = "";
@@ -451,23 +448,6 @@ describe("local journal articles", () => {
     expect((await journal.document("8"))?.citation).toBe(
       "Ada Example et al, “No Issue Article” (2025) 9 Fixture LJ 44",
     );
-  });
-
-  it("appends one verified multi-text page link when citation JSON is omitted", async () => {
-    const read = await readLegalSourcePassage({
-      source: { provider: "journal", id: "7", kind: "journal" },
-      locator: { kind: "page", value: "101" },
-    });
-    expect(read.status).toBe("found");
-    if (read.status !== "found") return;
-    const selected = read.values.filter(({ role }) => role === "selected");
-    expect(selected).toHaveLength(1);
-    const citationUrl = legalSourcePassageUrl(selected[0], [
-      "first quoted phrase",
-      "second quoted phrase",
-    ]);
-    expect(citationUrl).toContain("#page=2:~:text=");
-    expect(citationUrl?.match(/text=/gu)).toHaveLength(2);
   });
 
   it("filters journal search by indexed publication metadata", () => {

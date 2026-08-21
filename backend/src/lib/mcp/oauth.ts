@@ -360,6 +360,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     };
     const encrypted = seal(state, `oauth-state\0${sha256(this.stateToken)}`);
     const now = new Date().toISOString();
+    await this.db.query(sql`DELETE FROM user_mcp_oauth_states WHERE expires_at<=${now}`);
     await this.db.query(sql`INSERT INTO user_mcp_oauth_states(id,user_id,connector_id,
       state_hash,encrypted_state_config,state_config_iv,state_config_tag,expires_at,created_at)
       VALUES(${randomUUID()},${state.userId},${state.connectorId},${sha256(this.stateToken)},

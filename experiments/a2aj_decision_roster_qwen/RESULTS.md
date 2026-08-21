@@ -828,3 +828,38 @@ timeouts remain failures. The focused suite now passes 35/35, the runner
 self-test passes, and the backend TypeScript build passes. Ledger usage is 464
 attempted submissions including retries and carry-forward, leaving 14,536 of
 the authorized 15,000.
+
+## Extraction-v2 challenge-10 result (2026-08-20)
+
+The Luna Max run produced nine structurally valid records from ten cases; one
+case failed submission validation. After correcting three gold boundaries that
+had included provider headings, all 14 opinion starts and ends in the nine
+valid records matched gold exactly. Luna also identified the majority/minority
+arrangement in all nine cases, including all four multi-opinion cases, and the
+writers in all nine. The complete voting graph was exact in seven: Luna missed
+one genuine issue-specific joinder and invented one issue-specific joinder.
+
+The conservative deterministic layer was available for four cases and made 78
+scored voting assertions, all correct. Luna supplied 65 of the 66 gold voting
+facts outside those assertions. This supports a hybrid design in which
+deterministic facts are asserted only when they meet a zero-known-false-positive
+gate, Luna fills the abstentions, and deterministic checks reject impossible or
+contradictory model output.
+
+Treatment-by-issue performance was not ready for unreviewed corpus-scale use.
+Sol Low graded four records pass and five major error. Three valid records
+contained semantic hallucinations grounded in real text:
+
+- `2015 YKCA 17`: Luna converted counsel's reliance on the target into a
+  separate treatment by the court.
+- `2021 CHRT 18`: Luna converted procedural or factual references to the prior
+  ruling into three substantive treatment events.
+- `2007 FC 971`: Luna confused two Abbott decisions and invented a
+  `distinguished` treatment of the target.
+
+The remaining major errors were an omitted issue link in `2007 FCA 24` and an
+overstatement of Sattva's treatment in `2018 NSCA 53`. Thus the opinion-boundary,
+writer, and majority/minority extraction is promising; treatment attribution,
+target identity, and treatment strength still require validation or repair
+before corpus-scale promotion. The durable Gold set contains 60 independently
+reviewed current annotations; revision narratives are not part of Gold.

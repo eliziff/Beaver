@@ -5,22 +5,28 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 
 import { fetchLocalA2AJDocumentById } from "../../../backend/src/lib/a2ajLocalBulk";
+import { modelSourceLines } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced";
 import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   candidatesFromPairFile,
   codexSubscriptionPreflight,
+  deterministicPrediction,
   loadCase,
   modelCallLedgerUsage,
+  nameKey,
   runStructuredLuna,
   validateCaseTargetSubmission,
 } from "../runner";
-import { groundedEvidence, validateFrozenGoldCase, validateGold } from "./gold_validation";
+import {
+  goldAuditState,
+  groundedEvidence,
+  validateFrozenGoldCase,
+  validateGold,
+} from "./gold_validation";
 
 const GRADER_MODEL = "gpt-5.6-sol";
-// Ultra is a Codex orchestration preset. Keep each adjudication to one isolated
-// model response by using the strongest flat-subscription inference effort.
-const GRADER_EFFORT = "max";
-const GRADER_PROMPT_VERSION = "a2aj-case-target-gold-grader-v3";
+const GRADER_EFFORT = "low";
+const GRADER_PROMPT_VERSION = "a2aj-case-target-treatment-by-issue-grader-v1";
 const COMPARISON_PROMPT_VERSION = "a2aj-case-target-blind-comparison-v2";
 const appendQueues = new Map<string, Promise<void>>();
 
@@ -55,7 +61,9 @@ async function runLedgeredCall(args: {
     provider: "codex_subscription",
     model: args.call.model,
     effort: args.call.effort,
-    prompt_version: args.purpose === "gold_adjudication" ? GRADER_PROMPT_VERSION : COMPARISON_PROMPT_VERSION,
+    prompt_version: args.purpose === "gold_adjudication"
+      ? GRADER_PROMPT_VERSION
+      : COMPARISON_PROMPT_VERSION,
     prompt_sha256: createHash("sha256").update(args.call.prompt, "utf8").digest("hex"),
     prompt_chars: args.call.prompt.length,
   });
@@ -114,12 +122,13 @@ async function runLedgeredCall(args: {
 }
 
 const ERROR_KINDS = [
-  "opinion_omitted", "opinion_invented", "opinion_boundary_wrong", "writer_wrong",
-  "participant_omitted", "participant_invented", "vote_or_join_wrong",
-  "issue_omitted", "issue_invented", "issue_misframed", "answer_wrong", "answer_group_wrong",
-  "disposition_relation_wrong", "mention_omitted", "mention_invented", "occurrence_voice_wrong",
-  "treatment_omitted", "treatment_invented", "treatment_label_wrong", "treatment_scope_wrong",
-  "treatment_proposition_wrong", "direct_history_wrong", "grounding_or_linkage_wrong", "other",
+  "opinion_or_authorship_wrong",
+  "vote_or_join_wrong",
+  "issue_or_answer_wrong",
+  "source_attribution_wrong",
+  "target_treatment_wrong",
+  "case_history_wrong",
+  "other",
 ] as const;
 
 const FINAL_SCORE_NAMES = [
@@ -133,34 +142,29 @@ const FINAL_SCORE_NAMES = [
   "evidence_and_linkage",
 ] as const;
 
+const GRADE_VERDICTS = ["pass", "minor_error", "major_error"] as const;
+const TREATMENT_ERROR_ASPECTS = ["issue", "target_proposition", "treatment"] as const;
+
 const GRADE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["candidate_usable", "scores", "critical_errors", "acceptable_variations"],
+  required: ["verdict", "errors"],
   properties: {
-    candidate_usable: { type: "boolean" },
-    scores: {
-      type: "object",
-      additionalProperties: false,
-      required: FINAL_SCORE_NAMES,
-      properties: Object.fromEntries(FINAL_SCORE_NAMES.map((name) => [name, { type: "integer", minimum: 0, maximum: 4 }])),
-    },
-    critical_errors: {
+    verdict: { type: "string", enum: GRADE_VERDICTS },
+    errors: {
       type: "array",
-      maxItems: 30,
+      maxItems: 20,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["kind", "candidate_path", "explanation", "evidence_quote"],
+        required: ["severity", "aspect", "explanation"],
         properties: {
-          kind: { type: "string", enum: ERROR_KINDS },
-          candidate_path: { type: ["string", "null"] },
+          severity: { type: "string", enum: ["minor", "major"] },
+          aspect: { type: "string", enum: TREATMENT_ERROR_ASPECTS },
           explanation: { type: "string", minLength: 4 },
-          evidence_quote: { type: ["string", "null"], minLength: 4 },
         },
       },
     },
-    acceptable_variations: { type: "array", maxItems: 20, items: { type: "string" } },
   },
 } as const;
 
@@ -234,6 +238,15 @@ async function readJsonl(file: string) {
 
 type CandidateOutput = { raw: unknown; canonical: unknown };
 
+function hasSemanticExtraction(output: CandidateOutput | undefined) {
+  if (!output) return false;
+  if (output.raw && typeof output.raw === "object" && !Array.isArray(output.raw)) return true;
+  const canonical = output.canonical;
+  return !!canonical && typeof canonical === "object" && !Array.isArray(canonical) &&
+    (((canonical as Record<string, unknown>).prediction != null) ||
+      ((canonical as Record<string, unknown>).case_target_mvp != null));
+}
+
 function parsedOutput(value: unknown) {
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
   if (typeof value !== "string") return null;
@@ -268,10 +281,244 @@ async function rawCandidates(files: string[]) {
           raw: parsedOutput(event.raw_model_output) ?? current.raw,
           canonical,
         });
+      } else if (event.kind === "case_receipt" && event.receipt?.status === "successful") {
+        const receipt = event.receipt as Record<string, any>;
+        const attempt = Array.isArray(receipt.attempts)
+          ? receipt.attempts[Number(receipt.accepted_attempt) - 1]
+          : null;
+        if (attempt?.ok) {
+          byDocument.set(documentId, {
+            raw: null,
+            canonical: { prediction: attempt.prediction, case_target_mvp: attempt.target },
+          });
+        }
       }
     }
   }
   return byDocument;
+}
+
+function semanticView(value: unknown) {
+  const canonical = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, any>
+    : {};
+  const prediction = canonical.prediction ?? {};
+  const target = canonical.case_target_mvp ?? {};
+  const legalActor = (voice: string) => ({
+    current_court: "current_court",
+    party_submission: "party_or_counsel",
+    reported_decision: "decision_under_review",
+    quoted_authority: "other_source",
+    document_metadata: "metadata",
+    unclear: "unclear",
+  })[voice] ?? "unclear";
+  return {
+    disposition: prediction.disposition_quote ?? null,
+    opinions: (prediction.opinions ?? []).map((opinion: Record<string, any>) => ({
+      id: opinion.id,
+      authors: opinion.author_names,
+      collective_author: opinion.collective_author,
+      result_position: opinion.result_position,
+      authority_position: opinion.authority_position,
+      result_evidence: opinion.position_evidence_quote,
+      start_offset: opinion.start,
+      end_offset: opinion.end_exclusive,
+      start: opinion.start_quote,
+      end: opinion.end_quote,
+    })),
+    decision_makers: (prediction.participants ?? []).map((participant: Record<string, any>) => ({
+      name: participant.name,
+      panel_evidence: participant.panel_evidence_quote,
+      result_position: participant.result_position,
+      result_side: participant.result_side,
+      relationship: participant.relationship,
+      opinion_links: participant.opinion_links,
+      result_only: participant.result_only,
+      result_only_evidence: participant.result_only_evidence_quote,
+    })),
+    nonparticipants: prediction.nonparticipants ?? [],
+    issues: target.case_issues ?? [],
+    opinion_issue_positions: (target.opinion_issue_positions ?? []).map((position: Record<string, any>) => ({
+      id: position.id,
+      issue_id: position.case_issue_id,
+      opinion_id: position.opinion_id,
+      answer_group_id: position.answer_group_id,
+      answer: position.answer,
+      relation_to_disposition: position.relation_to_disposition,
+      answer_evidence_ids: position.answer_evidence_ids,
+      evidence: position.evidence,
+    })),
+    issue_only_joins: target.partial_issue_joins ?? [],
+    occurrence_assessments: (target.target_mentions ?? []).map((mention: Record<string, any>) => ({
+      id: mention.id,
+      occurrence_id: mention.occurrence_id,
+      opinion_id: mention.opinion_id,
+      target_identity: mention.target_identity,
+      source_origin: mention.source_origin,
+      legal_actor: legalActor(mention.voice),
+      issue_ids: mention.case_issue_ids,
+    })),
+    target_treatments: (target.target_treatments ?? []).map((treatment: Record<string, any>) => ({
+      id: treatment.id,
+      occurrence_assessment_ids: treatment.mention_ids,
+      opinion_id: treatment.opinion_id,
+      issue_ids: treatment.case_issue_ids,
+      treated_by: legalActor(treatment.attribution),
+      label: treatment.label,
+      scope: treatment.scope === "specific_proposition" ? "rule_or_proposition" : treatment.scope,
+      evidence: treatment.evidence_quote,
+      target_proposition_as_characterized: treatment.target_proposition_as_characterized,
+    })),
+    case_history: target.target_direct_history ?? [],
+  };
+}
+
+function boundaryReceipt(candidate: ReturnType<typeof semanticView>, reference: ReturnType<typeof semanticView>) {
+  const count = Math.max(candidate.opinions.length, reference.opinions.length);
+  const comparisons = Array.from({ length: count }, (_, index) => {
+    const candidateOpinion = candidate.opinions[index] ?? null;
+    const referenceOpinion = reference.opinions[index] ?? null;
+    return {
+      opinion_number: index + 1,
+      start_exact: candidateOpinion?.start === referenceOpinion?.start,
+      end_exact: candidateOpinion?.end === referenceOpinion?.end,
+      candidate: candidateOpinion ? { start: candidateOpinion.start, end: candidateOpinion.end } : null,
+      reference: referenceOpinion ? { start: referenceOpinion.start, end: referenceOpinion.end } : null,
+    };
+  });
+  return {
+    candidate_opinions: candidate.opinions.length,
+    reference_opinions: reference.opinions.length,
+    exact: candidate.opinions.length === reference.opinions.length
+      && comparisons.every(({ start_exact, end_exact }) => start_exact && end_exact),
+    comparisons,
+  };
+}
+
+function votingClaims(view: ReturnType<typeof semanticView>) {
+  const claims = new Map<string, string>();
+  const opinionNumber = new Map(view.opinions.map((opinion: Record<string, any>, index: number) => [opinion.id, index + 1]));
+  view.opinions.forEach((opinion: Record<string, any>, index: number) => {
+    const prefix = `opinion:${index + 1}`;
+    if (opinion.result_position && opinion.result_position !== "unclear") claims.set(`${prefix}:result`, opinion.result_position);
+    if (opinion.authority_position && opinion.authority_position !== "unknown") claims.set(`${prefix}:authority`, opinion.authority_position);
+    const authors = (opinion.authors ?? []).map((name: string) => nameKey(name)).filter(Boolean).sort();
+    for (const author of authors) claims.set(`${prefix}:author:${author}`, "true");
+    if (opinion.collective_author) claims.set(`${prefix}:collective_author`, String(opinion.collective_author).trim().toLocaleLowerCase());
+  });
+  for (const judge of view.decision_makers as Array<Record<string, any>>) {
+    const name = nameKey(String(judge.name ?? ""));
+    if (!name) continue;
+    const prefix = `judge:${name}`;
+    if (judge.result_position && judge.result_position !== "unclear") claims.set(`${prefix}:result`, judge.result_position);
+    if (judge.result_side && judge.result_side !== "unknown") claims.set(`${prefix}:side`, judge.result_side);
+    if (judge.relationship && judge.relationship !== "unknown") claims.set(`${prefix}:relationship`, judge.relationship);
+    for (const link of judge.opinion_links ?? []) {
+      claims.set(`${prefix}:link:${opinionNumber.get(link.opinion_id) ?? "unmatched"}`, link.relation);
+    }
+  }
+  return claims;
+}
+
+function compareVotingClaims(
+  candidate: Map<string, string>,
+  reference: Map<string, string>,
+  keys = new Set(reference.keys()),
+  includeExtra: (key: string) => boolean = () => true,
+) {
+  let correct = 0;
+  let missing = 0;
+  let wrong = 0;
+  const differences: Array<{ claim: string; expected: string | null; actual: string | null }> = [];
+  const expectedKeys = [...keys].filter((key) => reference.has(key));
+  for (const key of expectedKeys) {
+    if (!candidate.has(key)) {
+      missing += 1;
+      differences.push({ claim: key, expected: reference.get(key) ?? null, actual: null });
+    }
+    else if (candidate.get(key) === reference.get(key)) correct += 1;
+    else {
+      wrong += 1;
+      differences.push({ claim: key, expected: reference.get(key) ?? null, actual: candidate.get(key) ?? null });
+    }
+  }
+  const extras = [...candidate.keys()].filter((key) => !reference.has(key) && includeExtra(key));
+  differences.push(...extras.map((claim) => ({ claim, expected: null, actual: candidate.get(claim) ?? null })));
+  return { expected: expectedKeys.length, correct, missing, wrong, extra: extras.length, exact: correct === expectedKeys.length && wrong === 0 && extras.length === 0, differences };
+}
+
+function votingReceipt(
+  luna: ReturnType<typeof semanticView>,
+  reference: ReturnType<typeof semanticView>,
+  deterministic: ReturnType<typeof semanticView> | null,
+) {
+  const goldClaims = votingClaims(reference);
+  const lunaClaims = votingClaims(luna);
+  const deterministicClaims = deterministic ? votingClaims(deterministic) : new Map<string, string>();
+  const deterministicScore = compareVotingClaims(deterministicClaims, goldClaims, new Set(deterministicClaims.keys()));
+  const uncovered = new Set([...goldClaims.keys()].filter((key) => !deterministicClaims.has(key)));
+  const lunaGapScore = compareVotingClaims(lunaClaims, goldClaims, uncovered);
+  const combined = new Map(lunaClaims);
+  for (const [key, value] of deterministicClaims) combined.set(key, value);
+  const lunaScore = compareVotingClaims(lunaClaims, goldClaims);
+  const combinedScore = compareVotingClaims(combined, goldClaims);
+  const majorityMinority = (key: string) => key.endsWith(":result") || key.endsWith(":authority") || key.endsWith(":side");
+  const writer = (key: string) => key.includes(":author:") || key.endsWith(":collective_author");
+  const join = (key: string) => key.includes(":link:") || key.endsWith(":relationship");
+  const majorityMinorityKeys = new Set([...goldClaims.keys()].filter(majorityMinority));
+  const writerKeys = new Set([...goldClaims.keys()].filter(writer));
+  const joinKeys = new Set([...goldClaims.keys()].filter(join));
+  const nontrivial = reference.opinions.length > 1 || reference.opinions.some((opinion: Record<string, any>) =>
+    !["unanimous", "majority"].includes(opinion.authority_position)
+  );
+  return {
+    nontrivial,
+    luna: lunaScore,
+    majority_minority: compareVotingClaims(lunaClaims, goldClaims, majorityMinorityKeys, majorityMinority),
+    writers: compareVotingClaims(lunaClaims, goldClaims, writerKeys, writer),
+    joins: compareVotingClaims(lunaClaims, goldClaims, joinKeys, join),
+    deterministic: deterministic ? {
+      ...deterministicScore,
+      asserted: deterministicClaims.size,
+      precision: deterministicClaims.size ? deterministicScore.correct / deterministicClaims.size : null,
+      gold_coverage: goldClaims.size ? deterministicScore.correct / goldClaims.size : null,
+      zero_known_false_positives: deterministicScore.wrong === 0 && deterministicScore.extra === 0,
+    } : null,
+    luna_on_deterministic_gaps: lunaGapScore,
+    combined: combinedScore,
+  };
+}
+
+function treatmentByIssueView(view: ReturnType<typeof semanticView>) {
+  const opinionNumber = new Map(view.opinions.map((opinion: Record<string, any>, index: number) => [opinion.id, index + 1]));
+  const treatmentSummary = (treatment: Record<string, any>, issueId: string | null = null) => {
+    const position = view.opinion_issue_positions.find((item: Record<string, any>) =>
+      item.opinion_id === treatment.opinion_id && item.issue_id === issueId
+    );
+    return {
+      opinion_number: opinionNumber.get(treatment.opinion_id) ?? null,
+      opinion_answer: position?.answer ?? null,
+      relation_to_disposition: position?.relation_to_disposition ?? null,
+      treatment: treatment.label,
+      scope: treatment.scope,
+      target_proposition: treatment.target_proposition_as_characterized,
+      evidence: treatment.evidence,
+    };
+  };
+  return {
+    treatments: [
+      ...view.issues.flatMap((issue: Record<string, any>) => {
+        const treatments = view.target_treatments.filter((treatment: Record<string, any>) => treatment.issue_ids.includes(issue.id));
+        return treatments.map((treatment: Record<string, any>) => ({
+          issue: issue.question,
+          ...treatmentSummary(treatment, issue.id),
+        }));
+      }),
+      ...view.target_treatments
+        .filter((treatment: Record<string, any>) => treatment.issue_ids.length === 0)
+        .map((treatment: Record<string, any>) => ({ issue: null, ...treatmentSummary(treatment) })),
+    ],
+  };
 }
 
 function armSpecs(value: string) {
@@ -321,38 +568,33 @@ function packet(record: Awaited<ReturnType<typeof loadCase>>) {
   return [
     "[TARGET]",
     JSON.stringify(record.candidate.target, null, 2),
-    "[DETERMINISTIC TARGET OCCURRENCES]",
-    JSON.stringify(record.targetOccurrences, null, 2),
-    "[COMPLETE CITING DECISION TEXT]",
-    record.source.text,
+    "[POSSIBLE REFERENCES TO THE TARGET]",
+    JSON.stringify(record.targetOccurrences.map(({ id, kind, quote, linkedContext }) => ({ id, kind, text: quote, context: linkedContext?.quote ?? null })), null, 2),
+    "[COMPLETE CITING DECISION — the line number before each colon is not decision text]",
+    modelSourceLines(record.source.text).map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n"),
   ].join("\n\n");
 }
 
-function gradePrompt(
-  record: NonNullable<Awaited<ReturnType<typeof loadCase>>>,
-  candidate: unknown,
-  rawCandidate: unknown,
-  deterministic: unknown,
-  gold: unknown,
-) {
-  return `Act as a strict evidence adjudicator for a legal extraction evaluation. Use only the complete citing decision below.
-The HUMAN GOLD was written after direct review, but it may contain an annotator error. Resolve every disagreement against the source text. Grade the FINAL CANONICAL EXTRACTION as one legal representation: opinion boundaries and writers; participants, votes, and joins; shared issues with each opinion's answer and answer group; target-occurrence voice; treatment and direct history; and the evidence/linkage supporting them. Deterministic validation may expose grounding or linkage defects, but is not a semantic oracle. The RAW MODEL EXTRACTION is included only to reveal whether deterministic normalization changed the answer; grade the final canonical extraction.
-The issue map contains only legal questions actually answered by at least one opinion. Opinions need not address or frame every issue identically. A question expressly left undecided is omitted. "I agree" joins reasons unless explicitly limited. A result-only concurrence does not adopt another opinion's reasons. Authority is derived from votes and answer groups; do not reward or penalize redundant authority labels. A treatment is "applied" when the current court uses the target proposition to resolve an issue or remedy; "referred_to" is citation without substantive adoption or use. Keep counsel, quotations, reported decisions, procedural recounting, and document metadata out of the current court's voice. Direct history exists only between successive decisions in the same litigation.
-Scores are 0=wholly wrong/missing, 1=major errors, 2=mixed, 3=minor errors, 4=fully acceptable. Do not score pipeline stages. Do not penalize harmless paraphrase, reasonable issue grouping/splitting, or IDs. Give each critical error its candidate JSON path and a contiguous exact source quote; use null only when an omission or internal linkage error has no honest source quote. Return only schema JSON.
+function gradePrompt(candidate: unknown, reference: unknown) {
+  return `Compare the candidate treatment-by-issue summary with the verified reference.
 
-[FINAL CANONICAL EXTRACTION]
+Judge only whether the candidate preserves:
+- the material legal issue on which the target case is discussed;
+- the proposition the decision attributes to the target case; and
+- what the decision does with that proposition.
+
+Different wording or organization is acceptable when the legal meaning is the same.
+pass: no semantic error.
+minor_error: a localized imprecision that would not materially mislead legal research.
+major_error: an omission or mistake that could materially mislead legal research.
+
+List only actual errors in the candidate. Return only schema JSON.
+
+[CANDIDATE]
 ${JSON.stringify(candidate, null, 2)}
 
-[RAW MODEL EXTRACTION]
-${JSON.stringify(rawCandidate, null, 2)}
-
-[DETERMINISTIC VALIDATION/DERIVATION]
-${JSON.stringify(deterministic, null, 2)}
-
-[HUMAN GOLD]
-${JSON.stringify(gold, null, 2)}
-
-${packet(record)}`;
+[VERIFIED REFERENCE]
+${JSON.stringify(reference, null, 2)}`;
 }
 
 function comparisonPrompt(
@@ -371,9 +613,15 @@ ${JSON.stringify(candidates, null, 2)}
 ${packet(record)}`;
 }
 
-function validateGrade(source: string, grade: Record<string, any>) {
+function validateGrade(grade: Record<string, any>) {
   const errors: string[] = [];
-  for (const [index, item] of (grade.critical_errors ?? []).entries()) groundedEvidence(source, item.evidence_quote, `critical_errors[${index}]`, errors);
+  const severities = (grade.errors ?? []).map((item: Record<string, unknown>) => item.severity);
+  const expectedVerdict = severities.includes("major")
+    ? "major_error"
+    : severities.includes("minor")
+      ? "minor_error"
+      : "pass";
+  if (grade.verdict !== expectedVerdict) errors.push(`verdict must be ${expectedVerdict} for the reported errors`);
   return errors;
 }
 
@@ -574,28 +822,8 @@ async function runComparison() {
 async function main() {
   if (process.argv.includes("--self-test")) {
     const source = "Smith J.A.\nThe court applied 2010 SCC 1 on notice and dismissed the appeal.";
-    const valid = validateGold(source, {
-      disposition_quote: "dismissed the appeal",
-      opinions: [{
-        opinion_key: "o1", writer_names: ["Smith"], collective_writer: null,
-        writer_evidence_quote: "Smith J.A.", result_position: "supports_disposition",
-        position_evidence_quote: "dismissed the appeal", start_quote: "The court applied 2010 SCC 1",
-        end_quote: "dismissed the appeal",
-      }],
-      participants: [{
-        name: "Smith", panel_evidence_quote: "Smith J.A.", result_position: "supports_disposition",
-        result_evidence_quote: "dismissed the appeal", result_only: false,
-        opinion_links: [{ opinion_key: "o1", relation: "authors", issue_keys: [], evidence_quote: "Smith J.A." }],
-      }],
-      issues: [{
-        issue_key: "s1", question: "Should the appeal be dismissed?",
-        answer_groups: [{ answer_group_key: "g1", answer: "Yes.", positions: [{ opinion_key: "o1", relation_to_disposition: "dispositive", answer_evidence_quotes: ["dismissed the appeal"] }] }],
-      }],
-      target_mentions: [{ mention_key: "m1", occurrence_id: "tm1", mention_quote: null, voice: "current_court", issue_keys: ["s1"], evidence_quote: "applied 2010 SCC 1" }],
-      target_treatments: [{ mention_keys: ["m1"], issue_keys: ["s1"], attribution: "current_court", label: "applied", scope: "specific_proposition", evidence_quote: "The court applied 2010 SCC 1 on notice", target_proposition_as_characterized: "Notice governed." }],
-      target_direct_history: [],
-    }, ["tm1"]);
-    const invalid = validateGrade(source, { critical_errors: [{ evidence_quote: "allowed the appeal" }] });
+    const valid = validateGrade({ verdict: "minor_error", errors: [{ severity: "minor", aspect: "treatment", explanation: "Slightly too broad." }] });
+    const invalid = validateGrade({ verdict: "pass", errors: [{ severity: "major", aspect: "issue", explanation: "A material issue is missing." }] });
     const candidateIds = ["candidate_00000001", "candidate_00000002"];
     const comparison = validateComparison(source, {
       candidate_grades: candidateIds.map((candidate_id) => ({ candidate_id, critical_errors: [] })),
@@ -603,7 +831,16 @@ async function main() {
       preferred_candidate_id: "candidate_00000001",
       material_ties: [],
     }, candidateIds);
-    if (valid.length || invalid.length !== 1 || comparison.length || "raw" in modelReceipt({ raw: "x", parsed: {}, error: null } as any)) {
+    const boundary = boundaryReceipt(
+      semanticView({ prediction: { opinions: [{ start_quote: "A", end_quote: "B" }] } }),
+      semanticView({ prediction: { opinions: [{ start_quote: "A", end_quote: "B" }] } }),
+    );
+    const voting = votingReceipt(
+      semanticView({ prediction: { opinions: [{ id: "o1", result_position: "supports_disposition", authority_position: "unanimous" }] } }),
+      semanticView({ prediction: { opinions: [{ id: "o1", result_position: "supports_disposition", authority_position: "unanimous" }] } }),
+      null,
+    );
+    if (valid.length || invalid.length !== 1 || !boundary.exact || !voting.luna.exact || comparison.length || "raw" in modelReceipt({ raw: "x", parsed: {}, error: null } as any)) {
       throw new Error("gold evaluator self-test failed");
     }
     console.log("PASS gold evaluator self-test");
@@ -638,7 +875,10 @@ async function main() {
       })?.text;
       const gold = byDocument.get(documentId);
       if (!source || !gold?.annotation) throw new Error(`missing source or human gold for ${documentId}`);
-      const errors = validateFrozenGoldCase(source, pair, gold.annotation);
+      const errors = [
+        ...goldAuditState(gold).errors,
+        ...validateFrozenGoldCase(source, pair, gold.annotation),
+      ];
       if (errors.length) throw new Error(`invalid human gold for ${documentId}: ${errors.join("; ")}`);
     }
     console.log(JSON.stringify({ cases: pairs.length, valid_human_gold: pairs.length, gold_files: files }, null, 2));
@@ -654,26 +894,75 @@ async function main() {
   if (!pairFile || !candidateFiles.length || !goldArg || !outStem || !ledger) {
     throw new Error("usage: silver_case_target_eval.ts <pairs.json> --candidate-outputs <a.jsonl,b.jsonl> --gold <gold-a.json[,gold-b.json]> --out <stem> --call-ledger <ledger.jsonl> [--workers 5]");
   }
-  const codexSubscription = codexSubscriptionPreflight();
   const candidates = await candidatesFromPairFile(path.resolve(pairFile));
   const { files: goldFiles, rows: goldRows } = await readGoldFiles(goldArg);
   const goldByDocument = new Map(goldRows.map((row) => [Number(row.document_id), row]));
   const outputsByDocument = await rawCandidates(candidateFiles.map((file) => path.resolve(file)));
-  const work = await Promise.all(candidates.map(async (candidate) => {
+  const missingCandidateOutputs = candidates
+    .filter((candidate) => !hasSemanticExtraction(outputsByDocument.get(candidate.documentId)))
+    .map((candidate) => ({ document_id: candidate.documentId, citation: candidate.citation }));
+  const loaded = await Promise.all(candidates.filter((candidate) => hasSemanticExtraction(outputsByDocument.get(candidate.documentId))).map(async (candidate) => {
     const record = await loadCase(candidate);
     const output = outputsByDocument.get(candidate.documentId);
     const gold = goldByDocument.get(candidate.documentId);
-    if (!record || !output || !gold?.annotation) throw new Error(`missing case, candidate output, or human gold for ${candidate.documentId}`);
-    const goldValidationErrors = validateGold(record.source.text, gold.annotation, record.targetOccurrences.map((item) => item.id));
+    if (!record || !output || !gold?.annotation) throw new Error(`missing case or human gold for ${candidate.documentId}`);
+    const goldValidationErrors = [
+      ...goldAuditState(gold).errors,
+      ...validateGold(record.source.text, gold.annotation, record.targetOccurrences),
+    ];
     if (goldValidationErrors.length) {
       throw new Error(`invalid human gold for ${candidate.documentId}: ${goldValidationErrors.join("; ")}`);
     }
     const canonical = output.canonical ?? output.raw;
-    return { candidate, record, raw: output.raw, canonical, gold, deterministic: validateCandidate(record, canonical) };
+    const candidateValidation = validateCandidate(record, canonical);
+    const compiledGold = validateCaseTargetSubmission(record, gold.annotation);
+    if (!compiledGold.validation.ok || compiledGold.case_target_mvp?.ok !== true) {
+      throw new Error(`Gold compilation failed for ${candidate.documentId}`);
+    }
+    return {
+      candidate,
+      record,
+      candidateView: semanticView(canonical),
+      goldView: semanticView({ prediction: compiledGold.prediction, case_target_mvp: compiledGold.case_target_mvp }),
+      deterministicView: (() => {
+        const prediction = deterministicPrediction(record);
+        return prediction ? semanticView({ prediction }) : null;
+      })(),
+      goldAnnotator: gold.annotator,
+      candidateValidation,
+    };
   }));
+  const invalidCandidateOutputs = loaded.filter(({ candidateValidation }) =>
+    !candidateValidation.opinion_ok || !candidateValidation.target_ok
+  ).map(({ candidate, candidateValidation }) => ({
+    document_id: candidate.documentId,
+    citation: candidate.citation,
+    validation: candidateValidation,
+  }));
+  const work = loaded.filter(({ candidateValidation }) =>
+    candidateValidation.opinion_ok && candidateValidation.target_ok
+  ).map((item) => {
+    const boundaries = boundaryReceipt(item.candidateView, item.goldView);
+    const candidateTreatment = treatmentByIssueView(item.candidateView);
+    const goldTreatment = treatmentByIssueView(item.goldView);
+    return {
+      ...item,
+      boundaries,
+      voting: votingReceipt(item.candidateView, item.goldView, item.deterministicView),
+      candidateTreatment,
+      goldTreatment,
+      treatmentExact: JSON.stringify(candidateTreatment) === JSON.stringify(goldTreatment),
+    };
+  });
   await shutdownSourceStructureEngine();
   if (process.argv.includes("--validate-only")) {
-    console.log(JSON.stringify({ cases: work.length, valid_human_gold: work.length }, null, 2));
+    console.log(JSON.stringify({
+      cases: candidates.length,
+      candidate_outputs: work.length,
+      valid_human_gold_for_candidate_outputs: work.length,
+      missing_candidate_outputs: missingCandidateOutputs,
+      invalid_candidate_outputs: invalidCandidateOutputs,
+    }, null, 2));
     return;
   }
   await Promise.all([
@@ -682,8 +971,27 @@ async function main() {
   ]);
   const gradeFile = `${path.resolve(outStem)}.grades.jsonl`;
   const rawEventFile = `${path.resolve(outStem)}.raw-events.jsonl`;
-  const existingGrades = new Map((await readJsonl(gradeFile)).map((row) => [Number(row.document_id), row]));
-  const pending = work.filter(({ candidate }) => !existingGrades.has(candidate.documentId));
+  const existingGrades = new Map((await readJsonl(gradeFile))
+    .filter((row) => row.grader_prompt_version === GRADER_PROMPT_VERSION)
+    .map((row) => [Number(row.document_id), row]));
+  for (const { candidate, boundaries, treatmentExact } of work) {
+    if (!treatmentExact || existingGrades.has(candidate.documentId)) continue;
+    const row = {
+      kind: "gold_grade",
+      document_id: candidate.documentId,
+      citation: candidate.citation,
+      grader_prompt_version: GRADER_PROMPT_VERSION,
+      boundary_receipt: boundaries,
+      treatment_exact: true,
+      judge_required: false,
+      parsed: { verdict: "pass", errors: [] },
+      validation_errors: [],
+    };
+    await appendJsonl(gradeFile, row);
+    existingGrades.set(candidate.documentId, row);
+  }
+  const pending = work.filter(({ candidate, treatmentExact }) => !treatmentExact && !existingGrades.has(candidate.documentId));
+  const codexSubscription = pending.length ? codexSubscriptionPreflight() : null;
   const usedBeforeRun = await modelCallLedgerUsage(path.resolve(ledger));
   const plannedAttemptCeiling = pending.length * 2;
   if (usedBeforeRun + plannedAttemptCeiling > callBudget) {
@@ -695,13 +1003,13 @@ async function main() {
     remaining_after_attempt_ceiling: callBudget - usedBeforeRun - plannedAttemptCeiling,
   });
 
-  await mapPool(pending, workers, async ({ candidate, record, raw, canonical, gold, deterministic }, index) => {
+  await mapPool(pending, workers, async ({ candidate, boundaries, candidateTreatment, goldTreatment }, index) => {
     process.stderr.write(`[grade ${index + 1}] ${candidate.citation}\n`);
     const result = await runLedgeredCall({
       ledger: path.resolve(ledger), runId, purpose: "gold_adjudication", documentId: candidate.documentId, citation: candidate.citation,
       call: {
-        prompt: gradePrompt(record, canonical, raw, deterministic, gold.annotation), schema: GRADE_SCHEMA, schemaName: "a2aj_case_target_gold_grade_v3",
-        responseFormat: { type: "json_schema", name: "a2aj_case_target_gold_grade_v3", strict: true, schema: GRADE_SCHEMA },
+        prompt: gradePrompt(candidateTreatment, goldTreatment), schema: GRADE_SCHEMA, schemaName: "a2aj_case_target_treatment_by_issue_grade_v1",
+        responseFormat: { type: "json_schema", name: "a2aj_case_target_treatment_by_issue_grade_v1", strict: true, schema: GRADE_SCHEMA },
         model: GRADER_MODEL, effort: GRADER_EFFORT, timeoutSeconds,
         onEvent: async (_event, rawLine) => appendJsonl(rawEventFile, {
           kind: "codex_event_raw",
@@ -712,27 +1020,75 @@ async function main() {
       },
     });
     const parsed = result.parsed as Record<string, any> | null;
-    const validation_errors = parsed ? validateGrade(record.source.text, parsed) : [result.error ?? "missing parsed output"];
-    const row = { kind: "gold_grade", document_id: candidate.documentId, citation: candidate.citation, gold_annotator: gold.annotator, grader_prompt_version: GRADER_PROMPT_VERSION, parsed, validation_errors, raw_model_output: result.raw, model_receipt: modelReceipt(result) };
+    const validation_errors = parsed ? validateGrade(parsed) : [result.error ?? "missing parsed output"];
+    const row = {
+      kind: "gold_grade",
+      document_id: candidate.documentId,
+      citation: candidate.citation,
+      grader_prompt_version: GRADER_PROMPT_VERSION,
+      boundary_receipt: boundaries,
+      treatment_exact: false,
+      judge_required: true,
+      parsed,
+      validation_errors,
+      raw_model_output: result.raw,
+      model_receipt: modelReceipt(result),
+    };
     await appendJsonl(gradeFile, row);
     existingGrades.set(candidate.documentId, row);
     return row;
   });
 
-  const grades = [...existingGrades.values()].filter((row) => row.parsed && !row.validation_errors?.length);
-  const dimensions = Object.keys(GRADE_SCHEMA.properties.scores.properties);
-  const means = Object.fromEntries(dimensions.map((dimension) => [dimension,
-    grades.reduce((sum, row) => sum + Number(row.parsed.scores[dimension]), 0) / Math.max(1, grades.length),
+  const judgeOutputs = [...existingGrades.values()].filter((row) => row.parsed && !row.validation_errors?.length);
+  const grades = judgeOutputs;
+  const verdicts = Object.fromEntries(GRADE_VERDICTS.map((verdict) => [verdict,
+    grades.filter((row) => row.parsed.verdict === verdict).length,
   ]));
+  const boundaryComparisons = work.flatMap(({ boundaries }) => boundaries.comparisons);
+  const votingCases = work.map(({ candidate, voting }) => ({ document_id: candidate.documentId, citation: candidate.citation, ...voting }));
+  const deterministicVoting = votingCases.flatMap(({ deterministic }) => deterministic ? [deterministic] : []);
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
   const summary = {
-    cases: work.length,
+    cases: candidates.length,
+    candidate_outputs: work.length,
+    missing_candidate_outputs: missingCandidateOutputs,
+    invalid_candidate_outputs: invalidCandidateOutputs,
     valid_human_gold: work.length,
+    valid_judge_outputs: judgeOutputs.length,
     valid_grades: grades.length,
-    candidate_usable: grades.filter((row) => row.parsed.candidate_usable).length,
+    verdicts,
+    opinion_boundaries: {
+      exact_cases: work.filter(({ boundaries }) => boundaries.exact).length,
+      cases_compared: work.length,
+      exact_starts: boundaryComparisons.filter(({ start_exact }) => start_exact).length,
+      exact_ends: boundaryComparisons.filter(({ end_exact }) => end_exact).length,
+      boundaries_compared: boundaryComparisons.length,
+    },
+    opinion_voting: {
+      cases_compared: votingCases.length,
+      nontrivial_cases: votingCases.filter(({ nontrivial }) => nontrivial).length,
+      luna_full_voting_graph_exact_cases: votingCases.filter(({ luna }) => luna.exact).length,
+      luna_majority_minority_exact_cases: votingCases.filter(({ majority_minority }) => majority_minority.exact).length,
+      luna_majority_minority_exact_nontrivial_cases: votingCases.filter(({ majority_minority, nontrivial }) => nontrivial && majority_minority.exact).length,
+      luna_writers_exact_cases: votingCases.filter(({ writers }) => writers.exact).length,
+      luna_joins_exact_cases: votingCases.filter(({ joins }) => joins.exact).length,
+      deterministic_available_cases: deterministicVoting.length,
+      deterministic_asserted_claims: sum(deterministicVoting.map(({ asserted }) => asserted)),
+      deterministic_correct_claims: sum(deterministicVoting.map(({ correct }) => correct)),
+      deterministic_wrong_claims: sum(deterministicVoting.map(({ wrong, extra }) => wrong + extra)),
+      deterministic_zero_known_false_positives: deterministicVoting.every(({ zero_known_false_positives }) => zero_known_false_positives),
+      luna_gap_expected_claims: sum(votingCases.map(({ luna_on_deterministic_gaps }) => luna_on_deterministic_gaps.expected)),
+      luna_gap_correct_claims: sum(votingCases.map(({ luna_on_deterministic_gaps }) => luna_on_deterministic_gaps.correct)),
+      combined_exact_cases: votingCases.filter(({ combined }) => combined.exact).length,
+      cases: votingCases,
+    },
+    treatment_by_issue: {
+      exact_cases_without_judge: work.filter(({ treatmentExact }) => treatmentExact).length,
+      judge_required: work.filter(({ treatmentExact }) => !treatmentExact).length,
+    },
     grader_model: GRADER_MODEL,
     grader_effort: GRADER_EFFORT,
     grader_prompt_version: GRADER_PROMPT_VERSION,
-    mean_scores: means,
     gold_files: goldFiles,
     candidate_output_files: candidateFiles.map((file) => path.resolve(file)),
     grade_file: gradeFile,

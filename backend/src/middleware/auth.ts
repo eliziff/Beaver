@@ -40,19 +40,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
     const email = data.user.email?.trim().toLowerCase() || "";
     Object.assign(res.locals, { userId: data.user.id, userEmail: email, token });
-    const { syncProfileEmail } = await import("../lib/userLookup");
-    const syncError = await syncProfileEmail(db, data.user.id, email);
-    if (syncError) console.error("[auth] profile email sync failed", {
-      userId: data.user.id, ...safeErrorLog(syncError),
-    });
+    const { syncProfileIdentity } = await import("../lib/userLookup");
+    const mfaOnLogin = await syncProfileIdentity(db, data.user.id, email);
     const bootstrap = req.method === "GET" && req.path === "/profile";
-    if (!bootstrap) {
-      const { data: profile, error: profileError } = await db.from("user_profiles")
-        .select("mfa_on_login").eq("user_id", data.user.id).maybeSingle();
-      if (profileError) throw profileError;
-      if ((profile as { mfa_on_login?: boolean } | null)?.mfa_on_login &&
-          !(await satisfiesMfa(db, token, false))) return void rejectMfa(res);
-    }
+    if (!bootstrap && mfaOnLogin && !(await satisfiesMfa(db, token, false)))
+      return void rejectMfa(res);
     next();
   } catch (error) {
     console.error("[auth] verification failed", safeErrorLog(error));

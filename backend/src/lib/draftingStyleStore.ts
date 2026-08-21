@@ -1,64 +1,25 @@
-import path from "node:path";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-
-import { isLocalRuntime } from "./localMode";
-import { mikeLocalDataHome } from "./legalDataPath";
-import { createServerSupabase } from "./supabase";
 import {
-  DEFAULT_DRAFTING_STYLE,
-  normalizeDraftingStyleSettings,
-  type DraftingStyleSettings,
+  decodeJson, encodeJson, relationalDatabase, sql, type RelationalDatabase,
+} from "./relationalDatabase";
+import {
+  DEFAULT_DRAFTING_STYLE, normalizeDraftingStyleSettings, type DraftingStyleSettings,
 } from "./draftingStyle";
 
-const settingsPath = () => path.join(mikeLocalDataHome(), "drafting-style.json");
-let localMutation: Promise<unknown> = Promise.resolve();
-
-export async function getDraftingStyleSettings(
-  userId: string,
-  db?: ReturnType<typeof createServerSupabase>,
-): Promise<DraftingStyleSettings> {
-  if (isLocalRuntime()) {
-    try { return normalizeDraftingStyleSettings(JSON.parse(await readFile(settingsPath(), "utf8"))); }
-    catch { return DEFAULT_DRAFTING_STYLE; }
-  }
-  const client = db ?? createServerSupabase();
-  const { data, error } = await client
-    .from("user_profiles")
-    .select("drafting_style")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  return normalizeDraftingStyleSettings(
-    (data as { drafting_style?: unknown } | null)?.drafting_style,
-  );
+export async function getDraftingStyleSettings(userId: string, database?: RelationalDatabase):
+  Promise<DraftingStyleSettings> {
+  const db = database ?? await relationalDatabase();
+  const row = (await db.query<{ drafting_style: unknown }>(sql`
+    SELECT drafting_style FROM user_preferences WHERE user_id=${userId}`)).rows[0];
+  return row ? normalizeDraftingStyleSettings(decodeJson(row.drafting_style, null))
+    : DEFAULT_DRAFTING_STYLE;
 }
 
-export async function saveDraftingStyleSettings(
-  userId: string,
-  value: unknown,
-  db?: ReturnType<typeof createServerSupabase>,
-): Promise<DraftingStyleSettings> {
-  const settings = normalizeDraftingStyleSettings(value);
-  if (isLocalRuntime()) {
-    const operation = localMutation.then(async () => {
-      const filename = settingsPath(), temporary = `${filename}.${randomUUID()}.tmp`;
-      await mkdir(path.dirname(filename), { recursive: true, mode: 0o700 });
-      try {
-        await writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`,
-          { encoding: "utf8", mode: 0o600 });
-        await rename(temporary, filename);
-      } finally { await rm(temporary, { force: true }); }
-      return settings;
-    });
-    localMutation = operation.catch(() => undefined);
-    return operation;
-  }
-  const client = db ?? createServerSupabase();
-  const { error } = await client
-    .from("user_profiles")
-    .update({ drafting_style: settings, updated_at: new Date().toISOString() })
-    .eq("user_id", userId);
-  if (error) throw error;
+export async function saveDraftingStyleSettings(userId: string, value: unknown,
+  database?: RelationalDatabase): Promise<DraftingStyleSettings> {
+  const settings = normalizeDraftingStyleSettings(value), db = database ?? await relationalDatabase();
+  await db.query(sql`INSERT INTO user_preferences(user_id,drafting_style,updated_at)
+    VALUES(${userId},${encodeJson(settings)},${new Date().toISOString()})
+    ON CONFLICT(user_id) DO UPDATE SET drafting_style=excluded.drafting_style,
+      updated_at=excluded.updated_at`);
   return settings;
 }
