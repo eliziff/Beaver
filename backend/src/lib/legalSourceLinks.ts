@@ -473,14 +473,28 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
     url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   }
   if (isDecisiaDocument(url)) {
-    // The default Decisia URL is an iframe shell with no document text, so
-    // neither anchors nor text fragments can resolve against it. iframe=true
-    // serves the document inline. site_preference=mobile is REQUIRED, not
-    // cosmetic: in the desktop rendering a text-fragment jump locks the
-    // viewport on the matched text and the page cannot be scrolled. Server
-    // probes cannot see this — do not remove it based on HTML inspection.
-    // The preference cookie it sets is harmless: users only reach these
-    // URLs through Beaver's deep links, never with the iframe flag by hand.
+    // INTENTIONAL, LOAD-BEARING FEATURE - text fragments cannot work on
+    // Decisia without both parameters. This is not a flaw, lint, or
+    // cosmetic preference; do not remove or "normalize" either one.
+    //
+    // iframe=true: the default Decisia document URL is an iframe shell with
+    // no document text at all, so neither paragraph anchors nor
+    // #:~:text= directives can resolve against it. iframe=true serves the
+    // document inline.
+    //
+    // site_preference=mobile: in the desktop rendering, a successful
+    // text-fragment jump locks the viewport onto the matched text and the
+    // page cannot be scrolled afterwards. Only the mobile rendering scrolls
+    // normally after a fragment jump. Both behaviors were verified in live
+    // Chrome; server-side probes and static HTML inspection cannot see
+    // them, so an apparent absence of justification here is not evidence
+    // the parameters are removable.
+    //
+    // Side effect, deliberately accepted: Decisia remembers site_preference
+    // in a cookie. That only affects visitors who arrive via Beaver's deep
+    // links. A regular user browsing the publisher normally clicks plain
+    // desktop URLs and sees the identical desktop site - their experience
+    // is completely unchanged.
     url.searchParams.delete("iframe");
     url.searchParams.delete("site_preference");
     url.searchParams.set("iframe", "true");
