@@ -509,4 +509,47 @@ describe("verified legal-source links", () => {
       ),
     ).toBe(`${url}#par7`);
   });
+
+  it("emits a citation-padded variant beside the plain spelling", () => {
+    const passage =
+      "This appeal centres on the appropriate framework for determining applications to retroactively decrease child support arrears under s. 17 of the Divorce Act and related provisions.";
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18909/index.do",
+        anchor: "par1",
+        blockText: passage,
+        documentText: passage,
+      },
+      [
+        "retroactively decrease child support arrears under s. 17 of the Divorce Act and related provisions",
+      ],
+    )!;
+
+    // The quote continues past "s. 17", which Decisia renders as
+    // "s.<NBSP>17<NBSP> of". Chromium never collapses that separator run,
+    // so only the padded spelling can match there - while plain pages only
+    // match the primary. Two directives, one logical highlight.
+    expect(result.match(/text=/gu)).toHaveLength(2);
+    const [plain, padded] = result
+      .split(":~:text=")[1]
+      .split("&")
+      .map((directive) => decodeURIComponent(directive.replace(/^text=/u, "")));
+    expect(plain).toContain("arrears under s. 17 of");
+    expect(padded!).toContain("arrears under s.\u00A017\u00A0 of");
+  });
+
+  it("keeps single-directive output when no citation cluster is present", () => {
+    const passage =
+      "The amount of child support payable varies based on the payor income and often fluctuates.";
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18909/index.do",
+        anchor: "par1",
+        blockText: passage,
+        documentText: passage,
+      },
+      ["child support payable varies based on the payor income"],
+    )!;
+    expect(result.match(/text=/gu)).toHaveLength(1);
+  });
 });
