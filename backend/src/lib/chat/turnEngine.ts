@@ -43,7 +43,7 @@ import {
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
   submitLegalEvidenceAnswer,
-  type LegalEvidenceReceipt,
+  type PriorLegalEvidence,
   type LegalEvidenceReceiptEvent,
   type LegalEvidenceTurnState,
 } from "./legalEvidence";
@@ -176,7 +176,7 @@ export async function runChatTurn(options: {
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
   activityDetail?: "auto" | "standard" | "tools" | "trace";
-  priorEvidence?: LegalEvidenceReceipt[];
+  priorEvidence?: PriorLegalEvidence[];
   evidenceState?: LegalEvidenceTurnState;
   readerAssignment?: ReadSubagentAssignment;
   resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;

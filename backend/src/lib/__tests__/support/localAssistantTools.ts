@@ -57,6 +57,7 @@ export const runLocalAssistantTools = async (
     return {
       ...result,
       ...(outcome.mutated && { mutated: true }),
+      ...(outcome.terminal && { terminal: true }),
       ...(outcome.events?.length && { events: outcome.events }),
       ...(outcome.evidence?.length && { evidence: outcome.evidence }),
     };

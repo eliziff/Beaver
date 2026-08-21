@@ -2,6 +2,10 @@ import type { ChatMessageRecord } from "../chatStore";
 import type { Provider, ProviderContextCheckpoint } from "../llm/types";
 import type { AskInputItem, ChatMessage } from "./types";
 import { jsonRecord as record, trimmedText as text } from "../value";
+import {
+  priorLegalEvidencePrompt,
+  priorLegalEvidenceReceipts,
+} from "./legalEvidence";
 
 const PUBLIC_EVENTS = new Set([
   "ask_inputs", "ask_inputs_response", "automation_run", "compaction",
@@ -94,6 +98,13 @@ function projectAssistant(content: unknown): ChatMessage[] {
     if (!event) continue;
     if (event.type === "content" && typeof event.text === "string") {
       if (event.text !== "Cancelled by user.") pending += event.text;
+    } else if (event.type === "document_artifact" &&
+        typeof event.filename === "string" &&
+        typeof event.document_id === "string" &&
+        typeof event.version_id === "string") {
+      pending += `${pending ? "\n\n" : ""}[Created document: ${JSON.stringify(
+        event.filename,
+      )}; resource: document://${event.document_id}/version/${event.version_id}]`;
     } else if (event.type === "error") {
       pending += `${pending ? "\n\n" : ""}[The previous assistant response ended before completion.]`;
     } else if (event.type === "ask_inputs" && Array.isArray(event.items)) {
@@ -110,6 +121,8 @@ function projectAssistant(content: unknown): ChatMessage[] {
       }
     }
   }
+  const evidence = priorLegalEvidencePrompt(priorLegalEvidenceReceipts(content));
+  if (evidence) pending += `${pending ? "\n\n" : ""}${evidence}`;
   flush();
   return messages;
 }

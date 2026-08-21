@@ -252,7 +252,7 @@ describe("verified legal-source links", () => {
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
-  it("keeps CanLII citation links distinct from SCC quote-highlight links", () => {
+  it("builds A2AJ fragments only on the retrieved provider URL", () => {
     const text =
       "[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.";
     const lookup = lookupFixture({
@@ -264,11 +264,9 @@ describe("verified legal-source links", () => {
     });
 
     expect(buildA2AJPinpointUrl(lookup, [], text)).toBe(
-      "https://www.canlii.org/en/ca/scc/doc/2023/2023scc14/2023scc14.html#par81",
+      "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81",
     );
-    expect(buildA2AJPinpointUrl({ ...lookup, url: null }, [], text)).toBe(
-      "https://www.canlii.org/en/ca/scc/doc/2023/2023scc14/2023scc14.html#par81",
-    );
+    expect(buildA2AJPinpointUrl({ ...lookup, url: null }, [], text)).toBeNull();
     expect(
       buildA2AJPinpointUrl(
         lookupFixture({
@@ -282,9 +280,7 @@ describe("verified legal-source links", () => {
         [],
         text,
       ),
-    ).toBe(
-      "https://www.canlii.org/en/ab/abca/doc/2025/2025abca12/2025abca12.html#par12",
-    );
+    ).toBe("https://example.test/official-decision");
     expect(
       buildA2AJPinpointUrl(
         lookup,
@@ -317,12 +313,24 @@ describe("verified legal-source links", () => {
   it("uses native paragraph anchors on every Decisia deployment", () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
-    for (const url of [
-      "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22684/index.do?foo=bar",
-      "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do",
-      "https://decisia.lexum.com/nsc/nsca/en/item/523504/index.do",
+    for (const [url, dataset, citation] of [
+      [
+        "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22684/index.do?foo=bar",
+        "ONCA",
+        "2026 ONCA 42",
+      ],
+      [
+        "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do",
+        "FCA",
+        "2026 FCA 42",
+      ],
+      [
+        "https://decisia.lexum.com/nsc/nsca/en/item/523504/index.do",
+        "NSCA",
+        "2026 NSCA 42",
+      ],
     ]) {
-      const lookup = lookupFixture({ text, dataset: "ONCA", url });
+      const lookup = lookupFixture({ text, dataset, citation, url });
       const result = buildA2AJPinpointUrl(
         lookup,
         ["distinctive controlling principle"],
@@ -331,10 +339,12 @@ describe("verified legal-source links", () => {
       expect(result).toContain("iframe=true");
       expect(result).toContain("site_preference=mobile");
       expect(result).toContain("#par42:~:text=");
+      expect(result).toContain(new URL(url).hostname);
+      expect(result).not.toContain("canlii.org");
     }
   });
 
-  it("uses CanLII anchors without fabricating them on BC court pages", () => {
+  it("does not swap official BC court pages while building fragments", () => {
     const text =
       "[42] The court stated a distinctive unanchored proposition in this passage.";
     const url =
@@ -355,9 +365,31 @@ describe("verified legal-source links", () => {
     });
     const result = buildA2AJPinpointUrl(lookup, [quote], text)!;
 
-    expect(result).toContain(
-      "https://www.canlii.org/en/bc/bcca/doc/2026/2026bcca310/2026bcca310.html#par42:~:text=",
-    );
+    expect(result).toContain(`${url}#:~:text=`);
+    expect(result).not.toContain("#par42");
+    expect(result).not.toContain("canlii.org");
+  });
+
+  it("keeps a unique long passage intact instead of pairing a common start", () => {
+    const quote =
+      "[101] Delay in seeking child support can prejudice both parties, but the applicable factors must not be decided arbitrarily not to apply.";
+    const text = [
+      "Delay in seeking child support may arise for unrelated reasons in another part of the judgment.",
+      quote,
+    ].join("\n");
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
+        anchor: "par101",
+        blockText: quote,
+        documentText: text,
+      },
+      [quote],
+    )!;
+    const directive = result.split(":~:text=")[1];
+
+    expect(directive).not.toContain(",");
+    expect(decodeURIComponent(directive)).toBe(quote.replace(/^\[101\]\s*/u, ""));
   });
 
 });

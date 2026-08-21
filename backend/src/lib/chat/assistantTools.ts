@@ -2876,10 +2876,7 @@ export function assistantTools<Context extends {
       if (toolName === "Edit" && name) return `${verb} ${name}`;
       return assistantToolActivityLabel(toolName, input, name) ?? null;
     };
-  const present = (
-    output: BeaverOutcome,
-    terminalOnCreate: boolean,
-  ): BeaverOutcome => {
+  const present = (output: BeaverOutcome): BeaverOutcome => {
     const { events: rawEvents = [], ...rest } = output;
     if (output.mutated) onMutationCommitted();
     const documentEvent = rawEvents.find(isDocumentToolEvent);
@@ -2891,10 +2888,6 @@ export function assistantTools<Context extends {
         ? toolText({ ok: true, artifact, filename: documentEvent.filename })
         : output.result,
       ...(turnScope === "main" && rawEvents.length ? { events: rawEvents } : {}),
-      ...((output.terminal ||
-          (terminalOnCreate && documentEvent?.action === "created"))
-        ? { terminal: true }
-        : {}),
     };
   };
   const definition = (
@@ -2906,7 +2899,6 @@ export function assistantTools<Context extends {
       reader?: readonly ReadSubagentRegion[];
       sequential?: boolean | ((input: Record<string, unknown>) => boolean);
       activity?: (input: Record<string, unknown>) => string | null;
-      terminalOnCreate?: boolean;
     } = {},
   ): BeaverTool<Context> => ({
     ...schema,
@@ -2937,7 +2929,7 @@ export function assistantTools<Context extends {
       if (signal.aborted && !output.mutated) {
         throw signal.reason ?? new Error("Tool call cancelled");
       }
-      return present(output, policy.terminalOnCreate === true);
+      return present(output);
     },
   });
 
@@ -2959,7 +2951,7 @@ export function assistantTools<Context extends {
       sequential: true,
       activity: documentActivity("Editing", "Edit", "file_path"),
     }),
-    definition(WRITE_TOOL, write, { sequential: true, terminalOnCreate: true }),
+    definition(WRITE_TOOL, write, { sequential: true }),
     definition(SEARCH_SOURCES_TOOL, sourceSearch, { research: true, reader: ["CA", "US"] }),
     definition(noteUp, runCitator, { research: true, reader: ["CA"] }),
     definition(DOCUMENT_OPERATION_TOOL, documentOperation, {
