@@ -126,5 +126,11 @@ describe("legal-source assistant activity", () => {
       ...evidence,
       locator: { kind: "section" as const, label: `sec${label}` },
     })), "Divorce Act")).toBe("Reading ss 17(1)–17(11) of Divorce Act");
+    expect(assistantReadEvidenceActivityLabel([
+      "49(1)", "49(2)", "49(2)(a)", "49(2)(b)", "49(3)", "49(4)",
+    ].map((label) => ({
+      ...evidence,
+      locator: { kind: "section" as const, label: `sec${label}` },
+    })), "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
   });
 });
