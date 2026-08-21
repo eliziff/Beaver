@@ -825,6 +825,9 @@ handoff work is specified in
 through the existing evidence registry and semantic DOCX renderer; do not add a
 parallel citation framework or semantic-verification service.
 
+Cross-provider text-fragment gaps and their browser evidence are tracked in
+[External pinpoint robustness](external-pinpoint-robustness.md).
+
 - Replace verbose model-authored citation JSON with short evidence handles.
 - Hydrate and verify exact quote spans on the server.
 - Prefer native provider anchors; otherwise produce verified text fragments.

@@ -22,7 +22,7 @@
     },
     "legal-browser-ocr": {
       "branch": "main",
-      "commit": "ec48ad76c181cb7ad10ca3091a7314660848de36",
+      "commit": "b57912d8a10ecc8d321a8a9fa025cb67db0754c1",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-browser-ocr.git"
     },

@@ -1,4 +1,6 @@
 import {
+  buildA2AJDocumentPinpointUrl,
+  buildA2AJPinpointUrl,
   buildA2AJParagraphRangeUrl,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
@@ -39,16 +41,31 @@ function receiptLocator(entry: RegisteredEvidence): CitationPresentation["locato
   };
 }
 
-function receiptAnchor(entry: RegisteredEvidence) {
+function receiptAnchor(entry: RegisteredEvidence, sourceUrl: string) {
   const { kind, label } = entry.receipt.locator;
+  let url: URL;
+  try {
+    url = new URL(sourceUrl);
+  } catch {
+    return undefined;
+  }
+  const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
   if (kind === "paragraph") {
     const number = label.match(/^par(\d+)/iu)?.[1];
-    return number ? `par${Number(number)}` : undefined;
+    return number && canlii && url.pathname.includes("/doc/")
+      ? `par${Number(number)}`
+      : undefined;
   }
-  if (kind === "section") return label.match(/^sec[\w.-]+/iu)?.[0];
+  if (kind === "section") {
+    return canlii && url.pathname.includes("/laws/")
+      ? label.match(/^sec[\w.-]+/iu)?.[0]
+      : undefined;
+  }
   if (kind === "page") {
     const number = label.match(/(?:page=?|^)(\d+)/iu)?.[1];
-    return number ? `page=${Number(number)}` : undefined;
+    return number && url.pathname.toLowerCase().endsWith(".pdf")
+      ? `page=${Number(number)}`
+      : undefined;
   }
   return undefined;
 }
@@ -61,14 +78,20 @@ export function presentLegalEvidence(
   const source = entry.source ?? (lookup
     ? a2ajLegalSourceProvider.source(lookup)
     : document ? a2ajLegalSourceProvider.source(document) : null);
-  const sourceUrl =
+  const retrievedSourceUrl = lookup?.url ?? document?.url ?? receipt.external_url;
+  // The ordinary authority link may use CanLII. Passage links must stay on the
+  // provider document whose text was actually used to verify the fragment.
+  const citationUrl =
     (receipt.source_class === "case"
       ? buildCanliiCaseUrl({
           dataset: receipt.dataset,
           citations: [receipt.citation],
           language: receipt.language,
         })
-      : null) ?? receipt.external_url;
+      : null) ?? retrievedSourceUrl;
+  const fragmentSourceUrl = receipt.provider === "a2aj"
+    ? retrievedSourceUrl
+    : citationUrl;
   const range = receipt.locator.kind === "paragraph"
     ? receipt.locator.label.match(/^par(\d+)(?:-|\u2013|\u2014)par(\d+)$/iu)
     : null;
@@ -81,17 +104,36 @@ export function presentLegalEvidence(
           document ? [document] : [],
         )
     : null;
-  const passageUrl = sourceUrl && receipt.span_text
-    ? rangeUrl ?? buildLegalSourcePinpointUrl(
+  const a2ajLocator = ["paragraph", "page", "section"].includes(
+    receipt.locator.kind,
+  ) ? receipt.locator as {
+      kind: "paragraph" | "page" | "section";
+      label: string;
+    } : null;
+  const a2ajUrl = receipt.provider === "a2aj" && receipt.span_text && a2ajLocator
+    ? lookup
+      ? buildA2AJPinpointUrl(lookup, quotes, source, lookup.block)
+      : document
+        ? buildA2AJDocumentPinpointUrl(
+            document,
+            a2ajLocator,
+            receipt.span_text,
+            quotes,
+            source,
+          )
+        : null
+    : null;
+  const passageUrl = fragmentSourceUrl && receipt.span_text
+    ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
           {
-            url: sourceUrl,
-            anchor: receiptAnchor(entry),
+            url: fragmentSourceUrl,
+            anchor: receiptAnchor(entry, fragmentSourceUrl),
             blockText: receipt.span_text,
             ...(source && { documentText: source }),
           },
           quotes,
         )
-    : sourceUrl;
+    : citationUrl;
   const name = receipt.name?.trim() ?? "";
   const citation = receipt.citation.trim();
   const authority = receipt.provider === "journal"
@@ -103,7 +145,7 @@ export function presentLegalEvidence(
     authority: tokenizeLegalInline(authority),
     shortAuthority: tokenizeLegalInline(name || citation || "Source"),
     locator: receiptLocator(entry),
-    sourceUrl,
+    sourceUrl: citationUrl,
     passageUrl,
   };
 }

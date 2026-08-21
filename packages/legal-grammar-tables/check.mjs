@@ -40,6 +40,9 @@ const stringRecord = (value, label) => {
   }
 };
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const sameManifest = (actual, expected) =>
+  actual.toString("utf8").replaceAll("\r\n", "\n") ===
+  expected.toString("utf8").replaceAll("\r\n", "\n");
 const expand = (source, defs, id) => {
   let result = source;
   for (let pass = 0; pass <= 10; pass += 1) {
@@ -168,7 +171,7 @@ if (process.argv.includes("--sync")) {
   }
 }
 
-if (!readFileSync(manifestPath).equals(manifestBytes)) fail("manifest.json is stale; run npm run sync");
+if (!sameManifest(readFileSync(manifestPath), manifestBytes)) fail("manifest.json is stale; run npm run sync");
 for (const bundle of bundles) {
   for (const name of ["grammar-corpus.json", "manifest.json"]) {
     const expected = name === "grammar-corpus.json" ? corpusBytes : manifestBytes;
@@ -178,7 +181,9 @@ for (const bundle of bundles) {
     } catch {
       fail(`${path.relative(workspace, bundle)}/${name} is missing; run npm run sync`);
     }
-    if (!actual.equals(expected)) fail(`${path.relative(workspace, bundle)}/${name} is stale; run npm run sync`);
+    if (!(name === "manifest.json" ? sameManifest(actual, expected) : actual.equals(expected))) {
+      fail(`${path.relative(workspace, bundle)}/${name} is stale; run npm run sync`);
+    }
   }
 }
 console.log(`legal grammar corpus ok: ${ids.size} entries, ${vectors} vectors, ${manifest.sha256}`);
