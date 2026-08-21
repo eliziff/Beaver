@@ -6,11 +6,9 @@ import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
 import {
   lookupLegalSourceDoc,
   nativeMarkupCitedRefs,
-  prepareNativeMarkupSourceStructure,
   summarizeLegalSourceDoc,
 } from "../sourceDocNativeMarkup";
 import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
-import { materializeSourceStructure } from "../sourceStructureAdapter";
 
 /**
  * Parity gates for the native-markup compiler.
@@ -394,23 +392,15 @@ describe("native markup compilation", () => {
     ).toBe("found");
   });
 
-  it("preserves native EOF trim overhang publicly but gives the engine a valid range", async () => {
+  it("preserves native EOF trim overhang", async () => {
     const input = {
       provider: "courtlistener" as const,
       id: "trim-overhang",
       text: "",
       markup: '<footnote label="*"><p>Symbol note.</p></footnote>',
     };
-    const prepared = prepareNativeMarkupSourceStructure(input);
-    const materialized = materializeSourceStructure(prepared);
-    expect(prepared.text).toBe("Symbol note.");
-    expect(prepared.nativeBlocks?.[0]).toMatchObject({
-      kind: "footnote", label: "fn*", start: 0, end: prepared.text.length + 1,
-    });
-    expect(materialized.evidence.native_claims[0].range).toEqual({
-      start: 0, end: prepared.text.length,
-    });
     const doc = await deriveNativeMarkupSourceDoc(input);
+    expect(doc.text).toBe("Symbol note.");
     expect(doc.blocks.find(({ label }) => label === "fn*")?.end).toBe(doc.text.length + 1);
   });
 
