@@ -1,8 +1,4 @@
 import {
-  legalSourceQuoteCandidates,
-  legalSourceQuoteMatchesBlock,
-} from "../legalSourceLinks";
-import {
   legalEvidenceCitationEntries,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
@@ -23,30 +19,6 @@ function receiptLocator(
     locator: label,
     pinpoint: presentation.locator.text,
   };
-}
-
-function tailoredReceiptQuotes(
-  state: LegalEvidenceTurnState,
-  evidenceId: string,
-  fallback: string,
-) {
-  const quotes = new Map<string, string>();
-  for (const claim of state.answer ?? []) {
-    if (!claim.evidence_ids.includes(evidenceId)) continue;
-    const entries = claim.evidence_ids.flatMap((id) => {
-      const receipt = state.evidence.get(id)?.receipt;
-      return receipt?.span_text ? [{ id, text: receipt.span_text }] : [];
-    });
-    for (const quote of legalSourceQuoteCandidates(claim.text)) {
-      const matches = entries.filter(({ text }) =>
-        legalSourceQuoteMatchesBlock(text, quote),
-      );
-      if (matches.length !== 1 || matches[0].id !== evidenceId) continue;
-      const key = quote.replace(/\s+/gu, " ").trim().toLocaleLowerCase();
-      if (key && !quotes.has(key)) quotes.set(key, quote);
-    }
-  }
-  return quotes.size ? [...quotes.values()] : [fallback];
 }
 
 export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
@@ -78,13 +50,10 @@ export function createLegalEvidenceCitations(
       const { ref, receipt } = entry;
       const quote = receipt.span_text;
       if (!quote) return [];
-      const quoteTexts = tailoredReceiptQuotes(
-        state,
-        receipt.evidence_id,
-        quote,
-      );
-      const quotes = quoteTexts.map((quote) => ({ quote }));
-      const presentation = presentLegalEvidence(entry, quoteTexts);
+      // Quotes are verified source passages, never model prose. Fragments,
+      // highlights, and DOCX links all derive from the same receipt span.
+      const quotes = [{ quote }];
+      const presentation = presentLegalEvidence(entry);
       const locator = receiptLocator(entry, presentation);
       const display = {
         authority: citationPresentationText(presentation.authority),
