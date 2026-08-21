@@ -1,13 +1,14 @@
 import { isJsonRecord as record } from "./value";
 
 export const STRUCTURE_EVIDENCE_SCHEMA = "legalpdf.structure-evidence.v1";
-export const STRUCTURE_RESULT_SCHEMA = "legalpdf.structure-graph.v1";
-export const STRUCTURE_CAPABILITIES = ["native_claims", "raw_recovery"] as const;
+const STRUCTURE_RESULT_SCHEMA = "legalpdf.structure-graph.v2";
+const STRUCTURE_CAPABILITIES = ["native_claims", "raw_recovery"] as const;
 
 export type StructureCapability = typeof STRUCTURE_CAPABILITIES[number];
 export type StructureRange = { start: number; end: number };
 export type StructureKind =
-  | "paragraph" | "prose" | "page" | "section" | "heading" | "footnote" | "endnote";
+  | "paragraph" | "prose" | "page" | "section" | "heading" | "footnote" | "endnote"
+  | "list" | "list_item" | "navigation";
 export type StructureOrigin = {
   id: string; producer: string; representation: string; revision: string; authority: string;
 };
@@ -67,13 +68,18 @@ export type StructureEvidenceV1 = {
 };
 
 type GraphSource = "native" | "heuristic" | "model";
-export type StructureGraphV1 = {
+export type StructureGraphV2 = {
   schema_version: typeof STRUCTURE_RESULT_SCHEMA; document_id: string; text_sha256: string;
   source_sha256?: string; status: "complete" | "partial";
   nodes: Array<{
     id: string; kind: StructureKind | "heading" | "endnote" | "prose";
     range: StructureRange; origin_id: string; source: GraphSource; label?: string;
+    locator_kind?: "section" | "subsection" | "article" | "part" | "schedule" |
+      "clause" | "subclause" | "exhibit" | "annex" | "appendix";
     aliases?: string[]; parent_id?: string; anchor?: string; content_start?: number;
+    marker_range?: StructureRange;
+    page_indexes?: number[]; line_ids?: string[]; level?: number; grammar?: string;
+    proof?: { rule: string; observations: unknown[] };
   }>;
   boundaries: Array<{
     kind: "paragraph" | "prose"; at: number; origin_id: string; source: GraphSource;
@@ -82,15 +88,16 @@ export type StructureGraphV1 = {
     id: string; kind: "contains" | "precedes" | "references" | "footnote_for";
     from: { node_id: string } | { range: StructureRange };
     to: { node_id: string } | { range: StructureRange };
-    origin_id: string; source: GraphSource;
+    origin_id: string; source: GraphSource; page_indexes: number[]; line_ids: string[];
   }>;
   diagnostics: Array<{
     code: string; severity: "info" | "warning" | "error";
+    run_id?: string; candidate_ids?: string[]; rules?: string[];
     ranges: StructureRange[]; node_ids: string[];
   }>;
 };
 export type StructureResultItem =
-  | { id: string; ok: true; result: StructureGraphV1 }
+  | { id: string; ok: true; result: StructureGraphV2 }
   | { id: string; ok: false; error: { code: string; message: string } };
 
 function checkedOffset(value: number, maximum: number, name: string) {
@@ -137,9 +144,9 @@ export type StructureInputIdentity = {
 };
 const HEX = /^[a-f0-9]{64}$/u;
 const SOURCES = ["native", "heuristic", "model"];
-const NODE_KINDS = ["paragraph", "page", "section", "heading", "footnote", "endnote", "prose"];
+const NODE_KINDS = ["paragraph", "page", "section", "heading", "footnote", "endnote", "prose", "list", "list_item", "navigation"];
 const RELATION_KINDS = ["contains", "precedes", "references", "footnote_for"];
-export function structureWireShape(value: unknown, required: string[], optional: string[] = []) {
+function structureWireShape(value: unknown, required: string[], optional: string[] = []) {
   if (!record(value) || !required.every((key) => key in value) ||
       Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) {
     throw new Error("Structure sidecar returned an invalid shape");
@@ -165,7 +172,7 @@ function endpoint(value: unknown, nodes: Set<string>, length: number) {
     throw new Error("Structure sidecar returned an invalid relation endpoint");
   }
 }
-export function validateStructureGraph(value: unknown, input: StructureInputIdentity): StructureGraphV1 {
+export function validateStructureGraph(value: unknown, input: StructureInputIdentity): StructureGraphV2 {
   const root = structureWireShape(value,
     ["schema_version", "document_id", "text_sha256", "status", "nodes", "boundaries", "relations", "diagnostics"],
     ["source_sha256"]);
@@ -178,12 +185,19 @@ export function validateStructureGraph(value: unknown, input: StructureInputIden
   }
   const nodes = new Set<string>();
   for (const raw of root.nodes as unknown[]) {
-    const node = structureWireShape(raw, ["id", "kind", "range", "origin_id", "source"], ["label", "aliases", "parent_id", "anchor", "content_start"]);
+    const node = structureWireShape(raw, ["id", "kind", "range", "origin_id", "source"], ["label", "locator_kind", "aliases", "parent_id", "anchor", "content_start", "marker_range", "page_indexes", "line_ids", "level", "grammar", "proof"]);
     if (!nonempty(node.id) || nodes.has(node.id) || !NODE_KINDS.includes(String(node.kind)) ||
         !nonempty(node.origin_id) || !SOURCES.includes(String(node.source)) ||
         !scalarRange(node.range, input.scalarLength) ||
         ["label", "parent_id", "anchor"].some((key) => node[key] !== undefined && !nonempty(node[key])) ||
+        (node.locator_kind !== undefined && (node.kind !== "section" || !nonempty(node.locator_kind))) ||
         (node.aliases !== undefined && (!Array.isArray(node.aliases) || !node.aliases.every((alias) => nonempty(alias)))) ||
+        (node.page_indexes !== undefined && (!Array.isArray(node.page_indexes) || !node.page_indexes.every((page) => Number.isSafeInteger(page) && Number(page) >= 0))) ||
+        (node.line_ids !== undefined && (!Array.isArray(node.line_ids) || !node.line_ids.every((id) => nonempty(id)))) ||
+        (node.level !== undefined && (!Number.isSafeInteger(node.level) || Number(node.level) < 0)) ||
+        (node.grammar !== undefined && !nonempty(node.grammar)) ||
+        (node.proof !== undefined && !record(node.proof)) ||
+        (node.marker_range !== undefined && !scalarRange(node.marker_range, input.scalarLength)) ||
         (node.content_start !== undefined && (node.kind !== "section" || !Number.isSafeInteger(node.content_start) ||
           Number(node.content_start) < (node.range as StructureRange).start ||
           Number(node.content_start) > (node.range as StructureRange).end))) {
@@ -202,21 +216,30 @@ export function validateStructureGraph(value: unknown, input: StructureInputIden
   }
   const relations = new Set<string>();
   for (const raw of root.relations as unknown[]) {
-    const relation = structureWireShape(raw, ["id", "kind", "from", "to", "origin_id", "source"]);
+    const relation = structureWireShape(raw,
+      ["id", "kind", "from", "to", "origin_id", "source", "page_indexes", "line_ids"]);
     if (!nonempty(relation.id) || relations.has(relation.id) || !RELATION_KINDS.includes(String(relation.kind)) ||
-        !nonempty(relation.origin_id) || !SOURCES.includes(String(relation.source))) {
+        !nonempty(relation.origin_id) || !SOURCES.includes(String(relation.source)) ||
+        !Array.isArray(relation.page_indexes) ||
+        !relation.page_indexes.every((page) => Number.isSafeInteger(page) && Number(page) >= 0) ||
+        !Array.isArray(relation.line_ids) || !relation.line_ids.every((id) => nonempty(id))) {
       throw new Error("Structure sidecar returned an invalid relation");
     }
     endpoint(relation.from, nodes, input.scalarLength); endpoint(relation.to, nodes, input.scalarLength);
     relations.add(relation.id);
   }
   for (const raw of root.diagnostics as unknown[]) {
-    const diagnostic = structureWireShape(raw, ["code", "severity", "ranges", "node_ids"]);
+    const diagnostic = structureWireShape(raw, ["code", "severity", "ranges", "node_ids"],
+      ["run_id", "candidate_ids", "rules"]);
     if (!nonempty(diagnostic.code) || !["info", "warning", "error"].includes(String(diagnostic.severity)) ||
         !Array.isArray(diagnostic.ranges) || !diagnostic.ranges.every((range) => scalarRange(range, input.scalarLength)) ||
+        (diagnostic.run_id !== undefined && !nonempty(diagnostic.run_id)) ||
+        (diagnostic.candidate_ids !== undefined && (!Array.isArray(diagnostic.candidate_ids) || !diagnostic.candidate_ids.every((id) => nonempty(id)))) ||
+        (diagnostic.rules !== undefined && (!Array.isArray(diagnostic.rules) ||
+          !diagnostic.rules.every((rule) => nonempty(rule)))) ||
         !Array.isArray(diagnostic.node_ids) || !diagnostic.node_ids.every((id) => nonempty(id) && nodes.has(id))) {
       throw new Error("Structure sidecar returned an invalid diagnostic");
     }
   }
-  return root as StructureGraphV1;
+  return root as StructureGraphV2;
 }

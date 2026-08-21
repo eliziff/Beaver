@@ -16,7 +16,7 @@
     },
     "legal-pdf-parser": {
       "branch": "main",
-      "commit": "b11c0082e12a717ed21df7af2d17a3112f6daf34",
+      "commit": "06a9dfd3b5fa06df26ff4c06b2eee430e1804d37",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-pdf-parser.git"
     },
