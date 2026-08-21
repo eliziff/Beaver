@@ -8,7 +8,7 @@ import {
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
 import type { AskInputsEvent } from "./types";
-import type { LegalEvidenceReceipt } from "./legalEvidence";
+import type { LegalEvidenceReceipt, RegisteredEvidence } from "./legalEvidence";
 import type { ReadSubagentRegion } from "./readSubagents";
 import type { AssistantEvent } from "./turnEngine";
 
@@ -22,6 +22,7 @@ export type BeaverOutcome = {
   metadata?: Omit<NormalizedToolResult, "tool_use_id" | "content" | "terminal">;
   events?: AssistantEvent[];
   evidence?: LegalEvidenceReceipt[];
+  evidenceSources?: Map<string, Omit<RegisteredEvidence, "receipt">>;
   pause?: AskInputsEvent;
   mutated?: boolean;
   terminal?: boolean;
