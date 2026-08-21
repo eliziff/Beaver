@@ -37,6 +37,7 @@ import {
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
+  legalEvidenceRequested,
   modelEvidencePassage,
   registerLegalEvidence,
   registerPriorLegalEvidence,
@@ -219,7 +220,7 @@ export async function runChatTurn(options: {
     emit(event);
   };
   const settleToolActivities = (
-    status: "error" | "interrupted",
+    status: "completed" | "error" | "interrupted",
     ids: Iterable<string> = toolActivities.keys(),
   ) => {
     for (const id of ids) {
@@ -251,6 +252,8 @@ export async function runChatTurn(options: {
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
     .find((message) => message.role === "user")?.content ?? "";
+  if (!evidence.mode && legalEvidenceRequested(options.messages))
+    evidence.mode = "citation_structure";
   const admitReaders = createReadSubagentAdmission(
     4,
     allowedReadSubagentRegions(options.jurisdictionPreference ?? null, request),
@@ -276,11 +279,9 @@ export async function runChatTurn(options: {
       const separator = contentBoundarySeparator(text, delta);
       if (separator) {
         text += separator;
-        emit({ type: "content_delta", text: separator });
       }
     }
     text += delta;
-    emit({ type: "content_delta", text: delta });
   };
   const partialEvents = () => {
     if (reasoning) addEvent({ type: "reasoning", text: reasoning });
@@ -521,7 +522,6 @@ export async function runChatTurn(options: {
     if (paused) {
       text = "";
       boundary = false;
-      emit({ type: "content_reset" });
       addEvent(paused);
       emit(paused);
       providerAbort.abort();
@@ -530,11 +530,6 @@ export async function runChatTurn(options: {
     if (grounded !== null) {
       text = grounded;
       boundary = false;
-      emit({ type: "content_snapshot", text: grounded });
-      emit({
-        type: "citations",
-        citations: createLegalEvidenceCitations(evidence),
-      });
     }
     for (const result of batch.results) {
       const activity = toolActivities.get(result.tool_use_id);
@@ -555,7 +550,6 @@ export async function runChatTurn(options: {
     onContentBlockEnd() {
       if (!paused && options.separateContentBlocks !== false) {
         boundary = Boolean(text);
-        emit({ type: "content_block_end" });
       }
     },
     onReasoningDelta(delta: string) {
@@ -563,12 +557,14 @@ export async function runChatTurn(options: {
       if (delta) providerActivity = true;
       if (!paused) {
         reasoning += delta;
-        emit({ type: "reasoning_delta", text: delta });
       }
     },
     onReasoningBlockEnd() {
       if (activityDetail !== "auto" && activityDetail !== "trace") return;
-      if (reasoning) addEvent({ type: "reasoning", text: reasoning });
+      if (reasoning) {
+        addEvent({ type: "reasoning", text: reasoning });
+        emit({ type: "reasoning_delta", text: reasoning });
+      }
       reasoning = "";
       if (!paused) emit({ type: "reasoning_block_end" });
     },
@@ -774,7 +770,6 @@ export async function runChatTurn(options: {
       const rejected = text;
       text = "";
       boundary = false;
-      emit({ type: "content_reset" });
       providerResult = await provider(providerResult?.continuationId, {
         draft: rejected,
         findings: GROUNDED_LEGAL_REPAIR_INSTRUCTION,
@@ -790,7 +785,6 @@ export async function runChatTurn(options: {
         evidence.failure = null;
         text = "";
         boundary = false;
-        emit({ type: "content_reset" });
         providerResult = await provider(providerResult?.continuationId, {
           draft: rejected,
           findings: `The answer did not pass Beaver's grounding gate: ${failure} Continue the same request and finish with submit_grounded_answer. Reuse the evidence_ids already registered in this turn; do not call Read again for them. Retrieve only genuinely missing authority passages. Every case, legislation, journal, or Hansard source named in the answer requires a supporting evidence_id. Do not narrate this correction.`,
@@ -799,7 +793,6 @@ export async function runChatTurn(options: {
       }
       if (!finalized) {
         text = "";
-        emit({ type: "content_reset" });
         throw new Error("Grounding verification failed after correction attempts");
       }
       text = renderLegalEvidenceAnswer(evidence) ?? text.trimEnd();
@@ -827,8 +820,10 @@ export async function runChatTurn(options: {
     continuationId: providerResult?.continuationId,
     evidence,
   };
-  emit({ type: "content_final", text });
-  emit({ type: "citations", citations });
+  if (!paused) {
+    settleToolActivities("completed");
+    emit({ type: "content_final", text, citations });
+  }
   options.onProviderControl?.(null);
   return result;
 }

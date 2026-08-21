@@ -7,7 +7,11 @@ vi.mock("../llm", async (importOriginal) => ({
 }));
 
 import { assistantTools } from "./assistantTools";
-import { createBenchmarkEvidence, registerLegalEvidence } from "./legalEvidence";
+import {
+  createTnaEvidence,
+  createPublicJournalPassageEvidence,
+  registerLegalEvidence,
+} from "./legalEvidence";
 import { runChatTurn, type ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
 const ASSISTANT_TOOLS = assistantTools<ChatToolContext>({
@@ -71,6 +75,7 @@ it("preserves one tool activity through running and completed states", async () 
     label: "Reading v1 from your Library",
     status: "completed",
   });
+  expect(events).toContainEqual({ type: "content_final", text: "", citations: [] });
 });
 
 it("persists private tool receipts without emitting them", async () => {
@@ -110,7 +115,7 @@ it("persists private tool receipts without emitting them", async () => {
 });
 
 it("repairs a failed grounded submission without exposing the validator error", async () => {
-  const evidence = createBenchmarkEvidence({
+  const evidence = createTnaEvidence({
     jurisdiction: "CA",
     sourceClass: "case",
     stableSourceId: "case-1",
@@ -159,9 +164,17 @@ it("repairs a failed grounded submission without exposing the validator error", 
 
   expect(call).toBe(2);
   expect(result.fullText).toContain("My favourite is Example v Example");
-  expect(result.fullText).toContain("2024 SCC 1");
+  expect(result.fullText).toContain("[1]");
+  expect(result.fullText).not.toContain("http");
   expect(result.fullText).not.toContain("could not be structured");
-  expect(emitted).toContainEqual({ type: "content_reset" });
+  expect(emitted.filter((event) =>
+    typeof event === "object" && event !== null &&
+    String((event as { type?: unknown }).type).startsWith("content"),
+  )).toEqual([{
+    type: "content_final",
+    text: result.fullText,
+    citations: result.citations,
+  }]);
 });
 
 it("does not preserve an unsupported draft after grounding repairs fail", async () => {
@@ -178,4 +191,38 @@ it("does not preserve an unsupported draft after grounding repairs fail", async 
     emit: () => undefined,
   })).rejects.toMatchObject({ fullText: "" });
   expect(stream).toHaveBeenCalledTimes(3);
+});
+
+it("does not turn non-legal journal retrieval into a grounding repair", async () => {
+  const evidence = createPublicJournalPassageEvidence({
+    citation: "Poetry Review 1",
+    name: "Reading Prufrock",
+    date: "2026",
+    url: "https://example.test/prufrock",
+    text: "Prufrock is a dramatic monologue.",
+    articleId: "poem-1",
+    locatorKind: "page",
+    locatorLabel: "page=1",
+  });
+  const emitted: unknown[] = [];
+  stream.mockImplementationOnce(async ({ callbacks }) => {
+    callbacks.onContentDelta?.("My favourite is The Love Song of J. Alfred Prufrock.");
+    return { fullText: "My favourite is The Love Song of J. Alfred Prufrock." };
+  });
+
+  const result = await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "What is your favourite poem?" }],
+    createTools: (state) => {
+      registerLegalEvidence(state, evidence);
+      return [];
+    },
+    emit: (event) => emitted.push(event),
+  });
+
+  expect(stream).toHaveBeenCalledTimes(1);
+  expect(result.fullText).toBe("My favourite is The Love Song of J. Alfred Prufrock.");
+  expect(result.citations).toEqual([]);
+  expect(emitted).not.toContainEqual({ type: "content_reset" });
 });

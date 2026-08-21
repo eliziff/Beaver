@@ -547,7 +547,7 @@ function Start-Stack {
     Assert-Builds
     $node = Get-Node
     $codex = Resolve-Codex -Optional
-    $legalPdfBinary = Resolve-LegalPdfBinary -Build
+    $legalPdfBinary = Resolve-LegalPdfBinary
     [void](Get-LegalPdfRuntimeVersion $legalPdfBinary)
     if ($WithTableOfAuthorities) { [void](Get-Python) }
     Assert-PortsFree

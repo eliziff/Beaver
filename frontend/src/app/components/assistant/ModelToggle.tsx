@@ -53,9 +53,7 @@ export const SETTINGS_MODELS: ModelOption[] = [
 export const DEFAULT_MODEL_ID = "codex:gpt-5.6-terra";
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 const DESKTOP_MODELS: ModelOption[] = [
-    { id: "ollama:qwen3.5:2b-q4_K_M", label: "Qwen 3.5 2B (Q4_K_M)", group: "Desktop" },
-    { id: "ollama:qwen3.5:4b-q4_K_M", label: "Qwen 3.5 4B (Q4_K_M)", group: "Desktop" },
-    { id: "ollama:qwen3.5:9b", label: "Qwen 3.5 9B", group: "Desktop" },
+    { id: "ollama:qwen3.8:27b-ud-q2-k-xl", label: "Qwen 3.8 27B (UD-Q2_K_XL)", group: "Desktop" },
 ];
 const catalogListeners = new Set<() => void>();
 let catalogRefresh: Promise<ModelCatalog> | null = null;
@@ -198,7 +196,7 @@ function reasoningEfforts(model: string, catalog: ModelCatalog | null) {
     return model.startsWith("deepseek-")
         ? [{ effort: "low" }, { effort: "high" }, { effort: "max" }]
         : selectedDesktopModel?.supportsThinking
-          ? ["off", "low", "medium", "high", "max"].map((effort) => ({
+          ? ["off", "low", "medium", "high"].map((effort) => ({
                 effort,
             }))
         : isMuseSpark

@@ -133,16 +133,14 @@ export function createLegalEvidenceCitations(
           ...locator,
         }];
       }
-      const publicProvider = receipt.provider === "benchmark"
-        ? (["tna", "govuk-et", "govinfo"] as const).find((provider) =>
-            receipt.stable_source_id.startsWith(`${provider}:`))
-        : undefined;
-      if (publicProvider) {
+      if (["courtlistener", "tna", "govuk-et", "govinfo", "hansard"].includes(
+        receipt.provider,
+      )) {
         return [{
           kind: "public_legal" as const,
           ref,
-          provider: publicProvider,
-          identifier: receipt.stable_source_id.slice(publicProvider.length + 1),
+          provider: receipt.provider,
+          identifier: receipt.stable_source_id,
           title: receipt.name,
           citation: receipt.citation,
           url: presentation.passageUrl,

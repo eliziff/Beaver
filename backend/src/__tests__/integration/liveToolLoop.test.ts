@@ -46,7 +46,7 @@ function sseEvents(body: string): SseEvent[] {
 
 function visibleText(events: SseEvent[]) {
   return events
-    .filter((event) => event.type === "content_delta")
+    .filter((event) => event.type === "content_final")
     .map((event) => String(event.text ?? ""))
     .join("");
 }

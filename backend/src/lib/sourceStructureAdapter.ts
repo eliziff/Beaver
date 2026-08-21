@@ -4,7 +4,7 @@ import {
   STRUCTURE_EVIDENCE_SCHEMA,
   documentScalarOffsets,
   type StructureEvidenceV1,
-  type StructureGraphV1,
+  type StructureGraphV2,
   type StructureKind,
 } from "./structureWire";
 
@@ -40,7 +40,7 @@ export type MaterializedSourceStructure = {
   offsets: ReturnType<typeof documentScalarOffsets>;
 };
 
-export function validRange(range: Utf16Range, length: number) {
+function validRange(range: Utf16Range, length: number) {
   return Number.isSafeInteger(range.start) && Number.isSafeInteger(range.end) &&
     range.start >= 0 && range.start <= range.end && range.end <= length;
 }
@@ -126,7 +126,7 @@ export function materializeSourceStructure(input: SourceStructureInput): Materia
   return { input, evidence, originalClaims, offsets };
 }
 
-export function projectSourceStructure(materialized: MaterializedSourceStructure, graph: StructureGraphV1) {
+export function projectSourceStructure(materialized: MaterializedSourceStructure, graph: StructureGraphV2) {
   const { input, originalClaims, offsets } = materialized;
   const labels = new Map(graph.nodes.flatMap((node) => node.label ? [[node.id, node.label] as const] : []));
   let prose = 0;

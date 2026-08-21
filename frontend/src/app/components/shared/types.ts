@@ -213,7 +213,7 @@ type A2AJCitation = LegalCitationLocator & {
 type PublicLegalCitation = LegalCitationLocator & {
   kind: "public_legal";
   ref: number;
-  provider: "tna" | "govuk-et" | "govinfo" | "journal";
+  provider: "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard" | "journal";
   identifier: string;
   title?: string | null;
   citation?: string | null;

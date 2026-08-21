@@ -96,13 +96,16 @@ Current engines to delete after callers move:
 
 ## Canonical assistant events
 
-The canonical stored event is also the canonical SSE/frontend event. Streaming
-deltas may be transient, while completed blocks and durable actions are stored.
+Tool and reasoning activity may stream immediately. Assistant prose is buffered
+until grounding succeeds, then released once with its citations in
+`content_final`. The durable `content` event and citation objects are committed
+atomically; rejected or interrupted drafts are never exposed as provisional
+assistant text.
 
 | Class | Required event behavior |
 | --- | --- |
-| lifecycle | chat ID and transcript version precede dependent events; terminal version/citations precede `[DONE]`; one terminal outcome |
-| text | ordered `content_delta`, completed `content`, content-block boundary, and partial text retained on failure |
+| lifecycle | chat ID precedes dependent events; one atomic `content_final` stops live activity before persistence finishes; transcript version precedes `[DONE]`; one terminal outcome |
+| text | no provisional prose events; accepted text and matching citations arrive together in `content_final`; durable `content` and citations commit together |
 | reasoning/activity | reasoning deltas/blocks respect requested detail; tool start carries name and optional bounded input |
 | input | `ask_inputs` pauses without a fake tool result; `ask_inputs_response` resumes the same logical turn |
 | document | read/find, created, edited, download, automation, mutation receipt, version ID/number, and annotations remain source-bound |

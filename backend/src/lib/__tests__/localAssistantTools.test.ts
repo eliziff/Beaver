@@ -351,14 +351,14 @@ describe("local assistant tools", () => {
       ).DEFAULT_DRAFTING_STYLE),
     }));
     const {
-      createBenchmarkEvidence,
+      createTnaEvidence,
       createLegalEvidenceTurnState,
       registerLegalEvidence,
     } = await import("../chat/legalEvidence");
     const state = createLegalEvidenceTurnState();
     const passage =
       "Charter decisions should not and must not be made in a factual vacuum.";
-    const evidence = createBenchmarkEvidence({
+    const evidence = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "standing-case",
