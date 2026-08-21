@@ -1,11 +1,12 @@
 # Beaver
 
 Beaver is a local-first legal research, document review, drafting, and
-authorities workspace, geared primarily toward Canadian law. It combines a
-provider-neutral assistant with exact legal-source evidence, deterministic
-document tooling, and a native legal-PDF parser. Account-free local mode keeps
-application data on the machine; the same application can use Supabase,
-Postgres, and object storage when deployed for multiple users.
+authorities workspace, geared primarily toward Canadian law.
+Forked from Mike. This is a hobby project. I am not a software engineer.
+This project has bugs and jank and changes frequently, it
+makes no attempt to be a stable product.
+Making it available in case anyone wants
+to experiment with it or borrow parts of it. 
 
 ## What Beaver adds
 
