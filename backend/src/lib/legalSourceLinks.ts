@@ -262,8 +262,20 @@ function buildRangeDirective(
     const tail = edgePhrase(block, span, "end", size);
     if (!head || !tail || head.last >= tail.first) continue;
     if (rangeDirectiveMatchCount(document, head.text, tail.text) === 1) {
+      const paddedHead = citationClusterVariant(head.text);
+      const paddedTail = citationClusterVariant(tail.text);
       return {
-        directive: textRangeDirective(head.text, tail.text),
+        directives: [
+          textRangeDirective(head.text, tail.text),
+          ...((paddedHead || paddedTail)
+            ? [
+                textRangeDirective(
+                  paddedHead ?? head.text,
+                  paddedTail ?? tail.text,
+                ),
+              ]
+            : []),
+        ],
         start: span.start,
       };
     }
@@ -331,6 +343,36 @@ function textDirective(target: string, prefix = "", suffix = "") {
 
 function textRangeDirective(start: string, end: string) {
   return `text=${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
+}
+
+/**
+ * Decisia linkifies abbreviation citations ("s. 17") and pads them with
+ * non-breaking separators: the rendered run reads "s.<NBSP>17<NBSP> of".
+ * Chromium matches fragment whitespace positionally - NBSP folds onto one
+ * space, but separator runs never collapse across element boundaries - so a
+ * target that continues past such a cluster must carry the padded spelling.
+ * A browser ignores any directive that matches nothing, so emitting both
+ * spellings is safe everywhere; once a provider's projection is proven we
+ * can collapse to its single form.
+ */
+function citationClusterVariant(target: string): string | null {
+  if (!/[A-Za-z]{1,3}\.\s\d/u.test(target)) return null;
+  const padded = target
+    .replace(/\b([A-Za-z]{1,3}\.)(\s)(\d)/gu, "$1\u00A0$3")
+    // The icon glyph leaves an NBSP *before* the prose's own space.
+    .replace(/\b([A-Za-z]{1,3}\.\u00A0\d+[A-Za-z0-9.]*)\s/gu, "$1\u00A0 ");
+  return padded === target ? null : padded;
+}
+
+function exactDirectives(
+  target: string,
+  prefix = "",
+  suffix = "",
+): string[] {
+  const directives = [textDirective(target, prefix, suffix)];
+  const variant = citationClusterVariant(target);
+  if (variant) directives.push(textDirective(variant, prefix, suffix));
+  return directives;
 }
 
 function a2ajLocatorAnchor(
@@ -540,7 +582,7 @@ function buildDirective(
     targetCount !== 1 ||
     (pageScoped && targetWords.length <= 8);
   if (!needsContext && targetCount === 1) {
-    return { directive: textDirective(target), start: span.start };
+    return { directives: exactDirectives(target), start: span.start };
   }
 
   for (const window of CONTEXT_WINDOWS) {
@@ -561,7 +603,11 @@ function buildDirective(
         ) === 1
       ) {
         return {
-          directive: textDirective(target, candidatePrefix, candidateSuffix),
+          directives: exactDirectives(
+            target,
+            candidatePrefix,
+            candidateSuffix,
+          ),
           start: span.start,
         };
       }
@@ -569,7 +615,7 @@ function buildDirective(
   }
 
   return targetCount === 1
-    ? { directive: textDirective(target), start: span.start }
+    ? { directives: exactDirectives(target), start: span.start }
     : null;
 }
 
@@ -651,16 +697,19 @@ export function buildLegalSourcePinpointUrl(
     buildDirective(block, quote, document, evidence.pageScoped === true),
   );
   if (built.some((directive) => !directive)) return baseUrl;
+  // Sort by span position, then flatten each span's directive variants.
+  // Variants share their primary's uniqueness proof; the browser applies
+  // whichever spelling the rendered page actually carries.
   const directives = [
-    ...new Map(
+    ...new Set(
       built
         .filter((directive): directive is NonNullable<typeof directive> =>
           Boolean(directive),
         )
         .sort((left, right) => left.start - right.start)
-        .map((directive) => [directive.directive, directive]),
-    ).values(),
-  ].map(({ directive }) => directive);
+        .flatMap((directive) => directive.directives),
+    ),
+  ];
   return appendDirectives(baseUrl, directives);
 }
 
