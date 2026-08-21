@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedToolCall } from "../llm";
-import { createBenchmarkEvidence } from "./legalEvidence";
+import { createTnaEvidence } from "./legalEvidence";
 import {
   LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
@@ -213,7 +213,7 @@ describe("TurnToolRegistry", () => {
   });
 
   it("hides structured URLs and bounds every model-visible result", async () => {
-    const evidence = createBenchmarkEvidence({
+    const evidence = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "case-1",

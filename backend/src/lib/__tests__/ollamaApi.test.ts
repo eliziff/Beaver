@@ -76,4 +76,22 @@ describe("Ollama API", () => {
       { role: "tool", tool_call_id: "call-1", content: "source" },
     ]));
   });
+
+  it("caps max reasoning at Ollama's supported high effort", async () => {
+    let request: Record<string, unknown> = {};
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      request = JSON.parse(String(init.body));
+      return sse({ choices: [{ delta: { content: "Ready." } }] });
+    }));
+    const { streamOllama } = await import("../llm/ollamaApi");
+    await streamOllama({
+      model: "ollama:qwen3.8:27b-ud-q2-k-xl",
+      systemPrompt: "system",
+      messages: [{ role: "user", content: "Hello." }],
+      tools: [],
+      enableThinking: true,
+      reasoningEffort: "max",
+    });
+    expect(request.reasoning_effort).toBe("high");
+  });
 });

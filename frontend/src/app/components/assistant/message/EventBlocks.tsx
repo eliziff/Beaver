@@ -84,7 +84,7 @@ export function ActivityDisclosure({
         );
     }
     return (
-        <details className="group min-w-0">
+        <details className="group min-w-0" open>
             <summary
                 role="button"
                 aria-label={summary}

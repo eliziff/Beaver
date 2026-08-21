@@ -88,6 +88,7 @@ export type AssistantMessageState = {
   artifacts: AssistantArtifact[];
   citations: Citation[];
   contextCompacted: boolean;
+  contentFinal: boolean;
   contentOpen: boolean;
   error?: string;
   turnId?: string;
@@ -136,11 +137,8 @@ export type AssistantSessionState = {
 export type ProtocolEvent =
   | { type: "chat_id"; chatId: string; transcriptVersion?: number }
   | { type: "transcript_version"; transcriptVersion: number }
-  | { type: "content_delta"; text: string }
   | { type: "content_block"; text: string }
-  | { type: "content_snapshot"; text: string; final: boolean }
-  | { type: "content_reset" }
-  | { type: "content_end" }
+  | { type: "content_final"; text: string; citations: Citation[] }
   | { type: "reasoning"; text: string; append: boolean; done?: boolean }
   | { type: "activity"; activity: AssistantActivity }
   | { type: "artifact"; artifact: AssistantArtifact }
@@ -149,7 +147,6 @@ export type ProtocolEvent =
   | { type: "ask_inputs"; event: AskInputsEvent }
   | { type: "ask_inputs_response"; event: AskInputsResponseEvent }
   | { type: "steering"; id: string; text: string }
-  | { type: "citations"; citations: Citation[] }
   | { type: "context_usage"; usedTokens: number; windowTokens: number }
   | { type: "compaction"; status: "running" | "completed" | "failed" }
   | { type: "turn_status"; status: "cancelled" }
@@ -251,7 +248,7 @@ const citationSchema = z.union([
   }),
   z.strictObject({
     kind: z.literal("public_legal"), ref: safeInteger,
-    provider: z.enum(["tna", "govuk-et", "govinfo", "journal"]), identifier: idText,
+    provider: z.enum(["courtlistener", "tna", "govuk-et", "govinfo", "hansard", "journal"]), identifier: idText,
     title: shortText.nullish(), citation: shortText.nullish(), url: safeUrl.nullish(),
     quotes: z.array(citationQuote).max(32).default([]), ...locatorFields,
   }),
@@ -333,11 +330,8 @@ const readerSchema = z.strictObject({
 }).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 
 const marker = (type: string) => z.strictObject({ type: z.literal(type) });
-const textEvent = (type: "content_delta" | "content") =>
-  z.strictObject({ type: z.literal(type), text: type === "content_delta"
-    ? z.string().max(65_536) : longText })
-    .transform((row): ProtocolEvent => type === "content_delta"
-      ? { type, text: row.text } : { type: "content_block", text: row.text });
+const contentEvent = z.strictObject({ type: z.literal("content"), text: longText })
+  .transform((row): ProtocolEvent => ({ type: "content_block", text: row.text }));
 const relativeUrl = z.string().max(FIELD_TEXT_LIMIT)
   .transform((value) => safeAssistantUrl(value))
   .pipe(z.string().refine((value) => value.startsWith("/"), "relative URL required"));
@@ -372,14 +366,19 @@ const protocolSchemas = [
       ...(row.transcriptVersion !== undefined && { transcriptVersion: row.transcriptVersion }) })),
   z.strictObject({ type: z.literal("transcript_version"), transcriptVersion: safeInteger })
     .transform((row): ProtocolEvent => row),
-  textEvent("content_delta"), textEvent("content"),
-  z.strictObject({ type: z.enum(["content_snapshot", "content_final"]), text: longText })
-    .transform((row): ProtocolEvent => ({ type: "content_snapshot", text: row.text,
-      final: row.type === "content_final" })),
-  marker("content_reset").transform(() => ({ type: "content_reset" as const })),
-  marker("content_block_end").transform(() => ({ type: "content_end" as const })),
+  contentEvent,
+  z.strictObject({
+    type: z.literal("content_final"), text: longText, citations: citationListSchema,
+  }).transform((row): ProtocolEvent => ({
+    type: "content_final", text: row.text,
+    citations: row.citations,
+  })),
   z.strictObject({ type: z.literal("reasoning_delta"), text: z.string().max(65_536) })
     .transform((row): ProtocolEvent => ({ type: "reasoning", text: row.text, append: true })),
+  z.strictObject({ type: z.literal("reasoning"), text: longText })
+    .transform((row): ProtocolEvent => ({
+      type: "reasoning", text: row.text, append: false, done: true,
+    })),
   marker("reasoning_block_end").transform(() => ({ type: "reasoning" as const,
     text: "", append: false, done: true })),
   z.strictObject({ type: z.literal("error"), message: fieldText, retryable: z.boolean().optional() })
@@ -390,9 +389,6 @@ const protocolSchemas = [
     status: z.literal("cancelled") }).transform((row): ProtocolEvent => row),
   z.strictObject({ type: z.literal("steering"), id: idText, text: fieldText })
     .transform((row): ProtocolEvent => row),
-  z.strictObject({ type: z.literal("citations"), citations: z.unknown() })
-    .transform((row): ProtocolEvent => ({ type: "citations",
-      citations: parseAssistantCitations(row.citations) })),
   askEventSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs", event })),
   askResponseSchema.transform((event): ProtocolEvent => ({ type: "ask_inputs_response", event })),
   z.strictObject({ type: z.literal("tool_activity"), ...activityFields })
@@ -425,7 +421,7 @@ function cleanValue(value: unknown, limit = SHORT_TEXT_LIMIT): string {
 }
 
 function emptyAssistant(id: string, turnId?: string): AssistantMessageState {
-  return { id, role: "assistant", blocks: [], activities: [], automations: [], artifacts: [], citations: [], contextCompacted: false, contentOpen: false, ...(turnId && { turnId }) };
+  return { id, role: "assistant", blocks: [], activities: [], automations: [], artifacts: [], citations: [], contextCompacted: false, contentFinal: false, contentOpen: false, ...(turnId && { turnId }) };
 }
 
 function userMessage(message: Message, fallbackId: string): UserMessageState {
@@ -490,13 +486,46 @@ function appendContent(message: AssistantMessageState, text: string) {
   return { ...message, blocks: limited, contentOpen: true };
 }
 
-function replaceContent(message: AssistantMessageState, text: string, final: boolean) {
-  const lastSteering = final ? message.blocks.findLastIndex((block) => block.role === "user") : -1;
+function replaceContent(message: AssistantMessageState, text: string) {
+  const lastSteering = message.blocks.findLastIndex((block) => block.role === "user");
   const firstContent = message.blocks.findIndex((block, index) => index > lastSteering && block.role === "assistant");
   const blocks = message.blocks.filter((block, index) => index <= lastSteering || block.role !== "assistant");
   const remaining = Math.max(0, ASSISTANT_LIMITS.text - messageContent(blocks).length);
   if (text && remaining) blocks.splice(firstContent < 0 ? blocks.length : Math.min(firstContent, blocks.length), 0, { id: `content:${message.id}:${firstContent < 0 ? blocks.length : firstContent}`, role: "assistant", text: text.slice(0, remaining) });
-  return { ...message, blocks, contentOpen: !final };
+  return { ...message, blocks, contentOpen: false };
+}
+
+function completeActivity(activity: AssistantActivity): AssistantActivity {
+  return activity.status === "running"
+    ? { ...activity, status: "completed" }
+    : activity;
+}
+
+function failActivity(activity: AssistantActivity): AssistantActivity {
+  return activity.status === "running" ? { ...activity, status: "error" } : activity;
+}
+
+function finishContent(
+  state: AssistantSessionState,
+  text: string,
+  citations: Citation[],
+) {
+  const next = updateAssistant(state, (message) => ({
+    ...replaceContent(message, text),
+    citations,
+    contentFinal: true,
+    activities: message.activities.map(completeActivity),
+  }));
+  return {
+    ...next,
+    readers: next.readers.map((reader) => reader.status === "running"
+      ? {
+          ...reader,
+          status: "completed" as const,
+          activities: reader.activities.map(completeActivity),
+        }
+      : reader),
+  };
 }
 
 function interrupt(state: AssistantSessionState, status: "cancelled" | "interrupted") {
@@ -523,27 +552,27 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
     return { ...next, compaction: event.status };
   }
   if (event.type === "turn_status") return interrupt(state, event.status);
-  if (event.type === "content_delta") return updateAssistant(state, (message) => appendContent(message, event.text));
   if (event.type === "content_block") return updateAssistant(state, (message) => ({ ...appendContent({ ...message, contentOpen: false }, event.text), contentOpen: false }));
-  if (event.type === "content_snapshot") return updateAssistant(state, (message) => replaceContent(message, event.text, event.final));
-  if (event.type === "content_reset") return updateAssistant(state, (message) => ({
-    ...message,
-    blocks: message.blocks.filter((block) => block.role === "user"),
-    activities: message.activities.filter((activity) => activity.tool !== "reasoning"),
-    contentOpen: false,
-  }));
-  if (event.type === "content_end") return updateAssistant(state, (message) => ({ ...message, contentOpen: false }));
+  if (event.type === "content_final")
+    return finishContent(state, event.text, event.citations);
   if (event.type === "reasoning") {
-    if (!event.text) return updateAssistant(state, (message) => ({ ...message, contentOpen: false }));
+    if (!event.text) return updateAssistant(state, (message) => ({
+      ...message,
+      contentOpen: false,
+      activities: event.done ? message.activities.map((activity, index) =>
+        activity.tool === "reasoning" && activity.status === "running" &&
+          !message.activities.slice(index + 1).some((next) => next.tool === "reasoning")
+          ? completeActivity(activity)
+          : activity) : message.activities,
+    }));
     const label = event.text.replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1").replace(/[*_`~]+/gu, "").replace(/\s+/gu, " ").trim().slice(0, 120);
     if (!label) return state;
     return updateAssistant(state, (message) => {
-      if (message.activities.some((activity) => activity.tool !== "reasoning")) {
-        return { ...message, contentOpen: false };
-      }
-      const id = "reasoning:current";
-      const current = message.activities.find((activity) => activity.id === id);
-      const activity: AssistantActivity = { id, tool: "reasoning", label: event.append && current ? `${current.label}${label}`.slice(-120) : label, status: event.done ? "completed" : "running" };
+      const current = message.activities.findLast((activity) =>
+        activity.tool === "reasoning" && activity.status === "running");
+      const id = current?.id ?? `reasoning:${message.activities.filter((activity) =>
+        activity.tool === "reasoning").length}`;
+      const activity: AssistantActivity = { id, tool: "reasoning", label, status: event.done ? "completed" : "running" };
       return { ...message, contentOpen: false, activities: upsertById(message.activities, activity, ASSISTANT_LIMITS.activities) };
     });
   }
@@ -551,11 +580,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
     return updateAssistant(state, (message) => ({
       ...message,
       contentOpen: false,
-      activities: upsertById(
-        message.activities.filter((activity) => activity.tool !== "reasoning"),
-        event.activity,
-        ASSISTANT_LIMITS.activities,
-      ),
+      activities: upsertById(message.activities, event.activity, ASSISTANT_LIMITS.activities),
     }));
   }
   if (event.type === "artifact") return updateAssistant(state, (message) => ({
@@ -573,7 +598,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       ...(event.reader.sources.length && { detail: `${event.reader.sources.length} verified passage${event.reader.sources.length === 1 ? "" : "s"}` }),
       action: { type: "reader", readerId: event.reader.id },
     };
-    const next = updateAssistant(state, (message) => ({ ...message, contentOpen: false, activities: upsertById(message.activities.filter((entry) => entry.tool !== "reasoning"), activity, ASSISTANT_LIMITS.activities) }));
+    const next = updateAssistant(state, (message) => ({ ...message, contentOpen: false, activities: upsertById(message.activities, activity, ASSISTANT_LIMITS.activities) }));
     return { ...next, readers: upsertById(next.readers, event.reader, ASSISTANT_LIMITS.readers) };
   }
   if (event.type === "ask_inputs") {
@@ -581,7 +606,15 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
     const next = updateAssistant(state, (message) => {
       const id = `ask:${event.event.items.map((item) => item.id).join(",")}`;
       pending = { key: `${state.chatId ?? "new"}:${message.id}:${id}`, messageId: message.id, event: event.event };
-      return { ...message, contentOpen: false, activities: upsertById(message.activities, { id, tool: "ask_inputs", label: "Waiting for input", status: "running", items: event.event.items.map((item, index) => ({ label: `${index + 1}. ${item.kind === "choice" ? item.question : item.document_types.join(", ") || "Documents requested"}` })) }, ASSISTANT_LIMITS.activities) };
+      return {
+        ...message,
+        contentOpen: false,
+        activities: upsertById(
+          message.activities.map(completeActivity),
+          { id, tool: "ask_inputs", label: "Waiting for input", status: "completed", items: event.event.items.map((item, index) => ({ label: `${index + 1}. ${item.kind === "choice" ? item.question : item.document_types.join(", ") || "Documents requested"}` })) },
+          ASSISTANT_LIMITS.activities,
+        ),
+      };
     });
     return { ...next, pendingInput: pending, run: next.run ? { ...next.run, status: "paused" } : null };
   }
@@ -607,8 +640,20 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
     const blocks = [...message.blocks, { id: `steering:${event.id}`, role: "user" as const, text: event.text }].slice(-ASSISTANT_LIMITS.blocks);
     return { ...message, blocks, contentOpen: false };
   });
-  if (event.type === "citations") return updateAssistant(state, (message) => ({ ...message, citations: event.citations }));
-  if (event.type === "error") return updateAssistant(state, (message) => ({ ...message, contentOpen: false, error: event.message }));
+  if (event.type === "error") {
+    const failed = updateAssistant(state, (message) => ({
+      ...message,
+      contentOpen: false,
+      error: event.message,
+      activities: message.activities.map(failActivity),
+    }));
+    return {
+      ...failed,
+      readers: failed.readers.map((reader) => reader.status === "running"
+        ? { ...reader, status: "error", activities: reader.activities.map(failActivity) }
+        : reader),
+    };
+  }
   return state;
 }
 
@@ -627,9 +672,35 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
       if (parsed.ok) next = applyProtocol(next, parsed.event);
     }
     const citations = parseAssistantCitations(message.citations);
-    if (citations.length) next = applyProtocol(next, { type: "citations", citations });
-    if (!rawEvents.length && typeof message.content === "string" && message.content) next = applyProtocol(next, { type: "content_snapshot", text: textValue(message.content, ASSISTANT_LIMITS.text), final: true });
-    next = updateAssistant(next, (current) => current.id === assistant.id ? { ...current, turnComplete: message.turn_complete } : current);
+    if (!rawEvents.length && typeof message.content === "string" && message.content) {
+      next = finishContent(next, textValue(message.content, ASSISTANT_LIMITS.text), citations);
+    } else {
+      next = updateAssistant(next, (current) => current.id === assistant.id
+        ? { ...current, citations, contentFinal: message.turn_complete === true }
+        : current);
+    }
+    next = updateAssistant(next, (current) => current.id === assistant.id
+      ? {
+          ...current,
+          turnComplete: message.turn_complete,
+          ...(message.turn_complete === true && {
+            contentFinal: true,
+            activities: current.activities.map(completeActivity),
+          }),
+        }
+      : current);
+    if (message.turn_complete === true) {
+      next = {
+        ...next,
+        readers: next.readers.map((reader) => reader.status === "running"
+          ? {
+              ...reader,
+              status: "completed" as const,
+              activities: reader.activities.map(completeActivity),
+            }
+          : reader),
+      };
+    }
   });
   if (!event.active) {
     const last = next.messages.at(-1);
@@ -681,7 +752,11 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
   if (event.type === "run_interrupted") return state.run?.id === event.runId ? interrupt(state, event.status) : state;
   if (event.type === "run_failed") {
     if (state.run?.id !== event.runId) return state;
-    const failed = updateAssistant(state, (message) => ({ ...message, contentOpen: false, error: event.message ?? ASSISTANT_GENERIC_ERROR }));
+    const failed = applyProtocol(state, {
+      type: "error",
+      message: event.message ?? ASSISTANT_GENERIC_ERROR,
+      retryable: true,
+    });
     return { ...failed, run: null, rejectedTurn: event.rejected ?? failed.rejectedTurn };
   }
   if (event.type === "turn_rejected") return { ...state, rejectedTurn: event.rejected };
@@ -694,7 +769,7 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
   if (event.type === "transcript_version_changed") return Number.isSafeInteger(event.transcriptVersion) && event.transcriptVersion >= 0 ? { ...state, transcriptVersion: event.transcriptVersion } : state;
   if (event.type === "local_exchange") {
     const user = userMessage(event.user, `user:local:${state.messages.length}`);
-    const assistant = replaceContent(emptyAssistant(`assistant:local:${state.messages.length + 1}`), event.assistantText, true);
+    const assistant = { ...replaceContent(emptyAssistant(`assistant:local:${state.messages.length + 1}`), event.assistantText), contentFinal: true };
     return { ...state, messages: [...state.messages, user, assistant] };
   }
   return state;

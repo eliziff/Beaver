@@ -46,7 +46,8 @@ function mapError(error: unknown) {
 export function streamOllama(params: StreamChatParams): Promise<StreamChatResult> {
   const model = params.model.startsWith("ollama:") ? params.model.slice(7).trim() : "";
   if (!model) throw new Error(`Not an ollama model: ${params.model}`);
-  const effort = params.reasoningEffort?.toLowerCase();
+  const requestedEffort = params.reasoningEffort?.toLowerCase();
+  const effort = requestedEffort === "max" ? "high" : requestedEffort;
   if (params.enableThinking && effort && !["low", "medium", "high"].includes(effort)) {
     throw new Error(`Unsupported Ollama reasoning effort: ${params.reasoningEffort}`);
   }

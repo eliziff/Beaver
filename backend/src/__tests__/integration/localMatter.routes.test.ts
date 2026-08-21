@@ -57,7 +57,7 @@ function streamedContent(body: string) {
     .split(/\r?\n/u)
     .filter((line) => line.startsWith("data: {"))
     .map((line) => JSON.parse(line.slice(6)) as { type?: string; text?: string })
-    .filter((event) => event.type === "content_delta")
+    .filter((event) => event.type === "content_final")
     .map((event) => event.text ?? "")
     .join("");
 }

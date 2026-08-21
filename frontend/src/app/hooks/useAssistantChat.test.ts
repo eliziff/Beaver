@@ -834,7 +834,7 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
   });
 
-  it("retracts same-response narrative when a structured question pauses", async () => {
+  it("never reveals provisional narrative when a structured question pauses", async () => {
     mocks.streamChat.mockResolvedValue(
       streamResponse([
         {
@@ -842,9 +842,6 @@ describe("useAssistantChat local transcript boundary", () => {
           chatId: "chat-1",
           transcriptVersion: 1,
         },
-        { type: "content_delta", text: "Text emitted before the tool call." },
-        { type: "reasoning_delta", text: "Transient reasoning" },
-        { type: "content_reset" },
         {
           type: "ask_inputs",
           items: [
@@ -875,7 +872,7 @@ describe("useAssistantChat local transcript boundary", () => {
       content: "",
       activities: [expect.objectContaining({
         tool: "ask_inputs",
-        status: "running",
+        status: "completed",
       })],
     });
   });
@@ -912,7 +909,7 @@ describe("useAssistantChat local transcript boundary", () => {
       new Response(
         [
           'data: {"type":"chat_id","chatId":"chat-1","transcriptVersion":1}\n\n',
-          'data: {"type":"content_delta","text":"Created."}\n\n',
+          'data: {"type":"content_final","text":"Created.","citations":[]}\n\n',
           'data: {"type":"transcript_version","transcriptVersion":3}\n\n',
         ].join(""),
         { status: 200, headers: { "Content-Type": "text/event-stream" } },
@@ -949,7 +946,7 @@ describe("useAssistantChat local transcript boundary", () => {
     ]);
   });
 
-  it("concatenates every streamed character through the final period", async () => {
+  it("reveals the complete final response in one event", async () => {
     const expected =
       "It will need local-law review before use because tenancy rules vary by jurisdiction.";
     mocks.streamChat.mockResolvedValue(
@@ -959,16 +956,7 @@ describe("useAssistantChat local transcript boundary", () => {
           chatId: "chat-1",
           transcriptVersion: 1,
         },
-        {
-          type: "content_delta",
-          text: "It will need local-law re",
-        },
-        {
-          type: "content_delta",
-          text: "view before use because tenancy rules vary by jurisdiction",
-        },
-        { type: "content_delta", text: "." },
-        { type: "citations", citations: [] },
+        { type: "content_final", text: expected, citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1040,6 +1028,7 @@ describe("useAssistantChat local transcript boundary", () => {
         {
           type: "content_final",
           text: "The tracked revision is ready.",
+          citations: [],
         },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
@@ -1094,7 +1083,7 @@ describe("useAssistantChat local transcript boundary", () => {
           download_url:
             "/single-documents/document-1/file?version_id=version-1",
         },
-        { type: "content_final", text: "The Word draft is ready." },
+        { type: "content_final", text: "The Word draft is ready.", citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1123,7 +1112,7 @@ describe("useAssistantChat local transcript boundary", () => {
     });
   });
 
-  it("preserves exact UTF-8 and Markdown across mid-word tool races and final reconciliation", async () => {
+  it("preserves exact UTF-8 and Markdown in the atomic final response", async () => {
     const expected =
       "I’ll prepare a corrected editable version, fixing clear typographical errors.\n\n" +
       "I found a **matching editable Word copy**.\n\nCorrected safely.";
@@ -1135,23 +1124,14 @@ describe("useAssistantChat local transcript boundary", () => {
           transcriptVersion: 1,
         },
         {
-          type: "content_delta",
-          text: "I’ll prepare a corrected editable version, fixing clear typographic",
-        },
-        {
           type: "tool_activity",
           id: "read-1",
           tool: "read_document",
           status: "completed",
           label: "Reading document",
         },
-        { type: "content_delta", text: "al errors." },
         { type: "reasoning_delta", text: "**Checking**\n\n- source" },
         { type: "reasoning_block_end" },
-        {
-          type: "content_delta",
-          text: "\n\nI found a **matching editable Word copy**.",
-        },
         {
           type: "tool_activity",
           id: "edit-1",
@@ -1159,9 +1139,7 @@ describe("useAssistantChat local transcript boundary", () => {
           status: "completed",
           label: "Editing document",
         },
-        { type: "content_delta", text: "\n\nCorrected safely" },
-        { type: "content_final", text: expected },
-        { type: "citations", citations: [] },
+        { type: "content_final", text: expected, citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1182,9 +1160,8 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(content).not.toContain("errors.I");
   });
 
-  it("continues one live response after a linked content snapshot", async () => {
-    const linked =
-      "See [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).\n";
+  it("receives deterministic citation data with the final response", async () => {
+    const text = "The court stated the rule. [1]";
     mocks.streamChat.mockResolvedValue(
       streamResponse([
         {
@@ -1193,11 +1170,16 @@ describe("useAssistantChat local transcript boundary", () => {
           transcriptVersion: 1,
         },
         {
-          type: "content_delta",
-          text: "See 2024 SCC 6 at para. 12.\n",
+          type: "content_final",
+          text,
+          citations: [{
+            kind: "a2aj",
+            ref: 1,
+            citation: "2024 SCC 6",
+            url: "https://example.test/2024-scc-6#par12",
+            quotes: [{ quote: "The court stated the rule." }],
+          }],
         },
-        { type: "content_snapshot", text: linked },
-        { type: "content_delta", text: "The analysis continues." },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1211,9 +1193,10 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(result.current.messages.at(-1)?.content).toBe(
-      `${linked}The analysis continues.`,
-    );
+    expect(result.current.messages.at(-1)).toMatchObject({
+      content: text,
+      citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 6" })],
+    });
   });
 
   it("keeps streamed Automation receipts intact", async () => {
@@ -1236,7 +1219,7 @@ describe("useAssistantChat local transcript boundary", () => {
           outputs: [{ name: "Book.pdf", url: "/download/book" }],
           app_url: "/table-of-authorities?job=abc",
         },
-        { type: "content_final", text: "The book is ready." },
+        { type: "content_final", text: "The book is ready.", citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
       ]),
     );
@@ -1346,17 +1329,15 @@ describe("useAssistantChat local transcript boundary", () => {
     await act(async () => { await pending; });
   });
 
-  it("keeps assistant text on both sides of a steering message", async () => {
+  it("places buffered final text after an in-flight steering message", async () => {
     mocks.streamChat.mockResolvedValueOnce(streamResponse([
       { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-      { type: "content_delta", text: "Initial answer." },
       {
         type: "steering",
         id: "22222222-2222-4222-8222-222222222222",
         text: "Focus on remedies",
       },
-      { type: "content_delta", text: "Revised answer." },
-      { type: "content_final", text: "Revised answer." },
+      { type: "content_final", text: "Initial answer. Revised answer.", citations: [] },
       { type: "transcript_version", transcriptVersion: 2 },
     ]));
     const { result } = renderHook(() =>
@@ -1367,20 +1348,19 @@ describe("useAssistantChat local transcript boundary", () => {
     });
 
     expect(result.current.messages.at(-1)).toMatchObject({
-      content: "Initial answer.\n\nRevised answer.",
+      content: "Initial answer. Revised answer.",
       blocks: [
-        expect.objectContaining({ role: "assistant", text: "Initial answer." }),
         {
           id: "steering:22222222-2222-4222-8222-222222222222",
           role: "user",
           text: "Focus on remedies",
         },
-        expect.objectContaining({ role: "assistant", text: "Revised answer." }),
+        expect.objectContaining({ role: "assistant", text: "Initial answer. Revised answer." }),
       ],
     });
   });
 
-  it("uses the stop endpoint and preserves the exact partial suffix once", async () => {
+  it("uses the stop endpoint without revealing provisional prose", async () => {
     const expected =
       "It will need local-law review before use because tenancy rules vary by jurisdiction.";
     let requestSignal: AbortSignal | undefined;
@@ -1399,8 +1379,11 @@ describe("useAssistantChat local transcript boundary", () => {
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({
-                    type: "content_delta",
-                    text: expected,
+                    type: "tool_activity",
+                    id: "read-1",
+                    tool: "Read",
+                    label: "Reading the document",
+                    status: "running",
                   })}\n\n`,
                 ),
               );
@@ -1446,8 +1429,11 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
     await vi.waitFor(() => {
-      expect(result.current.messages.at(-1)?.content).toBe(expected);
+      expect(result.current.messages.at(-1)?.activities).toEqual([
+        expect.objectContaining({ id: "read-1", status: "running" }),
+      ]);
     });
+    expect(result.current.messages.at(-1)?.content).toBe("");
 
     act(() => result.current.cancel());
     await act(async () => {

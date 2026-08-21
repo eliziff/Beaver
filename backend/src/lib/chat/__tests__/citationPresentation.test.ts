@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createBenchmarkEvidence,
+  createTnaEvidence,
   createPublicJournalPassageEvidence,
 } from "../legalEvidence";
 import {
@@ -11,7 +11,7 @@ import {
 
 describe("legal evidence citation presentation", () => {
   it("owns authority, McGill locator, and source/passage destinations", () => {
-    const receipt = createBenchmarkEvidence({
+    const receipt = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "case:1",

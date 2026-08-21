@@ -195,7 +195,7 @@ describe("provider PDF consumers", () => {
     });
     expect(resolved.evidence).toEqual([
       expect.objectContaining({
-        provider: "benchmark",
+        provider: "govinfo",
         jurisdiction: "US",
         source_class: "legislation",
         dataset: "govinfo",
@@ -208,6 +208,11 @@ describe("provider PDF consumers", () => {
     expect(payload.evidence_ids).toEqual([
       (resolved.evidence?.[0] as { evidence_id: string }).evidence_id,
     ]);
+    expect(payload.passages).toEqual([expect.objectContaining({
+      evidence_id: (resolved.evidence?.[0] as { evidence_id: string }).evidence_id,
+      locator: { kind: "page", label: "page=3" },
+      exact_passage: expect.stringContaining("exact governing rule"),
+    })]);
 
     const [rehydrated] = await runLocalAssistantTools(
       "local-user",
@@ -328,7 +333,14 @@ describe("provider PDF consumers", () => {
       ok: true,
       query: "substantive judicial language",
       total_matches: 6,
+      evidence_ids: expect.arrayContaining([expect.stringMatching(/^e_/u)]),
+      hits: expect.arrayContaining([expect.objectContaining({
+        evidence_id: expect.stringMatching(/^e_/u),
+      })]),
     });
-    expect(found.evidenceRefs?.[0]).toMatchObject({ kind: "candidate" });
+    expect(found.evidenceRefs?.[0]).toMatchObject({
+      handle: expect.stringMatching(/^e_/u),
+      kind: "evidence",
+    });
   });
 });

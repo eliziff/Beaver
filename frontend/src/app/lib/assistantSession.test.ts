@@ -47,18 +47,14 @@ function applyRaw(state: AssistantSessionState, raw: unknown) {
 const supportedEvents: [string, Record<string, unknown>][] = [
   ["chat id", { type: "chat_id", chatId: "chat-1", transcriptVersion: 2 }],
   ["transcript version", { type: "transcript_version", transcriptVersion: 3 }],
-  ["content delta", { type: "content_delta", text: "a" }],
-  ["content snapshot", { type: "content_snapshot", text: "a" }],
-  ["content final", { type: "content_final", text: "a" }],
-  ["content reset", { type: "content_reset" }],
-  ["content block end", { type: "content_block_end" }],
+  ["content final", { type: "content_final", text: "a", citations: [] }],
   ["durable content", { type: "content", text: "a" }],
   ["reasoning delta", { type: "reasoning_delta", text: "thinking" }],
+  ["durable reasoning", { type: "reasoning", text: "thought through" }],
   ["reasoning end", { type: "reasoning_block_end" }],
   ["error", { type: "error", message: "provider details", retryable: true }],
   ["turn status", { type: "turn_status", status: "cancelled" }],
   ["steering", { type: "steering", id: "s1", text: "Focus on Alberta" }],
-  ["citations", { type: "citations", citations: [] }],
   ["ask inputs", { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which?", options: [{ value: "A" }] }] }],
   ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "A" }] }],
   ["tool activity", { type: "tool_activity", id: "tool-1", tool: "search", label: "Searching", status: "running" }],
@@ -77,6 +73,8 @@ describe("assistant protocol validation", () => {
   it("rejects unknown, malformed, and prototype-polluting state mutations", () => {
     expect(parseAssistantProtocolEvent({ type: "new_frontend_state", value: true }).ok).toBe(false);
     expect(parseAssistantProtocolEvent({ type: "content_snapshot" }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({ type: "content_delta", text: "provisional" }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({ type: "content_final", text: "missing citations" }).ok).toBe(false);
     const polluted = JSON.parse('{"type":"content_delta","text":"bad","__proto__":{"polluted":true}}');
     expect(parseAssistantProtocolEvent(polluted).ok).toBe(false);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
@@ -97,7 +95,7 @@ describe("assistant protocol validation", () => {
 
   it("rejects unsafe citation and artifact URLs before render state", () => {
     let state = running();
-    state = applyRaw(state, { type: "citations", citations: [{ kind: "a2aj", ref: 1, citation: "Example", url: "javascript:alert(1)", quotes: [] }] });
+    state = applyRaw(state, { type: "content_final", text: "Answer [1]", citations: [{ kind: "a2aj", ref: 1, citation: "Example", url: "javascript:alert(1)", quotes: [] }] });
     expect(parseAssistantProtocolEvent({ type: "document_artifact", action: "created", filename: "bad.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "https://evil.test/file" }).ok).toBe(false);
     expect(assistant(state).citations[0]).toMatchObject({ url: null });
     expect(assistant(state).artifacts).toEqual([]);
@@ -134,16 +132,61 @@ describe("assistantSessionReducer", () => {
     expect(assistant(state).activities).toEqual([expect.objectContaining({ id: "stable", status: "interrupted" })]);
   });
 
-  it("updates exactly one assistant message while text streams and bounds accumulated text", () => {
+  it("keeps reasoning and tool activity in order and settles activity on failure", () => {
     let state = running();
-    state = applyRaw(state, { type: "content_delta", text: "Hello " });
-    state = applyRaw(state, { type: "content_delta", text: "world" });
-    for (let index = 0; index < 20; index += 1) {
-      state = applyRaw(state, { type: "content_delta", text: "x".repeat(65_536) });
-    }
+    state = applyRaw(state, { type: "reasoning_delta", text: "Reviewing evidence ID generation" });
+    state = applyRaw(state, { type: "reasoning_block_end" });
+    state = applyRaw(state, { type: "tool_activity", id: "read-1", tool: "Read", label: "Reading paragraphs 93-130", status: "running" });
+    state = applyRaw(state, { type: "tool_activity", id: "read-1", tool: "Read", label: "Reading paragraphs 93-130", status: "completed" });
+    state = applyRaw(state, { type: "reasoning_delta", text: "Planning evidence referencing approach" });
+
+    expect(assistant(state).activities).toEqual([
+      expect.objectContaining({
+        label: "Reviewing evidence ID generation",
+        status: "completed",
+      }),
+      expect.objectContaining({
+        id: "read-1",
+        label: "Reading paragraphs 93-130",
+        status: "completed",
+      }),
+      expect.objectContaining({
+        label: "Planning evidence referencing approach",
+        status: "running",
+      }),
+    ]);
+
+    state = assistantSessionReducer(state, {
+      type: "run_failed",
+      runId: "run-1",
+      message: "provider failure",
+    });
+    expect(state.run).toBeNull();
+    expect(assistant(state).activities).toEqual([
+      expect.objectContaining({ status: "completed" }),
+      expect.objectContaining({ status: "completed" }),
+      expect.objectContaining({ status: "error" }),
+    ]);
+  });
+
+  it("reveals final prose and citations atomically", () => {
+    let state = running();
+    state = applyRaw(state, { type: "tool_activity", id: "read", tool: "Read", label: "Reading page 9", status: "running" });
+    expect(assistantText(state)).toBe("");
+    expect(assistant(state).citations).toEqual([]);
+    state = applyRaw(state, {
+      type: "content_final",
+      text: "Hello world [1]",
+      citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 9, quote: "Hello world" }] }],
+    });
     expect(state.messages.filter((message) => message.role === "assistant")).toHaveLength(1);
-    expect(assistantText(state).startsWith("Hello world")).toBe(true);
-    expect(assistantText(state).length).toBe(ASSISTANT_LIMITS.text);
+    expect(assistantText(state)).toBe("Hello world [1]");
+    expect(assistant(state)).toMatchObject({
+      contentFinal: true,
+      citations: [expect.objectContaining({ kind: "document", ref: 1 })],
+      activities: [expect.objectContaining({ id: "read", status: "completed" })],
+    });
+    expect(state.run?.status).toBe("running");
   });
 
   it("pauses for ask-inputs, resumes with the answer, and records steering once", () => {
@@ -151,6 +194,9 @@ describe("assistantSessionReducer", () => {
     state = applyRaw(state, { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which court?", options: [{ value: "ABCA" }] }] });
     expect(state.run?.status).toBe("paused");
     expect(state.pendingInput?.event.items[0].id).toBe("q1");
+    expect(assistant(state).activities[0]).toMatchObject({
+      tool: "ask_inputs", status: "completed", label: "Waiting for input",
+    });
 
     state = applyRaw(state, { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "ABCA" }] });
     expect(state.run?.status).toBe("running");
@@ -168,13 +214,13 @@ describe("assistantSessionReducer", () => {
     expect(assistantText(state)).toBe("");
     expect(assistant(state).activities).toEqual([expect.objectContaining({ id: "reader:reader-1", status: "completed", markdown: "reader-only result" })]);
     expect(state.readers[0].activities).toEqual([expect.objectContaining({ id: "r-tool", status: "completed" })]);
-    state = applyRaw(state, { type: "content_delta", text: "main response" });
+    state = applyRaw(state, { type: "content_final", text: "main response", citations: [] });
     expect(assistantText(state)).toBe("main response");
   });
 
   it("ignores late runs and events associated with another active chat", () => {
     const state = running();
-    const event = parseAssistantProtocolEvent({ type: "content_delta", text: "stale" });
+    const event = parseAssistantProtocolEvent({ type: "content_final", text: "stale", citations: [] });
     expect(event.ok).toBe(true);
     if (!event.ok) return;
     expect(assistantSessionReducer(state, { type: "protocol", runId: "old-run", chatId: "chat-1", event: event.event })).toBe(state);
@@ -183,19 +229,18 @@ describe("assistantSessionReducer", () => {
 
   it("reconciles a transcript into the same visible timeline as its live events", () => {
     const rawEvents = [
-      { type: "content_delta", text: "Answer" },
+      { type: "content", text: "Answer [1]" },
       { type: "tool_activity", id: "search-1", tool: "search", label: "Searched", status: "completed" },
-      { type: "citations", citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }] },
       { type: "document_artifact", action: "created", filename: "result.pptx", document_id: "d2", version_id: "v1", version_number: 1, download_url: "/documents/d2/download" },
-      { type: "content_block_end" },
     ];
     let live = running();
-    rawEvents.forEach((event) => { live = applyRaw(live, event); });
+    rawEvents.slice(1).forEach((event) => { live = applyRaw(live, event); });
+    live = applyRaw(live, { type: "content_final", text: "Answer [1]", citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }] });
     live = assistantSessionReducer(live, { type: "run_finished", runId: "run-1" });
 
     const reload = createAssistantSessionState({ chatId: "chat-1", messages: [
       { ...user, id: "user-1" },
-      { id: "assistant:run-1", role: "assistant", content: rawEvents, turn_complete: true },
+      { id: "assistant:run-1", role: "assistant", content: rawEvents, citations: [{ kind: "document", ref: 1, document_id: "d1", filename: "record.pdf", quotes: [{ page: 2, quote: "Exact passage" }] }], turn_complete: true },
     ] });
     expect(assistant(reload)).toEqual({ ...assistant(live), turnComplete: true });
   });

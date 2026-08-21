@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { RESOURCE_TOOLS } from "../resourceTools";
-import { assistantToolActivityLabel } from "./a2ajTools";
+import {
+  assistantReadEvidenceActivityLabel,
+  assistantToolActivityLabel,
+} from "./a2ajTools";
+import { createLibraryEvidence } from "../legalEvidence";
 
 describe("legal-source assistant activity", () => {
   it("hides inventory reads and describes unified source operations", () => {
@@ -42,5 +46,54 @@ describe("legal-source assistant activity", () => {
       enum: ["none", "inbound", "outbound", "both"],
     });
     expect(read.inputSchema.properties.end_locator).toBeDefined();
+  });
+
+  it("shows the requested scope of main-agent reads", () => {
+    const source = "source://a2aj/%5B%222012%20SCC%2045%22%2C%22cases%22%2C%22SCC%22%5D";
+    expect(assistantToolActivityLabel("Read", {
+      file_path: source,
+      pattern: "reasonable foreseeability",
+      context_chars: 240,
+    })).toBe('Searching 2012 SCC 45 for “reasonable foreseeability” with up to 240 characters of adjacent context');
+    expect(assistantToolActivityLabel("Read", {
+      file_path: source,
+      locator_kind: "paragraph",
+      locator: "42",
+      end_locator: "44",
+      context_blocks: 1,
+    })).toBe("Reading paragraphs 42–44 of 2012 SCC 45 with 1 adjacent context block");
+    expect(assistantToolActivityLabel("Read", {
+      file_path: "document://record/version/v1",
+      section: "Damages",
+    }, "record.pdf")).toBe("Reading section Damages of record.pdf");
+    expect(assistantToolActivityLabel("Read", {
+      file_path: "document://record/version/v1",
+      offset: 20,
+      limit: 5,
+    }, "record.pdf")).toBe("Reading lines 20–24 of record.pdf");
+  });
+
+  it("replaces an evidence handle with its returned locator", () => {
+    const evidence = createLibraryEvidence({
+      documentId: "document-1",
+      versionId: "version-1",
+      filename: "record.pdf",
+      sourceText: "Exact passage.",
+      spanText: "Exact passage.",
+      start: 0,
+      end: 14,
+      blockId: "pdf:page-9",
+      locator: { kind: "page", label: "page=9" },
+    });
+    expect(assistantToolActivityLabel("Read", {
+      file_path: "document://record/version/v1",
+      handle: "opaque-evidence-handle",
+    }, "record.pdf")).toBe("Reading a saved passage of record.pdf");
+    expect(assistantReadEvidenceActivityLabel([evidence], "record.pdf"))
+      .toBe("Reading page 9 of record.pdf");
+    expect(assistantReadEvidenceActivityLabel([{
+      ...evidence,
+      locator: { kind: "page", label: "[page 8]" },
+    }], "1988canlii30.pdf")).toBe("Reading page 8 of 1988canlii30.pdf");
   });
 });

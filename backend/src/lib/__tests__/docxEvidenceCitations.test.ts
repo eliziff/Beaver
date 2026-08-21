@@ -16,7 +16,7 @@ function receipt(
 ): LegalEvidenceReceipt {
   return {
     evidence_id: evidenceId,
-    provider: "benchmark",
+    provider: "tna",
     jurisdiction: "ca",
     source_class: "case",
     stable_source_id: "case:example",
@@ -32,7 +32,7 @@ function receipt(
     version: "1",
     external_url: "https://example.test/case",
     locator: { kind: "paragraph", label: locator },
-    resolver_version: "benchmark-span-v1",
+    resolver_version: "tna-span-v1",
     ...overrides,
   };
 }
