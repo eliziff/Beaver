@@ -52,6 +52,38 @@ function asDoc(source: QuoteSource): SourceDoc {
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
+// A whole-quote target longer than one tight prose run is more fragile than a
+// start,end range: every extra word is another chance for publisher
+// punctuation or inline markup to break the match, and a range's short
+// boundaries each sit inside one block even when the passage spans several.
+// The trigger scales with the evidence span itself (length, or a line break
+// inside it), not with a provider name.
+const RANGE_PREFERRED_WORDS = 20;
+const RANGE_PREFERRED_CHARS = 150;
+const RANGE_BOUNDARY_WORDS = [6, 4, 8, 12];
+
+/**
+ * Structural labels that publishers render outside the prose run - margin
+ * paragraph numbers, provision headings, list markers - plus the bracketed
+ * pinpoint ranges A2AJ appends ("[99-135]") that never appear on the page.
+ * A target that begins or ends with one cannot match the rendered DOM, so
+ * edges are stripped before anything else happens.
+ */
+const LEADING_SPAN_LABELS = [
+  /^\[\s*\d{1,4}\s*\]\s*/u,
+  /^\d{1,4}\]\s*/u,
+  // Provision labels: "51 (1)", "50(2)", "2(1)(d)(ii)"
+  /^\d{1,4}(?:\.\d{1,4})*\s*(?:\(\s*[A-Za-z0-9]{1,5}\s*\)\s*)+/u,
+  // List markers: "(a)", "(ii)", "(2)"
+  /^\(\s*[A-Za-z0-9]{1,5}\s*\)\s*/u,
+  /^[A-Za-z]{1,3}\)\s*/u,
+  /^\d{1,4}[.)]\s*/u,
+  // A bare margin paragraph number: "5 Against this backdrop". Restricted to
+  // a following sentence start so years opening prose survive.
+  /^\d{1,4}\s+(?=[A-Z“"(])/u,
+];
+const TRAILING_PIN_ARTIFACT =
+  /\s*[.,;:]?\[\s*\d{1,4}(?:\s*[-–—,;]\s*\d{1,4})*\s*\]\s*$/u;
 // Decisia/Norma deployments (SCC, FCA, FC, TCC, ONCA, NSCA, tribunals, and
 // decisia.lexum.com tenants). Their default document URL is an iframe shell
 // with no text and no anchors; `?iframe=true` serves the document inline
@@ -75,6 +107,168 @@ function extendTerminalPunctuation(source: string, end: number, quote: string) {
     .slice(end)
     .match(new RegExp(`^[${comma}.!?;:…'’”»\\)\\]]+`, "u"));
   return end + (match?.[0].length ?? 0);
+}
+
+function leadingLabelLength(text: string): number {
+  for (const label of LEADING_SPAN_LABELS) {
+    const match = text.match(label)?.[0];
+    // Never consume the entire remainder; a target keeps at least one word.
+    if (match && match.length < text.trimEnd().length) return match.length;
+  }
+  return 0;
+}
+
+function stripLeadingLabels(text: string): string {
+  let stripped = text;
+  for (;;) {
+    const length = leadingLabelLength(stripped);
+    if (!length) return stripped.trim();
+    stripped = stripped.slice(length);
+  }
+}
+
+function wordAtOrAfter(block: SourceDoc, offset: number, from: number): number {
+  for (let index = from; index < block.tokens.length; index += 1) {
+    if (block.tokens[index].end > offset) return index;
+  }
+  return -1;
+}
+
+function wordAtOrBefore(
+  block: SourceDoc,
+  offset: number,
+  from: number,
+): number {
+  for (let index = Math.min(from, block.tokens.length - 1); index >= 0; index -= 1) {
+    if (block.tokens[index].start < offset) return index;
+  }
+  return -1;
+}
+
+/**
+ * Move the span edges off structural labels and A2AJ artifacts so directive
+ * targets are pure prose runs. The evidence quote keeps its original wording;
+ * only what the fragment must match is trimmed.
+ */
+function adjustSpanEdges(
+  block: SourceDoc,
+  original: SourceDocQuoteSpan,
+): SourceDocQuoteSpan {
+  let start = original.start;
+  let end = original.end;
+  for (;;) {
+    const length = leadingLabelLength(block.text.slice(start, end));
+    if (!length) break;
+    start += length;
+  }
+  for (;;) {
+    const artifact = block.text.slice(start, end).match(TRAILING_PIN_ARTIFACT);
+    if (!artifact) break;
+    end -= artifact[0].length;
+    if (end <= start) return original;
+  }
+  if (start === original.start && end === original.end) return original;
+  const firstWord = wordAtOrAfter(block, start, original.firstWord);
+  const lastWord = wordAtOrBefore(block, end, original.lastWord);
+  if (firstWord < 0 || lastWord < 0 || lastWord < firstWord) return original;
+  return { start, end, firstWord, lastWord };
+}
+
+/**
+ * A short prose run of up to `size` tokens hugging one edge of the span.
+ * Runs stop before a line break - each boundary phrase has to match inside a
+ * single publisher block - and lose any structural label of their own, so an
+ * end run like "5.5 Summary" anchors on "Summary".
+ */
+function edgePhrase(
+  block: SourceDoc,
+  span: SourceDocQuoteSpan,
+  edge: "start" | "end",
+  size: number,
+): { text: string; first: number; last: number } | null {
+  const forward = edge === "start";
+  const indexes: number[] = [];
+  const step = forward ? 1 : -1;
+  for (
+    let index = forward ? span.firstWord : span.lastWord;
+    indexes.length < size &&
+    (forward ? index <= span.lastWord : index >= span.firstWord);
+    index += step
+  ) {
+    const token = block.tokens[index];
+    if (!token) break;
+    if (indexes.length) {
+      const previous = block.tokens[indexes.at(-1)!];
+      const between = block.text.slice(
+        Math.min(previous.end, token.start),
+        Math.max(previous.end, token.start),
+      );
+      // Each boundary phrase has to match inside one publisher block.
+      if (between.includes("\n")) break;
+    }
+    indexes.push(index);
+  }
+  if (!indexes.length) return null;
+  const first = Math.min(...indexes);
+  const last = Math.max(...indexes);
+  const raw = normalizeWhitespace(
+    block.text.slice(block.tokens[first].start, block.tokens[last].end),
+  );
+  // An end run like "5.5 Summary" anchors on its prose: "Summary".
+  const text = stripLeadingLabels(raw);
+  return sourceDocQuoteWords(text).length
+    ? { text, first, last }
+    : null;
+}
+
+/**
+ * How many ways the browser could interpret a `start,end` range in this
+ * document: it highlights from the first occurrence of `start` to the next
+ * occurrence of `end`. Two reachable pairings mean two different possible
+ * highlights, so anything above one rejects the candidate.
+ */
+function rangeDirectiveMatchCount(
+  document: SourceDoc,
+  start: string,
+  end: string,
+): number {
+  const starts = sourceDocPhraseSpans(
+    document,
+    sourceDocQuoteWords(start),
+    { limit: 3 },
+  );
+  if (!starts.length) return 0;
+  const ends = sourceDocPhraseSpans(document, sourceDocQuoteWords(end), {
+    limit: 3,
+  });
+  if (!ends.length) return 0;
+  let pairings = 0;
+  for (const startSpan of starts) {
+    if (ends.some((endSpan) => endSpan.start >= startSpan.end)) {
+      pairings += 1;
+      if (pairings === 2) return 2;
+    }
+  }
+  return pairings;
+}
+
+function buildRangeDirective(
+  block: SourceDoc,
+  span: SourceDocQuoteSpan,
+  document: SourceDoc,
+) {
+  for (const size of RANGE_BOUNDARY_WORDS) {
+    const head = edgePhrase(block, span, "start", size);
+    const tail = edgePhrase(block, span, "end", size);
+    if (!head || !tail || head.last >= tail.first) continue;
+    if (rangeDirectiveMatchCount(document, head.text, tail.text) === 1) {
+      return {
+        directive: textRangeDirective(head.text, tail.text),
+        start: span.start,
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -321,21 +515,26 @@ function buildDirective(
 ) {
   const selected = chooseSourceSpan(block, quote);
   if (!selected) return null;
-  const leadingMarker = block.text
-    .slice(selected.start, selected.end)
-    .match(/^\s*(?:\[\s*\d{1,4}\s*\]|\d{1,4}\])\s*/u)?.[0];
-  const markerEnd = selected.start + (leadingMarker?.length ?? 0);
-  const firstWord = leadingMarker
-    ? block.tokens.findIndex((token) => token.start >= markerEnd)
-    : selected.firstWord;
-  const span = leadingMarker && firstWord >= 0
-    ? { ...selected, start: markerEnd, firstWord }
-    : selected;
+  const span = adjustSpanEdges(block, selected);
   const target = normalizeWhitespace(block.text.slice(span.start, span.end));
   const targetWords = sourceDocQuoteWords(target);
   if (!targetWords.length) return null;
 
   const targetCount = directiveMatchCount(document, target);
+  // A passage that crosses a source line break cannot sit in one publisher
+  // block either, so an exact single-run target is impossible: a range is the
+  // only honest fragment. Long passages get first claim on a range too - each
+  // short boundary survives markup that a whole-sentence run would not.
+  const rangeRequired = target.includes("\n");
+  const rangePreferred =
+    targetWords.length >= RANGE_PREFERRED_WORDS ||
+    target.length >= RANGE_PREFERRED_CHARS;
+  if (rangeRequired || rangePreferred) {
+    const range = buildRangeDirective(block, span, document);
+    if (range) return range;
+    if (rangeRequired && targetCount !== 1) return null;
+  }
+
   const needsContext =
     targetWords.length <= 3 ||
     targetCount !== 1 ||
@@ -469,13 +668,6 @@ function normalizedIdentity(value: string | null | undefined) {
   return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
 }
 
-export function legalSourceQuoteMatchesBlock(
-  block: QuoteSource,
-  quote: string,
-) {
-  return Boolean(chooseSourceSpan(asDoc(block), quote));
-}
-
 function identityMatches(
   citation: A2AJCitationIdentity,
   source: Pick<
@@ -501,38 +693,6 @@ function identityMatches(
   }
   return true;
 }
-
-function answerQuoteCandidates(answer: string) {
-  const withoutCode = answer.replace(/```[\s\S]*?```/gu, " ");
-  const candidates: string[] = [];
-  for (const pattern of [/“([^”]{2,1000})”/gu, /"([^"\r\n]{2,1000})"/gu]) {
-    for (const match of withoutCode.matchAll(pattern)) {
-      candidates.push(match[1]);
-    }
-  }
-  let blockquote = "";
-  for (const line of withoutCode.split(/\r?\n/gu)) {
-    const match = line.match(/^\s*>\s?(.*)$/u);
-    if (match) {
-      blockquote += `${blockquote ? " " : ""}${match[1]}`;
-    } else if (blockquote) {
-      candidates.push(blockquote);
-      blockquote = "";
-    }
-  }
-  if (blockquote) candidates.push(blockquote);
-
-  const unique = new Map<string, string>();
-  for (const candidate of candidates) {
-    const cleaned = candidate.replace(/\s*\[\d+\]\s*$/u, "");
-    const words = sourceDocQuoteWords(cleaned);
-    const key = words.join(" ");
-    if (words.length >= 2 && !unique.has(key)) unique.set(key, cleaned);
-  }
-  return [...unique.values()];
-}
-
-export { answerQuoteCandidates as legalSourceQuoteCandidates };
 
 function isCanadianDecisionUrl(url: URL) {
   return (
