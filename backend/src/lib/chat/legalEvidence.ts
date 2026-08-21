@@ -596,6 +596,16 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
     : "";
 }
 
+/**
+ * Chat claims never carry citation-handle markers: pills are derived from
+ * evidence_ids at render time ([ref]), so an inline "[@handle]" can only be
+ * leakage from the DOCX Write convention. Drop the tokens instead of
+ * leaking raw handles into prose.
+ */
+function stripCitationHandleMarkers(text: string): string {
+  return text.replace(/\s*\[@[^\][\n]{1,80}\]/gu, "");
+}
+
 function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 64)
     return { claims: null, errors: ["claims must contain 1 to 64 items"] };
@@ -603,7 +613,9 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
   const errors: string[] = [];
   value.forEach((value, index) => {
     const row = object(value);
-    const text = typeof row?.text === "string" ? row.text.trim() : "";
+    const text = typeof row?.text === "string"
+      ? stripCitationHandleMarkers(row.text).trim()
+      : "";
     const rawIds = row?.evidence_ids;
     const ids = Array.isArray(rawIds)
       ? rawIds.filter((id): id is string => typeof id === "string" && Boolean(id))
