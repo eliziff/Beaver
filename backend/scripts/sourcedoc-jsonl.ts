@@ -7,7 +7,6 @@
 import { createInterface } from "node:readline";
 
 import { deriveA2AJSourceDoc } from "../src/lib/sourceDocStructureHost";
-import { shutdownSourceStructureEngine } from "../src/lib/sourceStructureEngine";
 
 const PROTOCOL = "beaver.sourcedoc.jsonl.v1";
 const COMPILER = "legal-structure";
@@ -157,7 +156,6 @@ async function main() {
         error: error instanceof Error ? error.message : String(error) })}\n`);
     }
   }
-  await shutdownSourceStructureEngine();
 }
 
 void main();

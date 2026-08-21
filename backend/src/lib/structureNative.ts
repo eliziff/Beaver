@@ -28,7 +28,7 @@ function addonFilename() {
   return "liblegal_structure_node.so";
 }
 
-export function structureNativeBinary() {
+function structureNativeBinary() {
   const root = process.env.LEGALPDF_ENGINE_ROOT?.trim() ||
     path.join(__dirname, "../../../legal-pdf-parser");
   return process.env.LEGAL_STRUCTURE_NATIVE?.trim() ||
@@ -68,6 +68,8 @@ export type A2ajNativeInput = {
   excerpt_of?: string;
 };
 
+export type JournalPageRow = { page_label: unknown; pdf_page: unknown };
+
 export function hydrateSourceDoc(raw: NativeSourceDoc, text?: string): SourceDoc {
   const source = raw.document;
   const value = source.text ?? text;
@@ -86,29 +88,17 @@ export function a2ajSourceDocNative(input: A2ajNativeInput) {
   return sourceDocsNative([{ kind: "a2aj", input }])[0];
 }
 
-export function a2ajSourceDocsNative(inputs: A2ajNativeInput[]) {
-  return sourceDocsNative(inputs.map((input) => ({ kind: "a2aj", input })));
-}
-
 export function journalSourceDocNative(
   articleId: number, url: string | null, filename: string,
-  pageRows: Array<{ page_label: unknown; pdf_page: unknown }>,
+  pageRows: JournalPageRow[],
 ) {
   return sourceDocsNative([{ kind: "journal", article_id: articleId, url, filename,
     page_rows: pageRows }])[0];
 }
 
-export function journalJsonlSourceDocNative(
-  articleId: number, url: string | null, jsonl: string,
-  pageRows: Array<{ page_label: unknown; pdf_page: unknown }>,
-) {
-  return sourceDocsNative([{ kind: "journal", article_id: articleId, url, jsonl,
-    page_rows: pageRows }])[0];
-}
-
 export function journalTextSourceDocNative(
   articleId: number, url: string | null, text: string,
-  pageRows: Array<{ page_label: unknown; pdf_page: unknown }>,
+  pageRows: JournalPageRow[],
 ) {
   return sourceDocsNative([{ kind: "journal", article_id: articleId, url, text,
     page_rows: pageRows }])[0];
@@ -118,20 +108,18 @@ export function nativeMarkupSourceDocNative(input: NativeMarkupSourceInput) {
   return sourceDocsNative([{ kind: "native_markup", input }])[0];
 }
 
-export type SourceDocNativeRequest =
+type SourceDocNativeRequest =
   | { kind: "a2aj"; input: A2ajNativeInput; source_id?: string }
   | { kind: "journal"; article_id: number; url: string | null; filename: string;
-      page_rows: Array<{ page_label: unknown; pdf_page: unknown }> }
-  | { kind: "journal"; article_id: number; url: string | null; jsonl: string;
-      page_rows: Array<{ page_label: unknown; pdf_page: unknown }> }
+      page_rows: JournalPageRow[] }
   | { kind: "journal"; article_id: number; url: string | null; text: string;
-      page_rows: Array<{ page_label: unknown; pdf_page: unknown }> }
+      page_rows: JournalPageRow[] }
   | { kind: "native_markup"; input: NativeMarkupSourceInput; source_id?: string }
   | { kind: "evidence"; input: StructureEvidenceV1; source_id?: string;
       original_claims?: Record<string, SourceDocBlock>;
       original_claim_orders?: Record<string, string[]> };
 
-export function sourceDocsNative(requests: SourceDocNativeRequest[]) {
+function sourceDocsNative(requests: SourceDocNativeRequest[]) {
   const values = loadAddon().sourceDocs(requests);
   if (!Array.isArray(values) || values.length !== requests.length) {
     throw new Error("Legal structure native module returned an invalid SourceDoc batch");

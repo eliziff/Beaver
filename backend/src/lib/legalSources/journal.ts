@@ -7,10 +7,9 @@ import {
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
-import { deriveJournalSourceDoc } from "../sourceDocStructureHost";
 import { positiveInteger as integer } from "../value";
-import type { JournalPageRow } from "../sourceDocStructureHost";
-import { journalSourceDocNative } from "../structureNative";
+import { journalSourceDocNative, journalTextSourceDocNative } from "../structureNative";
+import type { JournalPageRow } from "../structureNative";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
@@ -543,7 +542,7 @@ async function document(
     )
     .all(articleId) as JournalPageRow[];
   const canonical = registered ? finalContractSource(articleId, url, registered, pageRows) : null;
-  const text = canonical?.text ?? publicText;
+  const structure = canonical ?? journalTextSourceDocNative(articleId, url, publicText, pageRows);
   const document: JournalArticleDocument = {
     provider: "journal",
     identity: String(articleId),
@@ -553,8 +552,8 @@ async function document(
     title: string(row, "name_en") ?? `Article ${articleId}`,
     date: string(row, "document_date_en"),
     url,
-    text,
-    structure: canonical ?? await deriveJournalSourceDoc(articleId, url, text, pageRows),
+    text: structure.text,
+    structure,
     upstreamLicense: string(row, "upstream_license"),
     journalName: string(row, "journal_name"),
     authors: string(row, "authors"),
