@@ -87,6 +87,81 @@ describe("production legal evidence", () => {
     );
   });
 
+  it("consolidates one provision family into a single range citation", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const ids = ["sec50(1)", "sec50(1)(a)", "sec50(1)(b)", "sec50(1)(c)"].map(
+      (label) => {
+        const evidence = {
+          ...passage(label),
+          provider: "a2aj" as const,
+          stable_source_id: `a2aj:fla:${label}`,
+          citation: "SA 2003, c F-4.5",
+          dataset: "LEGISLATION-AB",
+          name: "Family Law Act",
+          external_url:
+            "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm&leg_type=Acts&isbncln=9780779854820&display=html",
+          locator: { kind: "section" as const, label },
+        };
+        registerLegalEvidence(state, evidence);
+        return evidence.evidence_id;
+      },
+    );
+    submitLegalEvidenceAnswer({ claims: [
+      { text: "First clause proposition.", evidence_ids: [ids[0]] },
+      { text: "Second clause proposition.", evidence_ids: [ids[1]] },
+      { text: "Third clause proposition.", evidence_ids: [ids[2]] },
+      { text: "Fourth clause proposition.", evidence_ids: [ids[3]] },
+    ] }, state);
+
+    // The parent provision is present, so the family renders as the parent
+    // alone - no (a)-(c) residue - and all four claims share one ref.
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      [
+        "First clause proposition. [1]",
+        "Second clause proposition. [1]",
+        "Third clause proposition. [1]",
+        "Fourth clause proposition. [1]",
+      ].join("\n\n"),
+    );
+    const citations = createLegalEvidenceCitations(state);
+    expect(citations).toHaveLength(1);
+    expect(citations[0]).toEqual(expect.objectContaining({
+      kind: "a2aj",
+      ref: 1,
+      pinpoint: "s 50(1)",
+      locator_kind: "section",
+      quotes: expect.any(Array),
+    }));
+  });
+
+  it("renders sibling-only families with shared-prefix tails", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const ids = ["sec49(2)(a)", "sec49(2)(b)"].map((label) => {
+      const evidence = {
+        ...passage(label),
+        provider: "a2aj" as const,
+        stable_source_id: `a2aj:fla:${label}`,
+        citation: "SA 2003, c F-4.5",
+        dataset: "LEGISLATION-AB",
+        name: "Family Law Act",
+        external_url: "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm",
+        locator: { kind: "section" as const, label },
+      };
+      registerLegalEvidence(state, evidence);
+      return evidence.evidence_id;
+    });
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "Both clauses matter.",
+      evidence_ids: ids,
+    }] }, state);
+
+    const citations = createLegalEvidenceCitations(state);
+    expect(citations).toHaveLength(1);
+    expect(citations[0]).toEqual(expect.objectContaining({
+      pinpoint: "s 49(2)(a)\u2013(b)",
+    }));
+  });
+
   it("uses the approved quotation and paraphrase instruction everywhere", () => {
     expect(GROUNDED_QUOTATION_POLICY_CURRENT).toBe(
       "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.",
