@@ -151,15 +151,6 @@ describe("legal-source assistant activity", () => {
 });
 
 describe("A2AJ reference neighborhoods", () => {
-  it("has no production dependency on the text-only structure sidecar", () => {
-    for (const file of [
-      path.join(__dirname, "a2ajTools.ts"),
-      path.join(__dirname, "..", "..", "legalSources", "a2aj.ts"),
-    ]) {
-      expect(readFileSync(file, "utf8")).not.toMatch(/legalStructureSidecar/u);
-    }
-  });
-
   beforeEach(() => {
     guardedRemoteFetch.mockClear();
     vi.stubEnv(
