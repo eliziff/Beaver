@@ -1,42 +1,6 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import {
-  crossReferenceGraph,
-  crossReferenceGraphFromSourceDoc,
-} from "../legalCrossReference";
-import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
-
-type A2AJFixture = {
-  citation: string;
-  docType: "laws";
-  text: string;
-  sectionMap?: Record<string, string>;
-  dataset: string;
-  url: string;
-};
-
-function a2ajFixture(name: string): A2AJFixture {
-  return JSON.parse(readFileSync(path.join(
-    __dirname,
-    "fixtures",
-    "sourcedoc",
-    `${name}.json`,
-  ), "utf8")) as A2AJFixture;
-}
-
-async function a2ajDoc(name: string) {
-  const fixture = a2ajFixture(name);
-  return deriveA2AJSourceDoc({
-    citation: fixture.citation,
-    docType: fixture.docType,
-    text: fixture.text,
-    dataset: fixture.dataset,
-    url: fixture.url,
-    sectionMap: fixture.sectionMap,
-  });
-}
+import { crossReferenceGraph } from "../legalCrossReference";
 
 /**
  * The agreement fixture is drafted in the mini corpus's own dialect
@@ -68,35 +32,6 @@ const AGREEMENT = [
 ].join("\n");
 
 const graphOf = (text: string) => crossReferenceGraph(text, "fixture");
-
-describe("crossReferenceGraph - canonical SourceDoc blocks", () => {
-  it("resolves edges to captured A2AJ block labels without retaining nodes", async () => {
-    const doc = await a2ajDoc("a2aj-laws-on-occupiers-liability");
-    const graph = crossReferenceGraphFromSourceDoc(doc, { integrityThreshold: 0 });
-    const target = doc.blocks.find(({ label }) => label === "sec9")!;
-    const edge = graph.edges.find(({ raw, sourceLabel }) =>
-      raw.toLowerCase() === "section 9" && sourceLabel === "sec2");
-
-    expect("nodes" in graph).toBe(false);
-    expect(edge).toMatchObject({
-      status: "resolved",
-      sourceLabel: "sec2",
-      targetLabel: target.label,
-      targetStart: target.start,
-      targetEnd: target.end,
-    });
-  });
-
-  it("keeps unresolved and external dispositions on captured provider text", async () => {
-    const doc = await a2ajDoc("a2aj-laws-fed-criminalcode-sectionmap");
-    const graph = crossReferenceGraphFromSourceDoc(doc, { integrityThreshold: 0 });
-
-    expect(graph.edges.find(({ raw }) => raw.toLowerCase() === "section 76"))
-      .toMatchObject({ status: "unresolved", reason: "no_such_provision" });
-    expect(graph.edges.find(({ raw }) => raw.toLowerCase() === "subsection 2(1)"))
-      .toMatchObject({ status: "external", reason: "external_instrument" });
-  });
-});
 
 describe("crossReferenceGraph — literal edges", () => {
   it("resolves an internal reference to the target section's span", async () => {

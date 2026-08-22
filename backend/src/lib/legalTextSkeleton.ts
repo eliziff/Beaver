@@ -15,7 +15,6 @@ import {
   createSourceDoc,
   lookupSourceDocLabel,
   normalizeSourceDocLocator,
-  sourceDocSubtreeLabels,
   type SourceDoc,
   type SourceDocBlock,
   type SourceDocLookup,
@@ -52,14 +51,6 @@ export interface SkeletonNode {
   start: number;
   end: number;
   parentLabel?: string;
-}
-
-/** Labels in the explicit parent chain rooted at `seedLabel`. */
-export function skeletonSubtreeLabels(
-  skeleton: Pick<AgreementSkeleton, "nodes">,
-  seedLabel: string,
-): Set<string> {
-  return sourceDocSubtreeLabels(skeleton.nodes, seedLabel);
 }
 
 /** Native table coordinates already projected onto this text's offset plane. */
