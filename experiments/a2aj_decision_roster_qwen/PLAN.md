@@ -896,6 +896,31 @@ issues, opinion-specific positions, issue-scoped partial joins, derived
 judge-by-issue support, and target-treatment links; those are not optional
 future ontology work.
 
+### If issue alignment is too unreliable
+
+The issue-linked representation is an empirical hypothesis, not a permanent
+requirement. If the benchmark shows that models can accurately describe a
+cited authority's treatment but cannot reliably normalize that treatment into
+shared issues, the next arm will ask for a simpler account of what each
+judicial opinion says or does with each cited authority. It will preserve the
+opinion number, operation, attributed proposition, and exact evidence,
+but omit cross-opinion issue grouping. This is a separate benchmark arm, not a
+second representation added to the current output.
+
+Both arms must distinguish the deciding court's own reasoning from quotations,
+counsel's submissions, a lower decision under review, procedural narration,
+and editorial metadata. Reproducing another speaker's words is not itself a
+treatment by the current judicial opinion; its treatment requires evidence
+that the opinion adopted or performed the stated legal operation.
+
+The current schema also asks the model to classify each citation occurrence's
+text source and whose proposition it reports. Keep those fields for the next
+small comparison because making the distinction explicit may improve treatment
+accuracy, but test them as removable scaffolding. Compare the same locked cases
+with and without those occurrence classifications. Remove them if they do not
+materially reduce false attribution or if they make the treatment output worse;
+do not preserve redundant fields merely because they are already in Gold.
+
 No metered run begins without separate explicit authorization. Durable positive
 and negative findings go in RESULTS.md; raw responses and partial results remain
 in ignored resumable receipts.

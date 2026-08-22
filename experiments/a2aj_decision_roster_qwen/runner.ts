@@ -43,7 +43,6 @@ import {
   type SourceDocBlock,
 } from "../../backend/src/lib/sourceDoc";
 import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocStructureHost";
-import { shutdownSourceStructureEngine } from "../../backend/src/lib/sourceStructureEngine";
 import { setBelowNormalProcessPriority } from "../../backend/src/lib/processPriority";
 import {
   citationLookupKey,
@@ -93,6 +92,15 @@ import {
   type ModelSourceLine,
   type ReducedCaseTargetSubmission,
 } from "../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced";
+import {
+  CASE_DECISION_MVP_VERSION,
+  caseDecisionOutputSchema,
+  compileCaseDecisionSubmission,
+  decisionCitationInventory,
+  type DecisionCitationInventory,
+  type CaseDecisionSubmission,
+  type CaseDecisionStructureSubmission,
+} from "../../backend/experiments/a2aj-decision-roster/caseDecisionMvp";
 
 type Role = "majority" | "minority" | "concurring" | "unknown";
 type Provider = "ollama" | "luna" | "dry";
@@ -145,10 +153,12 @@ type Preflight = {
 
 type CitationEdgeCandidate = {
   id: string;
+  authorityId: string;
   citation: string;
   targetCitationKey: string;
   start: number;
   end: number;
+  linkedContext: CaseTargetOccurrence["linkedContext"];
   contextStart: number;
   contextEnd: number;
   context: string;
@@ -274,17 +284,16 @@ const DEFAULT_NUM_CTX = 32_768;
 const DEFAULT_NUM_PREDICT = 4_096;
 const PROMPT_VERSION = "a2aj-opinion-v5";
 const CODEX_PROMPT_VERSION = "a2aj-opinion-codex-v6";
-const SEMANTIC_MVP_PROMPT_VERSION = "a2aj-semantic-mvp-combined-v2";
+const SEMANTIC_MVP_PROMPT_VERSION = CASE_DECISION_MVP_VERSION;
 const VALIDATOR_VERSION = "a2aj-opinion-validator-v7";
-const SEMANTIC_MVP_VALIDATOR_VERSION = "a2aj-semantic-mvp-validator-v2";
+const SEMANTIC_MVP_VALIDATOR_VERSION = CASE_DECISION_MVP_VERSION;
 export const CASE_TARGET_MVP_VALIDATOR_VERSION = "a2aj-case-target-extraction-v1";
 export const CASE_TARGET_MVP_COMPILER_VERSION = "a2aj-case-target-extraction-v1";
 const DETERMINISTIC_VERSION = "a2aj-opinion-deterministic-v6";
 const RANDOM_SELECTION_VERSION = "a2aj-random-primary-key-rejection-v1";
 const RESPONSE_SCHEMA_NAME = "a2aj_opinion_votes";
-const SEMANTIC_MVP_SCHEMA_NAME = "a2aj_case_semantic_mvp";
+const SEMANTIC_MVP_SCHEMA_NAME = "a2aj_case_decision_extraction_v3";
 const CASE_TARGET_MVP_SCHEMA_NAME = "a2aj_case_target_extraction_v1";
-const SEMANTIC_MVP_CITATION_EDGES = 2;
 const MAX_LOOKUP_PARAGRAPHS = 12;
 const MAX_ATTEMPTS = 20;
 const MAX_CODEX_STDERR_BYTES = 16 * 1024 * 1024;
@@ -399,32 +408,6 @@ const GPT_RESPONSES_SCHEMA = {
   schema: ROSTER_JSON_SCHEMA,
 } as const;
 
-const SEMANTIC_MVP_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    ...ROSTER_JSON_SCHEMA.properties,
-    issue_cards: {
-      type: "array",
-      minItems: 1,
-      maxItems: 40,
-      items: CASE_ISSUE_CARD_SCHEMA,
-    },
-    treatments: {
-      type: "array",
-      items: CASE_TREATMENT_ITEM_SCHEMA,
-    },
-  },
-  required: [...ROSTER_JSON_SCHEMA.required, "issue_cards", "treatments"],
-} as const;
-
-const SEMANTIC_MVP_RESPONSES_SCHEMA = {
-  type: "json_schema",
-  name: SEMANTIC_MVP_SCHEMA_NAME,
-  strict: true,
-  schema: SEMANTIC_MVP_JSON_SCHEMA,
-} as const;
-
 export const CASE_TARGET_MVP_JSON_SCHEMA = CASE_TARGET_MVP_REDUCED_JSON_SCHEMA;
 
 export const CASE_TARGET_MVP_RESPONSES_SCHEMA = {
@@ -471,6 +454,10 @@ export function caseTargetMvpOutputSchema(
   };
   bindLineNumbers(schema);
   return schema;
+}
+
+export function decisionMvpOutputSchema(inventory: DecisionCitationInventory, sourceLineCount: number) {
+  return caseDecisionOutputSchema(inventory, sourceLineCount);
 }
 
 const SUBMIT_TOOL = {
@@ -520,10 +507,41 @@ const CODEX_SYSTEM_PROMPT = `Closed-record extraction. Use only the supplied cas
 ${OPINION_INSTRUCTIONS}
 The deterministic term-search preflight is only a navigation hint and is not an answer.`;
 
-const SEMANTIC_MVP_INSTRUCTIONS = `Also extract issue cards and treatment for the supplied citation-edge sample.
-ISSUE CARDS: Emit one card for each separately answered legal question in each opinion. Keep the elements of one applied test together unless the opinion gives them distinct answers or independent grounds. Do not emit questions the opinion expressly declines to decide. The question and answer are concise normalized statements, but every answer and basis or limit must cite evidence IDs. A discussion span covers the complete part of that opinion needed to understand the issue; it may cross paragraphs. Evidence quotes and span boundary quotes must be exact and unique within that opinion. Voice classifies who is speaking in the evidence. The answer itself needs current_court evidence. relation_to_disposition describes whether deciding this issue was necessary or an independent alternative ground; non_dispositive includes dicta and background.
-TREATMENT: Return exactly one treatment item for every supplied citation_edge_id, even when both event arrays are empty. Classify what the identified passage does to that cited decision, not the general relationship between the two cases. current_court means the present opinion itself adopts the characterization. Keep counsel submissions, quotations, procedural recounting, and reported decisions in their own attribution classes. Direct appellate history applies only when this source decision and the cited target are themselves successive decisions in the same case; a passage merely recounting the cited authority's relationship to a third decision is not direct history for this edge. target_proposition_as_characterized is an optional concise paraphrase of the proposition this source attributes to the target; do not invent one or create an issue card merely because a citation exists.
-The citation-edge sample is deliberately incomplete. Do not add treatment records for other citations.`;
+const DECISION_STRUCTURE_RULES = `
+An opinion is a distinct body of judicial reasons, not a panel list, signature, order, heading without reasons, or bare statement of agreement. List opinions in source order. Its boundary begins at its first substantive heading or sentence and ends with its last substantive sentence. Exclude preamble, metadata, headnotes, signatures, bare joinders, counsel lists, and corrections.
+
+Identify a named or collective writer only when the decision does. A panel list proves participation, not authorship. A conventional heading saying that named judges delivered or joined a judgment may prove the relationship. A signature may prove authorship or joinder but remains outside the opinion boundary. Never infer a writer from judicial office or outside knowledge.
+
+For each opinion, say whether it supports or opposes the court's disposition, is mixed, or is genuinely unclear. List every judge who adopts the complete opinion as a full joiner. Put a deciding judge without an authored or fully joined opinion in other_panel_members, distinguishing agreement in the result alone from participation whose relationship is unstated. If every participating judge reaches the same disposition, record support for the disposition even when the decision does not say "unanimous".`;
+
+export const DECISION_STRUCTURE_INSTRUCTIONS = `Read the complete court decision. Return only its disposition, substantive judicial opinions, and judge voting relationships.
+${DECISION_STRUCTURE_RULES}
+Every evidence reference is an inclusive range in the numbered decision. The number before each colon is an index, not decision text. Return only schema JSON.`;
+
+const DECISION_ANALYSIS_RULES = `
+ISSUES: Record each material legal question the opinions actually answer. Group legally equivalent answers together, but keep a separate position for every opinion expressing that answer. Each position identifies its opinion by its one-based number in the supplied opinion array and cites that opinion's own words. Record a judge as an issue-only joiner only when the decision shows that the judge adopted that answer without adopting the whole opinion. Do not create issues from arguments, facts, quoted authorities, background, or questions left undecided.
+
+REFERENCES: The supplied detector candidates are fallible search hints, not a complete list. Account for each candidate exactly once by putting its occurrence ID in detected_occurrence_id. Inspect the complete decision for additional references to legal decisions and include them with detected_occurrence_id set to null. Give every reference a local reference_id, copy its identifying words exactly as they appear, and cite the lines containing those words. Do not try to resolve aliases or group references into authorities. Mark a supplied false positive as not_decision_reference; do not silently omit it. text_source says whether the surrounding words are this decision's own prose, quoted source material, document metadata, or unclear. proposition_attributed_to says whose legal position that prose reports. Court-written prose that recounts counsel's submission is current_decision_words attributed to party_or_counsel. Words copied from another decision are quoted_source attributed to cited_or_quoted_source.
+
+QUOTED PASSAGES: When the decision reproduces words that it attributes to a referenced decision and those words matter to the analysis, record the exact verbatim words, their lines, and the relevant reference_ids. Copy them exactly, including any visible editorial alterations. This list is also open: it is not limited to quotations a detector happened to find. Do not treat quoted words as the current court's position merely because they appear in its reasons.
+
+TREATMENT: Record a treatment only when the current judicial opinion performs a substantive legal operation on a referenced decision; a mere citation has no treatment. Link it to the relevant reference_ids, material issue, and opinion. proposition states what that opinion says the referenced decision stood for. explanation concisely states what the opinion did with that proposition and any material limit. quoted_passage_ids link any exact reproduced source language used in that account. The treatment evidence must be the current opinion's own words showing that it adopts, applies, explains, distinguishes, limits, criticizes, questions, refuses to follow, or overrules the referenced decision; a quotation, counsel's argument, or description of a lower court does not by itself prove treatment. explained summarizes or interprets; followed expressly accepts as governing authority; approved expressly endorses; applied uses the proposition to resolve the issue; distinguished declines to apply it because of a material difference; limited narrows it; criticized expresses disapproval without refusing to follow; not_followed expressly refuses it; questioned expresses doubt; overruled expressly displaces its rule by a court empowered to do so. Use other only when none fits and describe the operation. Evidence is the smallest complete line range proving the operation.
+
+PROCEDURAL HISTORY: Separately record affirmed, reversed, varied, quashed, remanded, leave_granted, or leave_refused only when this decision and the cited authority are stages of the same proceeding. Reversing a judgment is not overruling its legal rule.`;
+
+export const DECISION_TREATMENT_INSTRUCTIONS = `Read the complete court decision and the supplied judicial-opinion structure. Return its material legal issues, every reference to another legal decision that you can identify, and each opinion's treatment of those referenced decisions.
+${DECISION_ANALYSIS_RULES}
+All ranges are inclusive numbered source lines. Return only schema JSON.`;
+
+export const SEMANTIC_MVP_INSTRUCTIONS = `Read the complete court decision and return one structured account of it.
+
+JUDICIAL OPINIONS AND VOTES
+${DECISION_STRUCTURE_RULES}
+
+ISSUES AND CITED AUTHORITIES
+${DECISION_ANALYSIS_RULES}
+
+Every evidence reference is an inclusive range in the numbered decision. The number before each colon is an index, not decision text. Return only schema JSON.`;
 
 const CASE_TARGET_MVP_NESTED_INSTRUCTIONS = `Analyze the citing decision and its use of the named target decision. Use only the supplied citing decision.
 
@@ -533,7 +551,7 @@ Identify each distinct set of substantive judicial reasons. A panel list, signat
 
 Use the schema fields directly. authorship identifies who wrote an opinion. full_joiners contains judges who adopt that complete opinion and its result. issue_only_joiners contains judges who adopt that opinion only on the enclosing issue. other_decision_makers contains deciding judges who did not write or fully join an opinion; use result_only_evidence_lines only when the source limits that judge's agreement to the result, outcome, disposition, or conclusion. Leave it null when the judge's relationship is not established.
 
-These relationships may overlap: a judge may write separate reasons and join another opinion on an identified issue. A panel list proves participation, not authorship. A signature is not by itself a separate opinion. "I agree" ordinarily joins the preceding reasons unless the surrounding words limit it. A judge who writes separately is not necessarily a dissenter; compare the disposition that judge would order with the court's disposition. If the complete decision gives one set of reasons for an identified panel and no separate or dissenting reasons, the panel supports that disposition even if the word "unanimous" is absent. Do not label reasons majority, minority, plurality, concurrence, or dissent: the host derives those classifications from the judges' positions. A judge who does not address an issue does not adopt an answer to it unless a joinder establishes that.
+These relationships may overlap: a judge may write separate reasons and join another opinion on an identified issue. A panel list proves participation, not authorship. A signature is not by itself a separate opinion. "I agree" ordinarily joins the preceding reasons unless the surrounding words limit it. A judge who writes separately is not necessarily a dissenter; compare the disposition that judge would order with the court's disposition. If the complete decision gives one set of reasons for an identified panel and no separate reasons, the panel supports that disposition even if the word "unanimous" is absent.
 
 ISSUES
 
@@ -745,8 +763,10 @@ function looksLikePanelRoster(value: string) {
 function explicitNamedAuthorshipByline(quote: string, name: string) {
   if (!sourceNameMatches(quote, name)) return false;
   if (/(?:^|[\r\n])\s*(?:(?:(?:written|oral|dissenting|concurring|separate|additional)\s+)?reasons?|opinion)(?:\s+for\s+(?:judg(?:e)?ment|decision)|\s+of\s+the\s+court)?\s+(?:of|by)\s*:|(?:^|[\r\n])\s*delivered\s+by\s*:/iu.test(quote)) return true;
-  const namedHeading = /^(?:(?:[\p{Lu}][\p{L}\p{M}'’.-]*|de|del|des|du|la|le|van|von|and|et)(?:\s+|,\s*)){1,16}(?:C\.?\s*J\.?|J\.?\s*A\.?|J\.?\s*C\.?\s*A\.?|J\.?J\.?|JJ\.?|J\.?)\s*(?:\([^\r\n)]{1,160}\))?$/u;
-  return quote.length <= 500 && quote.split(/\r?\n/u).some((line) => namedHeading.test(line.trim()));
+  const namedHeading = /^(?:(?:(?:[\p{Lu}]\.){1,4}|[\p{Lu}][\p{L}\p{M}'’.-]*|de|del|des|du|la|le|van|von|and|et)(?:\s+|,\s*)){1,16}(?:C\.?\s*J\.?|J\.?\s*A\.?|J\.?\s*C\.?\s*A\.?|J\.?J\.?|JJ\.?|J\.?)\s*(?:\([^\r\n)]{1,160}\))?$/u;
+  return quote.length <= 500 && quote.split(/\r?\n/u).some((line) => namedHeading.test(
+    line.trim().replace(/^(?:["'“”‘’]|â€œ|â€)+|(?:["'“”‘’]|â€œ|â€)+$/gu, ""),
+  ));
 }
 
 function compressNumbers(numbers: number[]): Range[] {
@@ -809,44 +829,31 @@ function extractPreflight(source: SourceDoc, paragraphs: SourceDocBlock[]): Pref
 }
 
 function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "targetOccurrences" | "sourceLines">): CitationEdgeCandidate[] {
-  const currentCitationKey = citationLookupKey(record.candidate.citation);
-  const bodyStart = record.paragraphs[0]?.start ?? 0;
-  const candidates = citationsInText(record.source.text).flatMap((match) => {
-    const targetCitationKey = citationLookupKey(match.text);
-    if (!targetCitationKey || targetCitationKey === currentCitationKey || match.start < bodyStart) return [];
-    const contextStart = Math.max(bodyStart, match.start - 700);
-    const contextEnd = Math.min(record.source.text.length, match.end + 700);
+  const inventory = decisionCitationInventory(
+    record.source.text,
+    record.candidate.citation,
+    record.paragraphs.at(-1)?.end ?? record.source.text.length,
+  );
+  return inventory.occurrences.map((occurrence) => {
+    const contextStart = Math.max(0, occurrence.start - 700);
+    const contextEnd = Math.min(record.source.text.length, occurrence.end + 700);
     const context = record.source.text.slice(contextStart, contextEnd);
-    const excerptKind = classifyCitatorExcerpt(context).kind;
-    return [{
-      match,
-      targetCitationKey,
+    return {
+      id: occurrence.id,
+      authorityId: occurrence.authority_id,
+      citation: occurrence.quote,
+      targetCitationKey: occurrence.citation_key,
+      start: occurrence.start,
+      end: occurrence.end,
+      linkedContext: occurrence.linkedContext,
       contextStart,
       contextEnd,
       context,
       contextSha256: sha256(context),
-      excerptKind,
-      order: sha256(`${record.sourceSha256}:${match.start}:${targetCitationKey}`),
-    }];
+      excerptKind: classifyCitatorExcerpt(context).kind,
+      selectionRule: "all_detected_citations_in_source_order_v1",
+    };
   });
-  const priority = { prose: 0, mixed: 1, insufficient: 2, authority_list: 3 } as const;
-  return candidates
-    .sort((left, right) => priority[left.excerptKind] - priority[right.excerptKind] || left.order.localeCompare(right.order))
-    .slice(0, SEMANTIC_MVP_CITATION_EDGES)
-    .sort((left, right) => left.match.start - right.match.start)
-    .map((candidate, index) => ({
-      id: `c${index + 1}`,
-      citation: candidate.match.text,
-      targetCitationKey: candidate.targetCitationKey,
-      start: candidate.match.start,
-      end: candidate.match.end,
-      contextStart: candidate.contextStart,
-      contextEnd: candidate.contextEnd,
-      context: candidate.context,
-      contextSha256: candidate.contextSha256,
-      excerptKind: candidate.excerptKind,
-      selectionRule: "prose_first_then_source_hashed_occurrence_v1",
-    }));
 }
 
 function caseTargetOccurrences(source: SourceDoc, target: CaseTargetSpec | undefined): CaseTargetOccurrence[] {
@@ -1037,9 +1044,19 @@ function codexPacket(record: CaseRecord) {
   ].join("\n\n");
 }
 
-function semanticMvpPacket(record: CaseRecord) {
+function legacySemanticMvpPacket(record: CaseRecord) {
+  const lineRange = (start: number, end: number) => {
+    const lines = record.sourceLines.filter((line) => line.end > start && line.start < end);
+    return lines.length ? [lines[0].line, lines.at(-1)!.line] : [null, null];
+  };
+  const authorities = new Map<string, CitationEdgeCandidate[]>();
+  for (const edge of record.citationEdges) {
+    const group = authorities.get(edge.authorityId) ?? [];
+    group.push(edge);
+    authorities.set(edge.authorityId, group);
+  }
   return [
-    CODEX_SYSTEM_PROMPT,
+    "Closed-record legal extraction. Use only the supplied decision and return only schema JSON.",
     SEMANTIC_MVP_INSTRUCTIONS,
     "[CASE]",
     json({
@@ -1050,21 +1067,89 @@ function semanticMvpPacket(record: CaseRecord) {
       date: record.candidate.date,
       source_sha256: record.sourceSha256,
     }),
-    "[SOURCE STRUCTURE]",
-    json({
-      paragraph_index: paragraphIndex(record.paragraphs) || null,
-      paragraph_structure_available: record.paragraphs.length > 0,
-    }),
     "[DETERMINISTIC TERM-SEARCH PREFLIGHT — NAVIGATION HINTS ONLY]",
     json(record.preflight),
-    "[CITATION-EDGE SAMPLE]",
-    json(record.citationEdges.map((edge) => ({
-      citation_edge_id: edge.id,
-      citation: edge.citation,
-      context: edge.context,
-    }))),
-    "[SOURCE TEXT]",
-    record.source.text,
+    "[CITED AUTHORITIES — authority_id, normalized citation key, displayed citations]",
+    json([...authorities].map(([authorityId, edges]) => [
+      authorityId,
+      edges[0].targetCitationKey,
+      [...new Set(edges.map(({ citation }) => citation))],
+    ])),
+    "[CITATION OCCURRENCES — occurrence_id, authority_id, start_line, end_line, exact text, linked body marker]",
+    json(record.citationEdges.map((edge) => [
+      edge.id,
+      edge.authorityId,
+      ...lineRange(edge.start, edge.end),
+      edge.citation,
+      edge.linkedContext === null
+        ? null
+        : [...lineRange(edge.linkedContext.start, edge.linkedContext.end), edge.linkedContext.quote],
+    ])),
+    "[COMPLETE DECISION — the line number before each colon is not decision text]",
+    record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n"),
+  ].join("\n\n");
+}
+
+function numberedDecision(record: CaseRecord) {
+  return record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n");
+}
+
+function decisionCaseLabel(record: CaseRecord) {
+  return json({ citation: record.candidate.citation, name: record.candidate.name, date: record.candidate.date });
+}
+
+function decisionCitationPacket(record: CaseRecord) {
+  const lineRange = (start: number, end: number) => {
+    const lines = record.sourceLines.filter((line) => line.end > start && line.start < end);
+    return lines.length ? [lines[0].line, lines.at(-1)!.line] : [null, null];
+  };
+  return [
+    "[DETECTOR CANDIDATES — FALLIBLE AND NOT EXHAUSTIVE: occurrence_id, start_line, end_line, exact text, linked footnote marker]",
+    json(record.citationEdges.map((edge) => [
+      edge.id,
+      ...lineRange(edge.start, edge.end),
+      edge.citation,
+      edge.linkedContext === null
+        ? null
+        : [...lineRange(edge.linkedContext.start, edge.linkedContext.end), edge.linkedContext.quote],
+    ])),
+  ].join("\n\n");
+}
+
+export function semanticMvpPacket(record: CaseRecord) {
+  return [
+    "Use only the supplied court decision.",
+    SEMANTIC_MVP_INSTRUCTIONS,
+    "[DECISION]",
+    decisionCaseLabel(record),
+    decisionCitationPacket(record),
+    "[COMPLETE NUMBERED DECISION]",
+    numberedDecision(record),
+  ].join("\n\n");
+}
+
+export function decisionStructurePacket(record: CaseRecord) {
+  return [
+    "Use only the supplied court decision.",
+    DECISION_STRUCTURE_INSTRUCTIONS,
+    "[DECISION]",
+    decisionCaseLabel(record),
+    "[COMPLETE NUMBERED DECISION]",
+    numberedDecision(record),
+  ].join("\n\n");
+}
+
+export function decisionTreatmentPacket(record: CaseRecord, structure: CaseDecisionStructureSubmission) {
+  return [
+    "Use only the supplied court decision.",
+    DECISION_TREATMENT_INSTRUCTIONS,
+    "[DECISION]",
+    decisionCaseLabel(record),
+    "[JUDICIAL OPINION STRUCTURE - opinion numbers are one-based array positions]",
+    json(structure),
+    decisionCitationPacket(record),
+    "[COMPLETE NUMBERED DECISION]",
+    numberedDecision(record),
   ].join("\n\n");
 }
 
@@ -1704,7 +1789,8 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
     }
     for (const link of judge.opinion_links.filter((candidate) => candidate.relation === "joins")) {
       const opinion = opinions.find((candidate) => candidate.id === link.opinion_id);
-      if (opinion && !opinion.collective_author && link.evidence_quote && !/\b(?:agree|concur|join|adopt)\w*\b/iu.test(link.evidence_quote)) {
+      const implicitSoleOpinionJoin = opinions.length === 1;
+      if (opinion && !opinion.collective_author && !implicitSoleOpinionJoin && link.evidence_quote && !/\b(?:agree|concur|join|adopt)\w*\b/iu.test(link.evidence_quote)) {
         errors.push(`${judge.name} whole-opinion joinder evidence does not state agreement or joinder`);
       }
     }
@@ -1930,8 +2016,26 @@ function reducedRosterContractErrors(record: CaseRecord, raw: Record<string, unk
     const range = reducedSourceLines(record, { start_line: opinion.start_line, end_line: opinion.end_line });
     return range ? [range] : [];
   });
-  const requiredRanges = record.paragraphs.length
-    ? record.paragraphs.map((paragraph) => {
+  const submittedStart = ranges.length ? Math.min(...ranges.map(({ start }) => start)) : null;
+  const submittedEnd = ranges.length ? Math.max(...ranges.map(({ end }) => end)) : null;
+  const isSubstantiveBoundaryText = (text: string) => {
+    const line = compact(text);
+    if (!line) return false;
+    if (/^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+of\b.+\b(?:was\s+)?delivered(?:\s+orally)?\s+by\s*:?[—–-]*$/iu.test(line)) return false;
+    if (/^(?:(?:supplementary|written|oral|reserved|joint|dissenting|concurring|separate|additional)\s+)*(?:reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court|(?:of|by)\b)|by\s+the\s+court)\s*[^.!?]*:?[—–-]*$/iu.test(line)) return false;
+    if (/^\([^)]*\b(?:decision|judg(?:e)?ment)\b[^)]*\b(?:rendered|revised)\b[^)]*\)$/iu.test(line)) return false;
+    if (/^["“”']*(?:the\s+honourable\s+)?[\p{L}\p{M}.’'\-]+(?:\s+[\p{L}\p{M}.’'\-]+){0,5}\s+(?:C\.?J\.?|J\.?A\.?|J\.?)\s*["“”']*$/iu.test(line)) return false;
+    return true;
+  };
+  const coverageParagraphs = record.deterministic.status === "ready" && record.deterministic.opinions.length
+    ? record.paragraphs.filter((paragraph) => record.deterministic.opinions.some((opinion) =>
+        paragraph.start >= opinion.start && paragraph.end <= opinion.end) &&
+        isSubstantiveBoundaryText(record.source.text.slice(paragraph.start, paragraph.end)))
+    : submittedStart === null || submittedEnd === null
+      ? []
+      : record.paragraphs.filter((paragraph) => paragraph.start >= submittedStart && paragraph.end <= submittedEnd);
+  const requiredRanges = coverageParagraphs.length
+    ? coverageParagraphs.map((paragraph) => {
         const newline = record.source.text.indexOf("\n", paragraph.start);
         const end = newline >= 0 && newline < paragraph.end ? newline : paragraph.end;
         return { start: paragraph.start, end, label: paragraph.label };
@@ -1939,6 +2043,7 @@ function reducedRosterContractErrors(record: CaseRecord, raw: Record<string, unk
     : record.deterministic.status === "ready"
       ? record.sourceLines.filter((line) =>
           sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 &&
+          isSubstantiveBoundaryText(record.source.text.slice(line.start, line.end)) &&
           record.deterministic.opinions.some((opinion) => line.start >= opinion.start && line.end <= opinion.end)
         ).map((line) => ({ start: line.start, end: line.end, label: `source line ${line.line}` }))
       : [];
@@ -2145,7 +2250,7 @@ function treatmentOpinionPosition(opinion: Prediction["opinions"][number]): Opin
   return opinion.authority_position;
 }
 
-function validateSemanticMvp(
+function validateLegacySemanticMvp(
   record: CaseRecord,
   prediction: Prediction,
   raw: Record<string, unknown>,
@@ -2259,6 +2364,118 @@ function validateSemanticMvp(
       accepted_direct_history_events: treatmentEdges.reduce((sum, edge) => sum + edge.directHistory.length, 0),
     },
   };
+}
+
+function decisionInventory(record: CaseRecord) {
+  return decisionCitationInventory(record.source.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.source.text.length);
+}
+
+function decisionCoverageLineNumbers(record: CaseRecord) {
+  if (record.deterministic.status !== "ready") return [];
+  const substantive = (text: string) => {
+    const line = compact(text);
+    if (!line) return false;
+    if (/^\([^)]*\b(?:delivered|rendered|revised)\b[^)]*\)$/iu.test(line)) return false;
+    if (/^(?:the\s+)?(?:judg(?:e)?ment|decision)\s+of\b.+\b(?:was\s+)?delivered(?:\s+orally)?\s+by\s*:?[â€”â€“-]*$/iu.test(line)) return false;
+    if (/^(?:(?:supplementary|written|oral|reserved|joint|dissenting|concurring|separate|additional)\s+)*(?:reasons?\s+(?:for\s+judg(?:e)?ment|for\s+decision|of\s+the\s+court|(?:of|by)\b)|by\s+the\s+court)\s*[^.!?]*:?[â€”â€“-]*$/iu.test(line)) return false;
+    if (/^["â€œâ€']*(?:the\s+honourable\s+)?[\p{L}\p{M}.â€™'\-]+(?:\s+[\p{L}\p{M}.â€™'\-]+){0,5}\s+(?:C\.?J\.?|J\.?A\.?|J\.?)\s*["â€œâ€']*$/iu.test(line)) return false;
+    return true;
+  };
+  const paragraphs = record.paragraphs.filter((paragraph) =>
+    record.deterministic.opinions.some((opinion) => paragraph.start >= opinion.start && paragraph.end <= opinion.end) &&
+    substantive(record.source.text.slice(paragraph.start, paragraph.end))
+  );
+  const ranges = paragraphs.length ? paragraphs : record.sourceLines.filter((line) =>
+    sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 && substantive(record.source.text.slice(line.start, line.end)) &&
+    record.deterministic.opinions.some((opinion) => line.start >= opinion.start && line.end <= opinion.end)
+  );
+  return record.sourceLines.filter((line) =>
+    sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 &&
+    substantive(record.source.text.slice(line.start, line.end)) &&
+    ranges.some((range) => line.end > range.start && line.start < range.end)
+  ).map(({ line }) => line);
+}
+
+function decisionStructurePrediction(record: CaseRecord, structure: CaseDecisionStructureSubmission): Prediction {
+  const opinions = structure.opinions.map((opinion, index) => {
+    const range = reducedSourceLines(record, opinion.boundary)!;
+    const authors = opinion.authorship.kind === "named" ? opinion.authorship.writers.map(({ name }) => name) : [];
+    return {
+      id: `o${index + 1}`,
+      author_names: authors,
+      collective_author: opinion.authorship.kind === "collective" ? opinion.authorship.name : null,
+      result_position: opinion.result_position,
+      position_evidence_quote: opinion.result_evidence ? reducedSourceLines(record, opinion.result_evidence)?.quote ?? null : null,
+      alignment: opinion.result_position === "opposes_disposition" ? "different_result" as const : index === 0 ? "lead" as const : "same_result_separate_reasons" as const,
+      authority_position: "unknown" as const,
+      start_quote: record.source.text.slice(range.start, Math.min(range.end, range.start + 240)),
+      end_quote: record.source.text.slice(Math.max(range.start, range.end - 240), range.end),
+      start: range.start,
+      end_exclusive: range.end,
+      text_sha256: sha256(record.source.text.slice(range.start, range.end)),
+      substantive_words: sourceDocQuoteWords(record.source.text.slice(range.start, range.end)).length,
+      paragraphs: compressNumbers(record.paragraphs.flatMap((block) => block.end > range.start && block.start < range.end ? [Number(/^par(\d+)$/iu.exec(block.label)?.[1])].filter(Number.isFinite) : [])),
+    };
+  });
+  const people = new Map<string, Prediction["participants"][number]>();
+  const put = (name: string, result_position: ResultPosition, link: Prediction["participants"][number]["opinion_links"][number] | null, resultOnly = false) => {
+    const key = judgeIdentityKey(name);
+    const current = people.get(key) ?? { name, panel_evidence_quote: null, result_position, opinion_links: [], result_only: resultOnly, result_only_evidence_quote: null, result_side: resultSideFromPosition(result_position), relationship: "unknown" as const, opinion_ids: [] };
+    if (link && !current.opinion_links.some((item) => item.opinion_id === link.opinion_id)) current.opinion_links.push(link);
+    current.result_only = current.result_only || resultOnly;
+    current.opinion_ids = current.opinion_links.map(({ opinion_id }) => opinion_id);
+    current.relationship = current.opinion_links.some(({ relation }) => relation === "authors") ? "authors" : current.opinion_links.length ? "joins_reasons" : current.result_only ? "concurs_in_result_only" : "unknown";
+    people.set(key, current);
+  };
+  structure.opinions.forEach((opinion, index) => {
+    if (opinion.authorship.kind === "named") for (const writer of opinion.authorship.writers) put(writer.name, opinion.result_position, { opinion_id: `o${index + 1}`, relation: "authors", evidence_quote: reducedSourceLines(record, writer.evidence_lines)?.quote ?? null });
+    for (const joiner of opinion.full_joiners) put(joiner.name, opinion.result_position, { opinion_id: `o${index + 1}`, relation: "joins", evidence_quote: reducedSourceLines(record, joiner.evidence_lines)?.quote ?? null });
+  });
+  for (const member of structure.other_panel_members) put(member.name, member.result_position, null, member.relationship === "agrees_in_result_only");
+  return withDerivedAuthority({
+    disposition_quote: structure.disposition_evidence.length ? reducedSourceLines(record, { start_line: structure.disposition_evidence[0].start_line, end_line: structure.disposition_evidence.at(-1)!.end_line })?.quote ?? null : null,
+    disposition_start: null, disposition_end_exclusive: null, opinions, participants: [...people.values()],
+    nonparticipants: structure.nonparticipants.map(({ name, evidence_lines }) => ({ name, evidence_quote: reducedSourceLines(record, evidence_lines)?.quote ?? null })),
+  });
+}
+
+export function validateDecisionStructure(record: CaseRecord, structure: CaseDecisionStructureSubmission) {
+  const emptyAnalysis = {
+    issues: [],
+    references: decisionInventory(record).occurrences.map((occurrence, index) => ({
+      reference_id: `r${index + 1}`,
+      detected_occurrence_id: occurrence.id,
+      reference_status: "unclear" as const,
+      exact_reference: occurrence.quote,
+      evidence: (() => {
+        const lines = record.sourceLines.filter((line) => line.end > occurrence.start && line.start < occurrence.end);
+        return { start_line: lines[0]!.line, end_line: lines.at(-1)!.line };
+      })(),
+      text_source: "unclear" as const,
+      proposition_attributed_to: "unclear" as const,
+    })),
+    quoted_passages: [],
+    treatments: [],
+    procedural_history: [],
+  };
+  return validateDecisionMvp(record, { structure, analysis: emptyAnalysis });
+}
+
+export function validateDecisionMvp(record: CaseRecord, raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { prediction: null, validation: { ok: false as const, error: "decision_extraction_invalid", errors: ["response is not an object"] }, case_decision_mvp: null };
+  try {
+    const submission = raw as CaseDecisionSubmission;
+    const inventory = decisionInventory(record);
+    const compiled = compileCaseDecisionSubmission({ submission, inventory, sourceText: record.source.text, sourceLines: record.sourceLines, coverageLineNumbers: decisionCoverageLineNumbers(record) });
+    const prediction = submission.structure ? decisionStructurePrediction(record, submission.structure) : null;
+    return {
+      prediction,
+      validation: compiled.ok ? { ok: true as const } : { ok: false as const, error: "decision_extraction_invalid", errors: compiled.errors },
+      case_decision_mvp: compiled,
+    };
+  } catch (error) {
+    return { prediction: null, validation: { ok: false as const, error: "decision_extraction_invalid", errors: [`submission shape: ${errorMessage(error)}`] }, case_decision_mvp: null };
+  }
 }
 
 function extractToolCall(message: Record<string, unknown>) {
@@ -2776,17 +2993,21 @@ async function runLuna(
   caseTargetMvp = false,
   directHistoryEligible = false,
   targetOccurrenceIds: readonly string[] = [],
+  decisionInventory: DecisionCitationInventory | null = null,
   sourceLineCount = 0,
   onEvent?: CodexEventHandler,
 ) {
   if (semanticMvp && caseTargetMvp) throw new Error("Luna schema modes are mutually exclusive");
+  const decisionSchema = semanticMvp
+    ? decisionMvpOutputSchema(decisionInventory ?? { authorities: [], occurrences: [] }, sourceLineCount)
+    : null;
   const caseTargetSchema = caseTargetMvp
     ? caseTargetMvpOutputSchema(directHistoryEligible, targetOccurrenceIds, sourceLineCount)
     : null;
   const schema = caseTargetMvp
     ? caseTargetSchema
     : semanticMvp
-      ? SEMANTIC_MVP_JSON_SCHEMA
+      ? decisionSchema
       : SUBMIT_TOOL.function.parameters;
   const schemaName = caseTargetMvp
     ? CASE_TARGET_MVP_SCHEMA_NAME
@@ -2796,7 +3017,7 @@ async function runLuna(
   const responseFormat = caseTargetMvp
     ? { ...CASE_TARGET_MVP_RESPONSES_SCHEMA, schema: caseTargetSchema }
     : semanticMvp
-      ? SEMANTIC_MVP_RESPONSES_SCHEMA
+      ? { type: "json_schema", name: SEMANTIC_MVP_SCHEMA_NAME, strict: true, schema: decisionSchema }
       : GPT_RESPONSES_SCHEMA;
   return runStructuredLuna({
     prompt,
@@ -3408,7 +3629,7 @@ async function runCase(args: {
   const attempts: Array<Record<string, unknown>> = [];
   let prediction: Prediction | null = null;
   let validation: Validation = { ok: false, error: "no_submission" };
-  let semanticMvpResult: ReturnType<typeof validateSemanticMvp> | null = null;
+  let semanticMvpResult: ReturnType<typeof validateDecisionMvp>["case_decision_mvp"] | null = null;
   let caseTargetMvpResult: NonNullable<ReturnType<typeof validateCaseTargetSubmission>["case_target_mvp"]> | null = null;
   let modelReceipt: Record<string, unknown> | null = null;
   let canonicalModelOutputSha256: string | null = null;
@@ -3420,7 +3641,7 @@ async function runCase(args: {
       : args.semanticMvp
         ? semanticMvpPacket(record)
         : codexPacket(record);
-    const phase = args.caseTargetMvp ? "case_target_mvp" : args.semanticMvp ? "semantic_mvp" : "roster";
+    const phase = args.caseTargetMvp ? "case_target_mvp" : args.semanticMvp ? "case_decision_mvp" : "roster";
     const callId = randomUUID();
     if (args.callLedger) await appendJsonl(args.callLedger, {
       kind: "model_call_started",
@@ -3451,7 +3672,10 @@ async function runCase(args: {
         args.semanticMvp,
         args.caseTargetMvp,
         record.candidate.target?.sameLitigationEligible === true,
-        record.targetOccurrences.map(({ id }) => id),
+        args.semanticMvp
+          ? record.citationEdges.map(({ id }) => id)
+          : record.targetOccurrences.map(({ id }) => id),
+        args.semanticMvp ? decisionCitationInventory(record.source.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.source.text.length) : null,
         record.sourceLines.length,
         async (event, rawLine) => {
           const summary = codexEventSummary(event);
@@ -3587,11 +3811,33 @@ async function runCase(args: {
         canonical_output_sha256: canonicalModelOutputSha256,
       });
     } else {
-      const result = validatePrediction(record, teacher.parsed);
-      prediction = result.prediction;
-      validation = result.validation;
-      if (args.semanticMvp && prediction && parsedRecord) {
-        semanticMvpResult = validateSemanticMvp(record, prediction, parsedRecord);
+      if (args.semanticMvp) {
+        const result = validateDecisionMvp(record, teacher.parsed);
+        prediction = result.prediction;
+        validation = result.validation;
+        semanticMvpResult = result.case_decision_mvp;
+        const canonical = {
+          compiler_version: CASE_DECISION_MVP_VERSION,
+          validator_version: CASE_DECISION_MVP_VERSION,
+          source_sha256: record.sourceSha256,
+          raw_output_sha256: teacher.outputSha256,
+          prediction,
+          case_decision_mvp: semanticMvpResult,
+        };
+        canonicalModelOutputSha256 = sha256(JSON.stringify(canonical));
+        await appendJsonl(args.rawOutputs, {
+          kind: "canonical_model_output",
+          document: record.candidate.documentId,
+          citation: record.candidate.citation,
+          phase,
+          provider: "luna",
+          ...canonical,
+          canonical_output_sha256: canonicalModelOutputSha256,
+        });
+      } else {
+        const result = validatePrediction(record, teacher.parsed);
+        prediction = result.prediction;
+        validation = result.validation;
       }
     }
     modelReceipt = {
@@ -3626,7 +3872,11 @@ async function runCase(args: {
       priority: teacher.priority,
       cli: teacher.cli,
       canonical_output_sha256: canonicalModelOutputSha256,
-      compiler_version: args.caseTargetMvp ? CASE_TARGET_MVP_COMPILER_VERSION : null,
+      compiler_version: args.caseTargetMvp
+        ? CASE_TARGET_MVP_COMPILER_VERSION
+        : args.semanticMvp
+          ? CASE_DECISION_MVP_VERSION
+          : null,
     };
     attempts.push({ provider: "luna", validation, ...modelReceipt });
     await appendJsonl(args.progress, {
@@ -3637,7 +3887,7 @@ async function runCase(args: {
       provider: "luna",
       tool_calls: [],
       validation,
-      semantic_mvp_ok: semanticMvpResult?.ok ?? null,
+      case_decision_mvp_ok: semanticMvpResult?.ok ?? null,
       case_target_mvp_ok: caseTargetMvpResult?.ok ?? null,
       ...modelReceipt,
     });
@@ -3753,7 +4003,7 @@ async function runCase(args: {
     metrics,
     attempts,
     raw_model_output_sha256s: rawModelOutputSha256s,
-    ...(semanticMvpResult ? { semantic_mvp: semanticMvpResult } : {}),
+    ...(semanticMvpResult ? { case_decision_mvp: semanticMvpResult } : {}),
     ...(caseTargetMvpResult ? { case_target_mvp: caseTargetMvpResult } : {}),
     ...(modelReceipt ? { model_receipt: modelReceipt } : {}),
   };
@@ -4013,7 +4263,7 @@ function compactCaseReceipt(
       refusals: deterministic.refusals ?? [],
     } : null,
     judge_court_service: full.judge_court_service ?? null,
-    semantic_mvp: full.semantic_mvp ?? null,
+    case_decision_mvp: full.case_decision_mvp ?? null,
     target: full.target ?? null,
     case_target_mvp: full.case_target_mvp ?? null,
     status: full.status ?? null,
@@ -4074,10 +4324,10 @@ async function run(args: Args) {
   const provider = flag(args, "provider", "ollama") as Provider;
   if (provider !== "ollama" && provider !== "luna" && provider !== "dry")
     throw new Error("--provider must be ollama, luna, or dry");
-  const semanticMvp = args["semantic-mvp"] === true || String(args["semantic-mvp"] ?? "").toLocaleLowerCase() === "true";
+  const semanticMvp = args["decision-mvp"] === true || String(args["decision-mvp"] ?? "").toLocaleLowerCase() === "true";
   const caseTargetMvp = args["case-target-mvp"] === true || String(args["case-target-mvp"] ?? "").toLocaleLowerCase() === "true";
-  if (semanticMvp && caseTargetMvp) throw new Error("--semantic-mvp and --case-target-mvp are mutually exclusive");
-  if (semanticMvp && provider !== "luna") throw new Error("--semantic-mvp requires --provider luna");
+  if (semanticMvp && caseTargetMvp) throw new Error("--decision-mvp and --case-target-mvp are mutually exclusive");
+  if (semanticMvp && provider !== "luna") throw new Error("--decision-mvp requires --provider luna");
   if (caseTargetMvp && provider !== "luna") throw new Error("--case-target-mvp requires --provider luna");
   if (caseTargetMvp && !flag(args, "pair-file", "")) throw new Error("--case-target-mvp requires --pair-file");
   const requestedCaseTargetPrompt = flag(args, "case-target-prompt", "nested");
@@ -4102,11 +4352,11 @@ async function run(args: Args) {
     : semanticMvp
       ? SEMANTIC_MVP_VALIDATOR_VERSION
       : VALIDATOR_VERSION;
-  const activeMode = caseTargetMvp ? "case_target_mvp" : semanticMvp ? "combined_semantic_mvp" : "opinion_roster";
+  const activeMode = caseTargetMvp ? "case_target_mvp" : semanticMvp ? "case_decision_mvp" : "opinion_roster";
   const activeResponseSchema = caseTargetMvp
     ? CASE_TARGET_MVP_RESPONSES_SCHEMA
     : semanticMvp
-      ? SEMANTIC_MVP_RESPONSES_SCHEMA
+      ? { type: "json_schema", name: SEMANTIC_MVP_SCHEMA_NAME, strict: true, dynamic_per_case: true }
       : GPT_RESPONSES_SCHEMA;
   const runId = flag(args, "run-id", provider === "dry" ? `a2aj-roster-dry-${seed}` : `a2aj-roster-${provider}-${model.replaceAll(":", "-")}-${seed}`);
   const output = flag(args, "out", path.join(RUN_DIR, `${runId}.json`));
@@ -5810,6 +6060,31 @@ async function selfTest() {
   ) {
     throw new Error("case-target packet self-test failed");
   }
+  record.citationEdges = semanticMvpCitationEdges(record);
+  const promptStructure: CaseDecisionStructureSubmission = {
+    disposition_evidence: [{ start_line: 2, end_line: 2 }],
+    opinions: [],
+    other_panel_members: [],
+    nonparticipants: [],
+  };
+  const decisionPrompts = [semanticMvpPacket(record), decisionStructurePacket(record), decisionTreatmentPacket(record, promptStructure)];
+  for (const prompt of decisionPrompts) {
+    const promptSurface = prompt.slice(0, prompt.indexOf("[COMPLETE NUMBERED DECISION]"));
+    if (/A2AJ|DETERMINISTIC|source_sha256|document_id|dataset|preflight|the host/iu.test(promptSurface)) {
+      throw new Error("decision prompt contains implementation vocabulary");
+    }
+    if (/relation_to_disposition|referred_to|unscoped_treatments|\btreatment_scope\b/iu.test(promptSurface)) {
+      throw new Error("decision prompt contains retired ontology fields");
+    }
+    if (!prompt.includes("[COMPLETE NUMBERED DECISION]")) throw new Error("decision prompt omitted the complete decision");
+  }
+  if (!decisionPrompts[2].includes("a quotation, counsel's argument, or description of a lower court does not by itself prove treatment")) {
+    throw new Error("decision treatment prompt lost the source-attribution rule");
+  }
+  const decisionSchemaText = json(decisionMvpOutputSchema(decisionInventory(record), record.sourceLines.length));
+  if (/"actor"|relation_to_disposition|referred_to|unscoped_treatments|treatment_scope/u.test(decisionSchemaText)) {
+    throw new Error("decision schema contains retired fields");
+  }
   const raw = {
     disposition_quote: "The majority finally dismisses the appeal and awards ordinary costs to the respondent.",
     opinions: deterministic.opinions.map((opinion) => ({
@@ -5844,115 +6119,6 @@ async function selfTest() {
     result.prediction.opinions[1].authority_position !== "dissenting"
   ) {
     throw new Error(`explicit vote counts did not derive majority/dissent: ${json(result.prediction.opinions)}`);
-  }
-  const nestedSubmission: any = {
-    disposition_quote: raw.disposition_quote,
-    opinions: raw.opinions.map((opinion, index) => ({
-      named_authors: opinion.author_names.map((name) => ({
-        name,
-        evidence_quote: index === 0 ? "Alpha J. and Beta J." : "Dissenting Reasons: (paras. 3 to 4)\nGamma J.",
-      })),
-      collective_author: opinion.collective_author,
-      collective_author_evidence_quote: null,
-      result_position: opinion.result_position,
-      position_evidence_quote: opinion.position_evidence_quote,
-      start_quote: opinion.start_quote,
-      end_quote: opinion.end_quote,
-      whole_opinion_joiners: [],
-    })),
-    participants: raw.participants.map(({ opinion_links: _, result_only: __, ...participant }) => participant),
-    nonparticipants: [],
-    target_mentions: [{ occurrence_id: "tm1", voice: "current_court" }],
-    issues: [{
-      question: "Should the appeal be dismissed?",
-      answer_groups: [
-        {
-          answer: "Yes.",
-          positions: [{
-            relation_to_disposition: "dispositive",
-            answer_evidence: [{
-              quote: "The majority finally dismisses the appeal and awards ordinary costs to the respondent.",
-              voice: "current_court",
-            }],
-            basis_and_limits: [{
-              kind: "application",
-              text: "The target rule supports dismissal.",
-              evidence: [{
-                quote: "Applying 2098 SCC 2, the first majority proposition concerns jurisdiction and the governing statutory language.",
-                voice: "current_court",
-              }],
-            }],
-            partial_joins: [{
-              participant_name: "Gamma J.",
-              evidence_quote: "Gamma J.: I agree with the majority's jurisdictional rule",
-            }],
-            target_treatments: [{
-              target_mentions: [{ occurrence_id: "tm1" }],
-              attribution: "current_court",
-              label: "applied",
-              scope: "specific_proposition",
-              evidence_quote: "Applying 2098 SCC 2, the first majority proposition concerns jurisdiction and the governing statutory language.",
-              target_proposition_as_characterized: "The governing jurisdictional rule.",
-            }],
-          }],
-        },
-        {
-          answer: "No.",
-          positions: [{
-            relation_to_disposition: "dispositive",
-            answer_evidence: [{
-              quote: "The dissent would allow the appeal, set aside the order, and remit the matter for reconsideration.",
-              voice: "current_court",
-            }],
-            basis_and_limits: [],
-            partial_joins: [],
-            target_treatments: [],
-          }],
-        },
-      ],
-    }],
-    unscoped_target_treatments: [],
-    direct_history: [],
-  };
-  const nested = validateCaseTargetSubmission(record, nestedSubmission);
-  if (
-    !nested.validation.ok || !nested.prediction || !nested.case_target_mvp?.ok ||
-    nested.case_target_mvp.target_treatments.length !== 1 ||
-    nested.case_target_mvp.issue_authority[0]?.status !== "authority_ambiguous" ||
-    nested.case_target_mvp.flat_treatment.flags.aggregation_safe ||
-    !nested.prediction.participants.find(({ name }) => name.startsWith("Gamma"))?.opinion_links.some(
-      ({ opinion_id, relation }) => opinion_id === "o1" && relation === "joins_in_part"
-    )
-  ) {
-    throw new Error(`case-target extraction compilation failed: ${json(nested)}`);
-  }
-  const reducedJoin = structuredClone(nestedSubmission);
-  reducedJoin.opinions[0].named_authors = reducedJoin.opinions[0].named_authors.filter(({ name }) => !name.startsWith("Beta"));
-  reducedJoin.opinions[0].whole_opinion_joiners.push({ name: "Beta J.", evidence_quote: "Beta J.: I agree." });
-  const reducedBeta = reducedJoin.participants.find(({ name }) => name.startsWith("Beta"))!;
-  reducedBeta.result_only_evidence_quote = "Beta J.: I agree.";
-  const normalizedReducedJoin = validateCaseTargetSubmission(record, reducedJoin);
-  const normalizedReducedBeta = normalizedReducedJoin.prediction?.participants.find(({ name }) => name.startsWith("Beta"));
-  if (
-    !normalizedReducedJoin.validation.ok || normalizedReducedBeta?.result_only ||
-    normalizedReducedBeta?.opinion_links[0]?.relation !== "joins"
-  ) {
-    throw new Error(`nested joinder/result-only conflict was not made impossible: ${json(normalizedReducedJoin.validation)}`);
-  }
-  const unsupportedCollective = structuredClone(nestedSubmission);
-  unsupportedCollective.opinions = [unsupportedCollective.opinions[0]];
-  unsupportedCollective.opinions[0].named_authors = [];
-  unsupportedCollective.opinions[0].collective_author = "the panel";
-  unsupportedCollective.opinions[0].collective_author_evidence_quote = "The majority finally dismisses the appeal";
-  unsupportedCollective.issues = [];
-  unsupportedCollective.participants = unsupportedCollective.participants.slice(0, 2);
-  const recoveredCollective = validateCaseTargetSubmission(record, unsupportedCollective);
-  if (
-    !recoveredCollective.validation.ok ||
-    recoveredCollective.prediction?.opinions[0]?.collective_author !== null ||
-    !recoveredCollective.validation.warnings?.some((warning) => warning.includes("collective-author claim dropped"))
-  ) {
-    throw new Error(`unsupported collective author was not safely dropped: ${json(recoveredCollective)}`);
   }
   const bareAgreement = structuredClone(raw) as Record<string, unknown>;
   const bareOpinions = bareAgreement.opinions as Array<Record<string, unknown>>;
@@ -6431,8 +6597,6 @@ if (isMain && process.argv[2] === "deterministic-screen-worker") {
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;
-    } finally {
-      await shutdownSourceStructureEngine();
     }
   })();
 }

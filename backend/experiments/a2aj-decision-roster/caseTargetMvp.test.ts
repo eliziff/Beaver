@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { it } from "node:test";
+import { it } from "vitest";
 
 import {
   CASE_TARGET_MVP_SCHEMA_EXTENSION,

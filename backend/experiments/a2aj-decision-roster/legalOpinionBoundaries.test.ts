@@ -480,6 +480,24 @@ Bastarache J. (McLachlin C.J. concurring)
 });
 
 describe("deriveTextOpinionStructure", () => {
+  it("does not turn a post-judgment author credit into another opinion", () => {
+    const text = `Before: Dussault J.
+REASONS FOR JUDGMENT
+Dussault J.
+[1] The appeal is allowed because the worker remained independent under the governing test and the Minister's decision is vacated.
+[2] The parties' agreement and their performance establish that no relationship of subordination existed.
+Signed at Ottawa.
+"P. R. Dussault"
+Dussault J.
+CITATION: 2005 TCC 703
+REASONS FOR JUDGMENT BY: The Honourable Justice Pierre R. Dussault
+APPEARANCES:
+Counsel for the Respondent: A. Lawyer`;
+    const result = deriveTextOpinionStructure({ text, minimumSubstantiveWords: 10 });
+    expect(result.opinions).toHaveLength(1);
+    expect(text.slice(result.opinions[0].start, result.opinions[0].end)).not.toContain("REASONS FOR JUDGMENT BY:");
+  });
+
   const reasons = "This appeal requires the court to decide a focused legal issue from the record. The parties made competing submissions about the governing rule and its application. After reviewing the evidence, the legislation, and the authorities, I conclude that the appellant has not shown any reversible error. The appeal should therefore be dismissed with costs in the ordinary course.";
 
   it("treats BCCA I AGREE signatures as majority joins, not opinions", () => {
