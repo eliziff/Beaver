@@ -1,49 +1,17 @@
-# Universal legal structure and PDF witness plan
+# Document-structure evidence and retained requirements
 
-Date: 2026-08-20
-Status: design only; do not promote the current post-hoc PDF section experiment
+Date recorded: 2026-08-20
 
-## Objective
+Status: supporting evidence, not an active implementation plan. The current
+architecture and sequence are in
+[Shared document structure](../roadmap/document-structure.md).
 
-Make the Rust PDF engine recover real legal structure by combining the
-detectors it already has. The target is one deterministic production path
-that improves or preserves every measured structure class across the frozen
-750-document lane (currently 748 registered PDFs) and completes the whole
-corpus in at most three minutes.
-
-This is not a new detector stack. It is a small reconciliation layer between
-existing observations, candidate runs, and the existing structure graph. It
-must replace the uncommitted post-hoc section append rather than grow beside
-it.
-
-Phase 2 moves the existing format-neutral engine out of the PDF repository
-into a new public `legal-structure` subrepository. That repository owns one
-shared Rust citation utility and every structure detector that does not require
-PDF geometry. PDF, DOCX, backend, Authorities, ALR Quote Verifier, and provider
-adapters consume it directly through thin in-process bindings.
-
-Phase 3 reshapes the existing Text-Fidelity OCR and Codex structural-repair
-lane into the same evidence ontology and structure graph. This is a contract
-and generalization step, not a replacement OCR project. Phase 4 cuts over all
-consumers, proves ALR's reference behavior equal or better, and deletes the
-displaced copies.
-
-## Immediate guardrails
-
-- This document is the only intended change in the planning step.
-- Do not update or repurpose the frozen experiment/parity implementations.
-- The current uncommitted post-hoc section append is a rejected production
-  shape, not a foundation to preserve.
-- The fast corpus checker invokes the real Rust production candidate. It does
-  not become a new structure implementation or replace frozen receipts.
-- Do not wire production or delete the old implementation until the complete
-  PDF qualification passes.
-- ALR Quote Verifier is a behavioral oracle, not a dependency of Beaver. Freeze
-  its accepted outputs before extraction; the shared repository must not
-  import ALR product code.
-- `experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md` remains the
-  detailed corpus/OCR/silver source of truth. Phase 3 below fixes its place in
-  the delivery order and does not create a competing OCR roadmap.
+This appendix preserves unique measurements, vocabulary, detector invariants,
+primitive and witness inventories, citation-consolidation requirements,
+OCR/repair evidence mappings, ALR acceptance requirements, and the paired-note
+reading-order experiment. Statements below about repository shape, ownership,
+or build order describe the historical proposal and are superseded by the
+current plan; they are retained only where they explain an evidence contract.
 
 ## Current evidence
 
@@ -441,7 +409,11 @@ detectors encapsulated.
 The matrix is a constraint, not a score sheet. A family may contribute at most
 one vote to a circumstantial proof, and its absence normally contributes none.
 
-## Target ownership boundaries
+## Historical ownership analysis
+
+The repository-extraction proposal in this section is superseded. Its useful
+boundary finding remains: format-specific extraction emits typed evidence,
+while format-neutral detection and resolution must have one owner.
 
 The current `legal-structure` crate is format-neutral but physically trapped
 inside `legal-pdf-parser`. Phase 2 makes that ownership real by moving it to a
@@ -671,7 +643,7 @@ If incompatible roles each have circumstantial proof and neither has direct
 evidence, abstain. Preserve exact text, pages, physical prose boundaries, and
 diagnostics. Do not expose an invented legal locator.
 
-## Phase 1: structure witness resolver
+## Retained PDF witness-resolver requirements
 
 ### 1. Freeze the baseline and primitive map
 
@@ -748,11 +720,9 @@ runnable release gate. Phase 1 uses the runnable 661-page truth surface plus
 the canonical 100-article/6,740-marker pairing surface; the latter is an
 implementation receipt, not a substitute for human accuracy.
 
-## Phase 2: standalone shared structure backbone
+## Retained shared citation/structure requirements
 
-Phase 2 begins only after the Phase 1 PDF resolver has its own green corpus
-baseline. It changes ownership and consolidates proven behavior; it must not
-quietly tune structure and citations at the same time.
+Consolidation must not quietly tune structure and citations at the same time.
 
 ### 2.1 Freeze the reference surfaces
 
@@ -771,29 +741,7 @@ The old code is an oracle only while the new repository is being proved. Do
 not regenerate a frozen oracle after extraction starts, teach the candidate to
 call the oracle, or retain either implementation as a shipping fallback.
 
-### 2.2 Create the public subrepository by moving working code
-
-1. Create the public `legal-structure` repository with the minimal layout
-   above and preserve source history where practical.
-2. Move the current format-neutral crate and Node binding unchanged enough to
-   pass their present tests and frozen differentials.
-3. Add the repository as an ordinary public submodule, pin it in
-   `subrepos.lock.json`, and extend the existing source/provenance guardrail.
-4. Publish or bundle Rust, Node, and Python artifacts from one tagged commit.
-   Every artifact exposes that commit and schema version at runtime.
-5. Only after byte-exact ownership parity, split the current oversized Rust
-   `lib.rs` into schema, candidates, sequences, recovery, resolution, graph,
-   and SourceDoc modules. This is file-level maintainability, not a family of
-   new crates or interfaces.
-6. Keep provider adapters as feature-gated factual mappings only. They accept
-   already-read records and emit `StructureEvidenceV1`; they do not fetch,
-   cache, or infer a second structure model.
-
-The ownership move passes when the same release build produces the same
-serialized graph/SourceDoc bytes, diagnostics, status, and capability list for
-every frozen row. A path move or serializer change is not an excuse for drift.
-
-### 2.3 Make `legal-citations` the single citation utility
+### Make the shared citation scanner the single citation utility
 
 The existing grammar corpus, deterministic splitter, corrected Canadian/UK/US
 reporter inventories, and ALR reference behavior are source material. This is
@@ -927,7 +875,7 @@ structure improvement is authored and tested once in `legal-structure`, then
 consumer contract suites exercise that same build. Generated bindings and
 packaged binaries are artifacts, not maintained alternate implementations.
 
-### 2.7 Phase 2 qualification
+### Shared citation/structure qualification
 
 - Existing `legal-structure` unit and SourceDoc/provider tests pass from the new
   repository with exact frozen output.
@@ -949,7 +897,11 @@ packaged binaries are artifacts, not maintained alternate implementations.
   target. Phase 2 is not complete while two maintained grammars or detectors
   remain.
 
-## Phase 3: reshape OCR and Codex repair into the shared ontology
+## Retained Phase 3: OCR and bounded repair evidence
+
+References to Codex below identify the historical Text-Fidelity oracle. The
+active plan assigns the bounded repair-producer role to Luna while preserving
+the same anchored-operation and deterministic-validation requirements.
 
 This phase operationalizes the relevant parts of
 `experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md`. That document
@@ -1078,7 +1030,7 @@ provenance hashes, and per-class non-regression. The three-minute target remains
 the deterministic 748-document digital-born run; OCR/Codex has a separate
 hardware/profile throughput receipt and cannot be hidden inside that number.
 
-## Phase 4: consumer cutover, ALR parity, and deletion
+## Retained Phase 4: consumer cutover, ALR parity, and deletion
 
 ### 4.1 Cut over in dependency order
 
