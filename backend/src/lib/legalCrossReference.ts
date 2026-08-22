@@ -41,6 +41,7 @@ import {
   joinLocator,
   type ProvisionReference,
 } from "./legalReferenceGrammar";
+import type { SourceDoc, SourceDocBlock } from "./sourceDoc";
 
 export type CrossReferenceStatus =
   | "resolved"
@@ -92,8 +93,6 @@ export interface CrossReferenceCounts {
 }
 
 export interface CrossReferenceGraph {
-  /** skeleton nodes, i.e. the graph's vertices */
-  nodes: SkeletonNode[];
   edges: CrossReferenceEdge[];
   /** true when the skeleton was too thin to resolve anything against */
   documentAbstained: boolean;
@@ -169,15 +168,14 @@ export interface CrossReferenceOptions {
 const DEFAULT_INTEGRITY_GATE = 0.5;
 
 /**
- * Graphs are memoized against the SKELETON they were resolved over, not
- * against the text: the skeleton is the thing resolution actually depends on,
- * and it is already deduplicated one layer down. A WeakMap needs no size
- * policy — an entry dies with the skeleton that keyed it.
+ * Graphs are memoized against the structural artifact they were resolved
+ * over, not against the text. A WeakMap needs no size
+ * policy — an entry dies with the structural artifact that keyed it.
  *
  * `words` and `integrityThreshold` change the answer, so they are part of the
- * key. Everything else about a graph is a function of the skeleton.
+ * key. Everything else about a graph is a function of that artifact.
  */
-const graphCache = new WeakMap<AgreementSkeleton, Map<string, CrossReferenceGraph>>();
+const graphCache = new WeakMap<object, Map<string, CrossReferenceGraph>>();
 
 export async function crossReferenceGraph(
   text: string,
@@ -196,29 +194,55 @@ export function crossReferenceGraphFromSkeleton(
   skeleton: AgreementSkeleton,
   options: Omit<CrossReferenceOptions, "skeleton"> = {},
 ): CrossReferenceGraph {
+  return cachedCrossReferenceGraph(skeleton, text, skeleton.doc, skeleton.nodes, options);
+}
+
+/** Resolve references directly against a provider's canonical SourceDoc blocks. */
+export function crossReferenceGraphFromSourceDoc(
+  doc: SourceDoc,
+  options: Omit<CrossReferenceOptions, "skeleton"> = {},
+): CrossReferenceGraph {
+  return cachedCrossReferenceGraph(
+    doc,
+    doc.text,
+    doc,
+    doc.blocks.filter((block) => block.kind === "section"),
+    options,
+  );
+}
+
+type ReferenceNode = SkeletonNode | SourceDocBlock;
+
+function cachedCrossReferenceGraph(
+  cacheKey: object,
+  text: string,
+  doc: SourceDoc,
+  nodes: ReferenceNode[],
+  options: Omit<CrossReferenceOptions, "skeleton">,
+) {
   const variantKey = [
     options.words ? [...options.words].join(",") : "",
     options.integrityThreshold ?? "default",
   ].join("\u0000");
-  const variants = graphCache.get(skeleton);
+  const variants = graphCache.get(cacheKey);
   const memoized = variants?.get(variantKey);
   if (memoized) return memoized;
-  const graph = crossReferenceGraphUncached(text, skeleton, options);
+  const graph = crossReferenceGraphUncached(text, doc, nodes, options);
   if (variants) variants.set(variantKey, graph);
-  else graphCache.set(skeleton, new Map([[variantKey, graph]]));
+  else graphCache.set(cacheKey, new Map([[variantKey, graph]]));
   return graph;
 }
 
 function crossReferenceGraphUncached(
   text: string,
-  skeleton: AgreementSkeleton,
+  doc: SourceDoc,
+  nodes: ReferenceNode[],
   options: CrossReferenceOptions = {},
 ): CrossReferenceGraph {
-  const nodes = skeleton.nodes;
-  const byLabel = new Map<string, SkeletonNode>();
+  const byLabel = new Map<string, ReferenceNode>();
   for (const node of nodes) if (!byLabel.has(node.label)) byLabel.set(node.label, node);
 
-  const addressable = nodes.filter((node) => ADDRESSABLE.has(node.kind));
+  const addressable = nodes.filter(isAddressable);
   const references = findProvisionReferences(text, { words: options.words });
 
   const counts: CrossReferenceCounts = {
@@ -234,7 +258,7 @@ function crossReferenceGraphUncached(
   const thinSkeleton = addressable.length < MIN_ADDRESSABLE_NODES;
   const documentAbstained = thinSkeleton;
   const containers = orderedContainers(nodes);
-  const numbering = numberingUniverse(skeleton);
+  const numbering = numberingUniverse(doc, nodes);
 
   const edges: CrossReferenceEdge[] = references.map((reference) => {
     const sourceNode = containingNode(containers, byLabel, reference.start);
@@ -264,7 +288,7 @@ function crossReferenceGraphUncached(
       counts.abstained += 1;
       return { ...base, status: "abstained", reason: "no_containing_section" };
     }
-    const resolved = resolve(skeleton, base.normalizedLocator);
+    const resolved = resolve(doc, base.normalizedLocator);
     if (resolved) {
       counts.resolved += 1;
       const selfLoop = resolved.label === sourceNode?.label;
@@ -308,7 +332,6 @@ function crossReferenceGraphUncached(
 
   if (thinSkeleton) {
     return {
-      nodes,
       edges,
       documentAbstained: true,
       note: `Cross-reference resolution abstained: the document compiles to ${addressable.length} addressable provision(s), below the ${MIN_ADDRESSABLE_NODES} needed for a numbering scheme to check against.`,
@@ -347,7 +370,6 @@ function crossReferenceGraphUncached(
           },
     );
     return {
-      nodes,
       edges: gated,
       documentAbstained: true,
       note: contentsOnly
@@ -368,7 +390,7 @@ function crossReferenceGraphUncached(
     };
   }
 
-  return { nodes, edges, documentAbstained: false, note: null, counts };
+  return { edges, documentAbstained: false, note: null, counts };
 }
 
 /* ------------------------------------------------------------------ */
@@ -383,7 +405,7 @@ function crossReferenceGraphUncached(
  */
 function locatorFor(
   reference: ProvisionReference,
-  sourceNode: SkeletonNode | null,
+  sourceNode: ReferenceNode | null,
 ): string {
   if (reference.locator) return reference.locator;
   if (reference.shape === "roman") return reference.aliasKey;
@@ -400,16 +422,13 @@ interface ResolvedTarget {
   end: number;
 }
 
-function resolve(
-  skeleton: AgreementSkeleton,
-  locator: string,
-): ResolvedTarget | null {
+function resolve(doc: SourceDoc, locator: string): ResolvedTarget | null {
   if (!locator) return null;
   // 1. exact label or alias, through the SourceDoc index (which has already
   //    dropped ambiguous keys, so a hit is unique by construction).
-  const position = skeleton.doc.index.get(locator.toLowerCase());
+  const position = doc.index.get(locator.toLowerCase());
   if (position !== undefined) {
-    const block = skeleton.doc.blocks[position];
+    const block = doc.blocks[position];
     return { label: block.label, start: block.start, end: block.end };
   }
   // Decimal labels are complete provision identifiers, not ancestry. Section
@@ -473,9 +492,12 @@ function numbersHere(numbering: NumberingUniverse, locator: string): boolean {
  * the space `createSourceDoc` de-duplicated: a key it counted twice is a
  * key it deliberately dropped, and that drop is the ambiguity signal.
  */
-function numberingUniverse(skeleton: AgreementSkeleton): NumberingUniverse {
+function numberingUniverse(
+  doc: SourceDoc,
+  nodes: ReferenceNode[],
+): NumberingUniverse {
   const keyCounts = new Map<string, number>();
-  for (const block of skeleton.doc.blocks) {
+  for (const block of doc.blocks) {
     for (const key of [block.label, ...(block.aliases ?? [])]) {
       const lower = key.toLowerCase();
       keyCounts.set(lower, (keyCounts.get(lower) ?? 0) + 1);
@@ -484,12 +506,17 @@ function numberingUniverse(skeleton: AgreementSkeleton): NumberingUniverse {
   const childDepths = new Set<string>();
   let topLevelNumeric = 0;
   let containers = 0;
-  for (const node of skeleton.nodes) {
+  for (const node of nodes) {
     const label = node.label.toLowerCase();
     const parent = labelParent(label);
     if (parent) childDepths.add(`${parent}:${labelDepth(label)}`);
     else if (TOP_LEVEL_NUMERIC.test(label)) topLevelNumeric += 1;
-    if (node.kind === "article" || node.kind === "part" || node.kind === "division")
+    if (
+      node.kind === "article" ||
+      node.kind === "part" ||
+      node.kind === "division" ||
+      /^(?:art|part|div)/iu.test(node.label)
+    )
       containers += 1;
   }
   return { keyCounts, childDepths, topLevelNumeric, containers };
@@ -499,9 +526,18 @@ function numberingUniverse(skeleton: AgreementSkeleton): NumberingUniverse {
 /* Which node a reference sits in                                      */
 /* ------------------------------------------------------------------ */
 
-/** Nodes sorted by start; ties broken deepest-last (document order). */
-function orderedContainers(nodes: SkeletonNode[]): SkeletonNode[] {
-  return [...nodes].sort((a, b) => a.start - b.start || a.depth - b.depth);
+function isAddressable(node: ReferenceNode) {
+  return node.kind === "section" ||
+    ("depth" in node && ADDRESSABLE.has(node.kind));
+}
+
+/** Nodes sorted by start; ties broken deepest-last. */
+function orderedContainers(nodes: ReferenceNode[]): ReferenceNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.start !== b.start) return a.start - b.start;
+    if ("depth" in a && "depth" in b) return a.depth - b.depth;
+    return b.end - b.start - (a.end - a.start);
+  });
 }
 
 /**
@@ -510,10 +546,10 @@ function orderedContainers(nodes: SkeletonNode[]): SkeletonNode[] {
  * position falls past that node's end, walk up its parent chain.
  */
 function containingNode(
-  ordered: SkeletonNode[],
-  byLabel: Map<string, SkeletonNode>,
+  ordered: ReferenceNode[],
+  byLabel: Map<string, ReferenceNode>,
   position: number,
-): SkeletonNode | null {
+): ReferenceNode | null {
   let low = 0;
   let high = ordered.length - 1;
   let at = -1;

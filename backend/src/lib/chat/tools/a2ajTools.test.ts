@@ -1,8 +1,23 @@
-import { describe, expect, it } from "vitest";
+import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { guardedRemoteFetch } = vi.hoisted(() => ({
+  guardedRemoteFetch: vi.fn((
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init)),
+}));
+vi.mock("../../remoteUrlSafety", () => ({ guardedRemoteFetch }));
+
 import { RESOURCE_TOOLS } from "../resourceTools";
+import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import {
   assistantReadEvidenceActivityLabel,
   assistantToolActivityLabel,
+  readA2AJReferenceNeighborhood,
 } from "./a2ajTools";
 import { createLibraryEvidence } from "../legalEvidence";
 
@@ -132,5 +147,94 @@ describe("legal-source assistant activity", () => {
       ...evidence,
       locator: { kind: "section" as const, label: `sec${label}` },
     })), "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
+  });
+});
+
+describe("A2AJ reference neighborhoods", () => {
+  it("has no production dependency on the text-only structure sidecar", () => {
+    for (const file of [
+      path.join(__dirname, "a2ajTools.ts"),
+      path.join(__dirname, "..", "..", "legalSources", "a2aj.ts"),
+    ]) {
+      expect(readFileSync(file, "utf8")).not.toMatch(/legalStructureSidecar/u);
+    }
+  });
+
+  beforeEach(() => {
+    guardedRemoteFetch.mockClear();
+    vi.stubEnv(
+      "MIKE_A2AJ_BULK_DB",
+      path.join(os.tmpdir(), `beaver-a2aj-tools-${crypto.randomUUID()}.sqlite`),
+    );
+  });
+
+  afterEach(() => {
+    a2ajLegalSourceProvider.clearCache();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("uses captured provider blocks for inbound, outbound, and both", async () => {
+    const fixture = JSON.parse(readFileSync(path.join(
+      __dirname,
+      "..",
+      "..",
+      "__tests__",
+      "fixtures",
+      "sourcedoc",
+      "a2aj-laws-on-occupiers-liability.json",
+    ), "utf8")) as {
+      citation: string;
+      dataset: string;
+      name: string;
+      url: string;
+      text: string;
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [{
+        dataset: fixture.dataset,
+        citation_en: fixture.citation,
+        name_en: fixture.name,
+        url_en: fixture.url,
+        unofficial_text_en: fixture.text,
+      }] }),
+    }));
+    const seed = await a2ajLegalSourceProvider.lookup({
+      citation: fixture.citation,
+      docType: "laws",
+      dataset: fixture.dataset,
+      kind: "section",
+      locator: "6.1(2)",
+    });
+    expect(seed?.block?.label).toBe("sec6.1(2)");
+
+    const inbound = await readA2AJReferenceNeighborhood(seed!, "inbound");
+    const outbound = await readA2AJReferenceNeighborhood(seed!, "outbound");
+    const both = await readA2AJReferenceNeighborhood(seed!, "both");
+    const labels = (result: typeof inbound) =>
+      result.lookups.map(({ block }) => block!.label);
+
+    expect(labels(inbound)).toEqual(expect.arrayContaining([
+      "sec6.1(1)",
+      "sec6.1(7)",
+    ]));
+    expect(labels(outbound)).toEqual(["sec6.1(1)"]);
+    expect(new Set(labels(both))).toEqual(new Set([
+      ...labels(inbound),
+      ...labels(outbound),
+    ]));
+    const source = a2ajLegalSourceProvider.source(seed!);
+    expect(source).not.toBeNull();
+    for (const related of both.lookups) {
+      expect(a2ajLegalSourceProvider.source(related)).toBe(source);
+      expect(source!.blocks.find(({ label }) => label === related.block!.label))
+        .toMatchObject({
+          label: related.block!.label,
+          start: related.block!.start,
+          end: related.block!.end,
+        });
+    }
   });
 });
