@@ -136,7 +136,7 @@ next heading, so it laps onto the next page by the marker line), and a
 blockless rendition must read as "no pages", not throw.
 
 **Still open:** the ToC-as-outline product (in flight), and the six lib
-consumers that can receive a statute without passing `recoverExtraction`.
+consumers that can receive a statute without passing `reconstructLineation`.
 
 ## Retirement standard
 

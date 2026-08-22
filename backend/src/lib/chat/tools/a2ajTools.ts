@@ -56,14 +56,14 @@ export async function readA2AJReferenceNeighborhood(
   const source = document ? a2ajLegalSourceProvider.source(document) : null;
   if (!source) return empty(["reference graph source unavailable"]);
   const skeleton = await bakedSkeleton(source.text, source.id, {
-    recoverExtraction: false,
+    reconstructLineation: false,
   });
   const seed = readSection(skeleton, lookup.requested.locator);
   if (seed.status !== "found" || !seed.block) {
     return empty(["requested section is not addressable in the reference graph"]);
   }
   const graph = await bakedCrossReferenceGraph(source.text, source.id, {
-    recoverExtraction: false,
+    reconstructLineation: false,
   });
   if (graph.documentAbstained) {
     return empty([graph.note ?? "reference graph abstained"]);

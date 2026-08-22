@@ -500,7 +500,7 @@ describe("compileAgreementSkeleton: statute style", () => {
       "151 Following provision.",
     ].join("\n");
     const skeleton = await compileAgreementSkeleton(text, "decimal-statute", {
-      recoverExtraction: false,
+      reconstructLineation: false,
     });
 
     expect(
@@ -596,7 +596,7 @@ describe("compileAgreementSkeleton: corpus statute styles", () => {
   });
 });
 
-describe("compileAgreementSkeleton: segmentation competition", () => {
+describe("compileAgreementSkeleton: lineation competition", () => {
   // Every heading below sits mid-line behind a run of spaces, which is what
   // a PDF-to-text extractor leaves when it joins a page into one line.
   const COLLAPSED =

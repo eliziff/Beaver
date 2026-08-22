@@ -72,7 +72,7 @@ function sidecarPath(digest: string, variant: string, kind: string) {
  * The variant is the RECOVERY FLAG plus any native cell map — deliberately
  * not the id.
  *
- * `recoverExtraction` genuinely changes the node inventory, so the two
+ * `reconstructLineation` genuinely changes the node inventory, so the two
  * constructions are different artifacts and must not share a file. `id`
  * changes nothing but `doc.id`, and keying on it made every bake unreachable:
  * a bake made from an A2AJ row id could never be served to the tool layer,
@@ -81,11 +81,13 @@ function sidecarPath(digest: string, variant: string, kind: string) {
  * rehydration instead.
  */
 const variantOf = (options: CompileSkeletonOptions) => {
-  const recovery = options.recoverExtraction === false ? "norecover" : "recover";
+  const lineation = options.reconstructLineation === false
+    ? "source-lineation"
+    : "lineation-competition";
   const cells = options.tableCells?.length
     ? `-cells-${sha256(JSON.stringify(options.tableCells)).slice(0, 12)}`
     : "";
-  return recovery + cells;
+  return lineation + cells;
 };
 
 /** Rebuild a skeleton from its payload; `createSourceDoc` does not tokenize. */

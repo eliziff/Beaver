@@ -749,18 +749,18 @@ interface Splice {
 export interface ApplyAmendOptions {
   /**
    * Whether the source text may have lost its line breaks to an extractor
-   * (see `CompileSkeletonOptions.recoverExtraction`). Default true, because
+   * (see `CompileSkeletonOptions.reconstructLineation`). Default true, because
    * the contract dialect this applier also serves arrives from the Library's
    * PDF/DOCX lane.
    *
    * A caller amending an instrument from an AUTHORITATIVE feed passes false:
    * A2AJ consolidations and CourtListener bulk ship the publisher's line
-   * breaks, so there is nothing to recover and the segmentation competition
+   * breaks, so there is no lineation to reconstruct and the lineation competition
    * must not run over them. The applied text inherits the source's
    * provenance — it is the source with splices in it — so one flag governs
    * both the before and after compiles.
    */
-  recoverExtraction?: boolean;
+  reconstructLineation?: boolean;
 }
 
 /**
@@ -772,7 +772,7 @@ export async function applyAmendOps(
   ops: AmendOp[],
   options: ApplyAmendOptions = {},
 ): Promise<ApplyAmendmentsResult> {
-  const compile = { recoverExtraction: options.recoverExtraction };
+  const compile = { reconstructLineation: options.reconstructLineation };
   const before = await compileAgreementSkeleton(sourceText, "", compile);
   const labels = before.doc;
   const splices: Splice[] = [];
@@ -1186,7 +1186,7 @@ export async function deleteProvisionAndRenumberSiblings(
     verification: { headingsRenumbered: 0, referencesUpdated: 0 },
   });
   const skeleton = await compileAgreementSkeleton(sourceText, "", {
-    recoverExtraction: options.recoverExtraction,
+    reconstructLineation: options.reconstructLineation,
   });
   const requested = target.toLowerCase().startsWith("sec")
     ? target.toLowerCase()
@@ -1395,7 +1395,7 @@ export async function deleteProvisionAndRenumberSiblings(
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
   const after = await compileAgreementSkeleton(text, "", {
-    recoverExtraction: options.recoverExtraction,
+    reconstructLineation: options.reconstructLineation,
   });
   const counts = new Map<string, number>();
   for (const node of after.nodes) {

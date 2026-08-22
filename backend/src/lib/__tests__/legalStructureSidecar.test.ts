@@ -85,24 +85,24 @@ describe("legal structure sidecars", () => {
     expect(hit.doc.blocks).toEqual(cold.doc.blocks);
   });
 
-  it("keeps recovery and no-recovery artifacts separate", async () => {
+  it("keeps source and reconstructed lineation artifacts separate", async () => {
     await bakeStructure(COLLAPSED, "recovered");
     await bakeStructure(COLLAPSED, "authoritative", {
-      recoverExtraction: false,
+      reconstructLineation: false,
     });
     clearSkeletonCache();
 
     const recovered = await bakedSkeleton(COLLAPSED, "requested-recovered");
     const authoritative = await bakedSkeleton(COLLAPSED, "requested-source", {
-      recoverExtraction: false,
+      reconstructLineation: false,
     });
     const files = await readdir(path.join(temporaryDirectory, "structure-cache"));
 
     expect(recovered.nodes.map((node) => node.label)).toContain("sec2.03");
     expect(authoritative.nodes.map((node) => node.label)).not.toContain("sec2.03");
     expect(files.filter((name) => name.includes(".skeleton."))).toHaveLength(2);
-    expect(files.some((name) => name.includes(".recover.skeleton."))).toBe(true);
-    expect(files.some((name) => name.includes(".norecover.skeleton."))).toBe(true);
+    expect(files.some((name) => name.includes(".lineation-competition.skeleton."))).toBe(true);
+    expect(files.some((name) => name.includes(".source-lineation.skeleton."))).toBe(true);
   });
 
   it("keys native cell maps separately and reproduces the cold structure", async () => {

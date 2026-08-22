@@ -140,8 +140,8 @@ export interface CrossReferenceOptions {
   /**
    * Reuse an already-compiled skeleton instead of compiling again. This is
    * also how a caller holding text from an AUTHORITATIVE source scopes the
-   * segmentation recovery out — pass
-   * `compileAgreementSkeleton(text, id, { recoverExtraction: false })` and the
+   * lineation reconstruction out — pass
+   * `compileAgreementSkeleton(text, id, { reconstructLineation: false })` and the
    * competition cannot run. The default compile below is the Library
    * extraction lane, where recovering lost line breaks is the point; there is
    * deliberately no second flag for it here.
