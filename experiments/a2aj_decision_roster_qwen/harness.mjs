@@ -14,6 +14,8 @@
  *   node harness.mjs verify [--seeds 1,4|all] [--scope SCC] [--fresh]
  *   node harness.mjs runner --provider dry --seed 1 --sample-size 5
  *   node harness.mjs codex --document-ids 123,456 [--workers 8] [--out receipt.json]
+ *   node harness.mjs decision --document-ids 123,456 [--workers 5] [--out receipt.json]
+ *   node harness.mjs decision-two-stage --document-ids 123,456 --model gpt-5.6-luna --effort high [--workers 5] [--out receipt.json]
  *   node harness.mjs audit --receipt-stream prior.receipts.jsonl [--workers 8] [--resume]
  *   node harness.mjs audit --per-dataset 50 --seed 9 [--workers 8]
  *   node harness.mjs revalidate --receipt-stream run.receipts.jsonl [--resume]
@@ -42,6 +44,8 @@ const COMMANDS = {
   annotate: { script: "seedcheck.ts", forward: true },
   run: { script: "runner.ts", forward: true },
   codex: { script: "runner.ts", forward: true },
+  decision: { script: "runner.ts", prefix: ["codex", "--decision-mvp"] },
+  "decision-two-stage": { script: "scratch/decision_two_stage.ts", forward: false },
   audit: { script: "runner.ts", forward: true },
   revalidate: { script: "runner.ts", forward: true },
   manifest: { script: "runner.ts", forward: true },
@@ -53,6 +57,8 @@ const COMMANDS = {
   stageprofile: { script: "scratch/stageprofile.ts", forward: false },
   diffclaims: { script: "scratch/diffclaims.ts", forward: false },
   "gold-eval": { script: "scratch/silver_case_target_eval.ts", forward: false },
+  "decision-gold": { script: "scratch/decision_gold.ts", forward: false },
+  "decision-benchmark": { script: "scratch/decision_benchmark.ts", forward: false },
   "prompt-compare": { script: "scratch/silver_case_target_eval.ts", forward: false },
   "repair-eval": { script: "scratch/case_target_repair_eval.ts", forward: false },
   "target-revalidate": { script: "scratch/revalidate_case_target_run.ts", forward: false },
@@ -95,7 +101,7 @@ const child = spawn(
     "--import",
     loaderUrl,
     path.join(HERE, entry.script),
-    ...(entry.forward ? [command] : []),
+    ...(entry.prefix ?? (entry.forward ? [command] : [])),
     ...rest,
   ],
   { stdio: "inherit" },

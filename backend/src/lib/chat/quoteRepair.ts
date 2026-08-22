@@ -131,7 +131,8 @@ export type VisibleEvidenceText = {
   labels?: string[];
 };
 
-type MarkedQuote = { body: string; start: number; end: number };
+export type MarkedQuoteSpan = { text: string; start: number; end: number };
+type MarkedQuote = MarkedQuoteSpan & { markedStart: number; markedEnd: number };
 type CopyToken = { norm: string; start: number; end: number };
 
 function representation(value: string) {
@@ -144,19 +145,32 @@ function representation(value: string) {
     .trim();
 }
 
-function markedQuotes(text: string): MarkedQuote[] {
+function detectMarkedQuotes(text: string): MarkedQuote[] {
   const quotes: MarkedQuote[] = [];
   for (const match of text.matchAll(/^[ \t]*>+[ \t]?(.*)$/gmu)) {
     const body = match[1].trim();
-    if (body) quotes.push({ body, start: match.index, end: match.index + match[0].length });
+    if (!body) continue;
+    const relativeStart = match[0].indexOf(body);
+    const start = match.index + relativeStart;
+    quotes.push({ text: body, start, end: start + body.length, markedStart: match.index, markedEnd: match.index + match[0].length });
   }
   for (const match of text.matchAll(/"([^"\r\n]+)"|\u201c([^\u201d\r\n]+)\u201d|\u2018([^\u2019\r\n]+)\u2019|\u00ab([^\u00bb\r\n]+)\u00bb/gu)) {
-    const start = match.index;
-    const end = start + match[0].length;
-    if (quotes.some((quote) => start >= quote.start && end <= quote.end)) continue;
-    quotes.push({ body: match.slice(1).find((value) => value !== undefined)!, start, end });
+    const body = match.slice(1).find((value) => value !== undefined)!;
+    const markedStart = match.index;
+    const markedEnd = markedStart + match[0].length;
+    if (quotes.some((quote) => markedStart >= quote.markedStart && markedEnd <= quote.markedEnd)) continue;
+    const start = markedStart + match[0].indexOf(body);
+    quotes.push({ text: body, start, end: start + body.length, markedStart, markedEnd });
   }
   return quotes;
+}
+
+export function markedQuoteSpans(text: string): MarkedQuoteSpan[] {
+  return detectMarkedQuotes(text).map(({ text, start, end }) => ({ text, start, end }));
+}
+
+function markedQuotes(text: string): MarkedQuote[] {
+  return detectMarkedQuotes(text);
 }
 
 function alteredQuotePattern(quote: string) {
@@ -212,7 +226,7 @@ function copyTokens(text: string): CopyToken[] {
 function unmarkedChunks(text: string, quotes: MarkedQuote[], labels: string[]) {
   const marker = "\u0000";
   let clean = text;
-  for (const { start, end } of [...quotes].sort((a, b) => b.start - a.start)) {
+  for (const { markedStart: start, markedEnd: end } of [...quotes].sort((a, b) => b.markedStart - a.markedStart)) {
     clean = clean.slice(0, start) + marker + clean.slice(end);
   }
   clean = clean.replace(
@@ -276,7 +290,7 @@ export function groundedProseIntegrityErrors(
   const cited = visibleEvidence.filter(({ evidenceId }) =>
     citedEvidenceIds.includes(evidenceId),
   );
-  const errors = quotes.flatMap(({ body }) => {
+  const errors = quotes.flatMap(({ text: body }) => {
     if (cited.some(({ text }) => sourceSupportsMarkedQuote(body, text))) return [];
     const repaired = cited
       .map((source) => ({ source, suggestion: quoteRepairSuggestion(body, [source.text]) }))

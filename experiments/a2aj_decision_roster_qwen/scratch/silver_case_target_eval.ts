@@ -864,9 +864,10 @@ async function main() {
     const expected = new Set(pairs.map((pair) => Number(pair.document_id)));
     const unknown = documentIds.filter((id) => !expected.has(id));
     const missing = [...expected].filter((id) => !documentIds.includes(id));
-    if (unknown.length || missing.length) throw new Error(`human-gold cohort mismatch; unknown=${unknown.join(",") || "none"}; missing=${missing.join(",") || "none"}`);
+    const allowPartial = process.argv.includes("--allow-partial-gold");
+    if (unknown.length || (!allowPartial && missing.length)) throw new Error(`human-gold cohort mismatch; unknown=${unknown.join(",") || "none"}; missing=${missing.join(",") || "none"}`);
     const byDocument = new Map(rows.map((row) => [Number(row.document_id), row]));
-    for (const pair of pairs) {
+    for (const pair of pairs.filter((item) => byDocument.has(Number(item.document_id)))) {
       const documentId = Number(pair.document_id);
       const source = fetchLocalA2AJDocumentById({
         id: documentId,
@@ -881,7 +882,7 @@ async function main() {
       ];
       if (errors.length) throw new Error(`invalid human gold for ${documentId}: ${errors.join("; ")}`);
     }
-    console.log(JSON.stringify({ cases: pairs.length, valid_human_gold: pairs.length, gold_files: files }, null, 2));
+    console.log(JSON.stringify({ cases: pairs.length, valid_human_gold: rows.length, partial: allowPartial, gold_files: files }, null, 2));
     return;
   }
   const candidateFiles = flag("--candidate-outputs").split(",").filter(Boolean);

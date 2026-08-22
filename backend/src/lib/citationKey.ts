@@ -15,7 +15,8 @@ export type CitationMatch = { text: string; start: number; end: number };
 // Detection only: identification still goes through citationLookupKey/caselawCitator.
 const CITATION_IN_TEXT_SOURCE = [
   String.raw`\b(?:19|20)\d{2}\s+[A-Z]{2,8}\s+\d+\b`,
-  String.raw`\[\d{4}\]\s+\d*\s*[A-Z][A-Za-z.]{1,12}\.?\s+\d+`,
+  String.raw`\[\d{4}\]\s+[A-Z](?:\.[A-Z]){1,4}\.?\s+No\.?\s+\d+(?:\s+\([A-Z.]+\))?`,
+  String.raw`\[\d{4}\]\s+(?:\d+\s+)?[A-Z][A-Za-z.]{1,12}(?:\s+[A-Z][A-Za-z.]{0,12}){0,3}\s+\d+`,
   String.raw`\b\d+\s+[A-Z][A-Za-z.']{1,14}\s*(?:\(\d[a-z]{0,2}\))?\s+\d+\b`,
   String.raw`\bCanLII\s+\d+\b`,
   String.raw`\(\d{4}\),?\s+\d+\s+[A-Z][A-Za-z.]{1,14}`,

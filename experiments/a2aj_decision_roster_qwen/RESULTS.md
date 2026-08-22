@@ -863,3 +863,110 @@ writer, and majority/minority extraction is promising; treatment attribution,
 target identity, and treatment strength still require validation or repair
 before corpus-scale promotion. The durable Gold set contains 60 independently
 reviewed current annotations; revision narratives are not part of Gold.
+
+## Whole-decision treatment pipeline smoke (2026-08-21)
+
+The decision-scoped pipeline now accepts arbitrary A2AJ document IDs, sends
+one complete citing decision per isolated Luna Max call, retains the raw event
+stream and raw final answer, validates grounded structure deterministically,
+scores opinion/voting mechanics against Gold, and sends only issues and
+citation treatments to a Sol Low semantic judge.
+
+Commands:
+
+```powershell
+node experiments/a2aj_decision_roster_qwen/harness.mjs decision --document-ids 145339,OTHER_ID --workers 5 --below-normal --out RUN.json --call-ledger RUN.calls.jsonl --call-budget N
+node experiments/a2aj_decision_roster_qwen/harness.mjs decision-benchmark validate --gold experiments/a2aj_decision_roster_qwen/manual-case-decision-gold-v1.json --candidates RUN.outputs.jsonl --out RUN.validation.json
+node experiments/a2aj_decision_roster_qwen/harness.mjs decision-benchmark judge --gold experiments/a2aj_decision_roster_qwen/manual-case-decision-gold-v1.json --candidates RUN.outputs.jsonl --out RUN.grades.jsonl --call-ledger RUN.judge-calls.jsonl --call-budget N
+```
+
+The live smoke used `2015 ONCA 478`. It exposed and fixed a shared-object bug
+in the Responses schema, a missing Ontario Judgments database-citation shape,
+subset scoring that counted unattempted Gold cases as failures, and signature
+bylines with initials. The corrected inventory contains both O'Meara and
+Nasogaluak. Luna covered both, linked each to the right issue, and described
+both treatments as applied with materially correct propositions. Sol Low
+returned `pass` with no semantic errors.
+
+The deterministic score was exact for disposition, result side, voting
+pattern, participant exclusions, and citation coverage. Luna correctly found
+one unanimous opinion supported by all three judges, but called it a collective
+opinion with three joiners instead of identifying the three signatories as
+joint authors. Its opinion start included the `Introduction` heading at line 31;
+Gold starts substantive reasons at paragraph 1 on line 32. Writer attribution
+and exact boundary therefore failed while the majority/minority score passed.
+
+Receipt facts: Luna Max, BelowNormal, one worker, 607.21 seconds, 37,554 tokens,
+no transport retry; Sol Low, 5.02 seconds, 1,489 tokens. Raw output, receipts,
+progress events, validation, grades, and call ledgers are retained under the
+ignored `runs/decision-benchmark-smoke-20260821-v3*` stem.
+
+## Audited decision-30 four-arm benchmark (2026-08-22)
+
+The court-heavy Gold set contains 30 whole citing decisions and every detected
+citation within each decision. It was authored from the primary text, audited
+twice against that text, and passes the complete no-draft Gold validator 30/30.
+Each arm used the same two-stage prompts and schema: structure/issues first,
+then citation-by-citation treatment. Dispatch used ten BelowNormal workers,
+one isolated process per case, and retained raw events, outputs, progress,
+receipts, and call ledgers under `runs/decision-benchmark-30-20260822/`.
+
+| Arm | Structurally valid | Whole mechanics exact | Opinion boundaries exact | Writers exact | Result sides exact | Voting exact | Semantic pass / minor / major |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Luna High | 12/30 | 4/30 | 18/30 | 7/30 | 20/30 | 8/30 | 2 / 2 / 8 |
+| Luna Max | 15/30 | 4/30 | 21/30 | 6/30 | 23/30 | 7/30 | 1 / 6 / 8 |
+| Terra Max | 17/30 | 2/30 | 23/30 | 9/30 | 24/30 | 9/30 | 4 / 4 / 9 |
+| Sol Low | 13/30 | 2/30 | 21/30 | 9/30 | 22/30 | 11/30 | 2 / 4 / 7 |
+
+Semantic verdicts cover only deterministically valid submissions; invalid
+submissions fail the end-to-end benchmark before semantic judging. Terra Max
+was best, but only four of 30 cases were both structurally valid and
+semantically passed. Those four were relatively short decisions with one or
+two cited authorities. Material errors on harder cases included inventing
+procedural-history outcomes, attributing counsel or quoted authorities' work
+to the current court, changing distinguished authorities into applied ones,
+misstating cited propositions, and linking treatment to the wrong issue.
+
+This version is not ready for unreviewed corpus-scale generation. Higher effort
+improved structural acceptance but did not make treatment reliable. Repeated
+cross-arm structural failures also expose contract/compiler work that should
+precede another model comparison: ambiguous judge evidence, treatments that
+combine occurrences belonging to different authorities, and treatment links
+that cross opinion boundaries. One Luna Max case remained an infrastructure
+failure after three isolated attempts; Terra's corresponding transport failure
+resolved on its third attempt to a genuine validator rejection.
+
+## Whole-decision contract v2 (2026-08-22)
+
+No new inference was run. The unfair benchmark contract above was replaced
+before another model comparison.
+
+Stage 1 now returns only disposition evidence, complete substantive opinion
+boundaries, authorship, full joinders, other panel members, and result
+positions. Stage 2 receives that structure and returns issues and all cited
+authorities together, so it can formulate issues while seeing the treatments
+they must organize. The same Gold record supports the staged and combined
+arms.
+
+The analysis has one authority record per detected authority and accounts for
+every occurrence exactly once. A bare mention has no treatment. Every
+substantive treatment identifies its issue, containing judicial opinion,
+operation, proposition, and exact source-line evidence. Procedural history is
+separate. `relation_to_disposition`, treatment scope, `referred_to`, unscoped
+treatments, and treatment actor were removed. A treatment now means only an
+operation performed by the current judicial opinion; counsel, quotations,
+lower-court narration, and metadata are represented as occurrence attribution
+and cannot themselves become treatment events.
+
+Validation is line-native and no longer rejects repeated source wording. It
+checks source ranges, conservative opinion coverage, authority-local occurrence
+references, complete occurrence accounting, issue/opinion links, and treatment
+evidence locality. The semantic judge receives only issues, occurrence
+attribution, treatment meaning, issue/opinion linkage, and procedural history.
+Stage-1 scoring is retained even when Stage 2 fails.
+
+The converted 30-decision Gold passes 30/30 local validation. The focused
+contract tests pass 15/15, the combined runner self-test passes, the 62-test
+opinion-boundary/decision suite passes, and the backend TypeScript build passes.
+The next live run remains gated on a final human inspection of the exact prompts
+and dynamic schemas.
