@@ -22,7 +22,8 @@ import {
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
 } from "../legalAmendOps";
-import { compileAgreementSkeleton, readSection, skeletonSubtreeLabels, type AgreementSkeleton } from "../legalTextSkeleton";
+import { compileAgreementSkeleton, readSection, type AgreementSkeleton } from "../legalTextSkeleton";
+import { sourceDocSubtreeLabels } from "../sourceDoc";
 import {
   crossReferenceGraphFromSkeleton,
   type CrossReferenceGraph,
@@ -217,7 +218,7 @@ function oneHopLegalScope(
       node.label === block.label && node.start === block.start && node.end === block.end,
   );
   if (!seed) return null;
-  const subtree = skeletonSubtreeLabels(skeleton, seed.label);
+  const subtree = sourceDocSubtreeLabels(skeleton.nodes, seed.label);
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";

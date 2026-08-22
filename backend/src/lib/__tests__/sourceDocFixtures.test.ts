@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { crossReferenceGraphFromSourceDoc } from "../legalCrossReference";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import {
   createSourceDoc,
@@ -585,6 +586,21 @@ describe("queries over the compiled document", () => {
     ]);
     expect(sliceSourceDocBlocks(doc, "section", "3", "99")).toEqual([]);
     expect(sliceSourceDocBlocks(doc, "paragraph", "1")).toEqual([]);
+  });
+
+  it("resolves references to canonical provider blocks without copying nodes", async () => {
+    const doc = await compile(source);
+    const graph = crossReferenceGraphFromSourceDoc(doc, { integrityThreshold: 0 });
+    const target = doc.blocks.find(({ label }) => label === "sec9")!;
+    expect("nodes" in graph).toBe(false);
+    expect(graph.edges.find(({ raw, sourceLabel }) =>
+      raw.toLowerCase() === "section 9" && sourceLabel === "sec2"))
+      .toMatchObject({
+        status: "resolved",
+        targetLabel: target.label,
+        targetStart: target.start,
+        targetEnd: target.end,
+      });
   });
 });
 

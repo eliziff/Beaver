@@ -1,10 +1,9 @@
 import { sha256 } from "./hash";
-import { createSourceDoc, type SourceDocBlock, type SourceDocProvider } from "./sourceDoc";
+import { type SourceDocBlock, type SourceDocProvider } from "./sourceDoc";
 import {
   STRUCTURE_EVIDENCE_SCHEMA,
   documentScalarOffsets,
   type StructureEvidenceV1,
-  type StructureGraphV2,
   type StructureKind,
 } from "./structureWire";
 
@@ -124,37 +123,4 @@ export function materializeSourceStructure(input: SourceStructureInput): Materia
     paragraph_breaks: [],
   };
   return { input, evidence, originalClaims, offsets };
-}
-
-export function projectSourceStructure(materialized: MaterializedSourceStructure, graph: StructureGraphV2) {
-  const { input, originalClaims, offsets } = materialized;
-  const labels = new Map(graph.nodes.flatMap((node) => node.label ? [[node.id, node.label] as const] : []));
-  let prose = 0;
-  const blocks = graph.nodes.flatMap((node): SourceDocBlock[] => {
-    const original = originalClaims.get(node.id);
-    if (original) return [original];
-    const kind = node.kind === "prose" ? "paragraph" : node.kind;
-    if (!(["paragraph", "page", "section", "footnote"] as string[]).includes(kind)) return [];
-    const label = node.kind === "prose" ? `par${++prose}` : node.label;
-    if (!label) return [];
-    const start = offsets.scalarToUtf16(node.range.start);
-    const end = offsets.scalarToUtf16(node.range.end);
-    if (input.profile === "journal" && node.kind !== "prose") {
-      return [{ kind: kind as SourceDocBlock["kind"], label, start,
-        ...(node.aliases?.length ? { aliases: node.aliases } : {}), origin: "heuristic", end }];
-    }
-    return [{ kind: kind as SourceDocBlock["kind"], label, start, end, origin: "heuristic",
-      ...(node.aliases?.length ? { aliases: node.aliases } : {}),
-      ...(node.anchor ? { anchor: node.anchor } : {}),
-      ...(node.parent_id && labels.get(node.parent_id) ? { parentLabel: labels.get(node.parent_id) } : {}) }];
-  });
-  if (input.order === "stable-position") {
-    blocks.sort((left, right) => left.start - right.start || left.end - right.end);
-  } else if (input.order === "position") {
-    blocks.sort((left, right) => left.start - right.start || left.end - right.end || left.label.localeCompare(right.label));
-  } else if (input.order === "legislation") {
-    blocks.sort((left, right) => left.start - right.start || right.end - left.end || left.label.localeCompare(right.label));
-  }
-  return createSourceDoc({ provider: input.provider, id: input.id, url: input.url,
-    docType: input.docType, text: input.text, blocks });
 }
