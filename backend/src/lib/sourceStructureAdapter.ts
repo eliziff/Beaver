@@ -19,7 +19,6 @@ export type SourceStructureInput = {
   text: string;
   providerRevision: string;
   sourceSha256?: string;
-  representationRevision?: string;
   scope: { kind: "complete" | "excerpt"; excerptOf?: string };
   profile: StructureEvidenceV1["profile"];
   reportStartPage?: number;
@@ -67,7 +66,6 @@ export function materializeSourceStructure(input: SourceStructureInput): Materia
       parent_label: block.parentLabel,
       anchor: block.anchor,
       range: { start: offsets.utf16ToScalar(range.start), end: offsets.utf16ToScalar(range.end) },
-      provider_order: index,
       origin_id: originId,
     };
   });
@@ -93,21 +91,12 @@ export function materializeSourceStructure(input: SourceStructureInput): Materia
       kind: input.scope.kind,
       ...(input.scope.excerptOf ? { excerpt_of: input.scope.excerptOf } : {}),
     },
-    origins: [{
-      id: originId,
-      producer: input.provider ?? "beaver-internal",
-      representation: "provider-rendered-text",
-      revision: input.representationRevision ?? input.providerRevision,
-      authority: "provider-native-claims",
-    }],
-    units: [],
+    origins: [{ id: originId }],
     native_claims: nativeClaims,
     coverage: KINDS.map((kind) => ({
       kind,
       range: { start: 0, end: scalarEnd },
       state: completeKinds.has(kind) ? "complete" : native.some((block) => block.kind === kind) ? "augment" : "absent",
-      reason: completeKinds.has(kind) ? "provider kind is complete" : "shared-engine recovery lane",
-      ...(completeKinds.has(kind) || native.some((block) => block.kind === kind) ? { origin_id: originId } : {}),
     })),
     exclusions: (input.exclusions ?? []).map((range) => {
       if (!validRange(range, input.text.length)) {
@@ -116,8 +105,6 @@ export function materializeSourceStructure(input: SourceStructureInput): Materia
       return {
         range: { start: offsets.utf16ToScalar(range.start), end: offsets.utf16ToScalar(range.end) },
         applies_to: ["paragraph"],
-        reason: "provider-marked non-opinion region",
-        origin_id: originId,
       };
     }),
     paragraph_breaks: [],
