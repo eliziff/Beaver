@@ -24,11 +24,11 @@ export function deriveInstrumentSourceStructure(
 ) {
   const materialized = inputs.map(materializeSourceStructure);
   const evidence = materialized.map(({ evidence }) => evidence);
-  const { selected, graph } = deriveInstrumentStructureNative(
+  const { selected, graph, contents } = deriveInstrumentStructureNative(
     text,
     evidence,
     materialized.map(({ offsets }) => offsets.scalarLength),
     references,
   );
-  return { materialized: materialized[selected], graph };
+  return { materialized: materialized[selected], graph, contents };
 }

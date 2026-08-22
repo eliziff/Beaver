@@ -1,0 +1,2939 @@
+{
+  "schemaVersion": "beaver.document-structure-gold.v1",
+  "canadian": {
+    "fed-rsc-1985-c-c46-criminal-code": {
+      "kind": "canadian-statute",
+      "inputSha256": "a3bf0b8737a48dfeee457787ba658a7b6800af1f220d414cb6df76fbedbe2df4",
+      "goldSha256": "ce4afe2fff4e90f129caa36b201562c4287edd6b17f967133bf6690fe5cfdc4c",
+      "predictionSha256": "51943ac595ebffb14b93fc924c5875d5590545ad845353c33fa42e98b11d5898",
+      "metric": {
+        "gold": 1608,
+        "predicted": 1592,
+        "matched": 1592,
+        "falsePositive": 0,
+        "falseNegative": 16,
+        "exactRanges": 1585,
+        "exactOrder": false
+      },
+      "samples": {
+        "missing": [
+          "157",
+          "158",
+          "594",
+          "596",
+          "614",
+          "619",
+          "636",
+          "637",
+          "668",
+          "669"
+        ],
+        "extra": []
+      }
+    },
+    "fed-sc-2001-c-27-irpa": {
+      "kind": "canadian-statute",
+      "inputSha256": "d4bf45c32a43580cb652a4284bd1f4148726ab638fe91af21fe6d572fb19b5a7",
+      "goldSha256": "fc33117f00b53f8f1d611f79b1ebcce71c1970d68fde22f9bce453a444aab9e5",
+      "predictionSha256": "332f9b77cec2248d12c4385d2fd4e843b11a7ef0459ab00ed66e9c9e73166bf9",
+      "metric": {
+        "gold": 266,
+        "predicted": 266,
+        "matched": 266,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 266,
+        "exactOrder": true
+      }
+    },
+    "fed-rsc-1985-c-h6-human-rights": {
+      "kind": "canadian-statute",
+      "inputSha256": "cb4fc3b1194298735bc7834daa17d4b21bf448ac1d525309b69c5b92df69d6b0",
+      "goldSha256": "e10f893336440429f7c0b80413aaee553d63de740ca1e87743db63f599714523",
+      "predictionSha256": "af2970c497eb89a7c660d6d0c300af5c09a63ba956c63104521415e21c546de0",
+      "metric": {
+        "gold": 91,
+        "predicted": 89,
+        "matched": 89,
+        "falsePositive": 0,
+        "falseNegative": 2,
+        "exactRanges": 88,
+        "exactOrder": false
+      },
+      "samples": {
+        "missing": [
+          "55",
+          "56"
+        ],
+        "extra": []
+      }
+    },
+    "fed-sc-2000-c-5-pipeda": {
+      "kind": "canadian-statute",
+      "inputSha256": "2f7a321d14b8733b62d9c35623428c06f36c9e2f2b44efb193ef9e845f79b300",
+      "goldSha256": "51ce628e17e8ec6514d60e9d4d828acc2cf9c8201551e494f21287191e20975f",
+      "predictionSha256": "344e25515a66dd7c8d427bae5c1a877eb140a80d8a43544d3ecab31f1dae9293",
+      "metric": {
+        "gold": 71,
+        "predicted": 65,
+        "matched": 65,
+        "falsePositive": 0,
+        "falseNegative": 6,
+        "exactRanges": 64,
+        "exactOrder": false
+      },
+      "samples": {
+        "missing": [
+          "52",
+          "57",
+          "58",
+          "59",
+          "60",
+          "71"
+        ],
+        "extra": []
+      }
+    },
+    "on-so-2002-c-24-schedb-limitations": {
+      "kind": "canadian-statute",
+      "inputSha256": "669e88095abe97e8b07419c52fed49065d231460055f6da1e81a57afad1b82ba",
+      "goldSha256": "73cac7b2224d0bc3cb5d15863ed1595184e6afd61cde83ed5d68042ce4a4ae2f",
+      "predictionSha256": "8c3b060bf23a5887dc85736954ada474a5be0fd5703bc4f7ee63e8fd6a69d676",
+      "metric": {
+        "gold": 28,
+        "predicted": 27,
+        "matched": 27,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 26,
+        "exactOrder": false
+      },
+      "samples": {
+        "missing": [
+          "25-49"
+        ],
+        "extra": []
+      }
+    },
+    "on-rso-1990-c-o2-occupiers-liability": {
+      "kind": "canadian-statute",
+      "inputSha256": "782e2cf33cbe0bcab41bd0704b862a28a23627f06dd3c7aa96fd9b3fbdc7c8b8",
+      "goldSha256": "959c4bd5a2f3584e1af0a76fcbec8edf3d6924050886d445408d160332a277fe",
+      "predictionSha256": "569bd89385fef31d53ec1f0fc7021dd5fb918d61573ee94ef70e444cc51cddd3",
+      "metric": {
+        "gold": 12,
+        "predicted": 12,
+        "matched": 12,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 12,
+        "exactOrder": true
+      }
+    },
+    "on-so-2000-c-41-employment-standards": {
+      "kind": "canadian-statute",
+      "inputSha256": "1b94e31abe5aa67d6812deafad0e401938255142895a39b20513304c6c783471",
+      "goldSha256": "f4d2b7bdc6a6c9122a7d698c19a143d2852b0593e1f9299aa4cfb1693b6aca08",
+      "predictionSha256": "96684af91e08f3e3e2cf6ea20e13b7dd172ce6612745fe315e278d313dc4b091",
+      "metric": {
+        "gold": 259,
+        "predicted": 260,
+        "matched": 259,
+        "falsePositive": 1,
+        "falseNegative": 0,
+        "exactRanges": 258,
+        "exactOrder": false
+      },
+      "samples": {
+        "missing": [],
+        "extra": [
+          "1.1"
+        ]
+      }
+    },
+    "on-oreg-267-03-esa-general": {
+      "kind": "canadian-statute",
+      "inputSha256": "b8be369e42c1bf8580128f6af4d59b57fe285c113919657693a65ed83c47ff5a",
+      "goldSha256": "5764b3526ea2bcbed4dc9ae4760a339152a61f08607ebe16a4f2a505edf01590",
+      "predictionSha256": "1b0379fa03aec4bc8db9cf51dcc48ee95af395412e38231a052100a5f468163e",
+      "metric": {
+        "gold": 228,
+        "predicted": 228,
+        "matched": 228,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 228,
+        "exactOrder": true
+      }
+    },
+    "ab-rsa-2000-c-l12-limitations": {
+      "kind": "canadian-statute",
+      "inputSha256": "0c1d69b012eced18e093105b55e6ed4dd5df1c69a83186aa40beff4f78aefd2a",
+      "goldSha256": "4bd30be2ebda3418980a60584d4a87d7c3577ab4ef8e213a431402957bf99ec3",
+      "predictionSha256": "16df0016289eacd4b88dd8ca9c14fbb128efb45ed5eb1b52087dca5de440ff74",
+      "metric": {
+        "gold": 17,
+        "predicted": 17,
+        "matched": 17,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 17,
+        "exactOrder": true
+      }
+    },
+    "ab-rsa-2000-c-o4-occupiers-liability": {
+      "kind": "canadian-statute",
+      "inputSha256": "af2fef49c1624984b503140930f27f97f0556ab67890ac69b39695af409524e6",
+      "goldSha256": "924f8052eb9b8e72a4dbd1cda65bc36362e1e5f5a039340e4b850c1b7a355840",
+      "predictionSha256": "06ad5680363b2cb1455d0ce3775585a3883d7e08bba19260dd8fba727f51a0df",
+      "metric": {
+        "gold": 18,
+        "predicted": 18,
+        "matched": 18,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 18,
+        "exactOrder": true
+      }
+    },
+    "nsca-2013-nsca-65": {
+      "kind": "canadian-decision",
+      "inputSha256": "3798e76cd5876a50e610644a7507d2fdbe9c74f6af54bcea76a9c20b6e97a0a1",
+      "goldSha256": "d45e806f78fa77035005a1b6b1d38384dbaeae8fe09af30bd418ccca2c3cb6db",
+      "predictionSha256": "4406b49c58c45d82e008b7c305b50b13b564bd655b04f23cf38b0aacfb81f101",
+      "metric": {
+        "gold": 91,
+        "predicted": 91,
+        "matched": 91,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 91,
+        "exactOrder": true
+      }
+    },
+    "nsca-2016-nsca-89": {
+      "kind": "canadian-decision",
+      "inputSha256": "f2481fbefabcc879e73cb9d10a41013f33afcf43ea5020e84498c0206b6c245f",
+      "goldSha256": "476ce7c1e2aff76423e4e5490506734b0ad37573c3e31ecfe68fa21d0dadc998",
+      "predictionSha256": "b213e4a17b8b0c4b307ac5cdbb3adc3720629fa5b5cf90f7380c83c69f2b3a0b",
+      "metric": {
+        "gold": 70,
+        "predicted": 70,
+        "matched": 70,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 70,
+        "exactOrder": true
+      }
+    },
+    "nsca-2020-nsca-5": {
+      "kind": "canadian-decision",
+      "inputSha256": "10ade088fc9b7841e427d257423833181d2a588e50e1fb5879b87ad49cde6cf5",
+      "goldSha256": "372eba98da5782bbcd4ab5d1e828b3c26c133e5b8ce22093278fbd4cd36b099d",
+      "predictionSha256": "7fe2ef3d0d3c5f47f622f0af584839fd647725e43e3ebd7a13d030613572b823",
+      "metric": {
+        "gold": 83,
+        "predicted": 83,
+        "matched": 83,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 83,
+        "exactOrder": true
+      }
+    },
+    "nsca-2021-nsca-29": {
+      "kind": "canadian-decision",
+      "inputSha256": "efa874923a1924461042ce2cbd605f4ad50a03100876ec58404cb844957c40eb",
+      "goldSha256": "0913c537b7bb7f9e4ff08a34fdc1ed155f37c5e314680cff8d4f6faf23f2359d",
+      "predictionSha256": "9c67be26e070908b3bea3c312d04195e96f1642d1f39eed67971bb162e900936",
+      "metric": {
+        "gold": 111,
+        "predicted": 111,
+        "matched": 111,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 111,
+        "exactOrder": true
+      }
+    },
+    "nsca-2023-nsca-3": {
+      "kind": "canadian-decision",
+      "inputSha256": "612ea7b39c252c0bebfd8b91f488a9b9388e925213bd832e925315723fbeec64",
+      "goldSha256": "3dd3b548a9b0d15d3fd1e060432f230dd64ddca85503299b6aefdc1e2b468a69",
+      "predictionSha256": "79154e6add4b305dca09f8e0334333e819141105be8150a39058b877731250b3",
+      "metric": {
+        "gold": 40,
+        "predicted": 40,
+        "matched": 40,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 40,
+        "exactOrder": true
+      }
+    },
+    "nsca-2024-nsca-103": {
+      "kind": "canadian-decision",
+      "inputSha256": "503e0d4b6d99f7b387637ed05b5bb3a3ff648a9e18964759bfc7a0d960d86afe",
+      "goldSha256": "9c4e564663d5bfe6ce81f871a250feaf1e29d16ad19005eb103fb81415e1d441",
+      "predictionSha256": "e3dc00d2c61c64372674fa9a7dfb935d983764602fbd2fedc55f3721f5a3c458",
+      "metric": {
+        "gold": 78,
+        "predicted": 78,
+        "matched": 78,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 78,
+        "exactOrder": true
+      }
+    },
+    "nsca-2025-nsca-5": {
+      "kind": "canadian-decision",
+      "inputSha256": "2e077242e60af647773a4691c35e754e1c23f76e5bbe56a21f8679f27c91535b",
+      "goldSha256": "2586fb9275d195529427a9a5cf90a349c123a0caf4b4a2bfcebc272c33a40ad0",
+      "predictionSha256": "0625140c82958fade994172ca9d9f397054895710a7d3d348ddc34c19122f7ee",
+      "metric": {
+        "gold": 93,
+        "predicted": 93,
+        "matched": 93,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 93,
+        "exactOrder": true
+      }
+    },
+    "nsca-2026-nsca-36": {
+      "kind": "canadian-decision",
+      "inputSha256": "d3ea2191049c05e6c8e3260e7cebb6247ddecad40cf2d059d119d1b0ab6eafb3",
+      "goldSha256": "4d83c10e6d2bf5229f8144869710a0b3fd6cd46a860f08d8f538c58bccff215c",
+      "predictionSha256": "e243dac4fd1de0e7a8838f21773fcda059a2b35f6a49c2bfed7e891fa12a9e6c",
+      "metric": {
+        "gold": 119,
+        "predicted": 119,
+        "matched": 119,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 119,
+        "exactOrder": true
+      }
+    }
+  },
+  "uslm": {
+    "PLAW-119publ1": {
+      "kind": "uslm",
+      "inputSha256": "a9749b255b856d3a33ce8c8de8b2c7df082c438a945991e6e5d451cf57753eb8",
+      "goldSha256": "fa732ab6556175612f228468e7512157706010a8690df11379e138b8a1f55f3c",
+      "predictionSha256": "10fe7db8d8dc7435bf1ca61c3655bd0395f86768ba5c674c02df4f23ee15dbd3",
+      "metric": {
+        "gold": 27,
+        "predicted": 25,
+        "matched": 1,
+        "falsePositive": 24,
+        "falseNegative": 26,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"1\",\"A\"]",
+          "[\"2\",\"1\",\"B\"]",
+          "[\"2\",\"1\",\"C\"]",
+          "[\"2\",\"1\",\"E\"]",
+          "[\"2\",\"1\",\"E\",\"i\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"3\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"1\",\"C\"]",
+          "[\"1\",\"1\",\"E\"]",
+          "[\"1\",\"1\",\"E\",\"i\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"3\",\"a\"]",
+          "[\"1\",\"1\"]"
+        ]
+      }
+    },
+    "PLAW-119publ2": {
+      "kind": "uslm",
+      "inputSha256": "5348ffe6957b4fb2cf1e5fb96fc498e82560ebe28f21c552ab35b1ed0a2df54c",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ3": {
+      "kind": "uslm",
+      "inputSha256": "34c63c4e1ef9896cf2c7d4fece4d1ea72819e98c6e5ff1d58dcae470dc5f36de",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ4": {
+      "kind": "uslm",
+      "inputSha256": "97232c96959fa727aa92ee26dc104dd6cb30b7aea07074f2b6a49db2260d8e1e",
+      "goldSha256": "eb846d27cd8ed0160453ab54cc08beefb72442997a96e6f4fd2e34a7cbc8906b",
+      "predictionSha256": "b4cc3cde8e318f628195e2f532ebd2053940f1c75ab185cb4f551899040a4756",
+      "metric": {
+        "gold": 551,
+        "predicted": 486,
+        "matched": 1,
+        "falsePositive": 485,
+        "falseNegative": 550,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"1101\"]",
+          "[\"1101\",\"a\"]",
+          "[\"1101\",\"a\",\"1\"]",
+          "[\"1101\",\"a\",\"2\"]",
+          "[\"1101\",\"a\",\"3\"]",
+          "[\"1101\",\"a\",\"4\"]",
+          "[\"1101\",\"a\",\"5\"]",
+          "[\"1101\",\"a\",\"6\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"a\",\"4\"]",
+          "[\"1\",\"a\",\"5\"]",
+          "[\"1\",\"a\",\"6\"]",
+          "[\"1\",\"a\",\"7\"]",
+          "[\"1\",\"a\",\"8\"]",
+          "[\"1\",\"a\",\"9\"]"
+        ]
+      }
+    },
+    "PLAW-119publ5": {
+      "kind": "uslm",
+      "inputSha256": "41bd371f6dc1a05038e3107737551d9aaf49b86302f911963ca1fe249c452ef3",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ6": {
+      "kind": "uslm",
+      "inputSha256": "71dee98e42a1243c7ce4c054ba6528f3a0c96d7527ef3dc8cf685da58d379f64",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ7": {
+      "kind": "uslm",
+      "inputSha256": "f4a8b7ea736941a423b36f52f1e993c40ac2b3ab6abedaa5a840e15a7bf6d361",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ8": {
+      "kind": "uslm",
+      "inputSha256": "1d35b54c0a97e767b428f6a5d340a6d8164aac04199ad2e0ee22f6437b39e7b2",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ9": {
+      "kind": "uslm",
+      "inputSha256": "133e07e9aa4a1353d062703d566f067032fa33536dbc3680be5951b6b9f45520",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ10": {
+      "kind": "uslm",
+      "inputSha256": "ef4f4851754673e1551aa763e78d8cecf0a8e48ce9cb66e29325582ca8cd07eb",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ11": {
+      "kind": "uslm",
+      "inputSha256": "f2c190cb1377113af7d4522d0b924e4ff398442c3a5b8f9f7629ac2262451a05",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ12": {
+      "kind": "uslm",
+      "inputSha256": "62378552093ab194590647e009def960fed404a03ebc9dc2ca3ce8f848da1a44",
+      "goldSha256": "912390b16eab22259c2f6f6a6720bb38a671b3ae6b8d416bafe1cd4c390569d0",
+      "predictionSha256": "74ce9e20fab2bf90928062e2b230540918a6ff30990e2d653f8c42f89a19be76",
+      "metric": {
+        "gold": 50,
+        "predicted": 46,
+        "matched": 1,
+        "falsePositive": 45,
+        "falseNegative": 49,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"c\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"a\",\"1\"]",
+          "[\"3\",\"a\",\"1\",\"A\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"A\",\"i\"]",
+          "[\"1\",\"a\",\"1\",\"A\",\"i\",\"I\"]"
+        ]
+      }
+    },
+    "PLAW-119publ13": {
+      "kind": "uslm",
+      "inputSha256": "536bbd8c2bca8fc9946e2146db8fd248178a157a1f58ee4d25673dfb18ccf660",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ14": {
+      "kind": "uslm",
+      "inputSha256": "b03b11f5c6fe527442f40221b1d4cb1b18cc4ac323f0ae9074942e2c4a9caeee",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ15": {
+      "kind": "uslm",
+      "inputSha256": "e6d61898ce42974d0ee9d1dbbea63666b649ebd5bb29832b9248ffaab5a5c87f",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ16": {
+      "kind": "uslm",
+      "inputSha256": "c6735fa0ffbbfd35b3a87bee5c8e0777880e9a978683de45a7fd5d2fab8c1686",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ17": {
+      "kind": "uslm",
+      "inputSha256": "d14dfc0cb16e8ee85e6b70ec366c488e41363034d9a40eda237c5b7c6ebf643e",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ18": {
+      "kind": "uslm",
+      "inputSha256": "c1d5d3be84f76221344fbfcc33b7f701f6d80063acaae009615cc65ad7147a69",
+      "goldSha256": "9153760d5ad7a125a65feb81e8e5d9432c12ee6b80cae0f2b3cf8f9a30f8d79d",
+      "predictionSha256": "0c024ea3a1c7f3b1eea87bb9ffb9b152bf0396f95729a34dfaf74dadf50be2a8",
+      "metric": {
+        "gold": 9,
+        "predicted": 8,
+        "matched": 1,
+        "falsePositive": 7,
+        "falseNegative": 8,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"1\",\"A\"]",
+          "[\"2\",\"1\",\"B\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]",
+          "[\"2\",\"5\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]"
+        ]
+      }
+    },
+    "PLAW-119publ19": {
+      "kind": "uslm",
+      "inputSha256": "6af557500e14ca94e13a9bc144b8cf2db84aa1395ce39e2d7a50670ce2c9f239",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ20": {
+      "kind": "uslm",
+      "inputSha256": "98eda52e544c73dd016df045a05fb0c87cd38dbcd7191e5a0fe331d7e660a785",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ21": {
+      "kind": "uslm",
+      "inputSha256": "d49f7ad82fe98a6312edfc180fc4a70fad09a76cc08f60a7bf0b9ca9bf9f106a",
+      "goldSha256": "81f78c4710d28ce3695876fdd346699c92293d5cb3dc8bddd0a44f545bd6b03e",
+      "predictionSha256": "a54125c63b94ab8c2d9d9080158782207b849d546e41b268f4c645eb4ae41af3",
+      "metric": {
+        "gold": 3258,
+        "predicted": 2949,
+        "matched": 1,
+        "falsePositive": 2948,
+        "falseNegative": 3257,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"10101\"]",
+          "[\"10101\",\"a\"]",
+          "[\"10101\",\"b\"]",
+          "[\"10101\",\"b\",\"1\"]",
+          "[\"10101\",\"b\",\"2\"]",
+          "[\"10101\",\"b\",\"3\"]",
+          "[\"10102\"]",
+          "[\"10102\",\"a\"]",
+          "[\"10102\",\"b\"]",
+          "[\"10102\",\"b\",\"1\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ22": {
+      "kind": "uslm",
+      "inputSha256": "eae557f01fe0ef9e94b8184edd1cba953c78f4151a5dcf01ad5cb24c4527e75d",
+      "goldSha256": "1e8e885fe4c82b26489b74230f8544380b3bcfb9bede5f355c795133458c1671",
+      "predictionSha256": "2188b7e0a3bbfa4f1eaafae205c1754ffe6d9c210e1b02c15251432fe2f0ce8e",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ23": {
+      "kind": "uslm",
+      "inputSha256": "98ec1ec4496ef3ba50b5ad16a27004b845e351a82a675f24591286d154f04635",
+      "goldSha256": "4dad2238b0ac97da483fba3ebb2d01f9fb774935fbeaea5eca16a5910a32e9f6",
+      "predictionSha256": "1190520c6d2afd9ff3ab4e25ccafae20d76d67d77d528f85651cd325e65b7f0a",
+      "metric": {
+        "gold": 21,
+        "predicted": 20,
+        "matched": 1,
+        "falsePositive": 19,
+        "falseNegative": 20,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"3\",\"A\"]",
+          "[\"2\",\"3\",\"B\"]",
+          "[\"2\",\"4\"]",
+          "[\"2\",\"5\"]",
+          "[\"2\",\"5\",\"A\"]",
+          "[\"2\",\"5\",\"A\",\"i\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"3\",\"A\"]",
+          "[\"1\",\"3\",\"B\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]",
+          "[\"1\",\"5\",\"A\"]",
+          "[\"1\",\"5\",\"A\",\"i\"]",
+          "[\"1\",\"5\",\"A\",\"ii\"]"
+        ]
+      }
+    },
+    "PLAW-119publ24": {
+      "kind": "uslm",
+      "inputSha256": "0c9a36185aa5bdebf8cadc3f4095916f51663f2eaa78ff783ba299ddc2f6c890",
+      "goldSha256": "b26c5ee38a6b1a032bfa10a07b15eb5ad2665cfe4bca6c266c5cb2438c0e510f",
+      "predictionSha256": "882dbdd1e22f3d0f572e3547dcaee1078e6c60857ff8d88e3b4f13e5fa7f3f67",
+      "metric": {
+        "gold": 13,
+        "predicted": 12,
+        "matched": 1,
+        "falsePositive": 11,
+        "falseNegative": 12,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"1\",\"A\"]",
+          "[\"2\",\"1\",\"B\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"2\",\"A\"]",
+          "[\"2\",\"2\",\"B\"]",
+          "[\"2\",\"2\",\"C\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"2\",\"A\"]",
+          "[\"1\",\"2\",\"B\"]",
+          "[\"1\",\"2\",\"C\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]"
+        ]
+      }
+    },
+    "PLAW-119publ25": {
+      "kind": "uslm",
+      "inputSha256": "72636b9a0579980b28538b2bfa0206587b0352519d57c5dcfaadb0be5c10fc7b",
+      "goldSha256": "6d967b6146fb9a964f2d6c6271661ad800a91739e553d1547f049583c6c10add",
+      "predictionSha256": "0fd4a94c22b519bc3b3ed138422f33f1a5590767c7cf8a55b28cb900cd98dfa1",
+      "metric": {
+        "gold": 15,
+        "predicted": 13,
+        "matched": 1,
+        "falsePositive": 12,
+        "falseNegative": 14,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"a\",\"1\"]",
+          "[\"3\",\"a\",\"2\"]",
+          "[\"3\",\"a\",\"3\"]",
+          "[\"3\",\"b\"]",
+          "[\"3\",\"b\",\"1\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ26": {
+      "kind": "uslm",
+      "inputSha256": "b57ace7b3238b1c0f7c6ca3ebd5974d36a769c7c43fc9325de03c305b66fbbc6",
+      "goldSha256": "0f2133059a1b644bb79f002a75e725a5d3870cd639b6559370b2a9cb4cfeec10",
+      "predictionSha256": "ff93f57eef8e49154f112c35b867b069cd3b052dffbc99901f036e4c34d93f68",
+      "metric": {
+        "gold": 53,
+        "predicted": 47,
+        "matched": 1,
+        "falsePositive": 46,
+        "falseNegative": 52,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"a\",\"1\"]",
+          "[\"3\",\"a\",\"2\"]",
+          "[\"3\",\"b\"]",
+          "[\"3\",\"b\",\"1\"]",
+          "[\"3\",\"b\",\"2\"]",
+          "[\"3\",\"c\"]",
+          "[\"3\",\"d\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"d\"]",
+          "[\"1\",\"d\",\"1\"]",
+          "[\"1\",\"d\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ27": {
+      "kind": "uslm",
+      "inputSha256": "9fa64138c60aeb002059903be54dfff4bbd04d0d6427492588616f0c835595bb",
+      "goldSha256": "dda5eb2f1780ef1a8460c18903371f76ec92ad939ada49f572d7d4a29510ec1d",
+      "predictionSha256": "d02674a53b6e6bd6d81693f4369b27a2b466ed44f1b731c7c1ad05bb01448fb7",
+      "metric": {
+        "gold": 684,
+        "predicted": 665,
+        "matched": 1,
+        "falsePositive": 664,
+        "falseNegative": 683,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"2\",\"A\"]",
+          "[\"2\",\"2\",\"B\"]",
+          "[\"2\",\"2\",\"C\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]",
+          "[\"2\",\"5\"]",
+          "[\"2\",\"6\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"2\",\"A\"]",
+          "[\"1\",\"2\",\"B\"]",
+          "[\"1\",\"2\",\"C\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]",
+          "[\"1\",\"6\"]",
+          "[\"1\",\"7\"]"
+        ]
+      }
+    },
+    "PLAW-119publ28": {
+      "kind": "uslm",
+      "inputSha256": "78938563fe1c8fa1eb70f88ae37cc57f1ae11aed38f125686a5b53a57f938712",
+      "goldSha256": "2c37f82261599fdc5fb9be72c2024f78c702dabbcf3994b8b3db0dc2573bc850",
+      "predictionSha256": "ddb2149b7beece3ac47456bca706623043ccd85817365e01a03137fa26cf4b3f",
+      "metric": {
+        "gold": 26,
+        "predicted": 25,
+        "matched": 1,
+        "falsePositive": 24,
+        "falseNegative": 25,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"b\",\"3\"]",
+          "[\"2\",\"b\",\"4\"]",
+          "[\"2\",\"b\",\"5\"]",
+          "[\"2\",\"b\",\"6\"]",
+          "[\"2\",\"b\",\"7\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"b\",\"4\"]",
+          "[\"1\",\"b\",\"5\"]",
+          "[\"1\",\"b\",\"6\"]",
+          "[\"1\",\"b\",\"7\"]",
+          "[\"1\",\"b\",\"8\"]"
+        ]
+      }
+    },
+    "PLAW-119publ29": {
+      "kind": "uslm",
+      "inputSha256": "e9b8dfd8fe6b511d1979bcedd7d38680f43a020f0ec6fe679c72c2b67a8521f4",
+      "goldSha256": "4d4e59f5fc71d675a135eee40745fca3c0fa2b9933f4b4935f0aa72635c82f2c",
+      "predictionSha256": "957ed1140ca18931363be64add49a83cc9f5b80f12497914593440419a124d34",
+      "metric": {
+        "gold": 8,
+        "predicted": 7,
+        "matched": 1,
+        "falsePositive": 6,
+        "falseNegative": 7,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"b\",\"3\"]",
+          "[\"2\",\"c\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ30": {
+      "kind": "uslm",
+      "inputSha256": "567b913490f1f2ac2a11fe42ddcf3f6cef590ac7bedc95ca89a16ddb0fc8a421",
+      "goldSha256": "eaf119c5957115e5415aa006fb91b25fbb67dc88b4b7312ba30e0e06b4ffc280",
+      "predictionSha256": "e75f3d55736bce835506ce6a5b249f2f65f2cf23866b27e5bb03606b35ad6b07",
+      "metric": {
+        "gold": 9,
+        "predicted": 7,
+        "matched": 1,
+        "falsePositive": 6,
+        "falseNegative": 8,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"b\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"4\",\"a\"]",
+          "[\"1\",\"4\",\"b\"]"
+        ]
+      }
+    },
+    "PLAW-119publ31": {
+      "kind": "uslm",
+      "inputSha256": "9e66573802e1959e3f82f613aa13f74ce7e599ff4c7c0cef0d4a0cafbfb8a001",
+      "goldSha256": "a704a2abbcb3e207f0b118f72c6fc1389e26f4a4dd24949ce34fd75f0fc0dc4a",
+      "predictionSha256": "0dddfd0225c0c398a5033a441b3edee1e89aa38be1899d2be52beb4f8b781fbc",
+      "metric": {
+        "gold": 25,
+        "predicted": 21,
+        "matched": 1,
+        "falsePositive": 20,
+        "falseNegative": 24,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"1\",\"A\"]",
+          "[\"2\",\"a\",\"1\",\"B\"]",
+          "[\"2\",\"a\",\"1\",\"B\",\"i\"]",
+          "[\"2\",\"a\",\"1\",\"B\",\"ii\"]",
+          "[\"2\",\"a\",\"1\",\"B\",\"iii\"]",
+          "[\"2\",\"a\",\"1\",\"C\"]",
+          "[\"2\",\"a\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"B\"]",
+          "[\"1\",\"a\",\"1\",\"B\",\"i\"]",
+          "[\"1\",\"a\",\"1\",\"B\",\"ii\"]",
+          "[\"1\",\"a\",\"1\",\"B\",\"iii\"]",
+          "[\"1\",\"a\",\"1\",\"C\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"2\",\"A\"]"
+        ]
+      }
+    },
+    "PLAW-119publ32": {
+      "kind": "uslm",
+      "inputSha256": "7adf0544ff3c03cdc25b16b4ccfa0cb99a90cac60ea3b66e4f6d1bb0370f8863",
+      "goldSha256": "a9a9e2413b633506c684f7ac05d9d12edc5cffa42ec45c069a02b0f6e7d1b255",
+      "predictionSha256": "830ace1e6efe7581771ff239c16c8831d81e65a1fc07c9f394cc410f85d33fd7",
+      "metric": {
+        "gold": 32,
+        "predicted": 31,
+        "matched": 1,
+        "falsePositive": 30,
+        "falseNegative": 31,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"2\",\"A\"]",
+          "[\"2\",\"a\",\"2\",\"B\"]",
+          "[\"2\",\"a\",\"2\",\"B\",\"i\"]",
+          "[\"2\",\"a\",\"2\",\"B\",\"i\",\"I\"]",
+          "[\"2\",\"a\",\"2\",\"B\",\"i\",\"II\"]",
+          "[\"2\",\"a\",\"2\",\"B\",\"ii\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"2\",\"A\"]",
+          "[\"1\",\"a\",\"2\",\"B\"]",
+          "[\"1\",\"a\",\"2\",\"B\",\"i\"]",
+          "[\"1\",\"a\",\"2\",\"B\",\"i\",\"I\"]",
+          "[\"1\",\"a\",\"2\",\"B\",\"i\",\"II\"]",
+          "[\"1\",\"a\",\"2\",\"B\",\"ii\"]",
+          "[\"1\",\"b\"]"
+        ]
+      }
+    },
+    "PLAW-119publ33": {
+      "kind": "uslm",
+      "inputSha256": "7fc978c5866658427c29993d1eacd5098726365434e8a780ddb702266240ef29",
+      "goldSha256": "f59102173652f1ff54eb37e85e8ab1772fe77e1f47dc47f08f4070f5af12f2ca",
+      "predictionSha256": "f734dc2e34aa10df5a06dcdbf0d0e1c5d8b37031ac35437b04ca149eea379f5a",
+      "metric": {
+        "gold": 20,
+        "predicted": 19,
+        "matched": 12,
+        "falsePositive": 7,
+        "falseNegative": 8,
+        "exactRanges": 10,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 17,
+        "matchedHeadings": 2
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"c\"]",
+          "[\"2\",\"c\",\"1\"]",
+          "[\"2\",\"c\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"c\",\"1\"]",
+          "[\"1\",\"c\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ34": {
+      "kind": "uslm",
+      "inputSha256": "e30204fddd27b150d045130ac2859c75a7e5d5b0e0f1fc97bfc2b3a4e1a1ae07",
+      "goldSha256": "8ee22240448432d898026bb02211b60a104f27dc146fce76b5603a1e53a36af7",
+      "predictionSha256": "ad607db76ceed65d10bb46427067dac982fcd9d02095be4f1a88caca0df64f95",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ35": {
+      "kind": "uslm",
+      "inputSha256": "c3d4b3ad6b0c2495c8d34f927d71f3075d59ab91e306ff2272598cc9e0e9b68d",
+      "goldSha256": "1e0affb833dc99d3adbdf8e62d04c3e7b3c4766c73110f6fde9ad1219f2425ad",
+      "predictionSha256": "f3ff6d383e2beec3a99256a33e8832377be7d27a64bf4b9877b815a9c1495a9d",
+      "metric": {
+        "gold": 17,
+        "predicted": 16,
+        "matched": 16,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 14,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 16,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ36": {
+      "kind": "uslm",
+      "inputSha256": "7febf73a56ddb8ba0b4e9ec61adeb78a1fe8b22f1342d2e0e5560b94e8a8ccf3",
+      "goldSha256": "de60e11ea1b33ea882199804c5ae0d1f5077791474a46173683ae651bd58ebd0",
+      "predictionSha256": "748f681b461b33bee880301db1c2f224b765b49e661c7ddcbed2b62fff41e567",
+      "metric": {
+        "gold": 7,
+        "predicted": 4,
+        "matched": 1,
+        "falsePositive": 3,
+        "falseNegative": 6,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"3\"]",
+          "[\"4\"]",
+          "[\"4\",\"a\"]",
+          "[\"4\",\"b\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]"
+        ]
+      }
+    },
+    "PLAW-119publ37": {
+      "kind": "uslm",
+      "inputSha256": "a83bee0142853ac4dcf005d6b660c0e0edb0faf8a58a63495bd052998070af90",
+      "goldSha256": "2edbe24715c54e7a8d0f4d9e24706757c5f25c177eca611ee94aa0ebef665bf1",
+      "predictionSha256": "add79506aeb77e9168d407a6cf82fbf3b7422e3287725535db0c8a2492d32c5d",
+      "metric": {
+        "gold": 742,
+        "predicted": 651,
+        "matched": 1,
+        "falsePositive": 650,
+        "falseNegative": 741,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"4\"]",
+          "[\"5\"]",
+          "[\"101\"]",
+          "[\"102\"]",
+          "[\"102\",\"a\"]",
+          "[\"102\",\"a\",\"1\"]",
+          "[\"102\",\"a\",\"2\"]",
+          "[\"102\",\"a\",\"3\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]"
+        ]
+      }
+    },
+    "PLAW-119publ38": {
+      "kind": "uslm",
+      "inputSha256": "58710de4933d825ee6e1bde5feddf6285607ed095691f46ab0fb182f552c2f38",
+      "goldSha256": "73b966d05cfdf79b2a56ef849eea1fe182286872bdae8cbf45b34bfeef3d0d60",
+      "predictionSha256": "e9aaaf9a0739f333dc4624fa6e9d9abcec0d7485142f9543bffcf2622bd47720",
+      "metric": {
+        "gold": 29,
+        "predicted": 27,
+        "matched": 1,
+        "falsePositive": 26,
+        "falseNegative": 28,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"3\"]",
+          "[\"2\",\"a\",\"4\"]",
+          "[\"2\",\"a\",\"5\"]",
+          "[\"2\",\"a\",\"6\"]",
+          "[\"2\",\"a\",\"7\"]",
+          "[\"2\",\"a\",\"8\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"a\",\"4\"]",
+          "[\"1\",\"a\",\"5\"]",
+          "[\"1\",\"a\",\"6\"]",
+          "[\"1\",\"a\",\"7\"]",
+          "[\"1\",\"a\",\"8\"]",
+          "[\"1\",\"a\",\"9\"]"
+        ]
+      }
+    },
+    "PLAW-119publ39": {
+      "kind": "uslm",
+      "inputSha256": "dd799dde0c1755a312e7817b4f17780dffe541d9bc5b43d8fe0772c2cc7535d8",
+      "goldSha256": "e1a18db7199b66906d6d929bee5cd5e44a7ebe6daed14767200aa7556f525c2a",
+      "predictionSha256": "741590091b6e9155bfe157f171723170d0cf22415e68252f06408c8ce2c051ec",
+      "metric": {
+        "gold": 15,
+        "predicted": 14,
+        "matched": 1,
+        "falsePositive": 13,
+        "falseNegative": 14,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"3\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"c\"]",
+          "[\"2\",\"d\"]",
+          "[\"2\",\"e\"]",
+          "[\"2\",\"e\",\"1\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"d\"]",
+          "[\"1\",\"e\"]",
+          "[\"1\",\"e\",\"1\"]",
+          "[\"1\",\"e\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ40": {
+      "kind": "uslm",
+      "inputSha256": "8de08b19a26c794d55268bffe6a434136ed7e3b19fbfd5f53c6582b5eb72525f",
+      "goldSha256": "ba4e754c8c8c15e97ef134e6b56d0f96b2f39fcda5b8941b4dae452a88c653c1",
+      "predictionSha256": "0c85f842c02f52f2a2db3ff689976dbed52a080ebace6f8accae400133fc3bb7",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ41": {
+      "kind": "uslm",
+      "inputSha256": "f61489fac0771b6d2b72eb9ac8039f9194e8ce2a2d9a4ac076d2c630327f13fc",
+      "goldSha256": "78392e329eb210184446fac796d95e92e1bcae81ad454baca0fe60ab99bfd12f",
+      "predictionSha256": "069a9c2fadb8e2003f3b161924e2967b26af5efd9ec383663910527bb4a9adf4",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ42": {
+      "kind": "uslm",
+      "inputSha256": "92fdbdb5f4b9d71633700916ad20c6fe86668eb9ab55868604c51413e884c421",
+      "goldSha256": "8d5653c51e87f3dd5b51de37a971e7bfd18a0ad768584c7237861c8767ed9ebf",
+      "predictionSha256": "a96e35d4505d5fc44e8e6c415f346ab65bacba57cc37f288a059a1180b805fa4",
+      "metric": {
+        "gold": 12,
+        "predicted": 10,
+        "matched": 1,
+        "falsePositive": 9,
+        "falseNegative": 11,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"b\",\"3\"]",
+          "[\"2\",\"b\",\"4\"]",
+          "[\"2\",\"b\",\"5\"]",
+          "[\"2\",\"c\"]",
+          "[\"2\",\"d\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"b\",\"4\"]",
+          "[\"1\",\"b\",\"5\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"d\"]"
+        ]
+      }
+    },
+    "PLAW-119publ43": {
+      "kind": "uslm",
+      "inputSha256": "be7236860c2f0ba3ceb8d51e5684677d3575d4e29b72e2a6bc7289358d01cfab",
+      "goldSha256": "86c47892353745bdaae21438f771e15655f7ff89f3f73c6068ddab0375af33c6",
+      "predictionSha256": "1d0b9dac3f270b614f153cc41d0de930390ddafc3ee62278fc0d9f5966bf5e1c",
+      "metric": {
+        "gold": 18,
+        "predicted": 15,
+        "matched": 1,
+        "falsePositive": 14,
+        "falseNegative": 17,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]",
+          "[\"2\",\"5\"]",
+          "[\"2\",\"6\"]",
+          "[\"3\"]",
+          "[\"3\",\"1\"]",
+          "[\"3\",\"1\",\"A\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]",
+          "[\"1\",\"6\"]",
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"1\",\"C\"]"
+        ]
+      }
+    },
+    "PLAW-119publ44": {
+      "kind": "uslm",
+      "inputSha256": "b8a407bcc8e77ef7a5a7641e6e6012f792e499ee7b7ed9a487a424f803cbf000",
+      "goldSha256": "96062caaa64be761e8f473fb28ba6bc21997100c7c237856e5226fb9b10e4216",
+      "predictionSha256": "85ea0fc9bf5aefba3f2402640eb09f9f4e898f6e6a0ce00ca64a59cce7a04076",
+      "metric": {
+        "gold": 270,
+        "predicted": 237,
+        "matched": 3,
+        "falsePositive": 234,
+        "falseNegative": 267,
+        "exactRanges": 1,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 31,
+        "matchedHeadings": 1
+      },
+      "samples": {
+        "missing": [
+          "[\"101\"]",
+          "[\"102\"]",
+          "[\"103\"]",
+          "[\"103\",\"a\"]",
+          "[\"103\",\"a\",\"1\"]",
+          "[\"103\",\"a\",\"1\",\"A\"]",
+          "[\"103\",\"a\",\"1\",\"B\"]",
+          "[\"103\",\"a\",\"2\"]",
+          "[\"103\",\"a\",\"2\",\"A\"]",
+          "[\"103\",\"a\",\"2\",\"B\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"B\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"2\",\"A\"]",
+          "[\"1\",\"a\",\"2\",\"B\"]",
+          "[\"1\",\"a\",\"2\",\"C\"]",
+          "[\"1\",\"a\",\"2\",\"C\",\"i\"]",
+          "[\"1\",\"a\",\"2\",\"C\",\"ii\"]"
+        ]
+      }
+    },
+    "PLAW-119publ45": {
+      "kind": "uslm",
+      "inputSha256": "0e05cf5ec7f06c5decda031ff987ee1676aeb05a04e0ecc0f9180e20e5d3ca1b",
+      "goldSha256": "cbee3dada40e33902dd153f32eddbc419e8811aca7c6b247b19f1c0f7e5670b9",
+      "predictionSha256": "b82238f35c69844ebb62d06411485c6c517f0b1f16f83e98335cb9b177eb807a",
+      "metric": {
+        "gold": 4,
+        "predicted": 3,
+        "matched": 1,
+        "falsePositive": 2,
+        "falseNegative": 3,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ46": {
+      "kind": "uslm",
+      "inputSha256": "afafc4950e1a96e88c60defe7018bd8ca0ed41db401dde27ed82ecb4f0f9136f",
+      "goldSha256": "8e538c2296e362c57a80f9a3cec43fe3e5c7e42108a8d4e614db7f5b9796d9f6",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 4,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 4,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"1\"]",
+          "[\"2\"]",
+          "[\"2\",\"A\"]",
+          "[\"2\",\"B\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ47": {
+      "kind": "uslm",
+      "inputSha256": "cf292cb4faf12eb9078a06c9b8bbde5fddd801777a2d44a9b0ff1cebc0190be0",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ48": {
+      "kind": "uslm",
+      "inputSha256": "febd2e5ee45a597e5aef9fe25a76efc9372b142eb2cca7393492b465f2eab24a",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ49": {
+      "kind": "uslm",
+      "inputSha256": "a369704d538e0b61a0ff477fddd41d86bdcac222ea866cce9e4375fda2726133",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ50": {
+      "kind": "uslm",
+      "inputSha256": "50201e9cfee4ee249afd3453dec53ce2d44bea65e00af63ddc928d50b024dace",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ51": {
+      "kind": "uslm",
+      "inputSha256": "218ec9baa0704a553bca3ff8e18c9b9b9ffaf9aea5013a5be7fdcd9c01310ae8",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ52": {
+      "kind": "uslm",
+      "inputSha256": "d8c4637bfad1a56d53ff7e645fd00d937cc8ec04237280064fb353f427a19760",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ53": {
+      "kind": "uslm",
+      "inputSha256": "5524ee6896fc8d8d6df3a60754a095f9459aaa9e74f9876c6d9043a395d1ed77",
+      "goldSha256": "f6d6724abf5fec1c506aad991af1f8d293c350b7f9770c13a85f1d046ac21f2c",
+      "predictionSha256": "fdeb981ee5ddbf3b435dc334b8b424714a258fbe6e55f056789cc6c00fc2af5d",
+      "metric": {
+        "gold": 46,
+        "predicted": 41,
+        "matched": 1,
+        "falsePositive": 40,
+        "falseNegative": 45,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"3\",\"A\"]",
+          "[\"2\",\"3\",\"B\"]",
+          "[\"2\",\"3\",\"C\"]",
+          "[\"2\",\"3\",\"D\"]",
+          "[\"2\",\"3\",\"E\"]",
+          "[\"2\",\"3\",\"F\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"3\",\"A\"]",
+          "[\"1\",\"3\",\"B\"]",
+          "[\"1\",\"3\",\"C\"]",
+          "[\"1\",\"3\",\"D\"]",
+          "[\"1\",\"3\",\"E\"]",
+          "[\"1\",\"3\",\"F\"]",
+          "[\"1\",\"3\",\"G\"]"
+        ]
+      }
+    },
+    "PLAW-119publ54": {
+      "kind": "uslm",
+      "inputSha256": "78f41f4cce2aa88b6d15a81bdf100d626aade93994e689913c379a9932aaaeef",
+      "goldSha256": "8e2202b039fa665fb82e68bff3030fd411b8ce47cc93e0eda9ae5fe9b810d8f8",
+      "predictionSha256": "a461df41ac0f01b8d436a3a86f25d668d0119857fec6219c5dd2a7e2ae698d94",
+      "metric": {
+        "gold": 4,
+        "predicted": 3,
+        "matched": 1,
+        "falsePositive": 2,
+        "falseNegative": 3,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]"
+        ]
+      }
+    },
+    "PLAW-119publ55": {
+      "kind": "uslm",
+      "inputSha256": "8b0d27e47cd0d364b061f2ce4552f898227858b7d0bce27b71e2e5112f07c805",
+      "goldSha256": "8a7a14a39c4eff843cd61e179b501e5d61f688db51de1d70794037b1e0aaa882",
+      "predictionSha256": "191d09526fb129ff5ed1835b23361e8bad04f45dd24ec7beb592fd61d74f26f8",
+      "metric": {
+        "gold": 12,
+        "predicted": 11,
+        "matched": 1,
+        "falsePositive": 10,
+        "falseNegative": 11,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"3\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"1\",\"A\"]",
+          "[\"2\",\"b\",\"1\",\"B\"]",
+          "[\"2\",\"b\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"1\",\"A\"]",
+          "[\"1\",\"b\",\"1\",\"B\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ56": {
+      "kind": "uslm",
+      "inputSha256": "ec50a90b459523769f068a0311df1b0f799b5b3e9f9b7c8695d079a31a4b4234",
+      "goldSha256": "2528a1d9d582cfb303498afbddf944b718c38f7e64952547803b064bf31cc0b8",
+      "predictionSha256": "eca229e09b3153b9df7a6d606f7d356abbfa1fdd7eb6b46d6f948857a56eda27",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ57": {
+      "kind": "uslm",
+      "inputSha256": "3834a1e6338310221e34fe75e5c759ef18a5781123badd7dfa3f930e1f427115",
+      "goldSha256": "6c74321e43f5600ea7e3b50e9ba954142006c47e2b2068f438f9053d80a4aecc",
+      "predictionSha256": "16249eaa965f318010833558f70c1fc795ff0b11e60d578cd651259a86f421ab",
+      "metric": {
+        "gold": 13,
+        "predicted": 5,
+        "matched": 1,
+        "falsePositive": 4,
+        "falseNegative": 12,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"3\"]",
+          "[\"3\",\"1\"]",
+          "[\"3\",\"2\"]",
+          "[\"4\"]",
+          "[\"5\"]",
+          "[\"6\"]",
+          "[\"7\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ58": {
+      "kind": "uslm",
+      "inputSha256": "a0d1eec4967411c2ab74c87cfe840e6190595b42dff52d3692da531c581ee83f",
+      "goldSha256": "3d96d0a1409182c44a0e1b0e94e60d6a3a2306f998a0c83baae0b3e870cfc8d8",
+      "predictionSha256": "7ee2b5d1e5b5cf4f10631a44e4224d14f2d18144fff136a35f7f3ee72b204a09",
+      "metric": {
+        "gold": 32,
+        "predicted": 29,
+        "matched": 1,
+        "falsePositive": 28,
+        "falseNegative": 31,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"1\",\"A\"]",
+          "[\"2\",\"a\",\"1\",\"B\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"1\",\"A\"]",
+          "[\"2\",\"b\",\"1\",\"B\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"B\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"1\",\"A\"]",
+          "[\"1\",\"b\",\"1\",\"B\"]",
+          "[\"1\",\"b\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ59": {
+      "kind": "uslm",
+      "inputSha256": "9a86c11adceaaea7d5e4443564465c91af6dfbc470fbeb133686b17939db0b25",
+      "goldSha256": "94ee0b46bf3502b61b81a613afa0c902adcd5a9cbb994577a0ef6ad1a251115a",
+      "predictionSha256": "6d729b70769ba980d3964f2e57460d3625a36b6eb865a814494c502fcc1aff7e",
+      "metric": {
+        "gold": 3,
+        "predicted": 3,
+        "matched": 3,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 3,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 3,
+        "matchedHeadings": 1
+      }
+    },
+    "PLAW-119publ61": {
+      "kind": "uslm",
+      "inputSha256": "ec7e7cc09c5820950a49c431a67673ae83ea7eb1861256669206914f81225126",
+      "goldSha256": "40cd877ddc06f7af9dd8886195af26bc9015848f42ca3199a1861435264ad354",
+      "predictionSha256": "f6042b1b6393d8da7b40f3bb7ae24c8887fd48a4aa4a2244105425a5343e90c0",
+      "metric": {
+        "gold": 20,
+        "predicted": 18,
+        "matched": 1,
+        "falsePositive": 17,
+        "falseNegative": 19,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"1\",\"A\"]",
+          "[\"2\",\"1\",\"B\"]",
+          "[\"2\",\"1\",\"C\"]",
+          "[\"2\",\"1\",\"D\"]",
+          "[\"2\",\"1\",\"E\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"1\",\"C\"]",
+          "[\"1\",\"1\",\"D\"]",
+          "[\"1\",\"1\",\"E\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"4\",\"a\"]"
+        ]
+      }
+    },
+    "PLAW-119publ62": {
+      "kind": "uslm",
+      "inputSha256": "78046d193ff4e7044eb795750cfdd5f3b0dccac1a789b1ca703ef6da6efc9af3",
+      "goldSha256": "78637f1f39ea89605d97925526c1ead44ca75ade126325be7ffcc96aa007ee85",
+      "predictionSha256": "2b76e194e825f5291623959625af9b9e497d1b2657ac4782fff8c44a97733fda",
+      "metric": {
+        "gold": 81,
+        "predicted": 75,
+        "matched": 1,
+        "falsePositive": 74,
+        "falseNegative": 80,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"2\",\"A\"]",
+          "[\"2\",\"2\",\"B\"]",
+          "[\"2\",\"2\",\"C\"]",
+          "[\"2\",\"2\",\"D\"]",
+          "[\"2\",\"2\",\"E\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"2\",\"A\"]",
+          "[\"1\",\"2\",\"B\"]",
+          "[\"1\",\"2\",\"C\"]",
+          "[\"1\",\"2\",\"D\"]",
+          "[\"1\",\"2\",\"E\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]"
+        ]
+      }
+    },
+    "PLAW-119publ63": {
+      "kind": "uslm",
+      "inputSha256": "ec2cf53fad6ad4ef0426bec43b56cb3d2fdce6ddfb068ecb7cb7e59605ec4f8b",
+      "goldSha256": "ca76b9040bc851d6a93d85fe3d680abf09f0f422f4b0b3c96df419f61026f20c",
+      "predictionSha256": "d28a7b7799d56ddb3738cf92789013195fe49d9fc01ddd0add78ad102d1a2f5d",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ64": {
+      "kind": "uslm",
+      "inputSha256": "84b7601ab351400e0f1a40a6be3f4fd0551b58093eaffc464b43ffc3c481940f",
+      "goldSha256": "d2a1bf262f90ee0fce086b7ce3f8415c58786afc36217e741b9c7d02a1b31077",
+      "predictionSha256": "161bee4ac87b2cad14369c258b93aeccf571404f15f6716da7fa38666a1c22b9",
+      "metric": {
+        "gold": 10,
+        "predicted": 9,
+        "matched": 1,
+        "falsePositive": 8,
+        "falseNegative": 9,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"1\",\"A\"]",
+          "[\"2\",\"b\",\"1\",\"B\"]",
+          "[\"2\",\"b\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"1\",\"A\"]",
+          "[\"1\",\"b\",\"1\",\"B\"]",
+          "[\"1\",\"b\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ65": {
+      "kind": "uslm",
+      "inputSha256": "7201bc8152e4bc36fe081bff218570cd58562b75a7ec5e0daee4c06410f13d71",
+      "goldSha256": "30b594da6957df92fb9bb62133af7794710d185f65266e4bf45280a6eb185e6a",
+      "predictionSha256": "cc12888ac45a7a193a3e6ad5d0d68d8380b4237c389252b39cf28f3fab6dbc76",
+      "metric": {
+        "gold": 74,
+        "predicted": 69,
+        "matched": 1,
+        "falsePositive": 68,
+        "falseNegative": 73,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"b\",\"3\"]",
+          "[\"2\",\"b\",\"3\",\"A\"]",
+          "[\"2\",\"b\",\"3\",\"A\",\"i\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"3\"]",
+          "[\"1\",\"b\",\"3\",\"A\"]",
+          "[\"1\",\"b\",\"3\",\"A\",\"i\"]",
+          "[\"1\",\"b\",\"3\",\"A\",\"ii\"]"
+        ]
+      }
+    },
+    "PLAW-119publ66": {
+      "kind": "uslm",
+      "inputSha256": "c4c8073a50d3f29c3c0c9aabb6ce5a5f3d0fd2a1b2aa5660d453170baa3c58f5",
+      "goldSha256": "df9a951c20f9b6413f070ecd3a636819648821cfdb11802cb1e8c45ac6a5b8b0",
+      "predictionSha256": "20d801a8898e64ea56a4802dafe2e6db20f639fc2ab50863655aa851a6cac9e9",
+      "metric": {
+        "gold": 7,
+        "predicted": 5,
+        "matched": 1,
+        "falsePositive": 4,
+        "falseNegative": 6,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"3\"]",
+          "[\"3\",\"1\"]",
+          "[\"3\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ67": {
+      "kind": "uslm",
+      "inputSha256": "f20e767b5a47712c5ec3130e1686579eee4160db8459026fcc53dd35747a2f78",
+      "goldSha256": "6c67990e972ae4b7a0bbc3886d88a7279ef9944895f3346f8b42259727255358",
+      "predictionSha256": "c9a65f2ecaaef1cebf42f274061dbf97d227ef55941cef299ebc6f71d481af29",
+      "metric": {
+        "gold": 2,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 1,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]"
+        ],
+        "extra": []
+      }
+    },
+    "PLAW-119publ68": {
+      "kind": "uslm",
+      "inputSha256": "e992af182cf1208719a2b21c765476182cd7ff6dbd6d1cf48e746b28f6a91589",
+      "goldSha256": "c1cb047822a0198559c828c3abb2f6e2dff73890dbb04cc424fa7e6a6637b4e8",
+      "predictionSha256": "bc87b098e257d83cd98b72b0e73c4166eafdc8bf9ef6b3c09df37613f401c504",
+      "metric": {
+        "gold": 34,
+        "predicted": 32,
+        "matched": 1,
+        "falsePositive": 31,
+        "falseNegative": 33,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"b\"]",
+          "[\"3\",\"b\",\"1\"]",
+          "[\"3\",\"b\",\"1\",\"A\"]",
+          "[\"3\",\"b\",\"1\",\"B\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"3\",\"a\"]",
+          "[\"1\",\"3\",\"b\"]",
+          "[\"1\",\"1\"]",
+          "[\"1\",\"1\",\"A\"]",
+          "[\"1\",\"1\",\"B\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"2\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ69": {
+      "kind": "uslm",
+      "inputSha256": "d8a2d23772bda9feef787d2ddd1acb99047b9d284d3543c03b6eb2a77d23de0f",
+      "goldSha256": "edee1b428d386fe0e2d17ad77129a742f9dd560fd97c7d8e56b4a7abbdb9438c",
+      "predictionSha256": "395ced807a47a7e54ff4ee477bf4017db0df56dcbdf01e6f0eb3ffdf6d479a86",
+      "metric": {
+        "gold": 16,
+        "predicted": 14,
+        "matched": 1,
+        "falsePositive": 13,
+        "falseNegative": 15,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"1\",\"A\"]",
+          "[\"2\",\"a\",\"1\",\"B\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"3\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"B\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"a\"]"
+        ]
+      }
+    },
+    "PLAW-119publ70": {
+      "kind": "uslm",
+      "inputSha256": "4356a11fc54e624f6592f2bf59250bd092d8308c2b75ea0e6df4e19a37b5e880",
+      "goldSha256": "19b151fad02a6edb52a48845eb9cf278b76de2a72273f41abc4b8b13528c2caf",
+      "predictionSha256": "6d05c6ad2076d985472100f62a974650098e2b39ff291f6ee8fc1d759c36e7d5",
+      "metric": {
+        "gold": 6,
+        "predicted": 4,
+        "matched": 1,
+        "falsePositive": 3,
+        "falseNegative": 5,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"3\",\"1\"]",
+          "[\"3\",\"2\"]",
+          "[\"3\",\"3\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]"
+        ]
+      }
+    },
+    "PLAW-119publ71": {
+      "kind": "uslm",
+      "inputSha256": "8435cdd0cb27c87bdc00193de0485527b7ec89cb6057a177db42da23783e9cba",
+      "goldSha256": "1629613fba67d85e87d84ac1415618d3659327989a098a825d084775cc897b8a",
+      "predictionSha256": "163cbf32ae50ef3a79778678aa03c8f94587241bd8a0d2c4bf81d767b928c0fb",
+      "metric": {
+        "gold": 19,
+        "predicted": 18,
+        "matched": 1,
+        "falsePositive": 17,
+        "falseNegative": 18,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"a\",\"1\"]",
+          "[\"2\",\"a\",\"1\",\"A\"]",
+          "[\"2\",\"a\",\"1\",\"B\"]",
+          "[\"2\",\"a\",\"2\"]",
+          "[\"2\",\"a\",\"2\",\"A\"]",
+          "[\"2\",\"a\",\"2\",\"B\"]",
+          "[\"2\",\"a\",\"2\",\"C\"]",
+          "[\"2\",\"a\",\"2\",\"D\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"1\",\"A\"]",
+          "[\"1\",\"a\",\"1\",\"B\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"2\",\"A\"]",
+          "[\"1\",\"a\",\"2\",\"B\"]",
+          "[\"1\",\"a\",\"2\",\"C\"]",
+          "[\"1\",\"a\",\"2\",\"D\"]",
+          "[\"1\",\"a\",\"2\",\"E\"]"
+        ]
+      }
+    },
+    "PLAW-119publ72": {
+      "kind": "uslm",
+      "inputSha256": "65d395314a76294710c6ec9bfb8ae069ebe0920631b8679ba5d65bc66510265d",
+      "goldSha256": "47f42008e91ffba049916f867f2456880d22350827b14a276ebc9be744ae5c35",
+      "predictionSha256": "6924a1f3d52006bb0048c5c94fd59f1695b9a48fc1a5c3f0a1b264d771c58962",
+      "metric": {
+        "gold": 5,
+        "predicted": 4,
+        "matched": 1,
+        "falsePositive": 3,
+        "falseNegative": 4,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]"
+        ]
+      }
+    },
+    "PLAW-119publ73": {
+      "kind": "uslm",
+      "inputSha256": "e388da2c5d10121c90a75e03033e22b6b2105e12be60856f3d19903f946eda0c",
+      "goldSha256": "ea15cbcfb61e97dbe297ab6701f6c29fb029bd5ba5de5cba68e03d4641c191a7",
+      "predictionSha256": "e7701ff22b43a38bf66119abb51a17add285cb809930d0b65b7f4184b3722b10",
+      "metric": {
+        "gold": 30,
+        "predicted": 23,
+        "matched": 1,
+        "falsePositive": 22,
+        "falseNegative": 29,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"3\"]",
+          "[\"3\",\"a\"]",
+          "[\"3\",\"a\",\"1\"]",
+          "[\"3\",\"a\",\"2\"]",
+          "[\"3\",\"a\",\"2\",\"A\"]",
+          "[\"3\",\"a\",\"2\",\"B\"]",
+          "[\"3\",\"a\",\"2\",\"C\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"2\",\"A\"]",
+          "[\"1\",\"a\",\"2\",\"B\"]",
+          "[\"1\",\"a\",\"2\",\"C\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ74": {
+      "kind": "uslm",
+      "inputSha256": "31c6cfb0e6ea49771c8888405a9fd569f9d8eee5fe8d50217d19eb7a8a33f0ee",
+      "goldSha256": "a91ce869586cd14eaaacc97667089122964ec0e935be9e4885ae457688fd9855",
+      "predictionSha256": "d194cebf74995aec305e474b731382b6b9ec06851304bb61b6dfbd18a18b8f9d",
+      "metric": {
+        "gold": 197,
+        "predicted": 489,
+        "matched": 1,
+        "falsePositive": 488,
+        "falseNegative": 196,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"4\"]",
+          "[\"5\"]",
+          "[\"501\"]",
+          "[\"502\"]",
+          "[\"503\"]",
+          "[\"504\"]",
+          "[\"505\"]",
+          "[\"505\",\"a\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]",
+          "[\"1\",\"6\"]",
+          "[\"1\",\"7\"]",
+          "[\"1\",\"8\"]",
+          "[\"1\",\"9\"]",
+          "[\"1\",\"10\"]"
+        ]
+      }
+    },
+    "PLAW-119publ75": {
+      "kind": "uslm",
+      "inputSha256": "a737baf04143886ca8bcb6f6b768bf141e1e92e118ffe70bc6990ed5cce2fd6a",
+      "goldSha256": "34ab932d2dcd2bc9bd3ca44e15e9f78e7a3a4c0e1517f984e849d4f01672bb60",
+      "predictionSha256": "a3de60dd0faa08bfb73e3a3459aea9c83e996359f42f516dc59e19992554327a",
+      "metric": {
+        "gold": 2233,
+        "predicted": 2671,
+        "matched": 1,
+        "falsePositive": 2670,
+        "falseNegative": 2232,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"3\"]",
+          "[\"4\"]",
+          "[\"5\"]",
+          "[\"6\"]",
+          "[\"8001\"]",
+          "[\"8002\"]",
+          "[\"8003\"]",
+          "[\"8004\"]",
+          "[\"8005\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"c\"]",
+          "[\"1\",\"a\"]",
+          "[\"1\",\"a\",\"1\"]",
+          "[\"1\",\"a\",\"2\"]",
+          "[\"1\",\"a\",\"3\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]"
+        ]
+      }
+    },
+    "PLAW-119publ76": {
+      "kind": "uslm",
+      "inputSha256": "097e453fb9234e2f01c21365859e3ae9231f0357c92c2b988d54a7971800bb89",
+      "goldSha256": "b17422a101ff7e208b8509c5798dd3669e6d24daf92455b74ac3933336efd2de",
+      "predictionSha256": "e76f66daecc81d10a3bb7990b705a84f1028ea36eae346c5630a62839db8f082",
+      "metric": {
+        "gold": 71,
+        "predicted": 66,
+        "matched": 1,
+        "falsePositive": 65,
+        "falseNegative": 70,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"1\"]",
+          "[\"2\",\"2\"]",
+          "[\"2\",\"3\"]",
+          "[\"2\",\"4\"]",
+          "[\"2\",\"5\"]",
+          "[\"2\",\"6\"]",
+          "[\"2\",\"7\"]",
+          "[\"2\",\"8\"]",
+          "[\"2\",\"9\"]"
+        ],
+        "extra": [
+          "[\"1\",\"1\"]",
+          "[\"1\",\"2\"]",
+          "[\"1\",\"3\"]",
+          "[\"1\",\"4\"]",
+          "[\"1\",\"5\"]",
+          "[\"1\",\"6\"]",
+          "[\"1\",\"7\"]",
+          "[\"1\",\"8\"]",
+          "[\"1\",\"9\"]",
+          "[\"1\",\"9\",\"A\"]"
+        ]
+      }
+    },
+    "PLAW-119publ77": {
+      "kind": "uslm",
+      "inputSha256": "ae43714036cacd900643457a40a4c582789cc52c8f635b533d505d6c9384db77",
+      "goldSha256": "76428b5b2f9574bdfcc1ecfffc2fa0caa549f0025b67268a682c176f03fd26a5",
+      "predictionSha256": "a622b402123f5bf0c6a56eb6238da527d6ea97b80eaa884aae031bf3f2bcced7",
+      "metric": {
+        "gold": 5,
+        "predicted": 4,
+        "matched": 1,
+        "falsePositive": 3,
+        "falseNegative": 4,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"c\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"c\"]"
+        ]
+      }
+    },
+    "PLAW-119publ78": {
+      "kind": "uslm",
+      "inputSha256": "8070e36f9a22be0eff4d54953f067db28922990483695ce2f12433ac23fd2ef4",
+      "goldSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "predictionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "metric": {
+        "gold": 0,
+        "predicted": 0,
+        "matched": 0,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 0,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 0,
+        "matchedHeadings": 0
+      }
+    },
+    "PLAW-119publ79": {
+      "kind": "uslm",
+      "inputSha256": "21063c13b4c4c2000579d60808aadaa2642a5acfbf2b1988b19748d6b08688ae",
+      "goldSha256": "38b80e9ce5685ea2e7439d4a386e86c646caa5fd4f36d7c6512c03405d188304",
+      "predictionSha256": "cc00b1aebe4b6d1ee8c74baf8920e3f437d23c112c7df6d6923af5ae8f9c5b6b",
+      "metric": {
+        "gold": 18,
+        "predicted": 17,
+        "matched": 1,
+        "falsePositive": 16,
+        "falseNegative": 17,
+        "exactRanges": 0,
+        "exactOrder": false
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      },
+      "samples": {
+        "missing": [
+          "[\"2\"]",
+          "[\"2\",\"a\"]",
+          "[\"2\",\"b\"]",
+          "[\"2\",\"b\",\"1\"]",
+          "[\"2\",\"b\",\"2\"]",
+          "[\"2\",\"b\",\"2\",\"A\"]",
+          "[\"2\",\"b\",\"2\",\"A\",\"i\"]",
+          "[\"2\",\"b\",\"2\",\"A\",\"ii\"]",
+          "[\"2\",\"b\",\"2\",\"B\"]",
+          "[\"2\",\"b\",\"2\",\"B\",\"i\"]"
+        ],
+        "extra": [
+          "[\"1\",\"a\"]",
+          "[\"1\",\"b\"]",
+          "[\"1\",\"b\",\"1\"]",
+          "[\"1\",\"b\",\"2\"]",
+          "[\"1\",\"b\",\"2\",\"A\"]",
+          "[\"1\",\"b\",\"2\",\"A\",\"i\"]",
+          "[\"1\",\"b\",\"2\",\"A\",\"ii\"]",
+          "[\"1\",\"b\",\"2\",\"B\"]",
+          "[\"1\",\"b\",\"2\",\"B\",\"i\"]",
+          "[\"1\",\"b\",\"2\",\"B\",\"ii\"]"
+        ]
+      }
+    },
+    "PLAW-119publ80": {
+      "kind": "uslm",
+      "inputSha256": "367b5751ee0f17ad4909990349c4df3100ccd871ce362a817046a33024ea1b7e",
+      "goldSha256": "709dd24d54d9f7ec2f32dfb3870575aead056140fe575a527ce5367628f29c3c",
+      "predictionSha256": "75e9d1f315334acddf9563a7e46aedd6c174291e146c18538eef1fdc4389c870",
+      "metric": {
+        "gold": 1,
+        "predicted": 1,
+        "matched": 1,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "exactRanges": 1,
+        "exactOrder": true
+      },
+      "details": {
+        "matchedDepths": 1,
+        "matchedHeadings": 0
+      }
+    }
+  },
+  "uslmCounts": {
+    "files": 79,
+    "structural": 15269,
+    "identified": 8870,
+    "nums": 15521,
+    "headings": 7162,
+    "chapeaux": 2440,
+    "terms": 555,
+    "refs": 5105,
+    "refsOutsideQuotes": 4875
+  }
+}
