@@ -22,10 +22,12 @@ import {
 } from "./sourceDoc";
 import {
   findProvisionReferences,
-  type ProvisionReference,
 } from "./legalReferenceGrammar";
 import { deriveSourceStructureGraphs } from "./sourceStructureEngine";
-import { instrumentLineationHypothesesNative } from "./structureNative";
+import {
+  instrumentLineationHypothesesNative,
+  selectInstrumentLineationNative,
+} from "./structureNative";
 import { documentScalarOffsets, type StructureGraphV2 } from "./structureWire";
 
 export type SkeletonNodeKind =
@@ -254,20 +256,6 @@ function maskTableCells(text: string, cells: readonly TableCellSpan[]): string {
  * to each other are not this document's structure, and following one would
  * land a reader on a page number.
  */
-const MIN_HEAD_SPAN = 0.05;
-
-function headSpan(nodes: SkeletonNode[], length: number): number {
-  if (!length) return 0;
-  let low = Number.POSITIVE_INFINITY;
-  let high = -1;
-  for (const node of nodes) {
-    if (node.kind !== "section") continue;
-    if (node.start < low) low = node.start;
-    if (node.start > high) high = node.start;
-  }
-  return high < 0 ? 0 : (high - low) / length;
-}
-
 // ---------------------------------------------------------------------------
 // The contents page as an OUTLINE
 // ---------------------------------------------------------------------------
@@ -604,22 +592,6 @@ function lineationHypotheses(text: string): string[] {
  * targets that begin inside the reference span closes that loop; it costs
  * nothing real, because a genuine heading is somewhere else in the document.
  */
-function endorsement(doc: SourceDoc, references: ProvisionReference[]): number {
-  let landed = 0;
-  for (const reference of references) {
-    if (reference.external) continue;
-    const key = reference.shape === "roman" ? reference.aliasKey : reference.locator;
-    if (!key) continue;
-    const position = doc.index.get(key.toLowerCase());
-    if (position === undefined) continue;
-    const target = doc.blocks[position];
-    if (target.start >= reference.start && target.start < reference.end) continue;
-    landed += 1;
-  }
-  return landed;
-}
-
-
 /**
  * The alternate lineations above can only ADD line starts, so they can only add
  * candidate heads — but a spine competition is not monotone in its candidate
@@ -636,7 +608,7 @@ export interface CompileSkeletonOptions {
    * Default true, because the Library lane compiles PDF- and DOCX-derived
    * agreements and that is what lineation reconstruction exists for. Pass false for
    * text from an authoritative structured source, where the line breaks are
-   * the publisher's and there is nothing to recover — the A2AJ lane passes
+   * the publisher's and there is no lineation to reconstruct — the A2AJ lane passes
    * it so that legislation and case law cannot reach the competition BY
    * CONSTRUCTION rather than by a corpus diff showing they happened not to.
    *
@@ -654,7 +626,7 @@ export interface CompileSkeletonOptions {
    * would throw away the line breaks its extractor lost.
    */
   reconstructLineation?: boolean;
-  /** Exact native cells; plain text alone cannot recover table boundaries. */
+  /** Exact native cells; plain text alone cannot reconstruct table boundaries. */
   tableCells?: readonly TableCellSpan[];
 }
 
@@ -817,28 +789,21 @@ async function compileAgreementSkeletonUncached(
     allowHyphenatedSections: false,
     order: "legislation" as const,
   })));
-  const candidates = structures.map(({ materialized, graph }) =>
-    graphSkeleton(materialized.evidence.text, graph));
-  let best = candidates[0];
+  let selected = 0;
   if (hypotheses.length > 1) {
     const references = findProvisionReferences(text);
-    const docOf = (found: DiscoveredNodes) =>
-      createSourceDoc({
-        provider: null,
-        id,
-        text,
-        blocks: found.nodes.map(toBlock),
-      });
-    let bestScore = endorsement(docOf(best), references);
-    for (const candidate of candidates.slice(1)) {
-      if (headSpan(candidate.nodes, text.length) < MIN_HEAD_SPAN) continue;
-      const score = endorsement(docOf(candidate), references);
-      if (score > bestScore) {
-        best = candidate;
-        bestScore = score;
-      }
-    }
+    selected = selectInstrumentLineationNative(
+      text,
+      structures.map(({ graph }) => graph),
+      references.flatMap((reference) => {
+        if (reference.external) return [];
+        const key = reference.shape === "roman" ? reference.aliasKey : reference.locator;
+        return key ? [{ key, start: reference.start, end: reference.end }] : [];
+      }),
+    );
   }
+  const chosen = structures[selected];
+  const best = graphSkeleton(chosen.materialized.evidence.text, chosen.graph);
   const { schedules, ladder } = best;
   const nodes = addTableNodes(text, best.nodes, options.tableCells ?? []);
 

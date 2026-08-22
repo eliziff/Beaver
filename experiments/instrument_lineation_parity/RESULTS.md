@@ -23,6 +23,13 @@ lineation hypothesis generation from TypeScript into the shared Rust engine
 changed no bytes. Public skeleton behavior is additionally protected by the
 focused 46-test backend structure suite.
 
+The next ownership slice used the same 872-document surface in a temporary
+dual-execution build: Rust and the pre-deletion TypeScript selector chose the
+same winning graph for all 872 documents. That shadow pass completed in
+50.474 seconds. The TypeScript `headSpan` and `endorsement` selector was then
+deleted; provision-reference recognition remains outside the structure engine
+and enters the Rust selector only as typed `{ key, start, end }` evidence.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF

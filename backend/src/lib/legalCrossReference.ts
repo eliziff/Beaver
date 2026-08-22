@@ -116,7 +116,7 @@ const MIN_ADDRESSABLE_NODES = 3;
  * perfectly healthy document. Three of the 69 mini documents look like that,
  * one of them (Acacia Communications: 85 heads, 89 resolved) with no
  * segmentation help at all, so this is a defect in the shipped instrument
- * and not an artifact of recovery.
+ * and not an artifact of lineation reconstruction.
  *
  * The tell is that the graph has no REACH: every target lands inside a thin
  * prefix. Measured over the corpus the deepest resolved target sits at
@@ -143,7 +143,7 @@ export interface CrossReferenceOptions {
    * lineation reconstruction out — pass
    * `compileAgreementSkeleton(text, id, { reconstructLineation: false })` and the
    * competition cannot run. The default compile below is the Library
-   * extraction lane, where recovering lost line breaks is the point; there is
+   * extraction lane, where reconstructing lost line breaks is the point; there is
    * deliberately no second flag for it here.
    */
   skeleton?: AgreementSkeleton;
