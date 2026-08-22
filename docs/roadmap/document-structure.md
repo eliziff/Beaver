@@ -287,6 +287,9 @@ Every slice uses the same short loop:
 5. Rewire all production callers and delete the old path in the same cut.
 6. Run the slice's full corpus gate and record cold/warm performance.
 
+Each completed vertical cut must leave tracked source-and-test line count at
+or below its starting point; record the Git numstat with the parity receipt.
+
 Legacy code may exist only as an independent experiment/test oracle until its
 cut passes. No production old/new coexistence is introduced. A repair begins
 from a named mismatch or measured hotspot, not from an architectural hunch.
