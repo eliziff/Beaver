@@ -409,103 +409,101 @@ detectors encapsulated.
 The matrix is a constraint, not a score sheet. A family may contribute at most
 one vote to a circumstantial proof, and its absence normally contributes none.
 
-## Historical ownership analysis
+## Current code-backed ownership analysis
 
-The repository-extraction proposal in this section is superseded. Its useful
-boundary finding remains: format-specific extraction emits typed evidence,
-while format-neutral detection and resolution must have one owner.
+Three independent audits on 2026-08-22 traced the Rust core, Beaver callers,
+and PDF pipeline. This section records what the code actually does; the active
+execution order is in [Shared document structure](../roadmap/document-structure.md).
 
-The current `legal-structure` crate is format-neutral but physically trapped
-inside `legal-pdf-parser`. Phase 2 makes that ownership real by moving it to a
-new public `legal-structure` subrepository. Reuse the established name; do not
-invent a second engine or a differently named facade around it.
+### Rust core
 
-- `legal-pdf-extraction-processor` and `legal-pdf-ocr` own extracted geometry,
-  text, spans, painted/raster separator observations, and source identity.
-- `legal-pdf-structure` owns only PDF-dependent evidence: furniture, tables,
-  columns, printed-page geometry, typography, note regions, flow proposals,
-  and translation of those facts into shared witness summaries.
-- `legal-pdf-pairing` retains the geometry-dependent note reference/body
-  pairer. Its format-neutral label grammar, citation checks, and relation
-  result types move to the shared repository.
-- The new `legal-structure` subrepository owns citation grammar, text-only
-  candidate detection, sequence/hierarchy selection, witness resolution,
-  evidence validation, the structure graph, SourceDoc projection, and thin
-  Node/Python bindings.
-- `rust/src/structure.rs` remains orchestration only: PDF evidence in, shared
-  graph out. It contains no citation, paragraph, section, heading, or note
-  detector.
-- Provider fetch, retrieval, storage, UI, document mutation, and URL resolution
-  stay in their consumers. The structure repository never imports Beaver,
-  AuthoritiesHelper, ALR, a provider client, SQLite, or an OCR/model runtime.
+| Current surface | Actual use | Decision |
+| --- | --- | --- |
+| `DocumentInput` in `legal-structure/src/lib.rs:286` | Detectors consume identity/text, source kind/options, native claims, complete-role clipping, exclusions, and break positions. `units` and all geometry/layout/style fields are validation-only; `NativeClaim.provider_order` and break strength/neighbours are unused. | Keep it as the internal source-fact seam, contracted to document ID/text/source hash/scope/origins/native claims/coverage/exclusions. Move detector options to typed capability inputs. PDF geometry, DOCX styles, journal regions, and grids never become optional fields on one universal DTO. |
+| `infer_graph` in `legal-structure/src/derive.rs` | Materializes provider/profile detector `Block`s, assigns IDs/parents, clips against coverage, and creates graph nodes/relations. | Delete after selected facts use the final assembler. |
+| `resolve_structure_graph` in `legal-structure/src/candidates.rs` | Independently materializes PDF candidate runs, notes, lists, parents, relations, and diagnostics. Its only production semantic caller is `legal-pdf-structure/src/structure.rs`. | Delete the public generic resolver. PDF keeps its exact role decisions and emits selected facts to the same policy-free assembler. |
+| `StructureGraphV2` | Duplicates parent/`Contains`, references/`FootnoteFor`, node ends/boundaries, and PDF paragraphs/notes; `Precedes` has no emitter. It cannot hold the mature definition, reference, TOC, table, proposition, provenance, and source-map products without becoming a bag. | Replace with `DocumentStructure` in one cutover, not a wrapper or compatibility alias. |
+| `ScalarText` in `legal-structure/src/lib.rs` | Already owns the useful scalar/byte/UTF-16 checkpoints and line table. Other adapters/projectors repeat smaller converters. | Keep the name and implementation; move it to `text.rs`, then absorb only converters proved identical by Unicode/whitespace vectors. |
+| `select_numeric_sequence` in `legal-structure/src/numeric_sequence.rs` | Has two real callers: rooted case paragraphs and PDF footnote backbone. They share a DP but differ in start, predecessor, penalty, and winner rules. | Do not make it the architecture and do not split it gratuitously. Retain unless an exact side-by-side implementation is smaller. |
+| `instrument_contents_outline` in `legal-structure/src/instrument.rs` | The literal Rust port is returned by the production `deriveInstrumentStructure` operation. The TypeScript detector and standalone native export are gone. Across 124 agreements plus 748 PDFs, lineation and contents were byte-identical over 1,221,262 lines. | Keep it inside the single instrument analysis call. Preserve the locked differential whenever its lineation, whitespace, or UTF-16 machinery changes. |
+| A2AJ/native-markup/journal modules | Already passed the accepted 323,374-row SourceDoc cutover. | Preserve their literal parsers/reconciliation. Change their output ownership; do not design a third adapter. |
+| SourceDoc composer/projector | Uses `original_claims` and per-block field-order variants to round-trip provider blocks through graph materialization. | Keep one serializer/index/range builder and bounded format egress rules; remove canonical `SourceDocBlock -> claim -> graph -> SourceDoc` round trips. |
 
-The existing `legal-structure-store` is deliberately not part of the new
-subrepository. Complete the already-recorded installer check: if a real
-provider installer consumes it, move that writer/reader behind the consumer's
-persistence port; otherwise delete it. A structure-only repository does not
-own a cache database.
+`CoverageState::Absent` and `Augment` are operationally identical: only
+`Complete` changes inference clipping. Authority affects the owning detector,
+not assembly. A2AJ legislation, for example, consumes native top-level
+sections while finding children and supplements incomplete maps. Final
+capability inputs therefore state exact native facts and explicit suppression
+ranges; the assembler never invents generic native-versus-heuristic policy.
 
-### Dependency direction
+### Beaver and provider callers
+
+| Current path | Repeated work / wrong ownership | Final disposition |
+| --- | --- | --- |
+| `legalTextSkeleton.ts` | Converts Rust sections into `AgreementSkeleton`, builds another SourceDoc, then runs TS TOC, definitions, table materialization, and a weak cross-reference summary. | Port the remaining mature detectors, return canonical facts once, and delete the skeleton representation. |
+| `legalCrossReference.ts` | Re-scans references and resolves over the skeleton with real ambiguity, depth, integrity, reach, and abstention rules. | Port literally into typed provision-reference outcomes. Keep traversal/depth as consumer queries. |
+| `docxStructuralLint.ts` | Reopens `word/document.xml` even though `DocxSession.document()` already owns accepted paragraph text; it also repeats number/reference/definition scans. | Reuse one session. Rust emits facts; TS retains severity, messages, excerpts, small-gap/restart policy, and output caps. |
+| `sourceDoc.ts` | Mixes construction/index/range summaries with legitimate locator/range/quote queries. | Rust owns construction; keep the light TS lookup, slicing, address, token, and phrase-query functions. |
+| `legalDocumentNavigator.ts` | Mostly query syntax and bounded traversal; page-marker parsing is a fallback over Beaver-rendered text. | Keep queries, not a second navigation representation. Delete the marker fallback only after caller closure. |
+| A2AJ tools | Provider structure is flattened, then compiled again as an instrument skeleton and cross-reference graph. | Query the one provider structure result; never de-detect authoritative provider facts. |
+| CourtListener/TNA | CourtListener may derive twice; TNA reparses markup for cited `<ref>` rows after Rust parsed it. | Select the rendition before the call; one Rust markup traversal emits text, structure, and cited-reference facts. |
+| `legalStructureSidecar.ts` | Stores duplicate skeleton and cross-reference DTOs while reusing useful hashing/single-flight/atomic ideas already present in the projection layer. | Store one canonical structure through the existing application/persistence boundary and delete the structure-specific DTO/cache. |
+| `legal-structure-store` + `sourceDocCache.ts` | Not dead: A2AJ local bulk runtime reads its SQLite SourceDocs. | Rebuild producer/reader together around canonical structure, preserve resume/atomic promotion, then delete the old schema/reader. Core owns no store. |
+| `sourcedoc-jsonl.ts`/`sourcedoc_client.py` | AuthoritiesHelper, citator, stress, and probes cross Node/tsx; the Authorities compiler-string expectation is already mismatched. | Replace every caller with the direct Python binding, then delete rather than repair the protocol. |
+
+`documentProjectionService.read` remains Beaver's byte/file projection host.
+It already bounds and hashes inputs, opens one `DocxSession`, keeps the typed
+spreadsheet grid, invokes PDF preparation, and single-flights immutable
+versions. It and the existing acquired-provider adapters must call one typed
+structure host after their distinct extraction/fetch steps. Do not widen the
+file service with provider request variants or add a second analyzer. Keep
+`documentProjection.ts` as the existing local path/lock/atomic-receipt owner;
+do not pretend it is already a generic cloud projection repository.
+
+### PDF
+
+| Current duplication | Code-backed decision |
+| --- | --- |
+| `PdfTextIndex` joins every ordered raw line, while PDF SourceDoc creates page markers, cleaned paragraph text, separators, and appended notes. | These are genuinely different text planes. Keep an explicit raw-to-semantic map; never substitute one for the other. |
+| One accepted note becomes `Footnote`, anchor/sentinel values, `NotePairClaim`, marker rows, graph nodes, and inverse relations. | Keep pair-search/audit state private, but emit one typed paired-note semantic fact and derive projections. |
+| `marker_summary` is a clone of `pairing_summary`. | Own one summary; any duplicate legacy field is test-only serialization. |
+| Protected citation spans are computed twice and `PairLine` clones line text/layout facts. | Build typed line facts once; share only the exact protection product after a 1,221,262-line differential. |
+| `LegalDocument` owns pages, paragraphs, footnotes, tables, images, and graph, while SourceDoc/lookup build more semantic units. | Raw pages/tables/images remain PDF artifacts. Paragraph/note semantics live in `DocumentStructure`; source mapping/format metadata refer to node IDs. |
+| Later `source_doc` and `structure_lookup` contract operations call the parser again, normally loading cache, and Beaver uses child-process JSON. | Return structure plus optional SourceDoc from the original parse and query that artifact. Delete the later parse/transport seams. |
+| `build_document` withholds authoritative extracted tables/images from structure. | Pass the complete `ExtractedPdf`; add stable artifact references before claiming product parity. |
+
+PDF keeps extraction, OCR, geometry, reading order, columns, furniture,
+printed folios, headings, table/image detection, note regions, and
+geometry-backed note pairing. The shared crate owns the final semantic model,
+text-only capabilities actually reused outside PDF, coordinate primitives,
+and SourceDoc serialization. Similar outputs do not erase this dependency
+boundary.
+
+### Dependency and repository direction
 
 ```text
-legal-citations (leaf; grammar + exact text spans)
-        |
-        v
-legal-structure (evidence schema + detectors + graph + SourceDoc)
-        |
-        +--> legal-structure-node   --> Beaver/backend
-        +--> legal-structure-python --> ALR / AuthoritiesHelper
+legal-structure
+  +-- legal-structure-node    --> Beaver
+  +-- legal-structure-python  --> AuthoritiesHelper / citator / ALR
 
-legal-pdf-parser  --------> legal-citations + legal-structure
-legal-browser-ocr --------> legal-structure evidence types
-DOCX language code -------> legal-citations
+legal-pdf-parser --------> legal-structure
+Beaver provider/DOCX/grid adapters --> one typed Node operation
 ```
 
-No arrow points back toward PDF, OCR, a product, or a provider. The Python and
-Node packages contain conversion and error mapping only. Rust callers use the
-library directly; Node and Python callers cross an in-process boundary once
-per document or batch, never once per line, citation, or footnote.
+`packages/legal-grammar-tables` remains the sole authored portable grammar
+corpus (currently 72 entries/296 vectors). Protected spans, citation signals,
+provision references, full citation parsing, and citation splitting are not
+presumed to be one scanner or one crate. Share the corpus and only the exact
+proved match product. No current dependency cycle justifies a separate
+`legal-citations` package.
 
-### Minimal subrepository shape
-
-The new repository needs only:
-
-- `legal-citations`: one leaf Rust crate and the sole authored legal grammar
-  corpus;
-- `legal-structure`: one Rust crate containing the format-neutral engine,
-  split into ordinary source modules rather than the current giant `lib.rs`;
-- `legal-structure-node`: the existing N-API binding, kept thin; and
-- `legal-structure-python`: a thin PyO3 binding so ALR and Authorities use the
-  same in-memory implementation without a subprocess adapter.
-
-Do not add a service, plugin API, generalized rule language, separate schema
-crate, repository-local store, or compatibility crate. Capability features on
-`legal-structure` keep schema-only, recovery, SourceDoc, and provider-adapter
-builds small without multiplying engines.
-
-### Move, retain, and delete map
-
-| Current owner | Target owner | Action |
-| --- | --- | --- |
-| `legal-pdf-parser/legal-structure` evidence schema, numeric selector, recovery grammars, graph, SourceDoc | new `legal-structure` crate | Move with history and exact behavior; split by responsibility only after the move differential is green. |
-| `legal-pdf-support/pairing_support.rs` citation spans, cues, reporter inventory, normalization | `legal-citations` | Move and replace the boolean helper variants with projections of one scan result. |
-| `pairing_support.rs` enumerator interpretation and heading ladder/text grammar | `legal-structure` | Move; PDF typography remains a PDF evidence input. |
-| `legal-pdf-language/deterministic_citations.rs` splitting and field extraction | `legal-citations` | Move the deterministic syntax and exact-range behavior; DOCX package mutation stays in `legal-pdf-language`. |
-| PDF and shared grammar-table copies, including McGill/US reporter data | `legal-citations/data` | Reconcile once, retain provenance/vectors, then delete every consumer copy. Bindings call Rust and do not ship independent JSON grammars. |
-| `legal-pdf-parser/legal-structure-node` | new subrepository binding | Move unchanged first, then expose citation batches through the same native package. |
-| `legal-pdf-parser/legal-structure-store` | provider installer/persistence owner or deletion | Do not move into the structure repository. |
-| PDF geometry, column arbitration, separators, table/form recognition, furniture, printed labels, region classification | `legal-pdf-parser` | Retain. Emit typed observations/witnesses rather than final duplicate semantics. |
-| PDF geometry-dependent note pairer | `legal-pdf-pairing` | Retain. Consume shared citation spans and emit shared note/reference/proposition relations. |
-| backend `citationKey.ts` and local detection regexes | none after native cutover | Delete after exact key/span differential. |
-| AuthoritiesHelper citation parsing/field regexes | none after Python cutover | Delete; TOA grouping, review, fields, and Word rendering remain product behavior. |
-| ALR deterministic citation and format-neutral A2AJ/CourtListener structure copies | none after Python cutover | Use as the reference oracle during qualification, then delete the displaced code. |
-| ALR provider lookup, rate governance, workbook workflow, URL policy, review UI, and product-specific quote decisions | ALR | Retain; these consume shared typed results and are not structure-engine behavior. |
-| Text-Fidelity OCR/Codex repair | OCR/repair producer | Retain its algorithms; Phase 3 changes its evidence/output seam, not its ownership. |
-
-If a private primitive needs reuse, expose a compact typed result from its
-owner. Do not copy its logic into orchestration. During extraction, the old
-implementation may execute only as a frozen differential oracle; no released
-product contains both paths or a fallback flag.
+Once the final API and corpus gates pass, extract the existing
+`legal-structure` directory with history into its public repository. Move the
+authored grammar package unchanged if the released crate needs to own it. Do
+not create a facade, copied implementation, service, plugin API, rules
+language, schema crate, repository store, or compatibility package. Rust
+callers link directly; Node/Python cross one in-process boundary per document,
+never once per line, note, or citation.
 
 ## Cross-phase failure traps
 
@@ -521,7 +519,7 @@ Any row below blocks promotion; none is a “follow-up cleanup.”
 | Provider-native facts are flattened and re-inferred | Coverage/authority differential rejects loss or heuristic replacement of a native claim. |
 | ALR “parity” checks mocks or aggregate counts only | Real accepted inputs, full installed provider corpora where applicable, and exact public-output diffs are mandatory. |
 | An aggregate gain hides a class/source regression | Metrics are reported per structure/citation role and held-out source family; missing truth permits only parity or explicit adjudication. |
-| Codex/model output is treated as native or authoritative text | Typed operation validator and source-accounting gate reject unanchored or unapproved changes before structure analysis. |
+| Luna/model output is treated as native or authoritative text | Typed operation validator and source-accounting gate reject unanchored or unapproved changes before structure analysis. |
 | Journal success is mistaken for ontology generality | Non-journal expressivity gate covers decisions, legislation, forms, tables, navigation, transcripts, bilingual flows, and endnotes. |
 | Note pairing and reading order endorse each other circularly | The addendum accepts only order-invariant pairs and ranks existing order candidates after the main cutover. |
 | Benchmark improvements come from changed denominators, caches, or resumes | Frozen manifests, fresh cache namespaces, complete failure accounting, and end-to-end wall time are part of every receipt. |
@@ -643,7 +641,21 @@ If incompatible roles each have circumstantial proof and neither has direct
 evidence, abstain. Preserve exact text, pages, physical prose boundaries, and
 diagnostics. Do not expose an invented legal locator.
 
-## Retained PDF witness-resolver requirements
+## Retained witness-resolution requirements, proved first in PDF
+
+The witness principles above are not PDF principles. DOCX styles/numbering,
+provider roles, OCR regions, and plain-text flow may also need multiple typed
+facts before assigning a semantic role. What is PDF-specific is the current
+public implementation: `CandidateEvidenceV2` requires page/line IDs, all nine
+observations are computed from PDF facts, and its veto rules would be wrong
+for authoritative markup or native DOCX lists. Preserve the method, not that
+false boundary.
+
+Each owning detector may use compact private candidates and witness-family
+summaries. Extract shared resolution code only after a second real caller has
+the same candidate, evidence-family, role, incompatibility, and abstention
+semantics and the extraction deletes duplicated code. Missing evidence is
+neutral; raw geometry/styles/provider payloads never enter a generic bag.
 
 ### 1. Freeze the baseline and primitive map
 
@@ -665,32 +677,35 @@ diagnostics. Do not expose an invented legal locator.
 - Remove the universal post-hoc `instrument` section assignment rather than
   wrapping it in another adapter.
 
-### 3. Add the small shared resolver and PDF witness adapter
+### 3. Keep witness resolution beside the owning capability
 
 - Assemble compact witness-family summaries from existing PDF primitives in
   `legal-pdf-structure`.
 - Apply only direct exclusions and strongly proven non-note suppressions before
   pairing.
 - Pair notes once with the canonical Rust pairer.
-- Pass those typed summaries and pair relations to the current format-neutral
-  `legal-structure` crate and resolve each marker level once using the
-  principles and proofs above.
+- Resolve each PDF marker level once using the principles and proofs above;
+  initially keep that policy private to the PDF capability because it has no
+  second semantically identical caller.
 - Preserve one rule code and the authorizing typed observations for every
   changed heuristic result.
+- If a non-PDF capability later proves the same decision table, move only that
+  exact table and its small typed summary into shared Rust. Do not make the PDF
+  enum the universal vocabulary.
 
 The target is a few hundred lines of orchestration. A generalized rule engine,
 configuration language, plugin system, iterative optimizer, or second graph is
 out of scope.
 
-### 4. Materialize through the existing graph
+### 4. Materialize through the final structure
 
 - Preserve physical pages and prose paragraphs.
 - Add real numbered-paragraph, section/provision, list, navigation, footnote,
   and endnote nodes only when proven.
 - Preserve heading levels, page labels, source line IDs, footnote pairs,
   propositions, and containment/reference relations.
-- Use the existing structure evidence graph rather than a PDF-only parallel
-  result shape.
+- Emit selected facts and irreducible relations to the one policy-free
+  `DocumentStructure` assembler rather than a PDF-only parallel result shape.
 
 ### 5. Corpus qualification
 
@@ -741,110 +756,106 @@ The old code is an oracle only while the new repository is being proved. Do
 not regenerate a frozen oracle after extraction starts, teach the candidate to
 call the oracle, or retain either implementation as a shipping fallback.
 
-### Make the shared citation scanner the single citation utility
+### 2.2 Characterize citation products before sharing scans
 
-The existing grammar corpus, deterministic splitter, corrected Canadian/UK/US
-reporter inventories, and ALR reference behavior are source material. This is
-one parser with two useful entry points, not separate detection and splitting
-engines:
+The authored grammar corpus, corrected Canadian/UK/US inventories,
+deterministic splitter, and ALR behavior are shared source material. They do
+not prove that every citation-shaped product is one scan. The current products
+have materially different contracts:
 
-```rust
-scan(text, options) -> CitationDocument
-split_units(ordered_units, context, options) -> Vec<CitationSplit>
-```
+| Product | Required result |
+| --- | --- |
+| PDF protected spans | Exact negative guard ranges used by heading/note detectors; conservative overlap behavior is load-bearing. |
+| Citation signal/density | A bounded structural witness. Counts and thresholds matter; full identity fields may not. |
+| Provision references | Intra-document target syntax, owning-instrument context, ambiguity, reach/integrity refusal, and resolution reasons. |
+| Full legal citations | Reporter/family identity, normalized lookup key, pinpoints, overlap choice, and surface ranges. |
+| ALR/DOCX citation splitting | Lossless authority-part boundaries, fields, attached quote/pinpoint/reference signals, and ordered supra/ibid context. |
 
-`CitationDocument` contains exact Unicode-scalar ranges, surface text,
-grammar/family ID, citation kind, normalized lookup key, pinpoint subranges,
-protected ranges, and enough aggregate counts to calculate density without a
-second scan. `split_units` invokes that same scanner and receives ordered prior
-citation context explicitly, so supra/ibid chains cannot depend on hidden
-global state or one-call-per-footnote choreography. `CitationSplit` contains
-exact source ranges for authority parts, their fields and attached
-quote/pinpoint/reference signals, plus an explicit `complete`, `partial`, or
-`abstain` status. Concatenating its retained ranges and delimiters must account
-for every input character.
+Before merging two scans, compare their text plane, accepted ranges, boundary
+rules, overlap policy, context/state, and consumers over the union of their
+vectors. Share the authored grammar entry or the exact lower-level span scan
+when that comparison passes. Otherwise keep the products distinct. Do not
+invent a `CitationDocument` mega-result merely to make them look unified.
 
-The utility owns:
+The eventual shared Rust capability may expose more than one operation. It
+must still batch documents/notes, reuse an exact shared scan where one exists,
+and never cross Node/Python once per note or citation. Ordered prior citation
+context is explicit so supra/ibid behavior cannot depend on hidden global
+state. Every split accounts for every input character and reports complete,
+partial, or abstain.
 
-- citation and reference-chain span recognition;
-- citation kind and grammar-family classification;
-- deterministic overlap and boundary resolution;
-- normalization and lookup-key generation;
-- pinpoint and citation-bearing-unit boundaries;
-- deterministic citation-part splitting and field extraction; and
-- optional family filtering for a caller with known jurisdictional scope.
+Provider lookup, authority identity confirmation, network calls, URL choice,
+DOCX mutation, TOA grouping, workbook policy, review UI, and rendering remain
+consumer/product work. A provider result may confirm or enrich a parsed
+identity; it may not create a citation boundary retroactively.
 
-Filtering selects entries from the same parser and grammar data. `all` is the
-ordinary default; `us`, `canadian`, or another family is not a forked parser.
+Canonical Rust/result offsets are Unicode scalars. Detector internals may use
+typed UTF-8 byte ranges for exact slicing through the existing `ScalarText`
+boundary table; Node egress emits explicitly labelled UTF-16 offsets and
+Python uses Unicode-scalar/code-point offsets. Astral characters, combining
+marks, CRLF, and normalization are differential vectors. Normalization is
+comparison metadata only and never changes surface text or source ranges.
 
-The utility does not own provider lookup, authority identity confirmation,
-network calls, URL selection, DOCX mutation, TOA grouping, workbook policy,
-review UI, or rendering. A provider result may confirm or enrich a parsed
-identity, but it may not create a citation boundary retroactively.
+### 2.3 Keep format-neutral detection in one engine without one mega-ingress
 
-The PDF engine scans document text once and projects those ranges onto source
-lines once. Footnote pairing, heading rejection, note/TOA evidence, citation
-density, and citation lookup reuse the same `CitationDocument`; boolean helpers
-become trivial queries over it. DOCX and ALR submit all note texts in a batch.
-No normal product call crosses a language boundary per note or citation.
+The `legal-structure` crate owns the final `DocumentStructure`, scalar-offset
+accounting, format-neutral grammars/detectors, internal role resolution,
+SourceDoc construction, and the literal A2AJ, native-markup, and journal
+adapters already proved by the provider cutover.
 
-Core offsets are Unicode scalars. The Node binding converts once to explicitly
-labelled UTF-16 offsets; Python uses Unicode-scalar/code-point offsets. Both
-bindings have astral-character, combining-mark, CRLF, and normalization tests.
-Normalization is comparison metadata only and never changes surface text or
-source ranges.
+It does not expose the current `StructureEvidenceV1`/`DocumentInput`-style bag
+of optional units, geometry, styles, layouts, claims, coverage, exclusions,
+and profiles. Each source adapter supplies the small native facts its detector
+actually consumes. PDF geometry, DOCX styles, journal regions, and spreadsheet
+cells retain typed owners rather than becoming nullable fields on a universal
+DTO.
 
-### 2.4 Move every format-neutral structure detector
+Candidate shape and semantic role remain different operations. Format-neutral
+marker/hierarchy grammars may emit local candidates. A small internal
+witness-family summary may be shared by PDF, DOCX, plain text, and OCR when
+they genuinely make the same role decision. It carries accepted primitive
+claims such as body flow, hierarchy, direct note pairing, navigation, or a
+proven exclusion; it never carries raw bounding boxes or a feature dump. An
+adapter with authoritative provider structure emits a direct source claim and
+does not manufacture circumstantial witnesses. Missing families are neutral.
 
-The shared `legal-structure` crate owns:
+An owning capability's resolver applies the relevant fixed independence,
+incompatibility, containment, authority, and abstention rules recorded above.
+Source-specific code computes
+facts such as columns, typography, note bands, table membership, printed
+folios, Word style/numbering, or provider tags; the resolver never recreates
+those facts from flattened text. A detector with genuinely domain-specific
+selection policy may resolve its own role and submit the selected fact. Shared
+resolution is admitted only when at least two callers have the same candidate,
+witness, role, and refusal semantics and the extraction deletes duplicated
+logic.
 
-- `StructureEvidenceV1`, validation, coverage, origins, exclusions, and exact
-  scalar-offset accounting;
-- text-only marker/enumerator, heading-shape, paragraph/provision/list,
-  note-label, reference, and restart candidates;
-- the shared numeric sequence selector and hierarchy grammar;
-- witness-family resolution that does not inspect PDF model types;
-- graph nodes and containment, sibling, continuation, reference, pair,
-  proposition, and reading-flow relation types;
-- SourceDoc projection and exact lookup indexes; and
-- the literal A2AJ, CourtListener/native-markup, and journal evidence adapters
-  already proved by the SourceDoc cutover.
+One policy-free assembler then validates ranges/anchors, assigns stable IDs
+and order, resolves declared parents, checks containment/cycles/authority
+conflicts, and exact-deduplicates selected facts. It does not score candidates,
+pair notes, scan text, or choose native versus inferred output. SourceDoc is an
+optional projection of the resulting structure, not a second detector.
 
 The journal contract remains literal: `pages.jsonl` contributes only its
 exported facts, while plaintext is split only at standalone printed
 `[page <label>]` markers and emits pages only. The shared engine must not infer
 journal paragraphs or other structure from that plaintext adapter.
 
-The principal document operation accepts the one precomputed citation scan:
+The public boundary remains one typed operation returning structure and
+optional SourceDoc. Rust/PDF callers link directly; Node and Python callers
+cross their binding once per document. Candidates, witness summaries, and
+resolver choreography are private Rust implementation details, not a wire
+protocol.
 
-```rust
-analyze(evidence, citations, options) -> { structure_graph, diagnostics }
-```
-
-Citation-only consumers call `legal-citations` directly. A convenience
-`analyze_document(evidence, options)` may scan once and call `analyze`. PDF uses
-the explicit form: scan once, let the geometry pairer query those spans, add
-its pair witnesses, then pass the same `CitationDocument` to `analyze`.
-`analyze` rejects a citation text-hash mismatch. This prevents both a second
-scan and the cycle in which structure changes the citation evidence that
-created it. `compose_source_doc` remains a projection of that result, not a
-second detector.
-
-PDF-dependent code may propose column flow, typography, note bands, table
-cells, printed labels, and geometry-backed pairs, then pass typed witnesses to
-the shared resolver. It may not assign a competing semantic spine. Conversely,
-the shared resolver never reads a bounding box to rediscover columns or note
-bands.
-
-### 2.5 Harvest ALR's reference behavior without importing the product
+### 2.4 Harvest ALR's reference behavior without importing the product
 
 ALR Quote Verifier is the reference implementation for several primitives.
 Classify each one before moving code:
 
 | ALR behavior | Shared destination | What remains in ALR |
 | --- | --- | --- |
-| Deterministic citation splitting, field extraction, quote/pinpoint attachment, supra/ibid syntax | `legal-citations` | Product mode choice and presentation of unresolved parts. |
-| A2AJ and CourtListener native/flat structure composition | `legal-structure` adapters and recovery | Provider credentials, fetch/cache, identity lock, rate policy, and URL choice. |
+| Deterministic citation splitting, field extraction, quote/pinpoint attachment, supra/ibid syntax | shared Rust citation capability after its product differential | Product mode choice and presentation of unresolved parts. |
+| A2AJ and CourtListener native/flat structure composition | existing `legal-structure` adapters and same-kind supplementation | Provider credentials, fetch/cache, identity lock, rate policy, and URL choice. |
 | Numbered paragraph/section detection and exact locator ranges | `legal-structure` | Selection of which provider document to inspect. |
 | Reference-to-note and note-to-proposition boundaries | shared graph relations | Workbook columns, review policy, and prose shown to the user. |
 | Format-neutral quote-span extraction, exact source matching, boundary refusal, and locator projection | shared deterministic evidence helpers in `legal-structure` | Deciding which authority is trusted, remote retrieval, status wording, and workbook workflow. |
@@ -856,11 +867,12 @@ port only the missing behavior with its fixtures and provenance. If behavior
 is product policy, leave it in ALR. Do not mechanically move the monolithic ALR
 workflow into the neutral repository.
 
-### 2.6 Bindings and release provenance
+### 2.5 Bindings and release provenance
 
 - Rust/PDF callers link the crates directly; this is the corpus-speed path.
-- The Node binding accepts and returns ordinary batched objects in process. It
-  contains no grammar, caching, retry, or provider code.
+- The Node binding accepts and returns the one document operation in process.
+  It contains no grammar, caching, retry, or provider code and exposes no
+  candidate/witness protocol.
 - The Python binding exposes the same batch operations through a platform
   wheel that PyInstaller can bundle. It contains no Python fallback parser.
 - Each binding reports engine commit, grammar hash, schema version, enabled
@@ -871,9 +883,9 @@ workflow into the neutral repository.
   the release gate verifies embedded provenance against the declared pin.
 
 This replaces manual ports with ordinary dependency updates. A citation or
-structure improvement is authored and tested once in `legal-structure`, then
-consumer contract suites exercise that same build. Generated bindings and
-packaged binaries are artifacts, not maintained alternate implementations.
+structure improvement is authored and tested once in the shared Rust package,
+then consumer contract suites exercise that same build. Generated bindings
+and packaged binaries are artifacts, not maintained alternate implementations.
 
 ### Shared citation/structure qualification
 
@@ -917,10 +929,11 @@ algorithms; replace the journal-shaped output boundary.
 
 Production ownership is explicit. PDF/OCR extraction, deterministic regioning,
 and validation of visual repair operations live with `legal-pdf-parser`'s OCR
-capability. The shared repository owns only the evidence types and structural
-analysis. Beaver or another host invokes an authorized model through its
-existing provider-neutral runtime operation; neither Rust core imports Codex
-or a model SDK. Text-Fidelity remains the reference/oracle until this vertical
+capability. The shared Rust engine owns only its internal witness vocabulary,
+role resolution, and final structure. Beaver or another host invokes an
+authorized model through its existing provider-neutral runtime operation;
+neither Rust core imports Luna/a model SDK nor exposes a universal evidence
+wire format. Text-Fidelity remains the reference/oracle until this vertical
 slice passes, not a hidden production checkout.
 
 ### 3.1 Freeze the current journal lane
@@ -935,31 +948,31 @@ slice passes, not a hidden production checkout.
 - Inventory every journal-specific field and every downstream consumer before
   declaring it generic, redundant, or obsolete.
 
-### 3.2 Use `StructureEvidenceV1` as the only ingress
+### 3.2 Materialize bounded repairs into the existing typed source lane
 
 Map existing outputs as follows:
 
-| Existing repair fact | Shared evidence shape |
+| Existing repair fact | Owning typed shape |
 | --- | --- |
-| page, region, line, word/span identity and geometry | `units` with stable IDs, source order, raw geometry, and origin |
-| OCR/source text quality | page/line quality evidence and diagnostics; never an implicit authority promotion |
-| region classification and membership | `region_layout` plus member line IDs |
-| line order/flow proposal | line layout order/flow evidence; final reading order remains a relation |
-| unnumbered prose boundary | `paragraph_breaks`; never a synthetic numbered paragraph |
-| source-authored page/heading/section/note fact | `native_claims` with explicit coverage |
-| model/detector heading, note, table, or list guess | proposal evidence with model/detector origin, never `native_claims` |
-| accepted keep/retype/retag/reorder/split/merge/suppress result | validated replacement units/evidence with before/after hashes and producer provenance |
+| page, region, line, word/span identity and geometry | existing PDF/OCR objects with stable IDs, source order, geometry, and origin |
+| OCR/source text quality | page/line quality facts and diagnostics; never an implicit authority promotion |
+| region classification and membership | existing typed region result plus member line IDs |
+| line order/flow proposal | existing typed order candidate; accepted reading order remains a source fact |
+| unnumbered prose boundary | selected boundary fact; never a synthetic numbered paragraph |
+| source-authored page/heading/section/note fact | direct source claim with explicit range/authority |
+| model/detector heading, note, table, or list guess | typed proposal with model/detector origin; never a source claim |
+| accepted keep/retype/retag/reorder/split/merge/suppress result | validated PDF/OCR replacement fact with before/after hashes and producer provenance |
 | unusable or contradictory area | explicit abstention/diagnostic; exact source anchors remain present |
 
-Run a field-by-field fit test before changing the schema. The model-facing
-repair request/response is a separate, typed PDF/OCR producer contract: it
-references immutable anchors and returns proposed operations. A deterministic
-validator either rejects those operations or materializes their effects into
-ordinary anchored evidence. `legal-structure` never interprets free-form model
-instructions. If an accepted relation or proposal still cannot be represented
-without lying about authority, add the smallest typed field required and
-version the contract. Do not encode the gap in an opaque metadata bag or
-mislabel a Codex/model proposal as native.
+Run a field-by-field fit test against the existing PDF/OCR types before adding
+one. The model-facing repair request/response is a separate, typed producer
+contract: it references immutable anchors and returns proposed operations. A
+deterministic validator either rejects those operations or materializes their
+effects into the ordinary PDF/OCR facts consumed by the detector lane.
+`legal-structure` never interprets free-form model instructions. If an accepted
+relation or proposal still cannot be represented without lying about
+authority, add the smallest typed source fact required. Do not reintroduce the
+discarded all-formats evidence DTO or mislabel a Luna/model proposal as native.
 
 The data flow is fixed:
 
@@ -969,16 +982,17 @@ source page + immutable anchors
   -> deterministic layout/structure proposals
   -> bounded repair request/response for unresolved cases
   -> deterministic operation validation and materialization
-  -> source-accounting and structure-evidence validation
-  -> StructureEvidenceV1
-  -> shared citation/structure analysis
-  -> graph + SourceDoc/PDF projections
+  -> ordinary typed PDF/OCR facts + source-accounting validation
+  -> internal shared witness summaries where role semantics match
+  -> selected facts -> DocumentStructure
+  -> optional SourceDoc and PDF projections
 ```
 
-OCR and Codex never emit a competing final SourceDoc. A Codex response is not
-evidence until the deterministic validator accepts and anchors it. The shared
-engine remains the only place that reconciles native claims, accepted
-proposals, exclusions, sequence, citations, and relations.
+OCR and Luna never emit a competing final SourceDoc. A Luna response is not an
+accepted fact until the deterministic validator anchors it. The shared engine
+remains the only place that resolves compatible source-neutral role evidence
+and assembles the final structure; PDF-specific extraction decisions stay in
+their typed owner.
 
 ### 3.3 Generalize the repair contract, not the detector count
 
@@ -996,7 +1010,7 @@ proposals, exclusions, sequence, citations, and relations.
 - Run deterministic document reconciliation first for furniture, page labels,
   sequences, hierarchy, note restarts/pairs, and cross-page continuations.
   Escalate only unresolved contradictions.
-- Keep model selection outside the ontology. The current Codex route is a
+- Keep model selection outside the ontology. The Luna route is a
   repair producer, not a semantic class or permanent provider dependency.
 
 The initial implementation should be an adapter plus prompt/schema revision,
@@ -1021,13 +1035,13 @@ Run gates in increasing breadth:
 5. **Shared-engine effects:** rerun deterministic PDF/provider/DOCX gates so a
    schema or resolver change cannot regress already-good native documents.
 6. **Held-out repair:** only after the above, run an explicitly authorized,
-   metered Codex repair experiment on source/template-held-out cases. Compare
+   metered Luna repair experiment on source/template-held-out cases. Compare
    against the unchanged deterministic lane and preserve partial results.
 
 Promotion requires complete anchor accounting, no unexplained text loss or
 duplication, acyclic order, valid relations, coherent sequence state, stable
 provenance hashes, and per-class non-regression. The three-minute target remains
-the deterministic 748-document digital-born run; OCR/Codex has a separate
+the deterministic 748-document digital-born run; OCR/Luna has a separate
 hardware/profile throughput receipt and cannot be hidden inside that number.
 
 ## Retained Phase 4: consumer cutover, ALR parity, and deletion
