@@ -11,6 +11,7 @@ import type { NativeMarkupSourceInput } from "./sourceDocNativeMarkup";
 
 type StructureAddon = {
   deriveStructures(documents: StructureEvidenceV1[]): unknown[];
+  instrumentLineationHypotheses(text: string): unknown;
   sourceDocs(requests: unknown[]): NativeSourceDoc[];
   sourceDocVersion(): number;
 };
@@ -44,11 +45,22 @@ function loadAddon() {
   const module = { exports: {} } as NodeModule;
   process.dlopen(module, filename);
   addon = module.exports as StructureAddon;
-  if (typeof addon.deriveStructures !== "function" || typeof addon.sourceDocs !== "function" ||
+  if (typeof addon.deriveStructures !== "function" ||
+      typeof addon.instrumentLineationHypotheses !== "function" ||
+      typeof addon.sourceDocs !== "function" ||
       typeof addon.sourceDocVersion !== "function") {
     throw new Error("Legal structure native module has an invalid API");
   }
   return addon;
+}
+
+export function instrumentLineationHypothesesNative(text: string): string[] {
+  const values = loadAddon().instrumentLineationHypotheses(text);
+  if (!Array.isArray(values) || values.length < 1 || values.length > 4 ||
+      values.some((value) => typeof value !== "string" || value.length !== text.length)) {
+    throw new Error("Legal structure native module returned invalid instrument lineation hypotheses");
+  }
+  return values;
 }
 
 export function sourceDocEngineVersion() {

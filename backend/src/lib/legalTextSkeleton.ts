@@ -1,6 +1,6 @@
 /**
  * Projects the shared Rust instrument graph into SourceDoc and augments it
- * with native tables, segmentation competition, a TOC outline, defined terms,
+ * with native tables, lineation competition, a TOC outline, defined terms,
  * and cross-references. Rust owns section, container, schedule, and enumerator
  * detection; this module must not duplicate that grammar.
  */
@@ -25,6 +25,7 @@ import {
   type ProvisionReference,
 } from "./legalReferenceGrammar";
 import { deriveSourceStructureGraphs } from "./sourceStructureEngine";
+import { instrumentLineationHypothesesNative } from "./structureNative";
 import { documentScalarOffsets, type StructureGraphV2 } from "./structureWire";
 
 export type SkeletonNodeKind =
@@ -140,8 +141,8 @@ function splitLines(text: string): Line[] {
 
 /**
  * The head vocabularies live here as named constants because TWO things
- * consume them: the per-line matchers below, and the segmentation recovery
- * that has to know where a head COULD begin. A recovery carrying its own
+ * consume them: the per-line matchers below, and lineation reconstruction
+ * that has to know where a head COULD begin. A competing implementation with its own
  * copy of the vocabulary would silently stop following the detector the
  * first time a jurisdiction, era or house style added a word — the same
  * drift `legalReferenceGrammar` was extracted to end.
@@ -201,21 +202,14 @@ function maskTableCells(text: string, cells: readonly TableCellSpan[]): string {
  * detect 78-111, and all seven are refused by the cross-reference integrity
  * gate.
  *
- * Recovery is OFFSET-EXACT by construction: the first space of an internal
+ * Lineation reconstruction is OFFSET-EXACT by construction: the first space of an internal
  * run is replaced by a newline and the rest of the run is kept, so the
  * recovered text is the same length as the original, character for
  * character, and differs from it only in whitespace. Every offset a node
  * discovered over it carries is therefore a valid offset in the original,
  * and the SourceDoc, defined terms and quote verification below are all
- * built from the ORIGINAL text regardless of which segmentation won.
+ * built from the ORIGINAL text regardless of which lineation won.
  */
-function recoverSpaceRuns(text: string): string {
-  return text.replace(
-    /(?<=\S)[ \t]([ \t]+)(?=\S)/gu,
-    (_match, rest: string) => `\n${rest}`,
-  );
-}
-
 /**
  * The other extraction dialect joins lines with a SINGLE space, leaving no
  * run to split on — At Home Group is 316k characters in 1,030 lines with
@@ -239,23 +233,16 @@ function recoverSpaceRuns(text: string): string {
  * heads instead of 272, while At Home goes 33 -> 96 with integrity 0.39 ->
  * 0.90 and BioTelemetry 0.75 -> 0.93.
  */
-const HEAD_WORD = `(?:${CONTAINER_WORDS}|${SECTION_WORDS}|${SCHEDULE_WORDS})`;
 /**
  * A terminator is whatever ends a printed line before a heading. Kept wide
  * on purpose — a full stop, a semicolon or colon in older drafting, and any
  * closing quote or bracket after one — because the point of the guard is the
  * ANTECEDENT, not the punctuation dialect.
  */
-const SENTENCE_JOIN_RE = new RegExp(
-  String.raw`(?<=[.;:][)\]"'”’»]?)[ \t]` +
-    String.raw`(?=${HEAD_WORD}\s+[IVXLCDM\d]|${DECIMAL_LABEL}\s+\S|\(\w{1,3}\)\s)`,
-  "gu",
-);
-
 /**
  * A real inventory of heads runs the length of the instrument. A table of
  * contents repeats every label inside a compressed prefix, and space-run
- * recovery reveals it preferentially — a contents line is padded with runs,
+ * reconstructed lineation reveals it preferentially — a contents line is padded with runs,
  * a body heading usually is not. Measured over the 69 mini documents the
  * separation is not close: the head span of a contents-only inventory is
  * 0.0077, 0.0079, 0.0083, 0.0122 of the document, the next inventory up is
@@ -299,7 +286,7 @@ function headSpan(nodes: SkeletonNode[], length: number): number {
  * Three properties make the split safe:
  *
  *   - `nodes` never sees it. This reader runs on the ORIGINAL text, outside
- *     the segmentation competition, and its output is never merged in.
+ *     the lineation competition, and its output is never merged in.
  *   - An entry has no span. `contentsLineStart` is the offset of the contents
  *     LINE; a consumer that wants the provision's text must resolve `label`
  *     through the real node inventory (`readSection`) or fail.
@@ -556,7 +543,7 @@ function readContentsRegion(text: string, from: number): ContentsOutline | null 
 
 /**
  * The document's table of contents, read as an outline. Deterministic, no
- * model calls, and independent of the segmentation competition — this runs on
+ * model calls, and independent of the lineation competition — this runs on
  * the text as given and never touches `nodes`.
  */
 export function readContentsOutline(text: string): {
@@ -593,17 +580,8 @@ export function readContentsOutline(text: string): {
  * first, so a tie always keeps what the extractor produced. Each is the same
  * length as the original and differs only in whitespace.
  */
-function segmentations(text: string): string[] {
-  const joined = text.replace(SENTENCE_JOIN_RE, "\n");
-  const hypotheses = [
-    text,
-    recoverSpaceRuns(text),
-    joined,
-    recoverSpaceRuns(joined),
-  ];
-  return hypotheses.filter(
-    (candidate, index) => hypotheses.indexOf(candidate) === index,
-  );
+function lineationHypotheses(text: string): string[] {
+  return instrumentLineationHypothesesNative(text);
 }
 
 /**
@@ -643,20 +621,20 @@ function endorsement(doc: SourceDoc, references: ProvisionReference[]): number {
 
 
 /**
- * The recoveries above can only ADD line starts, so they can only add
+ * The alternate lineations above can only ADD line starts, so they can only add
  * candidate heads — but a spine competition is not monotone in its candidate
  * set, and on a well-lineated document the added noise beats the real spine
  * (measured: CIT Group 105 sections -> 3, Bryn Mawr 78 -> 12). So the
- * segmentations COMPETE, on the same principle the shared spine uses one level
+ * lineations COMPETE, on the same principle the shared spine uses one level
  * down: the document decides. Ties go to the text as extracted.
  */
 export interface CompileSkeletonOptions {
   /**
    * Whether this text may have lost its line breaks to an extractor, and so
-   * whether the segmentation competition may run at all.
+   * whether the lineation competition may run at all.
    *
    * Default true, because the Library lane compiles PDF- and DOCX-derived
-   * agreements and that is what the recoveries exist for. Pass false for
+   * agreements and that is what lineation reconstruction exists for. Pass false for
    * text from an authoritative structured source, where the line breaks are
    * the publisher's and there is nothing to recover — the A2AJ lane passes
    * it so that legislation and case law cannot reach the competition BY
@@ -664,7 +642,7 @@ export interface CompileSkeletonOptions {
    *
    * The construction is not ceremony. Re-measured over the whole A2AJ English
    * statute corpus on 2026-07-31, the flag is NOT inert: 45 of 23,531
-   * statutes compile a different node inventory with the recovery on than
+   * statutes compile a different node inventory with reconstruction on than
    * with it off (2,923,700 nodes on, 2,924,267 off, 837 nodes of absolute
    * difference; the largest single move is the Criminal Code, 10,861 nodes
    * against 10,979). An earlier note here recorded that differential as
@@ -675,7 +653,7 @@ export interface CompileSkeletonOptions {
    * as a PDF is extraction output like any other, and passing false for it
    * would throw away the line breaks its extractor lost.
    */
-  recoverExtraction?: boolean;
+  reconstructLineation?: boolean;
   /** Exact native cells; plain text alone cannot recover table boundaries. */
   tableCells?: readonly TableCellSpan[];
 }
@@ -690,7 +668,7 @@ export interface CompileSkeletonOptions {
  * not.
  *
  * The key is not the text alone. `id` becomes `doc.id`, and
- * `recoverExtraction` genuinely changes the node inventory — 45 of 23,531
+ * `reconstructLineation` genuinely changes the node inventory — 45 of 23,531
  * A2AJ statutes compile differently with it on than off — so a key that
  * ignored either would serve one caller another caller's document.
  *
@@ -714,7 +692,7 @@ function skeletonCacheKey(
   return [
     sha256(text),
     id,
-    options.recoverExtraction === false ? "norecover" : "recover",
+    options.reconstructLineation === false ? "source-lineation" : "lineation-competition",
     options.tableCells?.length
       ? sha256(JSON.stringify(options.tableCells))
       : "nocells",
@@ -828,10 +806,10 @@ async function compileAgreementSkeletonUncached(
 ): Promise<AgreementSkeleton> {
   const lines = splitLines(text);
   const hypotheses =
-    options.recoverExtraction === false ? [text] : segmentations(text);
+    options.reconstructLineation === false ? [text] : lineationHypotheses(text);
   const structures = await deriveSourceStructureGraphs(hypotheses.map((hypothesis, index) => ({
     provider: null,
-    id: `${id || "legal-text"}#segmentation-${index}`,
+    id: `${id || "legal-text"}#lineation-${index}`,
     text: maskTableCells(hypothesis, options.tableCells ?? []),
     providerRevision: "legal-text-skeleton-v5",
     scope: { kind: "complete" as const },

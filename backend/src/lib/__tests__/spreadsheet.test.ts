@@ -71,7 +71,7 @@ describe("spreadsheetToLLMStructure", () => {
     const structure = await spreadsheetToLLMStructure(fixtureWorkbook());
     const skeleton = await compileAgreementSkeleton(structure.text, "workbook", {
       tableCells: structure.tableCells,
-      recoverExtraction: false,
+      reconstructLineation: false,
     });
 
     expect(skeleton.nodes.find((node) => node.label === "table:1")?.display).toBe(

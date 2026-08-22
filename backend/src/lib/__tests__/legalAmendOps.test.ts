@@ -460,7 +460,7 @@ describe("applyAmendOps: who says whether line breaks were lost", () => {
 
   it("refuses the same op when the caller says the breaks are the publisher's", async () => {
     const { ops } = parseAmendmentInstructions(instruction);
-    const result = await applyAmendOps(COLLAPSED, ops, { recoverExtraction: false });
+    const result = await applyAmendOps(COLLAPSED, ops, { reconstructLineation: false });
     expect(result.failures.map((f) => f.code)).toEqual(["target_not_found"]);
     expect(result.text).toBe(COLLAPSED);
   });

@@ -72,10 +72,10 @@ async function main() {
     // recovery on. They are different artifacts -- 45 of 23,531 statutes
     // compile differently -- so baking one leaves the other paying in full.
     const report = await bakeStructure(row.text, row.id, {
-      recoverExtraction: false,
+      reconstructLineation: false,
     });
     const recovered = await bakeStructure(row.text, row.id, {
-      recoverExtraction: true,
+      reconstructLineation: true,
     });
     baked += 1;
     totalMs += report.skeletonMs + report.graphMs;
