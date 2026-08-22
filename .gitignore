@@ -76,3 +76,12 @@ benchmarks/harvey-labs/**/__pycache__/
 benchmarks/harvey-labs/launchpad.html
 benchmarks/harvey-labs/launchpad_materials.json
 benchmarks/harvey-labs/results-quarantine/
+
+# Local Harvey taxonomy analysis outputs; regenerate from the tracked helpers.
+benchmarks/harvey-labs/_sweep_all.json
+benchmarks/harvey-labs/_taxonomy_*.json
+benchmarks/harvey-labs/_taxonomy_*.txt
+benchmarks/harvey-labs/_titles.txt
+
+# Raw local citation-split diagnostic output; durable findings live in RESULTS.md.
+original_details.jsonl
