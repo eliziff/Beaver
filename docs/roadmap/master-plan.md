@@ -92,85 +92,19 @@ These decisions are not open backlog items:
 
 ## Canonical legal-document stack
 
-Status: **Active exact port**
+Status: **Active exact Rust port and contraction**
 
-The permanent design is deliberately small:
+The governing design and execution gates are in
+[Shared document structure](document-structure.md). In short: light source
+adapters preserve provider-native facts, one Rust analysis pipeline owns every
+shared detector, `DocumentStructure` is the canonical result, SourceDoc is an
+optional projection, and Beaver invokes the pipeline once per immutable
+document version through `documentProjectionService`.
 
-```text
-API record ----------------------> thin provider adapter --+
-provider SQLite -- install-time adapter -------------------+--> Rust -> SourceDoc
-pages.jsonl ---------------------> literal journal adapter -+
-                                                             |
-                                                             +--> optional SourceDoc SQLite
-```
-
-The Rust library owns composition and recovery. Thin adapters own only the
-provider field mapping. An ordinary API caller passes one or many already-read
-records directly through the native function. A bulk installer may read a
-provider SQLite snapshot directly and call the same function per selected row;
-that is an install adapter, not a second engine or transport. One record and
-many records are the same function in a loop.
-
-`DocumentInput` contains canonical text, provenance, native claims, coverage,
-exclusions, and factual boundaries. Native facts always win. The exact port of
-the existing TypeScript recovery rules runs only for kinds explicitly marked
-absent or incomplete. `SourceDoc` is the only result.
-
-The journal adapter is especially literal. When `pages.jsonl` exists, copy its
-exported page, heading, section, note, annotation, and geometry facts; its
-`type: "text"` regions are the only native paragraph blocks. Otherwise, split
-the captured plaintext at standalone `[page <label>]` lines, remove those
-marker lines, and emit only native page blocks. Do not infer any structure from
-journal plaintext.
-
-Rust callers use the library directly. Node callers use one in-process native
-API over ordinary objects; Beaver does not stringify documents, spawn a
-sidecar, or project an intermediate graph. Standalone tools may accept and emit
-JSONL for interoperability. The optional store is a separate capability: it
-materializes exact final SourceDocs into SQLite during provider installation,
-then runtime lookup reads those rows directly. It never ships inside the core
-engine and never replaces the immutable provider snapshot.
-
-The stored row is identified by provider source key, source snapshot identity,
-and SourceDoc engine/schema version. A changed source or engine rebuilds it.
-Provider text already present in the immutable snapshot need not be copied into
-the SourceDoc store; it is reattached on lookup and the stored revision remains
-the integrity identity. No read-through heuristics, cache protocol, daemon,
-worker pool, provider-specific wire format, or separate bulk engine exists.
-
-Implementation order is a gate, not a suggestion:
-
-1. freeze the current TypeScript public bytes;
-2. port the same rules into Rust and pass the direct differential;
-3. connect existing provider repositories through thin adapters while the
-   TypeScript implementation remains available as the oracle;
-4. pass the integrated frozen-vector and full-corpus differential; and
-5. delete the superseded TypeScript implementation, then measure and remove
-   remaining overhead.
-
-No transport, corpus runner, provider database reader, or performance
-architecture is built before step 2 is green.
-
-Shipping remains capability-based: native-only composition, raw recovery,
-PDF, OCR, and layout can ship separately. A minimal artifact does not carry an
-unselected engine, model, or runtime.
-
-Acceptance:
-
-- all frozen A2AJ and CourtListener rows are byte-identical through the
-  integrated Rust path; every journal row satisfies the explicit native
-  `pages.jsonl` or page-only plaintext contract above;
-- the 1,500-PDF registry and full available DOCX corpus retain their exact
-  denominators and fail closed on the first unexplained delta;
-- journal work is only literal final-export consumption or plaintext page
-  marker removal and pagination;
-- structure is cheap enough that source I/O dominates; 0.8 seconds per 2,000
-  A2AJ records is not the target;
-- release builds remain below 15 seconds, with one to five seconds the target;
-- long runs use below-normal priority and remove disposable artifacts after
-  recording their compact receipts; and
-- the accepted cutover removes at least 300 more maintained production/test
-  nonblank lines than it adds, without deleting behavioral coverage.
+Neither the present provider silos nor Beaver's present consumer requests are
+compatibility constraints. Preserve useful behavior and detector quality, then
+replace the old calls, DTOs, duplicate representations, and granular native
+exports outright. Git retains the superseded plans and implementations.
 
 ## Implemented baseline
 
@@ -750,55 +684,26 @@ Acceptance:
 
 ### P1.1 Normalize all provider structure
 
-Status: **Active cutover**
+Status: **Part of the active shared-structure port**
 
-The observable `SourceDoc` behavior, native provider adapters, recovery rules,
-and parity fixtures already exist. This is an exact Rust port followed by a
-deletion, not a provider-infrastructure project.
+Provider acquisition remains provider-specific. A light adapter preserves its
+native structure and provenance as canonical evidence; missing structure then
+uses the same Rust detectors as every other source. Provider names never
+select duplicate detector implementations. Provider URLs and locators are
+attached at the edge after analysis.
 
-The rules are simple: preserve trustworthy provider structure exactly; recover
-only kinds declared missing; keep provider locators and provenance; and never
-turn geometry-derived prose slices into numbered legal paragraphs. Provider
-names select adapters, not detector algorithms.
-
-Acceptance:
-
-- The model can request a section/paragraph/page by normalized locator without
-  provider-specific URL logic.
-- A wrong inferred locator fails closed or is labeled approximate.
-- Every SourceDoc-producing provider and every mode it actually exposes has a
-  real captured pre-refactor baseline and exact public-output differential.
-  Mocked/synthetic rows are unit tests only and cannot satisfy provider parity.
-
-#### P1.1a Execution: the SourceDoc consolidation (adopted 2026-07-27)
-
-P1.1 is the provider-facing slice of the canonical legal-document stack above.
-Existing provider code keeps acquisition. Each adapter only translates an
-already-selected record into `DocumentInput`; the shared Rust library returns
-the final `SourceDoc`.
-
-Implementation order is deliberately short:
-
-1. freeze the real provider inputs and public SourceDoc bytes;
-2. port `DocumentInput -> SourceDoc` and the existing recovery rules exactly;
-3. prove the direct frozen 24-vector and full 323,374-row gates;
-4. replace each provider call with the smallest record translation while the
-   TypeScript implementation remains available for the integrated
-   differential;
-5. prove the same gates through the integrated Rust path; and
-6. delete the TypeScript wire, projector, detector, and transition tests last.
-
-Evidence handles remain valid because they bind final SourceDoc revision,
-locator, and text. There is no second provider rendition, graph DTO, or cache
-identity to reconcile.
+The exact port, Beaver invocation, corpus gates, and deletion standard are the
+single procedure in [Shared document structure](document-structure.md), not a
+separate SourceDoc consolidation.
 
 ### P1.2 Durable provider cache and bulk paths
 
 Status: **Active cutover**
 
-- Materialize exact final SourceDocs during provider installation into the
-  optional versioned SQLite output store described above. Runtime reads are
-  direct indexed lookups; a miss uses the same in-process Rust function.
+- Materialize the canonical `DocumentStructure` during provider installation
+  only where the measured lookup path needs an output store. Runtime derives
+  SourceDoc and other views from that row; it does not store a second detected
+  representation. A miss uses the same in-process Rust function.
 - Bind each output store to its provider snapshot identity and engine/schema
   version, preserve resumable bounded transactions, and replace completed
   stores atomically.
