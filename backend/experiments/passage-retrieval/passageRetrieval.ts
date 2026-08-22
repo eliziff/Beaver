@@ -423,13 +423,13 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
         const sourceDoc =
           options.mode === "clause"
             ? // A2AJ ships publisher line breaks, so there is no extraction
-              // damage to recover and the segmentation competition must not
+              // lineation damage to reconstruct and the lineation competition must not
               // run: legislation and case law keep the structure the
               // hardened statute/paragraph work gives them.
               (await compileAgreementSkeleton(
                 text,
                 `${String(row.id)}:${language}`,
-                { recoverExtraction: false },
+                { reconstructLineation: false },
               )).doc
             : await deriveA2AJSourceDoc({
                 citation,

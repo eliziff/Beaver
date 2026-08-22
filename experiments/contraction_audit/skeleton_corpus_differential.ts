@@ -7,7 +7,7 @@ type SkeletonModule = {
   compileAgreementSkeleton: (
     text: string,
     id?: string,
-    options?: { recoverExtraction?: boolean },
+    options?: { reconstructLineation?: boolean },
   ) => unknown | Promise<unknown>;
   clearSkeletonCache?: () => void;
 };
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
   const results: Result[] = [];
   const hypothesis = mode?.match(/^--hypothesis=(\d)$/u)?.[1];
   const options = mode === "--no-recovery" || hypothesis
-    ? { recoverExtraction: false }
+    ? { reconstructLineation: false }
     : undefined;
   for (const [index, file] of files.entries()) {
     const original = await fs.readFile(file, "utf8");
