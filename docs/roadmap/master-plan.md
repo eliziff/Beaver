@@ -66,10 +66,11 @@ These decisions are not open backlog items:
     cloud data-port constructors satisfy one compiler-enforced persistence
     contract. Routes, tools, DTOs, events, pagination semantics, and the
     automatically parameterized conformance suite are shared.
-14. One immutable document version may have several narrow authoritative
-    projections: `SourceDoc` for linear legal text, a typed grid for tables,
-    a raw-preserving DOCX session, and the neutral PDF artifact. Beaver does
-    not replace source bytes with a universal lossy AST.
+14. `DocumentStructure` is the one canonical semantic result for an immutable
+    document version. `SourceDoc` is its optional linear legal-text projection;
+    typed grids, raw-preserving DOCX sessions, and neutral PDF artifacts remain
+    authoritative format objects rather than duplicate semantic models. Beaver
+    does not replace source bytes with a universal lossy AST.
 15. Every assistant view and provider uses one turn engine, executable tool
     registry, resource plane, and event contract. Specialist tools load by
     exact name; Beaver never ranks tool schemas from prompt similarity.
@@ -84,11 +85,11 @@ These decisions are not open backlog items:
     implementation in the same vertical slice. Production retains no legacy
     alias, fallback, compatibility DTO, dual read/write, migration framework,
     or transition flag; Git is the rollback mechanism.
-18. Rust artifacts are capability-scoped. Provider-native structure composition
-    and raw-text recovery can ship independently, and each Legal PDF Parser
-    artifact explicitly selects PDF, language, OCR, or layout capabilities.
-    Protocol handshakes fail closed when a required capability is absent; a
-    minimal artifact never carries an unselected engine, model, or runtime.
+18. The deterministic structure/citation core ships as one coherent capability;
+    provider-native adaptation and text-only detection are not separate engines.
+    Legal PDF Parser artifacts may still select heavyweight PDF, language, OCR,
+    or layout capabilities. Protocol handshakes fail closed when a required
+    capability is absent, and no artifact carries an unselected model/runtime.
 
 ## Canonical legal-document stack
 
@@ -99,7 +100,10 @@ The governing design and execution gates are in
 adapters preserve provider-native facts, one Rust analysis pipeline owns every
 shared detector, `DocumentStructure` is the canonical result, SourceDoc is an
 optional projection, and Beaver invokes the pipeline once per immutable
-document version through `documentProjectionService`.
+document version through one typed structure host. The existing
+`documentProjectionService` remains the byte/file ingress for uploaded
+documents; provider adapters call the same host after their own fetch/render
+step rather than being forced through that file-oriented service.
 
 Neither the present provider silos nor Beaver's present consumer requests are
 compatibility constraints. Preserve useful behavior and detector quality, then
@@ -499,10 +503,10 @@ Work:
 
 - On PDF import, store the source first, then create a durable background parse
   job with `queued`, `parsing`, `ready`, `degraded`, or `failed` state.
-- Save compact versioned pages, prose-paragraph boundaries, real numbered
-  units, sections, footnote/proposition relations, diagnostics, parser
-  configuration, and repair source beside the immutable PDF. Do not persist
-  geometry-rich parser working state.
+- Save one canonical `DocumentStructure`, the neutral PDF artifacts required to
+  rehydrate source geometry/tables/images, diagnostics, parser configuration,
+  and repair provenance beside the immutable PDF. Do not persist duplicate
+  semantic page/paragraph/note graphs or geometry-rich parser working state.
 - Parse PDF tables as true structural artifacts: sheet/table, row, cell,
   row/column spans, reading order, source page, and provenance/confidence. Feed
   that typed grid into a compact model-facing representation only after the
@@ -609,6 +613,11 @@ Completed corpus foundation:
   conservative produced 144 exact partitions and recall-first 324, with zero
   character loss. See [DOCX benchmark design](../harvey-labs/design/docx-benchmark-design.md).
 
+The 24-document set is a runnable inventory/smoke foundation, not a release
+denominator or structure ground truth. Inventory and register every additional
+available eligible DOCX before the shared-structure cutover; neither this set
+nor the former 69-document agreement sample can stand in for that corpus.
+
 Use the ALR Quote Verifier `.docx` suite as ground truth for corresponding PDF
 exports. Do not assume rich exports:
 
@@ -688,9 +697,10 @@ Status: **Part of the active shared-structure port**
 
 Provider acquisition remains provider-specific. A light adapter preserves its
 native structure and provenance as canonical evidence; missing structure then
-uses the same Rust detectors as every other source. Provider names never
-select duplicate detector implementations. Provider URLs and locators are
-attached at the edge after analysis.
+uses the appropriate capability in the same Rust engine. Provider names never
+select duplicate implementations of a format-neutral detector. Candidates and
+witnesses stay private to the capability that understands them; provider URLs
+and locators are attached at the edge after analysis.
 
 The exact port, Beaver invocation, corpus gates, and deletion standard are the
 single procedure in [Shared document structure](document-structure.md), not a

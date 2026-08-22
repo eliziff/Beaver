@@ -1,249 +1,532 @@
 # Shared document structure
 
-Status: active replacement plan
+Status: active implementation plan
 
-Supersedes the structure plans at root commit `54f89938` and
-`legal-pdf-parser` commit `2b2c341e`. Git history retains their detail; they
-are not active architecture.
-
-Supporting measurements and detector/citation/OCR/ALR requirements remain in
-[Document-structure evidence](../decisions/document-structure-evidence.md),
+This is the only active plan for the structure refactor. Earlier plans remain
+in Git at root commit `54f89938` and `legal-pdf-parser` commit `2b2c341e`.
+The detailed detector inventory, parity evidence, witness analysis,
+OCR/digital-born and Luna work, citation work, ALR quote-verifier port, and
+Phase 4 remain in
+[document-structure evidence](../decisions/document-structure-evidence.md),
 [source-structure cutover results](../decisions/source-structure-cutover-results.md),
-and the parser parity gate's
+and the parser's
 [evidence inventory](../../legal-pdf-parser/experiments/structure-engine-parity/EVIDENCE.md).
 
-## Outcome
+## Goal
 
-Build one small Rust library that accepts source text plus trustworthy native
-facts and returns one canonical `DocumentStructure`. The same analysis can
-optionally project a `SourceDoc`. PDF, DOCX, spreadsheets, provider records,
-and plain text use the same detector implementations wherever they ask the
-same structural question.
+Finish `legal-structure` as one compact Rust utility that:
 
-Beaver calls that library once per immutable document version. Its tools,
-navigation, linting, retrieval, and citation code query or project the returned
-structure; they do not run detectors or call separate native helpers.
+- accepts a document and any authoritative source-native facts;
+- runs every applicable mature structure detector without weakening it;
+- returns one canonical `DocumentStructure`;
+- can project that result into `SourceDoc` in the same call; and
+- can be called directly from Rust/Python and once per immutable document
+  version from Beaver.
 
-No detector may become less accurate to make the design smaller. Existing
-consumer DTOs and call patterns may be replaced when they force duplication or
-bad coupling.
+The refactor replaces the old design outright. There are no compatibility
+layers, migrations, feature flags, dual writes, production fallbacks,
+intermediate JSON protocols, or second analysis service.
 
-Today this is split across the TypeScript skeleton/reference/adapter modules,
-granular Node exports, a large Rust inference module, separate A2AJ and native
-markup composers, and both graph and SourceDoc materializers. TypeScript still
-owns real detections while Rust results cross the binding more than once. None
-of those module boundaries is a target to preserve.
+Minimal does not mean shallow. Each vertical cut must port the full behavior,
+rewire every affected consumer, prove exact fidelity, and delete the displaced
+implementation. We share only operations shown to be semantically identical;
+PDF, provider, instrument, DOCX, journal, citation, and OCR rules remain
+distinct where their evidence or refusal semantics differ.
 
-## Boundary
+## Final architecture
 
 ```text
-source record / PDF facts / DOCX facts
-        |
-        v
-thin evidence adapter  ->  analyze_document  ->  DocumentStructure
-                                                |       |
-                                                |       +-> structure queries
-                                                +----------> optional SourceDoc
+typed source adapter or complete ExtractedPdf
+  -> source-native facts + applicable mature detector lane
+  -> final nodes and named typed products
+  -> assemble_document_structure
+  -> DocumentStructure
+       -> optional SourceDoc projection
+       -> Beaver/Python/Rust queries
 ```
 
-Provider-specific code is allowed only at the edges:
+### Public calls
 
-- Ingress adapters translate provider-native sections, pages, notes, tables,
-  exclusions, provenance, and locators into canonical evidence. Native facts
-  are preserved; the core does not crudely rediscover them from flat text.
-- Egress adapters attach provider URLs or project a consumer representation.
-- Adapters do not own fallback regexes, lineation, hierarchy, reference,
-  definition, list, table, note, or navigation detectors.
+Node exposes one generated typed N-API operation:
 
-The core owns normalization, shared scans, candidate construction, evidence
-resolution, abstention, diagnostics, and materialization. A domain may add
-typed evidence or policy to a shared detector; it does not get a copied
-detector. PDF geometry, for example, strengthens the shared heading/list/table
-resolver without creating a second text-structure engine.
+```text
+deriveDocumentStructure(source, { sourceDoc: true | false })
+  -> { structure: DocumentStructure, sourceDoc? }
+```
 
-`DocumentStructure` is the only internal result. It contains ordered nodes and
-ranges, parentage, labels and aliases, pages, headings, provisions, schedules,
-lists, tables, notes, definitions, references, contents/navigation facts,
-provenance, abstentions, and detector diagnostics. Derivable duplicate
-relations and summary objects are not stored. `SourceDoc` is a projection, not
-a second detected representation.
+`StructureSource` is only the tagged dispatch input needed to replace the
+current untyped command router. Its variants reuse the existing A2AJ,
+native-markup, journal, and instrument inputs; DOCX/grid variants are added
+only when their typed inputs land. It is not a generic format-evidence bag.
+The PDF parser links `legal-structure` directly and makes one in-process call:
 
-The Node boundary exposes one document operation. Request fields describe
-source facts and available evidence, not which consumer is calling or which
-detector choreography to execute.
+```text
+derivePdfDocument(complete ExtractedPdf, identity, { sourceDoc })
+  -> { structure, pdfSourceMap, sourceDoc? }
+```
 
-## Internal shape
+The parser composes that result with the already-owned PDF artifacts and
+operation receipt. PDF geometry never crosses Node. A thin Python binding
+calls the corresponding Rust source operation directly.
 
-Keep domain detail, but factor the mechanics it shares:
+`SourceDoc` is an explicitly requested consumer projection. It may repeat text
+and blocks at that output boundary, but it never becomes a second detector or
+internal source of truth, and its projector borrows the structure's semantic
+text rather than rebuilding it. The source adapter supplies the existing
+`provider`, `url`, and `doc_type` egress metadata to
+`project_source_doc(&structure, provider, url, doc_type)`; those fields do not
+belong in canonical structure.
 
-1. One validated text/range space and one offset conversion at the binding.
-2. One line/token/grammar scan that emits reusable typed matches.
-3. Detector modules for candidate families: pages and paragraphs; headings,
-   provisions and schedules; lists; tables; notes; definitions; references;
-   and contents/navigation.
-4. One resolver that combines native claims, text candidates, PDF/layout
-   witnesses, exclusions, and profile policy into accepted nodes or typed
-   abstentions.
-5. One materializer for `DocumentStructure`, plus query and SourceDoc
-   projections that add no detections.
+### Ownership
 
-The intended code shape is correspondingly small: text/range indexing,
-evidence types, detector-family modules, one resolver, the canonical document
-model, projections/queries, and edge adapters. Provider names and Beaver tool
-names do not appear in detector modules.
+| Owner | Owns | Does not own |
+| --- | --- | --- |
+| Source adapter/capability | Source-specific parsing, native claims, mature detection, ambiguity/refusal policy, private candidates/witnesses | Generic assembly, Beaver persistence, consumer summaries |
+| `DocumentStructure` | Semantic text and identity, source authority, selected nodes, paired notes, typed capability results, semantic diagnostics | PDF geometry, DOCX XML/session state, grids, copied artifact payloads, SourceDoc indexes |
+| Format artifact | PDF pages/lines/tables/images/OCR/layout and source map; `DocxSession`; spreadsheet grid | A parallel semantic graph/skeleton/note model |
+| SourceDoc | UTF-16 consumer blocks, revision/status/index/ranges | Detection or canonical scalar coordinates |
+| Beaver | Acquisition, one read/call, persistence, mutation, lint presentation, navigation/query policy | Structure detection, reparsing, sidecars, provider-specific redetection |
 
-Profiles express real semantic differences such as case paragraph numbering,
-legislation hierarchy, or instrument lineation. They select policy and
-admissible evidence inside the shared pipeline; they are not provider silos.
+Provider adapters preserve provider-given structure. They translate native
+facts and state whether coverage is partial or complete; flattening the text
+and redetecting what the provider already supplied is forbidden. Their
+remaining source-specific code should be translation, not a parallel detector.
 
-## Port discipline
+### Canonical contract
 
-The current hybrid is an oracle and a map of behavior, not an architecture to
-preserve.
+`StructureGraphV2` evolves directly into `DocumentStructure`; there is no
+wrapper and no compatibility alias.
 
-1. Inventory every production detector and every consumer. For each detector,
-   record its authoritative implementation, inputs, outputs, diagnostics,
-   domain-specific rules, fixtures, corpus gate, and duplicate implementations.
-2. Freeze complete legacy outputs at the real seams before changing behavior.
-   Where no ground truth exists, parity is a regression ratchet, not a claim of
-   correctness. Gold or manual audit remains the quality gate.
-3. Port one mature detector family literally into Rust. Reuse its actual
-   algorithm and grammar; do not replace it with a convenient heuristic or a
-   third interpretation.
-4. Add stage diagnostics before corpus debugging: candidate counts, rejection
-   reasons, selected runs, witness contributions, and grouped mismatch
-   signatures. A differential reports all mismatch classes in one run, not
-   only the first differing document.
-5. Prove that family at unit-vector, seam, and corpus scale. Then factor common
-   mechanics with already-ported families, rerunning exact parity after each
-   contraction.
-6. Once all families share the core, route every source adapter through it and
-   prove the final `DocumentStructure` and optional SourceDoc at the
-   TypeScript/Rust handoff.
-7. Replace Beaver's calls in one vertical cut. Delete granular native exports,
-   TypeScript detectors, duplicate graphs/summaries, compatibility DTOs, and
-   transition tests in the same change.
+```rust
+pub struct DocumentStructure {
+    pub schema_version: String,
+    pub document_id: String,
+    pub text: String,
+    pub text_sha256: String,
+    pub source_sha256: Option<String>,
+    pub scope: Scope,
+    pub origins: Vec<Origin>,
+    pub nodes: Vec<StructureNode>,
+    pub notes: Vec<Note>,
+    pub contents: Option<InstrumentContentsReading>,
+    pub definitions: Option<DefinitionsResult>,
+    pub provision_references: Option<ProvisionReferencesResult>,
+    pub attachment_references: Option<AttachmentReferencesResult>,
+    pub numbering: Option<NumberingResult>,
+    pub diagnostics: Vec<StructureDiagnostic>,
+}
+```
 
-Do not redesign a detector while porting it. Intentional quality improvements
-come afterward, with explicit gold/audit evidence and a separately approved
-baseline change.
+This is the final target, accumulated by the owning cuts. Cut 1 lands only the
+identity/text/scope/origin/node/diagnostic fields already backed by live
+producers. Each later cut adds its named product when the literal detector
+lands; no empty fields, dispatch variants, or placeholder modules are added in
+advance. Engine/parser/grammar versions belong to the existing operation and
+cache receipt, not the semantic result.
 
-## Beaver call procedure
+`None` on a named capability means it did not run for that source. An empty
+successful result means it ran and found nothing. A refusal carries its exact
+typed reason and the metrics that authorized it. There is no generic
+`capabilities`, `attributes`, `observations`, `Value`, or confidence bag.
 
-`documentProjectionService` is Beaver's sole host for document analysis. It
-constructs canonical evidence from the source compiler/provider adapter and
-invokes Rust once under the existing immutable projection identity. The
-application operation returns the canonical structure and, only when needed,
-its SourceDoc projection.
+There is also no generic relation list. Current emitters contain only:
 
-All consumers use a small query surface over that result: resolve a locator,
-read a node/subtree/range, enumerate children or siblings, follow references,
-read definitions or contents, and project SourceDoc. A consumer that needs a
-new view adds a query or projection; it does not add analyzer flags, a second
-representation, or a direct native call. Consumer code may be simplified or
-rewritten to fit this procedure, provided its useful public capability is
-preserved.
+- `parent_id` duplicated as `Contains`;
+- canonical order duplicated as `Precedes` (which has no live emitter); and
+- one note reference duplicated as `References` and inverse `FootnoteFor`.
 
-## Gates
+Parentage stays on the node. Ordered note references stay on `Note`.
+Provision-reference outcomes stay in `ProvisionReferencesResult`; definition
+uses stay in `DefinitionsResult`. A test-only projector may recreate old graph
+relations while checking parity, but production does not retain them.
 
-The edit loop is deliberately cheap:
+`StructureNode` keeps one stable ID, kind, Unicode-scalar range, origin,
+derivation, optional label/locator/aliases, parent ID, source anchor, and
+marker/content ranges. Preserve `display` and `heading` only on the current
+instrument roles that emit and consume them until exact corpus evidence proves
+they can be derived. Store neither copied text, depth, nor a generic level.
+PDF page/line arrays, geometry, detector grammar/proof receipts, and artifact
+payloads stay outside the node; format maps/sessions resolve stable node or
+fact IDs back to one or more source extents and artifacts.
 
-- format only touched Rust files;
-- run targeted detector tests, then `cargo quick`;
-- build the native release artifact only for a seam or behavioral gate;
-- compile once and run warmed, in-process differentials; never rebuild per
-  document or serialize giant temporary outputs merely to compare them;
-- long gates emit progress and resumable compact receipts.
+Add exact node roles only with a live producer. The known required roles are
+physical page/prose/heading, logical numbered paragraph,
+article/part/division/section/subsection/schedule, list/list item,
+table/row/cell, and footnote/endnote. Similar ranges do not make roles
+identical: physical prose is not a logical numbered paragraph, a heading is
+not automatically an addressable section, and a TOC advertisement is not a
+body node. Delete the currently unpopulated generic `Navigation` role.
 
-Parity gates cover the authored grammar vectors, provider fixtures and frozen
-rows, 124 agreements, the 23,531-document English A2AJ statute corpus, the
-748-document PDF derivation corpus (24,707 pages), native-markup/journal cases,
-DOCX and spreadsheet tables, Unicode/range failures, and public Beaver lookup
-behavior. Require zero unexplained changes. The 748-document gate preserves
-the prior detector where there is no complete ground truth; it does not certify
-perfect structure.
+The named products retain full facts rather than summaries:
 
-Performance is measured after one warm-up and over five runs with corpus I/O
-excluded and caches controlled. The final Rust path must use one native call
-and one input transfer per document, improve warmed median throughput by at
-least 20% over the complete TypeScript oracle, keep p95 latency within 5%, and
-keep peak RSS within 10%. Warm `cargo quick` targets a two-second median and
-four-second p95. A slow edit loop or a slow candidate is profiled immediately,
-not normalized as the cost of Rust.
+| Product | Required facts |
+| --- | --- |
+| `Note` | References one footnote/endnote node; the node owns ID/kind/label/body range/origin. `Note` owns occurrence/restart, paired or label-only state, ordered references and primary reference, per-reference proposition ranges, current capability-specific confidence/basis/warnings, typed body cross-references, and stable IDs that the format source map resolves to label/body/reference extents. |
+| `InstrumentContentsReading` | Preserve the existing name and exact fields through parity, then enforce one `Present` or `Refused` state; entries preserve label/display/heading/page/source anchor/parent ID and remain separate from body nodes. |
+| `DefinitionsResult` | Exact definition and use occurrence ranges, stable term, owning node IDs, source paragraph/artifact IDs |
+| `ProvisionReferencesResult` | Exact occurrence, written label/word/plural/shape during literal port, normalized locator, continuation-head ID, source/target node IDs, resolved/external/unresolved/abstained status, exact reason, abstention evidence |
+| Attachment/numbering results | Exact anchors, references, targets/outcomes, predecessor/current IDs, missing values, and duplicates needed to reproduce current lint |
+| Diagnostics | Typed code/severity, semantic ranges, node/fact IDs, attributable origin; capability refusals stay in their named result. PDF artifact diagnostics retain current message/page/line/details outside canonical diagnostics until exact projection proves them derivable. TypeScript lint severity/message policy is not canonical. |
 
-## Phase 3 — digital-born, OCR, and Luna evidence
+Counts, integrity summaries, self-loop flags, depth, page lists, note text,
+human lint messages, excerpts, severity policy, and report caps are derived at
+the consumer boundary.
 
-The core port does not collapse digital-born and OCR extraction into one
-quality claim. Digital-born text remains immutable native evidence. Scanned or
-image-only pages use the registered local OCR lane and retain page, line, word,
-geometry, confidence, order, and model provenance. The acquisition, model
-selection, silver, and 1,500-PDF program remain governed by
-`experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md`.
+The existing internal `DocumentInput` stays, contracted to source facts:
 
-Both lanes feed the same structure evidence contract. Existing deterministic
-region, ordering, furniture, table, heading, and note-pair results are passed
-through as typed evidence; the shared analyzer must not approximate them from
-flattened OCR text. OCR may propose corrected text only through an anchored,
-validated replacement operation.
+```rust
+pub struct DocumentInput {
+    pub document_id: String,
+    pub text: String,
+    pub source_sha256: Option<String>,
+    pub scope: Scope,
+    pub origins: Vec<Origin>,
+    pub native_claims: Vec<NativeClaim>,
+    pub coverage: Vec<Coverage>,
+    pub exclusions: Vec<Exclusion>,
+}
+```
 
-Luna is the bounded repair producer for unresolved OCR/layout contradictions,
-invoked by the host through its existing model runtime. It receives immutable
-anchors and existing deterministic candidates, not a blank page and a request
-to rediscover structure. Its operations must be schema-valid, anchor-complete,
-deterministically checked, and recorded with model/prompt identity before they
-become evidence. Rust imports no model SDK, and Luna never emits a competing
-final SourceDoc or structure graph.
+`Origin`, native claims, coverage, and exclusions remain input/audit facts, not
+duplicate final structure. Prove across the complete provider differential
+that `Origin.authority` and `NativeClaim.provider_order` affect no selection,
+order, refusal, or projection before deleting them. Coverage may be
+`Complete` only when the source explicitly establishes completeness for that
+capability/range; complete with no claims means authoritative absence.
+Exclusions name typed `NodeKind`s. The owning capability applies coverage and
+exclusions; the operation receipt retains the audit evidence.
 
-Phase 3 passes only when digital-born parity remains exact, the registered OCR
-and 661-page ordered journal surfaces retain or improve every separately
-reported transcription/order/region/note metric, anchor accounting is complete,
-and held-out Luna repair improves or preserves the deterministic lane without
-hiding cost inside the digital-born performance number.
+`assemble_document_structure` accepts this input plus final nodes and the named
+typed products. It validates hashes, scalar bounds, unique IDs, origin/parent
+foreign keys, parent acyclicity, and deterministic serialization. It rejects
+duplicate IDs or ownership instead of hiding them through deduplication.
+Capabilities own containment, conflict resolution, and deduplication policy.
+The constructor does not scan text, score candidates, resolve labels, infer
+parents, select native versus heuristic facts, apply coverage/exclusions, pair
+notes, or interpret format geometry.
 
-## Phase 4 — consumer cutover, ALR parity, and deletion
+### Rust layout
 
-Cut over in dependency order after the shared core and Phase 3 seam are proven:
+The first mechanical split is complete: `lib.rs` fell from 7,313 to 1,113
+lines without changing behavior. Keep the modules that now match real
+responsibilities:
 
-1. Tag the shared Rust source and build every binding from that commit.
-2. Point Legal PDF Parser at it, delete displaced format-neutral detectors,
-   and rerun the full PDF gates.
-3. Move Beaver, DOCX structure/linting, and citation linking to the one
-   application call and query surface described above.
-4. Move Authorities Helper to the shared citation/structure batches while
-   retaining only its product and Word-document responsibilities.
-5. Port ALR Quote Verifier as an independent thin consumer; delete its copied
-   splitter, grammar, provider structure, and PDF implementations only after
-   its own proof passes.
-6. Update repository pins, manifests, release provenance, and architecture
-   docs together, then run each repository's release suite.
+```text
+lib.rs              public types, validation, and dispatch
+candidates.rs       existing PDF candidate resolver
+derive.rs           existing provider/profile materialization
+inference.rs        existing shared-text detector logic
+instrument.rs       exact instrument lineation, hierarchy, and TOC
+numeric_sequence.rs the two proved dynamic-programming callers
+a2aj.rs             existing A2AJ adapter
+native_markup.rs    existing renderer/provider identities
+journal.rs          existing journal adapters
+source_doc.rs       current projector/serializer/index/range builder
+sidecar.rs          current sidecar protocol until its callers close
+tests.rs            crate-level behavior tests
+```
 
-There is no dual production period, compatibility alias, fallback parser, or
-feature flag. Frozen implementations remain test oracles until their consumer
-passes, then Git becomes the rollback mechanism.
+Do not split these files again merely because one is large. Add or extract a
+module only when a port or canonical cut gives it one cohesive responsibility
+and deletes duplicated code. The known justified extraction is `text.rs`: move
+`ScalarText` there and absorb only coordinate/whitespace implementations proved
+identical. Definitions, references, case, legislation, and canonical assembly
+may earn modules as their literal ports land; their names and boundaries are
+not migration work by themselves.
 
-ALR's no-regression proof covers its accepted 405-row citation-split gold,
-quote matching and boundary refusals, proposition ranges and ordering, full
-A2AJ and CourtListener structure modes, representative PDF intake, real DOCX
-and workbook product outputs, offline packaging, runtime, and memory. A
-previously correct result remains exact unless an independently adjudicated
-fixture proves the replacement better. Slices cannot lose precision or recall
-behind an aggregate gain; where there is no truth, require exact parity or
-adjudicate every delta.
+Do not create `detectors`, `strategies`, `profiles`, `rules`, plugin traits,
+fact buses, or a general witness module. The current public witness/candidate
+API is PDF-specific in its page/line requirements and has one caller; move it
+private to PDF. A shared resolver is justified only after two live callers have
+the same candidate, evidence, incompatibility, and refusal semantics, an exact
+combined differential passes, and the extraction deletes more code than it
+adds.
 
-Phase 4 also exercises Beaver local/cloud document projection, Authorities,
-DOCX, provider corpora, the 748-document PDF lane, and all repository release
-checks against the same shared commit. Long runs retain compact progress and
-failure receipts, not raw corpus copies.
+Likewise, retain `select_numeric_sequence` and other current shared helpers
+only where their existing callers are exact. Do not turn a coincidental
+monotonic sequence into the architecture.
+
+### Beaver call path
+
+One typed structure host owns Beaver's single Rust analysis call.
+`documentProjectionService.read()` remains the ingress for versioned uploaded
+file bytes and calls that host after its existing PDF/DOCX/grid extraction.
+Provider adapters retain fetching, rendition choice, credentials, URLs,
+licensing, and upstream cache policy, then call the same host after producing
+text, markup, and native facts. Do not widen the file-byte service with a
+provider-input union or add a parallel analyzer. Rust opens no Beaver path,
+database, or provider client.
+
+Beaver changes are direct:
+
+- Read/Grep/navigation query nodes and typed results.
+- DOCX lint consumes the existing `DocxSession` plus structure; TypeScript
+  retains only report policy and wording.
+- Amendment code uses the before-version structure, mutates once, then analyzes
+  the changed candidate once.
+- Provider tools query provider-native structure instead of compiling an
+  instrument from flattened text.
+- PDF SourceDoc and lookups query the original parse result.
+- The A2AJ cache stores one canonical structure artifact under the existing
+  atomic/resumable identity rules; it is rebuilt, not migrated.
+
+Keep the light query portions of `sourceDoc.ts`, `legalDocumentNavigator.ts`,
+legal-source linking, evidence verification, URL policy, and mutation code.
+Delete their detector/materializer portions at the owning vertical cut.
+
+## Execution rule
+
+Every slice uses the same short loop:
+
+1. Freeze the untouched implementation's complete output for that slice.
+2. Port the mature logic literally into its final Rust owner.
+3. Run one differential that reports all mismatches grouped by field, reason,
+   and document, with a first divergent tuple and capped examples.
+4. Fix mismatch classes without redesigning the algorithm or rebuilding for
+   every single document.
+5. Rewire all production callers and delete the old path in the same cut.
+6. Run the slice's full corpus gate and record cold/warm performance.
+
+Legacy code may exist only as an independent experiment/test oracle until its
+cut passes. No production old/new coexistence is introduced. A repair begins
+from a named mismatch or measured hotspot, not from an architectural hunch.
+Reuse existing harnesses and durable corpus inputs; store hashes/manifests and
+capped mismatch diagnostics, while raw generated outputs remain ignored.
+
+Parity and truth remain separate. A frozen corpus blocks unexplained drift;
+it does not certify that the old detector was accurate. Independent gold,
+source-native facts, and product invariants decide deliberate improvements.
+
+## Vertical cuts
+
+### 0. Lock executable gates
+
+Already restored in the current worktree:
+
+- the exact current projection-boundary import ratchet;
+- the immutable 24-vector provider oracle; and
+- the installed-provider receipt verifier, which self-checks 386 files,
+  29,682,033 bytes, and 323,374 rows without regenerating the oracle.
+
+Before the first affected production edit:
+
+- make the checked-in 18-document Canadian structure gold and 79 pinned USLM
+  documents executable exact comparators; and
+- extend the existing PDF harness with normalized, hash-only receipts for the
+  full graph, complete `LegalDocument`, final SourceDoc, and a checked-in lookup
+  manifest. Pin source name, cold cache state, engine/cache identity, and field
+  order; test warm/cold operation receipts separately.
+
+Before the instrument cut, freeze every current TypeScript structure/TOC/table
+field and refusal over the 872 texts; existing evidence covers lineation and
+selection only.
+
+Before definition/reference or DOCX work, inventory every eligible available
+DOCX into one committed manifest with an exact count and hash, then freeze
+hash-only whole reports and every PDF/DOCX proposition output. The current 24
+byte-unique files remain only a smoke ratchet.
+
+Record each old TypeScript median with its owning freeze, before that detector
+is deleted. Raw generated artifacts remain ignored.
+
+### 1. Canonical core and provider-native cut
+
+Change:
+
+- evolve `StructureGraphV2` directly into the locked `DocumentStructure`;
+- contract `DocumentInput`, add the policy-free assembler, and use one
+  `ScalarText` per semantic text;
+- remove boundaries, graph status, generic relations, `original_claims`,
+  duplicated parent/edge materialization, and SourceDoc round-trip state;
+- make the existing A2AJ, native-markup, and journal lanes emit canonical
+  nodes/products plus optional SourceDoc in one pass;
+- make TNA cited-ref extraction part of the existing markup traversal; and
+- expose only the generated typed Node operation.
+
+Proof:
+
+- 24-vector fast oracle;
+- **installed-provider corpus-scale gate: 323,374 exact rows**—248,685 A2AJ,
+  55,504 CourtListener, and 19,185 journal rows—with zero unexplained
+  mismatches;
+- 18 Canadian and 79 USLM exact comparators;
+- exact SourceDoc bytes, omissions/nulls, property order, UTF-16 offsets,
+  indexes/ranges, and lookups; and
+- `legal-structure` all-features tests and grammar-table check.
+
+Delete after proof: provider SourceDoc-only ownership, graph/original-block
+reconciliation, duplicate TypeScript projectors, the untyped command route,
+and any source-structure adapter/engine/host whose boundary entry has reached
+zero consumers.
+
+### 2. Instrument, DOCX, and table cut
+
+Change:
+
+- keep the already-exact Rust lineation/hierarchy and assemble only the winning
+  reading;
+- differential the live TypeScript TOC against the unused Rust TOC and keep
+  one exact Rust implementation;
+- port definitions/uses and provision-reference detection/resolution literally,
+  including external context, aliases, ambiguity, reach/integrity abstention,
+  and exact reasons;
+- accept existing DOCX/grid table facts and emit table/row/cell nodes without
+  re-extracting cells;
+- port exact attachment and numbering facts needed by lint; and
+- route plain text, DOCX, spreadsheets, assistant reads, lint, mutation, and
+  navigation through the one projection service call.
+
+Proof:
+
+- the instrument gate over **872 documents**: 124 agreements plus 748 settled
+  extraction texts, comparing every typed result rather than totals;
+- all available registered DOCX reports and focused definition/reference/
+  TOC/table/numbering/attachment fixtures;
+- amendment delete/renumber before-and-after outputs;
+- the 23,531 English-statute source-lineation slice; and
+- Unicode scalar-to-UTF-16 vectors.
+
+This 748-text instrument lane is not the provider corpus-scale gate and is not
+the PDF full-product gate.
+
+Delete after proof: `legalTextSkeleton.ts`, `legalCrossReference.ts`, the
+runtime detector in `legalReferenceGrammar.ts`, detector/XML-reparse portions
+of `docxStructuralLint.ts`, duplicate SourceDoc constructors, stored skeleton
+summaries, and every repeated instrument compile.
+
+### 3. PDF cut
+
+The one PDF operation takes the complete `ExtractedPdf` and returns structure,
+PDF source map, optional SourceDoc, and optional pairing audit. `LegalDocument`
+is only the aggregate shell for PDF artifacts, that map, the canonical result,
+the optional projection, and the operation/cache receipt.
+
+Change:
+
+- keep one ordered raw-line/text index and one semantic linearization buffer;
+- add explicit line-local/raw-scalar/semantic-scalar mappings;
+- compute typed line facts and protected citation spans once;
+- keep PDF heading/page/list/note detection and candidate search private;
+- collapse `Footnote`, anchors, pair claims, markers, graph notes, and summaries
+  into one typed paired-note result plus optional audit;
+- preserve physical page index, physical number, and printed folio as distinct;
+- preserve physical prose, logical numbered paragraphs, headings, and sections
+  as distinct roles;
+- pass authoritative tables/images through and reference them without copying
+  geometry/cells; and
+- project SourceDoc from the returned structure/source map without a second
+  parse.
+
+Freeze before editing because the current `FrozenReplay` omits them:
+
+- all 748 complete `LegalDocument` products, including structure, tables,
+  images, diagnostics, metadata/provenance, repairs, and identity;
+- all 748 final TypeScript-rehydrated SourceDocs;
+- a fixed lookup corpus for every locator/status/context case;
+- all 1,221,262 protected-citation line spans; and
+- PDF and DOCX proposition results, including multiple note references.
+
+Proof uses three distinct controls:
+
+- **PDF derivation ratchet:** 748 cached native extractions, 24,707 pages, and
+  1,221,262 lines, exact from settled common input;
+- independent role/note/table/image/proposition truth and the
+  100-article/6,443-row note-pairing receipt; and
+- **PDF end-to-end product gate:** 1,500 PDFs / 111,542 pages—750 digital-born
+  and 750 non-digital/OCR—covering extraction and routing that the 748 cache
+  cannot prove.
+
+Delete after proof: public candidate/witness protocol, duplicate paragraph and
+note DTOs/materializers, `marker_summary`, inverse note relations, PDF-specific
+SourceDoc/index/lookup projectors, later `source_doc` and `structure_lookup`
+parse operations, replay-only production branches, and Beaver's PDF
+child-process/temporary-JSON choreography. Keep private pair-search state and
+the optional audit.
+
+### 4. Consumer, cache, and external closure
+
+- Route uploaded files and bounded mutation candidates through
+  `documentProjectionService.read()`, and acquired provider sources through
+  their existing fetch adapters; both invoke the same typed structure host
+  exactly once before their consumers run.
+- Rebuild the A2AJ structure cache producer and reader together around
+  `DocumentStructure`; preserve current content identity, progress, resume,
+  atomic promotion, and local/cloud persistence boundaries.
+- Replace AuthoritiesHelper, citator, and stress JSONL callers with the thin
+  Python binding.
+- Reduce `sourceDoc.ts` to locator normalization, lookup, block slicing, range
+  reads, tokenization, and quote queries.
+- Drive `documentProjectionBoundary.test.ts`'s exact allowlist to zero legacy
+  bypasses.
+
+Then delete `legalStructureSidecar.ts`, `sourceStructureAdapter.ts`,
+`sourceStructureEngine.ts`, `sourceDocStructureHost.ts`, public granular
+`structureNative.ts` routes, handwritten `structureWire.ts`, the manual DLL
+loader, old cache schema/readers, `sourcedoc-jsonl.ts`, and
+`sourcedoc_client.py`. Delete a file only when `rg` and the boundary test prove
+its last live consumer is gone.
+
+### 5. Performance and release
+
+Record the old TypeScript median before each detector is deleted, using the
+same in-memory inputs. Measure separately:
+
+- detector/assembly time;
+- binding/serialization time;
+- Beaver end-to-end time;
+- cold and warm runs; and
+- peak memory on the full gate.
+
+The Rust detector lane must beat the old TypeScript median on the same work,
+and the one-call Beaver path must not regress end-to-end latency. Profile a
+measured hotspot before optimizing it. The existing PDF derivation target
+remains at least 1,000 pages/second; a fast incomplete serializer does not
+count. Build once per mismatch batch, use warm targeted tests during repair,
+and run full Cargo/release gates only at slice checkpoints.
+
+Final checks:
+
+```powershell
+node packages/legal-grammar-tables/check.mjs
+cargo test --manifest-path legal-pdf-parser/Cargo.toml --offline --locked -p legal-structure --all-features
+npm test --prefix backend
+npm test --prefix frontend
+npm run build --prefix backend
+npm run build --prefix frontend
+.\scripts\mike.ps1 smoke -WithTableOfAuthorities
+```
+
+Also run the full provider, instrument, DOCX, PDF derivation, PDF end-to-end,
+SourceDoc, lookup, and projection-boundary gates named above.
+
+## Follow-ons kept, not prebuilt
+
+After this refactor:
+
+- Phase 3 retains the digital-born/OCR split and bounded Luna repair producer.
+  Repairs remain anchored, typed, validated, provenance-bearing, and opt-in;
+  flattened OCR text never becomes an excuse to redetect provider facts.
+- Citation structure adds its actual typed product only when its literal port
+  lands. Protected spans, provision references, parsed citations, note-body
+  cross-references, and citation splitting remain distinct until an exact
+  comparison proves otherwise.
+- The ALR quote-verifier port remains required after the shared structure cut.
+- Phase 4 retains the authored citation/split gold and acceptance program.
+
+These are detailed in the retained evidence document. Do not scaffold generic
+slots, model interfaces, or registries for them now.
 
 ## Done
 
-- Every structural detector is Rust-owned or explicitly classified as source
-  acquisition/non-structural work.
-- Shared questions have one implementation; provider differences are typed
-  evidence or edge projection only.
-- Beaver has one analysis call path and no consumer imports a detector or
-  granular native helper.
-- Complete seam and corpus parity is green, quality gates have not regressed,
-  and the performance gate passes.
-- The old TypeScript/hybrid implementations and redundant representations are
-  deleted. Git, not compatibility code, is the rollback path.
+The refactor is complete only when:
+
+- every document version produces one canonical Rust result in one call;
+- provider-native facts and every mature detector capability are preserved;
+- each semantic fact has one internal owner;
+- SourceDoc is an optional projection, not a second architecture;
+- Beaver contains no structure detector or repeated parse/compile path;
+- all named exact corpus gates pass, including the 323,374-row provider gate;
+- independent truth gates show no structure-quality regression;
+- old implementations, sidecars, wire protocols, duplicate materializers, and
+  bypass imports are deleted; and
+- the measured Rust/one-call path meets the performance requirements.
