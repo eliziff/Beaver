@@ -233,38 +233,6 @@ function locator(value: string) {
   return stripped && (normalizeSourceDocLocator("section", stripped) || `sec${stripped}`);
 }
 
-async function mappedSection(document: A2AJDocument, requested: string) {
-  const mapped = getLocalA2AJSectionMap(document) ?? sectionMaps.get(document);
-  if (!mapped) return null;
-  const normalized = locator(requested);
-  const key = normalized.toLowerCase();
-  const candidates = Object.entries(mapped).map(([label, text]) => ({
-    label, text, normalized: locator(label), key: locator(label).toLowerCase(),
-  })).filter((item) => key === item.key || key.startsWith(`${item.key}(`));
-  const exact = candidates.filter((item) => item.key === key);
-  const pool = exact.length ? exact : candidates;
-  const longest = Math.max(0, ...pool.map((item) => item.key.length));
-  const matches = pool.filter((item) => item.key.length === longest);
-  if (matches.length > 1) return { status: "ambiguous" as const, matches };
-  const match = matches[0];
-  if (!match || !match.text.trim() || /^\[blank\]$/iu.test(match.text.trim())) return null;
-  const doc = await deriveA2AJSourceDoc({
-    citation: document.citation,
-    docType: "laws",
-    text: match.text,
-    id: document.citation,
-    url: document.url,
-    alternateCitation: document.alternateCitation,
-    dataset: document.dataset,
-    name: document.name,
-    sectionMap: { [match.label]: match.text },
-  }, { kind: "excerpt", excerptOf: document.citation });
-  const lookup = lookupSourceDocLabel(
-    doc, "section", match.normalized + normalized.slice(match.normalized.length), 0,
-  );
-  return lookup.status === "found" ? { status: "found" as const, doc, lookup } : null;
-}
-
 async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
   const label = locator(requested).replace(/^sec/iu, "");
   if (!label || !text.trim()) return null;
@@ -300,16 +268,9 @@ async function document(args: {
   const cached = documents.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
   if (cached) documents.delete(key);
-  let result = fetchLocalA2AJDocument({
+  let result = args.section?.trim() ? null : fetchLocalA2AJDocument({
     citation, docType, language, dataset: args.dataset, maxChars: Number.MAX_SAFE_INTEGER,
   });
-  if (result && args.section?.trim()) {
-    const section = await mappedSection(result, args.section);
-    if (section?.status === "ambiguous") return null;
-    result = section?.status === "found"
-      ? compiledDocument(result, section.doc)
-      : null;
-  }
   if (!result) {
     const payload = await request("/fetch", {
       citation, doc_type: docType, output_language: language, section: args.section?.trim(),
