@@ -243,10 +243,11 @@ export function footnoteReferenceContext(
   citationStart: number,
   bodyEnd: number,
 ): CaseTargetOccurrence["linkedContext"] {
-  if (citationStart <= bodyEnd) return null;
   const lineStart = text.lastIndexOf("\n", citationStart - 1) + 1;
   const prefix = text.slice(lineStart, citationStart);
-  const label = /^\s*\[(\d{1,4})\]\.?(?:\s|\u00a0)/u.exec(prefix)?.[1];
+  const compactFootnotePrefix = /^\s*\[\d{1,4}\]\.?(?:\s|\u00a0)*(?:\([^\r\n)]*\),?(?:\s|\u00a0)*)?$/u.test(prefix);
+  if (citationStart <= bodyEnd && !compactFootnotePrefix) return null;
+  const label = /^\s*\[(\d{1,4})\]\.?(?:\s|\u00a0)?/u.exec(prefix)?.[1];
   if (!label) return null;
   const marker = new RegExp(`\\[\\s*${label}\\s*\\]`, "gu");
   const candidates: Array<{ quote: string; start: number; end: number }> = [];

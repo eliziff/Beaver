@@ -222,6 +222,9 @@ const NONPARTICIPATION_RE =
 const TRAILING_CASE_METADATA_RE =
   /^(?:(?:appearances?|counsel|solicitors?)\b[^:\n]{0,160}|place\s+of\s+hearing|date\s+of\s+hearing|reasons?\s+for\s+judg(?:e)?ment\s+by|dated|docket|style\s+of\s+cause)\s*[:：]/iu;
 
+const CASE_FOOTER_START_RE =
+  /^(?:citation|docket(?:\s+number)?|style\s+of\s+cause|place\s+of\s+hearing)\s*[:：]/iu;
+
 function compact(value: string) {
   return value.replace(/\s+/gu, " ").trim();
 }
@@ -1301,12 +1304,24 @@ function deriveTextOpinionStructureFromLines(
   let deliveryWriterMismatch = false;
   if (!opinions.length) {
     const agreementAuthors = new Set<string>();
+    let inCaseFooter = false;
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
       const line = lines[lineIndex];
+      if (starts.length && CASE_FOOTER_START_RE.test(line.trimmed)) inCaseFooter = true;
+      if (inCaseFooter) continue;
       if (isOpinionHeading(line.trimmed)) {
-        const following = lines.slice(lineIndex + 1, lineIndex + 4).find((candidate) => candidate.trimmed)?.trimmed;
+        const followingLines = lines.slice(lineIndex + 1, lineIndex + 4).filter((candidate) => candidate.trimmed);
+        const following = followingLines[0]?.trimmed;
         const delivery = deliveredByAttribution(line.trimmed, following);
-        const authors = delivery?.authors ?? headingAuthors(line.trimmed);
+        const inlineAuthors = headingAuthors(line.trimmed);
+        const followingAuthors = followingLines
+          .map((candidate) => paragraphBylineNames(candidate.trimmed))
+          .find((names) => names.length) ?? [];
+        const authors = delivery?.authors.length
+          ? delivery.authors
+          : inlineAuthors.length
+            ? inlineAuthors
+            : followingAuthors;
         const joiners = delivery?.joiners ?? [];
         if (delivery && !delivery.writerMatchesOwners) deliveryWriterMismatch = true;
         // BCCA front matter commonly contains bare labels such as "Written

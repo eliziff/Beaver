@@ -35,6 +35,15 @@ describe("citationsInText", () => {
       "[2019] 4 S.C.R. 653",
     ]);
     expect(texts("see [1990] 3 SCR 1385")).toEqual(["[1990] 3 SCR 1385"]);
+    expect(texts("declined [1951] 2 All E.R. 834 in Canada")).toEqual([
+      "[1951] 2 All E.R. 834",
+    ]);
+    expect(texts("see Boucher, [1955] S.C.R. 16")).toEqual([
+      "[1955] S.C.R. 16",
+    ]);
+    expect(texts("see [2012] O.J. No. 2752 (C.A.) at para. 25")).toEqual([
+      "[2012] O.J. No. 2752 (C.A.)",
+    ]);
   });
 
   it("finds CanLII ids", () => {
