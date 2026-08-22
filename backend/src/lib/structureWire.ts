@@ -9,37 +9,7 @@ export type StructureRange = { start: number; end: number };
 export type StructureKind =
   | "paragraph" | "prose" | "page" | "section" | "heading" | "footnote" | "endnote"
   | "list" | "list_item" | "navigation";
-export type StructureOrigin = {
-  id: string; producer: string; representation: string; revision: string; authority: string;
-};
-type UnitBase = {
-  id: string; parent_id?: string; source_order: number; provider_order?: number;
-  range: StructureRange; origin_id: string; page_index?: number; page_number?: number;
-  flow_id?: string;
-  raw_geometry?: {
-    coordinate_space: string; page_width: number; page_height: number;
-    bbox: [number, number, number, number];
-  };
-};
-export type StructureUnit =
-  | (UnitBase & { role: "page"; page_layout?: {
-      column_separator?: number; source?: string; text_quality?: number;
-    } })
-  | (UnitBase & { role: "region"; region_layout?: {
-      kind?: string; member_line_ids?: string[]; reading_order?: number;
-    } })
-  | (UnitBase & { role: "line"; line_layout?: {
-      source_index?: number; reading_order?: number; block_index?: number; source?: string;
-      exclude_from_body?: boolean; region_id?: string; region_type?: string;
-      note_region_mode?: string; suppress_footnote_label?: boolean;
-      detached_references?: Array<{
-        note_id?: string; range?: StructureRange; selected_text?: string; source_line_id?: string;
-      }>;
-    } })
-  | (UnitBase & { role: "word" })
-  | (UnitBase & { role: "span"; span_style?: {
-      font?: string; size?: number; flags?: number; superscript?: boolean;
-    } });
+export type StructureOrigin = { id: string };
 export type StructureEvidenceV1 = {
   schema_version: typeof STRUCTURE_EVIDENCE_SCHEMA;
   document_id: string; provider: string; provider_revision: string; text: string;
@@ -50,21 +20,16 @@ export type StructureEvidenceV1 = {
   allow_hyphenated_sections: boolean;
   text_sha256: string; source_sha256?: string; offset_unit: "unicode-scalar";
   scope: { kind: "complete" | "excerpt"; excerpt_of?: string };
-  origins: StructureOrigin[]; units: StructureUnit[];
+  origins: StructureOrigin[];
   native_claims: Array<{
     id: string; kind: StructureKind; label?: string; aliases: string[]; parent_label?: string;
-    anchor?: string; range: StructureRange; provider_order: number; origin_id: string;
+    anchor?: string; range: StructureRange; origin_id: string;
   }>;
   coverage: Array<{
     kind: StructureKind; range: StructureRange; state: "absent" | "augment" | "complete";
-    origin_id?: string; reason: string;
   }>;
-  exclusions: Array<{
-    range: StructureRange; applies_to: string[]; reason: string; origin_id: string;
-  }>;
-  paragraph_breaks: Array<{
-    at: number; before_unit?: string; after_unit?: string; origin_id: string; strength: string;
-  }>;
+  exclusions: Array<{ range: StructureRange; applies_to: string[] }>;
+  paragraph_breaks: Array<{ at: number; origin_id: string }>;
 };
 
 type GraphSource = "native" | "heuristic" | "model";
