@@ -1,0 +1,92 @@
+{
+  "schema": "beaver.a2aj-section-map-audit.v1",
+  "method": "Read-only SQLite inventory plus conservative rendered-label inspection; no recovery engine was invoked.",
+  "inventory": {
+    "laws": 23523,
+    "text_present": 23523,
+    "text_absent": 0,
+    "raw_map_present": 23515,
+    "valid_map_objects": 23515,
+    "invalid_maps": 0,
+    "nonempty_maps": 23071,
+    "empty_map_objects": 443,
+    "maps_with_only_blank_entries": 1,
+    "no_map": 8,
+    "text_and_nonempty_map": 23071,
+    "map_only": 0,
+    "text_only": 452,
+    "neither": 0,
+    "total_entries": 600612,
+    "usable_entries": 561417,
+    "blank_entries": 39195,
+    "maps_with_blank_entries": 2094
+  },
+  "completeness": {
+    "denominator_nonempty_maps": 23071,
+    "maps_missing_a_heading_backed_numeric_rendered_label": 292,
+    "qualification": "292 is the exact conservative mechanical count. Some amendment texts contain inserted provisions, so it is not asserted as a fully adjudicated semantic total; the examples below prove the true count is nonzero.",
+    "source_proven_omissions": [
+      {
+        "id": 225216,
+        "citation": "SA 2026, c 2",
+        "name": "Appropriation (Supplementary Supply) Act, 2026",
+        "missing_label": "5",
+        "evidence": "The map has 1,2,3,4,6,Schedule; rendered text has `### Transfers` followed by `5 (1)` between sections 4 and 6."
+      },
+      {
+        "id": 225843,
+        "citation": "RSBC 1996, c 216",
+        "name": "Independent School Act",
+        "missing_label": "3.1",
+        "evidence": "The map has 3 and 4; rendered text has `### Per FTE student cost requirement adjustment` followed by `3.1 (1)`."
+      },
+      {
+        "id": 225892,
+        "citation": "RSBC 1996, c 250",
+        "name": "Land Title Act",
+        "missing_label": "23.1",
+        "evidence": "The map has 23 and 24; rendered text has a section heading followed by `23.1 (1)`."
+      },
+      {
+        "id": 226051,
+        "citation": "SBC 1999, c 44",
+        "name": "Public Sector Pension Plans Act",
+        "missing_label": "16.1",
+        "evidence": "The map has 16 and 17; rendered text has `### Joint management agreement` followed by `16.1 (1)`."
+      },
+      {
+        "id": 228492,
+        "citation": "RSNS 1989, c 501",
+        "name": "Agricultural Weed Control Act",
+        "missing_label": "2A",
+        "evidence": "The map has 2 and 3; rendered text has `### Powers of Minister` followed by `2A`."
+      }
+    ]
+  },
+  "provider_only_section_facts": {
+    "named_entries": 13996,
+    "documents": 6027,
+    "explanation": "Preamble and Schedule-family labels are native section facts. Numeric text recovery cannot reproduce those same-kind labels from provision numbering alone.",
+    "examples": [
+      {
+        "id": 225179,
+        "citation": "RSA 2000, c A-14",
+        "label": "Preamble",
+        "evidence": "The mapped preamble value occurs in rendered text at offset 58."
+      },
+      {
+        "id": 225212,
+        "citation": "SA 2007, c A-40.2",
+        "label": "Schedule Authorized",
+        "evidence": "The mapped schedule value occurs in rendered text at offset 81504."
+      },
+      {
+        "id": 225278,
+        "citation": "RSA 2000, c D-4",
+        "label": "Schedule",
+        "evidence": "The mapped schedule value occurs in rendered text at offset 38964."
+      }
+    ]
+  },
+  "decision": "A nonempty section_map is authoritative but not complete. Union native map claims with same-kind text recovery, then deduplicate exact section identities/ranges; do not treat map presence as section coverage complete."
+}
