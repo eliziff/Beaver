@@ -12,6 +12,11 @@ import type { NativeMarkupSourceInput } from "./sourceDocNativeMarkup";
 type StructureAddon = {
   deriveStructures(documents: StructureEvidenceV1[]): unknown[];
   instrumentLineationHypotheses(text: string): unknown;
+  selectInstrumentLineation(
+    text: string,
+    graphs: StructureGraphV2[],
+    references: InstrumentReferenceEvidence[],
+  ): unknown;
   sourceDocs(requests: unknown[]): NativeSourceDoc[];
   sourceDocVersion(): number;
 };
@@ -47,6 +52,7 @@ function loadAddon() {
   addon = module.exports as StructureAddon;
   if (typeof addon.deriveStructures !== "function" ||
       typeof addon.instrumentLineationHypotheses !== "function" ||
+      typeof addon.selectInstrumentLineation !== "function" ||
       typeof addon.sourceDocs !== "function" ||
       typeof addon.sourceDocVersion !== "function") {
     throw new Error("Legal structure native module has an invalid API");
@@ -61,6 +67,24 @@ export function instrumentLineationHypothesesNative(text: string): string[] {
     throw new Error("Legal structure native module returned invalid instrument lineation hypotheses");
   }
   return values;
+}
+
+export type InstrumentReferenceEvidence = {
+  key: string;
+  start: number;
+  end: number;
+};
+
+export function selectInstrumentLineationNative(
+  text: string,
+  graphs: StructureGraphV2[],
+  references: InstrumentReferenceEvidence[],
+): number {
+  const selected = loadAddon().selectInstrumentLineation(text, graphs, references);
+  if (!Number.isSafeInteger(selected) || Number(selected) < 0 || Number(selected) >= graphs.length) {
+    throw new Error("Legal structure native module returned an invalid lineation selection");
+  }
+  return Number(selected);
 }
 
 export function sourceDocEngineVersion() {
