@@ -75,21 +75,51 @@ export type InstrumentReferenceEvidence = {
   end: number;
 };
 
+export type InstrumentContentsRefusal =
+  | "no_contents_marker"
+  | "no_contents_entries"
+  | "too_few_contents_entries"
+  | "contents_without_page_numbers";
+
+export type InstrumentContentsReading = {
+  outline: {
+    entries: Array<{
+      label: string;
+      display: string;
+      heading: string;
+      depth: number;
+      parentLabel?: string;
+      page: number | null;
+      contentsLineStart: number;
+    }>;
+    regionStart: number;
+    regionEnd: number;
+    pagesCited: number;
+  } | null;
+  refusal: InstrumentContentsRefusal | null;
+};
+
 export function deriveInstrumentStructureNative(
   text: string,
   evidence: StructureEvidenceV1[],
   scalarLengths: readonly number[],
   references: InstrumentReferenceEvidence[],
-): { selected: number; graph: StructureGraphV2 } {
+): { selected: number; graph: StructureGraphV2; contents: InstrumentContentsReading } {
   const value = loadAddon().deriveInstrumentStructure(text, evidence, references) as {
     selected?: unknown;
     graph?: unknown;
+    contents?: unknown;
   };
   const selected = value?.selected;
   if (!Number.isSafeInteger(selected) || Number(selected) < 0 || Number(selected) >= evidence.length) {
     throw new Error("Legal structure native module returned an invalid instrument selection");
   }
   const index = Number(selected);
+  const contents = value.contents as InstrumentContentsReading;
+  if (!contents || typeof contents !== "object" ||
+      (contents.outline === null) === (contents.refusal === null)) {
+    throw new Error("Legal structure native module returned invalid instrument contents");
+  }
   return {
     selected: index,
     graph: validateStructureGraph(value.graph, {
@@ -98,6 +128,7 @@ export function deriveInstrumentStructureNative(
       sourceHash: evidence[index].source_sha256,
       scalarLength: scalarLengths[index],
     }),
+    contents,
   };
 }
 
