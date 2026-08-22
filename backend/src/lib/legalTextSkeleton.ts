@@ -23,10 +23,9 @@ import {
 import {
   findProvisionReferences,
 } from "./legalReferenceGrammar";
-import { deriveSourceStructureGraphs } from "./sourceStructureEngine";
+import { deriveInstrumentSourceStructure } from "./sourceStructureEngine";
 import {
   instrumentLineationHypothesesNative,
-  selectInstrumentLineationNative,
 } from "./structureNative";
 import { documentScalarOffsets, type StructureGraphV2 } from "./structureWire";
 
@@ -779,7 +778,7 @@ async function compileAgreementSkeletonUncached(
   const lines = splitLines(text);
   const hypotheses =
     options.reconstructLineation === false ? [text] : lineationHypotheses(text);
-  const structures = await deriveSourceStructureGraphs(hypotheses.map((hypothesis, index) => ({
+  const inputs = hypotheses.map((hypothesis, index) => ({
     provider: null,
     id: `${id || "legal-text"}#lineation-${index}`,
     text: maskTableCells(hypothesis, options.tableCells ?? []),
@@ -788,21 +787,15 @@ async function compileAgreementSkeletonUncached(
     profile: "instrument" as const,
     allowHyphenatedSections: false,
     order: "legislation" as const,
-  })));
-  let selected = 0;
-  if (hypotheses.length > 1) {
-    const references = findProvisionReferences(text);
-    selected = selectInstrumentLineationNative(
-      text,
-      structures.map(({ graph }) => graph),
-      references.flatMap((reference) => {
+  }));
+  const references = hypotheses.length > 1
+    ? findProvisionReferences(text).flatMap((reference) => {
         if (reference.external) return [];
         const key = reference.shape === "roman" ? reference.aliasKey : reference.locator;
         return key ? [{ key, start: reference.start, end: reference.end }] : [];
-      }),
-    );
-  }
-  const chosen = structures[selected];
+      })
+    : [];
+  const chosen = deriveInstrumentSourceStructure(inputs, text, references);
   const best = graphSkeleton(chosen.materialized.evidence.text, chosen.graph);
   const { schedules, ladder } = best;
   const nodes = addTableNodes(text, best.nodes, options.tableCells ?? []);

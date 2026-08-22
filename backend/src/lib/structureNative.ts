@@ -12,9 +12,9 @@ import type { NativeMarkupSourceInput } from "./sourceDocNativeMarkup";
 type StructureAddon = {
   deriveStructures(documents: StructureEvidenceV1[]): unknown[];
   instrumentLineationHypotheses(text: string): unknown;
-  selectInstrumentLineation(
+  deriveInstrumentStructure(
     text: string,
-    graphs: StructureGraphV2[],
+    documents: StructureEvidenceV1[],
     references: InstrumentReferenceEvidence[],
   ): unknown;
   sourceDocs(requests: unknown[]): NativeSourceDoc[];
@@ -52,7 +52,7 @@ function loadAddon() {
   addon = module.exports as StructureAddon;
   if (typeof addon.deriveStructures !== "function" ||
       typeof addon.instrumentLineationHypotheses !== "function" ||
-      typeof addon.selectInstrumentLineation !== "function" ||
+      typeof addon.deriveInstrumentStructure !== "function" ||
       typeof addon.sourceDocs !== "function" ||
       typeof addon.sourceDocVersion !== "function") {
     throw new Error("Legal structure native module has an invalid API");
@@ -75,16 +75,30 @@ export type InstrumentReferenceEvidence = {
   end: number;
 };
 
-export function selectInstrumentLineationNative(
+export function deriveInstrumentStructureNative(
   text: string,
-  graphs: StructureGraphV2[],
+  evidence: StructureEvidenceV1[],
+  scalarLengths: readonly number[],
   references: InstrumentReferenceEvidence[],
-): number {
-  const selected = loadAddon().selectInstrumentLineation(text, graphs, references);
-  if (!Number.isSafeInteger(selected) || Number(selected) < 0 || Number(selected) >= graphs.length) {
-    throw new Error("Legal structure native module returned an invalid lineation selection");
+): { selected: number; graph: StructureGraphV2 } {
+  const value = loadAddon().deriveInstrumentStructure(text, evidence, references) as {
+    selected?: unknown;
+    graph?: unknown;
+  };
+  const selected = value?.selected;
+  if (!Number.isSafeInteger(selected) || Number(selected) < 0 || Number(selected) >= evidence.length) {
+    throw new Error("Legal structure native module returned an invalid instrument selection");
   }
-  return Number(selected);
+  const index = Number(selected);
+  return {
+    selected: index,
+    graph: validateStructureGraph(value.graph, {
+      id: evidence[index].document_id,
+      textHash: evidence[index].text_sha256,
+      sourceHash: evidence[index].source_sha256,
+      scalarLength: scalarLengths[index],
+    }),
+  };
 }
 
 export function sourceDocEngineVersion() {
