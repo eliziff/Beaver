@@ -2,7 +2,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   compileAgreementSkeleton,
-  readContentsOutline,
   readSection,
 } from "../legalTextSkeleton";
 import { deriveA2AJSourceDoc } from "../sourceDocStructureHost";
@@ -724,7 +723,7 @@ describe("the contents page as an outline", () => {
     expect(withoutMarker.outlineRefusal).toBe("no_contents_marker");
   });
 
-  it("refuses a clause list that cites no pages", () => {
+  it("refuses a clause list that cites no pages", async () => {
     // Same shape, no page numbers: a list of clauses is not a contents page,
     // and there is nothing here for a page-addressed reader to use.
     const clauses =
@@ -732,18 +731,18 @@ describe("the contents page as an outline", () => {
       Array.from({ length: 12 }, (_, i) => `${i + 1}.01 Obligations of the parties`).join(
         "\n",
       );
-    const { outline, refusal } = readContentsOutline(`${clauses}\n\n${body}`);
-    expect(outline).toBeNull();
-    expect(refusal).toBe("no_contents_entries");
+    const result = await compileAgreementSkeleton(`${clauses}\n\n${body}`);
+    expect(result.outline).toBeNull();
+    expect(result.outlineRefusal).toBe("no_contents_entries");
   });
 
-  it("reads the packed dialect, where entries are joined by single spaces", () => {
+  it("reads the packed dialect, where entries are joined by single spaces", async () => {
     // What a PDF extractor leaves: the whole contents page on one line.
     const packed =
       "TABLE OF CONTENTS Page ARTICLE I DEFINITIONS 2 Section 1.01 Defined Terms 2 " +
       "Section 1.02 Interpretation 4 ARTICLE II THE MERGER 5 Section 2.01 The Merger 5 " +
       "Section 2.02 Closing 6";
-    const { outline } = readContentsOutline(packed);
+    const { outline } = await compileAgreementSkeleton(packed);
     expect(outline!.entries.map((entry) => entry.label)).toEqual([
       "art1",
       "sec1.01",
@@ -758,14 +757,14 @@ describe("the contents page as an outline", () => {
     expect(outline!.entries[0].heading).toBe("DEFINITIONS");
   });
 
-  it("does not read a page footer as the entry's page", () => {
+  it("does not read a page footer as the entry's page", async () => {
     // A printed folio between two contents lines reads as a page DECREASE if
     // it is absorbed, which would end the region a third of the way in.
     const withFooter =
       "TABLE OF CONTENTS\nARTICLE I DEFINITIONS 60\nSection 1.01 Defined Terms 61\n\n" +
       "2\n\nSection 1.02 Interpretation 62\nSection 1.03 Currency 63\n" +
       "Section 1.04 Notices 64\nSection 1.05 Time 65";
-    const { outline } = readContentsOutline(withFooter);
+    const { outline } = await compileAgreementSkeleton(withFooter);
     expect(outline!.entries).toHaveLength(6);
     expect(outline!.entries.map((entry) => entry.page)).toEqual([
       60, 61, 62, 63, 64, 65,

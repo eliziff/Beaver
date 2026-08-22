@@ -36,6 +36,23 @@ multi-call path over the same 872 documents. Every selected graph was
 byte-identical. The pass covered 66,836,213 input bytes, 24,707 pages, and
 1,221,262 lines in 71.2 seconds; the temporary dual path was then removed.
 
+The instrument-contents reader was then ported literally and checked on the
+same 872-document surface before the TypeScript copy was deleted. All 872
+readings were byte-identical. The framed TypeScript and Rust output SHA-256
+were both
+`89a58801a93225325234a52d0423b5f82e1830a5587898e557332fc193db1a78`.
+The final optimized pass measured 641.4 ms in TypeScript and 554.5 ms through
+the Rust native boundary. A prior optimized pass measured 472.7 ms and 478.7
+ms respectively, so these isolated timings establish comparable cost, not a
+stable speed ratio. Production does not make this standalone call: contents
+now travels with the graph from the existing `deriveInstrumentStructure`
+operation, amortizing the text crossing and call overhead.
+
+As with lineation, this is a porting-parity receipt rather than contents
+ground truth. The 748 cached PDFs are a broad regression surface; the focused
+tests preserve the detector's refusal, nesting, footer, duplicate, page-order,
+pageless-tail, guarded-schedule, packed-entry, and UTF-16 offset behavior.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
