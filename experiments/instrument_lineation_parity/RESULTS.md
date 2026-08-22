@@ -53,6 +53,22 @@ ground truth. The 748 cached PDFs are a broad regression surface; the focused
 tests preserve the detector's refusal, nesting, footer, duplicate, page-order,
 pageless-tail, guarded-schedule, packed-entry, and UTF-16 offset behavior.
 
+The complete pre-cut instrument product is now frozen on the same 872 inputs.
+An independent replay completed in 263.7 seconds with zero mismatches across
+separate hashes for provision nodes, SourceDoc blocks/index/ranges, defined
+terms, schedules, cross-reference summaries, ladder diagnostics, and contents
+outcomes. The aggregate result SHA-256 is
+`3f0bb97dd0cccf41342718f45614d7e0b232773e2786db12c962445703d40b5a`.
+The receipt covers 60,331 nodes/SourceDoc blocks, 1,171 defined terms, 1,218
+schedules, 26,807 internal and 3,124 external references, 3,146 distinct
+unresolved targets, 80 accepted contents outlines, and 792 typed refusals.
+
+The 872 text inputs supply no native table-cell maps, so their table-node count
+is honestly zero. This freeze therefore does not certify table projection;
+the focused table fixtures and complete DOCX/grid inventory remain separate
+gates. The per-document component hashes are stored compactly on one line in
+`structure-baseline.json`, avoiding a 12,235-line generated-artifact increase.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
@@ -62,4 +78,5 @@ under `.tmp/`.
 
 ```powershell
 .\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\gate.ts
+.\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\structure_gate.ts
 ```
