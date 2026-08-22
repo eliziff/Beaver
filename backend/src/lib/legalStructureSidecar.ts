@@ -47,7 +47,6 @@ const SIDECAR_VERSION = 4;
 
 type SkeletonPayload = {
   version: number;
-  id: string;
   nodes: AgreementSkeleton["nodes"];
   blocks: SourceDocBlock[];
   definedTerms: AgreementSkeleton["definedTerms"];
@@ -61,8 +60,6 @@ type SkeletonPayload = {
 const sidecarRoot = () => path.join(mikeLocalDataHome(), "structure-cache");
 const skeletonMisses = new Map<string, Promise<SkeletonPayload>>();
 const graphMisses = new Map<string, Promise<CrossReferenceGraph>>();
-
-const textDigest = sha256;
 
 function sidecarPath(digest: string, variant: string, kind: string) {
   return path.join(sidecarRoot(), `${digest}.${variant}.${kind}.v${SIDECAR_VERSION}.json`);
@@ -114,10 +111,9 @@ function rehydrate(
   };
 }
 
-function skeletonPayload(skeleton: AgreementSkeleton, id: string): SkeletonPayload {
+function skeletonPayload(skeleton: AgreementSkeleton): SkeletonPayload {
   return {
     version: SIDECAR_VERSION,
-    id,
     nodes: skeleton.nodes,
     blocks: skeleton.doc.blocks,
     definedTerms: skeleton.definedTerms,
@@ -140,7 +136,7 @@ export async function bakedSkeleton(
   id = "",
   options: CompileSkeletonOptions = {},
 ): Promise<AgreementSkeleton> {
-  const file = sidecarPath(textDigest(text), variantOf(options), "skeleton");
+  const file = sidecarPath(sha256(text), variantOf(options), "skeleton");
   try {
     const payload = JSON.parse(await fs.readFile(file, "utf8")) as SkeletonPayload;
     if (payload.version === SIDECAR_VERSION && Array.isArray(payload.nodes)) {
@@ -153,7 +149,7 @@ export async function bakedSkeleton(
   let pending = skeletonMisses.get(file);
   if (!pending) {
     pending = (async () => {
-      const payload = skeletonPayload(await compileAgreementSkeleton(text, "", options), "");
+      const payload = skeletonPayload(await compileAgreementSkeleton(text, "", options));
       await fs.mkdir(sidecarRoot(), { recursive: true });
       await writeAtomic(file, payload);
       return payload;
@@ -169,10 +165,9 @@ export async function bakedCrossReferenceGraph(
   id = "",
   options: CompileSkeletonOptions = {},
 ): Promise<CrossReferenceGraph> {
-  const digest = textDigest(text);
+  const digest = sha256(text);
   const variant = variantOf(options);
   const file = sidecarPath(digest, variant, "graph");
-  const skeleton = await bakedSkeleton(text, id, options);
   try {
     const payload = JSON.parse(await fs.readFile(file, "utf8")) as {
       version: number;
@@ -185,6 +180,7 @@ export async function bakedCrossReferenceGraph(
   } catch {
     // Fall through.
   }
+  const skeleton = await bakedSkeleton(text, id, options);
   let pending = graphMisses.get(file);
   if (!pending) {
     pending = (async () => {
@@ -214,7 +210,7 @@ export async function bakeStructure(
   id = "",
   options: CompileSkeletonOptions = {},
 ): Promise<BakeReport> {
-  const digest = textDigest(text);
+  const digest = sha256(text);
   const variant = variantOf(options);
 
   const skeletonStarted = performance.now();
@@ -225,7 +221,7 @@ export async function bakeStructure(
   const graph = crossReferenceGraphFromSkeleton(text, skeleton);
   const graphMs = performance.now() - graphStarted;
 
-  const payload = skeletonPayload(skeleton, id);
+  const payload = skeletonPayload(skeleton);
   await fs.mkdir(sidecarRoot(), { recursive: true });
   await writeAtomic(sidecarPath(digest, variant, "skeleton"), payload);
   await writeAtomic(sidecarPath(digest, variant, "graph"), {
