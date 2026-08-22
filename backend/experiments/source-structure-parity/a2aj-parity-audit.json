@@ -1,0 +1,119 @@
+{
+  "schema": "beaver.a2aj-parity-audit.v1",
+  "typescript_oracle_commit": "16d4c5fe",
+  "candidate_capture": {
+    "rows": 248685,
+    "passes": 248640,
+    "provider_unavailable": 45,
+    "cases": 225162,
+    "laws": 23523,
+    "manifest_sha256": "8507e7f905a8159405ac4e22b16dfada17f9a9efae3375363dd01d8b8d89786d"
+  },
+  "oracle": {
+    "case_differences_replayed": 37,
+    "laws_replayed_with_real_section_map": 23523,
+    "prior_oracle_sha256": "f60becc6e0c65f5f8d2dbf599271ccc6bb179d814d7de06e02f7178c448c428d",
+    "missing_law_oracle_sha256": "f4729c9d5d8b6bd1b77522fe3691bfe9cbb5385f638500ff0b3a231b70d8e28a"
+  },
+  "pre_fix_result": {
+    "exact_cases": 225125,
+    "different_cases": 37,
+    "exact_laws": 6271,
+    "different_laws": 17252,
+    "overlapping_classes": {
+      "candidate_generation": 9652,
+      "case_selection": 6,
+      "hierarchy": 13337,
+      "provider_native_projection": 12142,
+      "range_closing": 16012,
+      "start_projection": 8952
+    },
+    "tuple_changes": {
+      "added_blocks": 410740,
+      "removed_blocks": 134011,
+      "changed_start": 142052,
+      "changed_end": 561104,
+      "changed_parent": 1061883,
+      "changed_origin": 1174,
+      "changed_aliases": 610
+    }
+  },
+  "source_decisions": [
+    {
+      "decision": "keep_rust_correction",
+      "class": "hierarchy",
+      "source_id": 225166,
+      "evidence": "sec12(2)(a) through sec12(2)(c) are children of sec12(2), not sec12; the parent range covers its children"
+    },
+    {
+      "decision": "keep_rust_correction",
+      "class": "range_closing",
+      "source_id": 225180,
+      "evidence": "sec2(2) ends at 680, the start of the next legal marker; the TypeScript end 679 stops one newline early"
+    },
+    {
+      "decision": "keep_rust_correction",
+      "class": "child_start_projection",
+      "source_id": 225626,
+      "evidence": "sec2 owns the section marker at 536; its child sec2(1) correctly starts at the subsection marker '(' at 538 instead of duplicating the parent start"
+    },
+    {
+      "decision": "restore_typescript_semantics",
+      "class": "provider_native_projection",
+      "source_id": 225263,
+      "evidence": "top-level native sec3.1 starts at 1413 on '3.1'; start 1417 drops its own label, while child ranges must still close before the next provider heading"
+    },
+    {
+      "decision": "restore_typescript_semantics",
+      "class": "candidate_generation",
+      "source_id": 225186,
+      "evidence": "the source contains one mapped section 1 and Rust removed that sole native block"
+    },
+    {
+      "decision": "restore_typescript_semantics",
+      "class": "candidate_generation",
+      "source_id": 225230,
+      "evidence": "Rust emitted sec12.1(b) twice at the same 7522..7589 source span"
+    },
+    {
+      "decision": "copy_typescript_exactly",
+      "class": "case_candidate_generation",
+      "source_id": 55307,
+      "evidence": "the heading-joined [1] candidate is classified from the full document suffix, not only the remainder of its line"
+    },
+    {
+      "decision": "copy_typescript_exactly",
+      "class": "case_selection",
+      "source_id": 92919,
+      "evidence": "the rooted consecutive chain must preserve the later 671-paragraph decision spine instead of selecting the earlier competing ladder"
+    }
+  ],
+  "implementation_targets": [
+    {
+      "file": "legal-pdf-parser/legal-structure/src/lib.rs",
+      "functions": ["source_doc_children", "detect_legislation"],
+      "current_lines": [3053, 3190],
+      "change": "Use the TypeScript childMarkers/classifyChild strictly-increasing admission rule for candidate identity. Keep Rust's immediate-parent stack, parent-covering ranges and child-marker starts after admission. Leave enumerated_children for general instruments."
+    },
+    {
+      "file": "legal-pdf-parser/legal-structure/src/a2aj.rs",
+      "functions": ["provider_source", "promote", "a2aj_source_doc"],
+      "current_lines": [161, 384, 495],
+      "change": "For non-empty laws, recover the text spine before applying the section map. Promotion changes origin on a matched top-level block without replacing its marker range; only a missing locator may use the unique exact provider-text slice. Regenerate children through source_doc_children and deduplicate exact label/start/end occurrences."
+    },
+    {
+      "file": "legal-pdf-parser/legal-structure/src/lib.rs",
+      "functions": ["paragraph_markers", "heading_joined", "rooted_chain"],
+      "current_lines": [1035, 1259, 1297],
+      "change": "Keep the copied TypeScript semantics: a line-final bare/dotted marker is valid when a newline follows; sentence-heading classification receives the full document suffix; the rooted chain groups equal offsets and extends only value-1 with the original strict tie rule."
+    }
+  ],
+  "focused_tests": [
+    "legal-pdf-parser/legal-structure/src/a2aj.rs:550 map_rendering_and_native_promotion_match_a2aj",
+    "legal-pdf-parser/legal-structure/src/a2aj.rs:610 frozen A2AJ fixture hash loop",
+    "legal-pdf-parser/legal-structure/src/lib.rs:3914 weighted_numeric_sequence_policies_preserve_lane_rules",
+    "legal-pdf-parser/legal-structure/src/lib.rs:4148 heading_and_utf16_edges_match_javascript",
+    "backend/experiments/source-structure-port-oracle/candidateParity.test.ts"
+  ],
+  "one_pass_rule": "Keep immediate parents, parent-covering spans, actual child-marker starts and next-marker closures where source-proven. Make candidate admission/selection and top-level provider-native projection exact to TypeScript. Apply the two exact case semantics, then run one full differential and accept only exact output or a source-witnessed correction recorded here."
+}
