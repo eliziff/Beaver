@@ -35,6 +35,9 @@ Only this section is backlog.
   acceptance language; it does not override master-plan status.
 - [Canonicalization and contraction](roadmap/contraction.md) — active
   architecture and line-count reduction.
+- [Shared document structure](roadmap/document-structure.md) — exact Rust
+  detector consolidation, Beaver call boundary, OCR/Luna seam, and cross-product
+  cutover.
 - [Scalable collections](roadmap/collections.md) — approved collection/storage
   work.
 - [Shared legal data and tool UI](roadmap/shared-legal-data.md) — approved
@@ -57,6 +60,8 @@ not parallel implementation plans.
   [ALR macro portability](decisions/alr-macro-portability.md).
 - Legal data: [ALR independence](decisions/alr-independence.md),
   [provider structure](decisions/provider-structure.md),
+  [document-structure evidence](decisions/document-structure-evidence.md),
+  [source-structure cutover results](decisions/source-structure-cutover-results.md),
   [citation grammar](decisions/citation-grammar.md),
   [citators](decisions/citator.md), and
   [authorities ordering](decisions/authorities-ordering.md).
