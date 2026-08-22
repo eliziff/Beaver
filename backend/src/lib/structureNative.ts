@@ -6,7 +6,7 @@ import {
   type StructureEvidenceV1,
   type StructureGraphV2,
 } from "./structureWire";
-import { tokenizeSourceText, type SourceDoc, type SourceDocBlock } from "./sourceDoc";
+import { tokenizeSourceText, type SourceDoc } from "./sourceDoc";
 import type { NativeMarkupSourceInput } from "./sourceDocNativeMarkup";
 
 type StructureAddon = {
@@ -118,7 +118,9 @@ export function deriveInstrumentStructureNative(
   const contents = value.contents as InstrumentContentsReading;
   if (!contents || typeof contents !== "object" ||
       (contents.outline === null) === (contents.refusal === null)) {
-    throw new Error("Legal structure native module returned invalid instrument contents");
+    throw new Error(
+      `Legal structure native module returned invalid instrument contents: ${String(JSON.stringify(value.contents)).slice(0, 500)}`,
+    );
   }
   return {
     selected: index,
@@ -195,10 +197,7 @@ type SourceDocNativeRequest =
       page_rows: JournalPageRow[] }
   | { kind: "journal"; article_id: number; url: string | null; text: string;
       page_rows: JournalPageRow[] }
-  | { kind: "native_markup"; input: NativeMarkupSourceInput; source_id?: string }
-  | { kind: "evidence"; input: StructureEvidenceV1; source_id?: string;
-      original_claims?: Record<string, SourceDocBlock>;
-      original_claim_orders?: Record<string, string[]> };
+  | { kind: "native_markup"; input: NativeMarkupSourceInput; source_id?: string };
 
 function sourceDocsNative(requests: SourceDocNativeRequest[]) {
   const values = loadAddon().sourceDocs(requests);
