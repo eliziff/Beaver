@@ -30,6 +30,12 @@ same winning graph for all 872 documents. That shadow pass completed in
 deleted; provision-reference recognition remains outside the structure engine
 and enters the Rust selector only as typed `{ key, start, end }` evidence.
 
+Finally, collapsing graph derivation and winner selection behind one native
+`deriveInstrumentStructure` operation was shadowed against the displaced
+multi-call path over the same 872 documents. Every selected graph was
+byte-identical. The pass covered 66,836,213 input bytes, 24,707 pages, and
+1,221,262 lines in 71.2 seconds; the temporary dual path was then removed.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
