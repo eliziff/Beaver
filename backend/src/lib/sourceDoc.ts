@@ -80,6 +80,28 @@ export type SourceDocLookup = {
   after: Array<SourceDocBlock & { text: string }>;
 };
 
+/** Labels in the explicit parent chain rooted at `seedLabel`. */
+export function sourceDocSubtreeLabels(
+  blocks: ReadonlyArray<Pick<SourceDocBlock, "label" | "parentLabel">>,
+  seedLabel: string,
+): Set<string> {
+  const byLabel = new Map(blocks.map((block) => [block.label, block]));
+  const labels = new Set<string>();
+  for (const block of blocks) {
+    let current: Pick<SourceDocBlock, "label" | "parentLabel"> | undefined = block;
+    const seen = new Set<string>();
+    while (current && !seen.has(current.label)) {
+      seen.add(current.label);
+      if (current.label === seedLabel) {
+        labels.add(block.label);
+        break;
+      }
+      current = current.parentLabel ? byLabel.get(current.parentLabel) : undefined;
+    }
+  }
+  return labels;
+}
+
 const LOCATOR_KINDS: SourceDocLocatorKind[] = [
   "paragraph",
   "page",
