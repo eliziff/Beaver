@@ -212,10 +212,6 @@ describe("A2AJ client", () => {
   });
 
   it("uses A2AJ's raw section map for nested provision lookup", async () => {
-    const fullText =
-      "The complete provider document keeps its title, headings, and other provisions. ".repeat(
-        2,
-      ).trim();
     const mappedText = [
       "34(1) Parent defence provision.",
       "(a) The requested nested statutory paragraph applies.",
@@ -230,7 +226,7 @@ describe("A2AJ client", () => {
             dataset: "LEGISLATION-FED",
             citation_en: "RSC 1985, c C-46",
             name_en: "Criminal Code",
-            unofficial_text_en: fullText,
+            unofficial_text_en: "Stale flattened text that the provider section map supersedes.",
             unofficial_sections_en: JSON.stringify({
               "34": mappedText,
             }),
@@ -253,10 +249,17 @@ describe("A2AJ client", () => {
 
     expect(document).toMatchObject({
       docType: "laws",
-      text: fullText,
-      structure: { source: "flat_text" },
+      text: mappedText,
+      structure: { source: "section_map" },
     });
-    expect(a2ajLegalSourceProvider.source(document!).text).toBe(fullText);
+    const source = a2ajLegalSourceProvider.source(document!);
+    expect(source.text).toBe(mappedText);
+    expect(source.blocks.find(({ label }) => label === "sec34")).toMatchObject({
+      label: "sec34",
+      start: 0,
+      end: mappedText.length,
+      origin: "native",
+    });
     expect(lookup).toMatchObject({
       status: "found",
       sourceMethod: "provider_section",

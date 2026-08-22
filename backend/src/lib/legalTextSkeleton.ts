@@ -15,6 +15,7 @@ import {
   createSourceDoc,
   lookupSourceDocLabel,
   normalizeSourceDocLocator,
+  sourceDocSubtreeLabels,
   type SourceDoc,
   type SourceDocBlock,
   type SourceDocLookup,
@@ -58,21 +59,7 @@ export function skeletonSubtreeLabels(
   skeleton: Pick<AgreementSkeleton, "nodes">,
   seedLabel: string,
 ): Set<string> {
-  const byLabel = new Map(skeleton.nodes.map((node) => [node.label, node]));
-  const labels = new Set<string>();
-  for (const node of skeleton.nodes) {
-    let current: SkeletonNode | undefined = node;
-    const seen = new Set<string>();
-    while (current && !seen.has(current.label)) {
-      seen.add(current.label);
-      if (current.label === seedLabel) {
-        labels.add(node.label);
-        break;
-      }
-      current = current.parentLabel ? byLabel.get(current.parentLabel) : undefined;
-    }
-  }
-  return labels;
+  return sourceDocSubtreeLabels(skeleton.nodes, seedLabel);
 }
 
 /** Native table coordinates already projected onto this text's offset plane. */

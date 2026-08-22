@@ -41,9 +41,9 @@ import { createSourceDoc, type SourceDocBlock } from "./sourceDoc";
  * applies to parser versions — the alternative is a cache that quietly
  * disagrees with the code that reads it.
  */
-// v2 added native table-row nodes. v3 corrects literal-reference graph
-// semantics: decimal provisions are siblings, not dotted descendants.
-const SIDECAR_VERSION = 3;
+// v2 added native table-row nodes. v3 corrected decimal-provision semantics.
+// v4 stops serializing the skeleton's nodes again inside the graph.
+const SIDECAR_VERSION = 4;
 
 type SkeletonPayload = {
   version: number;
@@ -60,7 +60,7 @@ type SkeletonPayload = {
 
 const sidecarRoot = () => path.join(mikeLocalDataHome(), "structure-cache");
 const skeletonMisses = new Map<string, Promise<SkeletonPayload>>();
-const graphMisses = new Map<string, Promise<Omit<CrossReferenceGraph, "nodes">>>();
+const graphMisses = new Map<string, Promise<CrossReferenceGraph>>();
 
 const textDigest = sha256;
 
@@ -180,9 +180,7 @@ export async function bakedCrossReferenceGraph(
     };
     if (payload.version === SIDECAR_VERSION && payload.graph?.counts) {
       devLog(`[structure-cache] graph hit ${path.basename(file)}`);
-      // The graph's own `nodes` are the skeleton's; serve the rehydrated ones
-      // so identity holds for anything keying off them.
-      return { ...payload.graph, nodes: skeleton.nodes };
+      return payload.graph;
     }
   } catch {
     // Fall through.
@@ -191,14 +189,13 @@ export async function bakedCrossReferenceGraph(
   if (!pending) {
     pending = (async () => {
       const graph = crossReferenceGraphFromSkeleton(text, skeleton);
-      const payload = { ...graph, nodes: undefined };
       await fs.mkdir(sidecarRoot(), { recursive: true });
-      await writeAtomic(file, { version: SIDECAR_VERSION, graph: payload });
-      return payload;
+      await writeAtomic(file, { version: SIDECAR_VERSION, graph });
+      return graph;
     })().finally(() => graphMisses.delete(file));
     graphMisses.set(file, pending);
   }
-  return { ...(await pending), nodes: skeleton.nodes };
+  return pending;
 }
 
 export type BakeReport = {
@@ -231,10 +228,9 @@ export async function bakeStructure(
   const payload = skeletonPayload(skeleton, id);
   await fs.mkdir(sidecarRoot(), { recursive: true });
   await writeAtomic(sidecarPath(digest, variant, "skeleton"), payload);
-  // `nodes` is the skeleton's array; drop it rather than store it twice.
   await writeAtomic(sidecarPath(digest, variant, "graph"), {
     version: SIDECAR_VERSION,
-    graph: { ...graph, nodes: [] },
+    graph,
   });
 
   return {
