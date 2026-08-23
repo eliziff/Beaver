@@ -143,12 +143,10 @@ type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string): Promise<NativeDocument>;
   derivePdfDocument(request: unknown): Promise<NativeDocument>;
-  documentSnapshot(document: NativeDocument): Buffer;
   pdfDocumentSummary(document: NativeDocument): Buffer;
   documentCitedAuthorities(document: NativeDocument): Buffer;
   docxStructureLint(document: NativeDocument): Buffer;
   docxTableCells(document: NativeDocument): Buffer;
-  sourceDocSnapshot(document: NativeDocument): Buffer;
   sourceDocText(document: NativeDocument): string;
   sourceDocTextBytes(document: NativeDocument): number;
   sourceDocRevision(document: NativeDocument): string;
@@ -179,7 +177,6 @@ type StructureAddon = {
   graphScope(document: NativeDocument, seed: string, follow: string,
     depth: number, includeDescendants: boolean): Buffer;
   queryPdfDocument(document: NativeDocument, query: unknown): Buffer;
-  applyAmendOps(source: string, ops: AmendOp[], reconstructLineation?: boolean): Promise<Buffer>;
   deleteProvisionAndRenumberSiblings(source: string, target: string,
     reconstructLineation?: boolean): Promise<Buffer>;
   consolidateAmendment(source: string, amendment: string,
@@ -200,7 +197,7 @@ export type NativeTableCell = {
   end: number;
 };
 
-export type NativeDocxLintReport = {
+type NativeDocxLintReport = {
   paragraphs: number;
   checks: {
     cross_references: { references: number; resolved: number; skipped_external: number };
@@ -233,7 +230,7 @@ export type NativeDocumentBlock = {
   parentLabel?: string;
 };
 
-export type NativeDocumentLookup = {
+type NativeDocumentLookup = {
   status: "found" | "not_found" | "unavailable" | "ambiguous";
   requestedLabel: string;
   matches: string[];
@@ -242,10 +239,10 @@ export type NativeDocumentLookup = {
   after: NativeDocumentBlock[];
 };
 
-export type AmendOpKind = "strike_text" | "insert_text" | "substitute_text" |
+type AmendOpKind = "strike_text" | "insert_text" | "substitute_text" |
   "append_text" | "strike_provision" | "replace_provision" | "add_provision" |
   "add_at_end" | "repeal_provision" | "redesignate";
-export type AmendOp = {
+type AmendOp = {
   kind: AmendOpKind;
   target: string;
   oldText?: string;
@@ -259,11 +256,11 @@ export type AmendOp = {
   wholeWord?: boolean;
   raw: string;
 };
-export type AmendParseResult = {
+type AmendParseResult = {
   ops: AmendOp[];
   unparsed: Array<{ excerpt: string; reason: string }>;
 };
-export type AmendReceipt = {
+type AmendReceipt = {
   op: AmendOp;
   start: number;
   end: number;
@@ -271,14 +268,14 @@ export type AmendReceipt = {
   inserted: string;
   occurrences?: number;
 };
-export type AmendFailure = {
+type AmendFailure = {
   op: AmendOp;
   code: "target_not_found" | "old_text_not_found" | "old_text_ambiguous" |
     "anchor_not_found" | "anchor_ambiguous" | "missing_new_text" |
     "overlapping_ops" | "unsupported_apply";
   detail: string;
 };
-export type ApplyAmendmentsResult = {
+type ApplyAmendmentsResult = {
   text: string;
   applied: AmendReceipt[];
   failures: AmendFailure[];
@@ -291,13 +288,13 @@ export type ApplyAmendmentsResult = {
     ladderViolationsAfter: number;
   };
 };
-export type ApplyAmendOptions = { reconstructLineation?: boolean };
-export type DeleteAndRenumberFailureCode = "target_not_found" | "target_ambiguous" |
+type ApplyAmendOptions = { reconstructLineation?: boolean };
+type DeleteAndRenumberFailureCode = "target_not_found" | "target_ambiguous" |
   "unsupported_target" | "sibling_ambiguous" | "sibling_sequence_unsupported" |
   "heading_not_found" | "reference_to_deleted_target" | "unresolved_reference" |
   "ambiguous_reference" | "external_reference" | "overlapping_ops" |
   "verification_failed";
-export type DeleteAndRenumberFailure = {
+type DeleteAndRenumberFailure = {
   code: DeleteAndRenumberFailureCode;
   detail: string;
   start?: number;
@@ -312,7 +309,7 @@ export type DeleteAndRenumberReceipt = {
   from: string;
   to: string | null;
 };
-export type DeleteAndRenumberResult = {
+type DeleteAndRenumberResult = {
   text: string;
   mapping: Array<{ from: string; to: string }>;
   applied: DeleteAndRenumberReceipt[];
@@ -355,10 +352,6 @@ export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
 
 const parsed = <T>(bytes: Buffer) => JSON.parse(bytes.toString("utf8")) as T;
 
-const documentSnapshotNative = <T = unknown>(document: NativeDocument) =>
-  parsed<T>(loadAddon().documentSnapshot(document));
-export const documentStructureNative = <T = unknown>(document: NativeDocument) =>
-  documentSnapshotNative<{ structure: T }>(document).structure;
 export const pdfDocumentSummaryNative = <T = unknown>(document: NativeDocument) =>
   parsed<T>(loadAddon().pdfDocumentSummary(document));
 export const documentCitedAuthoritiesNative = (document: NativeDocument) =>
@@ -420,24 +413,22 @@ export type NativePageMap = {
     printedLabel: string | null; start: number; end: number }>;
   source: "artifact" | "markers" | "unpaginated" | "unindexed";
 };
-export type NativePageLookup =
+type NativePageLookup =
   | { status: "found"; page: NativePageMap["pages"][number];
       matchedOn: "pdf" | "printed"; text: string }
   | { status: "no_pages" }
   | { status: "not_found"; requested: string; sense: "pdf" | "printed";
       count: number; first: string | null; last: string | null };
-export type NativeDocumentAddress =
+type NativeDocumentAddress =
   | { kind: "section"; locator: string }
   | { kind: "page"; spec: string }
   | { kind: "offset"; start: number };
-export type NativeGraphScope = {
+type NativeGraphScope = {
   seed: NativeDocumentBlock;
   nodes: NativeDocumentBlock[];
   depth: number;
 };
 
-export const projectDocumentSourceNative = <T = unknown>(document: NativeDocument) =>
-  parsed<T>(loadAddon().sourceDocSnapshot(document));
 export const tokenizeTextNative = (text: string) =>
   parsed<NativeWordSpan[]>(loadAddon().tokenizeSourceText(text));
 export const quoteTextNative = (text: string) => loadAddon().sourceDocQuoteText(text);
@@ -465,11 +456,6 @@ export const graphScopeNative = (document: NativeDocument, seed: string,
   follow: "none" | "out" | "in" | "both" = "none", depth = 1,
   includeDescendants = false) => parsed<NativeGraphScope | null>(
     loadAddon().graphScope(document, seed, follow, depth, includeDescendants));
-export async function applyAmendOps(source: string, ops: AmendOp[],
-  options: ApplyAmendOptions = {}) {
-  return parsed<ApplyAmendmentsResult>(await loadAddon().applyAmendOps(
-    source, ops, options.reconstructLineation));
-}
 export async function deleteProvisionAndRenumberSiblings(source: string, target: string,
   options: ApplyAmendOptions = {}) {
   return parsed<DeleteAndRenumberResult>(
