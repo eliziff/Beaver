@@ -1544,7 +1544,7 @@ async function runCodingShapeCall(
         }
         const covered: TextRange[] = [];
         const candidates: CodingOutputLine[] = [];
-        for (const [index, node] of scope.nodes.entries()) {
+        for (const [index, node] of [scope.seed, ...scope.nodes].entries()) {
           const open = uncoveredRanges(
             { start: node.start, end: node.end },
             covered,
