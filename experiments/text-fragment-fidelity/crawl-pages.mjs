@@ -8,6 +8,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { decodeEntities, htmlToText } from "./gap-lib.mjs";
+import { resolveCachedSourceUrl } from "./source-representation.mjs";
 
 const here = import.meta.dirname;
 const resultsDir = path.join(here, "results");
@@ -30,6 +31,7 @@ function isPdfUrl(rawUrl) {
   try {
     const u = new URL(rawUrl);
     if (u.pathname.toLowerCase().endsWith(".pdf")) return true;
+    if (u.pathname.toLowerCase().endsWith("/document.do")) return true;
     if (/laws\.yukon\.ca\/cms\/images\/LEGISLATION/iu.test(u.href)) return true;
     if (/justice\.gov\.nt\.ca\/en\/files\/legislation/iu.test(u.href)) return true;
     if (/princeedwardisland\.ca\/sites\/default\/files\/legislation/iu.test(u.href)) return true;
@@ -43,7 +45,7 @@ function isPdfUrl(rawUrl) {
 function fetchUrlFor(rawUrl) {
   try {
     const transformed = sourceUrl(rawUrl);
-    if (transformed) return transformed.split("#")[0];
+    if (transformed) return resolveCachedSourceUrl(transformed.split("#")[0]);
   } catch {}
   return rawUrl;
 }
@@ -53,6 +55,12 @@ const seeds = fs.readFileSync(seedsPath, "utf8")
 const urls = [...new Set(seeds.map((s) => s.url.split("#")[0]))];
 const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
   .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const containsQuoteCore = (text, quote) => {
+  const words = quote.split(" ").filter(Boolean);
+  const size = Math.min(5, words.length);
+  return !size || words.some((_, index) => index + size <= words.length &&
+    text.includes(words.slice(index, index + size).join(" ")));
+};
 const requiredByUrl = new Map();
 for (const seed of seeds) {
   const url = fetchUrlFor(seed.url.split("#")[0]);
@@ -65,7 +73,7 @@ function cacheContainsQuotes(row) {
   const file = row.file && path.join(cacheDir, row.file);
   if (!file || !fs.existsSync(file)) return false;
   const text = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
-  return (requiredByUrl.get(row.url) ?? []).every((quote) => text.includes(quote));
+  return (requiredByUrl.get(row.url) ?? []).every((quote) => containsQuoteCore(text, quote));
 }
 const have = new Set();
 if (fs.existsSync(manifestPath)) {
@@ -159,12 +167,15 @@ async function crawl(page, url) {
         // Visit origin to obtain cf_clearance cookie, then fetch PDF via page.evaluate which inherits cookies.
         try {
           const origin = new URL(fetchUrl).origin;
-          let needNav = true;
-          try { needNav = new URL(page.url()).origin !== origin; } catch {}
-          if (needNav) {
-            await page.goto(`${origin}/`, { waitUntil: "load", timeout: 40_000 });
-            await page.waitForTimeout(3000);
+          const landing = new URL(url);
+          if (/\/item\/\d+\/index\.do$/iu.test(landing.pathname)) {
+            landing.searchParams.set("iframe", "true");
+            landing.searchParams.set("site_preference", "mobile");
           }
+          await page.goto(landing.origin === origin ? landing.toString() : `${origin}/`, {
+            waitUntil: "load", timeout: 90_000,
+          });
+          await page.waitForTimeout(3000);
           const result = await page.evaluate(async (u) => {
             const r = await fetch(u);
             if (!r.ok) return { ok: false, status: r.status };
@@ -206,10 +217,10 @@ async function crawl(page, url) {
     let body = "";
     while (Date.now() < deadline) {
       body = normalized(await page.locator("body").innerText());
-      if (required.every((quote) => body.includes(quote))) break;
+      if (required.every((quote) => containsQuoteCore(body, quote))) break;
       await page.waitForTimeout(100);
     }
-    if (!required.every((quote) => body.includes(quote))) {
+    if (!required.every((quote) => containsQuoteCore(body, quote))) {
       throw new Error(`page did not hydrate ${required.length} required quotes`);
     }
     html = await page.content();
@@ -228,7 +239,7 @@ async function crawl(page, url) {
 // HOST_MIN_INTERVAL_MS. The earlier wall was triggered by a NON-stealth
 // parallel pass; test how far stealth parallelism gets us.
 const WORKERS = Number(process.env.CRAWL_WORKERS ?? 8);
-const HOST_MIN_INTERVAL_MS = 600;
+const HOST_MIN_INTERVAL_MS = Number(process.env.CRAWL_HOST_INTERVAL_MS ?? 600);
 try {
   const workerPages = [];
   for (let i = 0; i < WORKERS; i += 1) {

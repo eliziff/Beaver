@@ -7,6 +7,7 @@ import { decodeEntities, htmlToText } from "./gap-lib.mjs";
 const here = import.meta.dirname;
 const results = path.join(here, "results");
 const cacheDir = path.join(results, "page-html");
+const targetsPath = process.argv[2] ?? path.join(results, "targets.jsonl");
 const read = (file) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line));
 function key(raw) {
   const url = new URL(raw);
@@ -18,7 +19,7 @@ function key(raw) {
 }
 const manifest = new Map();
 for (const row of read(path.join(results, "page-html-manifest.jsonl"))) {
-  if (!row.url) continue;
+  if (!row.url || !row.file) continue;
   manifest.set(key(row.url), row);
 }
 const missing = [];
@@ -27,7 +28,13 @@ const used = new Map();
 const textCache = new Map();
 const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
   .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-for (const seed of read(path.join(results, "targets.jsonl"))) {
+const containsQuoteCore = (text, quote) => {
+  const words = normalized(quote).split(" ").filter(Boolean);
+  const size = Math.min(5, words.length);
+  return !size || words.some((_, index) => index + size <= words.length &&
+    text.includes(words.slice(index, index + size).join(" ")));
+};
+for (const seed of read(targetsPath)) {
   if (!seed.target) {
     missing.push({ label: seed.label, reason: "no-target" });
     continue;
@@ -53,7 +60,7 @@ for (const seed of read(path.join(results, "targets.jsonl"))) {
       pageText = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
       textCache.set(row.file, pageText);
     }
-    const absent = (seed.quotes ?? []).filter((quote) => !pageText.includes(normalized(quote)));
+    const absent = (seed.quotes ?? []).filter((quote) => !containsQuoteCore(pageText, quote));
     if (absent.length) {
       invalid.push({ label: seed.label, url: base, file: row.file, reason: "quote-not-cached" });
       continue;
@@ -61,7 +68,7 @@ for (const seed of read(path.join(results, "targets.jsonl"))) {
   }
   used.set(key(base), row.file);
 }
-const report = { seeds: read(path.join(results, "targets.jsonl")).length, cachedPages: used.size, missing, invalid };
+const report = { seeds: read(targetsPath).length, cachedPages: used.size, missing, invalid };
 fs.writeFileSync(path.join(results, "cache-audit.json"), JSON.stringify(report, null, 1));
 console.log(JSON.stringify({ seeds: report.seeds, cachedPages: used.size, missing: missing.length, invalid: invalid.length }));
 if (missing.length || invalid.length) process.exitCode = 1;

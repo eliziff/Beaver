@@ -1,7 +1,12 @@
 // Standalone checks for the candidate builder's fragment strategies, over
 // fixtures mirroring the captured publisher markup. Run: npx tsx <this file>.
 // Production stays untouched; this imports the experiment copy.
-import { buildLegalSourcePinpointUrl } from "./builder-candidate.ts";
+import {
+  buildLegalSourcePinpointUrl,
+  buildLineCorePinpointUrl,
+  buildMaximalPinpointUrl,
+  maximalCoreQuotes,
+} from "./builder-candidate.ts";
 
 let passed = 0;
 let failed = 0;
@@ -154,6 +159,127 @@ function build(blockText, quote, documentText) {
     "markdown stripped sibling (T9)",
     frags.includes("acknowledgement means an acknowledgement") &&
       frags.includes("acknowledgement* means an acknowledgement"),
+    frags.join(" | "),
+  );
+}
+
+// T10 — an opening quote is not a useful range seam. Start inside the quoted
+// term and close after it instead of painting unrelated text before the quote.
+{
+  const block =
+    "In this Regulation “ generally accepted accounting principles ” means the standards used here. Later generally accepted accounting principles apply.";
+  const quote = "Regulation “ generally accepted accounting principles ” means the";
+  const result = buildLineCorePinpointUrl(
+    { url: "https://example.test/rules.pdf", blockText: block, documentText: block },
+    [quote],
+  );
+  const frags = fragmentsOf(result);
+  check(
+    "line core skips opening-quote seam (T10)",
+    frags.includes("generally accepted accounting principles,means the") &&
+      !frags.some((fragment) => fragment.includes("In this-,")),
+    frags.join(" | "),
+  );
+}
+
+// T11 — when the range is ambiguous, use its closing boundary as context for
+// the painted core instead of adding unrelated text before the opening quote.
+{
+  const block =
+    "In this Regulation “ class A society ”, in relation to a year means a society. A class A society has duties in relation to its records.";
+  const quote = "Regulation “ class A society ”, in relation to";
+  const result = buildLineCorePinpointUrl(
+    { url: "https://example.test/rules.pdf", blockText: block, documentText: block },
+    [quote],
+  );
+  const frags = fragmentsOf(result);
+  check(
+    "line core uses the closing boundary as context (T11)",
+    frags.includes("class A society,-in relation to") &&
+      !frags.some((fragment) => fragment.includes("In this-,")),
+    frags.join(" | "),
+  );
+}
+
+// T12 — a PDF column-order break at an opening quote produces two directives
+// whose painted targets together retain every requested word.
+{
+  const block =
+    "In this Regulation “ class A society ”, in relation to a year means a society. A class A society has duties.";
+  const quote = "Regulation “ class A society ”, in relation to";
+  const result = buildMaximalPinpointUrl(
+    { url: "https://example.test/rules.pdf", blockText: block, documentText: block },
+    [quote],
+  );
+  const frags = fragmentsOf(result);
+  check(
+    "maximal builder retains both sides of an opening-quote break (T12)",
+    frags.length === 2 &&
+      frags.some((fragment) => fragment === "Regulation" || fragment.endsWith("-,Regulation")) &&
+      frags.includes("“class A society”, in relation to"),
+    frags.join(" | "),
+  );
+}
+
+// T13 — PDF seam handling is derived from A2AJ text, never a publisher name.
+{
+  const block = "alpha beta gamma delta\nepsilon zeta eta theta";
+  const quote = "alpha beta gamma delta epsilon zeta eta theta";
+  const left = fragmentsOf(buildMaximalPinpointUrl(
+    { url: "https://one.example/a.pdf", blockText: block, documentText: block }, [quote]));
+  const right = fragmentsOf(buildMaximalPinpointUrl(
+    { url: "https://two.example/b.pdf", blockText: block, documentText: block }, [quote]));
+  check(
+    "maximal PDF seams are content-derived (T13)",
+    left.join("|") === right.join("|") &&
+      left.join("|") === "alpha beta gamma delta|epsilon zeta eta theta",
+    `${left.join(" | ")} / ${right.join(" | ")}`,
+  );
+}
+
+// HTML core ranges may omit a structural paragraph label at the edge.
+{
+  const block = "[21] Pursuant to the Act, the provision is restrictive.";
+  const quote = "[21] Pursuant to the Act";
+  const frags = fragmentsOf(buildMaximalPinpointUrl(
+    { url: "https://example.test/reasons", blockText: block, documentText: block }, [quote]));
+  check(
+    "maximal HTML range trims structural edge labels (T14)",
+    frags.join("|") === "Pursuant to,the Act" &&
+      maximalCoreQuotes({ blockText: block }, [quote]).join("|") === "Pursuant to the Act",
+    frags.join(" | "),
+  );
+}
+
+// Both range endpoints must identify the intended passage independently. A
+// unique start/end pairing is insufficient because Chrome can join an earlier
+// repeated start to the intended end and paint unrelated intervening text.
+{
+  const document =
+    "a spouse lives here. supporter or helper. [38] a spouse at the intended passage and supporter or guardian.";
+  const block = "[38] a spouse at the intended passage and supporter or guardian.";
+  const quote = "[38] a spouse at the intended passage and supporter or";
+  const frags = fragmentsOf(buildMaximalPinpointUrl(
+    { url: "https://example.test/reasons", blockText: block, documentText: document }, [quote]));
+  check(
+    "maximal HTML range anchors both endpoints independently (T15)",
+    frags.join("|") === "a spouse at the,passage and supporter or",
+    frags.join(" | "),
+  );
+}
+
+// Multiple nearby passages remain separate directives, each with the same
+// independent endpoint guarantee.
+{
+  const block = "[4] alpha beta gamma delta epsilon. [5] zeta eta theta iota kappa.";
+  const quotes = ["[4] alpha beta gamma delta", "[5] zeta eta theta iota"];
+  const frags = fragmentsOf(buildMaximalPinpointUrl(
+    { url: "https://example.test/reasons", blockText: block, documentText: block }, quotes));
+  check(
+    "maximal HTML builder keeps multiple directives (T16)",
+    frags.length === 2 &&
+      frags.includes("alpha beta,gamma delta") &&
+      frags.includes("zeta eta,theta iota"),
     frags.join(" | "),
   );
 }

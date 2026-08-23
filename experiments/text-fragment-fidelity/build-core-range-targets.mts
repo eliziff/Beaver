@@ -4,14 +4,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
+import { resolveCachedSourceUrl } from "./source-representation.mjs";
 
 const here = import.meta.dirname;
 (globalThis as { __dirname?: string }).__dirname = path.join(here, "../../backend/src/lib");
-const { buildCoreRangePinpointUrl, buildLineCorePinpointUrl } = await import("./builder-candidate.ts");
+const {
+  buildCoreRangePinpointUrl,
+  buildLineCorePinpointUrl,
+  buildMaximalPinpointUrl,
+  maximalCoreQuotes,
+  sourceUrl,
+} = await import("./builder-candidate.ts");
 const { buildLegalSourcePinpointUrl: buildProductionUrl } = await import(
   pathToFileURL(path.join(here, "../../backend/src/lib/legalSourceLinks.ts")).href);
 const results = path.join(here, "results");
-const mode = ["line", "hybrid"].includes(process.argv[2]) ? process.argv[2] : "range";
+const mode = ["line", "hybrid", "maximal"].includes(process.argv[2]) ? process.argv[2] : "range";
 const boundary = mode === "range" ? Number(process.argv[2] ?? 1) : 0;
 const lines = (file: string) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean);
 const normalized = (value: string) => value.toLocaleLowerCase().replace(/\s+/gu, " ").trim();
@@ -54,19 +61,20 @@ const missingDocuments = seeds.flatMap((seed) => {
 });
 if (missingDocuments.length) throw new Error(`missing ${missingDocuments.length} full documents: ${JSON.stringify(missingDocuments)}`);
 let fullDocuments = 0;
-const rows = seeds.map((seed) => ({
-  ...seed,
-  target: (() => {
-    const documentKey = seedDocumentKey(seed);
-    const documentText = doctext.get(documentKey ?? "");
-    if (documentText) fullDocuments += 1;
-    const evidence = {
-      url: seed.url,
-      ...(seed.anchor ? { anchor: seed.anchor } : {}),
-      blockText: seed.blockText ?? "",
-      ...(documentText ? { documentText } : {}),
-    };
-    if (mode === "range") return buildCoreRangePinpointUrl(evidence, seed.quotes ?? [], boundary);
+const rows = seeds.map((seed) => {
+  const documentKey = seedDocumentKey(seed);
+  const documentText = doctext.get(documentKey ?? "");
+  if (documentText) fullDocuments += 1;
+  const evidence = {
+    url: resolveCachedSourceUrl(sourceUrl(seed.url, seed.anchor) ?? seed.url),
+    ...(seed.anchor ? { anchor: seed.anchor } : {}),
+    blockText: seed.blockText ?? "",
+    ...(documentText ? { documentText } : {}),
+  };
+  let target;
+  if (mode === "range") target = buildCoreRangePinpointUrl(evidence, seed.quotes ?? [], boundary);
+  else if (mode === "maximal") target = buildMaximalPinpointUrl(evidence, seed.quotes ?? []);
+  else {
     const candidate = buildLineCorePinpointUrl(evidence, seed.quotes ?? []);
     const fragment = candidate.split(":~:")[1];
     const production = buildProductionUrl(evidence, mode === "hybrid" ? seed.quotes ?? [] : []);
@@ -76,10 +84,16 @@ const rows = seeds.map((seed) => ({
       pdf && !quotesResolveUniquely(seed.quotes ?? [], documentText ?? "");
     const base = production.split(":~:")[0];
     const separator = base.includes("#") ? ":~:" : "#:~:";
-    return useCandidate && fragment ? `${base}${separator}${fragment}` : production;
-  })(),
-}));
+    target = useCandidate && fragment ? `${base}${separator}${fragment}` : production;
+  }
+  return {
+    ...seed,
+    paintQuotes: maximalCoreQuotes(evidence, seed.quotes ?? []),
+    target,
+  };
+});
 const output = path.join(results, mode === "line" ? "line-core-targets.jsonl" :
+  mode === "maximal" ? "maximal-targets.jsonl" :
   mode === "hybrid" ? "hybrid-targets.jsonl" : `core-range-${boundary}-targets.jsonl`);
 fs.writeFileSync(output, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
 const directives = (target: string) => (target.split(":~:")[1] ?? "").split("&").filter((part) => part.startsWith("text=")).length;
