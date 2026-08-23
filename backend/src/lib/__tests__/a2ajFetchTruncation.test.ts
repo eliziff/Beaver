@@ -13,6 +13,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { readLegalSourcePassage } from "../legalSourceRegistry";
+import { documentTextNative, type NativeDocument } from "../structureNative";
 
 beforeEach(() => {
   // This suite probes provider truncation, not the machine's local corpus.
@@ -79,7 +80,7 @@ describe("unified A2AJ document reads", () => {
     if (read.status === "found") expect(read.values[0].text).toHaveLength(1_200);
   });
 
-  it("uses one canonical lookup-and-block native passage contract", async () => {
+  it("returns the canonical document and selected native block", async () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
@@ -111,13 +112,11 @@ describe("unified A2AJ document reads", () => {
     expect(read.status).toBe("found");
     if (read.status !== "found") return;
     const selected = read.values.find(({ role }) => role === "selected")!;
-    expect(Object.keys(selected.native as object).sort()).toEqual([
-      "block",
-      "lookup",
-    ]);
-    expect(selected.native).toMatchObject({
-      lookup: { status: "found", citation: "2099 SCC 9" },
-      block: { label: "par2", text: selected.text },
+    expect(selected.native).toMatchObject({ citation: "2099 SCC 9" });
+    expect(selected.blockArtifact).toMatchObject({
+      label: "par2",
+      text: selected.text,
     });
+    expect(documentTextNative(selected.documentArtifact as NativeDocument)).toBe(text);
   });
 });

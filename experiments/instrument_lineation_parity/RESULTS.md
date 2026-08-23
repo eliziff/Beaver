@@ -69,6 +69,29 @@ the focused table fixtures and complete DOCX/grid inventory remain separate
 gates. The per-document component hashes are stored compactly on one line in
 `structure-baseline.json`, avoiding a 12,235-line generated-artifact increase.
 
+The final Rust ownership cut replaced the skeleton-only cross-reference
+summary with the canonical full graph and removed an unconsumed heading string
+from the node receipt. The resulting Rust freeze completed in 59.0 seconds
+with result SHA-256
+`2658c563c9a461f4f51e5ef1ab00c000512be421ab6c391cce45a9a1c6b2272f`.
+It covers 60,331 nodes/SourceDoc blocks, 1,171 defined terms, 1,218 schedules,
+50,341 internal and 8,317 external references, and 2,405 unresolved
+references. The input receipt remains
+`5e01fe03484840a584db1c2eca90cfab4bb704af77d53fac9fdcf577d078a2d9`.
+This freeze proves deterministic current output, not historical TypeScript
+parity by itself. The paired oracle run then compared every retained product
+on all 872 documents and found zero mismatches in 110.3 seconds. Its one warm-
+up plus alternating measured calls produced medians of 4.564 ms for historical
+TypeScript and 3.298 ms for Rust including projection (1.38x faster); measured
+totals were 37.126 and 29.483 seconds (1.26x). Rust's median split was 2.547 ms
+derivation and 0.691 ms projection. The test-only historical projector removes
+the deliberately deleted, unconsumed node `heading`; contents headings remain
+in the comparison.
+
+The historical checkout was `b275951d832bdc4806757c580338b464c3f3da6b`
+with addon SHA-256 `5a3ec165...378a4`; the measured Rust addon SHA-256 was
+`3bfa515e...8fe0`.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
@@ -80,3 +103,8 @@ under `.tmp/`.
 .\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\gate.ts
 .\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\structure_gate.ts
 ```
+
+Supplying `--oracle-root=...` and `--oracle-addon=...` makes the same gate run
+historical TypeScript and Rust for every document, after one warm-up each. The
+partial report records exact JSON paths plus paired median and total time;
+native derivation and projection are timed separately.

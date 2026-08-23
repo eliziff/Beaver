@@ -23,8 +23,12 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { sourceDocBlockText, type SourceDoc } from "../../src/lib/sourceDoc";
-import { analyzeDocumentNative } from "../../src/lib/structureNative";
+import {
+  deriveDocumentNative,
+  documentAnchorsNative,
+  documentTextNative,
+  type NativeDocument,
+} from "../../src/lib/structureNative";
 
 export type ChunkSpan = { start: number; end: number };
 
@@ -81,29 +85,25 @@ export async function clauseChunkText(
   text: string,
   options?: ChunkOptions,
 ): Promise<ChunkSpan[]> {
-  const analyzed = await analyzeDocumentNative({
+  const document = await deriveDocumentNative({
     kind: "instrument", id: "passage", text,
     reconstruct_lineation: true, source_doc: true,
   });
-  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-  return structuralChunkText(
-    analyzed.source_doc,
-    options,
-    "section",
-  );
+  return structuralChunkText(document, options, "section");
 }
 
 function structuralChunkText(
-  doc: SourceDoc,
+  doc: NativeDocument,
   options: ChunkOptions | undefined,
   kind: "paragraph" | "section",
 ): ChunkSpan[] {
-  const text = doc.text;
+  const text = documentTextNative(doc);
+  const blocks = documentAnchorsNative(doc);
   const target = Math.max(200, options?.target ?? chunkDefaults.target);
   const starts = [
     ...new Set([
       0,
-      ...doc.blocks
+      ...blocks
         .filter((block) => block.kind === kind)
         .map((block) => block.start),
     ]),
@@ -426,12 +426,10 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
         }
         const sourceKind = row.doc_type === "laws" || row.doc_type === "cases"
           ? row.doc_type : options.docType ?? "cases";
-        const analyzed = await analyzeDocumentNative({
+        const sourceDoc = await deriveDocumentNative({
           kind: "a2aj", source_doc: true,
           input: { citation, source_kind: sourceKind, text, name },
         });
-        if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-        const sourceDoc = analyzed.source_doc;
         const spans =
           options.mode === "clause"
             ? structuralChunkText(
@@ -472,8 +470,9 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
 }
 
 /** Context comes from the same compiled structure that owns chunk joints. */
-function headingPath(doc: SourceDoc, start: number): string {
-  return doc.blocks
+function headingPath(doc: NativeDocument, start: number): string {
+  const text = documentTextNative(doc);
+  return documentAnchorsNative(doc)
     .filter(
       (block) =>
         block.start <= start &&
@@ -481,7 +480,7 @@ function headingPath(doc: SourceDoc, start: number): string {
         (block.kind === "section" || block.kind === "paragraph"),
     )
     .slice(-2)
-    .map((block) => sourceDocBlockText(doc, block).split(/\r?\n/u, 1)[0])
+    .map((block) => text.slice(block.start, block.end).trim().split(/\r?\n/u, 1)[0])
     .filter(Boolean)
     .map((line) => line.slice(0, 120))
     .join(" — ");

@@ -2,17 +2,18 @@ import crypto from "node:crypto";
 
 import {
   a2ajLegalSourceProvider,
-  type A2AJDocument,
-  type A2AJLocatorLookup,
+  type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
-import type { SourceDoc } from "../sourceDoc";
+import {
+  documentRevisionNative,
+  type NativeDocument,
+} from "../structureNative";
 import { hasCitationInText } from "../citationKey";
 import {
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
-import { provisionRoot, renderSectionSpan } from "../provisionLabels";
 import { groundedProseIntegrityErrors } from "./quoteRepair";
 import { jsonRecord as object } from "../value";
 
@@ -60,7 +61,7 @@ export type LegalEvidenceReceipt = {
   version: string | null;
   external_url: string | null;
   locator: {
-    kind: "document" | A2AJLocatorLookup["requested"]["kind"] | "footnote";
+    kind: "document" | "paragraph" | "page" | "section" | "footnote";
     label: string;
   };
   resolver_version:
@@ -86,9 +87,8 @@ export type LegalEvidenceReceipt = {
 
 export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
-  document?: A2AJDocument;
-  lookup?: A2AJLocatorLookup;
-  source?: SourceDoc;
+  document?: A2AJCompiledDocument;
+  source?: NativeDocument;
 };
 
 export type PriorLegalEvidence = LegalEvidenceReceipt | RegisteredEvidence;
@@ -146,11 +146,15 @@ function withEvidenceId(
 
 type PassageEvidence = Omit<LegalEvidenceReceipt, "evidence_id" | "source_sha256" |
   "scope" | "exact_span_sha256" | "span_sha256" | "span_text" | "language"> & {
-    sourceText: string; spanText?: string; language?: "en" | "fr";
+    sourceText?: string; sourceSha256?: string; spanText?: string;
+    language?: "en" | "fr";
   };
-function passageEvidence({ sourceText, spanText = sourceText, language = "en",
+function passageEvidence({ sourceText, sourceSha256, spanText = sourceText, language = "en",
   ...receipt }: PassageEvidence) {
-  return withEvidenceId({ ...receipt, source_sha256: sha256(sourceText), scope: "passage",
+  if (!spanText || (!sourceText && !sourceSha256))
+    throw new Error("Passage evidence requires source identity and span text");
+  return withEvidenceId({ ...receipt,
+    source_sha256: sourceSha256 ?? sha256(sourceText!), scope: "passage",
     exact_span_sha256: sha256(spanText), span_sha256: sha256(normalizeWhitespace(spanText)),
     span_text: spanText, language });
 }
@@ -168,37 +172,13 @@ function stableA2AJSourceId(source: {
   ].join(":");
 }
 
-export function createA2AJLookupEvidence(
-  lookup: A2AJLocatorLookup,
-  sourceClass: LegalSourceClass = "case",
-): LegalEvidenceReceipt | null {
-  if (lookup.status !== "found" || !lookup.block) return null;
-  const sourceText = a2ajLegalSourceProvider.source(lookup)?.text ?? lookup.block.text;
-  return passageEvidence({
-    provider: "a2aj",
-    jurisdiction: "CA",
-    source_class: sourceClass,
-    stable_source_id: stableA2AJSourceId(lookup),
-    sourceText,
-    block_id: [lookup.block.kind, lookup.block.label, lookup.block.start, lookup.block.end].join(":"),
-    spanText: lookup.block.text,
-    citation: lookup.citation,
-    name: lookup.name,
-    dataset: lookup.dataset,
-    language: lookup.language,
-    version: null,
-    external_url: lookup.url,
-    locator: { kind: lookup.requested.kind, label: lookup.requested.label },
-    resolver_version: "a2aj-inline-v1",
-  });
-}
-
 export function createA2AJPassageEvidence(args: {
   citation: string;
   name: string | null;
   dataset: string;
   language: "en" | "fr";
-  sourceText: string;
+  sourceText?: string;
+  sourceSha256?: string;
   spanText: string;
   start: number;
   end: number;
@@ -217,6 +197,7 @@ export function createA2AJPassageEvidence(args: {
     source_class: args.sourceClass,
     stable_source_id: stableA2AJSourceId(args),
     sourceText: args.sourceText,
+    sourceSha256: args.sourceSha256,
     block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
     spanText: args.spanText,
     citation: args.citation,
@@ -530,8 +511,7 @@ export async function restorePriorLegalEvidence(
   signal?: AbortSignal,
 ): Promise<RegisteredEvidence[]> {
   const sources = new Map<string, Promise<{
-    document: A2AJDocument;
-    source: SourceDoc;
+    document: A2AJCompiledDocument;
   } | null>>();
   const a2ajSource = (receipt: LegalEvidenceReceipt) => {
     let pending = sources.get(receipt.stable_source_id);
@@ -547,8 +527,8 @@ export async function restorePriorLegalEvidence(
           });
           if (!document) return null;
           const source = a2ajLegalSourceProvider.source(document);
-          return source && sha256(source.text) === receipt.source_sha256
-            ? { document, source }
+          return source && documentRevisionNative(source) === receipt.source_sha256
+            ? { document }
             : null;
         } catch (error) {
           if (signal?.aborted) throw error;
@@ -769,54 +749,11 @@ export type LegalEvidenceCitationGroup = {
   collapsedLabel?: string;
 };
 
-function joinsSectionFamily(
-  members: Array<RegisteredEvidence & { ref: number }>,
-  entry: RegisteredEvidence,
-): boolean {
-  const first = members[0]!.receipt.locator;
-  return (
-    entry.receipt.provider === "a2aj" &&
-    members[0]!.receipt.provider === "a2aj" &&
-    entry.receipt.citation === members[0]!.receipt.citation &&
-    entry.receipt.dataset === members[0]!.receipt.dataset &&
-    entry.receipt.locator.kind === first.kind &&
-    first.kind === "section" &&
-    provisionRoot(first.label) !== null &&
-    provisionRoot(entry.receipt.locator.label) === provisionRoot(first.label)
-  );
-}
-
-export function legalEvidenceCitationGroups(
+export const legalEvidenceCitationGroups = (
   state: LegalEvidenceTurnState,
-): LegalEvidenceCitationGroup[] {
-  const groups: LegalEvidenceCitationGroup[] = [];
-  for (const entry of legalEvidenceCitationEntries(state)) {
-    const last = groups.at(-1)!;
-    let joinedLabel: string | null = null;
-    if (last && joinsSectionFamily(last.members, entry)) {
-      joinedLabel = renderSectionSpan([
-        ...last.members.map(({ receipt }) => receipt.locator.label),
-        entry.receipt.locator.label,
-      ]);
-    }
-    if (last && joinedLabel) {
-      last.members.push(entry);
-      last.collapsedLabel = joinedLabel;
-      continue;
-    }
-    groups.push({
-      ref: 0,
-      members: [entry],
-      ...(entry.receipt.locator.kind === "section"
-        ? { collapsedLabel: renderSectionSpan([entry.receipt.locator.label]) ?? undefined }
-        : {}),
-    });
-  }
-  groups.forEach((group, index) => {
-    group.ref = index + 1;
-  });
-  return groups;
-}
+): LegalEvidenceCitationGroup[] => legalEvidenceCitationEntries(state).map(
+  (entry, index) => ({ ref: index + 1, members: [entry] }),
+);
 
 export function legalEvidenceCitationEntries(
   state: LegalEvidenceTurnState,

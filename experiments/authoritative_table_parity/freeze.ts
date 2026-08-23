@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { openDocxSession } from "../../backend/src/lib/docx/session";
 import { spreadsheetToLLMStructure } from "../../backend/src/lib/spreadsheet";
-import { analyzeDocumentNative } from "../../backend/src/lib/structureNative";
+import { deriveDocumentNative, documentStructureNative } from "../../backend/src/lib/structureNative";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RESULTS = path.join(import.meta.dirname, "results");
@@ -130,11 +130,11 @@ async function extract(artifact: Artifact): Promise<RawResult> {
   }
   if (!extracted.tableCells.length) return { ...artifact, status: "no_cells" };
   try {
-    const analyzed = await analyzeDocumentNative<any>({
+    const native = await deriveDocumentNative({
       kind: "instrument", id: artifact.path, text: extracted.text,
       table_cells: extracted.tableCells, reconstruct_lineation: true,
     });
-    const nodes = analyzed.structure.nodes;
+    const nodes = documentStructureNative<any>(native).nodes;
     return {
       ...artifact,
       status: "table_facts",

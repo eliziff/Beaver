@@ -33,8 +33,8 @@ raw per-doc results stay local.
 1. Grammar-table entries: match count per entry (prefilter-gated).
 2. Shipping `legal-structure` paragraph/page blocks, spans, and abstentions.
 3. Laws: shipping section labels and aliases scored against provider keys.
-4. No harness-local structure detector: recovery uses the persistent
-   SourceDoc JSONL bridge and the same shared Rust engine as production.
+4. No harness-local structure detector: Python calls the same shared Rust
+   engine in-process through its PyO3 binding.
 5. Journals: detected page-mark labels vs `page_map_json` label sequence.
 6. Pathology: per-doc wall cap; docs exceeding it are recorded (catastrophic
    backtracking surfaces as slow docs) and skipped, never hung on.
@@ -61,9 +61,8 @@ Summaries per source land in `results/<tier>/<source>.summary.json`
 
 ## Out of scope here
 
-The shared Rust structure engine and agreement-skeleton adapter sweep via the
-persistent Node JSONL harness; this harness's
-`--export-jsonl` gives it identical inputs. The ASCII-vs-Unicode `\w`
+The shared Rust structure engine and agreement-skeleton adapter sweep use the
+same exported corpus inputs. The ASCII-vs-Unicode `\w`
 semantics comparison lives in the engine's `tools/grammar_differential.py`,
 not here.
 

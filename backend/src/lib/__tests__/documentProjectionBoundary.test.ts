@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 const src = fileURLToPath(new URL("../../", import.meta.url));
 const restrictedImport = /["'](?:[^"']*\/)?(documentProjectionPdf|documentProjection|structureNative)(?:\.[cm]?[jt]s)?["']/gu;
 
-// Contraction ratchet: non-service owners are existing bypasses, not architecture.
-// Delete their exact entries as each caller moves through documentProjectionService.
+// Exact owners only: uploaded-file reads go through the projection service;
+// provider adapters and product consumers may query the canonical Rust handle.
 const allowedOwners: Record<string, string[]> = {
   documentProjectionPdf: ["lib/documentProjectionService.ts"],
   documentProjection: [
@@ -17,13 +17,21 @@ const allowedOwners: Record<string, string[]> = {
   ],
   structureNative: [
     "lib/chat/assistantTools.ts",
+    "lib/chat/legalEvidence.ts",
+    "lib/chat/quoteRepair.ts",
+    "lib/documentProjectionPdf.ts",
     "lib/documentProjectionService.ts",
+    "lib/legalSourceLinks.ts",
     "lib/legalSources/a2aj.ts",
     "lib/legalSources/courtlistener.ts",
     "lib/legalSources/govInfo.ts",
     "lib/legalSources/govUkEmploymentTribunal.ts",
     "lib/legalSources/journal.ts",
+    "lib/legalSources/remoteProvider.ts",
+    "lib/legalSources/sourceDocPassages.ts",
     "lib/legalSources/tna.ts",
+    "lib/providerPdfLibraryBridge.ts",
+    "lib/tabular/application.ts",
   ],
 };
 

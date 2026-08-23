@@ -7,10 +7,9 @@ import {
   type ApplicationJob,
   type JobHandler,
 } from "./jobQueue";
-import { documentProjectionService, type PdfPreparationProgress } from
-  "./documentProjectionService";
+import { documentProjectionService, type PdfOcrProvider,
+  type PdfPreparationProgress } from "./documentProjectionService";
 import { sha256 } from "./hash";
-import type { LegalPdfOcrProvider } from "./structureNative";
 import type { RelationalDatabase } from "./relationalDatabase";
 
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -42,7 +41,7 @@ function reprocessPayload(job: ApplicationJob) {
       value.ocrProvider !== "tesseract" && value.ocrProvider !== "kraken-lite") {
     throw new Error("InvalidPdfJob");
   }
-  const ocrProvider = value.ocrProvider as LegalPdfOcrProvider | null | undefined;
+  const ocrProvider = value.ocrProvider as PdfOcrProvider | null | undefined;
   let layout: boolean | null | undefined;
   if (value.layout === null) layout = null;
   else if (value.layout === "local") layout = true;
@@ -141,7 +140,7 @@ export async function enqueuePdfReprocess(input: {
   documentId: string;
   versionId: string;
   sourceSha256: string;
-  ocrProvider?: LegalPdfOcrProvider | null;
+  ocrProvider?: PdfOcrProvider | null;
   layout?: boolean | null;
 }) {
   const settings = {

@@ -51,7 +51,7 @@ beforeEach(async () => {
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
   process.env.MIKE_PDF_OCR_PROVIDER = "none";
   process.env.MIKE_PDF_LAYOUT_PROVIDER = "none";
-  queryPdfNative.mockImplementation(async (_document, request) => engineLookup(request));
+  queryPdfNative.mockImplementation((_document, request) => engineLookup(request));
   vi.resetModules();
 });
 
@@ -136,7 +136,9 @@ describe("PDF evidence boundary", () => {
       sourceSha256,
       parserVersion: "0.4.0",
     };
-    queryPdfNative.mockRejectedValueOnce(new Error("native document unavailable"));
+    queryPdfNative.mockImplementationOnce(() => {
+      throw new Error("native document unavailable");
+    });
     await expect(lookupPdfStructure(
       native,
       { locatorKind: "page", locator: "1" },

@@ -2,28 +2,25 @@ import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
 import { citationAuthorityMetricsBatch } from "../caselawCitator";
-import { sha256 } from "../hash";
 import { classifyLegalMarkdown, deriveOriginalPdfCandidates } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import {
-  lookupSourceDoc,
-  lookupSourceDocLabel,
-  normalizeSourceDocLocator,
-  sliceSourceDocBlocks,
-  sourceDocBlockText,
-  type SourceDoc,
-  type SourceDocBlock,
-  type SourceDocLocatorKind,
-  type SourceDocLookup,
-} from "../sourceDoc";
-import { analyzeDocumentNative } from "../structureNative";
+  deriveDocumentNative,
+  documentAnchorsNative,
+  documentHasOriginNative,
+  documentTextNative,
+  normalizeDocumentLocatorNative,
+  type NativeDocument,
+  type NativeDocumentBlock,
+} from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
-import type { LegalSourcePassage, LegalSourceProvider, LegalSourceReference,
+import { nativeDocumentPassages } from "./sourceDocPassages";
+import type { LegalSourceProvider, LegalSourceReference,
   LegalSourceResolveRequest, LegalSourceSearchHit } from ".";
 
 type DocType = "cases" | "laws";
 type Language = "en" | "fr";
-export type A2AJLocatorKind = Exclude<SourceDocLocatorKind, "footnote">;
+export type A2AJLocatorKind = "paragraph" | "page" | "section";
 
 export type A2AJDocument = {
   docType?: DocType; dataset: string;
@@ -31,18 +28,10 @@ export type A2AJDocument = {
   name: string | null; date: string | null; url: string | null;
   text: string; language: Language; upstreamLicense: string | null;
   sectionMap?: Record<string, string>;
-  analysis?: Awaited<ReturnType<typeof deriveA2AJDocument>>;
 };
 
-export type A2AJLocatorLookup = {
-  status: SourceDocLookup["status"]; citation: string;
-  alternateCitation: string | null; name: string | null;
-  dataset: string; url: string | null; language: Language;
-  requested: { kind: A2AJLocatorKind; locator: string; label: string };
-  matches: string[]; block: (SourceDocBlock & { text: string }) | null;
-  before: Array<SourceDocBlock & { text: string }>;
-  after: Array<SourceDocBlock & { text: string }>;
-  sourceDoc: SourceDoc; sourceMethod: "structure_index" | "provider_section";
+export type A2AJCompiledDocument = Omit<A2AJDocument, "text" | "sectionMap"> & {
+  native: NativeDocument;
 };
 
 const BASE_URL = "https://api.a2aj.ca";
@@ -58,7 +47,7 @@ const TRIBUNALS = new Set([
   "CART", "CHRT", "CIRB", "CITT", "CT", "FPSLREB", "OHSTC", "OIC",
   "PSDPT", "RAD", "RLLR", "RPD", "SCT", "SST", "TATC",
 ]);
-const documents = new Map<string, { expires: number; value: A2AJDocument }>();
+const documents = new Map<string, { expires: number; value: A2AJCompiledDocument }>();
 
 async function deriveA2AJDocument(
   input: {
@@ -68,9 +57,8 @@ async function deriveA2AJDocument(
   },
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
-  const result = await analyzeDocumentNative({
+  const result = await deriveDocumentNative({
     kind: "a2aj",
-    source_doc: true,
     input: {
       citation: input.citation,
       source_kind: input.docType,
@@ -84,8 +72,7 @@ async function deriveA2AJDocument(
       ...(scope.kind === "excerpt" && scope.excerptOf ? { excerpt_of: scope.excerptOf } : {}),
     },
   });
-  if (!result.source_doc) throw new Error("Rust omitted SourceDoc");
-  return { structure: result.structure, source_doc: result.source_doc };
+  return result;
 }
 
 const string = (value: unknown): string | null =>
@@ -198,9 +185,8 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
   return document;
 }
 
-export async function a2ajSourceDoc(document: A2AJDocument) {
-  if (document.analysis) return document.analysis.source_doc;
-  const analyzed = await deriveA2AJDocument({
+async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocument> {
+  const native = await deriveA2AJDocument({
     citation: document.citation,
     docType: document.docType ?? "cases",
     text: document.sectionMap ? "" : document.text,
@@ -210,16 +196,15 @@ export async function a2ajSourceDoc(document: A2AJDocument) {
     name: document.name,
     sectionMap: document.sectionMap,
   });
-  document.analysis = analyzed;
-  document.text = analyzed.source_doc.text;
-  return analyzed.source_doc;
+  const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
+  return { ...metadata, native };
 }
 
 function locator(value: string) {
   const stripped = value.trim()
     .replace(/^(?:(?:sections?)\s+|ss?\.?(?=\s)\s*)/iu, "")
     .replace(/^sec(?=[\p{L}\p{N}])/iu, "").trim();
-  return stripped && (normalizeSourceDocLocator("section", stripped) || `sec${stripped}`);
+  return stripped && (normalizeDocumentLocatorNative("section", stripped) || `sec${stripped}`);
 }
 
 async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
@@ -235,10 +220,10 @@ async function scopedDocument(document: A2AJDocument, requested: string, text: s
 
 function compiledDocument(
   document: A2AJDocument,
-  analyzed: Awaited<ReturnType<typeof deriveA2AJDocument>>,
-) {
-  return { ...document, docType: "laws" as const, text: analyzed.source_doc.text,
-    sectionMap: document.sectionMap, analysis: analyzed };
+  native: NativeDocument,
+): A2AJCompiledDocument {
+  const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
+  return { ...metadata, docType: "laws", native };
 }
 
 async function document(args: {
@@ -257,157 +242,29 @@ async function document(args: {
   const cached = documents.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
   if (cached) documents.delete(key);
-  let result = args.section?.trim() ? null : fetchLocalA2AJDocument({
+  let source = args.section?.trim() ? null : fetchLocalA2AJDocument({
     citation, docType, language, dataset: args.dataset, maxChars: Number.MAX_SAFE_INTEGER,
   });
-  if (!result) {
+  if (!source) {
     const payload = await request("/fetch", {
       citation, doc_type: docType, output_language: language, section: args.section?.trim(),
     }, args.signal);
-    result = (Array.isArray(payload.results) ? payload.results : [])
+    source = (Array.isArray(payload.results) ? payload.results : [])
       .map((item) => mapDocument(item, language, docType))
       .find((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
         item.dataset.toLowerCase() === args.dataset.trim().toLowerCase())) ?? null;
-    if (result && args.section?.trim()) result = await scopedDocument(result, args.section, result.text);
   }
+  if (!source) return null;
+  const result = args.section?.trim()
+    ? await scopedDocument(source, args.section, source.text)
+    : await compileDocument(source);
   if (!result) return null;
-  await a2ajSourceDoc(result);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
     value: result,
   });
   if (documents.size > 32) documents.delete(documents.keys().next().value!);
   return result;
-}
-
-function lookupResult(
-  document: A2AJDocument,
-  requested: { kind: A2AJLocatorKind; locator: string },
-  result: SourceDocLookup,
-  method: A2AJLocatorLookup["sourceMethod"],
-  artifact: SourceDoc,
-) {
-  const lookup: A2AJLocatorLookup = {
-    status: result.status,
-    citation: document.citation,
-    alternateCitation: document.alternateCitation,
-    name: document.name,
-    dataset: document.dataset,
-    url: document.url,
-    language: document.language,
-    requested: { ...requested, label: result.requestedLabel },
-    matches: result.matches,
-    block: result.block,
-    before: result.before,
-    after: result.after,
-    sourceDoc: artifact,
-    sourceMethod: method,
-  };
-  return lookup;
-}
-
-function isProviderSection(doc: SourceDoc, label: string) {
-  let block = doc.blocks.find((candidate) => candidate.label === label);
-  const seen = new Set<string>();
-  while (block && !seen.has(block.label)) {
-    if (block.origin === "native") return true;
-    seen.add(block.label);
-    block = block.parentLabel
-      ? doc.blocks.find((candidate) => candidate.label === block!.parentLabel)
-      : undefined;
-  }
-  return false;
-}
-
-async function lookup(args: {
-  citation: string; docType?: DocType; language?: Language; dataset?: string;
-  kind: A2AJLocatorKind; locator: string; endLocator?: string;
-  contextBlocks?: number; signal?: AbortSignal;
-}) {
-  const requested = args.locator.trim();
-  if (!requested) throw new Error("locator is required");
-  if (args.endLocator?.trim() && args.kind !== "paragraph") {
-    throw new Error("end_locator is supported only for paragraph ranges");
-  }
-  const docType = args.docType ?? "cases";
-  const found = await document({ ...args, docType });
-  if (!found) return null;
-  const compiled = await a2ajSourceDoc(found);
-  const end = args.endLocator?.trim();
-  if (end) {
-    const blocks = sliceSourceDocBlocks(compiled, "paragraph", requested, end);
-    const first = blocks[0];
-    const last = blocks.at(-1);
-    const label = `${normalizeSourceDocLocator("paragraph", requested)}-${normalizeSourceDocLocator("paragraph", end)}`;
-    if (!first || !last) return lookupResult(found,
-      { kind: "paragraph", locator: `${requested}-${end}` },
-      { status: "not_found", requestedLabel: label, matches: [], block: null, before: [], after: [] },
-      "structure_index", compiled);
-    const paragraphs = compiled.blocks.filter((block) => block.kind === "paragraph");
-    const context = Math.min(Math.max(Math.trunc(args.contextBlocks ?? 0), 0), 2);
-    const materialize = (block: SourceDocBlock) => ({ ...block, text: sourceDocBlockText(compiled, block) });
-    return lookupResult(found, { kind: "paragraph", locator: `${requested}-${end}` }, {
-      status: "found", requestedLabel: label, matches: blocks.map((block) => block.label),
-      block: { ...first, label, aliases: undefined, end: last.end,
-        text: compiled.text.slice(first.start, last.end).trim() },
-      before: paragraphs.slice(Math.max(0, paragraphs.indexOf(first) - context), paragraphs.indexOf(first)).map(materialize),
-      after: paragraphs.slice(paragraphs.indexOf(last) + 1, paragraphs.indexOf(last) + 1 + context).map(materialize),
-    }, "structure_index", compiled);
-  }
-  const result = args.kind === "section" && docType === "laws"
-    ? lookupSourceDocLabel(compiled, "section", locator(requested), args.contextBlocks)
-    : lookupSourceDoc(compiled, args.kind, requested, args.contextBlocks);
-  const providerSection = args.kind === "section" && docType === "laws" &&
-    result.matches.some((label) => isProviderSection(compiled, label));
-  if (result.status === "ambiguous") return lookupResult(found,
-    { kind: args.kind, locator: requested }, result,
-    providerSection ? "provider_section" : "structure_index", compiled);
-  if (args.kind === "section" && docType === "laws" && result.status !== "found") {
-    const label = locator(requested);
-    const native = label && await document({ ...args, docType, section: label.replace(/^sec/iu, "") });
-    if (native) {
-      const nativeDoc = await a2ajSourceDoc(native);
-      const nativeLookup = lookupSourceDocLabel(nativeDoc, "section", label);
-      if (nativeLookup.status === "found") return lookupResult(found,
-        { kind: "section", locator: requested }, nativeLookup,
-        "provider_section", nativeDoc);
-    }
-  }
-  return lookupResult(found, { kind: args.kind, locator: requested }, result,
-    providerSection ? "provider_section" : "structure_index", compiled);
-}
-
-function lookupBlocks(lookup: A2AJLocatorLookup) {
-  if (lookup.status !== "found" || !lookup.block) return [];
-  const doc = lookup.sourceDoc;
-  const visible = [
-    { role: "selected" as const, block: lookup.block },
-    ...lookup.before.map((block) => ({ role: "context" as const, block })),
-    ...lookup.after.map((block) => ({ role: "context" as const, block })),
-  ];
-  const seen = new Set<string>();
-  return visible.flatMap(({ role, block }) => {
-    const contained = doc.blocks.filter((candidate) => candidate.kind === block.kind &&
-      candidate.start >= block.start && candidate.end <= block.end);
-    const units = block.kind === "section" && contained.length > 1
-      ? contained.filter((candidate) => !contained.some((child) => child !== candidate &&
-          child.start >= candidate.start && child.end <= candidate.end &&
-          (child.start > candidate.start || child.end < candidate.end)))
-      : contained.length ? contained : [block];
-    return units.flatMap((unit) => {
-      const key = `${unit.kind}:${unit.start}:${unit.end}`;
-      if (seen.has(key) || unit.kind === "footnote") return [];
-      seen.add(key);
-      const text = sourceDocBlockText(doc, unit);
-      if (!text.trim()) return [];
-      const child: A2AJLocatorLookup = {
-        ...lookup,
-        requested: { kind: unit.kind as A2AJLocatorKind, locator: unit.label, label: unit.label },
-        matches: [unit.label], block: { ...unit, text }, before: [], after: [],
-      };
-      return [{ role, lookup: child }];
-    });
-  });
 }
 
 function searchResult(value: unknown, language: Language) {
@@ -490,11 +347,12 @@ async function coverage(docType: DocType) {
 
 export type A2AJCoverageResult = Awaited<ReturnType<typeof coverage>>[number];
 
-function readerSegments(text: string, sourceDoc: SourceDoc, docType: DocType) {
+function readerSegments(text: string, anchors: Array<{ kind: string; start: number }>,
+  docType: DocType) {
   const kind = docType === "laws" ? "section" : "paragraph";
-  const starts = [...new Set([0, ...sourceDoc.blocks.filter((block) =>
-    block.start >= 0 && block.start < text.length &&
-    (block.kind === kind || block.kind === "page")).map((block) => block.start), text.length])]
+  const starts = [...new Set([0, ...anchors.filter((anchor) =>
+    anchor.start >= 0 && anchor.start < text.length &&
+    (anchor.kind === kind || anchor.kind === "page")).map((anchor) => anchor.start), text.length])]
     .sort((left, right) => left - right);
   return starts.slice(0, -1).flatMap((start, index) => {
     const end = starts[index + 1];
@@ -518,10 +376,11 @@ async function viewer(args: {
   for (const docType of types) {
     const found = await document({ ...args, docType });
     if (!found) continue;
-    const compiled = await a2ajSourceDoc(found);
-    const text = compiled.text.slice(0, max);
-    const anchors = compiled.blocks.filter((block) => block.start < text.length)
-      .map(({ kind, label, start, end }) => ({ kind, label, start, end: Math.min(end, text.length) }));
+    const compiled = found.native;
+    const fullText = documentTextNative(compiled);
+    const text = fullText.slice(0, max);
+    const anchors = documentAnchorsNative(compiled).filter(({ start }) => start < text.length)
+      .map((anchor) => ({ ...anchor, end: Math.min(anchor.end, text.length) }));
     const payload = {
       schemaVersion: "mike.legal-source.v1" as const, provider: "a2aj" as const,
       reference: { docType, citation: found.citation, language: found.language,
@@ -533,11 +392,11 @@ async function viewer(args: {
         language: found.language, upstreamLicense: found.upstreamLicense,
       },
       text,
-      structureSource: compiled.blocks.some(({ origin }) => origin === "native")
+      structureSource: documentHasOriginNative(compiled, "native")
         ? "section_map" as const : "flat_text" as const,
       anchors,
-      presentation: { source: "a2aj_markdown" as const, segments: readerSegments(text, compiled, docType) },
-      truncated: compiled.text.length > max,
+      presentation: { source: "a2aj_markdown" as const, segments: readerSegments(text, anchors, docType) },
+      truncated: fullText.length > max,
     };
     const digest = crypto.createHash("sha256").update(JSON.stringify(payload)).digest("base64url");
     return { payload, etag: `"${digest}"` };
@@ -547,7 +406,8 @@ async function viewer(args: {
 
 export type A2AJViewerPayload = NonNullable<Awaited<ReturnType<typeof viewer>>>["payload"];
 
-function reference(document: A2AJDocument, kind: "case" | "legislation") {
+function reference(document: A2AJDocument | A2AJCompiledDocument,
+  kind: "case" | "legislation") {
   return {
     provider: "a2aj", id: document.citation, kind, title: document.name,
     citation: document.citation, alternateCitation: document.alternateCitation,
@@ -578,7 +438,8 @@ function rankCases(rows: LegalSourceSearchHit[], mode: "relevance" | "most_cited
     } } : {}) }));
 }
 
-const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
+const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
+  A2AJCompiledDocument> = {
   id: "a2aj",
   canResolve: (request: LegalSourceResolveRequest) => request.kind === "legislation" ||
     (request.kind === "case" && CANADIAN_CITATION.test(request.text)),
@@ -592,35 +453,22 @@ const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
   async readPassage(request) {
     const docType = request.source.kind === "legislation" ? "laws" : "cases";
     const citation = request.source.citation || request.source.id;
-    if (!request.locator) {
-      const found = await document({ citation, docType, language: request.source.language,
-        dataset: request.source.collection ?? undefined, signal: request.signal });
+    if (request.locator?.kind === "footnote") return [];
+    const load = async (section?: string) => {
+      const found = await document({ citation, docType,
+        language: request.source.language,
+        dataset: request.source.collection ?? undefined, section,
+        signal: request.signal });
       if (!found) return [];
-      const artifact = await a2ajSourceDoc(found);
-      return [{ source: reference(found, request.source.kind as "case" | "legislation"),
-        locator: { requested: null, label: "document" }, role: "document",
-        text: artifact.text, textSha256: artifact.revision,
-        documentSha256: artifact.revision, revision: artifact.revision,
-        blockArtifact: artifact, documentArtifact: artifact, native: found }];
-    }
-    if (request.locator.kind === "footnote") return [];
-    const found = await lookup({ citation, docType, language: request.source.language,
-      dataset: request.source.collection ?? undefined, kind: request.locator.kind,
-      locator: request.locator.value, endLocator: request.locator.endValue,
-      contextBlocks: request.contextBlocks, signal: request.signal });
-    const artifact = found?.sourceDoc;
-    if (!found || !artifact) return [];
-    return lookupBlocks(found).map(({ role, lookup }): LegalSourcePassage<SourceDoc | string, unknown> => ({
-      source: { ...request.source, id: found.citation, citation: found.citation,
-        alternateCitation: found.alternateCitation, title: found.name,
-        collection: found.dataset, language: found.language, url: found.url },
-      locator: { requested: request.locator!, label: lookup.block!.label,
-        anchor: lookup.block!.anchor, pageScoped: lookup.block!.kind === "page" },
-      role, text: lookup.block!.text, textSha256: sha256(lookup.block!.text),
-      documentSha256: artifact.revision, revision: artifact.revision,
-      blockArtifact: lookup.block!.text, documentArtifact: artifact,
-      native: { lookup, block: lookup.block! },
-    }));
+      return nativeDocumentPassages({ request,
+        reference: reference(found, request.source.kind as "case" | "legislation"),
+        document: found.native, native: found });
+    };
+    const passages = await load();
+    if (passages.length || docType !== "laws" ||
+        request.locator?.kind !== "section") return passages;
+    const label = locator(request.locator.value).replace(/^sec/iu, "");
+    return label ? load(label) : [];
   },
   canSearch(request) {
     const place = request.jurisdiction?.toLocaleLowerCase().replace(/[^a-z]/gu, "");
@@ -649,20 +497,12 @@ const provider: LegalSourceProvider<SourceDoc | string, unknown> = {
   },
 };
 
-function artifact(value: A2AJDocument): SourceDoc | null;
-function artifact(value: A2AJLocatorLookup): SourceDoc | null;
-function artifact(value: A2AJDocument | A2AJLocatorLookup) {
-  return "requested" in value
-    ? value.sourceDoc
-    : value.analysis?.source_doc ?? null;
-}
+const artifact = (value: A2AJCompiledDocument) => value.native;
 
 export const a2ajLegalSourceProvider = Object.assign(provider, {
   jurisdictions: JURISDICTIONS,
   document,
   source: artifact,
-  lookup,
-  lookupBlocks,
   viewer,
   coverage,
   clearCache() { documents.clear(); },

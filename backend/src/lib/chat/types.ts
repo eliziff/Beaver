@@ -1,12 +1,6 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
 import type { EditDiffSegment } from "../docxTrackedChanges";
 
-const isDev = process.env.NODE_ENV !== "production";
-export const devLog = (...args: Parameters<typeof console.log>) => {
-  if (isDev) console.log(...args);
-};
-
-
 export type WorkflowStore = Map<string, { title: string; skill_md: string }>;
 
 export type DocIndex = Record<

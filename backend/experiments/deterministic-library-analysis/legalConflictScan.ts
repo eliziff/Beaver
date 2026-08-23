@@ -15,8 +15,7 @@
 // scan cannot pair is reported as an abstention, not guessed at; findings
 // carry the arithmetic so a reader can judge materiality.
 import { extractAnchors } from "./legalTextAnchors";
-import type { SourceDoc } from "../../src/lib/sourceDoc";
-import { analyzeDocumentNative } from "../../src/lib/structureNative";
+import { deriveDocumentNative, documentAnchorsNative, type NativeDocumentBlock } from "../../src/lib/structureNative";
 
 export interface ConflictDocument {
   name: string;
@@ -162,16 +161,13 @@ type SectionAt = (at: number) => Promise<string | null>;
  * (the A2AJ lane in `passageRetrieval`), and no such feed reaches this scan.
  */
 function sectionResolver(text: string): SectionAt {
-  let blocks: Promise<SourceDoc["blocks"]> | null = null;
+  let blocks: Promise<Array<Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end">>> | null = null;
   return async (at) => {
-    blocks ??= analyzeDocumentNative({
+    blocks ??= deriveDocumentNative({
       kind: "instrument", id: "conflict-scan", text,
       reconstruct_lineation: true, source_doc: true,
-    }).then(({ source_doc }) => {
-      if (!source_doc) throw new Error("Rust omitted SourceDoc");
-      return source_doc.blocks;
-    });
-    let best: SourceDoc["blocks"][number] | null = null;
+    }).then(documentAnchorsNative);
+    let best: Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end"> | null = null;
     for (const block of await blocks) {
       if (block.kind !== "section" || block.start > at || at >= block.end) continue;
       if (!best || block.end - block.start < best.end - best.start) best = block;

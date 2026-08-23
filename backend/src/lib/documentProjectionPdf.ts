@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { queryPdfNative, type NativePdfDocument } from "./structureNative";
+import { queryPdfNative, type NativeDocument } from "./structureNative";
 import {
   immutableReceiptPath,
   writeImmutableReceipt,
@@ -431,7 +431,7 @@ function unavailable(input: PdfLookupInput, error: unknown) {
 }
 
 export async function lookupPdfStructure(
-  document: NativePdfDocument | null,
+  document: NativeDocument | null,
   input: PdfLookupInput,
   options?: {
     persistEvidence?: boolean;
@@ -457,7 +457,7 @@ export async function lookupPdfStructure(
         !options.sourceSha256 || !options.parserVersion)
       throw new Error("PDF lookup requires a cache and document identity");
     if (!document) throw new Error("PDF lookup requires a native document");
-    const result = await queryPdfNative<EngineLookup>(document, contractInput(input));
+    const result = queryPdfNative<EngineLookup>(document, contractInput(input));
     return await finishLookup({ state: {
       document_id: options.documentId,
       version_id: options.versionId,
@@ -471,7 +471,7 @@ export async function lookupPdfStructure(
 }
 
 async function verifiedPdfEvidence(
-  document: NativePdfDocument,
+  document: NativeDocument,
   handle: string,
 ) {
   const receipt = await readPdfEvidenceReceipt(handle);
@@ -535,14 +535,14 @@ async function verifiedPdfEvidence(
 }
 
 export async function rehydratePdfEvidence(
-  document: NativePdfDocument,
+  document: NativeDocument,
   handle: string,
 ) {
   return (await verifiedPdfEvidence(document, handle)).lookup;
 }
 
 export async function verifyPdfLinkEvidence(
-  document: NativePdfDocument,
+  document: NativeDocument,
   handle: string,
 ) {
   const verified = await verifiedPdfEvidence(document, handle);
@@ -656,7 +656,7 @@ function buildLinkEvidence(
 }
 
 export async function rehydratePdfLinkEvidence(
-  document: NativePdfDocument,
+  document: NativeDocument,
   handle: string,
 ) {
   const verified = await verifiedPdfEvidence(document, handle);

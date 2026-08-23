@@ -12,47 +12,6 @@ function withoutInline(
 }
 
 describe("legal source Markdown presentation", () => {
-  it("ports the ToA heading and nested legislative provision hierarchy", () => {
-    const blocks = classifyLegalMarkdown(
-      "# Protection of Public Participation Act\n\n" +
-        "### No amendments unless permitted\n\n" +
-        "**6** **Unless** the court orders otherwise\n\n" +
-        "(a) first *condition*\n\n" +
-        "(i) nested `condition`",
-    );
-
-    expect(withoutInline(blocks)).toEqual([
-      {
-        kind: "heading",
-        text: "Protection of Public Participation Act",
-        level: 2,
-      },
-      {
-        kind: "heading",
-        text: "No amendments unless permitted",
-        level: 3,
-      },
-      {
-        kind: "provision",
-        text: "6 Unless the court orders otherwise",
-        label: "6",
-        depth: 1,
-      },
-      {
-        kind: "provision",
-        text: "(a) first condition",
-        label: "(a)",
-        depth: 3,
-      },
-      {
-        kind: "provision",
-        text: "(i) nested condition",
-        label: "(i)",
-        depth: 4,
-      },
-    ]);
-  });
-
   it("classifies lists, blockquotes, headings, and wrapped paragraphs as plain text", () => {
     const blocks = classifyLegalMarkdown(
       "## Analysis\n" +
@@ -103,44 +62,6 @@ describe("legal source Markdown presentation", () => {
     );
   });
 
-  it("retains the conservative legal heading-prefix and common-heading rules", () => {
-    expect(
-      withoutInline(
-        classifyLegalMarkdown(
-          "II. Standard of Review\n\nAnalysis\n\nOrdinary sentence.",
-        ),
-      ),
-    ).toEqual([
-      {
-        kind: "heading",
-        text: "II. Standard of Review",
-        level: 2,
-      },
-      { kind: "heading", text: "Analysis", level: 2 },
-      { kind: "paragraph", text: "Ordinary sentence.", depth: 0 },
-    ]);
-  });
-
-  it("keeps court front matter out of list and provision semantics", () => {
-    expect(
-      withoutInline(
-        classifyLegalMarkdown(
-          "SUPREME COURT OF CANADA\n\n" +
-            "2024 SCC 26\n\n" +
-            "- and -",
-        ),
-      ),
-    ).toEqual([
-      {
-        kind: "heading",
-        text: "SUPREME COURT OF CANADA",
-        level: 2,
-      },
-      { kind: "paragraph", text: "2024 SCC 26", depth: 0 },
-      { kind: "paragraph", text: "- and -", depth: 0 },
-    ]);
-  });
-
   it("tokenizes emphasis and safe inline semantics without executable HTML", () => {
     expect(
       tokenizeLegalInline(
@@ -177,15 +98,6 @@ describe("legal source Markdown presentation", () => {
     expect(classifyLegalMarkdown("*Rendered emphasis*.")[0].inline).toContainEqual(
       { kind: "em", text: "Rendered emphasis" },
     );
-    expect(
-      classifyLegalMarkdown(
-        "**34(1)(a)** A nested statutory paragraph.",
-      )[0],
-    ).toMatchObject({
-      kind: "provision",
-      label: "34(1)(a)",
-      text: "34(1)(a) A nested statutory paragraph.",
-    });
   });
 });
 

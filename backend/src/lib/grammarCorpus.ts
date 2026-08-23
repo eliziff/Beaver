@@ -25,7 +25,7 @@ export function grammarTable(name: string): GrammarTable {
   return table;
 }
 
-export function grammarSource(tableName: string, id: string): string {
+function grammarSource(tableName: string, id: string): string {
   const table = grammarTable(tableName);
   const entry = table.entries.find((candidate) => candidate.id === id);
   if (!entry) throw new Error(`Missing legal grammar entry: ${id}`);

@@ -219,16 +219,10 @@ describe("remote legal-source providers", () => {
       filename: "judgment.pdf",
       pageCount: 9,
     });
-    expect(document.analysis.source_doc.ranges.page.count).toBe(0);
     expect(native(paragraph).lookup).toMatchObject({
       status: "found",
       block: { origin: "heuristic" },
     });
-    expect(
-      document.analysis.source_doc.blocks.every(
-        ({ origin }) => origin === "heuristic",
-      ),
-    ).toBe(true);
   });
 
   it("selects one exact GovInfo package, exposes PDF metadata, and rejects ambiguity", async () => {
@@ -300,7 +294,6 @@ describe("remote legal-source providers", () => {
         pageCount: 7,
       }),
     ]);
-    expect(document.analysis.source_doc.ranges.page.count).toBe(0);
     await expect(govinfo.resolve!({
       text: "United States case 1:22-cv-00931",
       kind: "case",

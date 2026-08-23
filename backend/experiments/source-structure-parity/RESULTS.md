@@ -133,7 +133,8 @@ are reported separately. Journal rows additionally bind the exact registered
 final-contract validation, bytes, hash, page count and alias. Only a changed or
 missing contract identity is classified as `structure_input_drift`; it is never
 silently skipped. The verifier neither invokes providers nor retains the corpus
-in memory. Its self-check covered all 323,374 frozen rows in 2.9 seconds; the
+in memory. Its self-check covered all 323,374 frozen rows in 2.9 seconds. That
+checks receipt integrity, not a current Rust candidate; the
 authoritative-full comparisons for the fixed A2AJ and CourtListener 100-row
 receipts were each 100/100 exact.
 

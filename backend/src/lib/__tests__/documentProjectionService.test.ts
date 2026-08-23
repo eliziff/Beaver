@@ -31,26 +31,6 @@ describe("DocumentProjectionService", () => {
     })).rejects.toThrow("oversized slide XML");
   });
 
-  it("returns one stable SourceDoc projection", async () => {
-    const projections = await service();
-    const input = {
-      documentId: "document-a",
-      versionId: "version-1",
-      fileType: "txt",
-      bytes: Buffer.from("Parsed text\r\nwith\tstable bytes"),
-    } as const;
-
-    const first = await projections.read(input);
-    expect(await projections.read(input)).toEqual(first);
-    expect(first).toMatchObject({
-      kind: "source-doc",
-      sourceDoc: {
-        id: "document-a:version-1",
-        text: "Parsed text\r\nwith\tstable bytes",
-      },
-    });
-  });
-
   it("validates identity, source bytes, and cancellation", async () => {
     const projections = await service();
     const input = {

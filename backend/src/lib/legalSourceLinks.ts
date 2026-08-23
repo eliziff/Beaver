@@ -1,19 +1,21 @@
 import {
-  a2ajLegalSourceProvider,
+  type A2AJCompiledDocument,
   type A2AJDocument,
   type A2AJLocatorKind,
-  type A2AJLocatorLookup,
 } from "./legalSources/a2aj";
 import {
-  sourceDocBlockText,
-  sourceDocPhraseSpans,
-  sourceDocQuoteText,
-  sourceDocQuoteWords,
-  sourceDocTokens,
-  type SourceDoc,
-  type SourceDocQuoteSpan,
-  type SourceText,
-} from "./sourceDoc";
+  documentPhraseSpansNative,
+  documentTextNative,
+  documentTokensNative,
+  lookupDocumentNative,
+  quoteTextNative,
+  quoteWordsNative,
+  textPhraseSpansNative,
+  tokenizeTextNative,
+  type NativeDocument,
+  type NativeQuoteSpan,
+  type NativeWordSpan,
+} from "./structureNative";
 import { normalizeWhitespace } from "./text";
 import { buildCanliiCaseUrl } from "./canliiUrls";
 
@@ -21,12 +23,11 @@ import { buildCanliiCaseUrl } from "./canliiUrls";
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
  * fragments verified to select exactly one place in the document.
  *
- * Everything here is a query over a SourceDoc. Callers that already hold the
- * compiled artifact pass it; callers that only hold a rendition pass the text
- * and the artifact is compiled once for the call, never once per quote.
+ * Everything here queries either the canonical native document or, for
+ * isolated strings, the same Rust text primitives.
  */
 
-export type QuoteSource = string | SourceDoc;
+export type QuoteSource = string | NativeDocument;
 
 type A2AJCitationIdentity = {
   citation: string | null;
@@ -46,11 +47,19 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
-function asDoc(source: QuoteSource): SourceText {
-  return typeof source === "string" ? { text: source } : source;
-}
-
-type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
+type QuoteView = { text: string; native: NativeDocument | null };
+const asDoc = (source: QuoteSource): QuoteView => typeof source === "string"
+  ? { text: source, native: null }
+  : { text: documentTextNative(source), native: source };
+const tokens = (source: QuoteView): NativeWordSpan[] => source.native
+  ? documentTokensNative(source.native) : tokenizeTextNative(source.text);
+const phraseSpans = (source: QuoteView, words: string[], options: {
+  start?: number; end?: number; sameLine?: boolean; limit?: number;
+} = {}): NativeQuoteSpan[] => source.native
+  ? documentPhraseSpansNative(source.native, words, options.start, options.end,
+      options.sameLine, options.limit)
+  : textPhraseSpansNative(source.text, words, options.start, options.end,
+      options.sameLine, options.limit);
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
 // A whole-quote target longer than one tight prose run is more fragile than a
@@ -128,22 +137,22 @@ function stripLeadingLabels(text: string): string {
   }
 }
 
-function wordAtOrAfter(block: SourceText, offset: number, from: number): number {
-  const tokens = sourceDocTokens(block);
-  for (let index = from; index < tokens.length; index += 1) {
-    if (tokens[index].end > offset) return index;
+function wordAtOrAfter(block: QuoteView, offset: number, from: number): number {
+  const words = tokens(block);
+  for (let index = from; index < words.length; index += 1) {
+    if (words[index].end > offset) return index;
   }
   return -1;
 }
 
 function wordAtOrBefore(
-  block: SourceText,
+  block: QuoteView,
   offset: number,
   from: number,
 ): number {
-  const tokens = sourceDocTokens(block);
-  for (let index = Math.min(from, tokens.length - 1); index >= 0; index -= 1) {
-    if (tokens[index].start < offset) return index;
+  const words = tokens(block);
+  for (let index = Math.min(from, words.length - 1); index >= 0; index -= 1) {
+    if (words[index].start < offset) return index;
   }
   return -1;
 }
@@ -154,9 +163,9 @@ function wordAtOrBefore(
  * only what the fragment must match is trimmed.
  */
 function adjustSpanEdges(
-  block: SourceText,
-  original: SourceDocQuoteSpan,
-): SourceDocQuoteSpan {
+  block: QuoteView,
+  original: NativeQuoteSpan,
+): NativeQuoteSpan {
   let start = original.start;
   let end = original.end;
   for (;;) {
@@ -184,12 +193,12 @@ function adjustSpanEdges(
  * end run like "5.5 Summary" anchors on "Summary".
  */
 function edgePhrase(
-  block: SourceText,
-  span: SourceDocQuoteSpan,
+  block: QuoteView,
+  span: NativeQuoteSpan,
   edge: "start" | "end",
   size: number,
 ): { text: string; first: number; last: number } | null {
-  const tokens = sourceDocTokens(block);
+  const words = tokens(block);
   const forward = edge === "start";
   const indexes: number[] = [];
   const step = forward ? 1 : -1;
@@ -199,10 +208,10 @@ function edgePhrase(
     (forward ? index <= span.lastWord : index >= span.firstWord);
     index += step
   ) {
-    const token = tokens[index];
+      const token = words[index];
     if (!token) break;
     if (indexes.length) {
-      const previous = tokens[indexes.at(-1)!];
+      const previous = words[indexes.at(-1)!];
       const between = block.text.slice(
         Math.min(previous.end, token.start),
         Math.max(previous.end, token.start),
@@ -216,11 +225,11 @@ function edgePhrase(
   const first = Math.min(...indexes);
   const last = Math.max(...indexes);
   const raw = normalizeWhitespace(
-    block.text.slice(tokens[first].start, tokens[last].end),
+    block.text.slice(words[first].start, words[last].end),
   );
   // An end run like "5.5 Summary" anchors on its prose: "Summary".
   const text = stripLeadingLabels(raw);
-  return sourceDocQuoteWords(text).length
+  return quoteWordsNative(text).length
     ? { text, first, last }
     : null;
 }
@@ -232,17 +241,17 @@ function edgePhrase(
  * highlights, so anything above one rejects the candidate.
  */
 function rangeDirectiveMatchCount(
-  document: SourceText,
+  document: QuoteView,
   start: string,
   end: string,
 ): number {
-  const starts = sourceDocPhraseSpans(
+  const starts = phraseSpans(
     document,
-    sourceDocQuoteWords(start),
+    quoteWordsNative(start),
     { limit: 3 },
   );
   if (!starts.length) return 0;
-  const ends = sourceDocPhraseSpans(document, sourceDocQuoteWords(end), {
+  const ends = phraseSpans(document, quoteWordsNative(end), {
     limit: 3,
   });
   if (!ends.length) return 0;
@@ -257,9 +266,9 @@ function rangeDirectiveMatchCount(
 }
 
 function buildRangeDirective(
-  block: SourceText,
-  span: SourceDocQuoteSpan,
-  document: SourceText,
+  block: QuoteView,
+  span: NativeQuoteSpan,
+  document: QuoteView,
 ) {
   for (const size of RANGE_BOUNDARY_WORDS) {
     const head = edgePhrase(block, span, "start", size);
@@ -295,10 +304,10 @@ function buildRangeDirective(
  * link entirely, which is exactly what a court quotation looks like.
  */
 function chooseSourceSpan(
-  doc: SourceText,
+  doc: QuoteView,
   quote: string,
-): SourceDocQuoteSpan | null {
-  const spans = sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote)).map(
+): NativeQuoteSpan | null {
+  const spans = phraseSpans(doc, quoteWordsNative(quote)).map(
     (span) => ({
       ...span,
       end: extendTerminalPunctuation(doc.text, span.end, quote),
@@ -312,7 +321,7 @@ function chooseSourceSpan(
   );
   const wanted = [
     normalizeWhitespace(quote.trim().replace(/^["'“”]+|["'“”]+$/gu, "")),
-    sourceDocQuoteText(quote),
+    quoteTextNative(quote),
   ];
   for (const candidate of wanted) {
     for (const fold of [
@@ -524,28 +533,28 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
  * the caller needs.
  */
 function directiveMatchCount(
-  document: SourceText,
+  document: QuoteView,
   target: string,
   prefix = "",
   suffix = "",
 ) {
-  return sourceDocPhraseSpans(
+  return phraseSpans(
     document,
     [
-      ...sourceDocQuoteWords(prefix),
-      ...sourceDocQuoteWords(target),
-      ...sourceDocQuoteWords(suffix),
+      ...quoteWordsNative(prefix),
+      ...quoteWordsNative(target),
+      ...quoteWordsNative(suffix),
     ],
     { sameLine: true, limit: 2 },
   ).length;
 }
 
 function contextFor(
-  block: SourceText,
-  span: SourceDocQuoteSpan,
+  block: QuoteView,
+  span: NativeQuoteSpan,
   window: number,
 ): { prefix: string; suffix: string } {
-  const words = sourceDocTokens(block);
+  const words = tokens(block);
   const firstPrefixWord = Math.max(0, span.firstWord - window);
   const lastSuffixWord = Math.min(words.length - 1, span.lastWord + window);
   let prefix =
@@ -568,16 +577,16 @@ function contextFor(
 }
 
 function buildDirective(
-  block: SourceText,
+  block: QuoteView,
   quote: string,
-  document: SourceText,
+  document: QuoteView,
   pageScoped: boolean,
 ) {
   const selected = chooseSourceSpan(block, quote);
   if (!selected) return null;
   const span = adjustSpanEdges(block, selected);
   const target = normalizeWhitespace(block.text.slice(span.start, span.end));
-  const targetWords = sourceDocQuoteWords(target);
+  const targetWords = quoteWordsNative(target);
   if (!targetWords.length) return null;
 
   const targetCount = directiveMatchCount(document, target);
@@ -646,13 +655,13 @@ function appendDirectives(url: string, directives: string[]) {
 
 function buildA2AJSourcePinpointUrl(
   source: Pick<
-    A2AJLocatorLookup | A2AJDocument,
+    A2AJDocument,
     "dataset" | "citation" | "alternateCitation" | "language" | "url"
   >,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: QuoteSource,
   quotes: string[],
-  document: SourceDoc | null,
+  document: NativeDocument | null,
 ) {
   if (!source.url) return null;
   const anchor = a2ajLocatorAnchor(source.url, locator.kind, locator.label);
@@ -667,31 +676,15 @@ function buildA2AJSourcePinpointUrl(
     : null;
 }
 
-export function buildA2AJPinpointUrl(
-  lookup: A2AJLocatorLookup,
-  quotes: string[],
-  document: SourceDoc | null = a2ajLegalSourceProvider.source(lookup),
-  block: A2AJLookupBlock | null = lookup.block,
-) {
-  const label = block?.label || lookup.requested.label;
-  return buildA2AJSourcePinpointUrl(
-    lookup,
-    { kind: lookup.requested.kind, label },
-    lookup.status === "found" && block ? block.text : "",
-    quotes,
-    document,
-  );
-}
-
 function verificationDoc(
   passage: { documentText?: QuoteSource },
-  block: SourceText,
+  block: QuoteView,
 ) {
   const document = passage.documentText;
   if (document === undefined) return block;
   return typeof document === "string"
-    ? document.trim() ? { text: document } : block
-    : document;
+    ? document.trim() ? { text: document, native: null } : block
+    : asDoc(document);
 }
 
 export function buildLegalSourcePinpointUrl(
@@ -703,7 +696,7 @@ export function buildLegalSourcePinpointUrl(
   if (!baseUrl || !block.text) return baseUrl;
   const uniqueQuotes = new Map<string, string>();
   for (const quote of quotes) {
-    const key = sourceDocQuoteWords(quote).join(" ");
+    const key = quoteWordsNative(quote).join(" ");
     if (key && !uniqueQuotes.has(key)) uniqueQuotes.set(key, quote);
   }
   if (!uniqueQuotes.size) return baseUrl;
@@ -736,7 +729,7 @@ function normalizedIdentity(value: string | null | undefined) {
 function identityMatches(
   citation: A2AJCitationIdentity,
   source: Pick<
-    A2AJLocatorLookup | A2AJDocument,
+    A2AJDocument,
     "citation" | "alternateCitation" | "dataset"
   >,
 ) {
@@ -775,11 +768,11 @@ function isCanadianDecisionUrl(url: URL) {
 
 /** Rebuild the same A2AJ link after a prior-turn receipt has been rehydrated. */
 export function buildA2AJDocumentPinpointUrl(
-  document: A2AJDocument,
+  document: A2AJDocument | A2AJCompiledDocument,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: QuoteSource,
   quotes: string[],
-  source: SourceDoc | null = a2ajLegalSourceProvider.source(document),
+  source: NativeDocument | null = "native" in document ? document.native : null,
 ) {
   return buildA2AJSourcePinpointUrl(
     document,
@@ -854,20 +847,23 @@ export function hasCanadianDecisionLink(answer: string) {
 
 function uniqueParagraphEdge(
   text: string,
-  document: SourceText,
+  document: QuoteView,
   edge: "start" | "end",
 ) {
   const line = text.split(/\r?\n/u, 1)[0];
-  const block = { text: line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, "") };
-  const tokens = sourceDocTokens(block);
+  const block: QuoteView = {
+    text: line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
+    native: null,
+  };
+  const words = tokens(block);
   for (const length of [12, 16, 8, 24, 32, 6, 4, 2]) {
-    if (tokens.length < length) continue;
-    const words =
+    if (words.length < length) continue;
+    const edgeWords =
       edge === "start"
-        ? tokens.slice(0, length)
-        : tokens.slice(-length);
+        ? words.slice(0, length)
+        : words.slice(-length);
     const target = normalizeWhitespace(
-      block.text.slice(words[0].start, words.at(-1)!.end),
+      block.text.slice(edgeWords[0].start, edgeWords.at(-1)!.end),
     );
     if (directiveMatchCount(document, target) === 1) return target;
   }
@@ -878,29 +874,15 @@ export function buildA2AJParagraphRangeUrl(
   citation: string,
   start: string,
   end: string,
-  lookups: A2AJLocatorLookup[],
-  documents: A2AJDocument[],
+  documents: Array<A2AJDocument | A2AJCompiledDocument>,
 ) {
   const sources = new Map<
-    string,
+    NativeDocument,
     {
-      source: SourceDoc;
-      metadata: A2AJLocatorLookup | A2AJDocument;
+      source: NativeDocument;
+      metadata: A2AJDocument | A2AJCompiledDocument;
     }
   >();
-  for (const lookup of lookups) {
-    if (
-      lookup.status !== "found" ||
-      !identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        lookup,
-      )
-    ) {
-      continue;
-    }
-    const source = a2ajLegalSourceProvider.source(lookup);
-    if (source) sources.set(source.id, { source, metadata: lookup });
-  }
   for (const document of documents) {
     if (
       document.url &&
@@ -909,58 +891,26 @@ export function buildA2AJParagraphRangeUrl(
         document,
       )
     ) {
-      const source = a2ajLegalSourceProvider.source(document);
+      const source = "native" in document ? document.native : null;
       if (!source) continue;
-      const current = sources.get(source.id);
-      if (!current || source.blocks.length > current.source.blocks.length) {
-        sources.set(source.id, { source, metadata: document });
-      }
+      sources.set(source, { source, metadata: document });
     }
   }
   const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
-    const startBlock = source.blocks.find(
-      (block) =>
-        block.kind === "paragraph" &&
-        normalizedIdentity(block.label) === `par${Number(start)}`,
-    );
-    const endBlock = source.blocks.find(
-      (block) =>
-        block.kind === "paragraph" &&
-        normalizedIdentity(block.label) === `par${Number(end)}`,
-    );
+    const startBlock = lookupDocumentNative(source, "paragraph", start).block;
+    const endBlock = lookupDocumentNative(source, "paragraph", end).block;
     return startBlock && endBlock && startBlock.start <= endBlock.start
       ? [{ source, metadata, startBlock, endBlock }]
       : [];
   });
   const structured = candidates.length === 1 ? candidates[0] : null;
-  const rangeLookup = lookups.filter(
-    (lookup) =>
-      lookup.status === "found" &&
-      lookup.block &&
-      lookup.requested.kind === "paragraph" &&
-      lookup.requested.locator === `${Number(start)}-${Number(end)}` &&
-      identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        lookup,
-      ),
-  );
-  if (!structured && rangeLookup.length !== 1) return null;
-  const metadata = structured?.metadata ?? rangeLookup[0];
-  const source: SourceText =
-    structured?.source ??
-    a2ajLegalSourceProvider.source(rangeLookup[0]) ??
-    { text: rangeLookup[0].block!.text };
-  const lines = structured
-    ? []
-    : rangeLookup[0].block!.text.split(/\r?\n/u).filter((line) => line.trim());
-  const startSource = structured
-    ? sourceDocBlockText(structured.source, structured.startBlock)
-    : (lines[0] ?? "");
-  const endSource = structured
-    ? sourceDocBlockText(structured.source, structured.endBlock)
-    : (lines.at(-1) ?? "");
-  const startTarget = uniqueParagraphEdge(startSource, source, "start");
-  const endTarget = uniqueParagraphEdge(endSource, source, "end");
+  if (!structured) return null;
+  const { metadata, source } = structured;
+  const sourceView = asDoc(source);
+  const startSource = structured.startBlock.text;
+  const endSource = structured.endBlock.text;
+  const startTarget = uniqueParagraphEdge(startSource, sourceView, "start");
+  const endTarget = uniqueParagraphEdge(endSource, sourceView, "end");
   if (!startTarget || !endTarget) return null;
   const anchor = `par${Number(start)}`;
   const baseUrl = metadata.url ? sourceUrl(metadata.url, anchor) : null;

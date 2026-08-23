@@ -6,8 +6,8 @@
   python -X utf8 gt_worksheet.py grade snap/gt_ids.json snap/gt_truth.json --gate
 
 The v1 and ALR results are historical compatibility references. Production is
-always measured by Beaver's shipping legal-structure engine through the shared
-JSONL transport; this file contains no production parser.
+always measured by Beaver's shipping in-process legal-structure engine; this
+file contains no production parser.
 """
 
 from __future__ import annotations
@@ -22,10 +22,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[2] / "backend" / "scripts"))
 
 from alr_probe import alr, paragraph_index, v1  # noqa: E402
-from sourcedoc_client import close_client, compile_document  # noqa: E402
+from legal_structure import compile_document  # noqa: E402
 
 LS_NUM = re.compile(r"^[ \t]*(?:\[(\d{1,4})\]|(\d{1,4})\.(?=\s)|(\d{1,4})(?=\s))")
 
@@ -185,54 +184,50 @@ def cmd_grade(args) -> int:
     rows = []
     missing_text = []
     compile_errors = []
-    try:
-        for doc_id in ids:
-            g = truth[doc_id]
-            r = recs.get(doc_id)
-            if not r:
-                missing_text.append(doc_id)
-                continue
-            t = r["text"]
-            v1v, v1i = v1(t)
-            av, ai = alr(t)
-            has = bool(g["numbered"])
-            # v1 asserts a usable paragraph ladder only when it says "ok".
-            v1_has = v1v == "ok"
-            alr_has = av == "usable"
-            production_error = None
-            production = None
-            try:
-                production = compile_document({
-                    "id": doc_id,
-                    "docType": "cases",
-                    "citation": r.get("citation") or doc_id,
-                    "dataset": r["court"],
-                    "name": r.get("name"),
-                    "text": t,
-                })
-            except Exception as exc:
-                production_error = str(exc)
-                compile_errors.append((doc_id, production_error))
-            summary = production["summary"] if production else {}
-            production_has = summary.get("kind") == "paragraphs"
-            rows.append({
-                "id": doc_id, "court": r["court"], "lang": r["lang"],
-                "date": r.get("date"), "truth_numbered": has,
-                "truth_max": g.get("max"), "truth_style": g.get("style"),
-                "note": g.get("note", ""),
-                "v1": v1v, "v1_has": v1_has,
-                "v1_max": v1i["max"] if v1_has else None,
-                "alr": av, "alr_has": alr_has,
-                "alr_max": ai.get("last") if alr_has else None,
-                "production": summary.get("kind", "error"),
-                "production_has": production_has,
-                "production_max": summary.get("last") if production_has else None,
-                "production_count": summary.get("count", 0),
-                "production_ms": production.get("elapsedMs") if production else None,
-                "production_error": production_error,
+    for doc_id in ids:
+        g = truth[doc_id]
+        r = recs.get(doc_id)
+        if not r:
+            missing_text.append(doc_id)
+            continue
+        t = r["text"]
+        v1v, v1i = v1(t)
+        av, ai = alr(t)
+        has = bool(g["numbered"])
+        # v1 asserts a usable paragraph ladder only when it says "ok".
+        v1_has = v1v == "ok"
+        alr_has = av == "usable"
+        production_error = None
+        production = None
+        try:
+            production = compile_document({
+                "docType": "cases",
+                "citation": r.get("citation") or doc_id,
+                "dataset": r["court"],
+                "name": r.get("name"),
+                "text": t,
             })
-    finally:
-        close_client()
+        except Exception as exc:
+            production_error = str(exc)
+            compile_errors.append((doc_id, production_error))
+        summary = production["summary"] if production else {}
+        production_has = summary.get("kind") == "paragraphs"
+        rows.append({
+            "id": doc_id, "court": r["court"], "lang": r["lang"],
+            "date": r.get("date"), "truth_numbered": has,
+            "truth_max": g.get("max"), "truth_style": g.get("style"),
+            "note": g.get("note", ""),
+            "v1": v1v, "v1_has": v1_has,
+            "v1_max": v1i["max"] if v1_has else None,
+            "alr": av, "alr_has": alr_has,
+            "alr_max": ai.get("last") if alr_has else None,
+            "production": summary.get("kind", "error"),
+            "production_has": production_has,
+            "production_max": summary.get("last") if production_has else None,
+            "production_count": summary.get("count", 0),
+            "production_ms": production.get("elapsedMs") if production else None,
+            "production_error": production_error,
+        })
     if not rows:
         print("INPUT ERROR: no hand-reviewed documents could be loaded")
         return 2

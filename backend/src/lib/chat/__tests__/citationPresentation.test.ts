@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createA2AJLookupEvidence,
+  createA2AJPassageEvidence,
   createTnaEvidence,
   createPublicJournalPassageEvidence,
 } from "../legalEvidence";
@@ -9,9 +9,7 @@ import {
   citationPresentationText,
   presentLegalEvidence,
 } from "../citationPresentation";
-import type { A2AJLocatorLookup } from "../../legalSources/a2aj";
-
-const textSource = (text: string) => ({ text });
+import { deriveDocumentNative } from "../../structureNative";
 
 describe("legal evidence citation presentation", () => {
   it("owns authority, McGill locator, and source/passage destinations", () => {
@@ -36,7 +34,7 @@ describe("legal evidence citation presentation", () => {
     expect(presented.passageUrl).not.toContain("#par12");
   });
 
-  it("does not invent a section anchor and keeps a unique passage intact", () => {
+  it("does not invent a section anchor and keeps a unique passage intact", async () => {
     const span =
       "The court may, on application, vary that order, prospectively or retroactively.";
     const sourceText = [
@@ -57,9 +55,17 @@ describe("legal evidence citation presentation", () => {
       locatorKind: "section",
       locatorLabel: "sec77",
     });
+    const source = await deriveDocumentNative({
+      kind: "a2aj",
+      input: {
+        citation: receipt.citation,
+        source_kind: "laws",
+        text: sourceText,
+      },
+    });
     const presented = presentLegalEvidence({
       receipt,
-      source: textSource(sourceText),
+      source,
     });
 
     expect(presented.passageUrl).toContain("display=html#:~:text=");
@@ -70,41 +76,52 @@ describe("legal evidence citation presentation", () => {
     expect(decodeURIComponent(presented.passageUrl!.split("text=")[1])).toBe(span);
   });
 
-  it("routes A2AJ quote links through the official Decisia source", () => {
+  it("routes A2AJ quote links through the official Decisia source", async () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
-    const lookup: A2AJLocatorLookup = {
-      status: "found",
+    const url =
+      "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do";
+    const source = await deriveDocumentNative({
+      kind: "a2aj",
+      input: {
+        citation: "2026 FCA 42",
+        source_kind: "cases",
+        text,
+        dataset: "FCA",
+        name: "Example v Canada",
+        url,
+      },
+    });
+    const document = {
+      docType: "cases" as const,
+      dataset: "FCA",
       citation: "2026 FCA 42",
       alternateCitation: null,
       name: "Example v Canada",
-      dataset: "FCA",
-      url: "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do",
-      language: "en",
-      requested: { kind: "paragraph", locator: "42", label: "par42" },
-      matches: ["par42"],
-      block: {
-        kind: "paragraph",
-        label: "par42",
-        start: 0,
-        end: text.length,
-        origin: "native",
-        text,
-      },
-      before: [],
-      after: [],
-      structure: {
-        status: "usable",
-        source: "flat_text",
-        counts: { paragraph: 1, page: 0, section: 0 },
-      },
-      sourceMethod: "structure_index",
+      date: null,
+      url,
+      text,
+      language: "en" as const,
+      upstreamLicense: null,
+      native: source,
     };
-    const receipt = createA2AJLookupEvidence(lookup)!;
+    const receipt = createA2AJPassageEvidence({
+      citation: document.citation,
+      name: document.name,
+      dataset: document.dataset,
+      language: document.language,
+      sourceText: text,
+      spanText: text,
+      start: 0,
+      end: text.length,
+      externalUrl: url,
+      sourceClass: "case",
+      locator: { kind: "paragraph", label: "par42" },
+    });
     const presented = presentLegalEvidence({
       receipt,
-      lookup,
-      source: textSource(text),
+      document,
+      source,
     });
 
     expect(presented.sourceUrl).toContain("canlii.org");
@@ -113,45 +130,13 @@ describe("legal evidence citation presentation", () => {
       "iframe=true&site_preference=mobile#par42:~:text=",
     );
 
-    const restored = presentLegalEvidence({
-      receipt,
-      document: {
-        docType: "cases",
-        dataset: lookup.dataset,
-        citation: lookup.citation,
-        alternateCitation: lookup.alternateCitation,
-        name: lookup.name,
-        date: null,
-        url: lookup.url,
-        text,
-        language: lookup.language,
-        upstreamLicense: null,
-        structure: lookup.structure,
-      },
-      source: textSource(text),
-    });
-    expect(restored.passageUrl).toContain("decisions.fca-caf.gc.ca");
-    expect(restored.passageUrl).toContain("#par42:~:text=");
-
     const documentPassage = presentLegalEvidence({
       receipt: {
         ...receipt,
         locator: { kind: "document", label: "document" },
       },
-      document: {
-        docType: "cases",
-        dataset: lookup.dataset,
-        citation: lookup.citation,
-        alternateCitation: lookup.alternateCitation,
-        name: lookup.name,
-        date: null,
-        url: lookup.url,
-        text,
-        language: lookup.language,
-        upstreamLicense: null,
-        structure: lookup.structure,
-      },
-      source: textSource(text),
+      document,
+      source,
     });
     expect(documentPassage.sourceUrl).toContain("canlii.org");
     expect(documentPassage.passageUrl).toContain("decisions.fca-caf.gc.ca");

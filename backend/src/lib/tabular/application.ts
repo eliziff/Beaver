@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { documentProjectionService } from "../documentProjectionService";
+import { documentTextNative } from "../structureNative";
 import { runChatTurn } from "../chat/turnEngine";
 import type { DocumentStore } from "../documentStore";
 import type { ProjectStore } from "../projectStore";
@@ -206,7 +207,7 @@ export function createTabularApplication(
       sourceSha256: content.version.source_sha256,
       bytes: content.bytes,
     }, { signal });
-    const markdown = projection.sourceDoc.text;
+    const markdown = documentTextNative(projection.sourceDoc);
     throwIfAborted(signal);
     return { id: documentId, filename: content.filename.slice(0, 500),
       markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };
