@@ -2,6 +2,7 @@ import {
   buildA2AJDocumentPinpointUrl,
   buildA2AJParagraphRangeUrl,
   buildLegalSourcePinpointUrl,
+  legalSourceLocatorAnchor,
 } from "../legalSourceLinks";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
@@ -38,35 +39,6 @@ function receiptLocator(entry: RegisteredEvidence): CitationPresentation["locato
       ? value
       : `${kind === "paragraph" ? range ? "paras" : "para" : kind === "section" ? range ? "ss" : "s" : range ? "nn" : "n"} ${value}`,
   };
-}
-
-function receiptAnchor(entry: RegisteredEvidence, sourceUrl: string) {
-  const { kind, label } = entry.receipt.locator;
-  let url: URL;
-  try {
-    url = new URL(sourceUrl);
-  } catch {
-    return undefined;
-  }
-  const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
-  if (kind === "paragraph") {
-    const number = label.match(/^par(\d+)/iu)?.[1];
-    return number && canlii && url.pathname.includes("/doc/")
-      ? `par${Number(number)}`
-      : undefined;
-  }
-  if (kind === "section") {
-    return canlii && url.pathname.includes("/laws/")
-      ? label.match(/^sec[\w.-]+/iu)?.[0]
-      : undefined;
-  }
-  if (kind === "page") {
-    const number = label.match(/(?:page=?|^)(\d+)/iu)?.[1];
-    return number && url.pathname.toLowerCase().endsWith(".pdf")
-      ? `page=${Number(number)}`
-      : undefined;
-  }
-  return undefined;
 }
 
 export function presentLegalEvidence(
@@ -122,7 +94,13 @@ export function presentLegalEvidence(
     ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
           {
             url: fragmentSourceUrl,
-            anchor: receiptAnchor(entry, fragmentSourceUrl),
+            anchor: a2ajLocator
+              ? legalSourceLocatorAnchor(
+                  fragmentSourceUrl,
+                  a2ajLocator.kind,
+                  a2ajLocator.label,
+                )
+              : undefined,
             blockText: receipt.span_text,
             ...(source && { documentText: source }),
           },
