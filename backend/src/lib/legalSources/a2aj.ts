@@ -201,14 +201,11 @@ async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocu
 }
 
 function locator(value: string) {
-  const stripped = value.trim()
-    .replace(/^(?:(?:sections?)\s+|ss?\.?(?=\s)\s*)/iu, "")
-    .replace(/^sec(?=[\p{L}\p{N}])/iu, "").trim();
-  return stripped && (normalizeDocumentLocatorNative("section", stripped) || `sec${stripped}`);
+  return normalizeDocumentLocatorNative("section", value).replace(/^sec/iu, "");
 }
 
 async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
-  const label = locator(requested).replace(/^sec/iu, "");
+  const label = locator(requested);
   if (!label || !text.trim()) return null;
   const compiled = await deriveA2AJDocument({
     citation: document.citation, docType: "laws", text, id: document.citation,
@@ -467,7 +464,7 @@ const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
     const passages = await load();
     if (passages.length || docType !== "laws" ||
         request.locator?.kind !== "section") return passages;
-    const label = locator(request.locator.value).replace(/^sec/iu, "");
+    const label = locator(request.locator.value);
     return label ? load(label) : [];
   },
   canSearch(request) {
