@@ -461,49 +461,11 @@ function mapNormRangeToOriginal(
     return { start: origStart, end: origEnd };
 }
 
-export interface DocxTableCellSpan {
-    /** 1-based top-level table, row, and grid-column coordinates. */
-    table: number;
-    row: number;
-    column: number;
-    /** Horizontal grid width; no phantom address is minted for covered columns. */
-    columnSpan: number;
-    /** Exact offsets in `extractDocxBodyText`'s accepted-view text. */
-    start: number;
-    end: number;
-}
-
 export interface InsertTrackedBlocksInput {
     blocks: string[];
     position: "before" | "after";
     anchorText?: string;
     occurrence?: number;
-}
-
-export interface DocxBodyStructure {
-    text: string;
-    tableCells: DocxTableCellSpan[];
-}
-
-/**
- * The body text plus native DOCX table coordinates on the same offset plane.
- * Nested tables remain part of the containing cell's text. Vertical and
- * horizontal merge continuations remain in the global flattened text, but
- * mint no independent address and do not extend the restart cell's span.
- */
-export async function extractDocxBodyStructure(
-    bytes: Buffer,
-): Promise<DocxBodyStructure> {
-    const session = await openDocxSession(bytes);
-    if (!session.has("word/document.xml")) return { text: "", tableCells: [] };
-    const document = await session.document().catch((error: unknown) => {
-        if (/^w:body missing from /u.test(String((error as Error).message))) {
-            return null;
-        }
-        throw error;
-    });
-    if (!document) return { text: "", tableCells: [] };
-    return { text: document.text, tableCells: document.tableCells };
 }
 
 /**
@@ -514,7 +476,15 @@ export async function extractDocxBodyStructure(
  * anchor matcher operates against.
  */
 export async function extractDocxBodyText(bytes: Buffer): Promise<string> {
-    return (await extractDocxBodyStructure(bytes)).text;
+    const session = await openDocxSession(bytes);
+    if (!session.has("word/document.xml")) return "";
+    return session.document().then(
+        (document) => document.text,
+        (error: unknown) => {
+            if (/^w:body missing from /u.test(String((error as Error).message))) return "";
+            throw error;
+        },
+    );
 }
 
 /**

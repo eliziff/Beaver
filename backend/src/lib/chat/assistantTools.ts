@@ -1095,7 +1095,7 @@ async function readLegalSourceResource(
           block as unknown as NativeDocumentBlock,
           references as Exclude<A2AJReferenceDirection, "none">,
         );
-        const candidates = scope?.nodes.slice(1) ?? [];
+        const candidates = scope?.nodes ?? [];
         const sections: Array<{ label: string; text: string; evidence_ids: string[] }> = [];
         const omitted: string[] = [];
         let chars = 0;
@@ -2307,7 +2307,7 @@ async function runAdvancedDocxEdit(params: {
             );
             if (!walked) throw new Error(
               `ops[${index}].scope.at is not an addressable block`);
-            spans = walked.nodes.map(({ start, end }) => ({ start, end }));
+            spans.push(...walked.nodes.map(({ start, end }) => ({ start, end })));
           }
         }
         return { ...request, scope: { kind: "spans" as const, spans } };

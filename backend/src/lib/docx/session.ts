@@ -343,26 +343,14 @@ export function indexDocxParagraph(node: XNode): DocxParagraphIndex {
   };
 }
 
-function directChild(node: XNode, name: string) {
-  return elChildren(node).find((child) => elName(child) === name);
-}
-
-function positiveWordInt(node: XNode | undefined, name: string) {
-  const child = node && directChild(node, name);
-  const value = Number(child && elAttrs(child)["@_w:val"]);
-  return Number.isSafeInteger(value) && value > 0 ? value : 1;
-}
-
 export function indexDocxBody(body: XNode) {
   const bodyChildren = elChildren(body);
   const paragraphs: DocxParagraphIndex[] = [];
   const byNode = new Map<XNode, DocxParagraphIndex>();
-  const entryCursor = new Map<XNode, number>();
   let cursor = 0;
   let truncated = false;
 
   const collect = (node: XNode, bodyIndex: number, depth: number): void => {
-    entryCursor.set(node, cursor);
     if (depth > MAX_MARKUP_DEPTH) return void (truncated = true);
     const name = elName(node);
     if (name === "w:p") {
@@ -391,49 +379,6 @@ export function indexDocxBody(body: XNode) {
     return found;
   };
 
-  const wrappers = new Set(["w:sdt", "w:sdtContent"]);
-  const nested = (node: XNode, wanted: string) => {
-    const found: XNode[] = [];
-    const visit = (children: XNode[], depth: number): void => {
-      if (depth > MAX_MARKUP_DEPTH) return void (truncated = true);
-      for (const child of children) {
-        const name = elName(child);
-        if (name === wanted) found.push(child);
-        else if (name && wrappers.has(name)) visit(elChildren(child), depth + 1);
-      }
-    };
-    visit(elChildren(node), 0);
-    return found;
-  };
-  const tableCells: Array<{ table: number; row: number; column: number; columnSpan: number; start: number; end: number }> = [];
-  nested(body, "w:tbl").forEach((table, tableIndex) => {
-    nested(table, "w:tr").forEach((row, rowIndex) => {
-      const trPr = directChild(row, "w:trPr");
-      const skipped = Number(elAttrs(directChild(trPr!, "w:gridBefore"))["@_w:val"]);
-      let column = Number.isSafeInteger(skipped) && skipped >= 0 ? skipped + 1 : 1;
-      nested(row, "w:tc").forEach((cell) => {
-        const tcPr = directChild(cell, "w:tcPr");
-        const columnSpan = positiveWordInt(tcPr, "w:gridSpan");
-        const merge = ["w:vMerge", "w:hMerge"].some((name) => {
-          const node = tcPr && directChild(tcPr, name);
-          return node && String(elAttrs(node)["@_w:val"] ?? "").toLowerCase() !== "restart";
-        });
-        const contents = paragraphsUnder(cell);
-        if (!merge) tableCells.push({
-          table: tableIndex + 1,
-          row: rowIndex + 1,
-          column,
-          columnSpan,
-          start: contents[0]?.globalStart ?? entryCursor.get(cell) ?? cursor,
-          end: contents.length
-            ? contents.at(-1)!.globalStart + contents.at(-1)!.acceptedText.length
-            : entryCursor.get(cell) ?? cursor,
-        });
-        column += columnSpan;
-      });
-    });
-  });
-
   const blocks = bodyChildren.flatMap((node, bodyIndex) => {
     const name = elName(node);
     const kind: "p" | "tbl" | "sdt" | null = name === "w:p"
@@ -459,7 +404,6 @@ export function indexDocxBody(body: XNode) {
     body,
     paragraphs,
     text: paragraphs.map((paragraph) => paragraph.acceptedText).join("\n"),
-    tableCells,
     blocks,
     truncated,
   };
