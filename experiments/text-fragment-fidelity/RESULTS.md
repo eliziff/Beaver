@@ -84,3 +84,14 @@ CART/CHRT 91.4%, and **CT 62.1%**.
    previously-matched hosts; require zero regressions.
 3. Only then promote to production with unit tests over fixtures mirroring
    the captured markup.
+
+## Addendum 2026-08-23 — headed verification and harness
+
+**Headed Chrome on `decisions.ct-tc.gc.ca` (real Chrome, 12s settle, screenshots in `results/ct-headed-*.png`):**
+
+* `item/464120` (2005 Comp Trib 32, "Barcode-Symbol") — **pdf-card confirmed**: `?iframe=true&site_preference=mobile` renders 606 chars, desktop renders 693 chars, 0 `par` anchors in both, only links are `…/464120/1/document.do`. The reasons exist only as PDF. This is not a `site_preference`/`iframe` bug — stripping params does not recover body text. Correct end-product link for such legacy items is the PDF (`/document.do`) with a `page=` anchor, parallel to the existing CanLII PDF path in `sourceUrl`.
+* `item/521808` (2026 Comp Trib 19) — **inline path confirmed**: same beaver params render 28,146 chars with 64 `par` anchors and the decision body ("IN THE MATTER OF…") visible below the metadata table. Modern CT decisions carry full HTML text under the load-bearing `iframe=true&site_preference=mobile` rendering; per-host param stripping is not warranted for CT. Any future exception must be headed-proven per host before scoping.
+
+**Harness:** `candidate-builder.test.mts` was broken after the Rust document-structure migration (`createSourceDoc` removed from `backend/src/lib/sourceDoc.ts`). Restored experiment-local `createTextSourceDoc` as a minimal `SourceDoc` shape with `sourceDocTokens` attached for the legacy `block.tokens` accessors. All 8 strategies now pass plus new T9 (markdown `*…*` → stripped sibling, e.g. BC Laws `*acknowledgement*`).
+
+**Production TODO — CT pdf-card re-route:** The blind fix in `builder-candidate.ts:758` rewrites every `decisions.ct-tc.gc.ca/.../item/<id>/index.do` to `.../<id>/1/document.do` so the A2AJ quote paints in the PDF layer with no oracle. When this is promoted, move the re-route into production — either in `backend/src/lib/legalSources/a2aj.ts` (provider compiles the PDF rendition for those 13 pdf-card IDs) or in `documentProjectionService`/`structureNative` so the canonical `SourceDoc` for those items is the PDF, not the stub. Keep `gate-replay.mjs:30` `isPdfUrl` (`/document.do` on `decisions.ct-tc.gc.ca`) in sync. This closes the entire CT pdf-card class with zero oracle and preserves the LOAD-BEARING `iframe`/`site_preference` path for modern CT HTML.

@@ -76,7 +76,8 @@ function isHighlightPixel(r, g, b) {
   return (
     r >= 205 && g >= 175 &&
     r - g >= 12 && b - g >= 18 &&
-    b >= 228 && r <= 255 && b <= 255
+    b >= 228 && r <= 255 && b <= 255 &&
+    b >= r
   );
 }
 
@@ -109,8 +110,12 @@ async function analyzeHighlight(analyzer, buffer) {
 }
 
 async function measure(page, target, analyzer) {
-  await page.goto(target, { waitUntil: "load", timeout: 45_000 });
-  await page.waitForTimeout(2_000);
+  // Fragments navigate without needing subresources: domcontentloaded plus a
+  // short settle is enough for scroll + ::target-text paint. PDFs process the
+  // fragment only in the active tab, so bring the page to front first.
+  await page.bringToFront();
+  await page.goto(target, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await page.waitForTimeout(1_000);
   const state = await page.evaluate(() => ({
     scrollY: Math.round(window.scrollY),
     viewport: (() => {
@@ -180,7 +185,7 @@ function quoteNeedle(quote) {
   const words = (quote ?? "").split(/\s+/u);
   let start = 0;
   if (/^\[\d+\]$/u.test(words[0] ?? "") || /^\d+$/u.test(words[0] ?? "")) start = 1;
-  return words.slice(start, start + 5).join(" ").toLowerCase();
+  return words.slice(start, start + 4).join(" ").toLowerCase();
 }
 
 async function placementCheck(page, seed, bandTopInViewport) {
@@ -282,7 +287,7 @@ try {
     emit(record);
     completed += 1;
     // Politeness: sequential loads with a pause between publisher fetches.
-    await page.waitForTimeout(1_500);
+    await page.waitForTimeout(900);
   }
 } finally {
   await browser.close();
