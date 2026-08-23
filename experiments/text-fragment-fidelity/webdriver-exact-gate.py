@@ -629,11 +629,10 @@ def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
     for directive in raw_directives(seed["target"]):
         matches = directive_matches(pages, directive)
         if len(matches) > 1:
-            ambiguous.append({"directive": unquote(directive), "spans": matches})
+            ambiguous.append({"directive": unquote(directive), "spans": matches,
+                              "parsed": parse_directive(directive)})
         elif matches:
             selected.append({"directive": unquote(directive), "span": matches[0], "parsed": parse_directive(directive)})
-    if ambiguous:
-        return {"status": "pdf-directive-ambiguous", "selected": selected, "ambiguous": ambiguous}
 
     intended = []
     core_only = False
@@ -652,9 +651,17 @@ def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
         if len(hits) == 1:
             intended.append(hits[0])
             continue
-        cores = [item["span"] for item in selected
-                 if item["parsed"] and not item["parsed"][0] and not item["parsed"][2] and not item["parsed"][3]
+        cores = [item["span"] for item in selected if item["parsed"]
                  and anchored_core_matches(pages[item["span"][0]], item["span"], block_text, quote_text)]
+        for item in ambiguous:
+            anchored = [span for span in item["spans"]
+                        if anchored_core_matches(pages[span[0]], span, block_text, quote_text)]
+            if len(anchored) == 1:
+                resolved = {"directive": item["directive"], "span": anchored[0],
+                            "parsed": item["parsed"], "contextDisambiguated": True}
+                selected.append(resolved)
+                cores.append(anchored[0])
+        cores = list(dict.fromkeys(cores))
         if not cores:
             projected = []
             for directive in raw_directives(seed["target"]):
@@ -674,6 +681,13 @@ def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
             return {"status": "pdf-quote-not-unique", "quote": quote_text_raw, "quoteOccurrences": len(hits)}
         intended.extend(cores)
         core_only = True
+    unresolved = [item for item in ambiguous if not any(
+        selected_item["directive"] == item["directive"] and selected_item.get("contextDisambiguated")
+        for selected_item in selected
+    )]
+    if unresolved:
+        return {"status": "pdf-directive-ambiguous", "selected": selected, "ambiguous": unresolved,
+                "intended": intended}
     extraneous = [item for item in selected if not any(
         item["span"][0] == wanted[0] and wanted[1] <= item["span"][1] and item["span"][2] <= wanted[2]
         for wanted in intended

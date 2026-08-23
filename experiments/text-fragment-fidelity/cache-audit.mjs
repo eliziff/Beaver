@@ -2,6 +2,7 @@
 // Prove that every target base URL has a usable immutable cache artifact.
 import fs from "node:fs";
 import path from "node:path";
+import { decodeEntities, htmlToText } from "./gap-lib.mjs";
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
@@ -23,6 +24,9 @@ for (const row of read(path.join(results, "page-html-manifest.jsonl"))) {
 const missing = [];
 const invalid = [];
 const used = new Map();
+const textCache = new Map();
+const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
+  .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 for (const seed of read(path.join(results, "targets.jsonl"))) {
   if (!seed.target) {
     missing.push({ label: seed.label, reason: "no-target" });
@@ -42,6 +46,18 @@ for (const seed of read(path.join(results, "targets.jsonl"))) {
   if (row.challenged) {
     invalid.push({ label: seed.label, url: base, file: row.file, reason: "challenge-page" });
     continue;
+  }
+  if (!row.file.toLowerCase().endsWith(".pdf")) {
+    let pageText = textCache.get(row.file);
+    if (pageText === undefined) {
+      pageText = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
+      textCache.set(row.file, pageText);
+    }
+    const absent = (seed.quotes ?? []).filter((quote) => !pageText.includes(normalized(quote)));
+    if (absent.length) {
+      invalid.push({ label: seed.label, url: base, file: row.file, reason: "quote-not-cached" });
+      continue;
+    }
   }
   used.set(key(base), row.file);
 }

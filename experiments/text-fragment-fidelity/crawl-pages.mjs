@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { decodeEntities, htmlToText } from "./gap-lib.mjs";
 
 const here = import.meta.dirname;
 const resultsDir = path.join(here, "results");
@@ -50,6 +51,22 @@ function fetchUrlFor(rawUrl) {
 const seeds = fs.readFileSync(seedsPath, "utf8")
   .split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
 const urls = [...new Set(seeds.map((s) => s.url.split("#")[0]))];
+const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
+  .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const requiredByUrl = new Map();
+for (const seed of seeds) {
+  const url = fetchUrlFor(seed.url.split("#")[0]);
+  const required = requiredByUrl.get(url) ?? [];
+  required.push(...(seed.quotes ?? []).map(normalized));
+  requiredByUrl.set(url, required);
+}
+function cacheContainsQuotes(row) {
+  if (row.file?.toLowerCase().endsWith(".pdf")) return true;
+  const file = row.file && path.join(cacheDir, row.file);
+  if (!file || !fs.existsSync(file)) return false;
+  const text = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
+  return (requiredByUrl.get(row.url) ?? []).every((quote) => text.includes(quote));
+}
 const have = new Set();
 if (fs.existsSync(manifestPath)) {
   for (const line of fs.readFileSync(manifestPath, "utf8").split(/\r?\n/)) {
@@ -62,6 +79,7 @@ if (fs.existsSync(manifestPath)) {
       // via Node fetch as binary.
       if (row.bytes != null && row.bytes < 5000) continue;
       if (row.file == null) continue;
+      if (!cacheContainsQuotes(row)) continue;
       // Manifest rows already hold the fetch URL; key them as-is so a stale
       // entry at a raw seed URL (e.g. ontario.ca API JSON) does not mask a
       // missing entry at the transformed URL.
@@ -174,26 +192,27 @@ async function crawl(page, url) {
       return { ok: true, bytes: buf.length, contentType: "application/pdf" };
     }
     await page.goto(fetchUrl, { waitUntil: "load", timeout: 90_000 });
-    // Decisia-family pages inject the decision text after load; a short settle
-    // caches only shells (title present, reasons missing). Some tenants (e.g.
-    // decisions.ct-tc.gc.ca) are slower than others, so Decisia gets a 5s
-    // settle and everything else keeps the short one.
-    const settle = /(^|\.)decisions?\.[\w-]+\.(?:gc\.)?ca$|decisia\.lexum\.com|coadecisions\.ontariocourts\.ca$/iu.test(
-      (() => { try { return new URL(fetchUrl).hostname; } catch { return ""; } })(),
-    )
-      ? 5_000
-      : 1_500;
-    await page.waitForTimeout(settle);
     let html = await page.content();
     // Anti-bot "Validation" challenge: one quick retry.
     if (/<title>\s*Validation\s*<\/title>/iu.test(html)) {
       console.log(JSON.stringify({ event: "validation-retry", url: fetchUrl.slice(0, 90) }));
       await page.waitForTimeout(5_000);
       await page.goto(fetchUrl, { waitUntil: "load", timeout: 90_000 });
-      await page.waitForTimeout(settle);
       html = await page.content();
     }
     const challenged = /<title>\s*Validation\s*<\/title>/iu.test(html);
+    const required = requiredByUrl.get(fetchUrl) ?? [];
+    const deadline = Date.now() + 30_000;
+    let body = "";
+    while (Date.now() < deadline) {
+      body = normalized(await page.locator("body").innerText());
+      if (required.every((quote) => body.includes(quote))) break;
+      await page.waitForTimeout(100);
+    }
+    if (!required.every((quote) => body.includes(quote))) {
+      throw new Error(`page did not hydrate ${required.length} required quotes`);
+    }
+    html = await page.content();
     const key = crypto.createHash("sha1").update(fetchUrl).digest("hex");
     const file = `${key}.html`;
     fs.writeFileSync(path.join(cacheDir, file), html);

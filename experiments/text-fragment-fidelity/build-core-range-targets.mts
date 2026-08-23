@@ -11,9 +11,38 @@ const { buildCoreRangePinpointUrl, buildLineCorePinpointUrl } = await import("./
 const { buildLegalSourcePinpointUrl: buildProductionUrl } = await import(
   pathToFileURL(path.join(here, "../../backend/src/lib/legalSourceLinks.ts")).href);
 const results = path.join(here, "results");
-const mode = process.argv[2] === "line" ? "line" : "range";
-const boundary = mode === "line" ? 0 : Number(process.argv[2] ?? 1);
+const mode = ["line", "hybrid"].includes(process.argv[2]) ? process.argv[2] : "range";
+const boundary = mode === "range" ? Number(process.argv[2] ?? 1) : 0;
 const lines = (file: string) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean);
+const normalized = (value: string) => value.toLocaleLowerCase().replace(/\s+/gu, " ").trim();
+function directiveResolves(target: string, documentText: string) {
+  const text = normalized(documentText);
+  const payload = target.split(":~:")[1] ?? "";
+  return payload.split("&").filter((part) => part.startsWith("text=")).some((raw) => {
+    const pieces = raw.slice(5).split(",");
+    const prefix = pieces[0]?.endsWith("-") ? normalized(decodeURIComponent(pieces.shift()!.slice(0, -1))) : "";
+    const suffix = pieces.at(-1)?.startsWith("-") ? normalized(decodeURIComponent(pieces.pop()!.slice(1))) : "";
+    if (!pieces.length || pieces.length > 2) return false;
+    const startText = normalized(decodeURIComponent(pieces[0]));
+    const endText = pieces[1] ? normalized(decodeURIComponent(pieces[1])) : "";
+    for (let start = text.indexOf(startText); start >= 0; start = text.indexOf(startText, start + 1)) {
+      if (prefix && !text.slice(0, start).trimEnd().endsWith(prefix)) continue;
+      const end = endText ? text.indexOf(endText, start + startText.length) : start + startText.length;
+      if (end < 0) continue;
+      const after = text.slice(end + (endText ? endText.length : 0)).trimStart();
+      if (!suffix || after.startsWith(suffix)) return true;
+    }
+    return false;
+  });
+}
+function quotesResolveUniquely(quotes: string[], documentText: string) {
+  const text = normalized(documentText);
+  return quotes.every((quote) => {
+    const wanted = normalized(quote);
+    const first = text.indexOf(wanted);
+    return first >= 0 && text.indexOf(wanted, first + 1) < 0;
+  });
+}
 const seeds = lines(path.join(results, "seeds.jsonl")).map(JSON.parse);
 const doctext = new Map(lines(path.join(results, "doctext.jsonl")).map((line) => {
   const row = JSON.parse(line);
@@ -37,14 +66,21 @@ const rows = seeds.map((seed) => ({
       blockText: seed.blockText ?? "",
       ...(documentText ? { documentText } : {}),
     };
-    if (mode !== "line") return buildCoreRangePinpointUrl(evidence, seed.quotes ?? [], boundary);
+    if (mode === "range") return buildCoreRangePinpointUrl(evidence, seed.quotes ?? [], boundary);
     const candidate = buildLineCorePinpointUrl(evidence, seed.quotes ?? []);
     const fragment = candidate.split(":~:")[1];
-    const base = buildProductionUrl(evidence, []);
-    return fragment ? `${base}:~:${fragment}` : base;
+    const production = buildProductionUrl(evidence, mode === "hybrid" ? seed.quotes ?? [] : []);
+    const pdf = /\.pdf(?:$|[?#])|\/document\.do(?:$|[?#])/iu.test(production.split("#")[0]);
+    const useCandidate = mode === "line" || !production.includes(":~:text=") ||
+      !directiveResolves(production, documentText ?? "") ||
+      pdf && !quotesResolveUniquely(seed.quotes ?? [], documentText ?? "");
+    const base = production.split(":~:")[0];
+    const separator = base.includes("#") ? ":~:" : "#:~:";
+    return useCandidate && fragment ? `${base}${separator}${fragment}` : production;
   })(),
 }));
-const output = path.join(results, mode === "line" ? "line-core-targets.jsonl" : `core-range-${boundary}-targets.jsonl`);
+const output = path.join(results, mode === "line" ? "line-core-targets.jsonl" :
+  mode === "hybrid" ? "hybrid-targets.jsonl" : `core-range-${boundary}-targets.jsonl`);
 fs.writeFileSync(output, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
 const directives = (target: string) => (target.split(":~:")[1] ?? "").split("&").filter((part) => part.startsWith("text=")).length;
 console.log(JSON.stringify({
