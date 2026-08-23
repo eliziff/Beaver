@@ -280,7 +280,12 @@ async function preparePdf(input: {
       updated_at: completed,
     };
     await writeState(input.sourcePath, state);
-    const projection = pdfProjection(result.projectionPageCount, native);
+    const projection: Extract<DocumentReadProjection, { kind: "pdf" }> = {
+      kind: "pdf",
+      sourceDoc: native,
+      pageCount: result.projectionPageCount,
+      tableCells: [],
+    };
     rememberProjection(reference, projection);
     return { state, projection };
   } catch (error) {
@@ -398,24 +403,6 @@ async function assertBoundedSpreadsheetPackage(bytes: Buffer, fileType: string) 
   });
 }
 
-function sourceDocProjection(document: NativeDocument): DocumentReadProjection {
-  return {
-    kind: "source-doc",
-    sourceDoc: document,
-    tableCells: [],
-  };
-}
-
-function pdfProjection(pageCount: number, native: NativeDocument):
-  Extract<DocumentReadProjection, { kind: "pdf" }> {
-  return {
-    kind: "pdf",
-    sourceDoc: native,
-    pageCount,
-    tableCells: [],
-  };
-}
-
 function rememberProjection(
   reference: PdfStateReference,
   projection: DocumentReadProjection,
@@ -491,7 +478,8 @@ async function compileReadProjection(
       sourceSha256,
       signal,
     });
-    return sourceDocProjection(prepared.projection.sourceDoc);
+    return { kind: "source-doc", sourceDoc: prepared.projection.sourceDoc,
+      tableCells: [] };
   }
   const document = await deriveDocumentNative({
     kind: "instrument",
@@ -500,7 +488,7 @@ async function compileReadProjection(
     table_cells: [],
     reconstruct_lineation: true,
   });
-  return sourceDocProjection(document);
+  return { kind: "source-doc", sourceDoc: document, tableCells: [] };
 }
 
 function assertProjectionOutput(projection: DocumentReadProjection) {

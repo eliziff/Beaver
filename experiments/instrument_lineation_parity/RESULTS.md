@@ -92,6 +92,14 @@ The historical checkout was `b275951d832bdc4806757c580338b464c3f3da6b`
 with addon SHA-256 `5a3ec165...378a4`; the measured Rust addon SHA-256 was
 `3bfa515e...8fe0`.
 
+On 2026-08-23, the first Rust-native optimization pass removed per-line
+definition metadata work, stopped materializing discarded lineation graphs,
+made SourceDoc projection lazy, and replaced descendant rescans with one
+ordered pass. The paired 872-document oracle remained exact. Rust measured
+1.570 ms median / 11.784 s aggregate including projection, versus TypeScript
+at 2.617 ms / 19.531 s (1.67x median, 1.66x aggregate). This is an intermediate
+optimization receipt, not the performance target.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
