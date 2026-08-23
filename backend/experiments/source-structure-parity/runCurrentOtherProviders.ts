@@ -33,8 +33,8 @@ for (let at = 2; at < process.argv.length; at += 1) {
   else { args.set(key.slice(2), value); at += 1; }
 }
 const hash = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
-const seedRoot = path.resolve(args.get("seed") ?? path.join(ROOT,
-  ".tmp/source-structure-final-direct-v2"));
+const seedRoot = path.resolve(args.get("seed") ?? path.join(__dirname,
+  "results/installed-provider-freeze-full"));
 const output = path.resolve(args.get("output") ?? path.join(ROOT,
   ".tmp/source-structure-current-other"));
 const provider = args.get("provider") as Provider | undefined;
