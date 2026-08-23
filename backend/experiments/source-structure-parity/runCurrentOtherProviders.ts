@@ -68,6 +68,13 @@ const engine = { binary_sha256: hash(readFileSync(nativeFile)) };
 const emptyCounts = (): Counts => ({ attempted: 0, pass: 0, failure: 0,
   source_bytes: 0, canonical_bytes: 0, modes: { native: 0, hybrid: 0, flat: 0 },
   details: {}, last_id: 0 });
+const count = (database: DatabaseSync, table: string) => Number((database.prepare(
+  `SELECT COUNT(*) AS count FROM ${table}`,
+).get() as { count: number }).count);
+const signature = (filename: string, rows: number) => {
+  const stat = statSync(filename);
+  return hash(JSON.stringify({ bytes: stat.size, mtime_ms: Math.trunc(stat.mtimeMs), rows }));
+};
 const atomicJson = (filename: string, value: unknown) => {
   const temporary = `${filename}.${process.pid}.tmp`;
   writeFileSync(temporary, JSON.stringify(value)); renameSync(temporary, filename);
@@ -242,6 +249,24 @@ async function runWorker(provider: Provider, shard: number) {
 async function coordinate() {
   mkdirSync(output, { recursive: true });
   const seed = JSON.parse(readFileSync(path.join(seedRoot, "summary.json"), "utf8")) as Summary;
+  const inventory = seed.inventory as { courtlistener: { opinions: number };
+    journal: { articles: number; page_rows: number; final_contracts: number };
+    signatures: Record<string, string> };
+  const courtlistener = new DatabaseSync(courtlistenerFile, { readOnly: true });
+  const journal = new DatabaseSync(journalFile, { readOnly: true });
+  const final = new DatabaseSync(journalFinalFile, { readOnly: true });
+  try {
+    const opinions = count(courtlistener, "opinion");
+    const articles = count(journal, "articles"), pages = count(journal, "article_pages");
+    const contracts = count(final, "article_final_contracts");
+    if (opinions !== inventory.courtlistener.opinions ||
+      articles !== inventory.journal.articles || pages !== inventory.journal.page_rows ||
+      contracts !== inventory.journal.final_contracts ||
+      signature(courtlistenerFile, opinions) !== inventory.signatures.courtlistener ||
+      signature(journalFile, articles + pages) !== inventory.signatures.journal ||
+      signature(journalFinalFile, contracts) !== inventory.signatures["journal-final"])
+      throw new Error("Installed provider inventory differs from the frozen baseline");
+  } finally { courtlistener.close(); journal.close(); final.close(); }
   const selected: Provider[] = (args.get("providers") ?? "courtlistener,journal").split(",")
     .filter((value): value is Provider => value === "courtlistener" || value === "journal");
   const started = performance.now(), children: Array<{ provider: Provider; shard: number;
