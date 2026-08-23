@@ -236,15 +236,11 @@ async function attachOpinionStructure(
     provider: "courtlistener",
     id: compacted.opinionId === null ? "" : String(compacted.opinionId),
     url: compacted.url,
-    text: text ?? "",
+    text: text ?? stripOpinionMarkup(markup) ?? "",
     markup,
     pageCitations,
   } as const;
-  let compiled = await deriveNativeMarkupSourceDoc(input);
-  if (!compiled.text && markup) {
-    const fallback = stripOpinionMarkup(markup);
-    if (fallback) compiled = await deriveNativeMarkupSourceDoc({ ...input, text: fallback });
-  }
+  const compiled = await deriveNativeMarkupSourceDoc(input);
   compacted.text = truncate(compiled.text, maxChars);
   opinionStructures.set(compacted, compiled);
 }
