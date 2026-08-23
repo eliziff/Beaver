@@ -311,6 +311,7 @@ async function main(): Promise<void> {
   const resultHash = createHash("sha256");
   const entries: Entry[] = [];
   const totals = emptyTotals();
+  const selectedHypotheses = [0, 0, 0, 0];
   const mismatches: Array<{
     id: string;
     fields: string[];
@@ -332,6 +333,7 @@ async function main(): Promise<void> {
       denominators: { agreements: agreements.length, pdfs: pdfs.length, pages, lines },
       inputBytes,
       totals,
+      selectedHypotheses,
       mismatches: mismatches.length,
       mismatchSamples: ORACLE_ROOT ? mismatches : mismatches.slice(0, 40),
       timings: {
@@ -386,6 +388,7 @@ async function main(): Promise<void> {
       if (ORACLE_ROOT) await runPrevious();
     }
     const { products } = analyzed;
+    selectedHypotheses[analyzed.structure.selected_hypothesis ?? 0] += 1;
     const components = Object.fromEntries(
       COMPONENTS.map((name) => [name, hashJson(products[name])]),
     ) as Record<Component, string>;
