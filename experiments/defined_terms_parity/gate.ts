@@ -6,6 +6,10 @@ import readline from "node:readline";
 
 import { openDocxSession } from "../../backend/src/lib/docx/session";
 import { lintDocxStructure } from "../../backend/src/lib/docxStructuralLint";
+import {
+  compileAgreementSkeleton,
+  type SkeletonNode,
+} from "../../backend/src/lib/legalTextSkeleton";
 import { decodeXmlText, escapeRegExp } from "../../backend/src/lib/text";
 import { documentScalarOffsets } from "../../backend/src/lib/structureWire";
 import {
@@ -43,6 +47,7 @@ type Paragraph = {
   range: ScalarRange;
   source_paragraph_id: string;
   source_artifact_id: string;
+  node_id?: string;
 };
 type Occurrence = {
   range: ScalarRange;
@@ -144,9 +149,20 @@ function occurrence(
       start: offsets.utf16ToScalar(paragraph.startUtf16 + localStart),
       end: offsets.utf16ToScalar(paragraph.startUtf16 + localEnd),
     },
+    ...(paragraph.node_id ? { node_id: paragraph.node_id } : {}),
     source_paragraph_id: paragraph.source_paragraph_id,
     source_artifact_id: paragraph.source_artifact_id,
   };
+}
+
+function ownerAt(start: number, nodes: readonly SkeletonNode[]): string | undefined {
+  return nodes
+    .filter((node) =>
+      node.kind !== "article" && node.kind !== "part" &&
+      node.kind !== "table" && node.kind !== "row" && node.kind !== "cell" &&
+      node.start <= start && start < node.end
+    )
+    .sort((left, right) => right.depth - left.depth)[0]?.label;
 }
 
 function oracleDefinitions(
@@ -433,7 +449,11 @@ async function main(): Promise<void> {
   const baselineById = new Map(instrumentBaseline.entries.map((entry: { id: string }) => [entry.id, entry]));
   const { agreements, pdfs } = await instrumentCorpusFiles();
   const checkInstrument = async (id: string, text: string) => {
-    const paragraphs = instrumentParagraphs(text, id);
+    const skeleton = await compileAgreementSkeleton(text, id);
+    const paragraphs = instrumentParagraphs(text, id).map((paragraph) => ({
+      ...paragraph,
+      node_id: ownerAt(paragraph.startUtf16, skeleton.nodes),
+    }));
     let tick = performance.now();
     const expected = oracleDefinitions(text, paragraphs);
     benchmark.typescriptMs += performance.now() - tick;
@@ -441,8 +461,9 @@ async function main(): Promise<void> {
     const actual = await runner.analyze({
       id,
       text,
-      paragraphs: paragraphs.map(({ range, source_paragraph_id, source_artifact_id }) => ({
+      paragraphs: paragraphs.map(({ range, node_id, source_paragraph_id, source_artifact_id }) => ({
         range,
+        ...(node_id ? { node_id } : {}),
         source_paragraph_id,
         source_artifact_id,
       })),
@@ -455,6 +476,17 @@ async function main(): Promise<void> {
       mismatch("instrument-input", { id, expected: frozen?.inputSha256, actual: sha256(text) });
     } else if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       mismatch("instrument-facts", { id, expected, actual });
+    } else if (JSON.stringify(actual.terms.map((term) => ({
+      term: term.term,
+      sectionLabel: term.definitions[0]?.node_id ?? null,
+      definitions: term.definitions.length,
+    })).sort((left, right) => left.term.localeCompare(right.term))) !==
+      JSON.stringify(skeleton.definedTerms)) {
+      mismatch("instrument-skeleton-projection", {
+        id,
+        expected: skeleton.definedTerms,
+        actual: actual.terms,
+      });
     } else {
       totals.instrumentExact += 1;
     }
