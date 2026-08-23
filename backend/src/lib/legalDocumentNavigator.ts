@@ -351,3 +351,20 @@ export function graphScope(
     .sort((left, right) => left.start - right.start);
   return { seed, nodes: [seed, ...rest], depth: Math.min(hops, limit) };
 }
+
+export function referenceLabelsOutside(
+  graph: Parameters<typeof graphScope>[1],
+  seedLabels: ReadonlySet<string>,
+  follow: Exclude<FollowDirection, "none">,
+) {
+  const labels = new Set<string>();
+  const scan = (incoming: boolean) => graph.edges.forEach((edge) => {
+    const inside = incoming ? edge.targetLabel : edge.sourceLabel;
+    const outside = incoming ? edge.sourceLabel : edge.targetLabel;
+    if (edge.status === "resolved" && (incoming || !edge.selfLoop) && inside &&
+        seedLabels.has(inside) && outside && !seedLabels.has(outside)) labels.add(outside);
+  });
+  if (follow === "in" || follow === "both") scan(true);
+  if (follow === "out" || follow === "both") scan(false);
+  return [...labels];
+}

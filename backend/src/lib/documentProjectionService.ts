@@ -27,7 +27,7 @@ import {
   type SpreadsheetLlmStructure,
 } from "./spreadsheet";
 import type { lintDocxStructure } from "./docxStructuralLint";
-import { createSourceDoc, type SourceDoc } from "./sourceDoc";
+import type { SourceDoc } from "./sourceDoc";
 import {
   analyzeDocumentNative,
   analyzePdfNative,
@@ -109,7 +109,7 @@ type PrepareResult = {
     image_ids: string[];
   };
   pairing_audit?: unknown;
-  source_doc?: Parameters<typeof createSourceDoc>[0];
+  source_doc?: SourceDoc;
   source: {
     sha256: string;
     parser_version: string;
@@ -447,7 +447,7 @@ function pdfProjection(
   if (!result.source_doc) throw new Error("Legal PDF preparation omitted SourceDoc");
   return {
     kind: "pdf",
-    sourceDoc: createSourceDoc(result.source_doc),
+    sourceDoc: result.source_doc,
     structure: result.structure,
     pdfSourceMap: result.pdf_source_map,
     pairingAudit: result.pairing_audit,
