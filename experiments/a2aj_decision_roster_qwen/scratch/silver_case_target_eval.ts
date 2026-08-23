@@ -6,7 +6,6 @@ import { createInterface } from "node:readline";
 
 import { fetchLocalA2AJDocumentById } from "../../../backend/src/lib/a2ajLocalBulk";
 import { modelSourceLines } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvpReduced";
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   candidatesFromPairFile,
   codexSubscriptionPreflight,
@@ -708,7 +707,6 @@ async function runComparison() {
     }).sort((left, right) => left.candidate_id.localeCompare(right.candidate_id));
     return { candidate, record, arms };
   }));
-  await shutdownSourceStructureEngine();
   await Promise.all([
     mkdir(path.dirname(path.resolve(outStem)), { recursive: true }),
     mkdir(path.dirname(path.resolve(ledger)), { recursive: true }),
@@ -955,7 +953,6 @@ async function main() {
       treatmentExact: JSON.stringify(candidateTreatment) === JSON.stringify(goldTreatment),
     };
   });
-  await shutdownSourceStructureEngine();
   if (process.argv.includes("--validate-only")) {
     console.log(JSON.stringify({
       cases: candidates.length,
@@ -1106,4 +1103,4 @@ async function main() {
 main().catch((error) => {
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exitCode = 1;
-}).finally(shutdownSourceStructureEngine);
+});

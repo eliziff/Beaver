@@ -223,6 +223,7 @@ export async function acquireCodexAppServer(apiKey = "") {
     const server = await existing.catch(() => null);
     if (server?.alive()) return server;
     if (servers.get(key) === existing) servers.delete(key);
+    return acquireCodexAppServer(apiKey);
   }
   const started = launch(apiKey);
   servers.set(key, started);

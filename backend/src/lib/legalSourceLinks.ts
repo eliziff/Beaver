@@ -5,13 +5,14 @@ import {
   type A2AJLocatorLookup,
 } from "./legalSources/a2aj";
 import {
-  createTextSourceDoc,
   sourceDocBlockText,
   sourceDocPhraseSpans,
   sourceDocQuoteText,
   sourceDocQuoteWords,
+  sourceDocTokens,
   type SourceDoc,
   type SourceDocQuoteSpan,
+  type SourceText,
 } from "./sourceDoc";
 import { normalizeWhitespace } from "./text";
 import { buildCanliiCaseUrl } from "./canliiUrls";
@@ -45,8 +46,8 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
-function asDoc(source: QuoteSource): SourceDoc {
-  return typeof source === "string" ? createTextSourceDoc(source) : source;
+function asDoc(source: QuoteSource): SourceText {
+  return typeof source === "string" ? { text: source } : source;
 }
 
 type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
@@ -127,20 +128,22 @@ function stripLeadingLabels(text: string): string {
   }
 }
 
-function wordAtOrAfter(block: SourceDoc, offset: number, from: number): number {
-  for (let index = from; index < block.tokens.length; index += 1) {
-    if (block.tokens[index].end > offset) return index;
+function wordAtOrAfter(block: SourceText, offset: number, from: number): number {
+  const tokens = sourceDocTokens(block);
+  for (let index = from; index < tokens.length; index += 1) {
+    if (tokens[index].end > offset) return index;
   }
   return -1;
 }
 
 function wordAtOrBefore(
-  block: SourceDoc,
+  block: SourceText,
   offset: number,
   from: number,
 ): number {
-  for (let index = Math.min(from, block.tokens.length - 1); index >= 0; index -= 1) {
-    if (block.tokens[index].start < offset) return index;
+  const tokens = sourceDocTokens(block);
+  for (let index = Math.min(from, tokens.length - 1); index >= 0; index -= 1) {
+    if (tokens[index].start < offset) return index;
   }
   return -1;
 }
@@ -151,7 +154,7 @@ function wordAtOrBefore(
  * only what the fragment must match is trimmed.
  */
 function adjustSpanEdges(
-  block: SourceDoc,
+  block: SourceText,
   original: SourceDocQuoteSpan,
 ): SourceDocQuoteSpan {
   let start = original.start;
@@ -181,11 +184,12 @@ function adjustSpanEdges(
  * end run like "5.5 Summary" anchors on "Summary".
  */
 function edgePhrase(
-  block: SourceDoc,
+  block: SourceText,
   span: SourceDocQuoteSpan,
   edge: "start" | "end",
   size: number,
 ): { text: string; first: number; last: number } | null {
+  const tokens = sourceDocTokens(block);
   const forward = edge === "start";
   const indexes: number[] = [];
   const step = forward ? 1 : -1;
@@ -195,10 +199,10 @@ function edgePhrase(
     (forward ? index <= span.lastWord : index >= span.firstWord);
     index += step
   ) {
-    const token = block.tokens[index];
+    const token = tokens[index];
     if (!token) break;
     if (indexes.length) {
-      const previous = block.tokens[indexes.at(-1)!];
+      const previous = tokens[indexes.at(-1)!];
       const between = block.text.slice(
         Math.min(previous.end, token.start),
         Math.max(previous.end, token.start),
@@ -212,7 +216,7 @@ function edgePhrase(
   const first = Math.min(...indexes);
   const last = Math.max(...indexes);
   const raw = normalizeWhitespace(
-    block.text.slice(block.tokens[first].start, block.tokens[last].end),
+    block.text.slice(tokens[first].start, tokens[last].end),
   );
   // An end run like "5.5 Summary" anchors on its prose: "Summary".
   const text = stripLeadingLabels(raw);
@@ -228,7 +232,7 @@ function edgePhrase(
  * highlights, so anything above one rejects the candidate.
  */
 function rangeDirectiveMatchCount(
-  document: SourceDoc,
+  document: SourceText,
   start: string,
   end: string,
 ): number {
@@ -253,9 +257,9 @@ function rangeDirectiveMatchCount(
 }
 
 function buildRangeDirective(
-  block: SourceDoc,
+  block: SourceText,
   span: SourceDocQuoteSpan,
-  document: SourceDoc,
+  document: SourceText,
 ) {
   for (const size of RANGE_BOUNDARY_WORDS) {
     const head = edgePhrase(block, span, "start", size);
@@ -291,7 +295,7 @@ function buildRangeDirective(
  * link entirely, which is exactly what a court quotation looks like.
  */
 function chooseSourceSpan(
-  doc: SourceDoc,
+  doc: SourceText,
   quote: string,
 ): SourceDocQuoteSpan | null {
   const spans = sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote)).map(
@@ -520,7 +524,7 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
  * the caller needs.
  */
 function directiveMatchCount(
-  document: SourceDoc,
+  document: SourceText,
   target: string,
   prefix = "",
   suffix = "",
@@ -537,11 +541,11 @@ function directiveMatchCount(
 }
 
 function contextFor(
-  block: SourceDoc,
+  block: SourceText,
   span: SourceDocQuoteSpan,
   window: number,
 ): { prefix: string; suffix: string } {
-  const words = block.tokens;
+  const words = sourceDocTokens(block);
   const firstPrefixWord = Math.max(0, span.firstWord - window);
   const lastSuffixWord = Math.min(words.length - 1, span.lastWord + window);
   let prefix =
@@ -564,9 +568,9 @@ function contextFor(
 }
 
 function buildDirective(
-  block: SourceDoc,
+  block: SourceText,
   quote: string,
-  document: SourceDoc,
+  document: SourceText,
   pageScoped: boolean,
 ) {
   const selected = chooseSourceSpan(block, quote);
@@ -681,14 +685,12 @@ export function buildA2AJPinpointUrl(
 
 function verificationDoc(
   passage: { documentText?: QuoteSource },
-  block: SourceDoc,
+  block: SourceText,
 ) {
   const document = passage.documentText;
   if (document === undefined) return block;
   return typeof document === "string"
-    ? document.trim()
-      ? createTextSourceDoc(document)
-      : block
+    ? document.trim() ? { text: document } : block
     : document;
 }
 
@@ -852,19 +854,18 @@ export function hasCanadianDecisionLink(answer: string) {
 
 function uniqueParagraphEdge(
   text: string,
-  document: SourceDoc,
+  document: SourceText,
   edge: "start" | "end",
 ) {
   const line = text.split(/\r?\n/u, 1)[0];
-  const block = createTextSourceDoc(
-    line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
-  );
+  const block = { text: line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, "") };
+  const tokens = sourceDocTokens(block);
   for (const length of [12, 16, 8, 24, 32, 6, 4, 2]) {
-    if (block.tokens.length < length) continue;
+    if (tokens.length < length) continue;
     const words =
       edge === "start"
-        ? block.tokens.slice(0, length)
-        : block.tokens.slice(-length);
+        ? tokens.slice(0, length)
+        : tokens.slice(-length);
     const target = normalizeWhitespace(
       block.text.slice(words[0].start, words.at(-1)!.end),
     );
@@ -945,18 +946,18 @@ export function buildA2AJParagraphRangeUrl(
   );
   if (!structured && rangeLookup.length !== 1) return null;
   const metadata = structured?.metadata ?? rangeLookup[0];
-  const source =
+  const source: SourceText =
     structured?.source ??
     a2ajLegalSourceProvider.source(rangeLookup[0]) ??
-    createTextSourceDoc(rangeLookup[0].block!.text);
+    { text: rangeLookup[0].block!.text };
   const lines = structured
     ? []
     : rangeLookup[0].block!.text.split(/\r?\n/u).filter((line) => line.trim());
   const startSource = structured
-    ? sourceDocBlockText(source, structured.startBlock)
+    ? sourceDocBlockText(structured.source, structured.startBlock)
     : (lines[0] ?? "");
   const endSource = structured
-    ? sourceDocBlockText(source, structured.endBlock)
+    ? sourceDocBlockText(structured.source, structured.endBlock)
     : (lines.at(-1) ?? "");
   const startTarget = uniqueParagraphEdge(startSource, source, "start");
   const endTarget = uniqueParagraphEdge(endSource, source, "end");

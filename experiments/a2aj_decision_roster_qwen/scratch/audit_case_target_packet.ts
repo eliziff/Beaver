@@ -6,7 +6,6 @@ import {
   caseTargetMvpPacket,
   loadCase,
 } from "../runner";
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 
 type PairFile = {
   pairs: Array<{
@@ -25,9 +24,8 @@ type PairFile = {
 async function main() {
   const input = path.resolve(process.argv[2] ?? path.join(__dirname, "..", "case-target-v13-canary-5.json"));
   const manifest = JSON.parse(await readFile(input, "utf8")) as PairFile;
-  let rows: Array<Record<string, unknown>> = [];
-  try {
-    rows = await Promise.all(manifest.pairs.map(async (pair) => {
+  const rows: Array<Record<string, unknown>> = await Promise.all(
+    manifest.pairs.map(async (pair) => {
       const record = await loadCase({
         documentId: pair.document_id,
         dataset: pair.source.dataset,
@@ -56,10 +54,8 @@ async function main() {
         citation_occurrences: record.targetOccurrences.filter(({ kind }) => kind === "citation").length,
         case_name_occurrences: record.targetOccurrences.filter(({ kind }) => kind === "case_name").length,
       };
-    }));
-  } finally {
-    await shutdownSourceStructureEngine();
-  }
+    }),
+  );
 
   console.log(JSON.stringify({
     input,

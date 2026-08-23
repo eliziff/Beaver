@@ -1,10 +1,8 @@
 /**
  * Document navigation: the addressing layer a model can actually call.
  *
- * The deterministic structure work compiles a section tree
- * (`compileAgreementSkeleton`) and a cross-reference graph
- * (`crossReferenceGraph`), and until now neither was reachable from a model
- * turn. `library_read section=` could read one node; nothing could ask for a
+ * Rust supplies the canonical SourceDoc and cross-reference graph. Until now,
+ * neither was reachable from a model turn: `library_read section=` could read one node; nothing could ask for a
  * page, for a node's neighbours, or for a single edge — so any printed page
  * number, whether it reached us from a pinpoint citation, an index, an
  * exhibit stamp or a contents page, was a dead end, and 4,414 resolved
@@ -21,7 +19,7 @@
  *   one an answer should cite.
  *
  *   Pages are OUR OWN printed data. `[page N]` markers are emitted at a line
- *   start by the PDF and journals compilers (`legalPdfSourceDoc`,
+ *   start by the PDF and journals compilers (`documentProjectionService`,
  *   `DocumentProjectionService`, `legalSources/journal`); reading them back is parsing our
  *   own output, not detecting page structure in someone else's document.
  *   Nothing here infers, recovers or validates a page boundary.
@@ -30,8 +28,12 @@
  *   so and names what to use instead. A page label that does not exist
  *   reports the range that does, rather than returning the nearest thing.
  */
-import type { CrossReferenceGraph } from "./legalCrossReference";
-import type { AgreementSkeleton, SkeletonNode } from "./legalTextSkeleton";
+import {
+  lookupSourceDocLabel,
+  normalizeSourceDocLocator,
+  type SourceDoc,
+  type SourceDocBlock,
+} from "./sourceDoc";
 
 // ---------------------------------------------------------------------------
 // Pages
@@ -73,7 +75,7 @@ const PAGE_MARKER_RE = /^\[page ([^\]\n]{1,40})\]$/gmu;
  * Fallback map, for text whose compiler printed markers but whose artifact
  * is not in hand (journal bodies, A2AJ reports).
  *
- * `legalPdfSourceDoc` prints `printed || String(physicalNumber)`, so a bare
+ * The PDF projection prints `printed || String(physicalNumber)`, so a bare
  * "12" here is genuinely ambiguous between the two senses and BOTH fields
  * carry it. Saying "12 is the printed label" would be inventing provenance
  * the text does not carry.
@@ -104,16 +106,7 @@ export function pageMapFromMarkers(text: string): PageMap {
  * engine's header/footer detection found one that differs. This reads that
  * back rather than re-deriving anything: the PDF engine owns detection.
  */
-export function pageMapFromSourceDoc(doc: {
-  blocks?: readonly {
-    kind: string;
-    label: string;
-    start: number;
-    end: number;
-    anchor?: string;
-    aliases?: string[];
-  }[];
-}): PageMap {
+export function pageMapFromSourceDoc(doc: Pick<SourceDoc, "blocks">): PageMap {
   const pages: PageSpan[] = [];
   // A rendition whose provider compiler has not landed carries no blocks at
   // all; that is "this document has no pages", not a crash in a read tool.
@@ -210,10 +203,29 @@ export function resolvePage(
   };
 }
 
-/** Every page overlapping a span — the filter behind a page-scoped search. */
 // ---------------------------------------------------------------------------
 // Addresses
 // ---------------------------------------------------------------------------
+
+export function lookupStructureBlock(
+  doc: SourceDoc,
+  locator: string,
+  contextBlocks = 0,
+) {
+  const direct = locator.trim().toLowerCase();
+  if (direct.startsWith("table:")) {
+    const kind = direct.includes("/col:")
+      ? "cell"
+      : direct.includes("/row:") ? "row" : "table";
+    return lookupSourceDocLabel(doc, kind, direct, contextBlocks);
+  }
+  const normalized = normalizeSourceDocLocator("section", locator);
+  if (normalized) {
+    const found = lookupSourceDocLabel(doc, "section", normalized, contextBlocks);
+    if (found.status !== "not_found") return found;
+  }
+  return lookupSourceDocLabel(doc, "section", direct, contextBlocks);
+}
 
 export type Address =
   | { kind: "section"; locator: string }
@@ -256,9 +268,9 @@ export function parseAddress(spec: string): Address | null {
 export type FollowDirection = "none" | "out" | "in" | "both";
 
 export interface GraphScope {
-  seed: SkeletonNode;
+  seed: SourceDocBlock;
   /** the seed first, then everything reached, in document order after it */
-  nodes: SkeletonNode[];
+  nodes: SourceDocBlock[];
   /** hops actually used — lower than asked when the neighbourhood closes */
   depth: number;
 }
@@ -277,25 +289,34 @@ export interface GraphScope {
  * subtree without walking it.
  */
 export function graphScope(
-  skeleton: AgreementSkeleton,
-  graph: CrossReferenceGraph,
+  doc: SourceDoc,
+  graph: {
+    readonly edges: readonly {
+      readonly sourceLabel: string | null;
+      readonly targetLabel: string | null;
+      readonly status: "resolved" | "external" | "unresolved" | "abstained";
+      readonly selfLoop: boolean;
+    }[];
+    readonly documentAbstained: boolean;
+    readonly note: string | null;
+  },
   seedLabel: string,
   options: { follow?: FollowDirection; depth?: number } = {},
 ): GraphScope | null {
   const wanted = seedLabel.trim().toLowerCase();
-  const seed = skeleton.nodes.find(
-    (node) => node.label.toLowerCase() === wanted,
+  const seed = doc.blocks.find(
+    (block) => block.label.toLowerCase() === wanted,
   );
   if (!seed) return null;
 
   const follow = options.follow ?? "none";
   const limit = Math.max(0, Math.min(options.depth ?? 1, 3));
-  const byLabel = new Map<string, SkeletonNode>();
-  for (const node of skeleton.nodes) {
-    if (!byLabel.has(node.label)) byLabel.set(node.label, node);
+  const byLabel = new Map<string, SourceDocBlock>();
+  for (const block of doc.blocks) {
+    if (!byLabel.has(block.label)) byLabel.set(block.label, block);
   }
 
-  const reached = new Map<string, SkeletonNode>([[seed.label, seed]]);
+  const reached = new Map<string, SourceDocBlock>([[seed.label, seed]]);
   let frontier = [seed.label];
   let hops = 0;
   for (; follow !== "none" && hops < limit && frontier.length; hops += 1) {

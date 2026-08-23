@@ -207,7 +207,7 @@ notes, or interpret format geometry.
 
 ### Rust layout
 
-The first mechanical split is complete: `lib.rs` fell from 7,313 to 1,113
+The mechanical split is complete: `lib.rs` fell from 7,313 to under 900
 lines without changing behavior. Keep the modules that now match real
 responsibilities:
 
@@ -218,21 +218,24 @@ derive.rs           existing provider/profile materialization
 inference.rs        existing shared-text detector logic
 instrument.rs       exact instrument lineation, hierarchy, and TOC
 numeric_sequence.rs the two proved dynamic-programming callers
+definitions.rs      defined-term facts
+docx_numbering.rs   DOCX numbering facts
+docx_lint.rs        DOCX structural facts
+tables.rs           authoritative table facts
+text.rs             shared coordinates and ECMAScript whitespace
 a2aj.rs             existing A2AJ adapter
 native_markup.rs    existing renderer/provider identities
 journal.rs          existing journal adapters
 source_doc.rs       current projector/serializer/index/range builder
-sidecar.rs          current sidecar protocol until its callers close
 tests.rs            crate-level behavior tests
 ```
 
 Do not split these files again merely because one is large. Add or extract a
 module only when a port or canonical cut gives it one cohesive responsibility
-and deletes duplicated code. The known justified extraction is `text.rs`: move
-`ScalarText` there and absorb only coordinate/whitespace implementations proved
-identical. Definitions, references, case, legislation, and canonical assembly
-may earn modules as their literal ports land; their names and boundaries are
-not migration work by themselves.
+and deletes duplicated code. `text.rs` owns only the coordinate and whitespace
+implementations proved identical; provider/rendered coordinate planes remain
+local. Definitions, references, case, legislation, and canonical assembly earn
+modules only when their literal ports delete duplication.
 
 Do not create `detectors`, `strategies`, `profiles`, `rules`, plugin traits,
 fact buses, or a general witness module. The current public witness/candidate
@@ -248,14 +251,14 @@ monotonic sequence into the architecture.
 
 ### Beaver call path
 
-One typed structure host owns Beaver's single Rust analysis call.
-`documentProjectionService.read()` remains the ingress for versioned uploaded
-file bytes and calls that host after its existing PDF/DOCX/grid extraction.
+The small `structureNative.ts` loader exposes the single Rust document-analysis
+operation. `documentProjectionService.read()` remains the ingress for versioned
+uploaded file bytes and invokes it after format extraction.
 Provider adapters retain fetching, rendition choice, credentials, URLs,
-licensing, and upstream cache policy, then call the same host after producing
-text, markup, and native facts. Do not widen the file-byte service with a
-provider-input union or add a parallel analyzer. Rust opens no Beaver path,
-database, or provider client.
+licensing, and upstream cache policy, then invoke the same operation after
+producing text, markup, and native facts. Do not add a host, protocol, sidecar,
+provider-input union, or parallel analyzer. Rust opens no Beaver path, database,
+or provider client.
 
 Beaver changes are direct:
 
@@ -392,10 +395,10 @@ Proof:
 This 748-text instrument lane is not the provider corpus-scale gate and is not
 the PDF full-product gate.
 
-Delete after proof: `legalTextSkeleton.ts`, `legalCrossReference.ts`, the
-runtime detector in `legalReferenceGrammar.ts`, detector/XML-reparse portions
-of `docxStructuralLint.ts`, duplicate SourceDoc constructors, stored skeleton
-summaries, and every repeated instrument compile.
+Deleted in this cut: `legalTextSkeleton.ts`, `legalCrossReference.ts`,
+`legalReferenceGrammar.ts`, detector/XML-reparse portions of
+`docxStructuralLint.ts`, duplicate SourceDoc constructors, stored skeleton
+summaries, and repeated instrument compiles.
 
 ### 3. PDF cut
 

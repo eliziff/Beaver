@@ -1,18 +1,11 @@
 import path from "node:path";
 import { access, mkdir, readFile, rm } from "node:fs/promises";
 
-import { parseLegalPdfSourceDoc } from "./legalPdfSourceDoc";
-import {
-  configuredLegalPdfProfile,
-  runLegalPdfDocument,
-  type LegalPdfOcrProvider,
-} from "./legalPdfProcess";
 import { sha256 } from "./hash";
 import { assertBoundedZip } from "./zip";
 import {
   lookupPdfStructure,
   readPdfEvidenceReceipt,
-  readPdfSourceDoc,
   rehydratePdfEvidence,
   rehydratePdfLinkEvidence,
   verifyPdfLinkEvidence,
@@ -33,11 +26,15 @@ import {
   spreadsheetToLLMStructure,
   type SpreadsheetLlmStructure,
 } from "./spreadsheet";
+import type { lintDocxStructure } from "./docxStructuralLint";
+import { createSourceDoc, type SourceDoc } from "./sourceDoc";
 import {
-  createSourceDoc,
-  type SourceDoc,
-  type SourceDocBlock,
-} from "./sourceDoc";
+  analyzeDocumentNative,
+  analyzePdfNative,
+  configuredLegalPdfProfile,
+  type LegalPdfOcrProvider,
+  type NativePdfDocument,
+} from "./structureNative";
 import {
   isPlainTextDocumentType,
   isPresentationDocumentType,
@@ -47,6 +44,7 @@ import {
 import { extractEmailText } from "./emailText";
 import { extractPresentationText } from "./officeText";
 import { docxToPdf } from "./convert";
+import { decodeXmlText } from "./text";
 import { isJsonRecord } from "./value";
 import {
   scanDocxPathology,
@@ -104,11 +102,23 @@ export type PdfPreparationProgress = {
 };
 
 type PrepareResult = {
-  status?: unknown;
-  page_count?: unknown;
-  pages_needing_ocr?: unknown;
-  ocr_routed_pages?: unknown;
-  counts?: unknown;
+  structure: { text: string; nodes: { kind: string }[]; notes?: unknown[] };
+  pdf_source_map: {
+    pages: unknown[];
+    table_ids: string[];
+    image_ids: string[];
+  };
+  pairing_audit?: unknown;
+  source_doc?: Parameters<typeof createSourceDoc>[0];
+  source: {
+    sha256: string;
+    parser_version: string;
+    page_count: number;
+    status: string;
+    cache_key?: unknown;
+    pages_needing_ocr?: unknown;
+    ocr_routed_pages?: unknown;
+  };
 };
 
 const exists = (filename: string) => access(filename).then(() => true, () => false);
@@ -191,9 +201,9 @@ function profileFor(
   return profile;
 }
 
-function integerArray(value: unknown) {
-  return Array.isArray(value) && value.every((item) => Number.isInteger(item) && Number(item) > 0)
-    ? value.map(Number)
+function physicalArray(value: unknown) {
+  return Array.isArray(value) && value.every((item) => Number.isInteger(item) && Number(item) >= 0)
+    ? value.map((item) => Number(item) + 1)
     : [];
 }
 
@@ -244,54 +254,56 @@ async function preparePdf(input: {
   await writeState(input.sourcePath, parsing);
   try {
     await input.progress?.({ phase: "inspecting", pages: pages ?? [] });
-    const inspection = await runLegalPdfDocument<{
-      page_count: number;
-      pages_needing_ocr: number[];
-    }>({ operation: "inspect", source_pdf: input.sourcePath }, {
-      signal: input.signal,
-      timeoutMs: 60_000,
-    });
-    if (inspection.source.sha256 !== sourceSha256)
-      throw new Error("PDF source changed after preparation began");
-    const weak = integerArray(inspection.result.pages_needing_ocr);
-    const routed = pages ? weak.filter((page) => pages.includes(page)) : weak;
     await input.progress?.({
-      phase: routed.length && profile.ocr ? "ocr" : "extracting",
-      pages: routed,
+      phase: profile.ocr ? "ocr" : "extracting",
+      pages: pages ?? [],
     });
-    const prepared = await runLegalPdfDocument<PrepareResult>({
-      operation: "prepare",
+    const prepared = await analyzePdfNative<PrepareResult>({
+      kind: "pdf",
       source_pdf: input.sourcePath,
       cache_dir: CACHE_DIRECTORY,
       ...(pages ? { pages } : {}),
       ...profile,
-    }, { signal: input.signal, timeoutMs: 30 * 60_000 });
-    if (prepared.source.sha256 !== sourceSha256)
+      id: `${input.documentId}:${input.versionId}`,
+      source_doc: true,
+      pairing_audit: true,
+    });
+    input.signal?.throwIfAborted();
+    const source = prepared.result.source;
+    if (source.sha256 !== sourceSha256)
       throw new Error("PDF source changed after preparation began");
-    if (!prepared.source.cache_key)
+    const cacheKey = source.cache_key;
+    if (typeof cacheKey !== "string" || !cacheKey)
       throw new Error("Legal PDF preparation returned no cache key");
-    const engineStatus = String(prepared.result.status || "degraded");
+    if (!prepared.result.source_doc)
+      throw new Error("Legal PDF preparation omitted SourceDoc");
+    const engineStatus = String(source.status || "degraded");
     if (!["ready", "degraded", "ocr_required"].includes(engineStatus))
       throw new Error("Legal PDF engine returned an invalid preparation status");
     const completed = new Date().toISOString();
     const state: PdfParseState = {
       ...parsing,
       status: engineStatus === "ready" ? "ready" : "degraded",
-      parser_version: prepared.source.parser_version,
-      cache_key: prepared.source.cache_key,
+      parser_version: source.parser_version,
+      cache_key: cacheKey,
       engine_status: engineStatus,
-      page_count: prepared.source.page_count,
-      counts: isJsonRecord(prepared.result.counts)
-        ? Object.fromEntries(Object.entries(prepared.result.counts).filter(
-          (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])))
-        : {},
-      pages_needing_ocr: integerArray(prepared.result.pages_needing_ocr),
-      ocr_routed_pages: integerArray(prepared.result.ocr_routed_pages),
+      page_count: source.page_count,
+      counts: {
+        paragraphs: prepared.result.structure.nodes.filter(({ kind }) => kind === "paragraph").length,
+        sections: prepared.result.structure.nodes.filter(({ kind }) => kind === "section").length,
+        footnotes: prepared.result.structure.notes?.length ?? 0,
+        tables: prepared.result.pdf_source_map.table_ids.length,
+        images: prepared.result.pdf_source_map.image_ids.length,
+      },
+      pages_needing_ocr: physicalArray(source.pages_needing_ocr),
+      ocr_routed_pages: physicalArray(source.ocr_routed_pages),
       completed_at: completed,
       updated_at: completed,
     };
     await writeState(input.sourcePath, state);
-    return state;
+    const projection = pdfProjection(prepared.result, prepared.native);
+    rememberProjection(reference, projection);
+    return { state, projection };
   } catch (error) {
     if (input.signal?.aborted) {
       await rm(path.dirname(statePath(reference)), { recursive: true, force: true });
@@ -311,13 +323,13 @@ async function preparePdf(input: {
 }
 
 async function parsePdf(input: Omit<Parameters<typeof preparePdf>[0], "pages">) {
-  return preparePdf(input);
+  return (await preparePdf(input)).state;
 }
 
 async function parsePdfPages(input: Omit<Parameters<typeof preparePdf>[0], "pages"> & {
   pages: number[];
 }) {
-  return preparePdf(input);
+  return (await preparePdf(input)).state;
 }
 
 async function pdfState(input: PdfStateReference & { sourcePath: string }) {
@@ -335,6 +347,7 @@ async function pdfState(input: PdfStateReference & { sourcePath: string }) {
 }
 
 async function removePdf(input: PdfStateReference & { sourcePath: string }) {
+  projectionMemory.delete(projectionKey(input));
   await rm(path.dirname(statePath(input)), { recursive: true, force: true });
 }
 
@@ -344,6 +357,8 @@ const MAX_EXPANDED_PACKAGE_BYTES = 256 * 1024 * 1024;
 const MAX_PACKAGE_ENTRIES = 10_000;
 const MAX_PROJECTION_OUTPUT_BYTES = 64 * 1024 * 1024;
 const projectionMemory = new Map<string, Promise<DocumentReadProjection>>();
+const projectionKey = (input: PdfStateReference) =>
+  `${input.documentId}\0${input.versionId}\0${input.sourceSha256}`;
 
 export type DocumentProjectionInput = Readonly<{
   documentId: string;
@@ -356,22 +371,32 @@ export type DocumentProjectionInput = Readonly<{
 
 export type DocumentReadProjection =
   | {
-      kind: "source-doc" | "pdf";
-      text: string;
+      kind: "source-doc";
       sourceDoc: SourceDoc;
+      structure: unknown;
+      tableCells: [];
+    }
+  | {
+      kind: "pdf";
+      sourceDoc: SourceDoc;
+      structure: PrepareResult["structure"];
+      pdfSourceMap: PrepareResult["pdf_source_map"];
+      pairingAudit: PrepareResult["pairing_audit"];
+      native: NativePdfDocument;
       tableCells: [];
     }
   | {
       kind: "docx-session";
-      text: string;
       sourceDoc: SourceDoc;
+      structure: Parameters<typeof lintDocxStructure>[0];
       session: DocxSession;
       pathology: DocxPathologyReport;
       tableCells: Awaited<ReturnType<DocxSession["document"]>>["tableCells"];
     }
   | {
       kind: "spreadsheet-grid";
-      text: string;
+      sourceDoc: SourceDoc;
+      structure: { text: string };
       grid: SpreadsheetLlmStructure;
       tableCells: SpreadsheetLlmStructure["tableCells"];
     };
@@ -402,10 +427,100 @@ async function assertBoundedSpreadsheetPackage(bytes: Buffer, fileType: string) 
   });
 }
 
-function sourceDocProjection(kind: "source-doc" | "pdf", doc: SourceDoc): DocumentReadProjection {
-  if (Buffer.byteLength(doc.text) > MAX_PROJECTION_OUTPUT_BYTES)
+function sourceDocProjection(
+  analysis: { structure: unknown; source_doc: SourceDoc },
+): DocumentReadProjection {
+  if (Buffer.byteLength(analysis.source_doc.text) > MAX_PROJECTION_OUTPUT_BYTES)
     throw new Error("Document projection output exceeds the read limit");
-  return { kind, text: doc.text, sourceDoc: doc, tableCells: [] };
+  return {
+    kind: "source-doc",
+    sourceDoc: analysis.source_doc,
+    structure: analysis.structure,
+    tableCells: [],
+  };
+}
+
+function pdfProjection(
+  result: PrepareResult,
+  native: NativePdfDocument,
+): Extract<DocumentReadProjection, { kind: "pdf" }> {
+  if (!result.source_doc) throw new Error("Legal PDF preparation omitted SourceDoc");
+  return {
+    kind: "pdf",
+    sourceDoc: createSourceDoc(result.source_doc),
+    structure: result.structure,
+    pdfSourceMap: result.pdf_source_map,
+    pairingAudit: result.pairing_audit,
+    native,
+    tableCells: [],
+  };
+}
+
+function rememberProjection(
+  reference: PdfStateReference,
+  projection: DocumentReadProjection,
+) {
+  if (projectionMemory.size >= 8 && !projectionMemory.has(projectionKey(reference)))
+    projectionMemory.delete(projectionMemory.keys().next().value!);
+  projectionMemory.set(projectionKey(reference), Promise.resolve(projection));
+}
+
+function docxParagraphs(documentXml: string) {
+  return [...documentXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/gu)].map(([paragraph]) => {
+    const accepted = paragraph.replace(/<w:del\b[\s\S]*?<\/w:del>/gu, "");
+    return [...accepted.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gu)]
+      .map((match) => decodeXmlText(match[1] ?? ""))
+      .join("")
+      .replace(/[“”]/gu, '"')
+      .replace(/[‘’]/gu, "'")
+      .replace(/[\u00a0\u2007\u202f]/gu, " ")
+      .replace(/\s+/gu, " ")
+      .trim();
+  });
+}
+
+function docxAnalysisInput(
+  body: Awaited<ReturnType<DocxSession["document"]>>,
+  paragraphs: string[],
+) {
+  if (!body.tableCells.length) return { paragraphs, tableCells: [] };
+  const indexed = body.paragraphs.map(({ events }) => events
+    .flatMap((event) => event.kind === "run" && !event.run.del ? [event.run.text] : [])
+    .join("")
+    .replace(/[“”]/gu, '"')
+    .replace(/[‘’]/gu, "'")
+    .replace(/[\u00a0\u2007\u202f]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim());
+  const starts: number[] = [];
+  let textLength = 0;
+  for (const [index, paragraph] of paragraphs.entries()) {
+    if (index) textLength += 1;
+    starts.push(textLength);
+    textLength += paragraph.length;
+  }
+  const boundaries = new Map<number, number>();
+  let canonical = 0;
+  body.paragraphs.forEach((paragraph, index) => {
+    const matched = indexed[index] === paragraphs[canonical];
+    const start = starts[canonical] ?? textLength;
+    const end = matched ? start + paragraphs[canonical].length : start;
+    boundaries.set(paragraph.globalStart, start);
+    boundaries.set(paragraph.globalStart + paragraph.acceptedText.length, end);
+    if (matched) canonical += 1;
+  });
+  if (canonical !== paragraphs.length) {
+    throw new Error("DOCX table paragraphs do not align with structural text");
+  }
+  const tableCells = body.tableCells.map((cell) => {
+    const start = boundaries.get(cell.start);
+    const end = boundaries.get(cell.end);
+    if (start == null || end == null) {
+      throw new Error("DOCX table cell does not align with accepted paragraphs");
+    }
+    return { ...cell, start, end };
+  });
+  return { paragraphs, tableCells };
 }
 
 async function compileReadProjection(
@@ -418,28 +533,32 @@ async function compileReadProjection(
   if (fileType === "docx") {
     const session = await openDocxSession(bytes);
     const body = await session.document(input.filename ?? "document.docx");
-    const blocks: SourceDocBlock[] = body.paragraphs.flatMap((paragraph, index) =>
-      paragraph.acceptedText ? [{
-        kind: "paragraph" as const,
-        label: `par${index + 1}`,
-        start: paragraph.globalStart,
-        end: paragraph.globalStart + paragraph.acceptedText.length,
-        origin: "native" as const,
-      }] : [],
+    const documentXml = await session.readText("word/document.xml");
+    if (documentXml == null) throw new Error("Structural lint requires a valid DOCX");
+    const { paragraphs, tableCells } = docxAnalysisInput(
+      body,
+      docxParagraphs(documentXml),
     );
-    const sourceDoc = createSourceDoc({
-      provider: null,
-      id: `${input.documentId}:${input.versionId}`,
-      text: body.text,
-      blocks,
-    });
+    const [analyzed, pathology] = await Promise.all([
+      analyzeDocumentNative<Parameters<typeof lintDocxStructure>[0]>({
+        kind: "docx",
+        id: `${input.documentId}:${input.versionId}`,
+        paragraphs,
+        table_cells: tableCells,
+        source_doc: true,
+      }),
+      scanDocxPathology(session),
+    ]);
+    if (!analyzed.source_doc) {
+      throw new Error("Legal structure native module omitted DOCX SourceDoc");
+    }
     return {
       kind: "docx-session",
-      text: body.text,
-      sourceDoc,
+      sourceDoc: analyzed.source_doc,
+      structure: analyzed.structure,
       session,
-      pathology: await scanDocxPathology(session),
-      tableCells: body.tableCells,
+      pathology,
+      tableCells,
     };
   }
   if (isSpreadsheetDocumentType(fileType)) {
@@ -447,19 +566,34 @@ async function compileReadProjection(
     const grid = await spreadsheetToLLMStructure(bytes);
     if (Buffer.byteLength(grid.text) > MAX_PROJECTION_OUTPUT_BYTES)
       throw new Error("Spreadsheet projection output exceeds the read limit");
-    return { kind: "spreadsheet-grid", text: grid.text, grid, tableCells: grid.tableCells };
+    const analyzed = await analyzeDocumentNative<{ text: string }>({
+      kind: "instrument",
+      id: `${input.documentId}:${input.versionId}`,
+      text: grid.text,
+      table_cells: grid.tableCells,
+      reconstruct_lineation: false,
+      source_doc: true,
+    });
+    if (!analyzed.source_doc) {
+      throw new Error("Legal structure native module omitted spreadsheet SourceDoc");
+    }
+    return {
+      kind: "spreadsheet-grid",
+      sourceDoc: analyzed.source_doc,
+      structure: analyzed.structure,
+      grid,
+      tableCells: grid.tableCells,
+    };
   }
   if (fileType === "pdf") {
     const sourcePath = await publishPdfBytes(bytes, sourceSha256, signal);
-    const state = await parsePdf({
+    return (await preparePdf({
       documentId: input.documentId,
       versionId: input.versionId,
       sourcePath,
       sourceSha256,
       signal,
-    });
-    const doc = await readPdfSourceDoc(sourcePath, state.cache_key);
-    return sourceDocProjection("pdf", doc);
+    })).projection;
   }
   let text = "";
   if (isPlainTextDocumentType(fileType)) {
@@ -469,29 +603,56 @@ async function compileReadProjection(
   } else if (fileType === "pptx") {
     text = await extractPresentationText(bytes);
   } else if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType)) {
-    text = (await parseLegalPdfSourceDoc(await docxToPdf(bytes), signal)).text;
+    const pdf = await docxToPdf(bytes);
+    const sourceSha256 = sha256(pdf);
+    const sourcePath = await publishPdfBytes(pdf, sourceSha256, signal);
+    const prepared = await preparePdf({
+      documentId: input.documentId,
+      versionId: input.versionId,
+      sourcePath,
+      sourceSha256,
+      signal,
+    });
+    return sourceDocProjection({
+      structure: prepared.projection.structure,
+      source_doc: prepared.projection.sourceDoc,
+    });
   }
-  const doc = createSourceDoc({
-    provider: null,
+  const analyzed = await analyzeDocumentNative({
+    kind: "instrument",
     id: `${input.documentId}:${input.versionId}`,
     text,
-    blocks: [],
+    table_cells: [],
+    reconstruct_lineation: true,
+    source_doc: true,
   });
-  return sourceDocProjection("source-doc", doc);
+  if (!analyzed.source_doc) {
+    throw new Error("Legal structure native module omitted SourceDoc");
+  }
+  return sourceDocProjection({ ...analyzed, source_doc: analyzed.source_doc });
 }
 
 function assertProjectionOutput(projection: DocumentReadProjection) {
   const value = projection.kind === "docx-session"
-    ? { kind: projection.kind, text: projection.text, sourceDoc: projection.sourceDoc,
-        pathology: projection.pathology, tableCells: projection.tableCells }
-    : projection;
+    ? { kind: projection.kind, sourceDoc: projection.sourceDoc,
+        structure: projection.structure, pathology: projection.pathology,
+        tableCells: projection.tableCells }
+    : projection.kind === "pdf"
+      ? { kind: projection.kind, sourceDoc: projection.sourceDoc,
+          structure: projection.structure, pdfSourceMap: projection.pdfSourceMap,
+          pairingAudit: projection.pairingAudit }
+      : projection;
   if (Buffer.byteLength(JSON.stringify(value)) > MAX_PROJECTION_OUTPUT_BYTES)
     throw new Error("Document projection output exceeds the read limit");
 }
 
 async function read(input: DocumentProjectionInput, options: { signal?: AbortSignal } = {}) {
   const source = await boundedSource(input, options.signal);
-  const key = `${input.documentId}\0${input.versionId}\0${source.sourceSha256}`;
+  const key = projectionKey({
+    documentId: input.documentId,
+    versionId: input.versionId,
+    sourceSha256: source.sourceSha256,
+  });
   let pending = projectionMemory.get(key);
   if (!pending) {
     pending = compileReadProjection(input, source, options.signal).then((projection) => {
@@ -511,6 +672,84 @@ async function read(input: DocumentProjectionInput, options: { signal?: AbortSig
   return result;
 }
 
+async function preparedForSource(
+  sourcePath: string,
+  reference: PdfStateReference,
+  pages?: number[],
+) {
+  await inspectPdf(sourcePath, { expectedSha256: reference.sourceSha256 });
+  const key = projectionKey(reference);
+  let pending = projectionMemory.get(key);
+  if (!pending) {
+    pending = preparePdf({
+      ...reference,
+      sourcePath,
+      ...(pages?.length ? { pages } : {}),
+    }).then(({ projection }) => projection).catch((error) => {
+      projectionMemory.delete(key);
+      throw error;
+    });
+    if (projectionMemory.size >= 8)
+      projectionMemory.delete(projectionMemory.keys().next().value!);
+    projectionMemory.set(key, pending);
+  }
+  const [projection, state] = await Promise.all([pending, readState(reference)]);
+  if (projection.kind !== "pdf" || !state || !["ready", "degraded"].includes(state.status))
+    throw new Error("PDF canonical result is unavailable");
+  return { projection, state };
+}
+
+async function lookupPdf(
+  sourcePath: string,
+  input: PdfLookupInput,
+  options?: {
+    persistEvidence?: boolean;
+    capturePages?: (pages: { number: number; text: string }[]) => void;
+    cacheKey?: string;
+    documentId?: string;
+    versionId?: string;
+    pages?: number[];
+  },
+) {
+  if (!options?.documentId || !options.versionId)
+    return lookupPdfStructure(null, input, options);
+  const inspected = await inspectPdf(sourcePath);
+  const prepared = await preparedForSource(sourcePath, {
+    documentId: options.documentId,
+    versionId: options.versionId,
+    sourceSha256: inspected.sourceSha256,
+  }, options.pages);
+  return lookupPdfStructure(prepared.projection.native, input, {
+    ...options,
+    sourceSha256: prepared.state.source_sha256,
+    parserVersion: prepared.state.parser_version,
+  });
+}
+
+async function preparedForEvidence(sourcePath: string, handle: string) {
+  const receipt = await readPdfEvidenceReceipt(handle);
+  return preparedForSource(sourcePath, {
+    documentId: receipt.source.document_id,
+    versionId: receipt.source.version_id,
+    sourceSha256: receipt.source.source_sha256,
+  });
+}
+
+async function rehydrateEvidence(sourcePath: string, handle: string) {
+  const prepared = await preparedForEvidence(sourcePath, handle);
+  return rehydratePdfEvidence(prepared.projection.native, handle);
+}
+
+async function verifyEvidence(sourcePath: string, handle: string) {
+  const prepared = await preparedForEvidence(sourcePath, handle);
+  return verifyPdfLinkEvidence(prepared.projection.native, handle);
+}
+
+async function rehydrateLink(sourcePath: string, handle: string) {
+  const prepared = await preparedForEvidence(sourcePath, handle);
+  return rehydratePdfLinkEvidence(prepared.projection.native, handle);
+}
+
 export const documentProjectionService = Object.freeze({
   read,
   parsePdf,
@@ -519,9 +758,9 @@ export const documentProjectionService = Object.freeze({
     publishPdfBytes(bytes, expected ?? sha256(bytes), signal),
   pdfState,
   removePdf,
-  lookupPdf: lookupPdfStructure,
+  lookupPdf,
   readPdfEvidence: readPdfEvidenceReceipt,
-  rehydratePdfEvidence,
-  verifyPdfEvidence: verifyPdfLinkEvidence,
-  rehydratePdfLink: rehydratePdfLinkEvidence,
+  rehydratePdfEvidence: rehydrateEvidence,
+  verifyPdfEvidence: verifyEvidence,
+  rehydratePdfLink: rehydrateLink,
 });

@@ -8,7 +8,6 @@ import {
   shutdownCodexAppServers,
 } from "../../../backend/src/lib/llm/codexAppServer";
 import { streamChatWithTools } from "../../../backend/src/lib/llm";
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import {
   CASE_TARGET_MVP_PROMPTS,
   CASE_TARGET_MVP_VALIDATOR_VERSION,
@@ -347,5 +346,4 @@ running
     process.off("SIGINT", interrupt);
     process.off("SIGTERM", interrupt);
     await shutdownCodexAppServers();
-    await shutdownSourceStructureEngine();
   });

@@ -2,7 +2,6 @@ import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
 import { citationLookupKey, citationsInText } from "../../../backend/src/lib/citationKey";
 import { classifyCitatorExcerpt } from "../../../backend/src/lib/citatorExcerpts";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import { candidatesByDocumentIds, loadCase, parseDocumentIds } from "../runner";
 
 async function main() {
@@ -54,5 +53,4 @@ main()
   .catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  })
-  .finally(shutdownSourceStructureEngine);
+  });

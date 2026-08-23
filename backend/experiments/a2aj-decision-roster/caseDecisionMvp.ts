@@ -292,24 +292,30 @@ function isDecisionCitationSurface(value: string) {
 }
 
 /** Detect every explicit citation once and group exact parallel surfaces conservatively. */
-export function decisionCitationInventory(sourceText: string, currentCitation: string, substantiveBodyEnd = sourceText.length): DecisionCitationInventory {
+export function decisionCitationInventory(
+  sourceText: string,
+  currentCitation: string,
+  substantiveBodyEnd = sourceText.length,
+  options: { extendedUsFallback?: boolean } = {},
+): DecisionCitationInventory {
   const currentKey = citationLookupKey(currentCitation);
   const groups = new Map<string, { id: string; displays: string[]; occurrences: DecisionCitationOccurrence[] }>();
   const occurrences: DecisionCitationOccurrence[] = [];
   let previousMatch: ReturnType<typeof citationsInText>[number] | null = null;
   let previousGroup: { id: string; displays: string[]; occurrences: DecisionCitationOccurrence[] } | null = null;
-  for (const match of citationsInText(sourceText)) {
+  for (const match of citationsInText(sourceText, options)) {
     if (!isDecisionCitationSurface(match.text)) { previousMatch = null; previousGroup = null; continue; }
     const surfaceKey = citationLookupKey(match.text);
     if (!surfaceKey || surfaceKey === currentKey) { previousMatch = null; previousGroup = null; continue; }
     const parallel = previousMatch !== null && /^\s*,\s*$/u.test(sourceText.slice(previousMatch.end, match.start));
-    const citationKey = parallel && previousGroup ? previousGroup.occurrences[0].citation_key : surfaceKey;
-    let group = parallel ? previousGroup : groups.get(citationKey) ?? null;
+    const citationKey: string = parallel && previousGroup ? previousGroup.occurrences[0].citation_key : surfaceKey;
+    let group: { id: string; displays: string[]; occurrences: DecisionCitationOccurrence[] } | null =
+      parallel ? previousGroup : groups.get(citationKey) ?? null;
     if (!group) { group = { id: `a${groups.size + 1}`, displays: [], occurrences: [] }; groups.set(citationKey, group); }
     const occurrence: DecisionCitationOccurrence = {
       id: `c${occurrences.length + 1}`, kind: "citation", quote: match.text, start: match.start, end: match.end,
       linkedContext: footnoteReferenceContext(sourceText, match.start, substantiveBodyEnd) ?? (parallel ? previousGroup?.occurrences.at(-1)?.linkedContext ?? null : null),
-      authority_id: group.id, citation_key: citationKey,
+      citationKey, authority_id: group.id, citation_key: citationKey,
     };
     if (!group.displays.includes(match.text)) group.displays.push(match.text);
     group.occurrences.push(occurrence); occurrences.push(occurrence); previousMatch = match; previousGroup = group;

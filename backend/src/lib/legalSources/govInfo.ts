@@ -1,4 +1,4 @@
-import { lookupSourceDoc, type SourceDoc } from "../sourceDoc";
+import { lookupSourceDoc } from "../sourceDoc";
 import { analyzeDocumentNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
@@ -117,9 +117,7 @@ async function fetchGovInfoCase(
     stringValue(body.description),
   ].filter((value): value is string => Boolean(value)).join("\n");
   const url = `${WEB_ORIGIN}/app/details/${result.packageId}`;
-  const analyzed = await analyzeDocumentNative<{
-    structure: unknown; source_doc?: SourceDoc;
-  }>({
+  const analyzed = await analyzeDocumentNative({
     kind: "native_markup",
     source_doc: true,
     input: {

@@ -448,15 +448,15 @@ ranges; the assembler never invents generic native-versus-heuristic policy.
 | A2AJ tools | Provider structure is flattened, then compiled again as an instrument skeleton and cross-reference graph. | Query the one provider structure result; never de-detect authoritative provider facts. |
 | CourtListener/TNA | CourtListener may derive twice; TNA reparses markup for cited `<ref>` rows after Rust parsed it. | Select the rendition before the call; one Rust markup traversal emits text, structure, and cited-reference facts. |
 | `legalStructureSidecar.ts` | Stores duplicate skeleton and cross-reference DTOs while reusing useful hashing/single-flight/atomic ideas already present in the projection layer. | Store one canonical structure through the existing application/persistence boundary and delete the structure-specific DTO/cache. |
-| `legal-structure-store` + `sourceDocCache.ts` | Not dead: A2AJ local bulk runtime reads its SQLite SourceDocs. | Rebuild producer/reader together around canonical structure, preserve resume/atomic promotion, then delete the old schema/reader. Core owns no store. |
+| `legal-structure-store` + `sourceDocCache.ts` | Retired after A2AJ began carrying the canonical Rust result directly. | Deleted; the resumable-import proof remains in `source-structure-cutover-results.md` and git history. Core owns no store. |
 | `sourcedoc-jsonl.ts`/`sourcedoc_client.py` | AuthoritiesHelper, citator, stress, and probes cross Node/tsx; the Authorities compiler-string expectation is already mismatched. | Replace every caller with the direct Python binding, then delete rather than repair the protocol. |
 
 `documentProjectionService.read` remains Beaver's byte/file projection host.
 It already bounds and hashes inputs, opens one `DocxSession`, keeps the typed
 spreadsheet grid, invokes PDF preparation, and single-flights immutable
-versions. It and the existing acquired-provider adapters must call one typed
-structure host after their distinct extraction/fetch steps. Do not widen the
-file service with provider request variants or add a second analyzer. Keep
+versions. It and the existing acquired-provider adapters call the one native
+document operation after their distinct extraction/fetch steps. Do not add a
+host, widen the file service with provider request variants, or add a second analyzer. Keep
 `documentProjection.ts` as the existing local path/lock/atomic-receipt owner;
 do not pretend it is already a generic cloud projection repository.
 

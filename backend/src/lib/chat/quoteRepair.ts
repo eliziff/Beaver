@@ -17,6 +17,10 @@ const TOKEN_RE = /\p{L}[\p{L}\p{N}'’‐-―-]*|\p{N}+/gu;
 const MIN_COPY_TOKENS = 8;
 const MIN_COPY_CHARS = 51;
 const COPY_SEED_CHARS = 25;
+const MIN_COPY_DISTINCT_CONTENT_TOKENS = 4;
+const COPY_STOP_WORDS = new Set(
+  "a an and are as at be but by for from has have if in into is it its of on or that the their there these this to was were will with which would when who whom whose".split(" "),
+);
 const MAX_MARKED_QUOTE_CHARS = 4_000;
 const MAX_MARKED_QUOTE_EDITS = 4;
 const MAX_FUZZY_SOURCE_CHARS = 50_000;
@@ -162,7 +166,7 @@ function detectMarkedQuotes(text: string): MarkedQuote[] {
     const start = markedStart + match[0].indexOf(body);
     quotes.push({ text: body, start, end: start + body.length, markedStart, markedEnd });
   }
-  return quotes;
+  return quotes.sort((left, right) => left.start - right.start || left.end - right.end);
 }
 
 export function markedQuoteSpans(text: string): MarkedQuoteSpan[] {
@@ -270,6 +274,10 @@ function copiedRun(chunks: string[], sources: VisibleEvidenceText[]) {
           const run = prose.slice(index - left, index + right);
           const normalizedLength = run.map(({ norm }) => norm).join(" ").length;
           if (normalizedLength < COPY_SEED_CHARS || normalizedLength < MIN_COPY_CHARS) continue;
+          const contentTokens = new Set(run.map(({ norm }) => norm).filter((word) =>
+            word.length > 2 && !COPY_STOP_WORDS.has(word)
+          ));
+          if (contentTokens.size < MIN_COPY_DISTINCT_CONTENT_TOKENS) continue;
           return {
             evidenceId: source.evidenceId,
             copied: chunk.slice(run[0].start, run.at(-1)!.end),

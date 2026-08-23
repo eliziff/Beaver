@@ -1,9 +1,9 @@
 # Legal structure navigation experiments
 
 These deterministic ideas were built during retrieval research but are not on
-Beaver's current tool surface: defined-term and lexical edges, page/section and
-graph summaries, the legacy outline renderer, and folded/regex find variants.
-They remain runnable here without enlarging production.
+Beaver's current tool surface. Folded/regex find and working-set exposure remain
+runnable here. The old structure, graph, outline, and DOCX-anchor copies were
+deleted after their capabilities moved into the canonical Rust document result.
 
 ```powershell
 npm run test:experiments -- --run experiments/legal-structure-navigation

@@ -1,5 +1,6 @@
 runs/
 *.jsonl
+!case-decision-gold-v2.jsonl
 *.log
 __pycache__/
 scratch/.drawcache/

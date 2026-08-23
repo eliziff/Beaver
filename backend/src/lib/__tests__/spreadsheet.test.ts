@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
-import { compileAgreementSkeleton, readSection } from "../legalTextSkeleton";
 import { spreadsheetToLLMStructure } from "../spreadsheet";
 
 function fixtureWorkbook() {
@@ -65,25 +64,5 @@ describe("spreadsheetToLLMStructure", () => {
       displayValue: "Quarterly revenue",
     });
     expect(structure.tableCells.some((cell) => cell.address === "B1")).toBe(false);
-  });
-
-  it("makes the typed sheet grid addressable without exposing its inventory", async () => {
-    const structure = await spreadsheetToLLMStructure(fixtureWorkbook());
-    const skeleton = await compileAgreementSkeleton(structure.text, "workbook", {
-      tableCells: structure.tableCells,
-      reconstructLineation: false,
-    });
-
-    expect(skeleton.nodes.find((node) => node.label === "table:1")?.display).toBe(
-      "Sheet Damages",
-    );
-    expect(readSection(skeleton, "table:1/row:7/col:4")).toMatchObject({
-      status: "found",
-      block: { text: "1,200" },
-    });
-    expect(readSection(skeleton, "table:1/row:7")).toMatchObject({
-      status: "found",
-      block: { text: "Smith | Open | 1,200" },
-    });
   });
 });

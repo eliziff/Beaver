@@ -9,7 +9,7 @@ import type { DocumentContent, DocumentProvenance, DocumentScope,
 import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { sha256 } from "./hash";
-import { countLegalPdfPages } from "./legalPdfSourceDoc";
+import { documentProjectionService } from "./documentProjectionService";
 import { normalizeDocumentMetadata, normalizeDocumentNotes,
   type LibraryKind } from "./normalize";
 import { MAX_OBJECT_SIZE_BYTES, normalizeDownloadFilename, SIGNED_GET_TTL_SECONDS,
@@ -101,10 +101,14 @@ function editedFilename(version: StoredDocumentVersion) {
   }`;
 }
 
-async function pageCount(fileType: string, bytes: Buffer) {
+async function pageCount(documentId: string, versionId: string, filename: string,
+  fileType: string, bytes: Buffer) {
   if (fileType !== "pdf") return null;
   try {
-    return await countLegalPdfPages(bytes);
+    const projection = await documentProjectionService.read({
+      documentId, versionId, filename, fileType, bytes,
+    });
+    return projection.kind === "pdf" ? projection.pdfSourceMap.pages.length : null;
   } catch {
     throw new ApplicationError(400, "PDF is invalid or unsupported");
   }
@@ -166,7 +170,8 @@ export function createDocumentApplication(repository: DocumentRepository,
     const version: StoredDocumentVersion = {
       id, documentId: input.documentId, versionNumber: input.versionNumber,
       source: input.source, createdAt: new Date().toISOString(), filename, fileType,
-      sizeBytes: input.bytes.byteLength, pageCount: await pageCount(fileType, input.bytes),
+      sizeBytes: input.bytes.byteLength,
+      pageCount: await pageCount(input.documentId, id, filename, fileType, input.bytes),
       sourceSha256, blobKey, pdfBlobKey: fileType === "pdf" ? blobKey : null, cleanupKeys: [],
       provenance: input.edits
         ? provenanceWithEdits(input.provenance, input.edits)
@@ -555,7 +560,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       );
       if (target.fileType !== fileType) return { status: "type-mismatch" as const };
       const updated = await replace(scope, documentId, target, { filename, fileType,
-        bytes: file.bytes, pageCount: await pageCount(fileType, file.bytes),
+        bytes: file.bytes,
+        pageCount: await pageCount(documentId, versionId, filename, fileType, file.bytes),
         createdAt: new Date().toISOString(), provenance: null });
       return { status: "replaced" as const, version: responseVersion(updated) };
     },
