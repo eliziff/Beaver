@@ -1,16 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { readLegalPdfSourceDoc } from "./legalPdfSourceDoc";
+import { queryPdfNative, type NativePdfDocument } from "./structureNative";
 import {
-  configuredLegalPdfProfile,
-  LEGAL_PDF_RESULT_SCHEMA,
-  runLegalPdfDocument,
-} from "./legalPdfProcess";
-import {
-  inspectPdf,
   immutableReceiptPath,
-  localDataPath,
-  projectionDirectory,
   writeImmutableReceipt,
 } from "./documentProjection";
 import { RESOURCE_LOCATOR_KINDS } from "./resourceReferences";
@@ -55,7 +47,7 @@ const SCHEMA_VERSION = "mike.pdf_lookup.v1";
 const MAX_CONTEXT_BLOCKS = 2;
 const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
-const CACHE_DIRECTORY = projectionDirectory("legalpdf-cache", sha256("legalpdf-cache-v1"));
+const LEGAL_PDF_RESULT_SCHEMA = "legalpdf.document-result.v1";
 
 export type PdfEvidenceReceipt = {
   schema_version: typeof EVIDENCE_SCHEMA;
@@ -268,28 +260,6 @@ function baseResult(input: PdfLookupInput) {
   };
 }
 
-async function loadSource(sourcePath: string, cacheKey: string) {
-  const source = localDataPath(sourcePath);
-  if (!cacheKey || cacheKey.length > 512) throw new Error("Invalid PDF cache key");
-  const inspected = await inspectPdf(source);
-  return {
-    source,
-    sourceSha256: inspected.sourceSha256,
-    cacheKey,
-    profile: configuredLegalPdfProfile(),
-  };
-}
-
-export async function readPdfSourceDoc(sourcePath: string, cacheKey: string) {
-  const loaded = await loadSource(sourcePath, cacheKey);
-  return readLegalPdfSourceDoc(loaded.source, {
-    cacheDir: CACHE_DIRECTORY,
-    ...loaded.profile,
-    expectedCacheKey: loaded.cacheKey,
-    expectedSourceSha256: loaded.sourceSha256,
-  });
-}
-
 function checkedLookup(value: EngineLookup) {
   if (value.schema_version !== "legalpdf.structure-lookup.v1" ||
       !["found", "not_found", "ambiguous", "invalid", "unavailable"].includes(value.status) ||
@@ -461,7 +431,7 @@ function unavailable(input: PdfLookupInput, error: unknown) {
 }
 
 export async function lookupPdfStructure(
-  sourcePath: string,
+  document: NativePdfDocument | null,
   input: PdfLookupInput,
   options?: {
     persistEvidence?: boolean;
@@ -470,6 +440,8 @@ export async function lookupPdfStructure(
     documentId?: string;
     versionId?: string;
     pages?: number[];
+    sourceSha256?: string;
+    parserVersion?: string;
   },
 ) {
   if (!validInput(input)) {
@@ -481,46 +453,36 @@ export async function lookupPdfStructure(
     };
   }
   try {
-    if (!options?.cacheKey || !options.documentId || !options.versionId)
+    if (!options?.cacheKey || !options.documentId || !options.versionId ||
+        !options.sourceSha256 || !options.parserVersion)
       throw new Error("PDF lookup requires a cache and document identity");
-    const source = await loadSource(sourcePath, options.cacheKey);
-    const response = await runLegalPdfDocument<EngineLookup>({
-      operation: "structure_lookup",
-      source_pdf: source.source,
-      cache_dir: CACHE_DIRECTORY,
-      ...source.profile,
-      ...(options.pages ? { pages: options.pages } : {}),
-      query: contractInput(input),
-    }, { maxBuffer: 64 * 1024 * 1024 });
-    if (response.source.sha256 !== source.sourceSha256 ||
-        response.source.cache_key !== source.cacheKey) {
-      throw new Error("Legal PDF cache identity changed");
-    }
-    const cacheKey = response.source.cache_key;
-    if (!cacheKey) throw new Error("Legal PDF lookup returned no cache key");
+    if (!document) throw new Error("PDF lookup requires a native document");
+    const result = await queryPdfNative<EngineLookup>(document, contractInput(input));
     return await finishLookup({ state: {
       document_id: options.documentId,
       version_id: options.versionId,
-      source_sha256: response.source.sha256,
-      parser_version: response.source.parser_version,
-      cache_key: cacheKey,
-    } }, input, response.result, options);
+      source_sha256: options.sourceSha256,
+      parser_version: options.parserVersion,
+      cache_key: options.cacheKey,
+    } }, input, result, options);
   } catch (error) {
     return unavailable(input, error);
   }
 }
 
 async function verifiedPdfEvidence(
-  sourcePath: string,
+  document: NativePdfDocument,
   handle: string,
 ) {
   const receipt = await readPdfEvidenceReceipt(handle);
   let pageRows: NormalizedPage[] = [];
-  const lookup = await lookupPdfStructure(sourcePath, receipt.lookup, {
+  const lookup = await lookupPdfStructure(document, receipt.lookup, {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
     documentId: receipt.source.document_id,
     versionId: receipt.source.version_id,
+    sourceSha256: receipt.source.source_sha256,
+    parserVersion: receipt.source.parser_version,
     ...(receipt.lookup.locatorKind === "page"
       ? { pages: receipt.evidence.page_numbers }
       : {}),
@@ -573,17 +535,17 @@ async function verifiedPdfEvidence(
 }
 
 export async function rehydratePdfEvidence(
-  sourcePath: string,
+  document: NativePdfDocument,
   handle: string,
 ) {
-  return (await verifiedPdfEvidence(sourcePath, handle)).lookup;
+  return (await verifiedPdfEvidence(document, handle)).lookup;
 }
 
 export async function verifyPdfLinkEvidence(
-  sourcePath: string,
+  document: NativePdfDocument,
   handle: string,
 ) {
-  const verified = await verifiedPdfEvidence(sourcePath, handle);
+  const verified = await verifiedPdfEvidence(document, handle);
   return {
     documentId: verified.lookup.source.document_id,
     versionId: verified.lookup.source.version_id,
@@ -694,10 +656,10 @@ function buildLinkEvidence(
 }
 
 export async function rehydratePdfLinkEvidence(
-  sourcePath: string,
+  document: NativePdfDocument,
   handle: string,
 ) {
-  const verified = await verifiedPdfEvidence(sourcePath, handle);
+  const verified = await verifiedPdfEvidence(document, handle);
   return buildLinkEvidence(handle, verified, verified.pageRows);
 }
 

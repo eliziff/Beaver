@@ -126,6 +126,30 @@ describe("provider loop", () => {
     expect([attempts, checkpoint.mock.calls.length]).toEqual([1, 1]);
   });
 
+  it.each([
+    "Codex app-server initialize request timed out.",
+    "Codex app-server turn/start request timed out: failed to install system skills",
+    "thread 123 already has an active writer",
+  ])("retries a known Codex app-server startup race: %s", async (message) => {
+    let attempts = 0;
+    const recovered = await runProviderLoop(params(), adapter(() => {
+      attempts += 1;
+      if (attempts === 1) throw new Error(message);
+      return [{ type: "text_delta", text: "ok" }, done];
+    }));
+    expect(recovered.fullText).toBe("ok");
+    expect(attempts).toBe(2);
+  });
+
+  it("can disable hidden retries when each request consumes an external quota", async () => {
+    let attempts = 0;
+    await expect(runProviderLoop(params({ maxProviderAttempts: 1 }), adapter(() => {
+      attempts += 1;
+      throw new Error("server_is_overloaded");
+    }))).rejects.toThrow("server_is_overloaded");
+    expect(attempts).toBe(1);
+  });
+
   it("refreshes tools on the next step and reports newly revealed names", async () => {
     let tools = [tool("discover")];
     const seen: Array<{ tools: string[]; added: string[] }> = [];

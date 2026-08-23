@@ -44,8 +44,10 @@ describe("DocumentProjectionService", () => {
     expect(await projections.read(input)).toEqual(first);
     expect(first).toMatchObject({
       kind: "source-doc",
-      text: "Parsed text\r\nwith\tstable bytes",
-      sourceDoc: { id: "document-a:version-1" },
+      sourceDoc: {
+        id: "document-a:version-1",
+        text: "Parsed text\r\nwith\tstable bytes",
+      },
     });
   });
 

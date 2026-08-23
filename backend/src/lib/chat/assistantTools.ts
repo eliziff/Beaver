@@ -22,17 +22,16 @@ import {
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
 } from "../legalAmendOps";
-import { compileAgreementSkeleton, readSection, type AgreementSkeleton } from "../legalTextSkeleton";
-import { sourceDocSubtreeLabels } from "../sourceDoc";
 import {
-  crossReferenceGraphFromSkeleton,
-  type CrossReferenceGraph,
-} from "../legalCrossReference";
-import {
-  bakedCrossReferenceGraph,
-  bakedSkeleton,
-} from "../legalStructureSidecar";
-import { pageMapFromMarkers, pageMapFromSourceDoc, graphScope, parseAddress, resolvePage, type FollowDirection, type PageMap } from "../legalDocumentNavigator";
+  graphScope,
+  lookupStructureBlock,
+  pageMapFromMarkers,
+  pageMapFromSourceDoc,
+  parseAddress,
+  resolvePage,
+  type FollowDirection,
+  type PageMap,
+} from "../legalDocumentNavigator";
 import { extractDocxDraftingSource } from "../docxDraftingSource";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { resolveDraftingOptions } from "../draftingStyle";
@@ -60,12 +59,13 @@ import {
   documentProjectionService,
   type PdfLocatorKind,
 } from "../documentProjectionService";
-import { countLegalPdfPages } from "../legalPdfSourceDoc";
 import {
   sourceDocBlockText,
+  sourceDocSubtreeLabels,
   type SourceDoc,
   type SourceDocBlock,
 } from "../sourceDoc";
+import { analyzeDocumentNative } from "../structureNative";
 import { preparePdf, preparePdfPages } from "../pdfJobs";
 import {
   lookupProviderPdfReference,
@@ -207,23 +207,28 @@ const LINT_DOCUMENT_TOOL: Tool = {
   inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
 };
 
+const referenceGraph = (structure: unknown) =>
+  (structure as {
+    cross_references?: Parameters<typeof graphScope>[1] | null;
+  } | null)?.cross_references ?? null;
+
 function oneHopLegalScope(
-  skeleton: AgreementSkeleton,
-  graph: CrossReferenceGraph,
+  doc: SourceDoc,
+  graph: Parameters<typeof graphScope>[1],
   block: { label: string; start: number; end: number },
   direction: "inbound" | "outbound" | "both",
 ) {
-  const seed = skeleton.nodes.find(
-    (node) =>
-      node.label === block.label && node.start === block.start && node.end === block.end,
+  const seed = doc.blocks.find(
+    (candidate) => candidate.label === block.label &&
+      candidate.start === block.start && candidate.end === block.end,
   );
   if (!seed) return null;
-  const subtree = sourceDocSubtreeLabels(skeleton.nodes, seed.label);
+  const subtree = sourceDocSubtreeLabels(doc.blocks, seed.label);
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";
   const reached = new Map([...subtree].flatMap((label) =>
-    (graphScope(skeleton, graph, label, { follow, depth: 1 })?.nodes ?? [])
+    (graphScope(doc, graph, label, { follow, depth: 1 })?.nodes ?? [])
       .flatMap((node) => subtree.has(node.label)
         ? [] : [[node.label, node] as const])));
   return {
@@ -407,7 +412,17 @@ async function saveDocxEdits(params: {
   });
   if (!committed) return fail("The active document version changed.");
   const { version, trackedEdits } = committed;
-  const lint = await lintDocxStructure(params.bytes).catch(() => null);
+  const lintProjection = await documentProjectionService.read({
+    documentId: params.documentId,
+    versionId: version.id,
+    filename: version.filename,
+    fileType: "docx",
+    sourceSha256: version.source_sha256,
+    bytes: params.bytes,
+  }).catch(() => null);
+  const lint = lintProjection?.kind === "docx-session"
+    ? lintDocxStructure(lintProjection.structure)
+    : null;
   return documentResult({
     ok: true,
     action: "revised",
@@ -731,7 +746,8 @@ type EvidenceSpan = {
 function sourceDocArtifact(value: unknown): SourceDoc | undefined {
   const artifact = objectRecord(value);
   return artifact && typeof artifact.text === "string" &&
-      Array.isArray(artifact.tokens) && Array.isArray(artifact.blocks)
+      Array.isArray(artifact.blocks) && artifact.index !== null &&
+      typeof artifact.index === "object"
     ? artifact as unknown as SourceDoc
     : undefined;
 }
@@ -771,7 +787,9 @@ function cleanSearchEvidenceSpan(
       start: block.start,
       end: block.end,
       blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-      locator: { kind: block.kind, label: block.label },
+      ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
+        ? { locator: { kind: block.kind as "paragraph" | "page" | "section" | "footnote", label: block.label } }
+        : {}),
     };
   }
 
@@ -1243,29 +1261,43 @@ async function runCodingShapeCall(
     versionId?: string,
     mode?: "text" | "drafting" | "redline",
   ) => {
+    let raw: { versionId: string; text: string } | null = null;
     if (mode === "redline") {
       const file = await documents.read(scope, documentId, versionId ?? null, false);
       if (!file || file.fileType.toLowerCase() !== "docx") return null;
       const redline = await projectDocxRedline(file.bytes);
-      return {
+      raw = {
         versionId: file.version.id,
         text: redline.text,
-        pages: { pages: [], source: "unindexed" as const },
-        tableCells: [],
       };
-    }
-    if (mode !== "text") {
+    } else if (mode !== "text") {
       const drafting = await servedDraftingText(
         documents, scope, documentId, servedDraftingCache, versionId,
       );
       if (drafting) {
-        return {
+        raw = {
           versionId: drafting.versionId,
           text: drafting.served,
-          pages: { pages: [], source: "unindexed" as const },
-          tableCells: [],
         };
       }
+    }
+    if (raw) {
+      const analyzed = await analyzeDocumentNative({
+        kind: "instrument",
+        id: documentId,
+        text: raw.text,
+        table_cells: [],
+        reconstruct_lineation: true,
+        source_doc: true,
+      });
+      if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+      return {
+        ...raw,
+        pages: { pages: [], source: "unindexed" as const },
+        tableCells: [],
+        sourceDoc: analyzed.source_doc,
+        structure: analyzed.structure,
+      };
     }
     return extractDocument(documents, scope, documentId, versionId);
   };
@@ -1314,12 +1346,25 @@ async function runCodingShapeCall(
       if (locatorKind === "page" && !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)) {
         if (physicalPageCount === null) {
           try {
-            physicalPageCount = await countLegalPdfPages(file.bytes);
+            const projection = await documentProjectionService.read({
+              documentId: meta.id,
+              versionId: file.version.id,
+              filename: file.filename,
+              fileType: file.fileType,
+              sourceSha256: file.version.source_sha256,
+              bytes: file.bytes,
+            }, { signal });
+            physicalPageCount = projection.kind === "pdf"
+              ? projection.pdfSourceMap.pages.length
+              : null;
           } catch {
             return fail(
               `${meta.filename} is not a valid readable PDF. Retrying will not help.`,
             );
           }
+        }
+        if (physicalPageCount === null) {
+          return fail(`${meta.filename} is not a valid readable PDF.`);
         }
         if (Number(locator) > physicalPageCount) {
           return fail(
@@ -1484,10 +1529,7 @@ async function runCodingShapeCall(
       return fail("references requires an exact section handle.");
     }
     if (sectionArg) {
-      const skeleton = await bakedSkeleton(document.text, meta.id, {
-        tableCells: document.tableCells,
-      });
-      const lookup = readSection(skeleton, sectionArg);
+      const lookup = lookupStructureBlock(document.sourceDoc, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
         return fail(
           `Section '${sectionArg}' not found (${lookup.status}` +
@@ -1499,13 +1541,12 @@ async function runCodingShapeCall(
       }
       const block = lookup.block;
       if (references !== "none") {
-        const graph = await bakedCrossReferenceGraph(
-          document.text,
-          meta.id,
-          { tableCells: document.tableCells },
-        );
+        const graph = referenceGraph(document.structure);
+        if (!graph) {
+          return fail(`Section '${sectionArg}' has no reference graph.`);
+        }
         const scope = oneHopLegalScope(
-          skeleton,
+          document.sourceDoc,
           graph,
           block,
           references,
@@ -1759,10 +1800,7 @@ async function runCodingShapeCall(
     const starts = sourceLineStarts(document.text);
     let scopeSpan: TextRange | null = null;
     if (grepSection) {
-      const skeleton = await bakedSkeleton(document.text, meta.id, {
-        tableCells: document.tableCells,
-      });
-      const lookup = readSection(skeleton, grepSection);
+      const lookup = lookupStructureBlock(document.sourceDoc, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
         const candidates = lookup.matches.length
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
@@ -1879,11 +1917,11 @@ export async function extractDocument(
     sourceSha256: file.version.source_sha256,
     bytes: file.bytes,
   });
-  const text = projection.text;
-  const parsed = "sourceDoc" in projection ? projection.sourceDoc : null;
+  const { sourceDoc, structure } = projection;
+  const text = sourceDoc.text;
   // Preserve the engine's distinct PDF and printed page labels; text markers
   // are only a fallback because they cannot recover that distinction.
-  let pages: PageMap | null = parsed ? pageMapFromSourceDoc(parsed) : null;
+  let pages: PageMap | null = pageMapFromSourceDoc(sourceDoc);
   if (!pages?.pages.length) pages = pageMapFromMarkers(text);
   if (!pages.pages.length && fileType === "pdf")
     pages = { pages: [], source: "unindexed" };
@@ -1892,6 +1930,8 @@ export async function extractDocument(
     text,
     pages,
     tableCells: projection.tableCells,
+    sourceDoc,
+    structure,
   };
 }
 
@@ -2245,9 +2285,17 @@ async function runAdvancedDocxEdit(params: {
       if (!body.text) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
-      const skeleton = await compileAgreementSkeleton(body.text, params.documentId, {
-        tableCells: body.tableCells,
+      const analyzed = await analyzeDocumentNative({
+        kind: "instrument",
+        id: params.documentId,
+        text: body.text,
+        table_cells: body.tableCells,
+        reconstruct_lineation: true,
+        source_doc: true,
       });
+      if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+      const sourceDoc = analyzed.source_doc;
+      const graph = referenceGraph(analyzed.structure);
       const map = pageMapFromMarkers(body.text);
       resolvedRequests = requests.map((request, index) => {
         const scope = request.scope as unknown as {
@@ -2267,20 +2315,22 @@ async function runAdvancedDocxEdit(params: {
             `ops[${index}].scope.at did not resolve (${lookup.status})`);
           spans = [{ start: lookup.page.start, end: lookup.page.end }];
         } else {
-          const seed = readSection(skeleton, address.locator);
+          const seed = lookupStructureBlock(sourceDoc, address.locator);
           if (seed.status !== "found" || !seed.block) throw new Error(
             `ops[${index}].scope.at did not resolve (${seed.status})`);
           const follow = scope.follow ?? "none";
           spans = [{ start: seed.block.start, end: seed.block.end }];
           if (follow !== "none") {
+            if (!graph) throw new Error(
+              `ops[${index}].scope.at has no reference graph`);
             const walked = graphScope(
-              skeleton,
-              crossReferenceGraphFromSkeleton(body.text, skeleton),
+              sourceDoc,
+              graph,
               seed.block.label,
               { follow, depth: scope.depth ?? 1 },
             );
             if (!walked) throw new Error(
-              `ops[${index}].scope.at is not a skeleton node`);
+              `ops[${index}].scope.at is not an addressable block`);
             spans = walked.nodes.map(({ start, end }) => ({ start, end }));
           }
         }
@@ -2387,12 +2437,23 @@ async function runDocxWorkflow(
     },
   );
   const file = await activeDocx(documents, scope, documentId, versionId);
+  const projection = await documentProjectionService.read({
+    documentId,
+    versionId: file.version.id,
+    filename: file.filename,
+    fileType: file.fileType,
+    sourceSha256: file.version.source_sha256,
+    bytes: file.bytes,
+  });
+  if (projection.kind !== "docx-session") {
+    throw new Error("DOCX structure projection is unavailable");
+  }
   return {
     ok: true,
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
-    ...await lintDocxStructure(file.bytes),
+    ...lintDocxStructure(projection.structure),
   };
 }
 

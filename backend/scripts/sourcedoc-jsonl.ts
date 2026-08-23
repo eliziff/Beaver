@@ -6,7 +6,8 @@
  */
 import { createInterface } from "node:readline";
 
-import { deriveA2AJSourceDoc } from "../src/lib/sourceDocStructureHost";
+import type { SourceDoc } from "../src/lib/sourceDoc";
+import { analyzeDocumentNative } from "../src/lib/structureNative";
 
 const PROTOCOL = "beaver.sourcedoc.jsonl.v1";
 const COMPILER = "legal-structure";
@@ -86,7 +87,22 @@ function rendition(
 
 async function compile(input: Request) {
   const started = performance.now();
-  const doc = await deriveA2AJSourceDoc(input);
+  const analyzed = await analyzeDocumentNative({
+    kind: "a2aj",
+    source_doc: true,
+    input: {
+      citation: input.citation,
+      source_kind: input.docType,
+      text: input.sectionMap ? "" : input.text,
+      id: input.id,
+      alternate_citation: input.alternateCitation,
+      dataset: input.dataset,
+      name: input.name,
+      section_map: input.sectionMap ? Object.entries(input.sectionMap) : null,
+    },
+  });
+  const doc = analyzed.source_doc;
+  if (!doc) throw new Error("Rust omitted SourceDoc");
   const blocks = Object.fromEntries(
     (["paragraph", "page", "section"] as const).map((kind) => [
       kind,

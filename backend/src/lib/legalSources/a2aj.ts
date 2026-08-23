@@ -68,10 +68,7 @@ async function deriveA2AJDocument(
   },
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
-  const result = await analyzeDocumentNative<{
-    structure: unknown;
-    source_doc?: SourceDoc;
-  }>({
+  const result = await analyzeDocumentNative({
     kind: "a2aj",
     source_doc: true,
     input: {

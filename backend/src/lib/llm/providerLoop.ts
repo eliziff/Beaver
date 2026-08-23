@@ -52,7 +52,7 @@ function retryable(error: unknown): boolean {
   const current = error as { status?: unknown; status_code?: unknown; code?: unknown; cause?: unknown };
   const status = current?.status ?? current?.status_code;
   if (typeof status === "number" && [408, 409, 429, 500, 502, 503, 504, 529].includes(status)) return true;
-  return /overload|terminated|fetch failed|socket hang up|other side closed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_/iu.test(
+  return /overload|terminated|fetch failed|socket hang up|other side closed|(?:initialize|turn\/start) request timed out|already has an active writer|failed to install system skills|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_/iu.test(
     [String(error), String(current?.code ?? ""), String(current?.cause ?? "")].join(" "),
   );
 }
@@ -89,6 +89,7 @@ export async function runProviderLoop(
   let streamedBytes = 0, providerToolCalls = 0, providerToolArgumentBytes = 0;
 
   const maxIterations = params.maxIterations ?? 32;
+  const maxProviderAttempts = Math.max(1, Math.min(3, params.maxProviderAttempts ?? 3));
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
       throwIfAborted(params.abortSignal);
       const tools = params.resolveTools?.() ?? initialTools;
@@ -134,7 +135,7 @@ export async function runProviderLoop(
         contentOpen = false; contentBlock = undefined;
       };
 
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= maxProviderAttempts; attempt += 1) {
         round.requestAttempts += 1;
         toolCalls = [];
         attemptUsage = null;
@@ -214,8 +215,9 @@ export async function runProviderLoop(
           closeReasoning();
           closeContent();
           if (params.abortSignal?.aborted) throw abortError();
-          if (visible || attempt === 3 || !retryable(error)) throw error;
+          if (visible || attempt === maxProviderAttempts || !retryable(error)) throw error;
           await iterator?.return?.().catch(() => undefined);
+          await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
         }
       }
 

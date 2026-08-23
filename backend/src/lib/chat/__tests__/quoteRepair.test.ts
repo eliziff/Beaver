@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   groundedProseIntegrityErrors,
+  markedQuoteSpans,
   nearestVerbatimExcerpt,
   quoteRepairSuggestion,
   sourceSupportsMarkedQuote,
@@ -13,6 +14,13 @@ const passage =
   "of the notice by the tenant.";
 
 describe("quote repair", () => {
+  it("returns byte-exact marked quotation spans", () => {
+    const text = 'The court wrote “exact words” here.\n> A block quotation follows.';
+    const spans = markedQuoteSpans(text);
+    expect(spans.map(({ text }) => text)).toEqual(["exact words", "A block quotation follows."]);
+    for (const span of spans) expect(text.slice(span.start, span.end)).toBe(span.text);
+  });
+
   it("returns only a sufficiently strong verbatim window", () => {
     const repair = nearestVerbatimExcerpt(
       "the landlord may deliver a written notice to terminate the lease within seven calendar days",
@@ -72,6 +80,14 @@ describe("quote repair", () => {
       ["e_cited"],
       sources,
     )).toEqual([]);
+    for (const insignificant of [
+      "Constitutional adjudication requires evidentiary foundations before intervention.",
+      "Courts must decide facts using law and evidence.",
+      "that the and which there from these with their there which that the and",
+    ]) expect(groundedProseIntegrityErrors(insignificant, ["e_insignificant"], [{
+      evidenceId: "e_insignificant",
+      text: insignificant,
+    }])).toEqual([]);
     const title = "A Treatise About Constitutional Standing and Legal Remedies";
     expect(groundedProseIntegrityErrors(title, ["e_cited"], [{
       evidenceId: "e_cited",

@@ -1,25 +1,21 @@
-import crypto from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const runLegalPdfDocument = vi.hoisted(() => vi.fn());
-vi.mock("../legalPdfProcess", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../legalPdfProcess")>()),
-  runLegalPdfDocument,
+const queryPdfNative = vi.hoisted(() => vi.fn());
+vi.mock("../structureNative", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../structureNative")>()),
+  queryPdfNative,
 }));
 
 let temporaryDirectory: string | null = null;
-let sourcePath = "";
-let sourceSha256 = "";
+const native = {};
+const sourceSha256 = "a".repeat(64);
 const cacheKey = "cache-key";
 
-const digest = (bytes: Buffer) =>
-  crypto.createHash("sha256").update(bytes).digest("hex");
-
 function engineLookup(request: Record<string, unknown>) {
-  const query = request.query as Record<string, unknown>;
+  const query = request;
   const found = query.locator === "1";
   return {
     schema_version: "legalpdf.structure-lookup.v1",
@@ -55,25 +51,7 @@ beforeEach(async () => {
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
   process.env.MIKE_PDF_OCR_PROVIDER = "none";
   process.env.MIKE_PDF_LAYOUT_PROVIDER = "none";
-  sourcePath = path.join(temporaryDirectory, "source.pdf");
-  const bytes = Buffer.from("%PDF-1.4\nlookup fixture");
-  sourceSha256 = digest(bytes);
-  await writeFile(sourcePath, bytes);
-  runLegalPdfDocument.mockImplementation(async (request: Record<string, unknown>) => {
-    const currentSha256 = digest(await readFile(request.source_pdf as string));
-    return {
-      schema_version: "legalpdf.document-result.v1",
-      operation: "structure_lookup",
-      source: {
-        sha256: currentSha256,
-        parser_version: "0.4.0",
-        cache_key: currentSha256 === sourceSha256 ? cacheKey : "changed-cache-key",
-        cache_hit: true,
-        page_count: 1,
-      },
-      result: engineLookup(request),
-    };
-  });
+  queryPdfNative.mockImplementation(async (_document, request) => engineLookup(request));
   vi.resetModules();
 });
 
@@ -96,14 +74,16 @@ describe("PDF evidence boundary", () => {
       cacheKey,
       documentId: "document-1",
       versionId: "version-1",
+      sourceSha256,
+      parserVersion: "0.4.0",
     };
     const first = await pdf.lookupPdfStructure(
-      sourcePath,
+      native,
       { locatorKind: "page", locator: "1" },
       options,
     );
     const second = await pdf.lookupPdfStructure(
-      sourcePath,
+      native,
       { locatorKind: "page", locator: "1" },
       options,
     );
@@ -125,9 +105,9 @@ describe("PDF evidence boundary", () => {
       throw new Error("fixture lookup failed");
     }
     expect(second.evidence.handle).toBe(first.evidence.handle);
-    await expect(pdf.rehydratePdfEvidence(sourcePath, first.evidence.handle))
+    await expect(pdf.rehydratePdfEvidence(native, first.evidence.handle))
       .resolves.toMatchObject({ status: "found" });
-    await expect(pdf.rehydratePdfLinkEvidence(sourcePath, first.evidence.handle))
+    await expect(pdf.rehydratePdfLinkEvidence(native, first.evidence.handle))
       .resolves.toMatchObject({
         pageNumbers: [1],
         pages: [{ pageNumber: 1, blockText: "Exact page text." }],
@@ -136,7 +116,7 @@ describe("PDF evidence boundary", () => {
 
   it("rejects unbounded requests before invoking the engine", async () => {
     const { lookupPdfStructure } = await import("../documentProjectionPdf");
-    await expect(lookupPdfStructure(sourcePath, {
+    await expect(lookupPdfStructure(null, {
       locatorKind: "paragraph",
       locator: "2",
       contextBlocks: 3,
@@ -144,24 +124,21 @@ describe("PDF evidence boundary", () => {
       status: "invalid",
       error: "Invalid or unbounded PDF locator",
     });
-    expect(runLegalPdfDocument).not.toHaveBeenCalled();
+    expect(queryPdfNative).not.toHaveBeenCalled();
   });
 
-  it("fails closed when source bytes drift from the cache identity", async () => {
+  it("fails closed when the native lookup is unavailable", async () => {
     const { lookupPdfStructure } = await import("../documentProjectionPdf");
     const options = {
       cacheKey,
       documentId: "document-1",
       versionId: "version-1",
+      sourceSha256,
+      parserVersion: "0.4.0",
     };
+    queryPdfNative.mockRejectedValueOnce(new Error("native document unavailable"));
     await expect(lookupPdfStructure(
-      sourcePath,
-      { locatorKind: "page", locator: "1" },
-      options,
-    )).resolves.toMatchObject({ status: "found" });
-    await writeFile(sourcePath, "%PDF-1.4\nchanged source");
-    await expect(lookupPdfStructure(
-      sourcePath,
+      native,
       { locatorKind: "page", locator: "1" },
       options,
     )).resolves.toMatchObject({ status: "unavailable", exact: false });

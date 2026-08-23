@@ -1,32 +1,38 @@
 /**
- * Amendment calculus: legal text's native diff language, compiled.
- *
- * Amendment prose ("Section 5(1) is amended by striking out “X” and
- * substituting “Y”") is parsed into typed edit ops addressed by skeleton
- * labels, and a deterministic applier consolidates them into as-amended
- * text. The applier doubles as a verifier: an op either lands cleanly at
- * its address or fails loudly with a typed reason, so nothing silently
- * "mostly applies". Covers both drafting grammars:
- *   - US federal cut-and-bite (strike/insert quoted strings, add at end)
- *   - Canadian federal replace-style ("is replaced by the following",
- *     "is amended by adding the following after subsection (2)")
- * plus the contract dialect ("Section 2.05 of the Credit Agreement").
+ * Parses US, Canadian, and contract amendment prose into addressed edits,
+ * then applies and verifies every edit against Rust-derived structure.
  */
 import { normalizeSourceDocLocator } from "./sourceDoc";
 import type { SourceDoc, SourceDocBlock } from "./sourceDoc";
+import { grammarRegExp, grammarSource } from "./grammarCorpus";
+import { analyzeDocumentNative } from "./structureNative";
 
-import {
-  FR_PROVISION_REF,
-  PROVISION_REF,
-  compactLabel,
-  compactLabelFr,
-  joinLocator,
-} from "./legalReferenceGrammar";
-import { crossReferenceGraphFromSkeleton } from "./legalCrossReference";
-import {
-  compileAgreementSkeleton,
-  type SkeletonNode,
-} from "./legalTextSkeleton";
+type InstrumentStructure = {
+    diagnostics: { code: string }[];
+    nodes: Array<{
+      label?: string; locator_kind?: string; parent_id?: string;
+      range: { start: number; end: number };
+      marker_range?: { start: number; end: number };
+    }>;
+    cross_references: { edges: Array<{
+      sourceStart: number; sourceEnd: number; raw: string; rawLabel: string;
+      normalizedLocator: string; targetLabel: string | null;
+      status: string; reason?: string;
+    }> };
+};
+
+async function analyzeInstrument(text: string, reconstructLineation?: boolean) {
+  const result = await analyzeDocumentNative<InstrumentStructure>({
+    kind: "instrument",
+    text,
+    id: "",
+    table_cells: [],
+    reconstruct_lineation: reconstructLineation !== false,
+    source_doc: true,
+  });
+  if (!result.source_doc) throw new Error("Rust omitted SourceDoc");
+  return result;
+}
 
 export type AmendOpKind =
   | "strike_text"
@@ -77,6 +83,31 @@ export interface AmendParseResult {
 const QUOTED =
   "(?:“([^”]*)”|``((?:[^']|'(?!'))*)''|‘([^’]*)’|\"([^\"]*)\")";
 
+const PROVISION_REF = grammarSource("provisions", "provision.ref.en.anchored");
+const FR_PROVISION_REF = grammarSource("provisions", "provision.ref.fr.anchored");
+const FR_UNCLOSED_LABEL = grammarRegExp(
+  "provisions", "provision.label.fr-unclosed", "gu",
+);
+
+function compactLabel(raw: string): string {
+  return raw.replace(/\s+/gu, "");
+}
+
+function compactLabelFr(raw: string): string {
+  return compactLabel(raw).replace(FR_UNCLOSED_LABEL, "($1)");
+}
+
+export function joinLocator(head: string, sub?: string): string {
+  const headCompact = compactLabel(head);
+  const subCompact = sub ? compactLabel(sub) : "";
+  const joined = subCompact.startsWith("(")
+    ? `${headCompact}${subCompact}`
+    : subCompact || headCompact;
+  return joined
+    ? normalizeSourceDocLocator("section", joined) || `sec${joined.toLowerCase()}`
+    : "";
+}
+
 // The static patterns below are compiled once; per-call recompilation of the
 // same constant source buys nothing (PROVISION_REF/QUOTED never vary).
 const QUOTED_G = new RegExp(QUOTED, "gu");
@@ -108,12 +139,6 @@ function quotedValue(...groups: Array<string | undefined>): string | undefined {
   for (const group of groups) if (group !== undefined) return group;
   return undefined;
 }
-
-/* Reference SHAPE — what "Section 5(1)" looks like and how its label
- * normalizes — is shared grammar, owned by legalReferenceGrammar; this file
- * owns only what to DO with a reference once matched. `joinLocator` is
- * re-exported so existing importers of this module keep their surface. */
-export { joinLocator } from "./legalReferenceGrammar";
 
 /* ------------------------------------------------------------------ */
 /* Parser                                                              */
@@ -730,7 +755,7 @@ function resolveTarget(
     normalizeSourceDocLocator("section", target),
   ].filter(Boolean);
   for (const key of keys) {
-    const position = doc.index.get(key);
+    const position = Object.hasOwn(doc.index, key) ? doc.index[key] : undefined;
     if (position !== undefined) {
       const node = doc.blocks[position];
       return { span: [node.start, node.end], node };
@@ -747,19 +772,7 @@ interface Splice {
 }
 
 export interface ApplyAmendOptions {
-  /**
-   * Whether the source text may have lost its line breaks to an extractor
-   * (see `CompileSkeletonOptions.reconstructLineation`). Default true, because
-   * the contract dialect this applier also serves arrives from the Library's
-   * PDF/DOCX lane.
-   *
-   * A caller amending an instrument from an AUTHORITATIVE feed passes false:
-   * A2AJ consolidations and CourtListener bulk ship the publisher's line
-   * breaks, so there is no lineation to reconstruct and the lineation competition
-   * must not run over them. The applied text inherits the source's
-   * provenance — it is the source with splices in it — so one flag governs
-   * both the before and after compiles.
-   */
+  /** Default true for extracted PDF/DOCX; authoritative feeds pass false. */
   reconstructLineation?: boolean;
 }
 
@@ -772,9 +785,8 @@ export async function applyAmendOps(
   ops: AmendOp[],
   options: ApplyAmendOptions = {},
 ): Promise<ApplyAmendmentsResult> {
-  const compile = { reconstructLineation: options.reconstructLineation };
-  const before = await compileAgreementSkeleton(sourceText, "", compile);
-  const labels = before.doc;
+  const before = await analyzeInstrument(sourceText, options.reconstructLineation);
+  const labels = before.source_doc;
   const splices: Splice[] = [];
   const failures: AmendFailure[] = [];
 
@@ -990,12 +1002,12 @@ export async function applyAmendOps(
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
 
-  const after = await compileAgreementSkeleton(text, "", compile);
+  const after = text === sourceText ? before : await analyzeInstrument(text, options.reconstructLineation);
   let newTextPresent = 0;
   let newTextMissing = 0;
   let oldTextGone = 0;
   let oldTextLingers = 0;
-  const afterLabels = after.doc;
+  const afterLabels = after.source_doc;
   for (const splice of accepted) {
     const op = splice.receipt.op;
     if (op.newText?.trim()) {
@@ -1019,8 +1031,12 @@ export async function applyAmendOps(
       newTextMissing,
       oldTextGone,
       oldTextLingers,
-      ladderViolationsBefore: before.ladder.violations,
-      ladderViolationsAfter: after.ladder.violations,
+      ladderViolationsBefore: before.structure.diagnostics.filter(
+        ({ code }: { code: string }) => code === "instrument_ladder_violation",
+      ).length,
+      ladderViolationsAfter: after.structure.diagnostics.filter(
+        ({ code }: { code: string }) => code === "instrument_ladder_violation",
+      ).length,
     },
   };
 }
@@ -1134,13 +1150,15 @@ function mappedLocator(
 
 function leadingLabelSpan(
   sourceText: string,
-  node: SkeletonNode,
+  node: { marker_range?: { start: number; end: number } },
 ): { start: number; end: number; token: string } | null {
-  const lead = sourceText.slice(node.start, Math.min(node.end, node.start + 100));
-  const match = /^(\s*(?:(?:Section|SECTION)\s+)?)(\([^\s()]{1,12}\)|\d+[A-Za-z]?(?:[.-]\d+[A-Za-z]?)*\.?)/u.exec(lead);
+  const range = node.marker_range;
+  if (!range) return null;
+  const marker = sourceText.slice(range.start, range.end);
+  const match = /(\([^\s()]{1,12}\)|\d+[A-Za-z]?(?:[.-]\d+[A-Za-z]?)*\.?)(?=\s*$)/u.exec(marker);
   if (!match) return null;
-  const start = node.start + match[1].length;
-  return { start, end: start + match[2].length, token: match[2] };
+  const start = range.start + match.index;
+  return { start, end: start + match[1].length, token: match[1] };
 }
 
 function headingToken(label: string, oldToken: string): string {
@@ -1185,14 +1203,15 @@ export async function deleteProvisionAndRenumberSiblings(
     failures,
     verification: { headingsRenumbered: 0, referencesUpdated: 0 },
   });
-  const skeleton = await compileAgreementSkeleton(sourceText, "", {
-    reconstructLineation: options.reconstructLineation,
-  });
+  const before = await analyzeInstrument(sourceText, options.reconstructLineation);
+  const nodes = before.structure.nodes;
   const requested = target.toLowerCase().startsWith("sec")
     ? target.toLowerCase()
     : normalizeSourceDocLocator("section", target).toLowerCase();
-  const matches = skeleton.nodes.filter(
-    (node) => occurrenceBase(node.label).toLowerCase() === requested,
+  const matches = nodes.filter(
+    (node) =>
+      typeof node.label === "string" &&
+      occurrenceBase(node.label).toLowerCase() === requested,
   );
   if (!requested || !matches.length) {
     return failed([{ code: "target_not_found", detail: target }]);
@@ -1204,36 +1223,42 @@ export async function deleteProvisionAndRenumberSiblings(
     }]);
   }
   const selected = matches[0];
-  if (selected.kind !== "section" && selected.kind !== "subsection") {
+  const selectedLabel = selected.label!;
+  if (
+    selected.locator_kind !== "section" &&
+    selected.locator_kind !== "subsection"
+  ) {
     return failed([{
       code: "unsupported_target",
-      detail: `${selected.label} is a ${selected.kind}, not a provision sibling`,
+      detail: `${selectedLabel} is a ${selected.locator_kind ?? "non-provision"} locator`,
     }]);
   }
 
-  const family = numberingParent(selected.label);
-  const siblings = skeleton.nodes
+  const family = numberingParent(selectedLabel);
+  const siblings = nodes
     .filter(
       (node) =>
-        node.kind === selected.kind &&
-        node.depth === selected.depth &&
-        node.parentLabel === selected.parentLabel &&
+        node.locator_kind === selected.locator_kind &&
+        node.parent_id === selected.parent_id &&
+        typeof node.label === "string" &&
         numberingParent(node.label) === family,
     )
-    .sort((left, right) => left.start - right.start);
-  const bases = siblings.map((node) => occurrenceBase(node.label));
+    .sort((left, right) => left.range.start - right.range.start);
+  const bases = siblings.map((node) => occurrenceBase(node.label!));
   if (new Set(bases).size !== bases.length) {
     return failed([{
       code: "sibling_ambiguous",
-      detail: `The sibling sequence containing ${selected.label} repeats a label`,
+      detail: `The sibling sequence containing ${selectedLabel} repeats a label`,
     }]);
   }
   const selectedAt = siblings.indexOf(selected);
   const following = siblings.slice(selectedAt + 1);
-  const mapping = following.map((node, index) => ({
-    from: node.label,
-    to: index === 0 ? selected.label : following[index - 1].label,
-  }));
+  const mapping: Array<{ from: string; to: string }> = following.map(
+    (node, index) => ({
+      from: node.label!,
+      to: index === 0 ? selectedLabel : following[index - 1].label!,
+    }),
+  );
   const unsafeStep = mapping.find(
     ({ from, to }) => !closesOneSiblingStep(from, to),
   );
@@ -1248,16 +1273,16 @@ export async function deleteProvisionAndRenumberSiblings(
 
   const failures: DeleteAndRenumberFailure[] = [];
   const splices: RenumberSplice[] = [{
-    start: selected.start,
-    end: selected.end,
+    start: selected.range.start,
+    end: selected.range.end,
     replacement: "",
     receipt: {
       kind: "delete_provision",
-      start: selected.start,
-      end: selected.end,
-      removed: sourceText.slice(selected.start, selected.end),
+      start: selected.range.start,
+      end: selected.range.end,
+      removed: sourceText.slice(selected.range.start, selected.range.end),
       inserted: "",
-      from: selected.label,
+      from: selectedLabel,
       to: null,
     },
   }];
@@ -1270,8 +1295,8 @@ export async function deleteProvisionAndRenumberSiblings(
       failures.push({
         code: "heading_not_found",
         detail: `No leading label token at ${move.from}`,
-        start: node.start,
-        end: Math.min(node.end, node.start + 100),
+        start: node.range.start,
+        end: Math.min(node.range.end, node.range.start + 100),
       });
       continue;
     }
@@ -1293,9 +1318,12 @@ export async function deleteProvisionAndRenumberSiblings(
     });
   }
 
-  const graph = crossReferenceGraphFromSkeleton(sourceText, skeleton);
-  for (const edge of graph.edges) {
-    if (edge.sourceStart >= selected.start && edge.sourceEnd <= selected.end) {
+  const references = before.structure.cross_references.edges;
+  for (const edge of references) {
+    if (
+      edge.sourceStart >= selected.range.start &&
+      edge.sourceEnd <= selected.range.end
+    ) {
       continue;
     }
     const locator = occurrenceBase(edge.normalizedLocator);
@@ -1315,10 +1343,10 @@ export async function deleteProvisionAndRenumberSiblings(
       });
       continue;
     }
-    if (edge.targetLabel && isAtOrBelow(edge.targetLabel, selected.label)) {
+    if (edge.targetLabel && isAtOrBelow(edge.targetLabel, selectedLabel)) {
       failures.push({
         code: "reference_to_deleted_target",
-        detail: `${edge.raw} points to ${selected.label}`,
+        detail: `${edge.raw} points to ${selectedLabel}`,
         start: edge.sourceStart,
         end: edge.sourceEnd,
       });
@@ -1350,33 +1378,6 @@ export async function deleteProvisionAndRenumberSiblings(
       },
     });
   }
-  // The shared reference graph deliberately omits list continuations and
-  // bare labels. A mutation cannot share that retrieval-time precision
-  // tradeoff: an uncovered affected label may be a pointer we would leave
-  // stale, so refuse instead of guessing what the occurrence means.
-  const covered = [
-    { start: selected.start, end: selected.end },
-    ...headingSpans,
-    ...graph.edges.map((edge) => ({ start: edge.sourceStart, end: edge.sourceEnd })),
-  ];
-  for (const locator of [selected.label, ...mapping.map(({ from }) => from)]) {
-    const printed = locator.replace(/^sec/u, "").replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const pattern = new RegExp(
-      `(?<![\\p{L}\\p{N}.])${printed}(?!(?:[\\p{L}\\p{N}]|\\.\\d))`,
-      "gu",
-    );
-    for (const match of sourceText.matchAll(pattern)) {
-      const start = match.index;
-      const end = start + match[0].length;
-      if (covered.some((span) => start >= span.start && end <= span.end)) continue;
-      failures.push({
-        code: "ambiguous_reference",
-        detail: `Unclassified occurrence of ${match[0]}`,
-        start,
-        end,
-      });
-    }
-  }
   if (failures.length) return failed(failures, mapping);
 
   splices.sort((left, right) => left.start - right.start || left.end - right.end);
@@ -1394,16 +1395,15 @@ export async function deleteProvisionAndRenumberSiblings(
   for (const splice of [...splices].sort((left, right) => right.start - left.start)) {
     text = text.slice(0, splice.start) + splice.replacement + text.slice(splice.end);
   }
-  const after = await compileAgreementSkeleton(text, "", {
-    reconstructLineation: options.reconstructLineation,
-  });
+  const after = await analyzeInstrument(text, options.reconstructLineation);
   const counts = new Map<string, number>();
-  for (const node of after.nodes) {
+  for (const node of after.structure.nodes) {
+    if (typeof node.label !== "string") continue;
     const key = occurrenceBase(node.label);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const expected = mapping.map(({ to }) => to);
-  const vacated = mapping.at(-1)?.from ?? selected.label;
+  const vacated = mapping.at(-1)?.from ?? selectedLabel;
   if (
     expected.some((label) => counts.get(label) !== 1) ||
     (counts.get(vacated) ?? 0) !== 0

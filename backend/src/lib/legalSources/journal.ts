@@ -497,9 +497,7 @@ function finalContractPages(articleId: number): FinalContractPages | null {
 }
 
 async function analyzeJournal(request: unknown) {
-  const result = await analyzeDocumentNative<{
-    structure: unknown; source_doc?: SourceDoc;
-  }>(request);
+  const result = await analyzeDocumentNative(request);
   if (!result.source_doc) throw new Error("Rust omitted SourceDoc");
   return result as typeof result & { source_doc: SourceDoc };
 }

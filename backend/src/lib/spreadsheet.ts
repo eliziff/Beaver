@@ -1,14 +1,19 @@
 import type * as XLSX from "xlsx";
-import type { TableCellSpan } from "./legalTextSkeleton";
 
 /**
  * A native spreadsheet cell projected onto the compact model-facing text.
  * The typed grid is authoritative; Markdown is only one cheap serialization.
  */
-export interface SpreadsheetCellSpan extends TableCellSpan {
+export interface SpreadsheetCellSpan {
+  table: number;
   tableName: string;
+  row: number;
+  column: number;
   address: string;
   displayValue: string;
+  start: number;
+  end: number;
+  columnSpan?: number;
   rowSpan?: number;
 }
 

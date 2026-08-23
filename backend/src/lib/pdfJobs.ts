@@ -10,7 +10,7 @@ import {
 import { documentProjectionService, type PdfPreparationProgress } from
   "./documentProjectionService";
 import { sha256 } from "./hash";
-import type { LegalPdfOcrProvider } from "./legalPdfProcess";
+import type { LegalPdfOcrProvider } from "./structureNative";
 import type { RelationalDatabase } from "./relationalDatabase";
 
 const SHA256 = /^[a-f0-9]{64}$/u;

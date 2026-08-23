@@ -9,8 +9,9 @@ import {
   citationPresentationText,
   presentLegalEvidence,
 } from "../citationPresentation";
-import { createTextSourceDoc } from "../../sourceDoc";
 import type { A2AJLocatorLookup } from "../../legalSources/a2aj";
+
+const textSource = (text: string) => ({ text });
 
 describe("legal evidence citation presentation", () => {
   it("owns authority, McGill locator, and source/passage destinations", () => {
@@ -58,7 +59,7 @@ describe("legal evidence citation presentation", () => {
     });
     const presented = presentLegalEvidence({
       receipt,
-      source: createTextSourceDoc(sourceText),
+      source: textSource(sourceText),
     });
 
     expect(presented.passageUrl).toContain("display=html#:~:text=");
@@ -103,7 +104,7 @@ describe("legal evidence citation presentation", () => {
     const presented = presentLegalEvidence({
       receipt,
       lookup,
-      source: createTextSourceDoc(text),
+      source: textSource(text),
     });
 
     expect(presented.sourceUrl).toContain("canlii.org");
@@ -127,7 +128,7 @@ describe("legal evidence citation presentation", () => {
         upstreamLicense: null,
         structure: lookup.structure,
       },
-      source: createTextSourceDoc(text),
+      source: textSource(text),
     });
     expect(restored.passageUrl).toContain("decisions.fca-caf.gc.ca");
     expect(restored.passageUrl).toContain("#par42:~:text=");
@@ -150,7 +151,7 @@ describe("legal evidence citation presentation", () => {
         upstreamLicense: null,
         structure: lookup.structure,
       },
-      source: createTextSourceDoc(text),
+      source: textSource(text),
     });
     expect(documentPassage.sourceUrl).toContain("canlii.org");
     expect(documentPassage.passageUrl).toContain("decisions.fca-caf.gc.ca");
