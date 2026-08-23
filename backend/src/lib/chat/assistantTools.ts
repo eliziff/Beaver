@@ -48,7 +48,6 @@ import {
 import {
   deriveDocumentNative,
   docxStructureLintNative,
-  documentLeafUnitsNative,
   documentPageMapNative,
   documentRevisionNative,
   documentTextNative,
@@ -203,11 +202,12 @@ function oneHopLegalScope(
   document: NativeDocument,
   block: NativeDocumentBlock,
   direction: "inbound" | "outbound" | "both",
+  includeUnits = false,
 ) {
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";
-  return graphScopeNative(document, block.label, follow, 1, true);
+  return graphScopeNative(document, block.label, follow, 1, true, includeUnits);
 }
 
 
@@ -1094,10 +1094,12 @@ async function readLegalSourceResource(
           artifact,
           block as unknown as NativeDocumentBlock,
           references as Exclude<A2AJReferenceDirection, "none">,
+          true,
         );
         const candidates = scope?.nodes ?? [];
         const sections: Array<{ label: string; text: string; evidence_ids: string[] }> = [];
         const omitted: string[] = [];
+        const sourceSha256 = documentRevisionNative(artifact);
         let chars = 0;
         for (const [index, related] of candidates.entries()) {
           if (sections.length === 50 || chars + related.text.length > 32_000) {
@@ -1105,9 +1107,7 @@ async function readLegalSourceResource(
             break;
           }
           chars += related.text.length;
-          const receipts = documentLeafUnitsNative(
-            artifact, related.kind, related.start, related.end,
-          ).filter((unit): unit is NativeDocumentBlock & {
+          const receipts = (related.units ?? [related]).filter((unit): unit is NativeDocumentBlock & {
             kind: "paragraph" | "page" | "section" | "footnote";
           } =>
             unit.kind === "paragraph" || unit.kind === "page" ||
@@ -1117,7 +1117,7 @@ async function readLegalSourceResource(
             name: typeof metadata.name === "string" ? metadata.name : null,
             dataset: metadata.dataset as string,
             language: metadata.language as "en" | "fr",
-            sourceSha256: documentRevisionNative(artifact),
+            sourceSha256,
             spanText: unit.text,
             start: unit.start,
             end: unit.end,

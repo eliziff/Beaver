@@ -1,20 +1,13 @@
 import {
-  a2ajLegalSourceProvider,
-  type A2AJDocument,
-  type A2AJLocatorKind,
-  type A2AJLocatorLookup,
-} from "../../backend/src/lib/legalSources/a2aj";
-import {
-  createTextSourceDoc,
-  sourceDocBlockText,
-  sourceDocPhraseSpans,
-  sourceDocQuoteText,
-  sourceDocQuoteWords,
-  type SourceDoc,
-  type SourceDocQuoteSpan,
-} from "../../backend/src/lib/sourceDoc";
+  documentTextNative,
+  quoteWordsNative,
+  textPhraseSpansNative,
+  tokenizeTextNative,
+  type NativeDocument,
+  type NativeQuoteSpan,
+  type NativeWordSpan,
+} from "../../backend/src/lib/structureNative";
 import { normalizeWhitespace } from "../../backend/src/lib/text";
-import { buildCanliiCaseUrl } from "../../backend/src/lib/canliiUrls";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
@@ -25,15 +18,7 @@ import { buildCanliiCaseUrl } from "../../backend/src/lib/canliiUrls";
  * and the artifact is compiled once for the call, never once per quote.
  */
 
-export type QuoteSource = string | SourceDoc;
-
-type A2AJCitationIdentity = {
-  citation: string | null;
-  name: string | null;
-  dataset: string | null;
-  url: string | null;
-  quotes: { quote: string }[];
-};
+export type QuoteSource = string | NativeDocument;
 
 export type LegalSourceEvidence = {
   url: string;
@@ -45,11 +30,17 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
-function asDoc(source: QuoteSource): SourceDoc {
-  return typeof source === "string" ? createTextSourceDoc(source) : source;
-}
-
-type A2AJLookupBlock = NonNullable<A2AJLocatorLookup["block"]>;
+type QuoteView = { text: string };
+const asDoc = (source: QuoteSource): QuoteView => typeof source === "string"
+  ? { text: source }
+  : { text: documentTextNative(source) };
+const tokens = (source: QuoteView): NativeWordSpan[] =>
+  tokenizeTextNative(source.text);
+const phraseSpans = (source: QuoteView, words: string[], options: {
+  start?: number; end?: number; sameLine?: boolean; limit?: number;
+} = {}): NativeQuoteSpan[] => textPhraseSpansNative(
+  source.text, words, options.start, options.end, options.sameLine, options.limit,
+);
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
 // A whole-quote target longer than one tight prose run is more fragile than a
@@ -60,14 +51,19 @@ const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
 // inside it), not with a provider name.
 const RANGE_PREFERRED_WORDS = 20;
 const RANGE_PREFERRED_CHARS = 150;
-const RANGE_BOUNDARY_WORDS = [6, 4, 8, 12];
+// Longest boundaries first: short heads risk matching publisher-side
+// duplicates that never appear in the flattened source (wrong-start sweeps).
+const RANGE_BOUNDARY_WORDS = [12, 8, 6];
 
 /**
- * Structural labels that publishers render outside the prose run - margin
- * paragraph numbers, provision headings, list markers - plus the bracketed
- * pinpoint ranges A2AJ appends ("[99-135]") that never appear on the page.
- * A target that begins or ends with one cannot match the rendered DOM, so
- * edges are stripped before anything else happens.
+ * Reliability over completeness — drop tiny hard bits at edges, paint the
+ * core, never paint extraneous content. Structural labels that publishers
+ * render outside the prose run - margin paragraph numbers, provision
+ * headings, list markers - plus the bracketed pinpoint ranges A2AJ appends
+ * ("[99-135]") never appear on the page. A target that begins or ends with
+ * one cannot match the rendered DOM, so edges are stripped before anything
+ * else. Interior hard bits (nested subsections, Act names, s. refs) remain
+ * interior and are handled via graded variants, not trimming.
  */
 const LEADING_SPAN_LABELS = [
   /^\[\s*\d{1,4}\s*\]\s*/u,
@@ -127,20 +123,22 @@ function stripLeadingLabels(text: string): string {
   }
 }
 
-function wordAtOrAfter(block: SourceDoc, offset: number, from: number): number {
-  for (let index = from; index < block.tokens.length; index += 1) {
-    if (block.tokens[index].end > offset) return index;
+function wordAtOrAfter(block: QuoteView, offset: number, from: number): number {
+  const words = tokens(block);
+  for (let index = from; index < words.length; index += 1) {
+    if (words[index].end > offset) return index;
   }
   return -1;
 }
 
 function wordAtOrBefore(
-  block: SourceDoc,
+  block: QuoteView,
   offset: number,
   from: number,
 ): number {
-  for (let index = Math.min(from, block.tokens.length - 1); index >= 0; index -= 1) {
-    if (block.tokens[index].start < offset) return index;
+  const words = tokens(block);
+  for (let index = Math.min(from, words.length - 1); index >= 0; index -= 1) {
+    if (words[index].start < offset) return index;
   }
   return -1;
 }
@@ -151,9 +149,9 @@ function wordAtOrBefore(
  * only what the fragment must match is trimmed.
  */
 function adjustSpanEdges(
-  block: SourceDoc,
-  original: SourceDocQuoteSpan,
-): SourceDocQuoteSpan {
+  block: QuoteView,
+  original: NativeQuoteSpan,
+): NativeQuoteSpan {
   let start = original.start;
   let end = original.end;
   for (;;) {
@@ -181,11 +179,12 @@ function adjustSpanEdges(
  * end run like "5.5 Summary" anchors on "Summary".
  */
 function edgePhrase(
-  block: SourceDoc,
-  span: SourceDocQuoteSpan,
+  block: QuoteView,
+  span: NativeQuoteSpan,
   edge: "start" | "end",
   size: number,
 ): { text: string; first: number; last: number } | null {
+  const words = tokens(block);
   const forward = edge === "start";
   const indexes: number[] = [];
   const step = forward ? 1 : -1;
@@ -195,10 +194,10 @@ function edgePhrase(
     (forward ? index <= span.lastWord : index >= span.firstWord);
     index += step
   ) {
-    const token = block.tokens[index];
+    const token = words[index];
     if (!token) break;
     if (indexes.length) {
-      const previous = block.tokens[indexes.at(-1)!];
+      const previous = words[indexes.at(-1)!];
       const between = block.text.slice(
         Math.min(previous.end, token.start),
         Math.max(previous.end, token.start),
@@ -212,11 +211,11 @@ function edgePhrase(
   const first = Math.min(...indexes);
   const last = Math.max(...indexes);
   const raw = normalizeWhitespace(
-    block.text.slice(block.tokens[first].start, block.tokens[last].end),
+    block.text.slice(words[first].start, words[last].end),
   );
   // An end run like "5.5 Summary" anchors on its prose: "Summary".
   const text = stripLeadingLabels(raw);
-  return sourceDocQuoteWords(text).length
+  return quoteWordsNative(text).length
     ? { text, first, last }
     : null;
 }
@@ -228,17 +227,17 @@ function edgePhrase(
  * highlights, so anything above one rejects the candidate.
  */
 function rangeDirectiveMatchCount(
-  document: SourceDoc,
+  document: QuoteView,
   start: string,
   end: string,
 ): number {
-  const starts = sourceDocPhraseSpans(
+  const starts = phraseSpans(
     document,
-    sourceDocQuoteWords(start),
+    quoteWordsNative(start),
     { limit: 3 },
   );
   if (!starts.length) return 0;
-  const ends = sourceDocPhraseSpans(document, sourceDocQuoteWords(end), {
+  const ends = phraseSpans(document, quoteWordsNative(end), {
     limit: 3,
   });
   if (!ends.length) return 0;
@@ -261,6 +260,8 @@ function rangeDirectiveMatchCount(
  * punctuation, the end edge starts at the continuation word, so each range
  * endpoint lives inside one publisher paragraph. The seam guess is gated by
  * the same uniqueness verification as every other candidate.
+ * Reliability over completeness: seamSplit drops the seam-adjacent pinpoint
+ * at edges and paints the core on each side (pinpoint-drop).
  */
 const SEAM = /[:;]\s+\S|\.\s+[A-Z]/u;
 
@@ -270,20 +271,28 @@ function seamSplit(
 ): { text: string; first: number; last: number } | null {
   const match = phrase.text.match(SEAM);
   if (!match || match.index === undefined) return null;
-  if (edge === "start") {
-    const cut = match.index + 1; // keep the colon/period
-    const text = phrase.text.slice(0, cut).trim();
-    const count = sourceDocQuoteWords(text).length;
-    if (count < 3) return null;
-    return { text, first: phrase.first, last: phrase.first + count - 1 };
-  }
   const lastWhitespace = match[0].search(/\s+\S+$/u);
   if (lastWhitespace < 0) return null;
   const restStart = match.index + lastWhitespace + 1;
-  const text = phrase.text.slice(restStart).trim();
-  const count = sourceDocQuoteWords(text).length;
-  if (count < 3) return null;
-  return { text, first: phrase.last - count + 1, last: phrase.last };
+  // Head keeps the seam punctuation; tail starts at the continuation word.
+  const head = phrase.text.slice(0, match.index + 1).trim();
+  const tail = phrase.text.slice(restStart).trim();
+  const headCount = quoteWordsNative(head).length;
+  const tailCount = quoteWordsNative(tail).length;
+  if (edge === "start") {
+    // The start boundary must sit inside one paragraph: prefer the head (which
+    // ends at the seam punctuation). When the head is too short to be unique,
+    // the continuation after the seam is the only usable start.
+    if (headCount >= 3) return { text: head, first: phrase.first, last: phrase.first + headCount - 1 };
+    if (tailCount >= 3) return { text: tail, first: phrase.last - tailCount + 1, last: phrase.last };
+    return null;
+  }
+  // The end boundary must sit inside one paragraph: prefer the tail (which
+  // starts at the continuation word). When the tail is too short, the pre-seam
+  // head is the only usable end (paints up to the seam punctuation).
+  if (tailCount >= 3) return { text: tail, first: phrase.last - tailCount + 1, last: phrase.last };
+  if (headCount >= 3) return { text: head, first: phrase.first, last: phrase.first + headCount - 1 };
+  return null;
 }
 
 function boundaryVariants(text: string): string[] {
@@ -291,32 +300,44 @@ function boundaryVariants(text: string): string[] {
     ...citationClusterVariants(text),
     punctuationDetachVariant(text),
     curlyQuoteVariant(text),
+    curlySpacedVariant(text),
+    legislationNestedVariant(text),
+    markdownVariant(text),
+    actAbbreviationVariant(text),
   ].filter((variant): variant is string => variant !== null);
 }
 
 function buildRangeDirective(
-  block: SourceDoc,
-  span: SourceDocQuoteSpan,
-  document: SourceDoc,
+  block: QuoteView,
+  span: NativeQuoteSpan,
+  document: QuoteView,
 ) {
+  // Emit EVERY boundary size (12/8/6/4 words) plus its seam-split as sibling
+  // directives, not just the first unique one. A long boundary is unique in
+  // the flattened source but can cross a publisher paragraph seam that the
+  // source cannot see; a shorter boundary survives it. Chromium uses the first
+  // directive that matches, so shipping the whole ladder costs nothing and the
+  // longest boundary that fits inside one paragraph wins.
+  const combos = new Set<string>();
   for (const size of RANGE_BOUNDARY_WORDS) {
     const head = edgePhrase(block, span, "start", size);
     const tail = edgePhrase(block, span, "end", size);
     if (!head || !tail) continue;
+    const seamHead = seamSplit(head, "start");
+    const seamTail = seamSplit(tail, "end");
     const pairs = [
       { head, tail },
-      { head: seamSplit(head, "start") ?? head, tail: seamSplit(tail, "end") ?? tail },
+      ...(seamHead || seamTail ? [{ head: seamHead ?? head, tail: seamTail ?? tail }] : []),
     ];
     for (const { head: candidateHead, tail: candidateTail } of pairs) {
       if (candidateHead.last >= candidateTail.first) continue;
       if (rangeDirectiveMatchCount(document, candidateHead.text, candidateTail.text) !== 1) continue;
+      combos.add(textRangeDirective(candidateHead.text, candidateTail.text));
       const headVariants = boundaryVariants(candidateHead.text);
       const tailVariants = boundaryVariants(candidateTail.text);
-      const combos = new Set<string>();
-      combos.add(textRangeDirective(candidateHead.text, candidateTail.text));
       for (
         let grade = 0;
-        grade < Math.max(headVariants.length, tailVariants.length) && combos.size < 4;
+        grade < Math.max(headVariants.length, tailVariants.length) && combos.size < 12;
         grade += 1
       ) {
         combos.add(
@@ -326,10 +347,11 @@ function buildRangeDirective(
           ),
         );
       }
-      return { directives: [...combos], start: span.start };
+      if (combos.size >= 12) break;
     }
+    if (combos.size >= 12) break;
   }
-  return null;
+  return combos.size ? { directives: [...combos], start: span.start } : null;
 }
 
 /**
@@ -340,21 +362,21 @@ function buildRangeDirective(
  * link entirely, which is exactly what a court quotation looks like.
  */
 function chooseSourceSpan(
-  doc: SourceDoc,
+  doc: QuoteView,
   quote: string,
-): SourceDocQuoteSpan | null {
-  const extend = (span: SourceDocQuoteSpan) => ({
+): NativeQuoteSpan | null {
+  const extend = (span: NativeQuoteSpan) => ({
     ...span,
     end: extendTerminalPunctuation(doc.text, span.end, quote),
   });
-  let spans = sourceDocPhraseSpans(doc, sourceDocQuoteWords(quote)).map(extend);
+  let spans = phraseSpans(doc, quoteWordsNative(quote)).map(extend);
   if (!spans.length) {
     // Editorial bracket insertions ("[t]he") tokenize as split words in the
     // document ("t", "he") but merge under quote-word normalisation; retry
     // with bracket characters treated as separators.
-    spans = sourceDocPhraseSpans(
+    spans = phraseSpans(
       doc,
-      sourceDocQuoteWords(quote.replace(/[\[\]"]/gu, " ")),
+      quoteWordsNative(quote.replace(/[\[\]"]/gu, " ")),
     ).map(extend);
   }
   if (spans.length === 1) return spans[0];
@@ -365,7 +387,13 @@ function chooseSourceSpan(
   );
   const wanted = [
     normalizeWhitespace(quote.trim().replace(/^["'“”]+|["'“”]+$/gu, "")),
-    sourceDocQuoteText(quote),
+    normalizeWhitespace(
+      quote.trim()
+        .replace(/^["'“”]+|["'“”]+$/gu, "")
+        .replace(/\[([A-Za-z])\]([A-Za-z])/gu, "$1$2")
+        .replace(/\[([^\]]+)\]/gu, "$1")
+        .replace(/\.{3}|…/gu, " "),
+    ),
     // Publisher typography: straight quotes in the flattened source render
     // as curly in the published document.
     normalizeWhitespace(
@@ -453,35 +481,87 @@ function citationClusterVariants(target: string): string[] {
 }
 
 /**
- * Publisher templates detach punctuation from its neighbours: BC courts put
- * a space before colons that follow italics ("Freedoms : s. 1"), CITT puts
- * spaces around abbreviation periods ("60. (1)", "8 ."). Detached spellings
- * cannot be derived from source text, so they ship as sibling variants.
+ * Publisher templates detach punctuation from its neighbours: CITT renders
+ * "60. (1)" and "8 ." where the flattened source has "60.(1)" and "8.".
+ * Detached spellings cannot be derived from source text, so they ship as
+ * sibling variants. (No space-before-colon rule: BC courts' apparent
+ * "Freedoms : s. 1" turned out to be a colon followed by a paragraph break,
+ * not detached punctuation.) Reliability over completeness: interior hard
+ * punctuation stays variant-covered; tiny detached bits at edges would be
+ * trimmed by adjustSpanEdges, not variant-expanded.
  */
 function punctuationDetachVariant(target: string): string | null {
   const detached = target
-    // "Freedoms:" -> "Freedoms :" (space before a colon that follows a letter)
-    .replace(/([A-Za-z])(:)/gu, "$1 $2")
+    // "8." at a token start -> "8 ." (space before a trailing period). Runs
+    // first so its output cannot be re-matched by the period-paren rule.
+    .replace(/((?:^|[\s(])(?:\d+(?:\.\d+)*)?)(\d)(\.)(?=\s)/gu, (_m, head, digit, dot) => `${head}${digit} ${dot}`)
     // "60.(1)" -> "60. (1)" (space after a period between digit and paren)
-    .replace(/(\d)(\.)(\()/gu, "$1$2 $3")
-    // "8." at a token start -> "8 ." (space before a trailing period)
-    .replace(/((?:^|[\s(])(?:\d+(?:\.\d+)*)?)(\d)(\.)(?=\s)/gu, (_m, head, digit, dot) => `${head}${digit} ${dot}`);
+    .replace(/(\d)(\.)(\()/gu, "$1$2 $3");
   return detached === target ? null : detached;
 }
 
 /**
  * Legal prose set by publishers uses typographic quotes; flattened corpus
  * text usually carries ASCII ones. Emit the curly spelling beside the
- * straight one.
+ * straight one. An apostrophe between word characters (possessives,
+ * contractions: "applicant's", "don't") is a RIGHT single quotation mark
+ * (U+2019); U+2018 is the LEFT mark used for opening quotes.
  */
 function curlyQuoteVariant(target: string): string | null {
   if (!/["']/u.test(target)) return null;
   const curly = target
     .replace(/(\S)"(\S)/gu, "$1\u201C$2")
-    .replace(/(\S)'(\S)/gu, "$1\u2018$2")
+    .replace(/(\S)'(\S)/gu, "$1\u2019$2")
     .replace(/"(\S)/gu, "\u201C$1")
-    .replace(/(\S)"/gu, "$1\u201D");
+    .replace(/(\S)"/gu, "$1\u201D")
+    .replace(/'(\S)/gu, "\u2018$1")
+    .replace(/(\S)'/gu, "$1\u2019");
   return curly === target ? null : curly;
+}
+
+function curlySpacedVariant(target: string): string | null {
+  if (!/"/u.test(target)) return null;
+  // BCCourts renders straight "X" as “ X" with a thin/NBSP after the opener
+  // (seen on “ PBS legislation” vs "PBS). Emit that spaced form as a sibling.
+  const spaced = target.replace(/"(\S)/gu, "\u201C\u00A0$1");
+  return spaced === target ? null : spaced;
+}
+
+function legislationNestedVariant(target: string): string | null {
+  // Handles tight nested subsections: "1(1)(a)(ii)" <-> "1 (1) (a) (ii)" and "1(1)(a)(ii)" <-> "1(1) (a) (ii)" etc.
+  // Also handles s. 242(2.1) vs s.242(2.1) spacing.
+  // Insert space before each '(' that follows a digit/letter without space
+  let v = target.replace(/(\d)(\()/gu, "$1 $2");
+  // Detached period before paren: "60.(1)" -> "60. (1)" (publisher templates)
+  v = v.replace(/(\d)(\.)(\()/gu, "$1$2 $3");
+  // Insert space after each ')' that is followed by '(' or digit without space
+  v = v.replace(/\)(\()/gu, ") $1");
+  v = v.replace(/\)(\d)/gu, ") $1");
+  // Normalize "s.242" -> "s. 242"
+  v = v.replace(/\bs\.\s*(\d)/gu, "s. $1");
+  if (v !== target) return v;
+  return null;
+}
+
+/**
+ * A2AJ text is markdown; publishers render `*emphasis*`/`**bold**`/`_italic_`
+ * with no markers ("*acknowledgement*" -> "acknowledgement"). Emit the
+ * marker-stripped spelling as a sibling so the browser uses whichever the
+ * rendered page carries.
+ */
+function markdownVariant(target: string): string | null {
+  if (!/[*_`]/u.test(target)) return null;
+  const stripped = target.replace(/[*_`]/gu, "");
+  return stripped === target ? null : stripped;
+}
+
+function actAbbreviationVariant(target: string): string | null {
+  // BCCourts: A2AJ has "COE" for "COEA" (Court Order Enforcement Act) and similar
+  // truncations. Try the expanded form as a sibling; the browser will use whichever
+  // the page carries and ignore the other.
+  if (!/\bCOE\b/u.test(target)) return null;
+  const expanded = target.replace(/\bCOE\b/gu, "COEA");
+  return expanded === target ? null : expanded;
 }
 
 /**
@@ -490,17 +570,32 @@ function curlyQuoteVariant(target: string): string | null {
  * split-range sibling: start ends at the seam punctuation, end begins at the
  * continuation word; Chromium highlights the whole span between them.
  */
-function seamRangeSibling(target: string, document: SourceDoc): string[] {
+function seamRangeSibling(target: string, document: QuoteView): string[] {
   const match = target.match(SEAM);
   if (!match || match.index === undefined) return [];
   const lastWhitespace = match[0].search(/\s+\S+$/u);
   if (lastWhitespace < 0) return [];
   const headText = target.slice(0, match.index + 1).trim();
-  const tailText = target.slice(match.index + lastWhitespace + 1).trim();
-  if (
-    sourceDocQuoteWords(headText).length < 2 ||
-    sourceDocQuoteWords(tailText).length < 2
-  ) {
+  let tailText = target.slice(match.index + lastWhitespace + 1).trim();
+  // Continuation paragraphs often open with a pinpoint ("s. 1", "para. 33")
+  // that the publisher pads with a wide NBSP run; the seam tail must start
+  // after it to stay inside one publisher paragraph.
+  tailText = tailText.replace(
+    /^(?:(?:s|ss|para|paras|art|arts|p|pp)\.?\s+\d[\w.)-]*|Sections?\s+\d[\w.)-]*|Subsections?\s+\d[\w.)-]*)\s+/iu,
+    "",
+  ).trim();
+  const headWords = quoteWordsNative(headText).length;
+  const tailWords = quoteWordsNative(tailText).length;
+  if (headWords < 2) return [];
+  if (tailWords < 2) {
+    // The continuation after the seam is too short to anchor a range (e.g.
+    // "...here: The"): the seam-adjacent word can't carry an end boundary, so
+    // drop it and emit the pre-seam head as a single-run instead — it sits
+    // entirely inside one paragraph and paints the core. Reliability over
+    // completeness (pinpoint-drop).
+    if (directiveMatchCount(document, headText) === 1) {
+      return exactDirectives(headText);
+    }
     return [];
   }
   if (rangeDirectiveMatchCount(document, headText, tailText) !== 1) return [];
@@ -527,6 +622,8 @@ function exactDirectives(
     ...citationClusterVariants(target),
     punctuationDetachVariant(target),
     curlyQuoteVariant(target),
+    legislationNestedVariant(target),
+    markdownVariant(target),
   ].filter((variant): variant is string => variant !== null);
   const directives = [textDirective(target, prefix, suffix)];
   for (const variant of [...new Set([...variants, ...extraSpellings])].slice(0, 5)) {
@@ -544,41 +641,24 @@ function spellingsOf(text: string): string[] {
   ].filter((variant): variant is string => variant !== null);
 }
 
-function a2ajLocatorAnchor(
-  rawUrl: string | null,
-  kind: A2AJLocatorKind,
-  label: string,
-) {
-  if (!rawUrl) return undefined;
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return undefined;
+/**
+ * A target that is unique in the flattened source can still cross a publisher
+ * paragraph seam (the source has no line breaks). Ship progressively shorter
+ * prefixes (down to 3 words) as siblings so Chromium uses the longest one that
+ * sits inside a single rendered paragraph — reliability over completeness.
+ */
+function shorterUniquePrefixes(target: string, document: QuoteView): string[] {
+  const words = (target ?? "").split(/\s+/u).filter(Boolean);
+  const out: string[] = [];
+  for (let n = words.length - 1; n >= 3; n -= 1) {
+    const prefix = words.slice(0, n).join(" ");
+    if (directiveMatchCount(document, prefix) === 1) out.push(prefix);
+    if (out.length >= 4) break;
   }
-  const canlii = /(^|\.)canlii\.org$/iu.test(url.hostname);
-  if (kind === "paragraph") {
-    const number = label.match(/^par(\d+)/iu)?.[1];
-    return number &&
-      ((canlii && url.pathname.includes("/doc/")) || isDecisiaDocument(url))
-      ? `par${Number(number)}`
-      : undefined;
-  }
-  if (kind === "page") {
-    const number = label.match(/^page=?(\d+)/iu)?.[1];
-    return number && url.pathname.toLowerCase().endsWith(".pdf")
-      ? `page=${Number(number)}`
-      : undefined;
-  }
-  const topLevelSection = label.match(
-    /^sec(\d+(?:[.-]\d+){0,3}[A-Za-z]?)/iu,
-  )?.[1];
-  return topLevelSection && canlii && url.pathname.includes("/laws/")
-    ? `sec${topLevelSection}`
-    : undefined;
+  return out;
 }
 
-function sourceUrl(rawUrl: string, anchor?: string): string | null {
+export function sourceUrl(rawUrl: string, anchor?: string): string | null {
   const local =
     rawUrl.startsWith("/") &&
     !rawUrl.startsWith("//") &&
@@ -641,6 +721,28 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   if (convertedCanliiPdf) {
     url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   }
+  // BLIND PDF-CARD COVERAGE — CT decisions before ~2015 exist only as PDF
+  // ("Click here to download the PDF version" stub). From a no-oracle
+  // perspective we cannot inspect the live page, so for CT we blindly
+  // rewrite the HTML item URL to its PDF rendition. The PDF carries a
+  // full text layer, so a #:~:text= built from A2AJ text paints there.
+  // Modern CT HTML also has the text, but the PDF is the same content;
+  // a PDF fragment is therefore never less correct, and it closes the
+  // entire CT pdf-card class with zero oracle.
+  if (/^decisions\.ct-tc\.gc\.ca$/iu.test(url.hostname)) {
+    const item = url.pathname.match(/^\/ct-tc\/cdo\/en\/item\/(\d+)\/index\.do$/iu);
+    if (item) {
+      url.pathname = `/ct-tc/cdo/en/${item[1]}/1/document.do`;
+      url.search = "";
+      // PDF fragments use page=, not par — drop any pre-existing Decisia hash
+      // so sourceUrl's anchor logic can re-derive it correctly for PDFs.
+      if (url.hash) url.hash = "";
+      // CT PDFs are real PDFs — isPdfUrl must see them as such, and Decisia
+      // iframe/mobile params are meaningless for a PDF viewer.
+      return local ? `${url.pathname}${url.search}${url.hash}` : url.toString();
+    }
+  }
+
   if (isDecisiaDocument(url)) {
     // INTENTIONAL, LOAD-BEARING FEATURE - text fragments cannot work on
     // Decisia without both parameters. This is not a flaw, lint, or
@@ -689,28 +791,28 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
  * the caller needs.
  */
 function directiveMatchCount(
-  document: SourceDoc,
+  document: QuoteView,
   target: string,
   prefix = "",
   suffix = "",
 ) {
-  return sourceDocPhraseSpans(
+  return phraseSpans(
     document,
     [
-      ...sourceDocQuoteWords(prefix),
-      ...sourceDocQuoteWords(target),
-      ...sourceDocQuoteWords(suffix),
+      ...quoteWordsNative(prefix),
+      ...quoteWordsNative(target),
+      ...quoteWordsNative(suffix),
     ],
     { sameLine: true, limit: 2 },
   ).length;
 }
 
 function contextFor(
-  block: SourceDoc,
-  span: SourceDocQuoteSpan,
+  block: QuoteView,
+  span: NativeQuoteSpan,
   window: number,
 ): { prefix: string; suffix: string } {
-  const words = block.tokens;
+  const words = tokens(block);
   const firstPrefixWord = Math.max(0, span.firstWord - window);
   const lastSuffixWord = Math.min(words.length - 1, span.lastWord + window);
   let prefix =
@@ -733,9 +835,9 @@ function contextFor(
 }
 
 function buildDirective(
-  block: SourceDoc,
+  block: QuoteView,
   quote: string,
-  document: SourceDoc,
+  document: QuoteView,
   pageScoped: boolean,
 ) {
   if (process.env.BUILDER_DEBUG === "1") {
@@ -748,7 +850,7 @@ function buildDirective(
   }
   const span = adjustSpanEdges(block, selected);
   const target = normalizeWhitespace(block.text.slice(span.start, span.end));
-  const targetWords = sourceDocQuoteWords(target);
+  const targetWords = quoteWordsNative(target);
   if (!targetWords.length) return null;
 
   let effectiveTarget = target;
@@ -772,7 +874,7 @@ function buildDirective(
   }
   // A passage that crosses a source line break cannot sit in one publisher
   // block either, so an exact single-run target is impossible: a range is the
-  // only honest fragment. Long passages get first claim on a range too - each
+  // only honest fragment. Long passages get first claim on a range too — each
   // short boundary survives markup that a whole-sentence run would not.
   const rangeRequired = target.includes("\n");
   const rangePreferred =
@@ -798,9 +900,13 @@ function buildDirective(
       needsContext,
     }));
   }
+  const extraSpellings = [
+    ...(effectiveTarget === target ? [] : [target, ...spellingsOf(target)]),
+    ...shorterUniquePrefixes(effectiveTarget, document),
+  ];
   if (!needsContext && targetCount === 1) {
     return {
-      directives: exactDirectives(effectiveTarget, "", "", seamRangeSibling(effectiveTarget, document), effectiveTarget === target ? [] : [target, ...spellingsOf(target)]),
+      directives: exactDirectives(effectiveTarget, "", "", seamRangeSibling(effectiveTarget, document), extraSpellings),
       start: span.start,
     };
   }
@@ -828,7 +934,7 @@ function buildDirective(
             candidatePrefix,
             candidateSuffix,
             seamRangeSibling(effectiveTarget, document),
-            effectiveTarget === target ? [] : [target, ...spellingsOf(target)],
+            extraSpellings,
           ),
           start: span.start,
         };
@@ -838,7 +944,7 @@ function buildDirective(
 
   return targetCount === 1
     ? {
-        directives: exactDirectives(effectiveTarget, "", "", seamRangeSibling(effectiveTarget, document), effectiveTarget === target ? [] : [target, ...spellingsOf(target)]),
+        directives: exactDirectives(effectiveTarget, "", "", seamRangeSibling(effectiveTarget, document), extraSpellings),
         start: span.start,
       }
     : null;
@@ -851,56 +957,17 @@ function appendDirectives(url: string, directives: string[]) {
     : `${url}#:~:${directives.join("&")}`;
 }
 
-function buildA2AJSourcePinpointUrl(
-  source: Pick<
-    A2AJLocatorLookup | A2AJDocument,
-    "dataset" | "citation" | "alternateCitation" | "language" | "url"
-  >,
-  locator: { kind: A2AJLocatorKind; label: string },
-  blockText: QuoteSource,
-  quotes: string[],
-  document: SourceDoc | null,
-) {
-  if (!source.url) return null;
-  const anchor = a2ajLocatorAnchor(source.url, locator.kind, locator.label);
-  const baseUrl = sourceUrl(source.url, anchor);
-  return baseUrl
-    ? buildLegalSourcePinpointUrl({
-        url: baseUrl,
-        blockText,
-        ...(document && { documentText: document }),
-        pageScoped: locator.kind === "page",
-      }, quotes)
-    : null;
-}
-
-export function buildA2AJPinpointUrl(
-  lookup: A2AJLocatorLookup,
-  quotes: string[],
-  document: SourceDoc | null = a2ajLegalSourceProvider.source(lookup),
-  block: A2AJLookupBlock | null = lookup.block,
-) {
-  const label = block?.label || lookup.requested.label;
-  return buildA2AJSourcePinpointUrl(
-    lookup,
-    { kind: lookup.requested.kind, label },
-    lookup.status === "found" && block ? block.text : "",
-    quotes,
-    document,
-  );
-}
-
 function verificationDoc(
   passage: { documentText?: QuoteSource },
-  block: SourceDoc,
+  block: QuoteView,
 ) {
   const document = passage.documentText;
   if (document === undefined) return block;
   return typeof document === "string"
     ? document.trim()
-      ? createTextSourceDoc(document)
+      ? asDoc(document)
       : block
-    : document;
+    : asDoc(document);
 }
 
 export function buildLegalSourcePinpointUrl(
@@ -912,7 +979,7 @@ export function buildLegalSourcePinpointUrl(
   if (!baseUrl || !block.text) return baseUrl;
   const uniqueQuotes = new Map<string, string>();
   for (const quote of quotes) {
-    const key = sourceDocQuoteWords(quote).join(" ");
+    const key = quoteWordsNative(quote).join(" ");
     if (key && !uniqueQuotes.has(key)) uniqueQuotes.set(key, quote);
   }
   if (!uniqueQuotes.size) return baseUrl;
@@ -936,247 +1003,4 @@ export function buildLegalSourcePinpointUrl(
     ),
   ];
   return appendDirectives(baseUrl, directives);
-}
-
-function normalizedIdentity(value: string | null | undefined) {
-  return value?.trim().replace(/\s+/gu, " ").toLowerCase() ?? "";
-}
-
-function identityMatches(
-  citation: A2AJCitationIdentity,
-  source: Pick<
-    A2AJLocatorLookup | A2AJDocument,
-    "citation" | "alternateCitation" | "dataset"
-  >,
-) {
-  if (citation.citation) {
-    const wanted = normalizedIdentity(citation.citation);
-    if (
-      ![source.citation, source.alternateCitation]
-        .map(normalizedIdentity)
-        .includes(wanted)
-    ) {
-      return false;
-    }
-  }
-  if (
-    citation.dataset &&
-    normalizedIdentity(citation.dataset) !== normalizedIdentity(source.dataset)
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function isCanadianDecisionUrl(url: URL) {
-  return (
-    isDecisiaDocument(url) ||
-    ((url.hostname === "canlii.org" || url.hostname === "www.canlii.org") &&
-      url.pathname.includes("/doc/")) ||
-    ((url.hostname === "bccourts.ca" ||
-      url.hostname === "www.bccourts.ca") &&
-      url.pathname.toLowerCase().includes("/jdb-txt/")) ||
-    ((url.hostname === "scc-csc.ca" ||
-      url.hostname === "www.scc-csc.ca") &&
-      url.pathname.toLowerCase().includes("/case-dossier/"))
-  );
-}
-
-/** Rebuild the same A2AJ link after a prior-turn receipt has been rehydrated. */
-export function buildA2AJDocumentPinpointUrl(
-  document: A2AJDocument,
-  locator: { kind: A2AJLocatorKind; label: string },
-  blockText: QuoteSource,
-  quotes: string[],
-  source: SourceDoc | null = a2ajLegalSourceProvider.source(document),
-) {
-  return buildA2AJSourcePinpointUrl(
-    document,
-    locator,
-    blockText,
-    quotes,
-    source,
-  );
-}
-
-const ANSWER_CASE_CITATION =
-  /\b(((?:19|20)\d{2})\s+([A-Za-z][A-Za-z0-9-]{1,15})\s+(\d+))\b/giu;
-
-function answerCaseCitations(answer: string) {
-  return [...answer.matchAll(ANSWER_CASE_CITATION)].flatMap((match) => {
-    const citation = match[1].replace(/\s+/gu, " ");
-    const dataset = match[3].toUpperCase();
-    const url = buildCanliiCaseUrl({
-      dataset,
-      citations: [citation],
-      language: "en",
-    });
-    return url
-      ? [
-          {
-            start: match.index,
-            end: match.index + match[0].length,
-            label: match[0],
-            citation,
-            dataset,
-            url,
-          },
-        ]
-      : [];
-  });
-}
-
-function rewriteModelCanadianDecisionUrls(answer: string) {
-  let found = false;
-  const strip = (rawUrl: string) => {
-    try {
-      if (!isCanadianDecisionUrl(new URL(rawUrl))) return rawUrl;
-      found = true;
-      return "";
-    } catch {
-      return rawUrl;
-    }
-  };
-  const text = answer
-    .replace(
-      /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
-      (full, label: string) =>
-        answerCaseCitations(label).length ? label : full,
-    )
-    .replace(
-      /\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/gu,
-      (full, label: string, url: string) => (strip(url) ? full : label),
-    )
-    .replace(/https?:\/\/[^\s<>"')\]]+/gu, (url) => {
-      const suffix = url.match(/[.,;:!?]+$/u)?.[0] ?? "";
-      const target = suffix ? url.slice(0, -suffix.length) : url;
-      return strip(target) ? url : suffix;
-    })
-    .replace(/^[\t ]+$/gmu, "")
-    .replace(/\n{3,}/gu, "\n\n");
-  return { found, text };
-}
-
-export function hasCanadianDecisionLink(answer: string) {
-  return rewriteModelCanadianDecisionUrls(answer).found;
-}
-
-function uniqueParagraphEdge(
-  text: string,
-  document: SourceDoc,
-  edge: "start" | "end",
-) {
-  const line = text.split(/\r?\n/u, 1)[0];
-  const block = createTextSourceDoc(
-    line.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/u, ""),
-  );
-  for (const length of [12, 16, 8, 24, 32, 6, 4, 2]) {
-    if (block.tokens.length < length) continue;
-    const words =
-      edge === "start"
-        ? block.tokens.slice(0, length)
-        : block.tokens.slice(-length);
-    const target = normalizeWhitespace(
-      block.text.slice(words[0].start, words.at(-1)!.end),
-    );
-    if (directiveMatchCount(document, target) === 1) return target;
-  }
-  return null;
-}
-
-export function buildA2AJParagraphRangeUrl(
-  citation: string,
-  start: string,
-  end: string,
-  lookups: A2AJLocatorLookup[],
-  documents: A2AJDocument[],
-) {
-  const sources = new Map<
-    string,
-    {
-      source: SourceDoc;
-      metadata: A2AJLocatorLookup | A2AJDocument;
-    }
-  >();
-  for (const lookup of lookups) {
-    if (
-      lookup.status !== "found" ||
-      !identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        lookup,
-      )
-    ) {
-      continue;
-    }
-    const source = a2ajLegalSourceProvider.source(lookup);
-    if (source) sources.set(source.id, { source, metadata: lookup });
-  }
-  for (const document of documents) {
-    if (
-      document.url &&
-      identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        document,
-      )
-    ) {
-      const source = a2ajLegalSourceProvider.source(document);
-      if (!source) continue;
-      const current = sources.get(source.id);
-      if (!current || source.blocks.length > current.source.blocks.length) {
-        sources.set(source.id, { source, metadata: document });
-      }
-    }
-  }
-  const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
-    const startBlock = source.blocks.find(
-      (block) =>
-        block.kind === "paragraph" &&
-        normalizedIdentity(block.label) === `par${Number(start)}`,
-    );
-    const endBlock = source.blocks.find(
-      (block) =>
-        block.kind === "paragraph" &&
-        normalizedIdentity(block.label) === `par${Number(end)}`,
-    );
-    return startBlock && endBlock && startBlock.start <= endBlock.start
-      ? [{ source, metadata, startBlock, endBlock }]
-      : [];
-  });
-  const structured = candidates.length === 1 ? candidates[0] : null;
-  const rangeLookup = lookups.filter(
-    (lookup) =>
-      lookup.status === "found" &&
-      lookup.block &&
-      lookup.requested.kind === "paragraph" &&
-      lookup.requested.locator === `${Number(start)}-${Number(end)}` &&
-      identityMatches(
-        { citation, name: null, dataset: null, url: null, quotes: [] },
-        lookup,
-      ),
-  );
-  if (!structured && rangeLookup.length !== 1) return null;
-  const metadata = structured?.metadata ?? rangeLookup[0];
-  const source =
-    structured?.source ??
-    a2ajLegalSourceProvider.source(rangeLookup[0]) ??
-    createTextSourceDoc(rangeLookup[0].block!.text);
-  const lines = structured
-    ? []
-    : rangeLookup[0].block!.text.split(/\r?\n/u).filter((line) => line.trim());
-  const startSource = structured
-    ? sourceDocBlockText(source, structured.startBlock)
-    : (lines[0] ?? "");
-  const endSource = structured
-    ? sourceDocBlockText(source, structured.endBlock)
-    : (lines.at(-1) ?? "");
-  const startTarget = uniqueParagraphEdge(startSource, source, "start");
-  const endTarget = uniqueParagraphEdge(endSource, source, "end");
-  if (!startTarget || !endTarget) return null;
-  const anchor = `par${Number(start)}`;
-  const baseUrl = metadata.url ? sourceUrl(metadata.url, anchor) : null;
-  return baseUrl
-    ? appendDirectives(baseUrl, [
-        textRangeDirective(startTarget, endTarget),
-      ])
-    : null;
 }

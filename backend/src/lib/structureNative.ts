@@ -142,45 +142,46 @@ export function configuredLegalPdfProfile(options: RuntimeOptions = {}): LegalPd
 type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string): Promise<NativeDocument>;
+  fixDocxSupraCrossReferences(bytes: Buffer): Promise<DocxSupraCleanupResult>;
+  hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
   derivePdfDocument(request: unknown): Promise<NativeDocument>;
-  pdfDocumentSummary(document: NativeDocument): Buffer;
-  documentCitedAuthorities(document: NativeDocument): Buffer;
-  docxStructureLint(document: NativeDocument): Buffer;
-  docxTableCells(document: NativeDocument): Buffer;
+  pdfDocumentSummary(document: NativeDocument): unknown;
+  documentCitedAuthorities(document: NativeDocument):
+    Array<{ citation: string; canonical?: string; type?: string }>;
+  docxStructureLint(document: NativeDocument): NativeDocxLintReport;
+  docxTableCells(document: NativeDocument): NativeTableCell[];
   sourceDocText(document: NativeDocument): string;
   sourceDocTextBytes(document: NativeDocument): number;
   sourceDocRevision(document: NativeDocument): string;
   normalizeSourceDocLocator(kind: string, locator: string): string;
-  tokenizeSourceText(text: string): Buffer;
-  sourceDocQuoteText(text: string): string;
+  tokenizeSourceText(text: string): NativeWordSpan[];
   sourceDocQuoteWords(text: string): string[];
-  sourceDocTokens(document: NativeDocument): Buffer;
   lookupSourceDoc(document: NativeDocument, kind: string, locator: string,
-    contextBlocks: number): Buffer;
+    contextBlocks: number): NativeDocumentLookup;
   readSourceDocRange(document: NativeDocument, kind: string, from: string,
-    to: string, contextBlocks: number): Buffer;
-  sourceDocContainedLeafUnits(document: NativeDocument, kind: string,
-    start: number, end: number): Buffer;
+    to: string, contextBlocks: number): NativeDocumentRange | null;
   sourceDocSmallestContainingBlock(document: NativeDocument, start: number,
-    end: number): Buffer;
+    end: number): NativeDocumentBlock | null;
   sourceDocHasOrigin(document: NativeDocument, origin: string): boolean;
-  sourceDocAnchors(document: NativeDocument): Buffer;
-  sourceDocPhraseSpans(document: NativeDocument, words: string[], start?: number,
-    end?: number, sameLine?: boolean, limit?: number): Buffer;
+  sourceDocAnchors(document: NativeDocument): NativeDocumentAnchor[];
   textPhraseSpans(text: string, words: string[], start?: number,
-    end?: number, sameLine?: boolean, limit?: number): Buffer;
-  sourceDocPageMap(document: NativeDocument): Buffer;
-  resolveSourceDocPage(document: NativeDocument, requested: string): Buffer;
+    end?: number, sameLine?: boolean, limit?: number): NativeQuoteSpan[];
+  textFragmentDirectives(blockText: string, quotes: string[], pageScoped: boolean,
+    documentText?: string, document?: NativeDocument): string[];
+  sourceDocParagraphRangeDirective(document: NativeDocument, start: string,
+    end: string): string | null;
+  sourceDocPageMap(document: NativeDocument): NativePageMap;
+  resolveSourceDocPage(document: NativeDocument, requested: string): NativePageLookup;
   lookupStructureBlock(document: NativeDocument, locator: string,
-    contextBlocks: number): Buffer;
-  parseDocumentAddress(spec: string): Buffer;
+    contextBlocks: number): NativeDocumentLookup;
+  parseDocumentAddress(spec: string): NativeDocumentAddress | null;
   graphScope(document: NativeDocument, seed: string, follow: string,
-    depth: number, includeDescendants: boolean): Buffer;
-  queryPdfDocument(document: NativeDocument, query: unknown): Buffer;
+    depth: number, includeDescendants: boolean, includeUnits: boolean): NativeGraphScope | null;
+  queryPdfDocument(document: NativeDocument, query: unknown): unknown;
   deleteProvisionAndRenumberSiblings(source: string, target: string,
-    reconstructLineation?: boolean): Promise<Buffer>;
+    reconstructLineation?: boolean): Promise<DeleteAndRenumberResult>;
   consolidateAmendment(source: string, amendment: string,
-    reconstructLineation?: boolean): Promise<Buffer>;
+    reconstructLineation?: boolean): Promise<ApplyAmendmentsResult & { parse: AmendParseResult }>;
 };
 
 export type NativeDocument = object;
@@ -218,6 +219,19 @@ type NativeDocxLintReport = {
   notes: string[];
 };
 
+export type DocxSupraCleanupResult = {
+  bytes: Buffer;
+  detected: number;
+  converted: number;
+  already_linked: number;
+  review_required: number;
+  bookmarks_added: number;
+  reasons: {
+    restarted_numbering: boolean;
+    unsafe_or_split_fields: number;
+  };
+};
+
 export type NativeDocumentBlock = {
   kind: "paragraph" | "page" | "section" | "footnote" | "table" | "row" | "cell";
   label: string;
@@ -228,6 +242,14 @@ export type NativeDocumentBlock = {
   anchor?: string;
   aliases?: string[];
   parentLabel?: string;
+};
+
+type NativeDocumentAnchor = Pick<NativeDocumentBlock,
+  "kind" | "label" | "start" | "end" | "parentLabel">;
+type NativeDocumentRange = {
+  selected: NativeDocumentBlock[];
+  before: NativeDocumentBlock[];
+  after: NativeDocumentBlock[];
 };
 
 type NativeDocumentLookup = {
@@ -343,23 +365,24 @@ export const deriveDocumentNative = (request: unknown) =>
   loadAddon().deriveDocumentStructure(request);
 export const deriveDocxNative = (bytes: Buffer, id: string) =>
   loadAddon().deriveDocxDocument(bytes, id);
+export const fixDocxSupraCrossReferencesNative = (bytes: Buffer) =>
+  loadAddon().fixDocxSupraCrossReferences(bytes);
+export const hasDocxSupraReferencesNative = (bytes: Buffer) =>
+  loadAddon().hasDocxSupraReferences(bytes);
 export const derivePdfNative = (request: unknown) => loadAddon().derivePdfDocument(request);
 
 export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
-  return parsed<T>(loadAddon().queryPdfDocument(document, query));
+  return loadAddon().queryPdfDocument(document, query) as T;
 }
 
-const parsed = <T>(bytes: Buffer) => JSON.parse(bytes.toString("utf8")) as T;
-
 export const pdfDocumentSummaryNative = <T = unknown>(document: NativeDocument) =>
-  parsed<T>(loadAddon().pdfDocumentSummary(document));
+  loadAddon().pdfDocumentSummary(document) as T;
 export const documentCitedAuthoritiesNative = (document: NativeDocument) =>
-  parsed<Array<{ citation: string; canonical?: string; type?: string }>>(
-    loadAddon().documentCitedAuthorities(document));
+  loadAddon().documentCitedAuthorities(document);
 export const docxStructureLintNative = (document: NativeDocument) =>
-  parsed<NativeDocxLintReport>(loadAddon().docxStructureLint(document));
+  loadAddon().docxStructureLint(document);
 export const docxTableCellsNative = (document: NativeDocument) =>
-  parsed<NativeTableCell[]>(loadAddon().docxTableCells(document));
+  loadAddon().docxTableCells(document);
 
 export const documentTextNative = (document: NativeDocument) =>
   loadAddon().sourceDocText(document);
@@ -375,33 +398,22 @@ export const normalizeDocumentLocatorNative = (kind: "paragraph" | "page" |
 
 export const lookupDocumentNative = (document: NativeDocument,
   kind: "paragraph" | "page" | "section" | "footnote", locator: string,
-  contextBlocks = 0) => parsed<NativeDocumentLookup>(
-    loadAddon().lookupSourceDoc(document, kind, locator, contextBlocks));
+  contextBlocks = 0) => loadAddon().lookupSourceDoc(document, kind, locator, contextBlocks);
 
 export const readDocumentRangeNative = (document: NativeDocument,
   kind: "paragraph" | "page" | "section" | "footnote", from: string,
-  to: string, contextBlocks = 0) => parsed<{
-    selected: NativeDocumentBlock[];
-    before: NativeDocumentBlock[];
-    after: NativeDocumentBlock[];
-  } | null>(loadAddon().readSourceDocRange(document, kind, from, to, contextBlocks));
-
-export const documentLeafUnitsNative = (document: NativeDocument,
-  kind: NativeDocumentBlock["kind"], start: number, end: number) =>
-  parsed<NativeDocumentBlock[]>(
-    loadAddon().sourceDocContainedLeafUnits(document, kind, start, end));
+  to: string, contextBlocks = 0) =>
+  loadAddon().readSourceDocRange(document, kind, from, to, contextBlocks);
 
 export const smallestContainingDocumentBlockNative = (document: NativeDocument,
-  start: number, end: number) => parsed<NativeDocumentBlock | null>(
-    loadAddon().sourceDocSmallestContainingBlock(document, start, end));
+  start: number, end: number) =>
+  loadAddon().sourceDocSmallestContainingBlock(document, start, end);
 
 export const documentHasOriginNative = (document: NativeDocument,
   origin: "native" | "heuristic") => loadAddon().sourceDocHasOrigin(document, origin);
 
 export const documentAnchorsNative = (document: NativeDocument) =>
-  parsed<Array<Pick<NativeDocumentBlock,
-    "kind" | "label" | "start" | "end" | "parentLabel">>>(
-    loadAddon().sourceDocAnchors(document));
+  loadAddon().sourceDocAnchors(document);
 
 export type NativeWordSpan = { word: string; start: number; end: number };
 export type NativeQuoteSpan = {
@@ -424,46 +436,43 @@ type NativeDocumentAddress =
   | { kind: "offset"; start: number };
 type NativeGraphScope = {
   seed: NativeDocumentBlock;
-  nodes: NativeDocumentBlock[];
+  nodes: Array<NativeDocumentBlock & { units?: NativeDocumentBlock[] }>;
   depth: number;
 };
 
 export const tokenizeTextNative = (text: string) =>
-  parsed<NativeWordSpan[]>(loadAddon().tokenizeSourceText(text));
-export const quoteTextNative = (text: string) => loadAddon().sourceDocQuoteText(text);
+  loadAddon().tokenizeSourceText(text);
 export const quoteWordsNative = (text: string) => loadAddon().sourceDocQuoteWords(text);
-export const documentTokensNative = (document: NativeDocument) =>
-  parsed<NativeWordSpan[]>(loadAddon().sourceDocTokens(document));
-export const documentPhraseSpansNative = (document: NativeDocument, words: string[],
-  start?: number, end?: number, sameLine?: boolean, limit?: number) =>
-  parsed<NativeQuoteSpan[]>(loadAddon().sourceDocPhraseSpans(
-    document, words, start, end, sameLine, limit));
 export const textPhraseSpansNative = (text: string, words: string[], start?: number,
   end?: number, sameLine?: boolean, limit?: number) =>
-  parsed<NativeQuoteSpan[]>(loadAddon().textPhraseSpans(
-    text, words, start, end, sameLine, limit));
+  loadAddon().textPhraseSpans(text, words, start, end, sameLine, limit);
+export const textFragmentDirectivesNative = (blockText: string, quotes: string[],
+  document?: string | NativeDocument, pageScoped = false) =>
+  loadAddon().textFragmentDirectives(blockText, quotes, pageScoped,
+    typeof document === "string" ? document : undefined,
+    typeof document === "string" ? undefined : document);
+export const paragraphRangeDirectiveNative = (document: NativeDocument,
+  start: string, end: string) =>
+  loadAddon().sourceDocParagraphRangeDirective(document, start, end);
 export const documentPageMapNative = (document: NativeDocument) =>
-  parsed<NativePageMap>(loadAddon().sourceDocPageMap(document));
+  loadAddon().sourceDocPageMap(document);
 export const resolveDocumentPageNative = (document: NativeDocument, requested: string) =>
-  parsed<NativePageLookup>(loadAddon().resolveSourceDocPage(document, requested));
+  loadAddon().resolveSourceDocPage(document, requested);
 export const lookupStructureBlockNative = (document: NativeDocument, locator: string,
-  contextBlocks = 0) => parsed<NativeDocumentLookup>(
-    loadAddon().lookupStructureBlock(document, locator, contextBlocks));
+  contextBlocks = 0) => loadAddon().lookupStructureBlock(document, locator, contextBlocks);
 export const parseDocumentAddressNative = (spec: string) =>
-  parsed<NativeDocumentAddress | null>(loadAddon().parseDocumentAddress(spec));
+  loadAddon().parseDocumentAddress(spec);
 export const graphScopeNative = (document: NativeDocument, seed: string,
   follow: "none" | "out" | "in" | "both" = "none", depth = 1,
-  includeDescendants = false) => parsed<NativeGraphScope | null>(
-    loadAddon().graphScope(document, seed, follow, depth, includeDescendants));
+  includeDescendants = false, includeUnits = false) =>
+  loadAddon().graphScope(document, seed, follow, depth, includeDescendants, includeUnits);
 export async function deleteProvisionAndRenumberSiblings(source: string, target: string,
   options: ApplyAmendOptions = {}) {
-  return parsed<DeleteAndRenumberResult>(
-    await loadAddon().deleteProvisionAndRenumberSiblings(
-      source, target, options.reconstructLineation));
+  return loadAddon().deleteProvisionAndRenumberSiblings(
+    source, target, options.reconstructLineation);
 }
 export async function consolidateAmendment(source: string, amendment: string,
   options: ApplyAmendOptions = {}) {
-  return parsed<ApplyAmendmentsResult & { parse: AmendParseResult }>(
-    await loadAddon().consolidateAmendment(
-      source, amendment, options.reconstructLineation));
+  return loadAddon().consolidateAmendment(
+    source, amendment, options.reconstructLineation);
 }

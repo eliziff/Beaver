@@ -15,7 +15,7 @@ import {
 type NativeDocument = object;
 type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  sourceDocSnapshot(document: NativeDocument): Buffer;
+  sourceDocSnapshot(document: NativeDocument): SourceSnapshot;
 };
 type SourceSnapshot = { blocks: Array<{ origin: "native" | "heuristic" }> };
 
@@ -230,8 +230,8 @@ async function runWorker(shard: number) {
               name: document.name,
               ...(document.sectionMap
                 ? { section_map: Object.entries(document.sectionMap) } : {}) } });
-          const bytes = native.sourceDocSnapshot(doc);
-          const source = JSON.parse(bytes.toString("utf8")) as SourceSnapshot;
+          const source = native.sourceDocSnapshot(doc);
+          const bytes = Buffer.from(JSON.stringify(source));
           record = { v: 1, provider: "a2aj", source_id: String(id),
             source_kind: String(row.doc_type), ...proof, status: "pass", mode: mode(source),
             canonical_bytes: bytes.length, canonical_sha256: hash(bytes),
