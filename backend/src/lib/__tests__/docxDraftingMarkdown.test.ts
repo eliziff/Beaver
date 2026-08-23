@@ -1,16 +1,13 @@
 import { Document, ImageRun, Packer, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
-import {
-  DOCX_DRAFTING_SOURCE_FORMAT,
-  extractDocxDraftingSource,
-} from "../docxDraftingSource";
+import { docxDraftingMarkdown } from "../docxDraftingMarkdown";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
 import {
   MAX_DRAFTING_DOCX_BYTES,
   MAX_DRAFTING_XML_ENTRY_BYTES,
 } from "../docx/core";
 
-describe("DOCX drafting source", () => {
+describe("DOCX drafting Markdown", () => {
   it("preserves semantic structure and native footnote pairing", async () => {
     const bytes = await renderDocxMarkdown(
       [
@@ -30,25 +27,22 @@ describe("DOCX drafting source", () => {
       { title: "Source precedent" },
     );
 
-    const source = await extractDocxDraftingSource(bytes);
+    const markdown = await docxDraftingMarkdown(bytes);
 
-    expect(source.format).toBe(DOCX_DRAFTING_SOURCE_FORMAT);
-    expect(source.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
     // Headings are preserved as # / ## markers (Pandoc resolves them
     // from the style definitions after our styles patch).
-    expect(source.markdown).toMatch(/^# \*\*Agreement\*\*$/mu);
+    expect(markdown).toMatch(/^# \*\*Agreement\*\*$/mu);
     // Bold text preserved
-    expect(source.markdown).toContain("**Vendor**");
+    expect(markdown).toContain("**Vendor**");
     // Lists preserved
-    expect(source.markdown).toContain("- First obligation");
+    expect(markdown).toContain("- First obligation");
     // Tables preserved (Pandoc emits grid tables by default)
-    expect(source.markdown).toContain("Price");
+    expect(markdown).toContain("Price");
     // Footnotes round-trip as [^N] / [^N]: markers natively
-    expect(source.markdown).toContain("[^1]");
-    expect(source.markdown).toContain("[^1]: This is the source footnote.");
+    expect(markdown).toContain("[^1]");
+    expect(markdown).toContain("[^1]: This is the source footnote.");
     // No mammoth-style footnote href noise
-    expect(source.markdown).not.toContain('href="#footnote-');
-    expect(source.requires_review).toBe(false);
+    expect(markdown).not.toContain('href="#footnote-');
   });
 
   it("omits image bytes and reports the omission", async () => {
@@ -76,21 +70,19 @@ describe("DOCX drafting source", () => {
       }),
     );
 
-    const source = await extractDocxDraftingSource(bytes);
+    const markdown = await docxDraftingMarkdown(bytes);
 
-    expect(source.markdown).toContain("[Image omitted]");
-    expect(source.markdown).not.toMatch(/data:/iu);
-    expect(source.markdown).not.toContain(png.toString("base64"));
-    expect(source.warnings.join(" ")).toContain("embedded image");
-    expect(source.requires_review).toBe(true);
+    expect(markdown).toContain("[Image omitted]");
+    expect(markdown).not.toMatch(/data:/iu);
+    expect(markdown).not.toContain(png.toString("base64"));
   });
 
   it("fails closed for invalid, oversized, and oversized-XML inputs", async () => {
     await expect(
-      extractDocxDraftingSource(Buffer.from("not a docx")),
+      docxDraftingMarkdown(Buffer.from("not a docx")),
     ).rejects.toThrow();
     await expect(
-      extractDocxDraftingSource(Buffer.alloc(MAX_DRAFTING_DOCX_BYTES + 1)),
+      docxDraftingMarkdown(Buffer.alloc(MAX_DRAFTING_DOCX_BYTES + 1)),
     ).rejects.toThrow("exceeds");
 
     const zip = new (await import("jszip")).default();
@@ -103,7 +95,7 @@ describe("DOCX drafting source", () => {
       compression: "STORE",
     });
     expect(archive.length).toBeLessThan(MAX_DRAFTING_DOCX_BYTES);
-    await expect(extractDocxDraftingSource(archive)).rejects.toThrow(
+    await expect(docxDraftingMarkdown(archive)).rejects.toThrow(
       "oversized XML",
     );
   });

@@ -1,8 +1,13 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-import { analyzeDocumentNative } from "../../backend/src/lib/structureNative";
+import {
+  deriveDocumentNative,
+  documentStructureNative,
+  projectDocumentSourceNative,
+} from "../../backend/src/lib/structureNative";
 import {
   instrumentCorpusFiles,
   readAgreement,
@@ -13,6 +18,15 @@ import {
 const BASELINE = path.join(import.meta.dirname, "structure-baseline.json");
 const REPORT = path.join(ROOT, ".tmp/instrument-structure-gate.json");
 const WRITE_BASELINE = process.argv.includes("--write-baseline");
+const ORACLE_ROOT = process.argv.find((argument) =>
+  argument.startsWith("--oracle-root=")
+)?.slice("--oracle-root=".length);
+const ORACLE_ADDON = process.argv.find((argument) =>
+  argument.startsWith("--oracle-addon=")
+)?.slice("--oracle-addon=".length);
+const LIMIT = Number(process.argv.find((argument) =>
+  argument.startsWith("--limit=")
+)?.slice("--limit=".length) ?? Infinity);
 
 const COMPONENTS = [
   "nodes",
@@ -56,6 +70,81 @@ type Baseline = {
   entries: Entry[];
 };
 
+type Difference = { path: string; expected: unknown; actual: unknown };
+
+function timing(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return {
+    medianMs: sorted.length
+      ? Number(((sorted[middle] + sorted[Math.floor((sorted.length - 1) / 2)]) / 2).toFixed(3))
+      : null,
+    totalMs: Number(values.reduce((sum, value) => sum + value, 0).toFixed(3)),
+  };
+}
+
+function display(value: unknown): unknown {
+  if (typeof value !== "string" || value.length <= 160) return value;
+  return `${value.slice(0, 157)}...`;
+}
+
+function differences(
+  expected: unknown,
+  actual: unknown,
+  at = "",
+  found: Difference[] = [],
+): Difference[] {
+  if (found.length >= 20 || Object.is(expected, actual)) return found;
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    if (expected.length !== actual.length) {
+      found.push({ path: `${at}.length`, expected: expected.length, actual: actual.length });
+    }
+    for (let index = 0; index < Math.max(expected.length, actual.length); index += 1) {
+      differences(expected[index], actual[index], `${at}[${index}]`, found);
+    }
+    return found;
+  }
+  if (expected && actual && typeof expected === "object" && typeof actual === "object") {
+    const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
+    for (const key of [...keys].sort()) {
+      differences(
+        (expected as Record<string, unknown>)[key],
+        (actual as Record<string, unknown>)[key],
+        at ? `${at}.${key}` : key,
+        found,
+      );
+    }
+    return found;
+  }
+  found.push({ path: at, expected: display(expected), actual: display(actual) });
+  return found;
+}
+
+function skeletonProducts(skeleton: any) {
+  return {
+    nodes: skeleton.nodes.map(({ heading: _, ...node }: any) => node),
+    sourceDoc: { provider: skeleton.doc.provider, id: skeleton.doc.id,
+      url: skeleton.doc.url, revision: skeleton.doc.revision,
+      docType: skeleton.doc.docType, status: skeleton.doc.status,
+      textSha256: sha256(skeleton.doc.text), blocks: skeleton.doc.blocks,
+      index: [...skeleton.doc.index.entries()], ranges: skeleton.doc.ranges },
+    definedTerms: skeleton.definedTerms,
+    schedules: skeleton.schedules,
+    crossReferences: skeleton.crossReferences,
+    ladder: skeleton.ladder,
+    contents: { outline: skeleton.outline, refusal: skeleton.outlineRefusal },
+  };
+}
+
+function skeletonAnalysis(
+  text: string,
+  skeleton: any,
+  crossReferenceGraphFromSkeleton: (text: string, skeleton: any) => any,
+) {
+  const crossReferences = crossReferenceGraphFromSkeleton(text, skeleton);
+  return { products: { ...skeletonProducts(skeleton), crossReferences }, crossReferences };
+}
+
 function legacyProducts(text: string, analyzed: any) {
   const structure = analyzed.structure;
   const sourceDoc = analyzed.source_doc;
@@ -82,7 +171,6 @@ function legacyProducts(text: string, analyzed: any) {
       : label.includes("(") ? "subsection" : "section";
     const contentStart = node.content_start;
     const start = node.range.start;
-    const rawHeading = text.slice(contentStart).split("\n", 1)[0];
     const rawHead = text.slice(start, contentStart).trim();
     const head = rawHead.replace(/[\u2013\u2014\-.:]+\s*$/u, "").trim();
     const scheduleHead = kind === "schedule"
@@ -90,40 +178,34 @@ function legacyProducts(text: string, analyzed: any) {
       : null;
     const scheduleName = scheduleHead ? `${scheduleHead[1]} ${scheduleHead[2]}` : head;
     const parent = node.parent_id ? byId.get(node.parent_id) as any : undefined;
-    const inline = kind === "subsection" && parent &&
-      !text.slice(parent.range.start, start).includes("\n");
     const display = kind === "section" || kind === "subsection"
       ? label.replace(/^sec/u, "Section ")
       : (kind === "schedule" ? scheduleName : head)
         .replace(/^\S+/u, (word: string) => word.toUpperCase());
     if (kind === "schedule") schedules.push(scheduleName);
     return { kind, label, display,
-      heading: (inline ? rawHeading.replace(/\r$/u, "") : rawHeading.trim())
-        .slice(0, kind === "subsection" ? 80 : 120),
       depth: depth(node), start, end: node.range.end,
       ...(parent?.label ? { parentLabel: parent.label } : {}) };
   });
   const count = (code: string) => structure.diagnostics
     .filter((row: any) => row.code === code).length;
-  const labels = new Map(sourceNodes.map((node: any) => [node.id, node.label]));
-  const definedTerms = structure.definitions.map((term: any) => ({
+  const labels = new Map(sourceNodes
+    .filter((node: any) => !/^(?:art|part)/u.test(node.label))
+    .map((node: any) => [node.id, node.label]));
+  const definedTerms = (structure.definitions ?? []).map((term: any) => ({
     term: term.term,
     sectionLabel: labels.get(term.definitions[0]?.node_id) ?? null,
     definitions: term.definitions.length,
   })).sort((a: any, b: any) => a.term.localeCompare(b.term));
   const references = structure.cross_references;
-  const unresolved = [...new Set((references?.edges ?? [])
-    .filter((edge: any) => edge.status === "unresolved")
-    .map((edge: any) => edge.normalizedLocator))].sort().slice(0, 64);
   return {
     nodes,
     sourceDoc: { provider: sourceDoc.provider, id: sourceDoc.id, url: sourceDoc.url,
       revision: sourceDoc.revision, docType: sourceDoc.docType, status: sourceDoc.status,
-      textSha256: sha256(sourceDoc.text), blocks: sourceDoc.blocks,
+      textSha256: sha256(sourceDoc.text ?? ""), blocks: sourceDoc.blocks,
       index: Object.entries(sourceDoc.index), ranges: sourceDoc.ranges },
     definedTerms, schedules,
-    crossReferences: { internal: (references?.counts.detected ?? 0) - (references?.counts.external ?? 0),
-      external: references?.counts.external ?? 0, unresolved },
+    crossReferences: references,
     ladder: { increments: count("instrument_ladder_increment"),
       levelOpens: count("instrument_ladder_level_open"),
       midcounterOpens: count("instrument_ladder_midcounter_open"),
@@ -168,10 +250,43 @@ function emptyTotals(): Totals {
 
 async function main(): Promise<void> {
   const { agreements, pdfs } = await instrumentCorpusFiles();
+  if ((ORACLE_ROOT === undefined) !== (ORACLE_ADDON === undefined)) {
+    throw new Error("--oracle-root and --oracle-addon must be supplied together");
+  }
+  let oracle: {
+    clearSkeletonCache(): void;
+    compileAgreementSkeleton(text: string, id: string): Promise<any>;
+    crossReferenceGraphFromSkeleton(text: string, skeleton: any): any;
+  } | null = null;
+  const priorAnalysis = async (id: string, text: string) => {
+    if (!ORACLE_ROOT || !ORACLE_ADDON) return null;
+    if (!oracle) {
+      const previousNative = process.env.LEGAL_STRUCTURE_NATIVE;
+      process.env.LEGAL_STRUCTURE_NATIVE = path.resolve(ORACLE_ADDON);
+      try {
+        const root = path.resolve(ORACLE_ROOT, "backend/src/lib");
+        oracle = {
+          ...await import(pathToFileURL(path.join(root, "legalTextSkeleton.ts")).href),
+          ...await import(pathToFileURL(path.join(root, "legalCrossReference.ts")).href),
+        };
+        oracle.clearSkeletonCache();
+        const skeleton = await oracle.compileAgreementSkeleton(text, id);
+        return skeletonAnalysis(text, skeleton, oracle.crossReferenceGraphFromSkeleton);
+      } finally {
+        if (previousNative === undefined) delete process.env.LEGAL_STRUCTURE_NATIVE;
+        else process.env.LEGAL_STRUCTURE_NATIVE = previousNative;
+      }
+    }
+    oracle.clearSkeletonCache();
+    const skeleton = await oracle.compileAgreementSkeleton(text, id);
+    return skeletonAnalysis(text, skeleton, oracle.crossReferenceGraphFromSkeleton);
+  };
   const expected = WRITE_BASELINE
     ? null
     : JSON.parse(await fs.readFile(BASELINE, "utf8")) as Baseline;
   const started = performance.now();
+  const timings = { rustDerive: [] as number[], rustProjection: [] as number[],
+    rustTotal: [] as number[], typescript: [] as number[] };
   const inputHash = createHash("sha256");
   const resultHash = createHash("sha256");
   const entries: Entry[] = [];
@@ -181,6 +296,7 @@ async function main(): Promise<void> {
     fields: string[];
     expected?: string;
     actual?: string;
+    differences?: Partial<Record<Component, Difference[]>>;
   }> = [];
   let inputBytes = 0;
   let pages = 0;
@@ -191,25 +307,65 @@ async function main(): Promise<void> {
     await fs.writeFile(REPORT, `${JSON.stringify({
       schemaVersion: "beaver.instrument-structure-gate-report.v1",
       complete,
-      mode: WRITE_BASELINE ? "write-baseline" : "verify",
+      mode: ORACLE_ROOT ? "oracle" : WRITE_BASELINE ? "write-baseline" : "verify",
       checked: entries.length,
       denominators: { agreements: agreements.length, pdfs: pdfs.length, pages, lines },
       inputBytes,
       totals,
       mismatches: mismatches.length,
-      mismatchSamples: mismatches.slice(0, 40),
+      mismatchSamples: ORACLE_ROOT ? mismatches : mismatches.slice(0, 40),
+      timings: {
+        rustDerive: timing(timings.rustDerive),
+        rustProjection: timing(timings.rustProjection),
+        rustTotal: timing(timings.rustTotal),
+        ...(timings.typescript.length ? { typescript: timing(timings.typescript) } : {}),
+      },
       elapsedSeconds: (performance.now() - started) / 1_000,
       ...(WRITE_BASELINE ? { entries } : {}),
     }, null, 2)}\n`);
   };
 
-  const check = async (id: string, text: string) => {
-    const analyzed = await analyzeDocumentNative<any>({ kind: "instrument", id, text,
-      reconstruct_lineation: true, source_doc: true });
-    const products = legacyProducts(text, analyzed);
-    if (analyzed.source_doc.text !== text) {
+  const nativeAnalysis = async (id: string, text: string, record = true) => {
+    const started = performance.now();
+    const native = await deriveDocumentNative({ kind: "instrument", id, text,
+      reconstruct_lineation: true });
+    const derived = performance.now();
+    const structure = documentStructureNative<any>(native);
+    const sourceDoc = projectDocumentSourceNative<any>(native);
+    const products = legacyProducts(text, { structure, source_doc: sourceDoc });
+    const finished = performance.now();
+    if (record) {
+      timings.rustDerive.push(derived - started);
+      timings.rustProjection.push(finished - derived);
+      timings.rustTotal.push(finished - started);
+    }
+    if ((sourceDoc.text ?? "") !== text) {
       throw new Error(`${id}: SourceDoc text differs from its instrument input`);
     }
+    return { products, structure };
+  };
+  let warmed = false;
+  const check = async (id: string, text: string) => {
+    if (ORACLE_ROOT && !warmed) {
+      await nativeAnalysis(id, text, false);
+      await priorAnalysis(id, text);
+      warmed = true;
+    }
+    let analyzed: Awaited<ReturnType<typeof nativeAnalysis>>;
+    let previous: Awaited<ReturnType<typeof priorAnalysis>> = null;
+    const runPrevious = async () => {
+      const started = performance.now();
+      previous = await priorAnalysis(id, text);
+      timings.typescript.push(performance.now() - started);
+    };
+    if (ORACLE_ROOT && entries.length % 2 === 1) {
+      await runPrevious();
+      analyzed = await nativeAnalysis(id, text);
+    } else {
+      analyzed = await nativeAnalysis(id, text);
+      if (ORACLE_ROOT) await runPrevious();
+    }
+    const { products } = analyzed;
     const components = Object.fromEntries(
       COMPONENTS.map((name) => [name, hashJson(products[name])]),
     ) as Record<Component, string>;
@@ -233,9 +389,10 @@ async function main(): Promise<void> {
     ).length;
     totals.definedTerms += products.definedTerms.length;
     totals.schedules += products.schedules.length;
-    totals.internalReferences += products.crossReferences.internal;
-    totals.externalReferences += products.crossReferences.external;
-    totals.unresolvedReferences += products.crossReferences.unresolved.length;
+    totals.internalReferences += products.crossReferences.counts.detected -
+      products.crossReferences.counts.external;
+    totals.externalReferences += products.crossReferences.counts.external;
+    totals.unresolvedReferences += products.crossReferences.counts.unresolved;
     totals.contentsPresent += Number(products.contents.outline !== null);
     totals.contentsRefused += Number(products.contents.refusal !== null);
 
@@ -247,15 +404,40 @@ async function main(): Promise<void> {
       if (prior.id !== id) fields.unshift("id");
       if (prior.inputSha256 !== entry.inputSha256) fields.unshift("input");
       if (fields.length || prior.resultSha256 !== entry.resultSha256) {
+        let exactDifferences: Partial<Record<Component, Difference[]>> | undefined;
+        if (ORACLE_ROOT && ORACLE_ADDON) {
+          if (!previous) throw new Error("Structure oracle did not produce a result");
+          exactDifferences = Object.fromEntries(fields
+            .filter((field): field is Component => COMPONENTS.includes(field as Component))
+            .map((field) => [field, differences(previous.products[field], products[field])])) as
+            Partial<Record<Component, Difference[]>>;
+        }
         mismatches.push({
           id,
           fields,
           expected: prior.resultSha256,
           actual: entry.resultSha256,
+          ...(exactDifferences ? { differences: exactDifferences } : {}),
         });
       }
     } else if (expected) {
       mismatches.push({ id, fields: ["missing-baseline-entry"] });
+    }
+    if (previous) {
+      const fields = COMPONENTS.filter(
+        (name) => hashJson(previous!.products[name]) !== components[name],
+      );
+      if (fields.length) {
+        mismatches.push({
+          id,
+          fields,
+          expected: hashJson(previous.products),
+          actual: entry.resultSha256,
+          differences: Object.fromEntries(fields.map((field) => [
+            field, differences(previous!.products[field], products[field]),
+          ])) as Partial<Record<Component, Difference[]>>,
+        });
+      }
     }
 
     if (entries.length % 10 === 0) {
@@ -268,16 +450,18 @@ async function main(): Promise<void> {
   };
 
   for (const file of agreements) {
+    if (entries.length >= LIMIT) break;
     const document = await readAgreement(file);
     await check(document.id, document.text);
   }
   for (const file of pdfs) {
+    if (entries.length >= LIMIT) break;
     const document = await readPdf(file);
     pages += document.pages;
     lines += document.lines;
     await check(document.id, document.text);
   }
-  if (pages !== 24_707 || lines !== 1_221_262) {
+  if (!Number.isFinite(LIMIT) && (pages !== 24_707 || lines !== 1_221_262)) {
     throw new Error(`PDF surface drift: pages=${pages}, lines=${lines}`);
   }
 
@@ -292,7 +476,7 @@ async function main(): Promise<void> {
   };
   if (WRITE_BASELINE) {
     await fs.writeFile(BASELINE, `${JSON.stringify(baseline)}\n`);
-  } else {
+  } else if (!Number.isFinite(LIMIT)) {
     if (expected?.entries.length !== entries.length) {
       mismatches.push({
         id: "<corpus>",

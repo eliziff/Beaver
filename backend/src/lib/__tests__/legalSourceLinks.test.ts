@@ -1,50 +1,33 @@
 import { describe, expect, it } from "vitest";
-import type { A2AJLocatorLookup } from "../legalSources/a2aj";
+import type { A2AJCompiledDocument } from "../legalSources/a2aj";
 import {
-  buildA2AJPinpointUrl,
+  buildA2AJDocumentPinpointUrl,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
+import { deriveDocumentNative, documentTextNative } from "../structureNative";
 
-function lookupFixture({
-  text,
+async function nativeDocument(
+  text: string,
   url = "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html",
   citation = "2099 SCC 1",
-  kind = "paragraph",
-  locator = "para 42",
-  label = "par42",
   dataset = "SCC",
-}: {
-  text: string;
-  url?: string;
-  citation?: string;
-  kind?: A2AJLocatorLookup["requested"]["kind"];
-  locator?: string;
-  label?: string;
-  dataset?: string;
-}): A2AJLocatorLookup {
+): Promise<A2AJCompiledDocument> {
+  const docType = url.includes("/laws/") ? "laws" as const : "cases" as const;
+  const native = await deriveDocumentNative({
+    kind: "a2aj",
+    input: { citation, source_kind: docType, text, dataset, url },
+  });
   return {
-    status: "found",
+    docType,
+    dataset,
     citation,
     alternateCitation: null,
     name: "Example v. Example",
-    dataset,
+    date: null,
     url,
     language: "en",
-    requested: { kind, locator, label },
-    matches: [label],
-    block: { kind, label, start: 0, end: text.length, text },
-    before: [],
-    after: [],
-    structure: {
-      status: "usable",
-      source: "flat_text",
-      counts: {
-        paragraph: kind === "paragraph" ? 1 : 0,
-        page: kind === "page" ? 1 : 0,
-        section: kind === "section" ? 1 : 0,
-      },
-    },
-    sourceMethod: "structure_index",
+    upstreamLicense: null,
+    native,
   };
 }
 
@@ -112,39 +95,38 @@ describe("verified legal-source links", () => {
       "https://example.test/article.pdf",
       "#page=19",
     ],
-  ] as const)("anchors a %s lookup", (kind, locator, label, url, anchor) => {
+  ] as const)("anchors an A2AJ %s passage", async (kind, _locator, label, url, anchor) => {
     const text =
       "The distinctive source words establish this proposition conclusively.";
-    const lookup = lookupFixture({ text, kind, locator, label, url });
+    const document = await nativeDocument(text, url);
 
-    const result = buildA2AJPinpointUrl(
-      lookup,
-      ["distinctive source words establish this proposition"],
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind, label },
       text,
+      ["distinctive source words establish this proposition"],
     );
 
     expect(result).toContain(`${anchor}:~:text=`);
   });
 
-  it("builds an atomic, encoded multi-text directive and deduplicates quotes", () => {
+  it("builds an atomic, encoded multi-text directive and deduplicates quotes", async () => {
     const text =
       "6 A self-regulating & independent profession acts in the public interest. " +
       "A frivolous, vexatious request may be denied.";
-    const lookup = lookupFixture({
+    const document = await nativeDocument(
       text,
-      kind: "section",
-      locator: "s. 6",
-      label: "sec6",
-      url: "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html",
-    });
-    const result = buildA2AJPinpointUrl(
-      lookup,
+      "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html",
+    );
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "section", label: "sec6" },
+      text,
       [
         "self-regulating & independent profession",
         "frivolous, vexatious request",
         "self-regulating & independent profession",
       ],
-      text,
     )!;
 
     expect(result.match(/text=/gu)).toHaveLength(2);
@@ -152,10 +134,11 @@ describe("verified legal-source links", () => {
     expect(result).toContain("self%2Dregulating%20%26%20independent");
     expect(result).toContain("frivolous%2C%20vexatious");
     expect(
-      buildA2AJPinpointUrl(
-        lookup,
-        ["self-regulating & independent profession", "not present in source"],
+      buildA2AJDocumentPinpointUrl(
+        document,
+        { kind: "section", label: "sec6" },
         text,
+        ["self-regulating & independent profession", "not present in source"],
       ),
     ).toBe(
       "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html#sec6",
@@ -217,29 +200,36 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("falls back to the structural anchor when the target is ambiguous", () => {
+  it("falls back to the structural anchor when the target is ambiguous", async () => {
     const sentence =
       "the safety of the community would not be endangered by the offender serving the sentence";
     const line = `In our respectful view, ${sentence}, and nothing more.`;
-    const lookup = lookupFixture({ text: line });
+    const document = await nativeDocument(`${line}\n${line}`);
 
-    expect(buildA2AJPinpointUrl(lookup, [sentence], `${line}\n${line}`)).toBe(
+    expect(buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par42" },
+      line,
+      [sentence],
+    )).toBe(
       "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par42",
     );
   });
 
-  it("rewrites Decisia shell URLs to the inline document view", () => {
+  it("rewrites Decisia shell URLs to the inline document view", async () => {
     const text =
       "The court described the motiveless act as unusual in all the circumstances.";
-    const lookup = lookupFixture({
+    const document = await nativeDocument(
       text,
-      locator: "para 191",
-      label: "par191",
-      url:
         "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21212/index.do" +
         "?foo=bar&iframe=false&site_preference=desktop",
-    });
-    const result = buildA2AJPinpointUrl(lookup, ["motiveless act"], text)!;
+    );
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par191" },
+      text,
+      ["motiveless act"],
+    )!;
 
     // site_preference=mobile is load-bearing: without it the desktop
     // rendering locks the viewport on the text-fragment match and the page
@@ -252,65 +242,72 @@ describe("verified legal-source links", () => {
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
-  it("builds A2AJ fragments only on the retrieved provider URL", () => {
+  it("builds A2AJ fragments only on the retrieved provider URL", async () => {
     const text =
       "[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.";
-    const lookup = lookupFixture({
+    const document = await nativeDocument(
       text,
-      citation: "2023 SCC 14",
-      locator: "para 81",
-      label: "par81",
-      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do",
-    });
+      "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do",
+      "2023 SCC 14",
+    );
 
-    expect(buildA2AJPinpointUrl(lookup, [], text)).toBe(
+    expect(buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par81" },
+      text,
+      [],
+    )).toBe(
       "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81",
     );
-    expect(buildA2AJPinpointUrl({ ...lookup, url: null }, [], text)).toBeNull();
+    expect(buildA2AJDocumentPinpointUrl(
+      { ...document, url: null },
+      { kind: "paragraph", label: "par81" },
+      text,
+      [],
+    )).toBeNull();
+    const official = await nativeDocument(
+      "[12] The Alberta court states the governing rule.",
+      "https://example.test/official-decision",
+      "2025 ABCA 12",
+      "ABCA",
+    );
     expect(
-      buildA2AJPinpointUrl(
-        lookupFixture({
-          text: "[12] The Alberta court states the governing rule.",
-          citation: "2025 ABCA 12",
-          dataset: "ABCA",
-          locator: "para 12",
-          label: "par12",
-          url: "https://example.test/official-decision",
-        }),
+      buildA2AJDocumentPinpointUrl(
+        official,
+        { kind: "paragraph", label: "par12" },
+        documentTextNative(official.native),
         [],
-        text,
       ),
     ).toBe("https://example.test/official-decision");
     expect(
-      buildA2AJPinpointUrl(
-        lookup,
-        ["counter-speech remains a central consideration"],
+      buildA2AJDocumentPinpointUrl(
+        document,
+        { kind: "paragraph", label: "par81" },
         text,
+        ["counter-speech remains a central consideration"],
       ),
     ).toContain(
       "decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81:~:text=",
     );
   });
 
-  it("keeps CanLII PDF page links on the PDF", () => {
+  it("keeps CanLII PDF page links on the PDF", async () => {
     const text = "The PDF page contains a distinctive reporter proposition.";
-    const lookup = lookupFixture({
+    const document = await nativeDocument(
       text,
-      kind: "page",
-      locator: "page 19",
-      label: "page19",
-      url: "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.pdf",
-    });
-    const result = buildA2AJPinpointUrl(
-      lookup,
+      "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.pdf",
+    );
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "page", label: "page19" },
+      text,
       ["distinctive reporter proposition"],
-      text,
     )!;
 
     expect(result).toContain(".pdf#page=19:~:text=");
   });
 
-  it("uses native paragraph anchors on every Decisia deployment", () => {
+  it("uses native paragraph anchors on every Decisia deployment", async () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
     for (const [url, dataset, citation] of [
@@ -330,11 +327,12 @@ describe("verified legal-source links", () => {
         "2026 NSCA 42",
       ],
     ]) {
-      const lookup = lookupFixture({ text, dataset, citation, url });
-      const result = buildA2AJPinpointUrl(
-        lookup,
-        ["distinctive controlling principle"],
+      const document = await nativeDocument(text, url, citation, dataset);
+      const result = buildA2AJDocumentPinpointUrl(
+        document,
+        { kind: "paragraph", label: "par42" },
         text,
+        ["distinctive controlling principle"],
       )!;
       expect(result).toContain("iframe=true");
       expect(result).toContain("site_preference=mobile");
@@ -344,7 +342,7 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("does not swap official BC court pages while building fragments", () => {
+  it("does not swap official BC court pages while building fragments", async () => {
     const text =
       "[42] The court stated a distinctive unanchored proposition in this passage.";
     const url =
@@ -357,13 +355,13 @@ describe("verified legal-source links", () => {
     expect(official).toContain("#:~:text=");
     expect(official).not.toContain("#par42");
 
-    const lookup = lookupFixture({
+    const document = await nativeDocument(text, url, "2026 BCCA 310", "BCCA");
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par42" },
       text,
-      citation: "2026 BCCA 310",
-      dataset: "BCCA",
-      url,
-    });
-    const result = buildA2AJPinpointUrl(lookup, [quote], text)!;
+      [quote],
+    )!;
 
     expect(result).toContain(`${url}#:~:text=`);
     expect(result).not.toContain("#par42");

@@ -1,5 +1,4 @@
-import { lookupSourceDoc } from "../sourceDoc";
-import { analyzeDocumentNative } from "../structureNative";
+import { deriveDocumentNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -12,7 +11,7 @@ import {
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { sourceDocPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./sourceDocPassages";
 import { escapeXmlText } from "../text";
 
 const ORIGIN = "https://www.gov.uk";
@@ -142,9 +141,8 @@ async function fetchEmploymentTribunalCase(
         .map((value) => `<p>${escapeXmlText(value)}</p>`)
         .join("") + hiddenHtml
     : null;
-  const analyzed = await analyzeDocumentNative({
+  const native = await deriveDocumentNative({
     kind: "native_markup",
-    source_doc: true,
     input: {
       provider: "govuk-et",
       id: result.caseNumber,
@@ -154,13 +152,12 @@ async function fetchEmploymentTribunalCase(
       scope: { kind: "excerpt", excerptOf: result.caseNumber },
     },
   });
-  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
   return {
     provider: "govuk-et",
     identity: result.caseNumber,
     title,
     url,
-    analysis: { ...analyzed, source_doc: analyzed.source_doc },
+    native,
     attachments: attachments(details.attachments),
   };
 }
@@ -192,13 +189,11 @@ export const govUkEmploymentTribunalLegalSourceProvider: RemoteLegalSourceProvid
       : await searchEmploymentTribunalCase(source.citation || source.id, signal);
     if (!result) return [];
     const document = await fetchEmploymentTribunalCase(result, signal);
-    return sourceDocPassages({
+    return nativeDocumentPassages({
       request,
       reference: { ...source, ...reference(result), title: document.title },
-      document: document.analysis.source_doc,
-      native: { document },
-      lookup: (kind, value, contextBlocks) =>
-        lookupSourceDoc(document.analysis.source_doc, kind, value, contextBlocks),
+      document: document.native,
+      native: document,
     });
   },
 };

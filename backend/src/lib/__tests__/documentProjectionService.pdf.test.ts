@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../structureNative", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../structureNative")>()),
-  analyzePdfNative: mocks.analyze,
+  derivePdfNative: mocks.analyze,
+  pdfDocumentSummaryNative: (document: { result: unknown }) => document.result,
+  documentTextBytesNative: () => 0,
   configuredLegalPdfProfile: mocks.profile,
 }));
 
@@ -47,33 +49,15 @@ beforeEach(() => {
   mocks.analyze.mockImplementation(async (request: { source_pdf: string }) => {
     const sourceSha256 = digest(await readFile(request.source_pdf));
     return { native: {}, result: {
-      structure: {
-        text: "",
-        nodes: [
-          ...Array.from({ length: 10 }, (_, index) => ({
-            id: `paragraph-${index + 1}`, kind: "paragraph",
-          })),
-          { id: "section-1", kind: "section" },
-          { id: "section-2", kind: "section" },
-        ],
-        notes: [{}, {}],
-      },
-      pdf_source_map: {
-        pages: Array.from({ length: 7 }, (_, physical_index) => ({ physical_index })),
-        table_ids: [],
-        image_ids: [],
-      },
-      pairing_audit: {},
-      source_doc: { provider: "local-pdf", id: "fixture", text: "", blocks: [] },
-      source: {
-        sha256: sourceSha256,
-        parser_version: "0.4.0",
-        cache_key: `cache-${sourceSha256.slice(0, 12)}`,
-        page_count: 7,
-        status: "ready",
-        pages_needing_ocr: [4],
-        ocr_routed_pages: [],
-      },
+      sha256: sourceSha256,
+      parserVersion: "0.4.0",
+      cacheKey: `cache-${sourceSha256.slice(0, 12)}`,
+      pageCount: 7,
+      projectionPageCount: 7,
+      status: "ready",
+      pagesNeedingOcr: [4],
+      ocrRoutedPages: [],
+      counts: { paragraphs: 10, sections: 2, footnotes: 2, tables: 0, images: 0 },
     } };
   });
 });

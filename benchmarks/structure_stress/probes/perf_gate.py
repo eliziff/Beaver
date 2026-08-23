@@ -3,7 +3,7 @@
 Doctrine (Eli, 2026-07-29): "made sure the full sweep is highly
 performant so we don't wait for nothing." This probe runs the REAL
 per-doc scorer (sweep.scan_doc, same entries, same prefilters, shipping
-legal-structure bridge) over a seeded reservoir sample, then:
+in-process legal-structure engine) over a seeded reservoir sample, then:
 
   1. per-doc wall stats by source and size decile;
   2. a per-entry cost table (ms/MB, gated-share) to expose the regexes
@@ -31,7 +31,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import sweep  # noqa: E402
-from sourcedoc_client import close_client, compile_document  # noqa: E402
+from legal_structure import compile_document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 
@@ -186,7 +186,7 @@ def main() -> int:
     t0 = time.perf_counter()
     for _id, _k, text, metadata in case_jobs:
         compile_document({
-            "id": _id, "docType": "cases",
+            "docType": "cases",
             "citation": metadata.get("self_cite") or "",
             "alternateCitation": metadata.get("alternate_citation") or "",
             "dataset": metadata.get("dataset") or "",
@@ -196,7 +196,7 @@ def main() -> int:
     t0 = time.perf_counter()
     for _id, _k, text, metadata in law_jobs:
         compile_document({
-            "id": _id, "docType": "laws",
+            "docType": "laws",
             "citation": metadata.get("citation") or "",
             "alternateCitation": metadata.get("alternate_citation") or "",
             "dataset": metadata.get("dataset") or "",
@@ -225,7 +225,6 @@ def main() -> int:
         print("  (0.8 pool efficiency)")
     print(f"\nsample fail-rate sanity: {fails}/{len(case_jobs) + len(law_jobs)} "
           f"docs flagged")
-    close_client()
     return 0
 
 

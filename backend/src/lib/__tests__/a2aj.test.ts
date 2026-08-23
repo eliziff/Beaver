@@ -14,6 +14,10 @@ vi.mock("../remoteUrlSafety", () => ({ guardedRemoteFetch }));
 import {
   a2ajLegalSourceProvider,
 } from "../legalSources/a2aj";
+import {
+  documentTextNative,
+  lookupDocumentNative,
+} from "../structureNative";
 
 beforeEach(() => {
   guardedRemoteFetch.mockClear();
@@ -95,7 +99,6 @@ describe("A2AJ client", () => {
       citation: "2020 SCC 5",
       name: "Nevsun Resources Ltd. v. Araya",
       url: "https://decisions.scc-csc.ca/item/18169",
-      text: "abcdef",
     });
     expect(guardedRemoteFetch).toHaveBeenCalledWith(
       expect.stringMatching(/^https:\/\/api\.a2aj\.ca\/fetch\?citation=2020\+SCC\+5/u),
@@ -154,7 +157,7 @@ describe("A2AJ client", () => {
     ]);
   });
 
-  it("indexes the full decision once and looks up one paragraph", async () => {
+  it("reads a paragraph and range from the canonical decision", async () => {
     const text = Array.from(
       { length: 6 },
       (_, index) =>
@@ -176,39 +179,40 @@ describe("A2AJ client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const document = await a2ajLegalSourceProvider.document({ citation: "2099 SCC 1" });
-    const lookup = await a2ajLegalSourceProvider.lookup({
+    const source = {
+      provider: "a2aj",
+      id: "2099 SCC 1",
+      kind: "case",
       citation: "2099 SCC 1",
-      kind: "paragraph",
-      locator: "para 3",
+      collection: "SCC",
+      language: "en",
+    } as const;
+    const passages = await a2ajLegalSourceProvider.readPassage!({
+      source,
+      locator: { kind: "paragraph", value: "para 3" },
       contextBlocks: 1,
     });
-    const range = await a2ajLegalSourceProvider.lookup({
-      citation: "2099 SCC 1",
-      kind: "paragraph",
-      locator: "2",
-      endLocator: "4",
+    const range = await a2ajLegalSourceProvider.readPassage!({
+      source,
+      locator: { kind: "paragraph", value: "2", endValue: "4" },
       contextBlocks: 1,
     });
 
-    expect(document?.analysis?.source_doc.ranges.paragraph.count).toBe(6);
-    expect(lookup).toMatchObject({
-      status: "found",
-      sourceMethod: "structure_index",
-      block: { label: "par3" },
-      before: [{ label: "par2" }],
-      after: [{ label: "par4" }],
-    });
-    expect(lookup?.block?.text).toContain("Decision paragraph 3");
-    expect(range).toMatchObject({
-      status: "found",
-      requested: { locator: "2-4", label: "par2-par4" },
-      matches: ["par2", "par3", "par4"],
-      block: { label: "par2-par4" },
-      before: [{ label: "par1" }],
-      after: [{ label: "par5" }],
-    });
-    expect(range?.block?.text).toContain("Decision paragraph 2");
-    expect(range?.block?.text).toContain("Decision paragraph 4");
+    expect(passages.map(({ locator, role }) => [locator.label, role])).toEqual([
+      ["par3", "selected"],
+      ["par2", "context"],
+      ["par4", "context"],
+    ]);
+    expect(passages[0]?.text).toContain("Decision paragraph 3");
+    expect(range.map(({ locator, role }) => [locator.label, role])).toEqual([
+      ["par1", "context"],
+      ["par2", "selected"],
+      ["par3", "selected"],
+      ["par4", "selected"],
+      ["par5", "context"],
+    ]);
+    const native = a2ajLegalSourceProvider.source(document!);
+    expect(native && documentTextNative(native)).toBe(text);
   });
 
   it("uses A2AJ's raw section map for nested provision lookup", async () => {
@@ -240,138 +244,34 @@ describe("A2AJ client", () => {
       citation: "RSC 1985, c C-46",
       docType: "laws",
     });
-    const lookup = await a2ajLegalSourceProvider.lookup({
-      citation: "RSC 1985, c C-46",
-      docType: "laws",
-      kind: "section",
-      locator: "s. 34(1)(a)",
+    const passages = await a2ajLegalSourceProvider.readPassage!({
+      source: {
+        provider: "a2aj",
+        id: "RSC 1985, c C-46",
+        kind: "legislation",
+        citation: "RSC 1985, c C-46",
+        collection: "LEGISLATION-FED",
+        language: "en",
+      },
+      locator: { kind: "section", value: "s. 34(1)(a)" },
     });
 
     expect(document).toMatchObject({
       docType: "laws",
-      text: mappedText,
-      sectionMap: sections,
     });
     const source = a2ajLegalSourceProvider.source(document!);
-    expect(source.text).toBe(mappedText);
-    expect(source.blocks.find(({ label }) => label === "sec34")).toMatchObject({
+    expect(source && documentTextNative(source)).toBe(mappedText);
+    expect(source && lookupDocumentNative(source, "section", "34").block).toMatchObject({
       label: "sec34",
       start: 0,
       end: mappedText.length,
       origin: "native",
     });
-    expect(lookup).toMatchObject({
-      status: "found",
-      sourceMethod: "provider_section",
-      block: { label: "sec34(1)(a)" },
-    });
-    expect(lookup?.block?.text).toContain(
+    expect(passages).toHaveLength(1);
+    expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
+    expect(passages[0]?.text).toContain(
       "requested nested statutory paragraph",
     );
-  });
-
-  it("looks up provider-native named, suffixed and combined map keys exactly", async () => {
-    const sections = {
-      Preamble: "Whereas the Legislature recognizes these principles.",
-      "1": "First provision.",
-      "2A": "Suffixed provision.",
-      "202DI": "Later suffixed provision.",
-      "4 and 4.1": "Combined provider provision.",
-      "Schedule 1": "First schedule.",
-    };
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        results: [
-          {
-            dataset: "LEGISLATION-TEST",
-            citation_en: "RSC 2099, c P-1",
-            name_en: "Provider Map Act",
-            unofficial_text_en: "Stale flat rendition.",
-            unofficial_sections_en: JSON.stringify(sections),
-          },
-        ],
-      }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    for (const [locator, text] of Object.entries(sections).filter(
-      ([locator]) => locator !== "1",
-    )) {
-      const lookup = await a2ajLegalSourceProvider.lookup({
-        citation: "RSC 2099, c P-1",
-        docType: "laws",
-        kind: "section",
-        locator,
-      });
-      expect(lookup).toMatchObject({
-        status: "found",
-        requested: { label: `sec${locator}` },
-        matches: [`sec${locator}`],
-        block: {
-          label: `sec${locator}`,
-          origin: "native",
-          text,
-        },
-        sourceMethod: "provider_section",
-      });
-    }
-  });
-
-  it("refuses blank section renditions and normalized-key collisions", async () => {
-    const record = {
-      dataset: "LEGISLATION-TEST",
-      citation_en: "RSC 2099, c C-2",
-      name_en: "Provider Collision Act",
-      unofficial_text_en: [
-        "1 First reconstructed provision.",
-        "2 Second reconstructed provision.",
-        "3 Third reconstructed provision.",
-      ].join("\n"),
-      unofficial_sections_en: JSON.stringify({
-        Preamble: "First provider preamble.",
-        preamble: "Conflicting provider preamble.",
-        "9": "[blank]",
-      }),
-    };
-    const fetchMock = vi.fn(
-      async (input: Parameters<typeof fetch>[0]) => ({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          results: new URL(String(input)).searchParams.has("section")
-            ? []
-            : [record],
-        }),
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      a2ajLegalSourceProvider.lookup({
-        citation: "RSC 2099, c C-2",
-        docType: "laws",
-        kind: "section",
-        locator: "Preamble",
-      }),
-    ).resolves.toMatchObject({
-      status: "ambiguous",
-      matches: ["secPreamble", "secpreamble"],
-      sourceMethod: "provider_section",
-    });
-    await expect(
-      a2ajLegalSourceProvider.lookup({
-        citation: "RSC 2099, c C-2",
-        docType: "laws",
-        kind: "section",
-        locator: "9",
-      }),
-    ).resolves.toMatchObject({
-      status: "not_found",
-      matches: [],
-      sourceMethod: "structure_index",
-    });
   });
 
   it("returns a stable viewer payload", async () => {

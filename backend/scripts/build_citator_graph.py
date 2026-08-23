@@ -46,7 +46,7 @@ node-identity key are faithful ports of the proven reference implementations
       and corpus identity agree.
 scripts/citator-oracle-diff.py proves the ports against the originals over a
 real corpus slice. Host paragraphs come directly from Beaver's shipping
-legal-structure process; this builder contains no paragraph grammar.
+legal-structure engine; this builder contains no paragraph grammar.
 
 NODE IDENTITY / NORMALIZATION: cited_key = citation_lookup_key(anchor text):
 NFKC, en/em dashes to "-", digit-boundary "." "-" "/" become the words
@@ -107,7 +107,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from sourcedoc_client import compile_document
+from legal_structure import compile_document
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
@@ -666,7 +666,6 @@ def build(args: argparse.Namespace) -> None:
                 kind_totals[kind] = kind_totals.get(kind, 0) + count
             paragraphs = (
                 compile_document({
-                    "id": identity or f"row:{counters['rows_scanned']}",
                     "docType": "cases",
                     "citation": case["citation"] or "",
                     "alternateCitation": case["citation2"] or "",

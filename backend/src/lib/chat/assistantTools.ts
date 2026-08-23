@@ -6,9 +6,7 @@ import {
   resourceReference,
 } from "../resourceReferences";
 import {
-  a2ajLegalSourceProvider,
-  type A2AJDocument,
-  type A2AJLocatorLookup,
+  type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
 import {
   readLegalSourcePassage,
@@ -17,29 +15,16 @@ import {
 } from "../legalSourceRegistry";
 import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
 import { fixDocumentSupras } from "../docxDeterministicCleanup";
-import { lintDocxStructure } from "../docxStructuralLint";
 import {
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
 } from "../structureNative";
-import {
-  graphScope,
-  lookupStructureBlock,
-  pageMapFromMarkers,
-  pageMapFromSourceDoc,
-  parseAddress,
-  resolvePage,
-  referenceLabelsOutside,
-  type FollowDirection,
-  type PageMap,
-} from "../legalDocumentNavigator";
-import { extractDocxDraftingSource } from "../docxDraftingSource";
+import { docxDraftingMarkdown } from "../docxDraftingMarkdown";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { resolveDraftingOptions } from "../draftingStyle";
 import { getDraftingStyleSettings } from "../draftingStyleStore";
 import {
   applyTrackedEdits,
-  extractDocxBodyStructure,
   extractDocxBodyText,
   finalizeTrackedEdits,
   insertTrackedBlocks,
@@ -61,12 +46,21 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import {
-  sourceDocBlockText,
-  sourceDocSubtreeLabels,
-  type SourceDoc,
-  type SourceDocBlock,
-} from "../sourceDoc";
-import { analyzeDocumentNative } from "../structureNative";
+  deriveDocumentNative,
+  docxStructureLintNative,
+  documentLeafUnitsNative,
+  documentPageMapNative,
+  documentRevisionNative,
+  documentTextNative,
+  graphScopeNative,
+  lookupStructureBlockNative,
+  parseDocumentAddressNative,
+  resolveDocumentPageNative,
+  smallestContainingDocumentBlockNative,
+  type NativeDocument,
+  type NativeDocumentBlock,
+  type NativePageMap,
+} from "../structureNative";
 import { preparePdf, preparePdfPages } from "../pdfJobs";
 import {
   lookupProviderPdfReference,
@@ -81,14 +75,11 @@ import {
   submitTableOfAuthoritiesDocument,
 } from "../tableOfAuthorities";
 import {
-  a2ajLookupEvidenceBlocks,
   assistantReadEvidenceActivityLabel,
   assistantToolActivityLabel,
-  readA2AJReferenceNeighborhood,
   type A2AJReferenceDirection,
 } from "./tools/a2ajTools";
 import {
-  createA2AJLookupEvidence,
   createA2AJPassageEvidence,
   createCourtlistenerEvidence,
   createGovInfoEvidence,
@@ -208,36 +199,15 @@ const LINT_DOCUMENT_TOOL: Tool = {
   inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
 };
 
-const referenceGraph = (structure: unknown) =>
-  (structure as {
-    cross_references?: Parameters<typeof graphScope>[1] | null;
-  } | null)?.cross_references ?? null;
-
 function oneHopLegalScope(
-  doc: SourceDoc,
-  graph: Parameters<typeof graphScope>[1],
-  block: { label: string; start: number; end: number },
+  document: NativeDocument,
+  block: NativeDocumentBlock,
   direction: "inbound" | "outbound" | "both",
 ) {
-  const seed = doc.blocks.find(
-    (candidate) => candidate.label === block.label &&
-      candidate.start === block.start && candidate.end === block.end,
-  );
-  if (!seed) return null;
-  const subtree = sourceDocSubtreeLabels(doc.blocks, seed.label);
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";
-  const byLabel = new Map(doc.blocks.map((node) => [node.label, node]));
-  const reached = referenceLabelsOutside(graph, subtree, follow)
-    .flatMap((label) => byLabel.get(label) ?? []);
-  return {
-    seed,
-    nodes: [
-      seed,
-      ...reached.sort((left, right) => left.start - right.start),
-    ],
-  };
+  return graphScopeNative(document, block.label, follow, 1, true);
 }
 
 
@@ -420,8 +390,8 @@ async function saveDocxEdits(params: {
     sourceSha256: version.source_sha256,
     bytes: params.bytes,
   }).catch(() => null);
-  const lint = lintProjection?.kind === "docx-session"
-    ? lintDocxStructure(lintProjection.structure)
+  const lint = lintProjection?.kind === "docx"
+    ? docxStructureLintNative(lintProjection.sourceDoc)
     : null;
   return documentResult({
     ok: true,
@@ -743,35 +713,27 @@ type EvidenceSpan = {
   locator?: LegalEvidenceReceipt["locator"];
 };
 
-function sourceDocArtifact(value: unknown): SourceDoc | undefined {
-  const artifact = objectRecord(value);
-  return artifact && typeof artifact.text === "string" &&
-      Array.isArray(artifact.blocks) && artifact.index !== null &&
-      typeof artifact.index === "object"
-    ? artifact as unknown as SourceDoc
+function nativeDocumentArtifact(value: unknown): NativeDocument | undefined {
+  return typeof value === "object" && value !== null
+    ? value as NativeDocument
     : undefined;
 }
 
 function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
-  const source = sourceDocArtifact(passage.documentArtifact);
+  const source = nativeDocumentArtifact(passage.documentArtifact);
   if (passage.source.provider !== "a2aj") return source ? { source } : {};
   const native = objectRecord(passage.native);
-  const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
-  if (lookup?.status === "found") return { lookup, ...(source && { source }) };
-  return typeof native?.citation === "string" && typeof native.text === "string"
-    ? { document: native as unknown as A2AJDocument, ...(source && { source }) }
+  return typeof native?.citation === "string" && source
+    ? { document: native as unknown as A2AJCompiledDocument }
     : source ? { source } : {};
 }
 
 function smallestContainingBlock(
-  source: SourceDoc,
+  source: NativeDocument,
   start: number,
   end: number,
-): SourceDocBlock | undefined {
-  return source.blocks
-    .filter((block) => block.start <= start && block.end >= end)
-    .sort((left, right) =>
-      left.end - left.start - (right.end - right.start))[0];
+): NativeDocumentBlock | undefined {
+  return smallestContainingDocumentBlockNative(source, start, end) ?? undefined;
 }
 
 function cleanSearchEvidenceSpan(
@@ -779,11 +741,12 @@ function cleanSearchEvidenceSpan(
   hit: { at: number; excerpt: string },
 ): EvidenceSpan {
   const matchEnd = hit.at + hit.excerpt.length;
-  const source = sourceDocArtifact(passage.documentArtifact);
-  if (passage.role === "document" && source?.text === passage.text) {
+  const source = nativeDocumentArtifact(passage.documentArtifact);
+  if (passage.role === "document" && source &&
+      documentTextNative(source) === passage.text) {
     const block = smallestContainingBlock(source, hit.at, matchEnd);
     if (block) return {
-      text: sourceDocBlockText(source, block),
+      text: block.text,
       start: block.start,
       end: block.end,
       blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
@@ -810,37 +773,39 @@ function legalSourceEvidence(
     const native = objectRecord(passage.native);
     if (typeof native?.citation === "string" &&
         typeof native.dataset === "string" &&
-        typeof native.text === "string" &&
         (native.language === "en" || native.language === "fr")) {
-      return span ? createA2AJPassageEvidence({
+      const source = nativeDocumentArtifact(passage.documentArtifact);
+      if (!source) return undefined;
+      const block = objectRecord(passage.blockArtifact);
+      const selected = span ?? (typeof block?.text === "string" &&
+          typeof block.start === "number" && typeof block.end === "number" &&
+          typeof block.kind === "string" && typeof block.label === "string"
+        ? {
+            text: block.text,
+            start: block.start,
+            end: block.end,
+            blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
+            ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
+              ? { locator: { kind: block.kind as "paragraph" | "page" | "section" | "footnote",
+                  label: block.label } }
+              : {}),
+          }
+        : null);
+      return selected ? createA2AJPassageEvidence({
         citation: native.citation,
         name: typeof native.name === "string" ? native.name : null,
         dataset: native.dataset,
         language: native.language,
-        sourceText: native.text,
-        spanText: span.text,
-        start: span.start,
-        end: span.end,
+        sourceSha256: documentRevisionNative(source),
+        spanText: selected.text,
+        start: selected.start,
+        end: selected.end,
         externalUrl: typeof native.url === "string" ? native.url : null,
         sourceClass: passage.source.kind === "legislation" ? "legislation" : "case",
-        blockId: span.blockId,
-        locator: span.locator,
+        blockId: selected.blockId,
+        locator: selected.locator,
       }) : undefined;
     }
-    const lookup = objectRecord(native?.lookup) as A2AJLocatorLookup | null;
-    const block = objectRecord(native?.block) as A2AJLocatorLookup["block"];
-    if (lookup?.status === "found" && block) return createA2AJLookupEvidence({
-      ...lookup,
-      requested: {
-        kind: block.kind as A2AJLocatorLookup["requested"]["kind"],
-        locator: block.label,
-        label: block.label,
-      },
-      matches: [block.label],
-      block,
-      before: [],
-      after: [],
-    }, passage.source.kind === "legislation" ? "legislation" : "case") ?? undefined;
   }
   if (!span && passage.role === "document" && passage.source.provider !== "hansard") {
     return undefined;
@@ -1026,11 +991,10 @@ async function readLegalSourceResource(
     const courtCases = new Map<string, Record<string, unknown>>();
     for (const { passage } of registered) {
       const native = objectRecord(passage.native);
-      const nativeDocument = objectRecord(native?.document);
-      if (nativeDocument && ["tna", "govuk-et", "govinfo"].includes(
+      if (native && ["tna", "govuk-et", "govinfo"].includes(
         passage.source.provider,
       )) {
-        const document = nativeDocument as RemoteLegalSourceDocument;
+        const document = native as RemoteLegalSourceDocument;
         remoteSources.set(`${document.provider}:${document.identity}`, document);
       }
       const courtCase = objectRecord(native?.case);
@@ -1114,39 +1078,71 @@ async function readLegalSourceResource(
     let referenceNeighborhood: Record<string, unknown> | undefined;
     const relatedEvidence: LegalEvidenceReceipt[] = [];
     if (references !== "none") {
-      const seed = registered.map(({ passage }) => {
-        const native = objectRecord(passage.native);
-        return objectRecord(native?.lookup) as A2AJLocatorLookup | null;
-      }).find((value): value is A2AJLocatorLookup => Boolean(value));
-      if (seed) {
-        const related = await readA2AJReferenceNeighborhood(
-          seed,
-          references as A2AJReferenceDirection,
-          options.signal,
+      const selected = registered.find(({ passage }) =>
+        passage.role === "selected" && objectRecord(passage.blockArtifact));
+      const artifact = selected && nativeDocumentArtifact(
+        selected.passage.documentArtifact,
+      );
+      const block = selected && objectRecord(selected.passage.blockArtifact);
+      const metadata = selected && objectRecord(selected.passage.native);
+      if (artifact && block && typeof block.label === "string" &&
+          typeof block.start === "number" && typeof block.end === "number" &&
+          metadata && typeof metadata.citation === "string" &&
+          typeof metadata.dataset === "string" &&
+          (metadata.language === "en" || metadata.language === "fr")) {
+        const scope = oneHopLegalScope(
+          artifact,
+          block as unknown as NativeDocumentBlock,
+          references as Exclude<A2AJReferenceDirection, "none">,
         );
-        const sections = related.lookups.map((lookup) => {
-          const evidence = a2ajLookupEvidenceBlocks(lookup, "legislation");
-          const source = a2ajLegalSourceProvider.source(lookup);
-          relatedEvidence.push(...evidence.map(({ receipt }) => receipt));
-          evidence.forEach(({ receipt }) =>
-            evidenceSources.set(receipt.evidence_id, {
-              lookup,
-              ...(source && { source }),
-            }));
-          return {
-            label: lookup.block?.label,
-            text: lookup.block?.text,
-            evidence_ids: evidence.map(({ receipt }) => receipt.evidence_id),
-          };
-        });
+        const candidates = scope?.nodes.slice(1) ?? [];
+        const sections: Array<{ label: string; text: string; evidence_ids: string[] }> = [];
+        const omitted: string[] = [];
+        let chars = 0;
+        for (const [index, related] of candidates.entries()) {
+          if (sections.length === 50 || chars + related.text.length > 32_000) {
+            omitted.push(...candidates.slice(index).map(({ label }) => label));
+            break;
+          }
+          chars += related.text.length;
+          const receipts = documentLeafUnitsNative(
+            artifact, related.kind, related.start, related.end,
+          ).filter((unit): unit is NativeDocumentBlock & {
+            kind: "paragraph" | "page" | "section" | "footnote";
+          } =>
+            unit.kind === "paragraph" || unit.kind === "page" ||
+            unit.kind === "section" || unit.kind === "footnote"
+          ).map((unit) => createA2AJPassageEvidence({
+            citation: metadata.citation as string,
+            name: typeof metadata.name === "string" ? metadata.name : null,
+            dataset: metadata.dataset as string,
+            language: metadata.language as "en" | "fr",
+            sourceSha256: documentRevisionNative(artifact),
+            spanText: unit.text,
+            start: unit.start,
+            end: unit.end,
+            externalUrl: typeof metadata.url === "string" ? metadata.url : null,
+            sourceClass: "legislation",
+            blockId: `${unit.kind}:${unit.label}:${unit.start}:${unit.end}`,
+            locator: { kind: unit.kind, label: unit.label },
+          }));
+          relatedEvidence.push(...receipts);
+          receipts.forEach((receipt) => evidenceSources.set(receipt.evidence_id, {
+            document: metadata as unknown as A2AJCompiledDocument,
+          }));
+          sections.push({ label: related.label, text: related.text,
+            evidence_ids: receipts.map(({ evidence_id }) => evidence_id) });
+        }
         referenceNeighborhood = {
           direction: references,
           depth: 1,
-          returned: related.lookups.length,
-          truncated: related.truncated,
-          limit_reason: related.limitReason,
-          omitted: related.omitted,
-          failures: related.failures,
+          returned: sections.length,
+          truncated: omitted.length > 0,
+          limit_reason: omitted.length
+            ? sections.length === 50 ? "sections" : "characters"
+            : null,
+          omitted: [...new Set(omitted)],
+          failures: scope ? [] : ["reference graph source unavailable"],
           sections,
         };
       }
@@ -1282,21 +1278,18 @@ async function runCodingShapeCall(
       }
     }
     if (raw) {
-      const analyzed = await analyzeDocumentNative({
+      const sourceDoc = await deriveDocumentNative({
         kind: "instrument",
         id: documentId,
         text: raw.text,
         table_cells: [],
         reconstruct_lineation: true,
-        source_doc: true,
       });
-      if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
       return {
         ...raw,
         pages: { pages: [], source: "unindexed" as const },
         tableCells: [],
-        sourceDoc: analyzed.source_doc,
-        structure: analyzed.structure,
+        sourceDoc,
       };
     }
     return extractDocument(documents, scope, documentId, versionId);
@@ -1355,7 +1348,7 @@ async function runCodingShapeCall(
               bytes: file.bytes,
             }, { signal });
             physicalPageCount = projection.kind === "pdf"
-              ? projection.pdfSourceMap.pages.length
+              ? projection.pageCount
               : null;
           } catch {
             return fail(
@@ -1529,7 +1522,7 @@ async function runCodingShapeCall(
       return fail("references requires an exact section handle.");
     }
     if (sectionArg) {
-      const lookup = lookupStructureBlock(document.sourceDoc, sectionArg);
+      const lookup = lookupStructureBlockNative(document.sourceDoc, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
         return fail(
           `Section '${sectionArg}' not found (${lookup.status}` +
@@ -1541,13 +1534,8 @@ async function runCodingShapeCall(
       }
       const block = lookup.block;
       if (references !== "none") {
-        const graph = referenceGraph(document.structure);
-        if (!graph) {
-          return fail(`Section '${sectionArg}' has no reference graph.`);
-        }
         const scope = oneHopLegalScope(
           document.sourceDoc,
-          graph,
           block,
           references,
         );
@@ -1578,11 +1566,9 @@ async function runCodingShapeCall(
         }
         return finish(
           candidates,
-          (_kept, truncated) => graph.documentAbstained
-            ? `\n(Reference graph abstained: ${graph.note ?? "unresolved document structure"}.)`
-            : truncated
-              ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
-              : "",
+          (_kept, truncated) => truncated
+            ? "\n(Reference read stopped at the tool-result limit; narrow the direction or read a returned section recipe.)"
+            : "",
         );
       }
       const startLine = sourceLineAt(starts, block.start) + 1;
@@ -1800,7 +1786,7 @@ async function runCodingShapeCall(
     const starts = sourceLineStarts(document.text);
     let scopeSpan: TextRange | null = null;
     if (grepSection) {
-      const lookup = lookupStructureBlock(document.sourceDoc, grepSection);
+      const lookup = lookupStructureBlockNative(document.sourceDoc, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
         const candidates = lookup.matches.length
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
@@ -1917,12 +1903,9 @@ export async function extractDocument(
     sourceSha256: file.version.source_sha256,
     bytes: file.bytes,
   });
-  const { sourceDoc, structure } = projection;
-  const text = sourceDoc.text;
-  // Preserve the engine's distinct PDF and printed page labels; text markers
-  // are only a fallback because they cannot recover that distinction.
-  let pages: PageMap | null = pageMapFromSourceDoc(sourceDoc);
-  if (!pages?.pages.length) pages = pageMapFromMarkers(text);
+  const { sourceDoc } = projection;
+  const text = documentTextNative(sourceDoc);
+  let pages: NativePageMap = documentPageMapNative(sourceDoc);
   if (!pages.pages.length && fileType === "pdf")
     pages = { pages: [], source: "unindexed" };
   return {
@@ -1931,7 +1914,6 @@ export async function extractDocument(
     pages,
     tableCells: projection.tableCells,
     sourceDoc,
-    structure,
   };
 }
 
@@ -2281,53 +2263,47 @@ async function runAdvancedDocxEdit(params: {
     let resolvedRequests = requests;
     if (requests.some(({ scope }) =>
       (scope as unknown as { kind: string }).kind === "at")) {
-      const body = await extractDocxBodyStructure(file.bytes);
-      if (!body.text) {
+      const projection = await documentProjectionService.read({
+        documentId: params.documentId,
+        versionId: file.version.id,
+        filename: file.filename,
+        fileType: file.fileType,
+        sourceSha256: file.version.source_sha256,
+        bytes: file.bytes,
+      });
+      const sourceDoc = projection.sourceDoc;
+      if (projection.kind !== "docx" || !documentTextNative(sourceDoc)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
-      const analyzed = await analyzeDocumentNative({
-        kind: "instrument",
-        id: params.documentId,
-        text: body.text,
-        table_cells: body.tableCells,
-        reconstruct_lineation: true,
-        source_doc: true,
-      });
-      if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-      const sourceDoc = analyzed.source_doc;
-      const graph = referenceGraph(analyzed.structure);
-      const map = pageMapFromMarkers(body.text);
       resolvedRequests = requests.map((request, index) => {
         const scope = request.scope as unknown as {
           kind: string;
           at: string;
-          follow?: FollowDirection;
+          follow?: "none" | "out" | "in" | "both";
           depth?: number;
         };
         if (scope.kind !== "at") return request;
-        const address = parseAddress(scope.at ?? "");
+        const address = parseDocumentAddressNative(scope.at ?? "");
         if (!address || address.kind === "offset") throw new Error(
           `ops[${index}].scope.at is not a provision or page address`);
         let spans: { start: number; end: number }[];
         if (address.kind === "page") {
-          const lookup = resolvePage(map, body.text, address.spec);
+          const lookup = resolveDocumentPageNative(sourceDoc, address.spec);
           if (lookup.status !== "found") throw new Error(
             `ops[${index}].scope.at did not resolve (${lookup.status})`);
           spans = [{ start: lookup.page.start, end: lookup.page.end }];
         } else {
-          const seed = lookupStructureBlock(sourceDoc, address.locator);
+          const seed = lookupStructureBlockNative(sourceDoc, address.locator);
           if (seed.status !== "found" || !seed.block) throw new Error(
             `ops[${index}].scope.at did not resolve (${seed.status})`);
           const follow = scope.follow ?? "none";
           spans = [{ start: seed.block.start, end: seed.block.end }];
           if (follow !== "none") {
-            if (!graph) throw new Error(
-              `ops[${index}].scope.at has no reference graph`);
-            const walked = graphScope(
+            const walked = graphScopeNative(
               sourceDoc,
-              graph,
               seed.block.label,
-              { follow, depth: scope.depth ?? 1 },
+              follow,
+              scope.depth ?? 1,
             );
             if (!walked) throw new Error(
               `ops[${index}].scope.at is not an addressable block`);
@@ -2445,7 +2421,7 @@ async function runDocxWorkflow(
     sourceSha256: file.version.source_sha256,
     bytes: file.bytes,
   });
-  if (projection.kind !== "docx-session") {
+  if (projection.kind !== "docx") {
     throw new Error("DOCX structure projection is unavailable");
   }
   return {
@@ -2453,7 +2429,7 @@ async function runDocxWorkflow(
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
-    ...lintDocxStructure(projection.structure),
+    ...docxStructureLintNative(projection.sourceDoc),
   };
 }
 
@@ -2473,9 +2449,9 @@ async function servedDraftingText(
   if (!file || file.fileType.toLowerCase() !== "docx") return null;
   const cacheKey = `${documentId}:${file.version.id}`;
   if (cache?.has(cacheKey)) return cache.get(cacheKey)!;
-  const source = await extractDocxDraftingSource(file.bytes).catch(() => null);
-  const result = source ? {
-    served: source.markdown,
+  const markdown = await docxDraftingMarkdown(file.bytes).catch(() => null);
+  const result = markdown ? {
+    served: markdown,
     versionId: file.version.id,
   } : null;
   cache?.set(cacheKey, result);
@@ -2710,11 +2686,19 @@ export function assistantTools<Context extends {
           documents, scope, documentId, versionId || undefined,
         );
         const bytes = file.bytes;
-        const body = await extractDocxBodyStructure(bytes);
-        if (!body.text) {
+        const projection = await documentProjectionService.read({
+          documentId,
+          versionId: file.version.id,
+          filename: file.filename,
+          fileType: file.fileType,
+          sourceSha256: file.version.source_sha256,
+          bytes,
+        });
+        const text = documentTextNative(projection.sourceDoc);
+        if (projection.kind !== "docx" || !text) {
           return fail("DOCX body text could not be extracted");
         }
-        const plan = await deleteProvisionAndRenumberSiblings(body.text, target);
+        const plan = await deleteProvisionAndRenumberSiblings(text, target);
         if (plan.failures.length) {
           return result({
             ok: false,
@@ -2727,7 +2711,7 @@ export function assistantTools<Context extends {
             failures: plan.failures,
           });
         }
-        const edits = trackedEditsForRenumberPlan(body.text, plan.applied);
+        const edits = trackedEditsForRenumberPlan(text, plan.applied);
         if (typeof edits === "string") return fail(edits);
         const edited = await applyTrackedEdits(bytes, edits, {
           author: "Beaver",

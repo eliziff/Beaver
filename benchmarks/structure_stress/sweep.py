@@ -1,8 +1,8 @@
 """Structure stress sweep over every local corpus.
 
 For each document: run every grammar-table entry (prefilter-gated), invoke
-Beaver's shipping legal-structure engine through one persistent process per
-worker, score its blocks against provider metadata where available, and
+Beaver's shipping legal-structure engine in-process, score its blocks against
+provider metadata where available, and
 aggregate. This harness contains no structure detector or parser grammar.
 Regex is the measured bottleneck. On the full tier, workers read their
 own parquet row slices (pyarrow decodes ~500 MB/s) and return per-shard
@@ -33,10 +33,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FORK = HERE.parent.parent
-ENGINE_SRC = FORK / "legal-pdf-parser" / "src"
 TABLES_DIR = FORK / "shared" / "grammar-tables"
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
-sys.path.insert(0, str(FORK / "backend" / "scripts"))
 
 
 def _public_endpoint_db() -> Path:
@@ -121,7 +119,7 @@ SHORT_STRING_ENTRIES = {
 
 SLOW_DOC_SECONDS = 2.0
 
-from sourcedoc_client import compile_document  # noqa: E402
+from legal_structure import compile_document  # noqa: E402
 
 PILCROW_RE = re.compile(r"¶\s?\d")
 
@@ -167,7 +165,6 @@ _HAND_ANCHORS: dict[str, list[str]] = {
 
 
 def _load_entries() -> list[tuple[str, object, list[str] | None]]:
-    sys.path.insert(0, str(ENGINE_SRC))
     from legalpdf.anchored_scan import AnchoredPattern  # noqa: PLC0415
     from legalpdf.grammar_tables import compile_entry  # noqa: PLC0415
 
@@ -242,7 +239,6 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         if record["cited_count"] > 0 and cite_hits == 0:
             record["fail"].append("cites_expected_none_found")
         compiled = compile_document({
-            "id": doc_id,
             "docType": "cases",
             "citation": self_cite,
             "alternateCitation": metadata.get("alternate_citation") or "",
@@ -267,7 +263,6 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         want = set(metadata.get("section_labels") or [])
         expected_count = len(want) or metadata.get("num_sections") or 0
         compiled = compile_document({
-            "id": doc_id,
             "docType": "laws",
             "citation": metadata.get("citation") or "",
             "alternateCitation": metadata.get("alternate_citation") or "",

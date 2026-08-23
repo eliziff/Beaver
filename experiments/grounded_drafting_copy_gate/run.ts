@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 import { groundedProseIntegrityErrors } from "../../backend/src/lib/chat/quoteRepair";
-import { tokenizeSourceText } from "../../backend/src/lib/sourceDoc";
+import { tokenizeTextNative } from "../../backend/src/lib/structureNative";
 
 type Source = {
   evidenceId: string;
@@ -71,12 +71,12 @@ function paragraphs(text: string) {
     .replace(/\r\n?/gu, "\n")
     .split(/\n\s*\n/gu)
     .map((value) => value.replace(/^\s{0,3}(?:#{1,6}|>+)\s*/gmu, "").trim())
-    .filter((value) => tokenizeSourceText(value).length >= 8);
+    .filter((value) => tokenizeTextNative(value).length >= 8);
 }
 
 function boundaryWindows(source: Source) {
   for (const paragraph of paragraphs(source.text)) {
-    const tokens = tokenizeSourceText(paragraph);
+    const tokens = tokenizeTextNative(paragraph);
     for (let index = 0; index <= tokens.length - 8; index += 1) {
       const eight = tokens.slice(index, index + 8);
       const text = paragraph.slice(eight[0].start, eight[7].end);
@@ -93,7 +93,7 @@ function boundaryWindows(source: Source) {
 
 function shortEightTokenWindow(source: Source) {
   for (const paragraph of paragraphs(source.text)) {
-    const tokens = tokenizeSourceText(paragraph);
+    const tokens = tokenizeTextNative(paragraph);
     for (let index = 0; index <= tokens.length - 8; index += 1) {
       const window = tokens.slice(index, index + 8);
       if (window.map(({ word }) => word).join(" ").length >= 40) continue;
@@ -113,7 +113,7 @@ function unmarkedRejected(text: string, sources: Source[]) {
 
 function evaluateBoundarySweep() {
   const factualVacuum = "Charter decisions should not and must not be made in a factual vacuum.";
-  const factualTokens = tokenizeSourceText(factualVacuum);
+  const factualTokens = tokenizeTextNative(factualVacuum);
   const factualCharacters = factualTokens.map(({ word }) => word).join(" ").length;
   const candidates = [
     { lexicalTokens: 8, normalizedCharacters: 40 },
@@ -299,7 +299,7 @@ function traceEvaluation() {
         if (errors.length) {
           const serialized = /^unmarked copied passage (.+) matches visible evidence/u.exec(errors[0])?.[1];
           const copied = serialized ? JSON.parse(serialized) as string : "";
-          const copiedTokens = tokenizeSourceText(copied);
+          const copiedTokens = tokenizeTextNative(copied);
           const classification = /Canadian Charter of Rights and Freedoms|resolutions of the Senate and House of Commons/u
             .test(copied) ? "false-rejection" : "true-positive";
           reviewedMatches.push({

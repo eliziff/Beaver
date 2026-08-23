@@ -263,19 +263,19 @@ or provider client.
 Beaver changes are direct:
 
 - Read/Grep/navigation query nodes and typed results.
-- DOCX lint consumes the existing `DocxSession` plus structure; TypeScript
-  retains only report policy and wording.
+- DOCX bytes enter Rust once; lint and table facts query that same native
+  document. `DocxSession` remains mutation-only.
 - Amendment code uses the before-version structure, mutates once, then analyzes
   the changed candidate once.
 - Provider tools query provider-native structure instead of compiling an
   instrument from flattened text.
 - PDF SourceDoc and lookups query the original parse result.
-- The A2AJ cache stores one canonical structure artifact under the existing
-  atomic/resumable identity rules; it is rebuilt, not migrated.
+- The A2AJ provider cache retains the fetched provider document and its one
+  canonical native document handle; it is rebuilt, not migrated.
 
-Keep the light query portions of `sourceDoc.ts`, `legalDocumentNavigator.ts`,
-legal-source linking, evidence verification, URL policy, and mutation code.
-Delete their detector/materializer portions at the owning vertical cut.
+SourceDoc queries and navigation are Rust operations on the opaque native
+document. Keep only product-owned legal-source linking, evidence verification,
+URL policy, persistence, and mutation code in TypeScript.
 
 ## Execution rule
 
@@ -312,7 +312,8 @@ Already restored in the current worktree:
 - the exact current projection-boundary import ratchet;
 - the immutable 24-vector provider oracle; and
 - the installed-provider receipt verifier, which self-checks 386 files,
-  29,682,033 bytes, and 323,374 rows without regenerating the oracle.
+  29,682,033 bytes, and 323,374 rows without regenerating the oracle. This
+  validates the frozen receipt, not a current candidate.
 
 Before the first affected production edit:
 
@@ -323,9 +324,9 @@ Before the first affected production edit:
   manifest. Pin source name, cold cache state, engine/cache identity, and field
   order; test warm/cold operation receipts separately.
 
-Before the instrument cut, freeze every current TypeScript structure/TOC/table
-field and refusal over the 872 texts; existing evidence covers lineation and
-selection only.
+The 872-text Rust product freeze is executable. Its paired-oracle mode matched
+every retained historical TypeScript product on all 872 inputs; a green Rust-
+only replay remains only the cheaper regression gate.
 
 Before definition/reference or DOCX work, inventory every eligible available
 DOCX into one committed manifest with an exact count and hash, then freeze
@@ -344,8 +345,8 @@ Change:
   `ScalarText` per semantic text;
 - remove boundaries, graph status, generic relations, `original_claims`,
   duplicated parent/edge materialization, and SourceDoc round-trip state;
-- make the existing A2AJ, native-markup, and journal lanes emit canonical
-  nodes/products plus optional SourceDoc in one pass;
+- make the existing A2AJ, native-markup, and journal lanes emit one canonical
+  native document containing their nodes, products, and SourceDoc in one pass;
 - make TNA cited-ref extraction part of the existing markup traversal; and
 - expose only the generated typed Node operation.
 
@@ -459,18 +460,19 @@ the optional audit.
   `DocumentStructure`; preserve current content identity, progress, resume,
   atomic promotion, and local/cloud persistence boundaries.
 - Replace AuthoritiesHelper, citator, and stress JSONL callers with the thin
-  Python binding.
-- Reduce `sourceDoc.ts` to locator normalization, lookup, block slicing, range
-  reads, tokenization, and quote queries.
+  Python binding. **Done:** the binding is in-process and the JSONL bridge and
+  client are deleted.
+- Delete `sourceDoc.ts` after moving its live queries to Rust. **Done.**
 - Drive `documentProjectionBoundary.test.ts`'s exact allowlist to zero legacy
   bypasses.
 
-Then delete `legalStructureSidecar.ts`, `sourceStructureAdapter.ts`,
-`sourceStructureEngine.ts`, `sourceDocStructureHost.ts`, public granular
-`structureNative.ts` routes, handwritten `structureWire.ts`, the manual DLL
-loader, old cache schema/readers, `sourcedoc-jsonl.ts`, and
-`sourcedoc_client.py`. Delete a file only when `rg` and the boundary test prove
-its last live consumer is gone.
+Delete `legalStructureSidecar.ts`, `sourceStructureAdapter.ts`,
+`sourceStructureEngine.ts`, `sourceDocStructureHost.ts`, handwritten
+`structureWire.ts`, old cache schema/readers, `sourcedoc-jsonl.ts`, and
+`sourcedoc_client.py`. Keep `structureNative.ts` as the sole small loader and
+wire declaration for the opaque Rust handle; it contains no detector,
+projector, cache, or duplicate model. Delete an entry only when `rg` and the
+boundary test prove its last live consumer is gone.
 
 ### 5. Performance and release
 

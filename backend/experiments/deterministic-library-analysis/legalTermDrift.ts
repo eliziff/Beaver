@@ -11,8 +11,8 @@
  * Deterministic: extract definition bodies per document, normalize
  * conservatively (whitespace + quote glyphs only), diff across documents.
  */
-import type { SourceDoc } from "../../src/lib/sourceDoc";
-import { analyzeDocumentNative } from "../../src/lib/structureNative";
+import { documentAnchorsNative } from "../../src/lib/structureNative";
+import { deriveDocumentNative } from "../../src/lib/structureNative";
 
 export interface TermDriftDoc {
   name: string;
@@ -200,13 +200,12 @@ export async function termDriftReport(
     // AUTHORITATIVE feed with the publisher's line breaks (the A2AJ lane),
     // and no such feed reaches this function.
     const analyzed = definitions.length
-      ? await analyzeDocumentNative({
+      ? await deriveDocumentNative({
           kind: "instrument", id: doc.name, text: doc.text,
           reconstruct_lineation: true, source_doc: true,
         })
       : null;
-    if (analyzed && !analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-    const nodes = analyzed?.source_doc?.blocks ?? [];
+    const nodes = analyzed ? documentAnchorsNative(analyzed) : [];
     const seen = new Map<string, TermDefinition>();
     for (const def of definitions) {
       const existing = seen.get(def.term);

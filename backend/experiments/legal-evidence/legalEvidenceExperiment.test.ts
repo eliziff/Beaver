@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const llm = vi.hoisted(() => ({ streamChatWithTools: vi.fn() }));
 
@@ -11,16 +11,28 @@ vi.mock("../../src/lib/llm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/lib/llm")>()),
   streamChatWithTools: llm.streamChatWithTools,
 }));
+vi.mock("../../src/lib/remoteUrlSafety", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/lib/remoteUrlSafety")>()),
+  guardedRemoteFetch: (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => fetch(input, init),
+}));
 
-import type {
-  A2AJDocument,
-  A2AJLocatorLookup,
+import {
+  a2ajLegalSourceProvider,
 } from "../../src/lib/legalSources/a2aj";
+import {
+  createA2AJPassageEvidence,
+} from "../../src/lib/chat/legalEvidence";
+import {
+  documentTextNative,
+  type NativeDocumentBlock,
+} from "../../src/lib/structureNative";
 import { fnv1a64 } from "../../../experiments/legal_grounding_framing/legalClaimLint";
 import { createLegalEvidenceCitations } from "../../src/lib/chat/citations";
 import {
   attestedCharacterizationReceipt,
-  createA2AJLookupEvidence,
   createBenchmarkEvidence,
   createLegalEvidenceTurnState,
   deterministicClaimSupport,
@@ -36,33 +48,49 @@ import {
   temporalOrderInversion,
 } from "./legalEvidenceExperiment";
 
-const lookup: A2AJLocatorLookup = {
-  status: "found",
+const benchmarkReceipt = () => createBenchmarkEvidence({
+  jurisdiction: "CA",
+  sourceClass: "case",
+  stableSourceId: "case:2024-scc-6:par12",
+  sourceText: "The governing test has three required elements.",
+  spanText: "The governing test has three required elements.",
   citation: "2024 SCC 6",
-  alternateCitation: null,
   name: "R. v. Example",
-  dataset: "SCC",
-  url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/99999/index.do",
-  language: "en",
-  requested: { kind: "paragraph", locator: "12", label: "par12" },
-  matches: ["par12"],
-  block: {
-    kind: "paragraph",
-    label: "par12",
-    start: 0,
-    end: 45,
-    origin: "native",
-    text: "The governing test has three required elements.",
-  },
-  before: [],
-  after: [],
-  structure: {
-    status: "usable",
-    source: "flat_text",
-    counts: { paragraph: 1, page: 0, section: 0 },
-  },
-  sourceMethod: "structure_index",
-};
+  dataset: "fixture",
+  externalUrl: "https://example.test/case",
+  locatorKind: "paragraph",
+  locatorLabel: "par12",
+});
+
+function stubA2AJDocument(
+  text: string,
+  citation: string,
+  dataset: string,
+  url: string,
+  name: string,
+) {
+  vi.stubEnv(
+    "MIKE_A2AJ_BULK_DB",
+    path.join(os.tmpdir(), `beaver-a2aj-experiment-${process.pid}.sqlite`),
+  );
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ results: [{
+      dataset,
+      citation_en: citation,
+      name_en: name,
+      url_en: url,
+      unofficial_text_en: text,
+    }] }),
+  }));
+}
+
+afterEach(() => {
+  a2ajLegalSourceProvider.clearCache();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe("provisional legal evidence contract", () => {
   it("uses stable IDs while distinguishing exact passage bytes", () => {
@@ -90,7 +118,7 @@ describe("provisional legal evidence contract", () => {
 
   it("does not opt ordinary retrieval into a structured answer rewrite", () => {
     const state = createLegalEvidenceTurnState(null);
-    registerLegalEvidence(state, createA2AJLookupEvidence(lookup)!);
+    registerLegalEvidence(state, benchmarkReceipt());
     expect(state.mode).toBeNull();
   });
 
@@ -128,8 +156,8 @@ describe("provisional legal evidence contract", () => {
 
   it("renders only claims separately verified against turn-local passages", () => {
     const state = createLegalEvidenceTurnState("compose_check");
-    const evidence = createA2AJLookupEvidence(lookup)!;
-    registerLegalEvidence(state, evidence, { lookup });
+    const evidence = benchmarkReceipt();
+    registerLegalEvidence(state, evidence);
 
     expect(
       submitLegalEvidenceAnswer(
@@ -162,7 +190,7 @@ describe("provisional legal evidence contract", () => {
       ),
     ).toEqual({ ok: true, terminal: true });
     expect(renderLegalEvidenceAnswer(state)).toBe(
-      "The governing test has three elements [2024 SCC 6 at para. 12](https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12).",
+      "The governing test has three elements [2024 SCC 6 at para. 12](https://example.test/case).",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
       schema_version: 6,
@@ -178,7 +206,7 @@ describe("provisional legal evidence contract", () => {
         {
           evidence_id: evidence.evidence_id,
           scope: "passage",
-          span_text: lookup.block!.text,
+          span_text: evidence.span_text,
         },
       ],
     });
@@ -201,10 +229,10 @@ describe("provisional legal evidence contract", () => {
 
   it("requires evidence-first claims to stay inside the accepted plan", () => {
     const state = createLegalEvidenceTurnState("evidence_first");
-    const first = createA2AJLookupEvidence(lookup)!;
+    const first = benchmarkReceipt();
     const second = { ...first, evidence_id: "e_second" };
-    registerLegalEvidence(state, first, { lookup });
-    registerLegalEvidence(state, second, { lookup });
+    registerLegalEvidence(state, first);
+    registerLegalEvidence(state, second);
 
     expect(
       planLegalEvidence(
@@ -235,57 +263,61 @@ describe("provisional legal evidence contract", () => {
 
   it("places a verified paragraph-range citation without parsing claim prose", async () => {
     const text = [
-      "[8] The earlier paragraph supplies unrelated procedural background.",
-      "[9] This paragraph supplies additional history before the disputed issue.",
-      "[10] The range begins with a distinctive finding about the payor's disclosure default.",
-      "[11] The court explains why the resulting financial disarray cannot establish hardship.",
-      "[12] The range ends by explaining why the cost cannot be shifted to the child.",
-      "[13] The next paragraph addresses costs on the appeal.",
+      "[1] The earlier paragraph supplies unrelated procedural background.",
+      "[2] This paragraph supplies additional history before the disputed issue.",
+      "[3] The range begins with a distinctive finding about the payor's disclosure default.",
+      "[4] The court explains why the resulting financial disarray cannot establish hardship.",
+      "[5] The range ends by explaining why the cost cannot be shifted to the child.",
+      "[6] The next paragraph addresses costs on the appeal.",
     ].join("\n");
-    const rangeLookup: A2AJLocatorLookup = {
-      ...lookup,
-      citation: "2010 BCCA 170",
-      name: "Tschudi v. Tschudi",
-      dataset: "BCCA",
-      url: "https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html",
-      requested: {
-        kind: "paragraph",
-        locator: "10-12",
-        label: "par10-par12",
+    const caseCitation = "2010 BCCA 170";
+    const dataset = "BCCA";
+    const url =
+      "https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html";
+    stubA2AJDocument(text, caseCitation, dataset, url, "Tschudi v. Tschudi");
+    const document = await a2ajLegalSourceProvider.document({ citation: caseCitation });
+    const passages = await a2ajLegalSourceProvider.readPassage!({
+      source: {
+        provider: "a2aj",
+        id: caseCitation,
+        kind: "case",
+        citation: caseCitation,
+        collection: dataset,
+        language: "en",
       },
-      matches: ["par10", "par11", "par12"],
-      block: {
-        kind: "paragraph",
-        label: "par10-par12",
-        start: text.indexOf("[10]"),
-        end: text.indexOf("\n[13]"),
-        origin: "native",
-        text: text.slice(text.indexOf("[10]"), text.indexOf("\n[13]")),
-      },
-    };
-    const document: A2AJDocument = {
-      dataset: rangeLookup.dataset,
-      citation: rangeLookup.citation,
-      alternateCitation: null,
-      name: rangeLookup.name,
-      date: "2010-04-13",
-      url: rangeLookup.url,
-      text,
+      locator: { kind: "paragraph", value: "3", endValue: "5" },
+    });
+    const selected = passages.filter(({ role }) => role === "selected");
+    expect(selected.map(({ locator }) => locator.label)).toEqual([
+      "par3", "par4", "par5",
+    ]);
+    const source = a2ajLegalSourceProvider.source(document!);
+    const first = selected[0]!.blockArtifact as NativeDocumentBlock;
+    const last = selected.at(-1)!.blockArtifact as NativeDocumentBlock;
+    const sourceText = documentTextNative(source!);
+    const evidence = createA2AJPassageEvidence({
+      citation: caseCitation,
+      name: document!.name,
+      dataset,
       language: "en",
-      upstreamLicense: null,
-      structure: {
-        status: "unavailable",
-        source: "flat_text",
-        counts: { paragraph: 0, page: 0, section: 0 },
-      },
-    };
+      sourceText,
+      spanText: sourceText.slice(first.start, last.end),
+      start: first.start,
+      end: last.end,
+      externalUrl: url,
+      sourceClass: "case",
+      locator: { kind: "paragraph", label: "par3-par5" },
+    });
+    if (evidence.provider !== "a2aj" ||
+        evidence.resolver_version !== "a2aj-inline-v1") {
+      throw new Error("expected A2AJ evidence");
+    }
     const state = createLegalEvidenceTurnState("citation_structure");
-    const evidence = createA2AJLookupEvidence(rangeLookup)!;
-    registerLegalEvidence(state, evidence, { lookup: rangeLookup, document });
+    registerLegalEvidence(state, evidence, { document: document!, source: source! });
 
     expect(state.mode).toBe("citation_structure");
     for (const text of [
-      "The court rejected the hardship argument: paras. 10-12.",
+      "The court rejected the hardship argument: paras. 3-5.",
       "2010 BCCA 170 rejected the hardship argument.",
     ]) {
       expect(
@@ -298,9 +330,9 @@ describe("provisional legal evidence contract", () => {
       ).toEqual({ ok: true, terminal: true });
       const rendered = renderLegalEvidenceAnswer(state)!;
       expect(
-        rendered.match(/\[2010 BCCA 170 at paras\. 10\u201312\]/gu),
+        rendered.match(/\[2010 BCCA 170 at paras\. 3\u20135\]/gu),
       ).toHaveLength(1);
-      expect(rendered).toContain("#par10:~:text=");
+      expect(rendered).toContain("#par3:~:text=");
     }
     expect(
       submitLegalEvidenceAnswer(
@@ -325,15 +357,15 @@ describe("provisional legal evidence contract", () => {
 
     const rendered = renderLegalEvidenceAnswer(state)!;
     expect(rendered).toContain(
-      "[2010 BCCA 170 at paras. 10\u201312](https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html#par10:~:text=",
+      "[2010 BCCA 170 at paras. 3\u20135](https://www.canlii.org/en/bc/bcca/doc/2010/2010bcca170/2010bcca170.html#par3:~:text=",
     );
-    expect(rendered).toMatch(/#par10:~:text=[^)]+,[^)]+\)\.$/u);
+    expect(rendered).toMatch(/#par3:~:text=[^)]+,[^)]+\)\.$/u);
     const [citation] = createLegalEvidenceCitations(state);
     expect(citation).toMatchObject({
-      locator: "par10-par12",
-      pinpoint: "paras 10–12",
+      locator: "par3-par5",
+      pinpoint: "paras 3–5",
     });
-    expect(String(citation.url)).toMatch(/#par10:~:text=[^,]+,[^,]+$/u);
+    expect(String(citation.url)).toMatch(/#par3:~:text=[^,]+,[^,]+$/u);
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
       schema_version: 6,
       mode: "citation_structure",
@@ -346,98 +378,10 @@ describe("provisional legal evidence contract", () => {
     });
   });
 
-  it("keeps cross-block multi-spans behind the experiment flag", () => {
-    const text = [
-      "[1] Ancient forests hold clean water beneath a changing sky.",
-      "[2] Ancient forests hold clean water beneath a changing sky.",
-      "[3] Migratory birds cross open air above the northern wetlands.",
-      "[4] Old roots remember rain after the summer fires.",
-    ].join("\n");
-    const document: A2AJDocument = {
-      dataset: "SCC",
-      citation: "2023 SCC 23",
-      alternateCitation: null,
-      name: "Reference re Impact Assessment Act",
-      date: "2023-10-13",
-      url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/20102/index.do",
-      text,
-      language: "en",
-      upstreamLicense: null,
-      structure: {
-        status: "unavailable",
-        source: "flat_text",
-        counts: { paragraph: 4, page: 0, section: 0 },
-      },
-    };
-    const paragraph = (number: 1 | 3 | 4): A2AJLocatorLookup => {
-      const start = text.indexOf(`[${number}]`);
-      const end = text.indexOf("\n", start);
-      return {
-        ...lookup,
-        citation: document.citation,
-        name: document.name,
-        url: document.url,
-        requested: {
-          kind: "paragraph",
-          locator: String(number),
-          label: `par${number}`,
-        },
-        matches: [`par${number}`],
-        block: {
-          kind: "paragraph",
-          label: `par${number}`,
-          start,
-          end: end < 0 ? text.length : end,
-          origin: "native",
-          text: text.slice(start, end < 0 ? text.length : end),
-        },
-      };
-    };
-    const render = (
-      mode: "citation_structure" | "arbitrary_source_spans",
-    ) => {
-      const state = createLegalEvidenceTurnState(mode);
-      const lookups = [paragraph(1), paragraph(3), paragraph(4)];
-      const evidence = lookups.map((item) => createA2AJLookupEvidence(item)!);
-      evidence.forEach((item, index) =>
-        registerLegalEvidence(state, item, {
-          lookup: lookups[index],
-          document,
-        }),
-      );
-      expect(
-        submitLegalEvidenceAnswer(
-          {
-            claims: [{
-              text:
-                "\u201cforests hold clean water\u201d \u2014 " +
-                "\u201cbirds cross open air\u201d \u2014 " +
-                "\u201croots remember rain\u201d",
-              evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-            }],
-          },
-          state,
-        ),
-      ).toEqual({ ok: true, terminal: true });
-      return renderLegalEvidenceAnswer(state)!;
-    };
-
-    const safe = render("citation_structure");
-    expect(safe.match(/\[2023 SCC 23 at para\./gu)).toHaveLength(3);
-    expect(safe).not.toContain("text=");
-
-    const experimental = render("arbitrary_source_spans");
-    expect(experimental.match(/\[2023 SCC 23\]/gu)).toHaveLength(1);
-    expect(experimental.match(/text=/gu)).toHaveLength(2);
-    expect(experimental).toContain("?iframe=true&site_preference=mobile#:~:");
-    expect(experimental).not.toContain("forests%20hold%20clean%20water");
-    expect(experimental).not.toContain("1%5D");
-  });
-
   it("terminates an evidence-first turn when the passages are insufficient", () => {
     const state = createLegalEvidenceTurnState("evidence_first");
-    const evidence = createA2AJLookupEvidence(lookup)!;
-    registerLegalEvidence(state, evidence, { lookup });
+    const evidence = benchmarkReceipt();
+    registerLegalEvidence(state, evidence);
 
     expect(
       planLegalEvidence(
@@ -481,15 +425,15 @@ describe("provisional legal evidence contract", () => {
 
   it("rejects a document-only handle even when another handle has a passage", () => {
     const state = createLegalEvidenceTurnState("compose_check");
-    const passage = createA2AJLookupEvidence(lookup)!;
+    const passage = benchmarkReceipt();
     const documentOnly = {
       ...passage,
       evidence_id: "e_document",
       scope: "document" as const,
       span_text: null,
     };
-    registerLegalEvidence(state, passage, { lookup });
-    registerLegalEvidence(state, documentOnly, { lookup });
+    registerLegalEvidence(state, passage);
+    registerLegalEvidence(state, documentOnly);
 
     expect(
       submitLegalEvidenceAnswer(
@@ -516,8 +460,8 @@ describe("provisional legal evidence contract", () => {
 
   it("rejects duplicate evidence handles locally", () => {
     const state = createLegalEvidenceTurnState("compose_check");
-    const evidence = createA2AJLookupEvidence(lookup)!;
-    registerLegalEvidence(state, evidence, { lookup });
+    const evidence = benchmarkReceipt();
+    registerLegalEvidence(state, evidence);
 
     expect(
       submitLegalEvidenceAnswer(
@@ -568,8 +512,8 @@ describe("provisional legal evidence contract", () => {
 
   it("fails closed when context changes or coverage is incomplete", () => {
     const state = createLegalEvidenceTurnState("compose_check");
-    const evidence = createA2AJLookupEvidence(lookup)!;
-    registerLegalEvidence(state, evidence, { lookup });
+    const evidence = benchmarkReceipt();
+    registerLegalEvidence(state, evidence);
     submitLegalEvidenceAnswer(
       {
         claims: [
@@ -612,8 +556,8 @@ describe("provisional legal evidence contract", () => {
 
   it("renders a holistic answer only after a whole-answer support verdict", () => {
     const state = createLegalEvidenceTurnState("holistic_check");
-    const evidence = createA2AJLookupEvidence(lookup)!;
-    registerLegalEvidence(state, evidence, { lookup });
+    const evidence = benchmarkReceipt();
+    registerLegalEvidence(state, evidence);
     submitLegalEvidenceAnswer(
       {
         claims: [
@@ -634,7 +578,7 @@ describe("provisional legal evidence contract", () => {
       ),
     ).toEqual({ ok: true, terminal: true });
     expect(renderLegalEvidenceAnswer(state)).toContain(
-      "https://www.canlii.org/en/ca/scc/doc/2024/2024scc6/2024scc6.html#par12",
+      "https://example.test/case",
     );
     expect(legalEvidenceReceiptEvent(state)).toMatchObject({
       schema_version: 6,

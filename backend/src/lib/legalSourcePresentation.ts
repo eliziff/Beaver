@@ -10,7 +10,6 @@ type PresentedText = {
 
 export type LegalMarkdownBlock =
   | (PresentedText & { kind: "heading"; level: 2 | 3 | 4 | 5 })
-  | (PresentedText & { kind: "provision"; label: string; depth: number })
   | {
       kind: "list-item";
       text: string;
@@ -48,35 +47,6 @@ const MARKDOWN_HEADING_RE =
 const ORDERED_LIST_RE = /^([ \t]*)(\d+[.)])[ \t]+(.+)$/u;
 const UNORDERED_LIST_RE = /^([ \t]*)([-+*])[ \t]+(.+)$/u;
 const BLOCKQUOTE_RE = /^([ \t]*)(>+)[ \t]?(.*)$/u;
-const LEGAL_PROVISION_RE =
-  /^\s*(?:\*\*|__)?(\d+(?:[.-]\d+)*(?:\([^)]+\))*|\(\d+\)|\([a-z]\)|\([ivxlcdm]+\))(?:\*\*|__)?\s+(.+)$/iu;
-const HEADING_PREFIX_RE =
-  /^\s*(?:([IVXLCDM]{1,8})|([A-Z])|(\d+(?:\.\d+)*))[.)]\s+(.+)$/u;
-
-const COMMON_HEADINGS = new Set([
-  "overview",
-  "introduction",
-  "background",
-  "facts",
-  "issues",
-  "issue",
-  "analysis",
-  "discussion",
-  "disposition",
-  "conclusion",
-  "conclusions",
-  "reasons for judgment",
-  "reasons for judgement",
-  "dissenting reasons",
-  "concurring reasons",
-  "footnotes",
-  "endnotes",
-  "authorities cited",
-  "cases cited",
-  "statutes and regulations cited",
-  "authors cited",
-]);
-
 function decodeHtmlEntities(value: string) {
   return value
     .replace(/&nbsp;/giu, " ")
@@ -276,39 +246,6 @@ function indentationDepth(value: string) {
   return Math.floor(columns / 2);
 }
 
-function provisionDepth(label: string) {
-  if (!label.startsWith("(")) return 0;
-  const marker = label.slice(1, -1).toLowerCase();
-  if (/^\d+$/u.test(marker)) return 1;
-  if (/^[ivxlcdm]+$/u.test(marker)) return 3;
-  return 2;
-}
-
-function prefixedHeadingLevel(
-  value: string,
-): 2 | 3 | 4 | 5 | undefined {
-  if (value.length > 150) return undefined;
-  const match = value.match(HEADING_PREFIX_RE);
-  if (!match) return undefined;
-  if (match[1]) return 2;
-  if (match[2]) return 3;
-  return Math.min(5, 3 + (match[3]?.match(/\./gu)?.length ?? 0)) as
-    | 2
-    | 3
-    | 4
-    | 5;
-}
-
-function allCapsHeading(value: string) {
-  if (value.length > 120) return false;
-  const letters = value.match(/\p{L}/gu)?.join("") ?? "";
-  return (
-    letters.length >= 5 &&
-    letters === letters.toLocaleUpperCase() &&
-    value.toLocaleLowerCase() !== value
-  );
-}
-
 /**
  * Classify the small, deterministic Markdown/legal hierarchy emitted by A2AJ.
  *
@@ -414,40 +351,6 @@ export function classifyLegalMarkdown(markdown: string): LegalMarkdownBlock[] {
           ordered: false,
           depth: headingDepth + indentationDepth(unordered[1]),
         });
-      }
-      continue;
-    }
-
-    const provision = compact.match(LEGAL_PROVISION_RE);
-    const neutralCitation =
-      !!provision &&
-      /^(?:19|20)\d{2}$/u.test(provision[1]) &&
-      /^[A-Z]{2,10}\s+\d+\b/u.test(provision[2]);
-    if (provision && !neutralCitation) {
-      flushParagraph();
-      const presented = presentedText(compact);
-      if (presented.text) {
-        result.push({
-          kind: "provision",
-          ...presented,
-          label: provision[1],
-          depth: headingDepth + provisionDepth(provision[1]),
-        });
-      }
-      continue;
-    }
-
-    const prefixedLevel = prefixedHeadingLevel(compact);
-    const commonHeading = COMMON_HEADINGS.has(
-      compact.toLowerCase().replace(/:$/u, ""),
-    );
-    if (prefixedLevel || commonHeading || allCapsHeading(compact)) {
-      flushParagraph();
-      const level = prefixedLevel ?? 2;
-      const presented = presentedText(compact);
-      if (presented.text) {
-        headingDepth = level - 2;
-        result.push({ kind: "heading", ...presented, level });
       }
       continue;
     }

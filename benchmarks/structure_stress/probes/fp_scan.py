@@ -8,7 +8,7 @@ the claim addressable-structure-true? A wrong claim is worse than a
 miss — pinpoint resolution would silently address the wrong text.
 
 This probe contains no structure detector. It loads corpus text, asks the
-persistent legal-structure bridge for blocks, and reports generic coverage
+in-process legal-structure engine for blocks, and reports generic coverage
 and provider-metadata comparisons over those returned blocks.
 
 Populations:
@@ -36,8 +36,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE.parents[2] / "backend" / "scripts"))
-from sourcedoc_client import close_client, compile_document  # noqa: E402
+from legal_structure import compile_document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 MAX_DOC_CHARS = 8_000_000
@@ -56,7 +55,6 @@ def screen_case(
 ) -> tuple[dict, list[str], list[str]]:
     """Run generic screens over blocks returned by the production compiler."""
     result = compile_document({
-        "id": f"{dataset}:{citation}",
         "docType": "cases",
         "citation": citation,
         "alternateCitation": alternate,
@@ -233,7 +231,6 @@ def scan_laws(con, per_set: int) -> dict:
                     continue
                 text = (text or "")[:MAX_DOC_CHARS]
                 result = compile_document({
-                    "id": f"{name}:{cite}:{lang}",
                     "docType": "laws",
                     "citation": cite or "",
                     "alternateCitation": alternate or "",
@@ -312,7 +309,6 @@ def main() -> int:
             print(f"                full-text-only labels: {top}")
 
     print(f"\nsuspect detail: {out_path}")
-    close_client()
     return 0
 
 
