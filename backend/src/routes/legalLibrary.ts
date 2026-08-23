@@ -87,7 +87,7 @@ function a2ajPdfRenditionRequest(
   payload: A2AJViewerPayload,
 ): ProviderPdfAttachment | null {
   if (
-    payload.structure.source !== "flat_text" ||
+    payload.structureSource !== "flat_text" ||
     !payload.metadata.pdfUrl ||
     !payload.metadata.url
   ) {
@@ -139,7 +139,7 @@ async function sendViewer(
   const pdfRenditionRequest = pointer.pdfRendition
     ? {
         ...pointer.pdfRendition,
-        structureSource: resolved.payload.structure.source,
+        structureSource: resolved.payload.structureSource,
       }
     : resolved.payload.provider === "a2aj"
       ? a2ajPdfRenditionRequest(resolved.payload)

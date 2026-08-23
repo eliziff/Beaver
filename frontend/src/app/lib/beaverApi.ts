@@ -384,13 +384,12 @@ export interface LegalSourceViewerPayload {
     pdfUrl?: string | null;
   };
   text: string;
-  structure: {
-    blocks: {
-      kind: "paragraph" | "page" | "section" | "footnote";
-      label: string;
-      start: number;
-    }[];
-  };
+  structureSource: "native" | "hybrid" | "flat_text" | "section_map";
+  anchors: {
+    kind: "paragraph" | "page" | "section" | "footnote";
+    label: string;
+    start: number;
+  }[];
   presentation?: {
     segments: {
       start: number;

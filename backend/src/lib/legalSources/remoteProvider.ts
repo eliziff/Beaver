@@ -1,7 +1,6 @@
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch, normalizeRemoteHttpsUrl } from "../remoteUrlSafety";
 import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
-import type { NativeMarkupRef } from "../sourceDocNativeMarkup";
 import { jsonRecord as objectValue } from "../value";
 import type { LegalSourceProvider } from ".";
 
@@ -9,6 +8,12 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export type JsonObject = Record<string, unknown>;
+
+export type NativeMarkupRef = {
+  citation: string;
+  canonical: string | null;
+  type: string | null;
+};
 
 export type RemoteLegalSourceAttachment = {
   title: string | null;
@@ -23,7 +28,10 @@ export type RemoteLegalSourceDocument = {
   identity: string;
   title: string | null;
   url: string;
-  structure: SourceDoc;
+  analysis: {
+    structure: unknown;
+    source_doc: SourceDoc;
+  };
   attachments: RemoteLegalSourceAttachment[];
   citedAuthorities?: NativeMarkupRef[];
   sourceSha256?: string;

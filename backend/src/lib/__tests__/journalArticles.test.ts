@@ -285,8 +285,8 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(article.text).toBe(canonical.text);
-    expect(article.text).not.toContain("[page 100]");
+    expect(article.analysis.source_doc.text).toBe(canonical.text);
+    expect(article.analysis.source_doc.text).not.toContain("[page 100]");
     expect(journal.lookup(article, "page", "101")).toMatchObject({
       status: "found",
       anchor: "page=2",
@@ -308,11 +308,11 @@ describe("local journal articles", () => {
       },
     });
     expect(
-      article.structure.blocks
+      article.analysis.source_doc.blocks
         .filter(({ kind }) => kind === "paragraph")
         .map(({ origin, start, end }) => ({
           origin,
-          text: article.text.slice(start, end),
+          text: article.analysis.source_doc.text.slice(start, end),
         })),
     ).toEqual([
       { origin: "native", text: "Canonical opening paragraph with a reference." },
@@ -343,12 +343,12 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(article.text).not.toContain("[page 100]");
+    expect(article.analysis.source_doc.text).not.toContain("[page 100]");
     expect(journal.lookup(article, "page", "100").block?.origin).toBe(
       "native",
     );
     expect(journal.lookup(article, "section", "I").status).toBe("unavailable");
-    expect(article.structure.blocks.every(({ kind }) => kind === "page")).toBe(true);
+    expect(article.analysis.source_doc.blocks.every(({ kind }) => kind === "page")).toBe(true);
   });
 
   it("searches candidates, resolves page locators, and builds multi-text links", async () => {
@@ -368,7 +368,7 @@ describe("local journal articles", () => {
         url: article.url,
         anchor: page.anchor ?? undefined,
         blockText: page.block!.text,
-        documentText: article.text,
+        documentText: article.analysis.source_doc.text,
         pageScoped: true,
       },
       ["first quoted phrase", "second quoted phrase"],
@@ -569,9 +569,9 @@ describe("local journal articles", () => {
     process.env.MIKE_PUBLIC_ENDPOINT_DB = filename;
 
     const article = (await journal.document("13"))!;
-    expect(article.text).not.toMatch(/^\[page [^\]]+\]\r?$/m);
-    expect(article.structure.blocks.every(({ kind }) => kind === "page")).toBe(true);
-    expect(article.structure.blocks.every(({ origin }) => origin === "native")).toBe(true);
+    expect(article.analysis.source_doc.text).not.toMatch(/^\[page [^\]]+\]\r?$/m);
+    expect(article.analysis.source_doc.blocks.every(({ kind }) => kind === "page")).toBe(true);
+    expect(article.analysis.source_doc.blocks.every(({ origin }) => origin === "native")).toBe(true);
     expect(journal.lookup(article, "page", captured.pageRows[0].page_label)).toMatchObject({
       status: "found",
       block: { origin: "native" },

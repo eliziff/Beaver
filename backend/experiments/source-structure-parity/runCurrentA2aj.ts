@@ -9,9 +9,9 @@ import { DatabaseSync } from "node:sqlite";
 import { gzipSync } from "node:zlib";
 
 import {
-  fetchLocalA2AJDocumentsByIds, getLocalA2AJSectionMap,
+  fetchLocalA2AJDocumentsByIds,
 } from "../../src/lib/a2ajLocalBulk";
-import { deriveA2AJSourceDoc } from "../../src/lib/sourceDocStructureHost";
+import { analyzeDocumentNative } from "../../src/lib/structureNative";
 import type { SourceDoc } from "../../src/lib/sourceDoc";
 
 type Row = Record<string, unknown>;
@@ -93,7 +93,7 @@ if (hash(serializerContract) !== expected.serializer_contract_sha256) {
 }
 const harnessSha = hash(readFileSync(__filename));
 const adapterSha = hash([
-  "a2ajLocalBulk.ts", "sourceDocA2AJ.ts", "sourceDocStructureHost.ts", "structureNative.ts",
+  "a2ajLocalBulk.ts", "structureNative.ts",
 ].map((name) => readFileSync(path.join(ROOT, "backend", "src", "lib", name)))
   .reduce((all, value) => Buffer.concat([all, value]), Buffer.alloc(0)));
 const engine = { binary_sha256: hash(readFileSync(nativeFile)) };
@@ -213,10 +213,16 @@ async function runWorker(shard: number) {
             source_kind: String(row.doc_type), ...proof, status: "failure",
             failure: "provider_unavailable", error_sha256: hash("provider_unavailable") };
         } else try {
-          const doc = await deriveA2AJSourceDoc({ citation: document.citation,
-            docType: document.docType ?? "cases", text: document.text, url: document.url,
-            alternateCitation: document.alternateCitation, dataset: document.dataset,
-            name: document.name, sectionMap: getLocalA2AJSectionMap(document) });
+          const analyzed = await analyzeDocumentNative<{ source_doc?: SourceDoc }>({
+            kind: "a2aj", source_doc: true, input: { citation: document.citation,
+              source_kind: document.docType ?? "cases",
+              text: document.sectionMap ? "" : document.text, url: document.url,
+              alternate_citation: document.alternateCitation, dataset: document.dataset,
+              name: document.name,
+              ...(document.sectionMap
+                ? { section_map: Object.entries(document.sectionMap) } : {}) } });
+          if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+          const doc = analyzed.source_doc;
           const bytes = Buffer.from(JSON.stringify(doc));
           record = { v: 1, provider: "a2aj", source_id: String(id),
             source_kind: String(row.doc_type), ...proof, status: "pass", mode: mode(doc),

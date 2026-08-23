@@ -10,7 +10,7 @@ import {
 function payload(
     text: string,
     docType: "cases" | "laws",
-    blocks: LegalSourceViewerPayload["structure"]["blocks"],
+    blocks: LegalSourceViewerPayload["anchors"],
 ): LegalSourceViewerPayload {
     return {
         schemaVersion: "mike.legal-source.v1",
@@ -32,20 +32,8 @@ function payload(
             upstreamLicense: null,
         },
         text,
-        structure: {
-            status: "usable",
-            source: "flat_text",
-            blocks,
-            counts: {
-                paragraph: blocks.filter((block) => block.kind === "paragraph")
-                    .length,
-                page: blocks.filter((block) => block.kind === "page").length,
-                section: blocks.filter((block) => block.kind === "section")
-                    .length,
-                footnote: blocks.filter((block) => block.kind === "footnote")
-                    .length,
-            },
-        },
+        structureSource: "flat_text",
+        anchors: blocks,
         truncated: false,
     };
 }

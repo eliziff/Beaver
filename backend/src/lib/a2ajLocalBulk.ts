@@ -9,31 +9,15 @@ import {
   withSearchReadonlySqlite,
   withReadonlySqlite,
 } from "./legalDataPath";
-import type { A2AJStructureSummary } from "./sourceDocA2AJ";
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
 type DocType = "cases" | "laws";
 
-const documentSectionMaps = new WeakMap<
-  A2AJDocument,
-  Record<string, string>
->();
-const documentSourceIds = new WeakMap<A2AJDocument, string>();
-const EMPTY_STRUCTURE: A2AJStructureSummary = {
-  status: "unavailable",
-  source: "flat_text",
-  counts: { paragraph: 0, page: 0, section: 0 },
-};
-
 export function a2ajLocalBulkPath() {
   const configured = process.env.MIKE_A2AJ_BULK_DB?.trim();
   if (configured) return path.resolve(configured);
   return legalProviderDatabase("a2aj", "a2aj.sqlite");
-}
-
-export function a2ajSourceDocCachePath() {
-  return legalProviderDatabase("a2aj", "sourcedocs.sqlite");
 }
 
 function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
@@ -118,12 +102,8 @@ function a2ajDocumentFromRow(
     text,
     language: actualLanguage,
     upstreamLicense: string(row, "upstream_license"),
-    structure: EMPTY_STRUCTURE,
+    sectionMap: mappedSections ?? undefined,
   };
-  if (mappedSections) documentSectionMaps.set(document, mappedSections);
-  const sourceId = Number(row.id);
-  if (Number.isSafeInteger(sourceId) && sourceId > 0)
-    documentSourceIds.set(document, `${sourceId}:${actualLanguage}`);
   return document;
 }
 
@@ -209,14 +189,6 @@ export function fetchLocalA2AJDocumentsByIds(args: {
     }
   });
   return out;
-}
-
-export function getLocalA2AJSectionMap(document: A2AJDocument) {
-  return documentSectionMaps.get(document) ?? null;
-}
-
-export function getLocalA2AJSourceId(document: A2AJDocument) {
-  return documentSourceIds.get(document) ?? null;
 }
 
 function addDatasetFilter(

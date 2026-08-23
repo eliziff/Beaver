@@ -24,7 +24,7 @@ import {
 import { safeAssistantUrl } from "@/app/lib/assistantSession";
 import { formatLongDate } from "@/app/lib/utils";
 
-type Anchor = LegalSourceViewerPayload["structure"]["blocks"][number];
+type Anchor = LegalSourceViewerPayload["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
 
@@ -111,7 +111,7 @@ function primaryAnchor(anchors: Anchor[], docType: LegalDocumentType) {
 
 export function buildLegalSourceViewerSlices(payload: LegalSourceViewerPayload) {
   const relevant = payload.reference.docType === "laws" ? "section" : "paragraph";
-  const usable = payload.structure.blocks.filter((block) =>
+  const usable = payload.anchors.filter((block) =>
     block.start >= 0 && block.start < payload.text.length &&
     (block.kind === relevant || block.kind === "page"));
   const byStart = new Map<number, Anchor[]>();

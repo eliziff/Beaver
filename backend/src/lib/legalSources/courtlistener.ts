@@ -6,13 +6,11 @@ import type {
 } from ".";
 import { sourceDocPassages } from "./sourceDocPassages";
 import {
+  lookupSourceDoc,
   type SourceDoc,
   type SourceDocLocatorKind,
 } from "../sourceDoc";
-import {
-  lookupLegalSourceDoc,
-} from "../sourceDocNativeMarkup";
-import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
+import { analyzeDocumentNative } from "../structureNative";
 import { nonemptyString as asString } from "../value";
 import {
   courtlistenerLocalBulkAvailable,
@@ -30,7 +28,6 @@ const US_REPORTER =
   /\b\d{1,4}\s+(?:U\.?\s*S\.?|S\.?\s*Ct\.?|L\.?\s*Ed\.?(?:\s*2d)?|F\.?(?:\s*Supp\.?)?(?:\s*2d|\s*3d|\s*4th)?)\s+\d{1,6}\b/iu;
 
 type JsonRecord = Record<string, unknown>;
-const opinionStructures = new WeakMap<object, SourceDoc>();
 
 async function courtlistenerFetch<T>(
   pathOrUrl: string,
@@ -220,31 +217,6 @@ function compactCluster(raw: unknown) {
   };
 }
 
-async function attachOpinionStructure(
-  compacted: {
-    opinionId: number | null;
-    url: string | null;
-    text: string | null;
-  },
-  text: string | null,
-  markup: string | null,
-  maxChars: number,
-  pageCitations: string[],
-) {
-  if (!text && !markup) return;
-  const input = {
-    provider: "courtlistener",
-    id: compacted.opinionId === null ? "" : String(compacted.opinionId),
-    url: compacted.url,
-    text: text ?? "",
-    markup,
-    pageCitations,
-  } as const;
-  const compiled = await deriveNativeMarkupSourceDoc(input);
-  compacted.text = truncate(compiled.text, maxChars);
-  opinionStructures.set(compacted, compiled);
-}
-
 async function compactOpinion(
   opinion: JsonRecord,
   maxChars: number,
@@ -285,8 +257,29 @@ async function compactOpinion(
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
     text: truncate(text, maxChars),
   };
-  await attachOpinionStructure(compacted, text, rawMarkup, maxChars, pageCitations);
-  return compacted;
+  if (!text && !rawMarkup) {
+    return compacted;
+  }
+  const analyzed = await analyzeDocumentNative<{
+    structure: unknown; source_doc?: SourceDoc;
+  }>({
+    kind: "native_markup",
+    source_doc: true,
+    input: {
+      provider: "courtlistener",
+      id: compacted.opinionId === null ? "" : String(compacted.opinionId),
+      url: compacted.url,
+      text: text ?? "",
+      markup: rawMarkup,
+      pageCitations,
+    },
+  });
+  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+  return {
+    ...compacted,
+    text: truncate(analyzed.source_doc.text, maxChars),
+    analysis: { ...analyzed, source_doc: analyzed.source_doc },
+  };
 }
 
 function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
@@ -295,9 +288,15 @@ function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
 }
 
 function hasNativeOpinionStructure(opinion: object) {
-  return opinionStructures.get(opinion)?.blocks.some(
+  return opinionSourceDoc(opinion)?.blocks.some(
     ({ origin }) => origin === "native",
   ) ?? false;
+}
+
+function opinionSourceDoc(opinion: object) {
+  return ((opinion as JsonRecord).analysis as
+    | { source_doc?: SourceDoc }
+    | undefined)?.source_doc;
 }
 
 function lookupOpinionLocator(
@@ -306,9 +305,9 @@ function lookupOpinionLocator(
   locator: string,
   contextBlocks = 0,
 ) {
-  const structure = opinionStructures.get(opinion);
-  return structure
-    ? lookupLegalSourceDoc(structure, kind, locator, contextBlocks)
+  const sourceDoc = opinionSourceDoc(opinion);
+  return sourceDoc
+    ? lookupSourceDoc(sourceDoc, kind, locator, contextBlocks)
     : null;
 }
 
@@ -982,8 +981,8 @@ function provider(
         ) {
           return [];
         }
-        const structure = opinionStructures.get(opinion) ?? null;
-        if (!structure) return [];
+        const sourceDoc = opinionSourceDoc(opinion);
+        if (!sourceDoc) return [];
         const url = asString(opinionRecord.url) ?? caseUrl;
         if (!url) return [];
         const source = {
@@ -993,7 +992,7 @@ function provider(
         return sourceDocPassages({
           request,
           reference: source,
-          document: structure,
+          document: sourceDoc,
           native: { case: caseRecord, opinion },
           lookup: (kind, value, contextBlocks) =>
             lookupOpinionLocator(

@@ -9,7 +9,8 @@
 
 import { parentPort } from "node:worker_threads";
 import { createHash } from "node:crypto";
-import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocA2AJ";
+import { analyzeDocumentNative } from "../../backend/src/lib/structureNative";
+import type { SourceDoc } from "../../backend/src/lib/sourceDoc";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -111,15 +112,17 @@ function buildOpinions(
 }
 
 async function processJob(job: WorkerJob): Promise<WorkerResult> {
-  const source = await deriveA2AJSourceDoc({
-    citation: job.citation,
-    docType: "cases",
-    text: job.text,
-    url: job.url,
-    alternateCitation: job.alternateCitation,
-    dataset: job.dataset,
-    name: job.name,
+  const analyzed = await analyzeDocumentNative<{
+    structure: unknown; source_doc?: SourceDoc;
+  }>({
+    kind: "a2aj", source_doc: true, input: {
+      citation: job.citation, source_kind: "cases", text: job.text,
+      url: job.url, alternate_citation: job.alternateCitation,
+      dataset: job.dataset, name: job.name,
+    },
   });
+  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+  const source = analyzed.source_doc;
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   const pages = source.blocks
     .filter((block) => block.kind === "page")

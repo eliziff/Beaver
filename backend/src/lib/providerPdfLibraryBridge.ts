@@ -16,7 +16,6 @@ import {
 import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from "./remoteUrlSafety";
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
-import { summarizeLegalSourceDoc } from "./sourceDocNativeMarkup";
 import { resourceReference } from "./resourceReferences";
 import { enqueueJob, wakeJobWorker, type JobHandler } from "./jobQueue";
 
@@ -343,7 +342,7 @@ export async function queueProviderPdfRenditions(
   document: RemoteLegalSourceDocument,
   userId?: string,
 ) {
-  if (!userId || summarizeLegalSourceDoc(document.structure).source !== "flat_text") {
+  if (!userId || document.analysis.source_doc.blocks.some(({ origin }) => origin === "native")) {
     return [];
   }
   const attachments = new Map<string, RemoteLegalSourceDocument["attachments"][number]>();
