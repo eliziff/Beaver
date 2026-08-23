@@ -95,3 +95,37 @@ CART/CHRT 91.4%, and **CT 62.1%**.
 **Harness:** `candidate-builder.test.mts` was broken after the Rust document-structure migration (`createSourceDoc` removed from `backend/src/lib/sourceDoc.ts`). Restored experiment-local `createTextSourceDoc` as a minimal `SourceDoc` shape with `sourceDocTokens` attached for the legacy `block.tokens` accessors. All 8 strategies now pass plus new T9 (markdown `*…*` → stripped sibling, e.g. BC Laws `*acknowledgement*`).
 
 **Production TODO — CT pdf-card re-route:** The blind fix in `builder-candidate.ts:758` rewrites every `decisions.ct-tc.gc.ca/.../item/<id>/index.do` to `.../<id>/1/document.do` so the A2AJ quote paints in the PDF layer with no oracle. When this is promoted, move the re-route into production — either in `backend/src/lib/legalSources/a2aj.ts` (provider compiles the PDF rendition for those 13 pdf-card IDs) or in `documentProjectionService`/`structureNative` so the canonical `SourceDoc` for those items is the PDF, not the stub. Keep `gate-replay.mjs:30` `isPdfUrl` (`/document.do` on `decisions.ct-tc.gc.ca`) in sync. This closes the entire CT pdf-card class with zero oracle and preserves the LOAD-BEARING `iframe`/`site_preference` path for modern CT HTML.
+
+## Corrected corpus harness — 2026-08-23
+
+The earlier full-document claim was invalid. Seed labels include a locator
+(`_p85`, `_sec1`, and similar), but the harness included that locator in its
+doctext lookup key. Most seeds therefore fell back silently to `blockText`.
+All builders and gates now share `seed-document-key.mjs`, fail closed when a
+full document is absent, and report the actual full/fallback counts. The
+corrected corpus is **2,371/2,371 full documents, zero block fallbacks** over
+1,217 cached publisher pages; `cache-audit.mjs` reports zero missing or invalid
+cache entries.
+
+The current fast loop is:
+
+- production URL materialization: about **10 seconds** for all 2,371 seeds;
+- warm immutable-page screen: about **1.3 seconds** for all 2,371 seeds;
+- PDFium location proof: about **2.4 seconds** for all 196 production PDF
+  seeds after caching normalized page text once per PDF.
+
+The previous PDF screenshot gate accepted any purple paint from the first
+directive. The replacement parses every directive, rejects duplicate or
+extraneous matches, proves all requested quotes, and distinguishes exact from
+contained safe-core paint. Chrome screenshots remain mandatory for final PDF
+acceptance because Chrome's PDF fragment finder and PDFium text extraction can
+order bilingual columns differently.
+
+Removing the false `same_line` uniqueness constraint restored **175/196** PDF
+seeds to exact or safe-core structural matches. A one-directive line-core
+fallback, selected only from the intended full-document occurrence, provides a
+Chrome-painted fallback for the remaining observed failures; the difficult
+five-sample set was directly replayed after reducing two-sided context to the
+shortest unique one-sided context. This is promising evidence, not final
+acceptance: the combined no-oracle selection rule and all-seed Chrome paint
+location run still have to pass before the 100% mandate is met.

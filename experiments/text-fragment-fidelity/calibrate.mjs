@@ -39,7 +39,7 @@ const disagreements = [];
 const byHost = new Map();
 for (const [label, liveRow] of live) {
   const replayRow = replay.get(label);
-  if (!replayRow || !comparable(liveRow) || !comparable(replayRow)) continue;
+  if (!replayRow || !liveRow.target || liveRow.target !== replayRow.target || !comparable(liveRow) || !comparable(replayRow)) continue;
   const host = (() => { try { return new URL(liveRow.target).hostname.replace(/^www\./, ""); } catch { return "?"; } })();
   const entry = byHost.get(host) ?? { agree: 0, disagree: 0 };
   const same = painted(liveRow) === painted(replayRow);

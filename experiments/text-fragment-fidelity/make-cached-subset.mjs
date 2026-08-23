@@ -2,6 +2,7 @@
 // start while the crawl is still filling.
 import fs from "node:fs";
 import path from "node:path";
+import { seedDocumentKey } from "./seed-document-key.mjs";
 import { pathToFileURL } from "node:url";
 
 const here = import.meta.dirname;
@@ -39,8 +40,8 @@ for (const seed of seeds) {
       url: seed.url,
       ...(seed.anchor ? { anchor: seed.anchor } : {}),
       blockText: seed.blockText,
-      ...(doctext.get(seed.label.split("_").slice(1, -1).join("_"))
-        ? { documentText: doctext.get(seed.label.split("_").slice(1, -1).join("_")) }
+      ...(doctext.get(seedDocumentKey(seed))
+        ? { documentText: doctext.get(seedDocumentKey(seed)) }
         : {}),
     },
     seed.quotes ?? [],

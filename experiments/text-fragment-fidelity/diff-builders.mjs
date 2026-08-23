@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { seedDocumentKey } from "./seed-document-key.mjs";
 if (!process.env.PRODUCTION_BUILDERS_MODULE) throw new Error("Set PRODUCTION_BUILDERS_MODULE to the module under test");
 const { buildLegalSourcePinpointUrl: buildProduction } = await import(process.env.PRODUCTION_BUILDERS_MODULE);
 if (!process.env.CANDIDATE_BUILDERS_MODULE) throw new Error("Set CANDIDATE_BUILDERS_MODULE to the module under test");
@@ -22,8 +23,8 @@ function build(builder, seed) {
         url: seed.url,
         ...(seed.anchor ? { anchor: seed.anchor } : {}),
         blockText: seed.blockText,
-        ...(doctext.get(seed.label.split("_").slice(1, -1).join("_"))
-          ? { documentText: doctext.get(seed.label.split("_").slice(1, -1).join("_")) }
+        ...(doctext.get(seedDocumentKey(seed))
+          ? { documentText: doctext.get(seedDocumentKey(seed)) }
           : {}),
       },
       seed.quotes ?? [],
