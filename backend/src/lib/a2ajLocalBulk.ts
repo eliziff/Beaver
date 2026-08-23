@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { A2AJDocument, A2AJSearchResult } from "./legalSources/a2aj";
-import { citationLookupKey } from "./citationKey";
+import { citationLookupKeyNative } from "./structureNative";
 import { boundedSize, searchTokens, sqliteText as string } from "./sqliteSearch";
 import {
   legalProviderDatabase,
@@ -55,8 +55,6 @@ function languageField(
       : null)
   );
 }
-
-const citationKey = citationLookupKey;
 
 function sectionMap(row: Row, language: Language) {
   const value = languageField(row, "unofficial_sections", language);
@@ -220,7 +218,7 @@ export function fetchLocalA2AJDocument(args: {
 }): A2AJDocument | null {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
-  const key = citationKey(citation);
+  const key = citationLookupKeyNative(citation);
   if (!key) return null;
   return withDatabase((database) => {
     const filters = ["lookup.citation_key = ?", "document.doc_type = ?"];

@@ -1,5 +1,10 @@
-import { citationLookupKey, citationsInText } from "../../src/lib/citationKey";
-import { groundedProseIntegrityErrors, markedQuoteSpans, quoteRepairSuggestion } from "../../src/lib/chat/quoteRepair";
+import {
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  groundedProseErrorsNative,
+  markedQuoteSpansNative,
+  quoteRepairSuggestionNative,
+} from "../../src/lib/structureNative";
 import { footnoteReferenceContext, type CaseTargetOccurrence } from "./caseTargetMvp";
 import type { ModelSourceLine } from "./caseTargetMvpReduced";
 
@@ -303,7 +308,7 @@ export function decisionCitationInventory(
   const occurrences: DecisionCitationOccurrence[] = [];
   let previousMatch: ReturnType<typeof citationsInText>[number] | null = null;
   let previousGroup: { id: string; displays: string[]; occurrences: DecisionCitationOccurrence[] } | null = null;
-  for (const match of citationsInText(sourceText, options)) {
+  for (const match of citationsInText(sourceText, options.extendedUsFallback !== false)) {
     if (!isDecisionCitationSurface(match.text)) { previousMatch = null; previousGroup = null; continue; }
     const surfaceKey = citationLookupKey(match.text);
     if (!surfaceKey || surfaceKey === currentKey) { previousMatch = null; previousGroup = null; continue; }
@@ -396,9 +401,10 @@ export function compileCaseDecisionSubmission(args: {
     const evidence = resolveLineRange(reference.evidence, args.sourceLines, `${path}.evidence`, errors);
     const evidenceText = evidence ? args.sourceText.slice(evidence.start, evidence.end) : "";
     const matches = evidence ? exactSpans(args.sourceText, reference.exact_reference, evidence) : [];
-    if (!matches.length) errors.push(`${path}: exact_reference does not occur verbatim inside its evidence lines${
-      quoteRepairSuggestion(reference.exact_reference, [evidenceText]) ? `; ${quoteRepairSuggestion(reference.exact_reference, [evidenceText])}` : ""
-    }`);
+    if (!matches.length) {
+      const suggestion = quoteRepairSuggestionNative(reference.exact_reference, [evidenceText]);
+      errors.push(`${path}: exact_reference does not occur verbatim inside its evidence lines${suggestion ? `; ${suggestion}` : ""}`);
+    }
     const detected = reference.detected_occurrence_id === null ? null : detectedById.get(reference.detected_occurrence_id);
     if (reference.detected_occurrence_id !== null && !detected) errors.push(`${path}: unknown detected_occurrence_id ${reference.detected_occurrence_id}`);
     if (detected) {
@@ -419,7 +425,7 @@ export function compileCaseDecisionSubmission(args: {
   }
   for (const id of detectedById.keys()) if (!usedDetectedIds.has(id)) errors.push(`analysis.references is missing detector candidate ${id}`);
 
-  const deterministicQuotes = markedQuoteSpans(args.sourceText).map((quote, index) => ({
+  const deterministicQuotes = markedQuoteSpansNative(args.sourceText).map((quote, index) => ({
     quote_id: `dq${index + 1}`,
     exact_quote: quote.text,
     start: quote.start,
@@ -443,9 +449,10 @@ export function compileCaseDecisionSubmission(args: {
     const evidence = resolveLineRange(quote.evidence, args.sourceLines, `${path}.evidence`, errors);
     const evidenceText = evidence ? args.sourceText.slice(evidence.start, evidence.end) : "";
     const matches = evidence ? exactSpans(args.sourceText, quote.exact_quote, evidence) : [];
-    if (!matches.length) errors.push(`${path}: exact_quote does not occur verbatim inside its evidence lines${
-      quoteRepairSuggestion(quote.exact_quote, [evidenceText]) ? `; ${quoteRepairSuggestion(quote.exact_quote, [evidenceText])}` : ""
-    }`);
+    if (!matches.length) {
+      const suggestion = quoteRepairSuggestionNative(quote.exact_quote, [evidenceText]);
+      errors.push(`${path}: exact_quote does not occur verbatim inside its evidence lines${suggestion ? `; ${suggestion}` : ""}`);
+    }
     quoteReceipts.push({
       quote_id: quote.quote_id,
       reference_ids: quote.reference_ids,
@@ -478,7 +485,7 @@ export function compileCaseDecisionSubmission(args: {
     const ownWords = evidence ? args.sourceText.slice(evidence.start, evidence.end) : "";
     const visible = [{ evidenceId: "treatment_evidence", text: ownWords }, ...citedQuotes];
     for (const [field, prose] of [["proposition", treatment.proposition], ["explanation", treatment.explanation]] as const) {
-      errors.push(...groundedProseIntegrityErrors(prose, visible.map(({ evidenceId }) => evidenceId), visible).map((error) => `${path}.${field}: ${error}`));
+      errors.push(...groundedProseErrorsNative(prose, visible.map(({ evidenceId }) => evidenceId), visible).map((error) => `${path}.${field}: ${error}`));
     }
     treatmentReceipts.push({
       treatment_index: index,

@@ -11,9 +11,10 @@ import {
   hasCanadianDecisionLink,
   type QuoteSource,
 } from "../../src/lib/legalSourceLinks";
-import { hasCitationInText } from "../../src/lib/citationKey";
 import {
   documentTextNative,
+  hasCitationInTextNative as hasCitationInText,
+  quoteRepairSuggestionNative,
   type NativeDocument,
 } from "../../src/lib/structureNative";
 import {
@@ -28,7 +29,6 @@ import {
   type OpenAIToolSchema,
   type UserApiKeys,
 } from "../../src/lib/llm";
-import { quoteRepairSuggestion } from "../../src/lib/chat/quoteRepair";
 import { normalizeWhitespace } from "../../src/lib/text";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
@@ -1098,7 +1098,7 @@ export function submitLegalEvidenceAnswer(
     // the span's own closest contiguous excerpt — deterministic, and
     // verbatim by construction, so requoting it always clears the tier.
     const repairHint = (claim: GroundedLegalClaim): string | null =>
-      quoteRepairSuggestion(
+      quoteRepairSuggestionNative(
         stripCitationTails(claim.text).replace(/^["'“‘]+|["'”’]+$/gu, ""),
         claim.evidence_ids.flatMap((id) => {
           const span = state.evidence.get(id)?.receipt.span_text;

@@ -7,14 +7,14 @@ import {
 import {
   documentRevisionNative,
   type NativeDocument,
+  groundedProseErrorsNative,
+  hasCitationInTextNative,
 } from "../structureNative";
-import { hasCitationInText } from "../citationKey";
 import {
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
-import { groundedProseIntegrityErrors } from "./quoteRepair";
 import { jsonRecord as object } from "../value";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
@@ -628,17 +628,12 @@ export function legalEvidenceProseIntegrityErrors(
   citedEvidenceIds: readonly string[],
   state: LegalEvidenceTurnState,
 ) {
-  return groundedProseIntegrityErrors(
-    text,
-    citedEvidenceIds,
-    [...state.evidence.values()].flatMap(({ receipt }) => receipt.span_text
-      ? [{
-          evidenceId: receipt.evidence_id,
-          text: receipt.span_text,
-          labels: [receipt.name, receipt.citation].filter((value): value is string => Boolean(value)),
-        }]
-      : []),
-  );
+  const visible = [...state.evidence.values()].flatMap(({ receipt }) => receipt.span_text
+    ? [{ evidenceId: receipt.evidence_id, text: receipt.span_text,
+        labels: [receipt.name, receipt.citation].filter(
+          (value): value is string => Boolean(value)) }]
+    : []);
+  return groundedProseErrorsNative(text, citedEvidenceIds, visible);
 }
 
 export function submitLegalEvidenceAnswer(
@@ -703,7 +698,7 @@ export function finalizeLegalEvidence(
   draft: string,
 ) {
   const namesAuthority = hasCaseNameInText(draft);
-  const citesAuthority = hasCitationInText(draft) || hasCanadianDecisionLink(draft);
+  const citesAuthority = hasCitationInTextNative(draft) || hasCanadianDecisionLink(draft);
   if (!state.mode && !state.answer && (namesAuthority || citesAuthority))
     state.mode = "citation_structure";
   if (!state.mode) return true;

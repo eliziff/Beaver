@@ -9,7 +9,6 @@ import {
   type ModelOpinionIssuePosition,
   type ModelTargetMention,
 } from "./caseTargetMvp";
-import { createTextSourceDoc } from "../../src/lib/sourceDoc";
 
 it("permits empty issue maps and case-level direct history without weakening opinion-linked fields", () => {
   assert.equal(CASE_TARGET_MVP_SCHEMA_EXTENSION.case_issues.minItems, 0);
@@ -28,7 +27,7 @@ it("pre-registers conservative case-name mentions without duplicating a decorate
     "[1] The appellant relies on Sattva.\n",
     "[2] We follow Sattva Capital on contractual interpretation.\n",
   ].join("");
-  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(text), {
+  const occurrences = detectCaseTargetOccurrences(text, {
     citation: "2014 SCC 53",
     citationAliases: [],
     name: "Sattva Capital Corp. v. Creston Moly Corp.",
@@ -49,7 +48,7 @@ it("requires legal-reference syntax for short names while retaining a full style
     "[5] On the basis of Crocco, the claim was barred.\n",
     "[6] Crocco v Ontario at para. 15; Smith v Jones, 2008 FCA 2, concerned another issue.\n",
   ].join("");
-  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(text), {
+  const occurrences = detectCaseTargetOccurrences(text, {
     citation: "2007 FCA 1",
     citationAliases: [],
     name: "Crocco v. Ontario",
@@ -64,7 +63,7 @@ it("requires legal-reference syntax for short names while retaining a full style
 });
 
 it("retains an exact two-word case title without demanding a surrounding cue", () => {
-  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc("The result in Re Spectrum remains controversial."), {
+  const occurrences = detectCaseTargetOccurrences("The result in Re Spectrum remains controversial.", {
     citation: "[2000] 1 SCR 1",
     citationAliases: [],
     name: "Re Spectrum",
@@ -75,7 +74,7 @@ it("retains an exact two-word case title without demanding a surrounding cue", (
 });
 
 it("retains a supplied external reporter citation outside the Canadian citation grammar", () => {
-  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc("The court did not follow Fairclough, [1951] 2 All E.R. 834."), {
+  const occurrences = detectCaseTargetOccurrences("The court did not follow Fairclough, [1951] 2 All E.R. 834.", {
     citation: "[1951] 2 All E.R. 834",
     citationAliases: [],
     name: "Fairclough v. Whipp",
@@ -86,17 +85,17 @@ it("retains a supplied external reporter citation outside the Canadian citation 
 });
 
 it("does not turn a generic government party or an incompatible reporter citation into the target", () => {
-  const generic = detectCaseTargetOccurrences(createTextSourceDoc("The claimant arrived in Canada yesterday."), {
+  const generic = detectCaseTargetOccurrences("The claimant arrived in Canada yesterday.", {
     citation: "2022 FCA 105",
     citationAliases: [],
     name: "Canada v. Chu",
   });
   assert.deepEqual(generic, []);
 
-  const incompatible = detectCaseTargetOccurrences(createTextSourceDoc([
+  const incompatible = detectCaseTargetOccurrences([
     "Abbott Laboratories v. Canada, 2007 FCA 187, addressed a different patent.",
     "In Abbott, the court discussed the burden of proof.",
-  ].join("\n")), {
+  ].join("\n"), {
     citation: "2007 FCA 153",
     citationAliases: [],
     name: "Abbott Laboratories v. Canada",
@@ -105,7 +104,7 @@ it("does not turn a generic government party or an incompatible reporter citatio
     { id: "tn1", kind: "case_name", quote: "Abbott" },
   ]);
 
-  const reporterLabel = detectCaseTargetOccurrences(createTextSourceDoc("The earlier case was affirmed, 2007 FCA 153 [Abbott Laboratories 2005]. Abbott Laboratories 2005 was then discussed."), {
+  const reporterLabel = detectCaseTargetOccurrences("The earlier case was affirmed, 2007 FCA 153 [Abbott Laboratories 2005]. Abbott Laboratories 2005 was then discussed.", {
     citation: "2007 FCA 153",
     citationAliases: [],
     name: "Abbott Laboratories v. Canada",

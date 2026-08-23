@@ -59,6 +59,7 @@ import {
   type NativeDocument,
   type NativeDocumentBlock,
   type NativePageMap,
+  quoteRepairSuggestionNative,
 } from "../structureNative";
 import { preparePdf, preparePdfPages } from "../pdfJobs";
 import {
@@ -117,7 +118,6 @@ import {
   safeGeneratedFilename,
   workbookFromMarkdown,
 } from "./tools/documentOps";
-import { quoteRepairSuggestion } from "./quoteRepair";
 import { projectDocxRedline } from "../docx/redline";
 import {
   ADVANCED_DOCX_EDIT_TOOL,
@@ -1724,7 +1724,7 @@ async function runCodingShapeCall(
         error: "No revision was saved",
         edit_errors: applied.errors.map(({ index, reason }) =>
           `edit ${index + 1}: ${reason}`),
-        nearest_match: quoteRepairSuggestion(
+        nearest_match: quoteRepairSuggestionNative(
           oldString.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans),
       });
     }

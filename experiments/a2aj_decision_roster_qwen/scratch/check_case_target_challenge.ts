@@ -11,7 +11,7 @@ import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKey } from "../../../backend/src/lib/citationKey";
+import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
