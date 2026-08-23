@@ -9,7 +9,7 @@ import {
   type CaseTargetOccurrence,
 } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKey } from "../../../backend/src/lib/citationKey";
+import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import type { A2AJDocument } from "../../../backend/src/lib/legalSources/a2aj";
 import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";

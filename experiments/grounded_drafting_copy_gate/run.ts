@@ -4,8 +4,10 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
-import { groundedProseIntegrityErrors } from "../../backend/src/lib/chat/quoteRepair";
-import { tokenizeTextNative } from "../../backend/src/lib/structureNative";
+import {
+  tokenizeTextNative,
+  groundedProseErrorsNative,
+} from "../../backend/src/lib/structureNative";
 
 type Source = {
   evidenceId: string;
@@ -106,7 +108,7 @@ function shortEightTokenWindow(source: Source) {
 }
 
 function unmarkedRejected(text: string, sources: Source[]) {
-  return groundedProseIntegrityErrors(text, [], sources).some((error) =>
+  return groundedProseErrorsNative(text, [], sources).some((error) =>
     error.includes("unmarked copied passage"),
   );
 }
@@ -291,7 +293,7 @@ function traceEvaluation() {
         result.factualVacuum.unmarkedSubmittedClaimObserved ||=
           claim.text.toLocaleLowerCase().includes("factual vacuum");
         result.beaverOutputs.claims += 1;
-        const errors = groundedProseIntegrityErrors(
+        const errors = groundedProseErrorsNative(
           claim.text,
           Array.isArray(claim.evidence_ids) ? claim.evidence_ids : [],
           visible,

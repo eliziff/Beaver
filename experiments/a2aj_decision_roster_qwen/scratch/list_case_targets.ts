@@ -1,6 +1,9 @@
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKey, citationsInText } from "../../../backend/src/lib/citationKey";
-import { classifyCitatorExcerpt } from "../../../backend/src/lib/citatorExcerpts";
+import {
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  classifyCitatorExcerptNative as classifyCitatorExcerpt,
+} from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { candidatesByDocumentIds, loadCase, parseDocumentIds } from "../runner";
 

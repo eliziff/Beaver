@@ -9,8 +9,7 @@
 
 import { parentPort } from "node:worker_threads";
 import { createHash } from "node:crypto";
-import { analyzeDocumentNative } from "../../backend/src/lib/structureNative";
-import type { SourceDoc } from "../../backend/src/lib/sourceDoc";
+import { deriveDocumentNative, documentAnchorsNative, documentTextNative } from "../../backend/src/lib/structureNative";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -112,26 +111,24 @@ function buildOpinions(
 }
 
 async function processJob(job: WorkerJob): Promise<WorkerResult> {
-  const analyzed = await analyzeDocumentNative<{
-    structure: unknown; source_doc?: SourceDoc;
-  }>({
+  const native = await deriveDocumentNative({
     kind: "a2aj", source_doc: true, input: {
       citation: job.citation, source_kind: "cases", text: job.text,
       url: job.url, alternate_citation: job.alternateCitation,
       dataset: job.dataset, name: job.name,
     },
   });
-  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-  const source = analyzed.source_doc;
-  const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
-  const pages = source.blocks
+  const text = documentTextNative(native);
+  const blocks = documentAnchorsNative(native);
+  const paragraphs = blocks.filter((block) => block.kind === "paragraph");
+  const pages = blocks
     .filter((block) => block.kind === "page")
     .map((block) => {
       const match = /^page(\d+)$/u.exec(block.label);
       return match ? Number(match[1]) : Number(block.label) || 0;
     });
   const structure = analyzeOpinionStructure({
-    text: source.text,
+    text,
     firstParagraphStart: paragraphs[0]?.start ?? 0,
   });
   const partition = partitionOpinionStructure(
@@ -150,7 +147,7 @@ async function processJob(job: WorkerJob): Promise<WorkerResult> {
     partition.note === "no paragraph spine" && pageSpine
       ? `no paragraph spine; page spine: ${pageSpine.length} pages`
       : partition.note;
-  const geometry = buildGeometry(source.blocks);
+  const geometry = buildGeometry(blocks);
   const claims: Claims = {
     status: structure.status,
     panel: [...structure.panel],

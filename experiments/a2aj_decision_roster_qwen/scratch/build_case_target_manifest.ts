@@ -9,8 +9,11 @@ import {
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
 import { buildCanliiCaseUrl } from "../../../backend/src/lib/canliiUrls";
-import { citationLookupKey, citationsInText } from "../../../backend/src/lib/citationKey";
-import { classifyCitatorExcerpt } from "../../../backend/src/lib/citatorExcerpts";
+import {
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  classifyCitatorExcerptNative as classifyCitatorExcerpt,
+} from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { selectedCandidates } from "../runner";
 

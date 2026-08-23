@@ -28,11 +28,10 @@ import path from "node:path";
 import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentById,
-  getLocalA2AJStructure,
 } from "../../backend/src/lib/a2ajLocalBulk";
 import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 import { withReadonlySqlite } from "../../backend/src/lib/legalDataPath";
-import type { SourceDoc, SourceDocBlock } from "../../backend/src/lib/sourceDoc";
+import { documentAnchorsNative, type NativeDocumentBlock } from "../../backend/src/lib/structureNative";
 
 const HERE = __dirname;
 const RUN_DIR = path.join(HERE, "runs");
@@ -257,7 +256,7 @@ async function completedIds(file: string): Promise<Set<number>> {
 
 function analyzeDocument(
   text: string,
-  paragraphs: SourceDocBlock[],
+  paragraphs: NativeDocumentBlock[],
   candidate: Candidate,
 ): Omit<DocRecord, "status"> {
   const familyHits: Record<string, number> = {};
@@ -457,8 +456,9 @@ async function stageAnalyze(args: Args, seed: number, size: number) {
             skippedNonEnglish += 1;
             record = skippedRecord(candidate, "skipped_non_english");
           } else {
-            const source = getLocalA2AJStructure(document) ?? a2ajLegalSourceProvider.source(document);
-            const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
+            const native = a2ajLegalSourceProvider.source(document);
+            const paragraphs = (native ? documentAnchorsNative(native) : [])
+              .filter((block) => block.kind === "paragraph");
             if (!paragraphs.length) {
               noSpine += 1;
               record = skippedRecord(candidate, "no_spine");

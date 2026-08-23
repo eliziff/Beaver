@@ -23,7 +23,7 @@ import {
   MissingPassageIndexError,
   searchLocalA2AJPassages,
 } from "./a2ajPassageSearch";
-import { citationLookupKey } from "../../src/lib/citationKey";
+import { citationLookupKeyNative as citationLookupKey } from "../../src/lib/structureNative";
 import {
   chunkText,
   clauseChunkText,

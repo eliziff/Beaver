@@ -24,31 +24,34 @@ import {
 } from "../../backend/src/lib/a2ajLocalBulk";
 import {
   a2ajLegalSourceProvider,
-  a2ajSourceDoc,
   type A2AJDocument,
 } from "../../backend/src/lib/legalSources/a2aj";
-import {
-  a2ajLookupEvidenceBlocks,
-} from "../../backend/src/lib/chat/tools/a2ajTools";
 import {
   createA2AJDocumentEvidence,
   type LegalEvidenceReceipt,
 } from "../../backend/experiments/legal-evidence/legalEvidenceExperiment";
+import { createA2AJPassageEvidence } from "../../backend/src/lib/chat/legalEvidence";
 import {
   withReadonlySqlite,
 } from "../../backend/src/lib/legalDataPath";
 import {
-  sourceDocQuoteWords,
-  tokenizeSourceText,
-  type SourceDoc,
-  type SourceDocBlock,
-} from "../../backend/src/lib/sourceDoc";
+  deriveDocumentNative,
+  documentAnchorsNative,
+  documentMetadataNative,
+  documentTextNative,
+  lookupDocumentNative,
+  quoteWordsNative,
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  classifyCitatorExcerptNative as classifyCitatorExcerpt,
+  readDocumentRangeNative,
+  textPhraseSpansNative,
+  tokenizeTextNative,
+  type NativeDocument,
+  type NativeDocumentBlock,
+  type NativeDocumentLookup,
+} from "../../backend/src/lib/structureNative";
 import { setBelowNormalProcessPriority } from "../../backend/src/lib/processPriority";
-import {
-  citationLookupKey,
-  citationsInText,
-} from "../../backend/src/lib/citationKey";
-import { classifyCitatorExcerpt } from "../../backend/src/lib/citatorExcerpts";
 import {
   analyzeOpinionStructure,
   analyzeTextOpinionStructure,
@@ -170,8 +173,10 @@ type CitationEdgeCandidate = {
 type CaseRecord = {
   candidate: Candidate;
   document: A2AJDocument;
-  source: SourceDoc;
-  paragraphs: SourceDocBlock[];
+  source: NativeDocument;
+  text: string;
+  sourceStatus: "usable" | "unavailable";
+  paragraphs: Array<Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end">>;
   sourceEvidence: LegalEvidenceReceipt;
   sourceSha256: string;
   structure: OpinionStructure;
@@ -185,7 +190,7 @@ type CaseRecord = {
 
 type DeterministicAuditRecord = Pick<
   CaseRecord,
-  "candidate" | "source" | "paragraphs" | "sourceSha256" | "structure" | "deterministic"
+  "candidate" | "source" | "text" | "sourceStatus" | "paragraphs" | "sourceSha256" | "structure" | "deterministic"
 >;
 
 type Prediction = {
@@ -780,7 +785,7 @@ function compressNumbers(numbers: number[]): Range[] {
   return ranges;
 }
 
-function paragraphNumbers(paragraphs: SourceDocBlock[]) {
+function paragraphNumbers(paragraphs: Array<Pick<NativeDocumentBlock, "label">>) {
   return paragraphs.flatMap((block) => {
     const match = /^par(\d+)$/iu.exec(block.label);
     return match ? [Number(match[1])] : [];
@@ -791,33 +796,22 @@ function numbersInRange(range: Range, available: number[]) {
   return available.filter((number) => number >= range.from && number <= range.to);
 }
 
-function rangeText(source: SourceDoc, paragraphs: SourceDocBlock[], range: Range) {
-  const selected = paragraphs.filter((block) => {
-    const match = /^par(\d+)$/iu.exec(block.label);
-    const number = match ? Number(match[1]) : NaN;
-    return Number.isFinite(number) && number >= range.from && number <= range.to;
-  });
-  return selected.length
-    ? source.text.slice(selected[0].start, selected.at(-1)!.end).trim()
-    : "";
+function paragraphText(text: string, block: Pick<NativeDocumentBlock, "start" | "end">) {
+  return text.slice(block.start, block.end);
 }
 
-function paragraphText(source: SourceDoc, block: SourceDocBlock) {
-  return source.text.slice(block.start, block.end);
-}
-
-function extractPreflight(source: SourceDoc, paragraphs: SourceDocBlock[]): Preflight {
+function extractPreflight(text: string, paragraphs: Array<Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end">>): Preflight {
   const searches = PREFLIGHT_TERMS.map(({ term, re }) => {
     const paragraph_hits: string[] = [];
     const snippets: string[] = [];
     for (const block of paragraphs) {
-      const text = paragraphText(source, block);
-      const match = re.exec(text);
+      const paragraph = paragraphText(text, block);
+      const match = re.exec(paragraph);
       if (!match) continue;
       paragraph_hits.push(block.label);
       const start = Math.max(0, match.index - 70);
-      const end = Math.min(text.length, match.index + match[0].length + 110);
-      snippets.push(`${block.label}: ${compact(text.slice(start, end))}`);
+      const end = Math.min(paragraph.length, match.index + match[0].length + 110);
+      snippets.push(`${block.label}: ${compact(paragraph.slice(start, end))}`);
       if (snippets.length >= 8) break;
     }
     return { term, paragraph_hits, snippets };
@@ -830,14 +824,14 @@ function extractPreflight(source: SourceDoc, paragraphs: SourceDocBlock[]): Pref
 
 function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "targetOccurrences" | "sourceLines">): CitationEdgeCandidate[] {
   const inventory = decisionCitationInventory(
-    record.source.text,
+    record.text,
     record.candidate.citation,
-    record.paragraphs.at(-1)?.end ?? record.source.text.length,
+    record.paragraphs.at(-1)?.end ?? record.text.length,
   );
   return inventory.occurrences.map((occurrence) => {
     const contextStart = Math.max(0, occurrence.start - 700);
-    const contextEnd = Math.min(record.source.text.length, occurrence.end + 700);
-    const context = record.source.text.slice(contextStart, contextEnd);
+    const contextEnd = Math.min(record.text.length, occurrence.end + 700);
+    const context = record.text.slice(contextStart, contextEnd);
     return {
       id: occurrence.id,
       authorityId: occurrence.authority_id,
@@ -856,8 +850,8 @@ function semanticMvpCitationEdges(record: Omit<CaseRecord, "citationEdges" | "ta
   });
 }
 
-function caseTargetOccurrences(source: SourceDoc, target: CaseTargetSpec | undefined): CaseTargetOccurrence[] {
-  return target ? detectCaseTargetOccurrences(source, target) : [];
+function caseTargetOccurrences(text: string, target: CaseTargetSpec | undefined): CaseTargetOccurrence[] {
+  return target ? detectCaseTargetOccurrences(text, target) : [];
 }
 
 function runnerRole(role: OpinionStructure["bindings"][number]["role"]): Role {
@@ -865,15 +859,15 @@ function runnerRole(role: OpinionStructure["bindings"][number]["role"]): Role {
 }
 
 function extractMechanicalHints(
-  source: SourceDoc,
-  paragraphs: SourceDocBlock[],
+  text: string,
+  paragraphs: Array<Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end">>,
   structure: OpinionStructure,
 ): MechanicalHints {
   if (!paragraphs.length) {
-    return { judgeCandidates: [], opinions: [], header: source.text.slice(0, 8_000), status: "unavailable" };
+    return { judgeCandidates: [], opinions: [], header: text.slice(0, 8_000), status: "unavailable" };
   }
   const firstParagraph = paragraphs[0].start;
-  const header = source.text.slice(0, Math.min(firstParagraph, 12_000));
+  const header = text.slice(0, Math.min(firstParagraph, 12_000));
   const judgeCandidates: string[] = [];
   const candidateNames = [
     ...structure.panel,
@@ -942,7 +936,7 @@ export function deterministicPrediction(record: DeterministicAuditRecord): Predi
       end_quote: opinion.endQuote,
       start: opinion.start,
       end_exclusive: opinion.end,
-      text_sha256: sha256(record.source.text.slice(opinion.start, opinion.end)),
+      text_sha256: sha256(record.text.slice(opinion.start, opinion.end)),
       substantive_words: opinion.substantiveWords,
       paragraphs: compressNumbers(record.paragraphs.flatMap((block) => {
         if (block.end <= opinion.start || block.start >= opinion.end) return [];
@@ -972,7 +966,7 @@ export function deterministicPrediction(record: DeterministicAuditRecord): Predi
   return withDerivedAuthority(prediction);
 }
 
-function paragraphIndex(paragraphs: SourceDocBlock[]) {
+function paragraphIndex(paragraphs: Array<Pick<NativeDocumentBlock, "label">>) {
   return compressNumbers(paragraphNumbers(paragraphs))
     .map(({ from, to }) => (from === to ? `par${from}` : `par${from}-par${to}`))
     .join(", ");
@@ -1040,7 +1034,7 @@ function codexPacket(record: CaseRecord) {
     "[DETERMINISTIC TERM-SEARCH PREFLIGHT — HINTS ONLY]",
     json(record.preflight),
     "[SOURCE TEXT]",
-    record.source.text,
+    record.text,
   ].join("\n\n");
 }
 
@@ -1086,12 +1080,12 @@ function legacySemanticMvpPacket(record: CaseRecord) {
         : [...lineRange(edge.linkedContext.start, edge.linkedContext.end), edge.linkedContext.quote],
     ])),
     "[COMPLETE DECISION — the line number before each colon is not decision text]",
-    record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n"),
+    record.sourceLines.map((line) => `${line.line}: ${record.text.slice(line.start, line.end)}`).join("\n"),
   ].join("\n\n");
 }
 
 function numberedDecision(record: CaseRecord) {
-  return record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n");
+  return record.sourceLines.map((line) => `${line.line}: ${record.text.slice(line.start, line.end)}`).join("\n");
 }
 
 function decisionCaseLabel(record: CaseRecord) {
@@ -1185,7 +1179,7 @@ export function caseTargetMvpPacket(record: CaseRecord, variant: CaseTargetPromp
         : [...lineRange(occurrence.linkedContext.start, occurrence.linkedContext.end), occurrence.linkedContext.quote],
     ])),
     "[COMPLETE CITING DECISION — the line number before each colon is not decision text]",
-    record.sourceLines.map((line) => `${line.line}: ${record.source.text.slice(line.start, line.end)}`).join("\n"),
+    record.sourceLines.map((line) => `${line.line}: ${record.text.slice(line.start, line.end)}`).join("\n"),
   ].join("\n\n");
 }
 
@@ -1204,40 +1198,28 @@ function exactQuoteSpans(text: string, quote: string, limit = 3) {
 function groundedQuoteSpans(text: string, quote: string, limit = 3) {
   const exact = exactQuoteSpans(text, quote, limit);
   if (exact.length) return exact;
-  const wanted = sourceDocQuoteWords(quote);
+  const wanted = quoteWordsNative(quote);
   if (wanted.length < 4) return [];
-  const source = tokenizeSourceText(text);
-  const spans: Array<{ start: number; end: number }> = [];
-  for (let index = 0; index + wanted.length <= source.length && spans.length < limit; index += 1) {
-    if (source[index].word !== wanted[0]) continue;
-    let matches = true;
-    for (let offset = 1; offset < wanted.length; offset += 1) {
-      if (source[index + offset].word === wanted[offset]) continue;
-      matches = false;
-      break;
-    }
-    if (!matches) continue;
-    let start = source[index].start;
-    let end = source[index + wanted.length - 1].end;
+  return textPhraseSpansNative(text, wanted, undefined, undefined, false, limit).map((span) => {
+    let { start, end } = span;
     if (/^\s*\[\s*\d+\s*\]/u.test(quote)) {
       const bracket = text.lastIndexOf("[", start);
       const close = text.indexOf("]", start);
-      if (bracket >= Math.max(0, start - 12) && close >= source[index].end && close - start <= 12) {
+      if (bracket >= Math.max(0, start - 12) && close >= start && close - start <= 12) {
         start = bracket;
       }
     }
     if (/[.!?…]["'”’\])}]*\s*$/u.test(quote)) {
       while (end < text.length && /[.!?…"'”’\])}]/u.test(text[end])) end += 1;
     }
-    spans.push({ start, end });
-  }
-  return spans;
+    return { start, end };
+  });
 }
 
 const BOUNDARY_RECOVERY_MIN_WORDS = 8;
 
 function exactBoundaryRecoverySpans(text: string, quote: string, edge: "start" | "end") {
-  const quoteWords = sourceDocQuoteWords(quote);
+  const quoteWords = quoteWordsNative(quote);
   if (quoteWords.length < BOUNDARY_RECOVERY_MIN_WORDS) return [];
   const candidates: Array<{ start: number; end: number; matchedWords: number }> = [];
   let lineStart = 0;
@@ -1253,7 +1235,7 @@ function exactBoundaryRecoverySpans(text: string, quote: string, edge: "start" |
     const contentEnd = Math.max(contentStart, lineEnd - trailing);
     if (contentEnd > contentStart) {
       const content = text.slice(contentStart, contentEnd);
-      const tokens = tokenizeSourceText(content);
+      const tokens = tokenizeTextNative(content);
       let matchedWords = 0;
       const limit = Math.min(tokens.length, quoteWords.length);
       while (
@@ -1471,7 +1453,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
       errors.push(`${label} must be a string or null`);
       return { quote: null, start: null, end: null };
     }
-    let spans = groundedQuoteSpans(record.source.text, rawQuote.trim(), 3);
+    let spans = groundedQuoteSpans(record.text, rawQuote.trim(), 3);
     if (preferHeader && spans.length > 1) {
       const headerEnd = record.paragraphs[0]?.start ?? record.hints.header.length;
       const headerSpans = spans.filter(({ end }) => end <= headerEnd);
@@ -1482,15 +1464,15 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
       return { quote: null, start: null, end: null };
     }
     return {
-      quote: record.source.text.slice(spans[0].start, spans[0].end),
+      quote: record.text.slice(spans[0].start, spans[0].end),
       start: spans[0].start,
       end: spans[0].end,
     };
   };
   const boundarySpans = (quote: string, edge: "start" | "end", label: string) => {
-    const grounded = groundedQuoteSpans(record.source.text, quote, 10);
+    const grounded = groundedQuoteSpans(record.text, quote, 10);
     if (grounded.length) return grounded;
-    const recovered = exactBoundaryRecoverySpans(record.source.text, quote, edge);
+    const recovered = exactBoundaryRecoverySpans(record.text, quote, edge);
     if (recovered.length === 1) {
       const span = recovered[0];
       recoveryReceipts.push({
@@ -1498,7 +1480,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
         edge,
         method: edge === "start" ? "exact_source_prefix" : "exact_source_suffix",
         quote,
-        source_quote: record.source.text.slice(span.start, span.end),
+        source_quote: record.text.slice(span.start, span.end),
         start: span.start,
         end: span.end,
       });
@@ -1543,28 +1525,28 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
       errors.push(`${id || "opinion"} collective_author appears to be a panel roster; use a collective court label or named authors`);
     }
     for (const author of authors) {
-      if (!sourceNameMatches(record.source.text, author)) errors.push(`${id || "opinion"} author not found in source: ${author}`);
+      if (!sourceNameMatches(record.text, author)) errors.push(`${id || "opinion"} author not found in source: ${author}`);
     }
-    if (collectiveAuthor && !compact(record.source.text).toLocaleLowerCase().includes(compact(collectiveAuthor).toLocaleLowerCase())) {
+    if (collectiveAuthor && !compact(record.text).toLocaleLowerCase().includes(compact(collectiveAuthor).toLocaleLowerCase())) {
       errors.push(`${id || "opinion"} collective author not found in source: ${collectiveAuthor}`);
     }
     const positionEvidence = canonicalEvidence(row.position_evidence_quote, `${id || "opinion"} position_evidence_quote`, false).quote;
-    const startWords = sourceDocQuoteWords(startQuote);
-    const endWords = sourceDocQuoteWords(endQuote);
+    const startWords = quoteWordsNative(startQuote);
+    const endWords = quoteWordsNative(endQuote);
     if (!startWords.length || !endWords.length) {
       errors.push(`${id || "opinion"} boundary quotes must contain source words`);
       continue;
     }
     const firstParagraphStart = record.paragraphs[0]?.start ?? null;
     const starts = preferredGroundedSpans(
-      record.source.text,
+      record.text,
       firstParagraphStart,
       boundarySpans(startQuote, "start", `${id || "opinion"} start_quote`),
       "start",
       rawOpinions.length,
     );
     const ends = preferredGroundedSpans(
-      record.source.text,
+      record.text,
       firstParagraphStart,
       boundarySpans(endQuote, "end", `${id || "opinion"} end_quote`),
       "end",
@@ -1576,12 +1558,12 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
     const start = starts[0].start;
     const end = ends[0].end;
     if (startWords.length < 4) {
-      const sourceQuote = expandedBoundaryQuote(record.source.text, starts[0], "start");
+      const sourceQuote = expandedBoundaryQuote(record.text, starts[0], "start");
       recoveryReceipts.push({ field: `${id || "opinion"} start_quote`, edge: "start", method: "short_anchor_expansion", quote: startQuote, source_quote: sourceQuote, start: starts[0].start, end: starts[0].start + sourceQuote.length });
       warnings.push(`${id || "opinion"} start_quote expanded from a short exact anchor`);
     }
     if (endWords.length < 4) {
-      const sourceQuote = expandedBoundaryQuote(record.source.text, ends[0], "end");
+      const sourceQuote = expandedBoundaryQuote(record.text, ends[0], "end");
       recoveryReceipts.push({ field: `${id || "opinion"} end_quote`, edge: "end", method: "short_anchor_expansion", quote: endQuote, source_quote: sourceQuote, start: ends[0].end - sourceQuote.length, end: ends[0].end });
       warnings.push(`${id || "opinion"} end_quote expanded from a short exact anchor`);
     }
@@ -1589,7 +1571,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
       errors.push(`${id || "opinion"} end_quote precedes its start_quote`);
       continue;
     }
-    const body = record.source.text.slice(start, end);
+    const body = record.text.slice(start, end);
     const substantiveWords = words(body).length;
     if (substantiveWords < MIN_OPINION_WORDS) {
       errors.push(`${id || "opinion"} has only ${substantiveWords} substantive words; a signature, joinder, or disposition line is not an opinion`);
@@ -1610,11 +1592,11 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
             : "same_result_separate_reasons",
       authority_position: "unknown",
       start_quote: startWords.length < 4
-        ? expandedBoundaryQuote(record.source.text, starts[0], "start")
-        : record.source.text.slice(starts[0].start, starts[0].end),
+        ? expandedBoundaryQuote(record.text, starts[0], "start")
+        : record.text.slice(starts[0].start, starts[0].end),
       end_quote: endWords.length < 4
-        ? expandedBoundaryQuote(record.source.text, ends[0], "end")
-        : record.source.text.slice(ends[0].start, ends[0].end),
+        ? expandedBoundaryQuote(record.text, ends[0], "end")
+        : record.text.slice(ends[0].start, ends[0].end),
       start,
       end_exclusive: end,
       text_sha256: sha256(body),
@@ -1709,7 +1691,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
     }
     if (!key || seenJudges.has(key)) errors.push(`duplicate or empty judge: ${submittedName || "(empty)"}`);
     else seenJudges.add(key);
-    if (!sourceNameMatches(record.source.text, submittedName)) errors.push(`judge name not found in source: ${submittedName}`);
+    if (!sourceNameMatches(record.text, submittedName)) errors.push(`judge name not found in source: ${submittedName}`);
     if (panelEvidence && !sourceNameMatches(panelEvidence, submittedName)) errors.push(`${submittedName || "participant"} panel_evidence_quote does not identify that judge`);
     if (resultOnlyEvidence && !sourceNameMatches(resultOnlyEvidence, submittedName)) errors.push(`${submittedName || "participant"} result_only_evidence_quote does not identify that judge`);
     if (!resultPosition) errors.push(`${submittedName || "participant"} has an invalid result_position`);
@@ -1772,7 +1754,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
       if (!judge || !link) {
         errors.push(`${opinion.id} author ${author} must have an authors voting record referencing that opinion`);
       } else if (participants.length > 1 && link.evidence_quote) {
-        const spans = groundedQuoteSpans(record.source.text, link.evidence_quote, 2);
+        const spans = groundedQuoteSpans(record.text, link.evidence_quote, 2);
         const nearOpening = spans.length === 1 && spans[0].end >= Math.max(0, opinion.start - 1_500) && spans[0].start <= opinion.start + 1_500;
         if (!nearOpening && !explicitNamedAuthorshipByline(link.evidence_quote, judge.name)) {
           errors.push(`${opinion.id} author ${author} is supported only outside the opinion opening/byline`);
@@ -1816,7 +1798,7 @@ export function validatePrediction(record: CaseRecord, raw: unknown, allowLegacy
     const evidenceQuote = canonicalEvidence(row.evidence_quote, `${submittedName || "nonparticipant"} evidence_quote`, true).quote;
     if (!key || seenNonparticipants.has(key)) errors.push(`duplicate or empty nonparticipant: ${submittedName || "(empty)"}`);
     else seenNonparticipants.add(key);
-    if (!sourceNameMatches(record.source.text, submittedName)) errors.push(`nonparticipant name not found in source: ${submittedName}`);
+    if (!sourceNameMatches(record.text, submittedName)) errors.push(`nonparticipant name not found in source: ${submittedName}`);
     if (evidenceQuote && !sourceNameMatches(evidenceQuote, submittedName)) errors.push(`${submittedName || "nonparticipant"} evidence_quote does not identify that judge`);
     if (uniqueJudgeMatch(name, participants, (participant) => participant.name)) errors.push(`${submittedName} cannot be both participant and nonparticipant`);
     nonparticipants.push({ name, evidence_quote: evidenceQuote });
@@ -1881,7 +1863,7 @@ function reducedSourceLines(record: CaseRecord, value: unknown) {
   if (startIndex < 0 || endIndex < startIndex) return null;
   const start = record.sourceLines[startIndex].start;
   const end = record.sourceLines[endIndex].end;
-  return { quote: record.source.text.slice(start, end), start, end };
+  return { quote: record.text.slice(start, end), start, end };
 }
 
 function groundedReducedCollectiveAuthor(record: CaseRecord, opinion: Record<string, unknown>) {
@@ -1896,7 +1878,7 @@ function groundedReducedCollectiveAuthor(record: CaseRecord, opinion: Record<str
     collective &&
     evidence &&
     !looksLikePanelRoster(collective) &&
-    groundedQuoteSpans(record.source.text, evidence, 2).length === 1 &&
+    groundedQuoteSpans(record.text, evidence, 2).length === 1 &&
     compact(evidence).toLocaleLowerCase().includes(compact(collective).toLocaleLowerCase())
   );
   return supported
@@ -2030,20 +2012,20 @@ function reducedRosterContractErrors(record: CaseRecord, raw: Record<string, unk
   const coverageParagraphs = record.deterministic.status === "ready" && record.deterministic.opinions.length
     ? record.paragraphs.filter((paragraph) => record.deterministic.opinions.some((opinion) =>
         paragraph.start >= opinion.start && paragraph.end <= opinion.end) &&
-        isSubstantiveBoundaryText(record.source.text.slice(paragraph.start, paragraph.end)))
+        isSubstantiveBoundaryText(record.text.slice(paragraph.start, paragraph.end)))
     : submittedStart === null || submittedEnd === null
       ? []
       : record.paragraphs.filter((paragraph) => paragraph.start >= submittedStart && paragraph.end <= submittedEnd);
   const requiredRanges = coverageParagraphs.length
     ? coverageParagraphs.map((paragraph) => {
-        const newline = record.source.text.indexOf("\n", paragraph.start);
+        const newline = record.text.indexOf("\n", paragraph.start);
         const end = newline >= 0 && newline < paragraph.end ? newline : paragraph.end;
         return { start: paragraph.start, end, label: paragraph.label };
       })
     : record.deterministic.status === "ready"
       ? record.sourceLines.filter((line) =>
-          sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 &&
-          isSubstantiveBoundaryText(record.source.text.slice(line.start, line.end)) &&
+          quoteWordsNative(record.text.slice(line.start, line.end)).length >= 8 &&
+          isSubstantiveBoundaryText(record.text.slice(line.start, line.end)) &&
           record.deterministic.opinions.some((opinion) => line.start >= opinion.start && line.end <= opinion.end)
         ).map((line) => ({ start: line.start, end: line.end, label: `source line ${line.line}` }))
       : [];
@@ -2127,7 +2109,7 @@ function partialJoinEvidenceGroundsSpeaker(
 ) {
   if (!/\b(?:agree|concur|join|adopt)\w*\b/iu.test(quote)) return false;
   if (sourceNameMatches(quote, participant.name)) return true;
-  const spans = groundedQuoteSpans(record.source.text, quote, 2);
+  const spans = groundedQuoteSpans(record.text, quote, 2);
   if (spans.length !== 1) return false;
   return prediction.opinions.some((opinion) =>
     spans[0].start >= opinion.start &&
@@ -2184,14 +2166,14 @@ export function validateCaseTargetSubmission(record: CaseRecord, raw: unknown) {
     compiled = compileReducedCaseTargetSubmission(
       submission as ReducedCaseTargetSubmission,
       {
-        sourceText: record.source.text,
+        sourceText: record.text,
         sourceLines: record.sourceLines,
         directHistoryEligible: record.candidate.target?.sameLitigationEligible === true,
         opinions: roster.prediction.opinions.map((opinion) => ({
           id: opinion.id,
           start: opinion.start,
           end: opinion.end_exclusive,
-          text: record.source.text.slice(opinion.start, opinion.end_exclusive),
+          text: record.text.slice(opinion.start, opinion.end_exclusive),
         })),
         participants: roster.prediction.participants.map((participant) => ({
           name: participant.name,
@@ -2263,7 +2245,7 @@ function validateLegacySemanticMvp(
       id: opinion.id,
       start: opinion.start,
       end: opinion.end_exclusive,
-      text: record.source.text.slice(opinion.start, opinion.end_exclusive),
+      text: record.text.slice(opinion.start, opinion.end_exclusive),
     })),
     issueOutput,
   );
@@ -2310,7 +2292,7 @@ function validateLegacySemanticMvp(
       opinion: {
         id: opinion.id,
         position: treatmentOpinionPosition(opinion),
-        text: record.source.text.slice(opinion.start, opinion.end_exclusive),
+        text: record.text.slice(opinion.start, opinion.end_exclusive),
         start: opinion.start,
       },
     });
@@ -2367,7 +2349,7 @@ function validateLegacySemanticMvp(
 }
 
 function decisionInventory(record: CaseRecord) {
-  return decisionCitationInventory(record.source.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.source.text.length);
+  return decisionCitationInventory(record.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.text.length);
 }
 
 function decisionCoverageLineNumbers(record: CaseRecord) {
@@ -2383,15 +2365,15 @@ function decisionCoverageLineNumbers(record: CaseRecord) {
   };
   const paragraphs = record.paragraphs.filter((paragraph) =>
     record.deterministic.opinions.some((opinion) => paragraph.start >= opinion.start && paragraph.end <= opinion.end) &&
-    substantive(record.source.text.slice(paragraph.start, paragraph.end))
+    substantive(record.text.slice(paragraph.start, paragraph.end))
   );
   const ranges = paragraphs.length ? paragraphs : record.sourceLines.filter((line) =>
-    sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 && substantive(record.source.text.slice(line.start, line.end)) &&
+    quoteWordsNative(record.text.slice(line.start, line.end)).length >= 8 && substantive(record.text.slice(line.start, line.end)) &&
     record.deterministic.opinions.some((opinion) => line.start >= opinion.start && line.end <= opinion.end)
   );
   return record.sourceLines.filter((line) =>
-    sourceDocQuoteWords(record.source.text.slice(line.start, line.end)).length >= 8 &&
-    substantive(record.source.text.slice(line.start, line.end)) &&
+    quoteWordsNative(record.text.slice(line.start, line.end)).length >= 8 &&
+    substantive(record.text.slice(line.start, line.end)) &&
     ranges.some((range) => line.end > range.start && line.start < range.end)
   ).map(({ line }) => line);
 }
@@ -2408,12 +2390,12 @@ function decisionStructurePrediction(record: CaseRecord, structure: CaseDecision
       position_evidence_quote: opinion.result_evidence ? reducedSourceLines(record, opinion.result_evidence)?.quote ?? null : null,
       alignment: opinion.result_position === "opposes_disposition" ? "different_result" as const : index === 0 ? "lead" as const : "same_result_separate_reasons" as const,
       authority_position: "unknown" as const,
-      start_quote: record.source.text.slice(range.start, Math.min(range.end, range.start + 240)),
-      end_quote: record.source.text.slice(Math.max(range.start, range.end - 240), range.end),
+      start_quote: record.text.slice(range.start, Math.min(range.end, range.start + 240)),
+      end_quote: record.text.slice(Math.max(range.start, range.end - 240), range.end),
       start: range.start,
       end_exclusive: range.end,
-      text_sha256: sha256(record.source.text.slice(range.start, range.end)),
-      substantive_words: sourceDocQuoteWords(record.source.text.slice(range.start, range.end)).length,
+      text_sha256: sha256(record.text.slice(range.start, range.end)),
+      substantive_words: quoteWordsNative(record.text.slice(range.start, range.end)).length,
       paragraphs: compressNumbers(record.paragraphs.flatMap((block) => block.end > range.start && block.start < range.end ? [Number(/^par(\d+)$/iu.exec(block.label)?.[1])].filter(Number.isFinite) : [])),
     };
   });
@@ -2466,7 +2448,7 @@ export function validateDecisionMvp(record: CaseRecord, raw: unknown) {
   try {
     const submission = raw as CaseDecisionSubmission;
     const inventory = decisionInventory(record);
-    const compiled = compileCaseDecisionSubmission({ submission, inventory, sourceText: record.source.text, sourceLines: record.sourceLines, coverageLineNumbers: decisionCoverageLineNumbers(record) });
+    const compiled = compileCaseDecisionSubmission({ submission, inventory, sourceText: record.text, sourceLines: record.sourceLines, coverageLineNumbers: decisionCoverageLineNumbers(record) });
     const prediction = submission.structure ? decisionStructurePrediction(record, submission.structure) : null;
     return {
       prediction,
@@ -2552,16 +2534,26 @@ async function ollamaChat(args: {
   };
 }
 
-function compactLookupResult(lookup: Awaited<ReturnType<typeof a2ajLegalSourceProvider.lookup>>) {
-  if (!lookup) return { ok: false, error: "lookup tool unavailable" };
-  const evidence = a2ajLookupEvidenceBlocks(lookup, "case")
-    .find(({ role }) => role === "selected")?.receipt;
+function compactLookupResult(record: CaseRecord, lookup: NativeDocumentLookup) {
+  const evidence = lookup.block ? createA2AJPassageEvidence({
+    citation: record.candidate.citation,
+    name: record.candidate.name,
+    dataset: record.candidate.dataset,
+    language: record.document.language,
+    sourceText: record.text,
+    spanText: lookup.block.text,
+    start: lookup.block.start,
+    end: lookup.block.end,
+    externalUrl: record.document.url,
+    sourceClass: "case",
+    blockId: [lookup.block.kind, lookup.block.label, lookup.block.start, lookup.block.end].join(":"),
+    locator: { kind: "paragraph", label: lookup.requestedLabel },
+  }) : null;
   return {
     ok: lookup.status === "found",
-    citation: lookup.citation,
-    requested: lookup.requested,
+    citation: record.candidate.citation,
+    requested: { kind: "paragraph", locator: lookup.requestedLabel, label: lookup.requestedLabel },
     matches: lookup.matches,
-    structure: lookup.structure,
     evidence_id: evidence?.evidence_id ?? null,
     block: lookup.block
       ? {
@@ -2605,17 +2597,21 @@ async function lookupForModel(record: CaseRecord, args: unknown) {
       next: `Split the range into blocks of at most ${MAX_LOOKUP_PARAGRAPHS} paragraphs.`,
     };
   }
-  const lookup = await a2ajLegalSourceProvider.lookup({
-    citation: record.candidate.citation,
-    docType: "cases",
-    language: "en",
-    dataset: record.candidate.dataset,
-    kind: "paragraph",
-    locator: String(start),
-    ...(endValue !== start ? { endLocator: String(endValue) } : {}),
-    contextBlocks: 0,
-  });
-  return compactLookupResult(lookup);
+  if (endValue === start) {
+    return compactLookupResult(record, lookupDocumentNative(record.source, "paragraph", String(start)));
+  }
+  const range = readDocumentRangeNative(record.source, "paragraph", String(start), String(endValue));
+  const first = range?.selected[0];
+  const last = range?.selected.at(-1);
+  const label = `par${start}-par${endValue}`;
+  return compactLookupResult(record, first && last ? {
+    status: "found",
+    requestedLabel: label,
+    matches: range!.selected.map((block) => block.label),
+    block: { ...first, label, end: last.end, text: record.text.slice(first.start, last.end).trim() },
+    before: range!.before,
+    after: range!.after,
+  } : { status: "not_found", requestedLabel: label, matches: [], block: null, before: [], after: [] });
 }
 
 function paragraphNumber(value: unknown) {
@@ -3175,7 +3171,7 @@ function saveCase(
     record.candidate.citation,
     record.candidate.name,
     record.candidate.date,
-    record.source.status,
+    record.sourceStatus,
     record.paragraphs.length,
     record.deterministic.status,
     resultStatus,
@@ -3505,15 +3501,29 @@ export async function loadCase(candidate: Candidate): Promise<CaseRecord | null>
 }
 
 async function compileCaseSource(document: A2AJDocument) {
-  return a2ajLegalSourceProvider.source(document) ?? a2ajSourceDoc(document);
+  return a2ajLegalSourceProvider.source(document) ?? await deriveDocumentNative({
+    kind: "a2aj",
+    input: {
+      citation: document.citation,
+      source_kind: document.docType ?? "cases",
+      text: document.sectionMap ? "" : document.text,
+      url: document.url,
+      alternate_citation: document.alternateCitation,
+      dataset: document.dataset,
+      name: document.name,
+      section_map: document.sectionMap ? Object.entries(document.sectionMap) : undefined,
+    },
+  });
 }
 
 async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Promise<CaseRecord> {
   const source = await compileCaseSource(document);
-  const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
+  const text = documentTextNative(source);
+  const paragraphs = documentAnchorsNative(source).filter((block) => block.kind === "paragraph");
+  const sourceStatus = documentMetadataNative(source).status;
   const sourceEvidence = createA2AJDocumentEvidence(document);
   const analysis = analyzeTextOpinionStructure({
-    text: source.text,
+    text,
     paragraphs,
     firstParagraphStart: paragraphs[0]?.start ?? 0,
   });
@@ -3522,15 +3532,17 @@ async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Pr
     candidate,
     document,
     source,
+    text,
+    sourceStatus,
     paragraphs,
     sourceEvidence,
-    sourceSha256: sha256(source.text),
+    sourceSha256: sha256(text),
     structure,
     deterministic,
-    hints: extractMechanicalHints(source, paragraphs, structure),
-    preflight: extractPreflight(source, paragraphs),
+    hints: extractMechanicalHints(text, paragraphs, structure),
+    preflight: extractPreflight(text, paragraphs),
   } satisfies Omit<CaseRecord, "citationEdges" | "targetOccurrences" | "sourceLines">;
-  const targetOccurrences = caseTargetOccurrences(source, candidate.target);
+  const targetOccurrences = caseTargetOccurrences(text, candidate.target);
   if (candidate.target && targetOccurrences.length === 0) {
     throw new Error(`target citation ${candidate.target.citation} was not found in the citing decision`);
   }
@@ -3538,7 +3550,7 @@ async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Pr
     ...record,
     citationEdges: semanticMvpCitationEdges(record),
     targetOccurrences,
-    sourceLines: modelSourceLines(source.text),
+    sourceLines: modelSourceLines(text),
   };
 }
 
@@ -3667,7 +3679,7 @@ async function runCase(args: {
         args.semanticMvp
           ? record.citationEdges.map(({ id }) => id)
           : record.targetOccurrences.map(({ id }) => id),
-        args.semanticMvp ? decisionCitationInventory(record.source.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.source.text.length) : null,
+        args.semanticMvp ? decisionCitationInventory(record.text, record.candidate.citation, record.paragraphs.at(-1)?.end ?? record.text.length) : null,
         record.sourceLines.length,
         async (event, rawLine) => {
           const summary = codexEventSummary(event);
@@ -4060,7 +4072,7 @@ async function dispatchLunaCase(
       kind: "case_loaded",
       document: candidate.documentId,
       citation: candidate.citation,
-      structure_status: record.source.status,
+      structure_status: record.sourceStatus,
       paragraph_count: record.paragraphs.length,
       source_sha256: record.sourceSha256,
       deterministic_status: record.deterministic.status,
@@ -4160,10 +4172,10 @@ function fullCaseReceipt(
       source_evidence_id: record.sourceEvidence.evidence_id,
     },
     structure: {
-      status: record.source.status,
+      status: record.sourceStatus,
       paragraph_count: record.paragraphs.length,
       paragraph_index: paragraphIndex(record.paragraphs),
-      source_chars: record.source.text.length,
+      source_chars: record.text.length,
     },
     deterministic: record.deterministic,
     mechanical: record.hints,
@@ -4589,7 +4601,7 @@ async function run(args: Args) {
           kind: "case_loaded",
           document: candidate.documentId,
           citation: candidate.citation,
-          structure_status: record.source.status,
+          structure_status: record.sourceStatus,
           paragraph_count: record.paragraphs.length,
           source_sha256: record.sourceSha256,
           deterministic_status: record.deterministic.status,
@@ -5444,17 +5456,20 @@ async function deterministicAuditReceipt(item: DeterministicAuditItem): Promise<
     };
   }
   const source = await compileCaseSource(item.document);
-  const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
+  const text = documentTextNative(source);
+  const paragraphs = documentAnchorsNative(source).filter((block) => block.kind === "paragraph");
   const { structure, deterministic } = analyzeTextOpinionStructure({
-    text: source.text,
+    text,
     paragraphs,
     firstParagraphStart: paragraphs[0]?.start ?? 0,
   });
   const record: DeterministicAuditRecord = {
     candidate: item.candidate,
     source,
+    text,
+    sourceStatus: documentMetadataNative(source).status,
     paragraphs,
-    sourceSha256: sha256(source.text),
+    sourceSha256: sha256(text),
     structure,
     deterministic,
   };
@@ -5475,7 +5490,7 @@ async function deterministicAuditReceipt(item: DeterministicAuditItem): Promise<
       source_sha256: record.sourceSha256,
     },
     status: "audited",
-    structure: { paragraph_count: record.paragraphs.length, source_chars: record.source.text.length },
+    structure: { paragraph_count: record.paragraphs.length, source_chars: record.text.length },
     deterministic: record.deterministic,
     routing: { needs_llm: reasons.length > 0, reasons },
     oracle: {
@@ -5493,7 +5508,8 @@ async function deterministicScreenEvent(item: DeterministicScreenItem): Promise<
     return { kind: "screen_case", document: item.documentId, status: "load_failed", source_chars: 0, needs_llm: false };
   }
   const source = await compileCaseSource(item.document);
-  if (!source.text.length) {
+  const text = documentTextNative(source);
+  if (!text.length) {
     return {
       kind: "screen_case",
       document: item.documentId,
@@ -5503,19 +5519,19 @@ async function deterministicScreenEvent(item: DeterministicScreenItem): Promise<
       needs_llm: false,
     };
   }
-  if (source.text.length > MAX_LUNA_SOURCE_CHARS) {
+  if (text.length > MAX_LUNA_SOURCE_CHARS) {
     return {
       kind: "screen_case",
       document: item.documentId,
       source: item.candidate,
       status: "source_too_large",
-      source_chars: source.text.length,
+      source_chars: text.length,
       needs_llm: false,
     };
   }
-  const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
+  const paragraphs = documentAnchorsNative(source).filter((block) => block.kind === "paragraph");
   const deterministic = deriveTextOpinionStructure({
-    text: source.text,
+    text,
     paragraphs,
     firstParagraphStart: paragraphs[0]?.start ?? 0,
   });
@@ -5523,7 +5539,7 @@ async function deterministicScreenEvent(item: DeterministicScreenItem): Promise<
     kind: "screen_case",
     document: item.documentId,
     source: item.candidate,
-    source_chars: source.text.length,
+    source_chars: text.length,
     deterministic_status: deterministic.status,
     deterministic_opinions: deterministic.opinions.length,
     needs_llm: deterministic.status !== "ready",
@@ -6007,10 +6023,12 @@ async function selfTest() {
     "[4] More dissent reasoning contains enough ordinary substantive source text to establish a reliable paragraph block without experiment-local paragraph parsing. The dissent would allow the appeal, set aside the order, and remit the matter for reconsideration.\n",
     "Alpha J.; Beta J.; Gamma J.\n",
   ].join("");
-  const source = await a2ajSourceDoc({ citation: "2099 SCC 1", dataset: "SCC",
-    docType: "cases", text: recordText, alternateCitation: null, name: null,
-    date: null, url: null, language: "en", upstreamLicense: null });
-  const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
+  const source = await deriveDocumentNative({
+    kind: "a2aj",
+    input: { citation: "2099 SCC 1", dataset: "SCC", source_kind: "cases", text: recordText },
+  });
+  const text = documentTextNative(source);
+  const paragraphs = documentAnchorsNative(source).filter((block) => block.kind === "paragraph");
   if (paragraphs.map((block) => block.label).join(",") !== "par1,par2,par3,par4") throw new Error(`SourceDoc self-test failed: ${paragraphs.map((block) => block.label).join(",")}`);
   const candidate: Candidate = {
     documentId: 1,
@@ -6022,7 +6040,7 @@ async function selfTest() {
   };
   const document = { docType: "cases", dataset: "SCC", citation: candidate.citation, alternateCitation: null, name: candidate.name, date: candidate.date, url: null, text: recordText, language: "en", upstreamLicense: null, structure: { status: "usable", source: "flat_text", counts: { paragraph: 4, page: 0, section: 0 } } } satisfies A2AJDocument;
   const { structure, deterministic } = analyzeTextOpinionStructure({
-    text: source.text,
+    text,
     paragraphs,
     firstParagraphStart: paragraphs[0]?.start ?? 0,
   });
@@ -6030,15 +6048,17 @@ async function selfTest() {
     candidate,
     document,
     source,
+    text,
+    sourceStatus: documentMetadataNative(source).status,
     paragraphs,
     sourceEvidence: createA2AJDocumentEvidence(document),
     sourceSha256: sha256(recordText),
     structure,
     deterministic,
-    hints: extractMechanicalHints(source, paragraphs, structure),
-    preflight: extractPreflight(source, paragraphs),
+    hints: extractMechanicalHints(text, paragraphs, structure),
+    preflight: extractPreflight(text, paragraphs),
     citationEdges: [],
-    targetOccurrences: caseTargetOccurrences(source, candidate.target),
+    targetOccurrences: caseTargetOccurrences(text, candidate.target),
     sourceLines: modelSourceLines(recordText),
   };
   if (record.targetOccurrences.length !== 1 || record.targetOccurrences[0].quote !== "2098 SCC 2") {
@@ -6047,7 +6067,7 @@ async function selfTest() {
   const targetPacket = caseTargetMvpPacket(record, "nested");
   if (
     !targetPacket.includes('"tm1"') ||
-    !targetPacket.includes(`1: ${record.source.text.slice(record.sourceLines[0].start, record.sourceLines[0].end)}`) ||
+    !targetPacket.includes(`1: ${record.text.slice(record.sourceLines[0].start, record.sourceLines[0].end)}`) ||
     targetPacket.includes("DETERMINISTIC TERM-SEARCH PREFLIGHT") ||
     targetPacket.includes(record.sourceSha256)
   ) {
@@ -6283,8 +6303,8 @@ async function selfTest() {
   if (
     !expanded.validation.ok ||
     !expanded.prediction ||
-    sourceDocQuoteWords(expanded.prediction.opinions[0].start_quote).length < 4 ||
-    sourceDocQuoteWords(expanded.prediction.opinions[0].end_quote).length < 4 ||
+    quoteWordsNative(expanded.prediction.opinions[0].start_quote).length < 4 ||
+    quoteWordsNative(expanded.prediction.opinions[0].end_quote).length < 4 ||
     expanded.validation.recovery_receipts?.filter(({ method }) => method === "short_anchor_expansion").length !== 2
   ) {
     throw new Error(`unique short boundary anchors were not expanded: ${json(expanded.validation)}`);

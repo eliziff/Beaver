@@ -156,6 +156,21 @@ type StructureAddon = {
   normalizeSourceDocLocator(kind: string, locator: string): string;
   tokenizeSourceText(text: string): NativeWordSpan[];
   sourceDocQuoteWords(text: string): string[];
+  citationLookupKey(text: string): string;
+  citationsInText(text: string, extendedUsFallback: boolean): Array<{
+    text: string; start: number; end: number;
+  }>;
+  caselawCitationLookupKey(text: string): string;
+  hasCitationInText(text: string): boolean;
+  classifyCitatorExcerpt(text: string): {
+    kind: "prose" | "mixed" | "authority_list" | "insufficient";
+    citeTokens: number; citeRuns: number; citeCharCoverage: number;
+    functionWords: number; proseWindow: string | null; rule: string;
+  };
+  groundedProseErrors(text: string, citedEvidenceIds: string[],
+    visibleEvidence: unknown): string[];
+  quoteRepairSuggestion(claim: string, spans: string[]): string | null;
+  markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
   lookupSourceDoc(document: NativeDocument, kind: string, locator: string,
     contextBlocks: number): NativeDocumentLookup;
   readSourceDocRange(document: NativeDocument, kind: string, from: string,
@@ -443,6 +458,24 @@ type NativeGraphScope = {
 export const tokenizeTextNative = (text: string) =>
   loadAddon().tokenizeSourceText(text);
 export const quoteWordsNative = (text: string) => loadAddon().sourceDocQuoteWords(text);
+export const citationLookupKeyNative = (text: string) =>
+  loadAddon().citationLookupKey(text);
+export const citationsInTextNative = (text: string, extendedUsFallback = true) =>
+  loadAddon().citationsInText(text, extendedUsFallback);
+export const caselawCitationLookupKeyNative = (text: string) =>
+  loadAddon().caselawCitationLookupKey(text);
+export const hasCitationInTextNative = (text: string) =>
+  loadAddon().hasCitationInText(text);
+export const classifyCitatorExcerptNative = (text: string) =>
+  loadAddon().classifyCitatorExcerpt(text);
+export const groundedProseErrorsNative = (text: string,
+  citedEvidenceIds: readonly string[], visibleEvidence: ReadonlyArray<{
+    evidenceId: string; text: string; labels?: string[];
+  }>) => loadAddon().groundedProseErrors(text, [...citedEvidenceIds], visibleEvidence);
+export const quoteRepairSuggestionNative = (claim: string, spans: string[]) =>
+  loadAddon().quoteRepairSuggestion(claim, spans);
+export const markedQuoteSpansNative = (text: string) =>
+  loadAddon().markedQuoteSpans(text);
 export const textPhraseSpansNative = (text: string, words: string[], start?: number,
   end?: number, sameLine?: boolean, limit?: number) =>
   loadAddon().textPhraseSpans(text, words, start, end, sameLine, limit);

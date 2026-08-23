@@ -2,13 +2,13 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import {
-  citationLookupKey as sharedCitationLookupKey,
-  citationsInText,
-} from "./citationKey";
-import { classifyCitatorExcerpt } from "./citatorExcerpts";
 import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
+import {
+  caselawCitationLookupKeyNative,
+  citationLookupKeyNative,
+  classifyCitatorExcerptNative,
+} from "./structureNative";
 
 /**
  * Read surface for the Stage 1 citator note-up graph built by
@@ -18,9 +18,9 @@ import { withReadonlySqlite } from "./legalDataPath";
  * its paragraph number, offset, cited-side pinpoints, and a bounded excerpt.
  * There are no treatment labels here and none are implied.
  *
- * Node identity is citationLookupKey below - a faithful TypeScript port of
- * the corpus-proven normalization in ALR-Quote-Verifier local_a2aj.py
- * (_citation_lookup_key), which is also the key space of the corpus lookup
+ * Node identity uses the shared Rust citation normalizer, ported exactly from
+ * ALR-Quote-Verifier local_a2aj.py (`_citation_lookup_key`), which is also the
+ * key space of the corpus lookup
  * index. It equates punctuation/whitespace/case variants of one form
  * ("2015 SCC 5" == "2015 S.C.C. 5", "[2015] 1 SCR 331" == "[2015] 1 S.C.R.
  * 331") and never conflates distinct forms: the French twin "2015 CSC 5"
@@ -119,31 +119,6 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
 }
 
 /**
- * Graph node key for a citation string: the shared corpus-identity port
- * (citationKey.ts), wrapped with this surface's typed refusal when no key
- * survives normalization.
- */
-export function citationLookupKey(value: string): string {
-  const detected = citationsInText(value);
-  if (detected.length > 1) {
-    throw new Error(
-      "citation must identify one citation form; multiple citations were found",
-    );
-  }
-  // Tool inputs often carry a case name or pinpoint around the identity
-  // citation. Detection and identity stay separate shared contracts: strip
-  // the decoration here, then key the one detected citation exactly as the
-  // corpus index does.
-  const key = sharedCitationLookupKey(detected[0]?.text ?? value);
-  if (!key) {
-    throw new Error(
-      "citation is required (no letters or digits survive normalization)",
-    );
-  }
-  return key;
-}
-
-/**
  * The set of keys to search for one queried key: the key itself, plus - only
  * when the corpus resolution evidence maps the key to exactly one decision -
  * every other key of that same decision (its French twin, parallel reporter
@@ -182,7 +157,7 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
  * key, and an absent graph degrades to the literal normalized key.
  */
 export function citationAliasKeysBatch(citations: string[]): string[][] {
-  const keys = citations.map((citation) => sharedCitationLookupKey(citation));
+  const keys = citations.map(citationLookupKeyNative);
   if (!keys.some(Boolean)) return keys.map(() => []);
   return (
     withDatabase((database) =>
@@ -194,7 +169,7 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
 export function citationAuthorityMetricsBatch(
   citations: string[],
 ): Array<CitationAuthorityMetric | null> {
-  const keys = citations.map((citation) => sharedCitationLookupKey(citation));
+  const keys = citations.map(citationLookupKeyNative);
   if (!keys.some(Boolean)) return keys.map(() => null);
   if (!process.env.MIKE_CITATOR_DB?.trim() && defaultAuthorityMetricsAvailable === false) {
     return keys.map(() => null);
@@ -252,7 +227,7 @@ export function noteUpCitations(args: {
   courtCode?: string;
   sort?: NoteUpSort;
 }): NoteUpResult | null {
-  const key = citationLookupKey(args.citation);
+  const key = caselawCitationLookupKeyNative(args.citation);
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   const courtScope = args.courtScope ?? "all";
   const courtCode = args.courtCode?.trim().toUpperCase() || null;
@@ -458,7 +433,7 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
       // truncate mid-word, while a paired proposition is sentence-exact
       // already - the verbatim text the widened tier will hash against.
       const proposition = String(row.proposition).trim();
-      const verdict = classifyCitatorExcerpt(proposition);
+      const verdict = classifyCitatorExcerptNative(proposition);
       if (
         (verdict.kind !== "prose" && verdict.kind !== "mixed") ||
         !verdict.proseWindow
@@ -499,7 +474,7 @@ export function noteUpAnalysis(args: {
   courtScope?: NoteUpCourtScope;
   courtCode?: string;
 }): NoteUpAnalysis | null {
-  const key = citationLookupKey(args.citation);
+  const key = caselawCitationLookupKeyNative(args.citation);
   const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
   const courtScope = args.courtScope ?? "all";
   const courtCode = args.courtCode?.trim().toUpperCase() || null;
@@ -558,7 +533,7 @@ export function noteUpAnalysis(args: {
     let insufficient = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
     for (const group of groups) {
-      const verdict = classifyCitatorExcerpt(String(group.first_excerpt));
+      const verdict = classifyCitatorExcerptNative(String(group.first_excerpt));
       if (verdict.kind === "authority_list") {
         authorityList += 1;
         continue;

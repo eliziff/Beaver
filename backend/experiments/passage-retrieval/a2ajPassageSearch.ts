@@ -25,7 +25,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
 import { citationAliasKeysBatch } from "../../src/lib/caselawCitator";
-import { citationLookupKey, citationsInText } from "../../src/lib/citationKey";
+import {
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+} from "../../src/lib/structureNative";
 import { withReadonlySqlite } from "../../src/lib/legalDataPath";
 import {
   passageIndexPath,

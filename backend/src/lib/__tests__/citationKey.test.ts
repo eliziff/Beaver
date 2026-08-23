@@ -1,24 +1,31 @@
 /**
  * The shared in-text citation detector. `citationLookupKey` itself is
  * arbitrated by the differential oracle test in retrievalGate.test.ts;
- * this file pins the scanner that was promoted out of citatorExcerpts'
- * CITE_TOKEN so a2ajPassageSearch and the excerpt classifier share one
- * surface.
+ * this file pins the shared Rust scanner used by passage search and excerpt
+ * classification.
  *
  * Pure string work: no databases, no network, no model calls.
  */
 import { describe, expect, it } from "vitest";
 
 import {
-  citationsInText,
-  hasCitationInText,
-  type CitationMatch,
-} from "../citationKey";
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  hasCitationInTextNative as hasCitationInText,
+} from "../structureNative";
+import oracle from "./fixtures/retrieval_gate/citation-key-oracle.json";
+
+type CitationMatch = ReturnType<typeof citationsInText>[number];
 
 const texts = (value: string) =>
   citationsInText(value).map((match: CitationMatch) => match.text);
 
 describe("citationsInText", () => {
+  it("matches the frozen corpus identity oracle", () => {
+    for (const row of oracle.citation_keys)
+      expect(citationLookupKey(row.input)).toBe(row.oracle_key);
+  });
+
   it("finds neutral citations, including the French twin", () => {
     expect(texts("what did 2016 SCC 27 say about delay")).toEqual([
       "2016 SCC 27",
@@ -70,13 +77,12 @@ describe("citationsInText", () => {
   });
 
   it("can skip only the expensive custom-US fallback for hint-only scans", () => {
-    expect(citationsInText("See 410 U.S. 113 and T.C.M. (RIA) 2004-279.", {
-      extendedUsFallback: false,
-    }).map(({ text }) => text)).toEqual(["410 U.S. 113"]);
+    expect(citationsInText("See 410 U.S. 113 and T.C.M. (RIA) 2004-279.", false)
+      .map(({ text }) => text)).toEqual(["410 U.S. 113"]);
   });
 
   it("keeps the reporter shapes the excerpt classifier depends on", () => {
-    // Regression pin for the detector promoted out of citatorExcerpts:
+    // Regression pin for the shared detector:
     // volume-reporter-page and "(1985), 48 C.R. (3d) 226" first-instance
     // reporters must still be spotted, or authority lists read as prose.
     expect(texts("R. v. Ward, 2012 ONCA 660, 112 O.R. (3d) 321")).toEqual([
