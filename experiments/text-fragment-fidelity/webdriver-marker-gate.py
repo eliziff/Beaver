@@ -381,6 +381,7 @@ def main():
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=1)
+    parser.add_argument("--only", choices=("all", "html", "pdf"), default="all")
     args = parser.parse_args()
 
     seeds = gate.read_jsonl(args.targets)
@@ -401,6 +402,10 @@ def main():
     if (missing_count):
         raise RuntimeError(f"{missing_count} targets have no usable cached page")
     gate_seeds = cached_seeds
+    if args.only != "all":
+        want_pdf = args.only == "pdf"
+        gate_seeds = [seed for seed in gate_seeds
+                      if manifest[gate.url_key(seed["target"].split("#")[0])]["file"].lower().endswith(".pdf") == want_pdf]
     if args.shard_count > 1:
         gate_seeds = [
             seed for seed in gate_seeds
@@ -467,7 +472,15 @@ if (document.readyState === 'complete') finish(); else addEventListener('load', 
                         time.sleep(0.08)
                         ax_result = request_tree(driver, cached["file"], allow, "name", False)
                 dump_ms = round((time.perf_counter() - phase) * 1000, 1)
-                row = analyze(seed, cached, ax_result, cached_names, source, baseline.get(seed["label"]), navigation_ms, dump_ms)
+                try:
+                    row = analyze(seed, cached, ax_result, cached_names, source, baseline.get(seed["label"]), navigation_ms, dump_ms)
+                except ValueError:
+                    if cached_names is None:
+                        raise
+                    phase = time.perf_counter()
+                    ax_result = request_tree(driver, cached["file"], "name markerTypes markerStarts markerEnds", "name", False)
+                    dump_ms += round((time.perf_counter() - phase) * 1000, 1)
+                    row = analyze(seed, cached, ax_result, None, source, baseline.get(seed["label"]), navigation_ms, dump_ms)
                 disagreements += not row["agrees"]
                 output.write(json.dumps(row, ensure_ascii=False) + "\n")
                 output.flush()

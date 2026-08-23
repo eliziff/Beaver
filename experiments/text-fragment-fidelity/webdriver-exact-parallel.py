@@ -56,7 +56,9 @@ for index, shard in enumerate(shards):
     if args.gate == "marker":
         if not args.targets:
             parser.error("--targets is required with --gate marker")
-        command = [sys.executable, str(MARKER_GATE), str(args.targets.resolve()), "--shard-index", str(index), "--shard-count", str(args.workers), "--out", str(shard)]
+        command = [sys.executable, str(MARKER_GATE), str(args.targets.resolve()), "--shard-index", str(index), "--shard-count", str(args.workers), "--out", str(shard), "--only", args.only]
+        if not args.fresh:
+            command.append("--resume")
         if args.baseline:
             command.extend(("--baseline", str(args.baseline.resolve())))
     else:

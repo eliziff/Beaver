@@ -468,8 +468,9 @@ function textDirective(target: string, prefix = "", suffix = "") {
   return `text=${encodedPrefix}${encodedTarget}${encodedSuffix}`;
 }
 
-function textRangeDirective(start: string, end: string) {
-  return `text=${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
+function textRangeDirective(start: string, end: string, prefix = "") {
+  const context = prefix ? `${encodeTextFragment(normalizeWhitespace(prefix))}-,` : "";
+  return `text=${context}${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
 }
 
 /**
@@ -1090,6 +1091,38 @@ export function buildCoreRangePinpointUrl(
   );
 }
 
+function locateDocumentQuote(block: QuoteView, document: QuoteView, selected: NativeQuoteSpan) {
+  const blockWords = tokens(block);
+  const documentWords = tokens(document);
+  for (const window of [0, 2, 4, 8, 16, 32, 64, blockWords.length]) {
+    const first = Math.max(0, selected.firstWord - window);
+    const last = Math.min(blockWords.length - 1, selected.lastWord + window);
+    const matches = phraseSpans(document,
+      blockWords.slice(first, last + 1).map(({ text }) => text), { limit: 2 });
+    if (matches.length !== 1) continue;
+    const offset = selected.firstWord - first;
+    const firstWord = matches[0].firstWord + offset;
+    const lastWord = firstWord + selected.lastWord - selected.firstWord;
+    return {
+      start: documentWords[firstWord].start,
+      end: documentWords[lastWord].end,
+      firstWord,
+      lastWord,
+    };
+  }
+  return null;
+}
+
+export function requiresLineCore(evidence: LegalSourceEvidence, quotes: string[]) {
+  const block = asDoc(evidence.blockText);
+  const document = verificationDoc(evidence, block);
+  return quotes.some((quote) => {
+    const selected = chooseSourceSpan(block, quote);
+    const desired = selected && locateDocumentQuote(block, document, selected);
+    return desired ? /[\r\n]/u.test(document.text.slice(desired.start, desired.end)) : false;
+  });
+}
+
 /**
  * Minimal no-oracle strategy: locate the requested block in the flattened
  * full document, then paint the longest short, unique prose run inside the
@@ -1103,7 +1136,6 @@ export function buildLineCorePinpointUrl(
   const block = asDoc(evidence.blockText);
   if (!baseUrl || !block.text) return baseUrl;
   const document = verificationDoc(evidence, block);
-  const blockWords = tokens(block);
   const documentWords = tokens(document);
   const built: Array<{ directive: string; start: number }> = [];
   const seen = new Set<string>();
@@ -1113,27 +1145,39 @@ export function buildLineCorePinpointUrl(
     seen.add(key);
     const selected = chooseSourceSpan(block, quote);
     if (!selected) return baseUrl;
-    let desired: NativeQuoteSpan | null = null;
-    for (const window of [0, 2, 4, 8, 16, 32, 64, blockWords.length]) {
-      const first = Math.max(0, selected.firstWord - window);
-      const last = Math.min(blockWords.length - 1, selected.lastWord + window);
-      const matches = phraseSpans(document,
-        blockWords.slice(first, last + 1).map(({ text }) => text), { limit: 2 });
-      if (matches.length !== 1) continue;
-      const offset = selected.firstWord - first;
-      desired = {
-        start: documentWords[matches[0].firstWord + offset].start,
-        end: documentWords[matches[0].firstWord + offset + selected.lastWord - selected.firstWord].end,
-        firstWord: matches[0].firstWord + offset,
-        lastWord: matches[0].firstWord + offset + selected.lastWord - selected.firstWord,
-      };
-      break;
-    }
+    const desired = locateDocumentQuote(block, document, selected);
     if (!desired) {
       if (process.env.BUILDER_DEBUG === "1") console.error("[line-core] document occurrence ambiguous", quote);
       return baseUrl;
     }
-    let target: { text: string; prefix: string; suffix: string } | null = null;
+    let target: { directive: string } | null = null;
+    for (let seam = desired.firstWord; seam < desired.lastWord && !target; seam += 1) {
+      const gap = document.text.slice(documentWords[seam].end, documentWords[seam + 1].start);
+      if (!/[^\x00-\x7F]/u.test(gap)) continue;
+      for (const size of [4, 3, 2, 1, 6]) {
+        const headFirst = Math.max(desired.firstWord, seam - size + 1);
+        const tailLast = Math.min(desired.lastWord, seam + size);
+        const headRaw = document.text.slice(documentWords[headFirst].start, documentWords[seam].end);
+        const tailRaw = document.text.slice(documentWords[seam + 1].start, documentWords[tailLast].end);
+        if (/[\r\n]|[^\x20-\x7E]/u.test(headRaw + tailRaw)) continue;
+        const head = normalizeWhitespace(headRaw);
+        const tail = normalizeWhitespace(tailRaw);
+        const starts = phraseSpans(document, quoteWordsNative(head), { limit: 64 });
+        const ends = phraseSpans(document, quoteWordsNative(tail), { limit: 64 });
+        const resolved = starts.flatMap((start) => {
+          const end = ends.find((candidate) => candidate.start >= start.end);
+          return end ? [{ start, end }] : [];
+        })[0];
+        if (resolved && resolved.start.firstWord >= desired.firstWord &&
+            resolved.end.lastWord <= desired.lastWord) {
+          const prefixFirst = Math.max(0, headFirst - 2);
+          const prefix = normalizeWhitespace(document.text.slice(
+            documentWords[prefixFirst].start, documentWords[headFirst].start));
+          target = { directive: textRangeDirective(head, tail, prefix) };
+          break;
+        }
+      }
+    }
     for (const { asciiOnly, allowContext } of [
       { asciiOnly: true, allowContext: false },
       { asciiOnly: false, allowContext: false },
@@ -1169,7 +1213,7 @@ export function buildLineCorePinpointUrl(
           (before || after || directiveMatchCount(document, candidate) === 1) &&
           directiveMatchCount(document, candidate, before, after) === 1);
         if (context) {
-          target = { text: candidate, prefix: context[0], suffix: context[1] };
+          target = { directive: textDirective(candidate, context[0], context[1]) };
           break;
         }
         }
@@ -1181,7 +1225,7 @@ export function buildLineCorePinpointUrl(
         JSON.stringify(document.text.slice(desired.start, desired.end)));
       return baseUrl;
     }
-    built.push({ directive: textDirective(target.text, target.prefix, target.suffix), start: selected.start });
+    built.push({ directive: target.directive, start: selected.start });
   }
   return appendDirectives(baseUrl,
     built.sort((left, right) => left.start - right.start).map(({ directive }) => directive));

@@ -152,6 +152,17 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   if (convertedCanliiPdf) {
     url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   }
+  // Every Competition Tribunal item has a text-layer PDF; unlike older
+  // index.do records, that representation always contains the decision.
+  if (/^decisions\.ct-tc\.gc\.ca$/iu.test(url.hostname)) {
+    const item = url.pathname.match(/^\/ct-tc\/cdo\/en\/item\/(\d+)\/index\.do$/iu);
+    if (item) {
+      url.pathname = `/ct-tc/cdo/en/${item[1]}/1/document.do`;
+      url.search = "";
+      url.hash = "";
+      return local ? url.pathname : url.toString();
+    }
+  }
   if (isDecisiaDocument(url)) {
     // INTENTIONAL, LOAD-BEARING FEATURE - text fragments cannot work on
     // Decisia without both parameters. This is not a flaw, lint, or
