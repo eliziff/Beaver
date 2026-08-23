@@ -3,7 +3,7 @@ import {
   type A2AJLocatorLookup,
 } from "../../legalSources/a2aj";
 import { collapseProvisionLabels } from "../../provisionLabels";
-import { graphScope } from "../../legalDocumentNavigator";
+import { referenceLabelsOutside } from "../../legalDocumentNavigator";
 import { parseResourceReference } from "../../resourceReferences";
 import { jsonRecord } from "../../value";
 import {
@@ -58,7 +58,7 @@ export async function readA2AJReferenceNeighborhood(
   });
   const source = document ? a2ajLegalSourceProvider.source(document) : null;
   const graph = jsonRecord(document?.analysis?.structure)?.cross_references as
-    | Parameters<typeof graphScope>[1]
+    | Parameters<typeof referenceLabelsOutside>[0]
     | undefined;
   if (!source || !graph) return empty(["reference graph source unavailable"]);
   const seed = lookupSourceDocLabel(source, "section", lookup.block.label);
@@ -69,27 +69,9 @@ export async function readA2AJReferenceNeighborhood(
     return empty([graph.note ?? "reference graph abstained"]);
   }
   const subtree = sourceDocSubtreeLabels(source.blocks, seed.block.label);
-  const labels: string[] = [];
-  if (direction === "inbound" || direction === "both") {
-    for (const edge of graph.edges) {
-      if (
-        edge.status === "resolved" &&
-        edge.targetLabel && subtree.has(edge.targetLabel) &&
-        edge.sourceLabel && !subtree.has(edge.sourceLabel)
-      ) labels.push(edge.sourceLabel);
-    }
-  }
-  if (direction === "outbound" || direction === "both") {
-    for (const edge of graph.edges) {
-      if (
-        edge.status === "resolved" &&
-        edge.sourceLabel && subtree.has(edge.sourceLabel) &&
-        edge.targetLabel && !subtree.has(edge.targetLabel) &&
-        !edge.selfLoop
-      ) labels.push(edge.targetLabel);
-    }
-  }
-  const unique = [...new Set(labels)].filter(
+  const follow = direction === "inbound" ? "in"
+    : direction === "outbound" ? "out" : "both";
+  const unique = referenceLabelsOutside(graph, subtree, follow).filter(
     (label) => label.toLowerCase() !== seed.block!.label.toLowerCase(),
   );
   const selected = unique.slice(0, MAX_REFERENCE_SECTIONS);
