@@ -21,7 +21,7 @@ import { lintDocxStructure } from "../docxStructuralLint";
 import {
   deleteProvisionAndRenumberSiblings,
   type DeleteAndRenumberReceipt,
-} from "../legalAmendOps";
+} from "../structureNative";
 import {
   graphScope,
   lookupStructureBlock,

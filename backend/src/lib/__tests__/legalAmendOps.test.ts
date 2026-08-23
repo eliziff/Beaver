@@ -8,7 +8,7 @@ import {
   consolidateAmendment,
   deleteProvisionAndRenumberSiblings,
   parseAmendmentInstructions,
-} from "../legalAmendOps";
+} from "../structureNative";
 
 const STATUTE = [
   "PART I",

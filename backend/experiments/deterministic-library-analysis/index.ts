@@ -1,5 +1,5 @@
 import { draftingLint } from "./legalDraftingLint";
-import { consolidateAmendment } from "../../src/lib/legalAmendOps";
+import { consolidateAmendment } from "../../src/lib/structureNative";
 import {
   computeDeadline,
   type DeadlineJurisdiction,
