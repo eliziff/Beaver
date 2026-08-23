@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { seedDocumentKey } from "./seed-document-key.mjs";
 import { buildLegalSourcePinpointUrl as buildProduction } from "file:///C:/Users/elias/Desktop/MikeOSS%20Fork/backend/src/lib/legalSourceLinks.ts";
 import { buildLegalSourcePinpointUrl as buildCandidate } from "file:///C:/Users/elias/Desktop/MikeOSS%20Fork/experiments/text-fragment-fidelity/builder-candidate.ts";
 
@@ -20,8 +21,8 @@ function build(builder, seed) {
         url: seed.url,
         ...(seed.anchor ? { anchor: seed.anchor } : {}),
         blockText: seed.blockText,
-        ...(doctext.get(seed.label.split("_").slice(1, -1).join("_"))
-          ? { documentText: doctext.get(seed.label.split("_").slice(1, -1).join("_")) }
+        ...(doctext.get(seedDocumentKey(seed))
+          ? { documentText: doctext.get(seedDocumentKey(seed)) }
           : {}),
       },
       seed.quotes ?? [],

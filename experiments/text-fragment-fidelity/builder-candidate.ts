@@ -1,14 +1,13 @@
-import {
-  documentTextNative,
-  quoteWordsNative,
-  textPhraseSpansNative,
-  tokenizeTextNative,
-  type NativeDocument,
-  type NativeQuoteSpan,
-  type NativeWordSpan,
-} from "../../backend/src/lib/structureNative";
-import { normalizeWhitespace } from "../../backend/src/lib/text";
+import { normalizeWhitespace } from "../../backend/src/lib/text.ts";
 
+type NativeDocument = { text: string };
+type NativeWordSpan = { text: string; start: number; end: number };
+type NativeQuoteSpan = { start: number; end: number; firstWord: number; lastWord: number };
+const documentTextNative = (document: NativeDocument) => document.text;
+const tokenizeTextNative = (text: string): NativeWordSpan[] => [
+  ...text.matchAll(/[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)*/gu),
+].map((match) => ({ text: match[0].toLocaleLowerCase(), start: match.index, end: match.index + match[0].length }));
+const quoteWordsNative = (text: string) => tokenizeTextNative(text).map((word) => word.text);
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
  * fragments verified to select exactly one place in the document.
@@ -34,13 +33,54 @@ type QuoteView = { text: string };
 const asDoc = (source: QuoteSource): QuoteView => typeof source === "string"
   ? { text: source }
   : { text: documentTextNative(source) };
-const tokens = (source: QuoteView): NativeWordSpan[] =>
-  tokenizeTextNative(source.text);
+const tokenCache = new Map<string, NativeWordSpan[]>();
+const tokenPositionCache = new Map<string, Map<string, number[]>>();
+const tokens = (source: QuoteView): NativeWordSpan[] => {
+  const cached = tokenCache.get(source.text);
+  if (cached) {
+    tokenCache.delete(source.text);
+    tokenCache.set(source.text, cached);
+    return cached;
+  }
+  const built = tokenizeTextNative(source.text);
+  tokenCache.set(source.text, built);
+  if (tokenCache.size > 4) {
+    const oldest = tokenCache.keys().next().value!;
+    tokenCache.delete(oldest);
+    tokenPositionCache.delete(oldest);
+  }
+  return built;
+};
 const phraseSpans = (source: QuoteView, words: string[], options: {
   start?: number; end?: number; sameLine?: boolean; limit?: number;
-} = {}): NativeQuoteSpan[] => textPhraseSpansNative(
-  source.text, words, options.start, options.end, options.sameLine, options.limit,
-);
+} = {}): NativeQuoteSpan[] => {
+  const sourceWords = tokens(source);
+  const start = options.start ?? 0;
+  const end = options.end ?? source.text.length;
+  const limit = options.limit ?? Number.MAX_SAFE_INTEGER;
+  const wanted = words.map((word) => word.toLocaleLowerCase());
+  if (!wanted.length) return [];
+  const found: NativeQuoteSpan[] = [];
+  let positions = tokenPositionCache.get(source.text);
+  if (!positions) {
+    positions = new Map();
+    sourceWords.forEach(({ text }, index) => {
+      const entries = positions!.get(text);
+      if (entries) entries.push(index);
+      else positions!.set(text, [index]);
+    });
+    tokenPositionCache.set(source.text, positions);
+  }
+  for (const first of positions.get(wanted[0]) ?? []) {
+    if (first + wanted.length > sourceWords.length || found.length >= limit) break;
+    const last = first + wanted.length - 1;
+    if (sourceWords[first].start < start || sourceWords[last].end > end) continue;
+    if (!wanted.every((word, offset) => sourceWords[first + offset].text === word)) continue;
+    if (options.sameLine && /[\r\n]/u.test(source.text.slice(sourceWords[first].start, sourceWords[last].end))) continue;
+    found.push({ start: sourceWords[first].start, end: sourceWords[last].end, firstWord: first, lastWord: last });
+  }
+  return found;
+};
 
 const CONTEXT_WINDOWS = [4, 2, 8, 12, 16, 24, 32];
 // A whole-quote target longer than one tight prose run is more fragile than a
@@ -312,12 +352,8 @@ function buildRangeDirective(
   span: NativeQuoteSpan,
   document: QuoteView,
 ) {
-  // Emit EVERY boundary size (12/8/6/4 words) plus its seam-split as sibling
-  // directives, not just the first unique one. A long boundary is unique in
-  // the flattened source but can cross a publisher paragraph seam that the
-  // source cannot see; a shorter boundary survives it. Chromium uses the first
-  // directive that matches, so shipping the whole ladder costs nothing and the
-  // longest boundary that fits inside one paragraph wins.
+  // Emit EVERY boundary size plus its seam-split as sibling directives. Each
+  // family is retained until browser-marker replay proves it redundant.
   const combos = new Set<string>();
   for (const size of RANGE_BOUNDARY_WORDS) {
     const head = edgePhrase(block, span, "start", size);
@@ -340,12 +376,10 @@ function buildRangeDirective(
         grade < Math.max(headVariants.length, tailVariants.length) && combos.size < 12;
         grade += 1
       ) {
-        combos.add(
-          textRangeDirective(
-            headVariants[grade] ?? candidateHead.text,
-            tailVariants[grade] ?? candidateTail.text,
-          ),
-        );
+        combos.add(textRangeDirective(
+          headVariants[grade] ?? candidateHead.text,
+          tailVariants[grade] ?? candidateTail.text,
+        ));
       }
       if (combos.size >= 12) break;
     }
@@ -803,7 +837,7 @@ function directiveMatchCount(
       ...quoteWordsNative(target),
       ...quoteWordsNative(suffix),
     ],
-    { sameLine: true, limit: 2 },
+    { limit: 2 },
   ).length;
 }
 
@@ -1003,4 +1037,146 @@ export function buildLegalSourcePinpointUrl(
     ),
   ];
   return appendDirectives(baseUrl, directives);
+}
+
+/**
+ * Minimal falsification candidate: one shortest unambiguous range per quote.
+ * The range leaves all interior publisher structure out of the directive;
+ * endpoint phrases grow only when the flattened document requires it.
+ */
+export function buildCoreRangePinpointUrl(
+  evidence: LegalSourceEvidence,
+  quotes: string[],
+  minimumBoundaryWords = 1,
+) {
+  const baseUrl = sourceUrl(evidence.url, evidence.anchor);
+  const block = asDoc(evidence.blockText);
+  if (!baseUrl || !block.text) return baseUrl;
+  const document = verificationDoc(evidence, block);
+  const built: Array<{ directive: string; start: number }> = [];
+  const seen = new Set<string>();
+  for (const quote of quotes) {
+    const key = quoteWordsNative(quote).join(" ");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const selected = chooseSourceSpan(block, quote);
+    if (!selected) return baseUrl;
+    const span = adjustSpanEdges(block, selected);
+    const target = normalizeWhitespace(block.text.slice(span.start, span.end));
+    const width = span.lastWord - span.firstWord + 1;
+    // A range needs two non-overlapping boundary runs. For shorter passages,
+    // the whole quote is both smaller and less ambiguous than weakened ends.
+    if (width <= minimumBoundaryWords * 2) {
+      if (directiveMatchCount(document, target) !== 1) return baseUrl;
+      built.push({ directive: textDirective(target), start: span.start });
+      continue;
+    }
+    let directive: string | null = null;
+    for (let size = minimumBoundaryWords; size <= Math.min(12, width - 1); size += 1) {
+      const head = edgePhrase(block, span, "start", size);
+      const tail = edgePhrase(block, span, "end", size);
+      if (!head || !tail || head.last >= tail.first) continue;
+      if (rangeDirectiveMatchCount(document, head.text, tail.text) === 1) {
+        directive = textRangeDirective(head.text, tail.text);
+        break;
+      }
+    }
+    if (!directive) return baseUrl;
+    built.push({ directive, start: span.start });
+  }
+  return appendDirectives(
+    baseUrl,
+    built.sort((left, right) => left.start - right.start).map(({ directive }) => directive),
+  );
+}
+
+/**
+ * Minimal no-oracle strategy: locate the requested block in the flattened
+ * full document, then paint the longest short, unique prose run inside the
+ * requested quote that does not cross a source line or punctuation seam.
+ */
+export function buildLineCorePinpointUrl(
+  evidence: LegalSourceEvidence,
+  quotes: string[],
+) {
+  const baseUrl = sourceUrl(evidence.url, evidence.anchor);
+  const block = asDoc(evidence.blockText);
+  if (!baseUrl || !block.text) return baseUrl;
+  const document = verificationDoc(evidence, block);
+  const blockWords = tokens(block);
+  const documentWords = tokens(document);
+  const built: Array<{ directive: string; start: number }> = [];
+  const seen = new Set<string>();
+  for (const quote of quotes) {
+    const key = quoteWordsNative(quote).join(" ");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const selected = chooseSourceSpan(block, quote);
+    if (!selected) return baseUrl;
+    let desired: NativeQuoteSpan | null = null;
+    for (const window of [0, 2, 4, 8, 16, 32, 64, blockWords.length]) {
+      const first = Math.max(0, selected.firstWord - window);
+      const last = Math.min(blockWords.length - 1, selected.lastWord + window);
+      const matches = phraseSpans(document,
+        blockWords.slice(first, last + 1).map(({ text }) => text), { limit: 2 });
+      if (matches.length !== 1) continue;
+      const offset = selected.firstWord - first;
+      desired = {
+        start: documentWords[matches[0].firstWord + offset].start,
+        end: documentWords[matches[0].firstWord + offset + selected.lastWord - selected.firstWord].end,
+        firstWord: matches[0].firstWord + offset,
+        lastWord: matches[0].firstWord + offset + selected.lastWord - selected.firstWord,
+      };
+      break;
+    }
+    if (!desired) {
+      if (process.env.BUILDER_DEBUG === "1") console.error("[line-core] document occurrence ambiguous", quote);
+      return baseUrl;
+    }
+    let target: { text: string; prefix: string; suffix: string } | null = null;
+    for (const asciiOnly of [true, false]) {
+      for (let length = Math.min(12, desired.lastWord - desired.firstWord + 1);
+        length >= 2 && !target; length -= 1) {
+      const starts = Array.from(
+        { length: desired.lastWord - desired.firstWord - length + 2 },
+        (_, index) => desired.firstWord + index,
+      ).sort((left, right) =>
+        Math.abs(left + (length - 1) / 2 - (desired.firstWord + desired.lastWord) / 2) -
+        Math.abs(right + (length - 1) / 2 - (desired.firstWord + desired.lastWord) / 2));
+        for (const first of starts) {
+        const last = first + length - 1;
+        const raw = document.text.slice(documentWords[first].start, documentWords[last].end);
+        if (/[\r\n]/u.test(raw) || asciiOnly && /[^\x20-\x7E]/u.test(raw)) continue;
+        const candidate = normalizeWhitespace(raw);
+        const prefixFirst = Math.max(0, first - 4);
+        const prefixRaw = document.text.slice(documentWords[prefixFirst].start, documentWords[first].start);
+        const prefix = normalizeWhitespace(prefixRaw);
+        const suffixLast = Math.min(documentWords.length - 1, last + 4);
+        const suffixGap = document.text.slice(documentWords[last].end, documentWords[last + 1]?.start);
+        const suffixRaw = document.text.slice(documentWords[last].end, documentWords[suffixLast].end);
+        const suffix = suffixLast === last || /[^\s]/u.test(suffixGap)
+          ? "" : normalizeWhitespace(suffixRaw);
+        const contexts: Array<[string, string]> = directiveMatchCount(document, candidate) === 1
+          ? [["", ""]]
+          : [[prefix, ""], ["", suffix], [prefix, suffix]];
+        const context = contexts.find(([before, after]) =>
+          (before || after || directiveMatchCount(document, candidate) === 1) &&
+          directiveMatchCount(document, candidate, before, after) === 1);
+        if (context) {
+          target = { text: candidate, prefix: context[0], suffix: context[1] };
+          break;
+        }
+        }
+      }
+      if (target) break;
+    }
+    if (!target) {
+      if (process.env.BUILDER_DEBUG === "1") console.error("[line-core] no unique line core", quote,
+        JSON.stringify(document.text.slice(desired.start, desired.end)));
+      return baseUrl;
+    }
+    built.push({ directive: textDirective(target.text, target.prefix, target.suffix), start: selected.start });
+  }
+  return appendDirectives(baseUrl,
+    built.sort((left, right) => left.start - right.start).map(({ directive }) => directive));
 }

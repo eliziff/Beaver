@@ -9,6 +9,7 @@
 import { chromium } from "playwright-core";
 import fs from "node:fs";
 import path from "node:path";
+import { seedDocumentKey } from "./seed-document-key.mjs";
 import { pathToFileURL } from "node:url";
 
 const here = import.meta.dirname;
@@ -41,7 +42,7 @@ if (fs.existsSync(doctextPath)) {
     if (!line.trim()) continue;
     try {
       const row = JSON.parse(line);
-      if (row.citation && row.text) doctext.set(row.citation, row.text);
+      if (row.key && row.text) doctext.set(row.key, row.text);
     } catch {}
   }
 }
@@ -225,7 +226,7 @@ try {
   for (const seed of pending) {
     let target = null;
     try {
-      const key = seed.label.split("_").slice(1, -1).join("_");
+      const key = seedDocumentKey(seed);
       const documentText = doctext.get(key);
       target = buildLegalSourcePinpointUrl(
         {

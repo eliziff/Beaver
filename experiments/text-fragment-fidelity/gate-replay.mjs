@@ -11,6 +11,7 @@ import { chromium } from "playwright-core";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { seedDocumentKey } from "./seed-document-key.mjs";
 
 const here = import.meta.dirname;
 const argv = process.argv.slice(2);
@@ -87,7 +88,7 @@ if (fs.existsSync(manifestPath)) {
 console.error(JSON.stringify({ cachedPages: pageCache.size, challengedPages: challengedPages.size }));
 
 const { buildLegalSourcePinpointUrl } = await import(
-  arg("--builder", "candidate") === "production"
+  arg("--builder", "production") === "production"
     ? pathToFileURL(path.join(here, "..", "..", "backend/src/lib/legalSourceLinks.ts")).href
     : pathToFileURL(path.join(here, "builder-candidate.ts")).href
 );
@@ -310,8 +311,8 @@ try {
           url: seed.url,
           ...(seed.anchor ? { anchor: seed.anchor } : {}),
           blockText: seed.blockText ?? "",
-          ...(doctext.get(seed.label.split("_").slice(1, -1).join("_"))
-            ? { documentText: doctext.get(seed.label.split("_").slice(1, -1).join("_")) }
+          ...(doctext.get(seedDocumentKey(seed))
+            ? { documentText: doctext.get(seedDocumentKey(seed)) }
             : {}),
         },
         seed.quotes ?? [],
