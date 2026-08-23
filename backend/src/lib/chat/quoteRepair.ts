@@ -1,4 +1,4 @@
-import { tokenizeSourceText } from "../sourceDoc";
+import { tokenizeTextNative } from "../structureNative";
 import { escapeRegExp as escapeRegex } from "../text";
 
 /**
@@ -220,7 +220,7 @@ export function sourceSupportsMarkedQuote(quote: string, source: string) {
 }
 
 function copyTokens(text: string): CopyToken[] {
-  return tokenizeSourceText(text).map(({ word, start, end }) => ({
+  return tokenizeTextNative(text).map(({ word, start, end }) => ({
     norm: word,
     start,
     end,

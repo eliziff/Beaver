@@ -17,6 +17,7 @@ import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { resourceReference } from "./resourceReferences";
+import { documentHasOriginNative } from "./structureNative";
 import { enqueueJob, wakeJobWorker, type JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
@@ -342,7 +343,7 @@ export async function queueProviderPdfRenditions(
   document: RemoteLegalSourceDocument,
   userId?: string,
 ) {
-  if (!userId || document.analysis.source_doc.blocks.some(({ origin }) => origin === "native")) {
+  if (!userId || documentHasOriginNative(document.native, "native")) {
     return [];
   }
   const attachments = new Map<string, RemoteLegalSourceDocument["attachments"][number]>();

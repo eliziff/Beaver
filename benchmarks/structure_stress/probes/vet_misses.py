@@ -19,8 +19,7 @@ import os
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE.parents[2] / "backend" / "scripts"))
-from sourcedoc_client import close_client, compile_document  # noqa: E402
+from legal_structure import compile_document  # noqa: E402
 
 A2AJ = Path(os.environ.get('A2AJ_ROOT', str(Path(__file__).resolve().parents[3] / ".tmp" / "inputs" / 'a2aj')))
 
@@ -89,7 +88,6 @@ def main() -> int:
                     break
                 checked += 1
                 result = compile_document({
-                    "id": f"{court}:{citation}:{lang}",
                     "docType": "cases",
                     "citation": citation,
                     "alternateCitation": alternate or "",
@@ -124,7 +122,6 @@ def main() -> int:
         print(f"  {row['id'][:60]:60s} chars={row['chars']:>7} "
               f"blocks={source_doc.get('count', 0)}")
     print(f"\nper-doc detail: {out_path}")
-    close_client()
     return 0
 
 

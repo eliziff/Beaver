@@ -1,6 +1,8 @@
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch, normalizeRemoteHttpsUrl } from "../remoteUrlSafety";
-import type { SourceDoc, SourceDocLookup } from "../sourceDoc";
+import {
+  type NativeDocument,
+} from "../structureNative";
 import { jsonRecord as objectValue } from "../value";
 import type { LegalSourceProvider } from ".";
 
@@ -28,23 +30,15 @@ export type RemoteLegalSourceDocument = {
   identity: string;
   title: string | null;
   url: string;
-  analysis: {
-    structure: unknown;
-    source_doc: SourceDoc;
-  };
+  native: NativeDocument;
   attachments: RemoteLegalSourceAttachment[];
   citedAuthorities?: NativeMarkupRef[];
   sourceSha256?: string;
 };
 
-export type RemoteLegalSourceNative = {
-  document: RemoteLegalSourceDocument;
-  lookup?: SourceDocLookup;
-};
-
 export type RemoteLegalSourceProvider = LegalSourceProvider<
-  SourceDoc | string,
-  RemoteLegalSourceNative
+  NativeDocument | string,
+  RemoteLegalSourceDocument
 >;
 
 export { objectValue };

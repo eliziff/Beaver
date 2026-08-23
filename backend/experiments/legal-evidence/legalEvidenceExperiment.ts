@@ -3,21 +3,19 @@ import crypto from "node:crypto";
 import {
   a2ajLegalSourceProvider,
   type A2AJDocument,
-  type A2AJLocatorLookup,
 } from "../../src/lib/legalSources/a2aj";
 import {
+  buildA2AJDocumentPinpointUrl,
   buildA2AJParagraphRangeUrl,
-  buildA2AJPinpointUrl,
   buildLegalSourcePinpointUrl,
   hasCanadianDecisionLink,
-  legalSourceQuoteCandidates,
   type QuoteSource,
 } from "../../src/lib/legalSourceLinks";
 import { hasCitationInText } from "../../src/lib/citationKey";
 import {
-  createTextSourceDoc,
-  sourceDocContainsQuote,
-} from "../../src/lib/sourceDoc";
+  documentTextNative,
+  type NativeDocument,
+} from "../../src/lib/structureNative";
 import {
   alienPhrases,
   lintLegalClaim,
@@ -49,7 +47,6 @@ export const LEGAL_EVIDENCE_EXPERIMENT_MODES = [
   "required_slot",
   "witness_panel",
   "lint_gated",
-  "arbitrary_source_spans",
 ] as const;
 
 function formatLegalLocator(kind: string, label: string) {
@@ -164,10 +161,7 @@ export type LegalEvidenceReceipt = {
   version: string | null;
   external_url: string | null;
   locator: {
-    kind:
-      | "document"
-      | A2AJLocatorLookup["requested"]["kind"]
-      | "footnote";
+    kind: "document" | "paragraph" | "page" | "section" | "footnote";
     label: string;
   };
   resolver_version:
@@ -182,7 +176,7 @@ export type LegalEvidenceReceipt = {
 export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
   document?: A2AJDocument;
-  lookup?: A2AJLocatorLookup;
+  source?: NativeDocument;
 };
 
 /**
@@ -343,7 +337,8 @@ export function createA2AJDocumentEvidence(
   document: A2AJDocument,
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt {
-  const sourceText = a2ajLegalSourceProvider.source(document)?.text ?? document.text;
+  const source = a2ajLegalSourceProvider.source(document);
+  const sourceText = source ? documentTextNative(source) : document.text;
   return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
@@ -362,43 +357,6 @@ export function createA2AJDocumentEvidence(
     version: document.date,
     external_url: document.url,
     locator: { kind: "document", label: "document" },
-    resolver_version: "a2aj-inline-v1",
-  });
-}
-
-export function createA2AJLookupEvidence(
-  lookup: A2AJLocatorLookup,
-  sourceClass: LegalSourceClass = "case",
-): LegalEvidenceReceipt | null {
-  if (lookup.status !== "found" || !lookup.block) return null;
-  const sourceText = a2ajLegalSourceProvider.source(lookup)?.text ?? lookup.block.text;
-  const spanText = lookup.block.text;
-  return withEvidenceId({
-    provider: "a2aj",
-    jurisdiction: "CA",
-    source_class: sourceClass,
-    stable_source_id: stableSourceId(lookup),
-    source_sha256: sha256(sourceText),
-    scope: "passage",
-    block_id: [
-      lookup.block.kind,
-      lookup.block.label,
-      lookup.block.start,
-      lookup.block.end,
-    ].join(":"),
-    exact_span_sha256: sha256(spanText),
-    span_sha256: sha256(normalizeWhitespace(spanText)),
-    span_text: spanText,
-    citation: lookup.citation,
-    name: lookup.name,
-    dataset: lookup.dataset,
-    language: lookup.language,
-    version: null,
-    external_url: lookup.url,
-    locator: {
-      kind: lookup.requested.kind,
-      label: lookup.requested.label,
-    },
     resolver_version: "a2aj-inline-v1",
   });
 }
@@ -640,7 +598,7 @@ export function registerLegalEvidence(
   receipt: LegalEvidenceReceipt | undefined,
   source: {
     document?: A2AJDocument;
-    lookup?: A2AJLocatorLookup;
+    source?: NativeDocument;
   } = {},
 ) {
   if (!receipt) return;
@@ -1558,8 +1516,7 @@ export function legalEvidenceExperimentTools(
     mode === "quote_first" ||
     mode === "attested_framing" ||
     slotContractMode(mode) ||
-    mode === "lint_gated" ||
-    mode === "arbitrary_source_spans"
+    mode === "lint_gated"
   )
     return [LEGAL_EVIDENCE_SUBMIT_TOOL];
   if (mode === "evidence_first")
@@ -1711,10 +1668,7 @@ function claimQuoteBody(claim: GroundedLegalClaim): string | null {
 }
 
 function allClaimsSupported(state: LegalEvidenceTurnState) {
-  if (
-    state.mode === "citation_structure" ||
-    state.mode === "arbitrary_source_spans"
-  )
+  if (state.mode === "citation_structure")
     return Boolean(state.answer);
   if (
     state.mode === "tiered_check" ||
@@ -1989,8 +1943,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: false, modelCalls, usage, diagnostic: null };
 
   if (
-    (state.mode === "citation_structure" ||
-      state.mode === "arbitrary_source_spans") &&
+    state.mode === "citation_structure" &&
     !state.answer &&
     args.draft.trim()
   ) {
@@ -2017,10 +1970,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: false, modelCalls, usage, diagnostic: null };
   }
 
-  if (
-    state.mode === "citation_structure" ||
-    state.mode === "arbitrary_source_spans"
-  )
+  if (state.mode === "citation_structure")
     return { passed: true, modelCalls, usage, diagnostic: null };
 
   if (
@@ -2156,7 +2106,9 @@ export function renderLegalEvidenceAnswer(
   state: LegalEvidenceTurnState,
 ): string | null {
   const citation = (entry: RegisteredEvidence) => {
-    const { receipt, lookup, document } = entry;
+    const { receipt, document } = entry;
+    const source = entry.source ?? (document
+      ? a2ajLegalSourceProvider.source(document) : null);
     const paragraphRange =
       receipt.locator.kind === "paragraph"
         ? receipt.locator.label.match(
@@ -2170,17 +2122,28 @@ export function renderLegalEvidenceAnswer(
     // citation already names the citing case, so their label would repeat it.
     const citatorAttribution =
       receipt.resolver_version === "citator-standsfor-v1";
+    const a2ajLocator = ["paragraph", "page", "section"].includes(
+      receipt.locator.kind,
+    ) ? receipt.locator as {
+        kind: "paragraph" | "page" | "section";
+        label: string;
+      } : null;
     const url =
-      lookup && paragraphRange
+      document && paragraphRange
         ? buildA2AJParagraphRangeUrl(
             receipt.citation,
             paragraphRange[1],
             paragraphRange[2],
-            [lookup],
-            document ? [document] : [],
+            [document],
           )
-        : lookup
-          ? buildA2AJPinpointUrl(lookup, [])
+        : document && receipt.span_text && a2ajLocator
+          ? buildA2AJDocumentPinpointUrl(
+              document,
+              a2ajLocator,
+              receipt.span_text,
+              [],
+              source,
+            )
           : citatorAttribution &&
               receipt.external_url &&
               receipt.span_text &&
@@ -2191,7 +2154,6 @@ export function renderLegalEvidenceAnswer(
               // a PDF galley, where text-fragments cannot resolve.
               buildLegalSourceMultiPassageUrl(receipt.external_url, [
                 {
-                  key: receipt.evidence_id,
                   blockText: receipt.span_text,
                   quotes: [receipt.span_text],
                 },
@@ -2232,88 +2194,6 @@ export function renderLegalEvidenceAnswer(
         .sort((left, right) => right.length - left.length),
     };
   };
-  const arbitrarySpanCitations = (claim: GroundedLegalClaim) => {
-    if (state.mode !== "arbitrary_source_spans") return null;
-    const quotes = legalSourceQuoteCandidates(claim.text);
-    if (quotes.length < 2) return null;
-    const entries = [
-      ...new Map(
-        claim.evidence_ids.flatMap((id) => {
-          const entry = state.evidence.get(id);
-          return entry ? [[id, entry] as const] : [];
-        }),
-      ).values(),
-    ];
-    const passages = entries.flatMap((entry) => {
-      const text = entry.receipt.span_text;
-      const document = entry.document
-        ? a2ajLegalSourceProvider.source(entry.document)
-        : entry.lookup
-          ? a2ajLegalSourceProvider.source(entry.lookup)
-          : null;
-      return text && document
-        ? [{
-            entry,
-            block: createTextSourceDoc(text),
-            document,
-            quotes: [] as string[],
-          }]
-        : [];
-    });
-    if (passages.length !== entries.length) return null;
-    for (const quote of quotes) {
-      const matches = passages.filter(({ block }) =>
-        sourceDocContainsQuote(block, quote),
-      );
-      if (matches.length !== 1) return null;
-      matches[0].quotes.push(quote);
-    }
-    const sources = new Map<string, typeof passages>();
-    for (const passage of passages) {
-      const key = passage.entry.receipt.stable_source_id;
-      sources.set(key, [...(sources.get(key) ?? []), passage]);
-    }
-    const placements = [...sources.values()].flatMap((source) => {
-      const urls = new Set(
-        source.map(({ entry }) => entry.receipt.external_url),
-      );
-      const url = urls.size === 1 ? [...urls][0] : null;
-      if (!url) return [];
-      const drawable = source.flatMap(
-        ({ entry, block, document, quotes }) => {
-          const passage = {
-            key: entry.receipt.evidence_id,
-            blockText: block,
-            documentText: document,
-            quotes,
-          };
-          const verified = quotes.filter((quote) =>
-            buildLegalSourceMultiPassageUrl(url, [{
-              ...passage,
-              quotes: [quote],
-            }]),
-          );
-          return verified.length ? [{ ...passage, quotes: verified }] : [];
-        },
-      );
-      const quoteCount = drawable.reduce(
-        (count, passage) => count + passage.quotes.length,
-        0,
-      );
-      if (quoteCount < 2) return [];
-      const target = buildLegalSourceMultiPassageUrl(
-        url,
-        drawable,
-      );
-      if (!target) return [];
-      const label = source[0].entry.receipt.citation;
-      return [{
-        markdown: `[${label.replace(/[\\[\]]/gu, "\\$&")}](${target.replace(/\)/gu, "%29")})`,
-        candidates: [label],
-      }];
-    });
-    return placements.length === sources.size ? placements : null;
-  };
   // A premise correction whose anchor re-verifies deterministically
   // renders visibly AS a correction, not as an ordinary sentence.
   const decorate = (claim: GroundedLegalClaim, text: string): string =>
@@ -2326,9 +2206,7 @@ export function renderLegalEvidenceAnswer(
         } states "${claim.premise_text}": ${text}`
       : text;
   const renderClaim = (claim: GroundedLegalClaim): string => {
-      const citations =
-        arbitrarySpanCitations(claim) ??
-        [
+      const citations = [
           ...new Map(
             claim.evidence_ids.flatMap((id) => {
               const entry = state.evidence.get(id);

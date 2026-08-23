@@ -11,8 +11,13 @@ import { gzipSync } from "node:zlib";
 import {
   fetchLocalA2AJDocumentsByIds,
 } from "../../src/lib/a2ajLocalBulk";
-import { analyzeDocumentNative } from "../../src/lib/structureNative";
-import type { SourceDoc } from "../../src/lib/sourceDoc";
+import {
+  deriveDocumentNative,
+  documentAnchorsNative,
+  documentHasOriginNative,
+  projectDocumentSourceNative,
+  type NativeDocument,
+} from "../../src/lib/structureNative";
 
 type Row = Record<string, unknown>;
 type Part = { name: string; rows: number; bytes: number; sha256: string };
@@ -129,9 +134,9 @@ function sourceDigest(row: Row) {
   }
   return { source_bytes: bytes, source_sha256: digest.digest("hex") };
 }
-function mode(doc: SourceDoc): "native" | "hybrid" | "flat" {
-  const origins = new Set(doc.blocks.map(({ origin }) => origin));
-  return origins.has("native") ? origins.has("heuristic") ? "hybrid" : "native" : "flat";
+function mode(doc: NativeDocument): "native" | "hybrid" | "flat" {
+  const native = documentHasOriginNative(doc, "native");
+  return native ? documentHasOriginNative(doc, "heuristic") ? "hybrid" : "native" : "flat";
 }
 
 function bounds(database: DatabaseSync, total: number, shard: number) {
@@ -213,7 +218,7 @@ async function runWorker(shard: number) {
             source_kind: String(row.doc_type), ...proof, status: "failure",
             failure: "provider_unavailable", error_sha256: hash("provider_unavailable") };
         } else try {
-          const analyzed = await analyzeDocumentNative({
+          const doc = await deriveDocumentNative({
             kind: "a2aj", source_doc: true, input: { citation: document.citation,
               source_kind: document.docType ?? "cases",
               text: document.sectionMap ? "" : document.text, url: document.url,
@@ -221,12 +226,11 @@ async function runWorker(shard: number) {
               name: document.name,
               ...(document.sectionMap
                 ? { section_map: Object.entries(document.sectionMap) } : {}) } });
-          if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
-          const doc = analyzed.source_doc;
-          const bytes = Buffer.from(JSON.stringify(doc));
+          const bytes = Buffer.from(JSON.stringify(projectDocumentSourceNative(doc)));
           record = { v: 1, provider: "a2aj", source_id: String(id),
             source_kind: String(row.doc_type), ...proof, status: "pass", mode: mode(doc),
-            canonical_bytes: bytes.length, canonical_sha256: hash(bytes), blocks: doc.blocks.length };
+            canonical_bytes: bytes.length, canonical_sha256: hash(bytes),
+            blocks: documentAnchorsNative(doc).length };
         } catch (error) {
           const message = error instanceof Error ? `${error.name}:${error.message}` : String(error);
           record = { v: 1, provider: "a2aj", source_id: String(id),

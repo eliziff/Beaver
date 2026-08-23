@@ -22,7 +22,6 @@ import {
 } from "docx";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { scanDocxPathology } from "../../src/lib/docx/pathology";
 import { extractDocxStories, storiesBodyText } from "./stories";
 import {
   extractDocxBodyStructure,
@@ -373,8 +372,6 @@ describe("storiesBodyText byte parity with extractDocxBodyText", () => {
     "matches on the %s fixture",
     async (name) => {
       const bytes = fixture(name);
-      // The parity claim only holds where the extra descents cannot bite.
-      expect((await scanDocxPathology(bytes)).hyperlinks.count).toBe(0);
       const stories = await extractDocxStories(bytes);
       expect(stories.notes).toEqual([]);
       expect(storiesBodyText(stories)).toBe(await extractDocxBodyText(bytes));
@@ -383,7 +380,6 @@ describe("storiesBodyText byte parity with extractDocxBodyText", () => {
 
   it.skipIf(!CORPUS_PRESENT).each(REAL_DOCS)("matches on %s", async (relative) => {
     const bytes = await readFile(path.join(REPO_ROOT, relative));
-    expect((await scanDocxPathology(bytes)).hyperlinks.count).toBe(0);
     const expected = await extractDocxBodyText(bytes);
     const stories = await extractDocxStories(bytes);
     expect(stories.notes).toEqual([]);

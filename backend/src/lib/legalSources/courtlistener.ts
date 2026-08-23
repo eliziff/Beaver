@@ -4,13 +4,13 @@ import type {
   LegalSourceProvider,
   LegalSourceReference,
 } from ".";
-import { sourceDocPassages } from "./sourceDocPassages";
 import {
-  lookupSourceDoc,
-  type SourceDoc,
-  type SourceDocLocatorKind,
-} from "../sourceDoc";
-import { analyzeDocumentNative } from "../structureNative";
+  deriveDocumentNative,
+  documentHasOriginNative,
+  documentTextNative,
+  type NativeDocument,
+} from "../structureNative";
+import { nativeDocumentPassages } from "./sourceDocPassages";
 import { nonemptyString as asString } from "../value";
 import {
   courtlistenerLocalBulkAvailable,
@@ -260,9 +260,8 @@ async function compactOpinion(
   if (!text && !rawMarkup) {
     return compacted;
   }
-  const analyzed = await analyzeDocumentNative({
+  const native = await deriveDocumentNative({
     kind: "native_markup",
-    source_doc: true,
     input: {
       provider: "courtlistener",
       id: compacted.opinionId === null ? "" : String(compacted.opinionId),
@@ -272,11 +271,10 @@ async function compactOpinion(
       pageCitations,
     },
   });
-  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
   return {
     ...compacted,
-    text: truncate(analyzed.source_doc.text, maxChars),
-    analysis: { ...analyzed, source_doc: analyzed.source_doc },
+    text: truncate(documentTextNative(native), maxChars),
+    native,
   };
 }
 
@@ -286,27 +284,12 @@ function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
 }
 
 function hasNativeOpinionStructure(opinion: object) {
-  return opinionSourceDoc(opinion)?.blocks.some(
-    ({ origin }) => origin === "native",
-  ) ?? false;
+  const document = opinionDocument(opinion);
+  return document ? documentHasOriginNative(document, "native") : false;
 }
 
-function opinionSourceDoc(opinion: object) {
-  return ((opinion as JsonRecord).analysis as
-    | { source_doc?: SourceDoc }
-    | undefined)?.source_doc;
-}
-
-function lookupOpinionLocator(
-  opinion: object,
-  kind: SourceDocLocatorKind,
-  locator: string,
-  contextBlocks = 0,
-) {
-  const sourceDoc = opinionSourceDoc(opinion);
-  return sourceDoc
-    ? lookupSourceDoc(sourceDoc, kind, locator, contextBlocks)
-    : null;
+function opinionDocument(opinion: object) {
+  return (opinion as JsonRecord).native as NativeDocument | undefined;
 }
 
 async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
@@ -876,13 +859,11 @@ export type CourtlistenerProviderOptions = {
 
 type CourtlistenerLegalSourceNative = {
   case: JsonRecord;
-  opinion: object;
-  lookup?: ReturnType<typeof lookupOpinionLocator>;
 };
 
 function provider(
   options: CourtlistenerProviderOptions = {},
-): LegalSourceProvider<SourceDoc | string, CourtlistenerLegalSourceNative> {
+): LegalSourceProvider<NativeDocument | string, CourtlistenerLegalSourceNative> {
   return {
     id: "courtlistener",
     canResolve: (request) =>
@@ -979,26 +960,19 @@ function provider(
         ) {
           return [];
         }
-        const sourceDoc = opinionSourceDoc(opinion);
-        if (!sourceDoc) return [];
+        const document = opinionDocument(opinion);
+        if (!document) return [];
         const url = asString(opinionRecord.url) ?? caseUrl;
         if (!url) return [];
         const source = {
           ...courtlistenerReference(request.source, caseRecord, url),
           ...(opinionId ? { part: String(opinionId) } : {}),
         };
-        return sourceDocPassages({
+        return nativeDocumentPassages({
           request,
           reference: source,
-          document: sourceDoc,
-          native: { case: caseRecord, opinion },
-          lookup: (kind, value, contextBlocks) =>
-            lookupOpinionLocator(
-              opinion,
-              kind,
-              value,
-              contextBlocks,
-            ),
+          document,
+          native: { case: caseRecord },
         });
       });
     },

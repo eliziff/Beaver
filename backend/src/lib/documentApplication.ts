@@ -108,7 +108,7 @@ async function pageCount(documentId: string, versionId: string, filename: string
     const projection = await documentProjectionService.read({
       documentId, versionId, filename, fileType, bytes,
     });
-    return projection.kind === "pdf" ? projection.pdfSourceMap.pages.length : null;
+    return projection.kind === "pdf" ? projection.pageCount : null;
   } catch {
     throw new ApplicationError(400, "PDF is invalid or unsupported");
   }

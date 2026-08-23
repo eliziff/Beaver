@@ -1,6 +1,5 @@
 import {
   buildA2AJDocumentPinpointUrl,
-  buildA2AJPinpointUrl,
   buildA2AJParagraphRangeUrl,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
@@ -74,11 +73,10 @@ export function presentLegalEvidence(
   entry: RegisteredEvidence,
   quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
 ): CitationPresentation {
-  const { receipt, lookup, document } = entry;
-  const source = entry.source ?? (lookup
-    ? a2ajLegalSourceProvider.source(lookup)
-    : document ? a2ajLegalSourceProvider.source(document) : null);
-  const retrievedSourceUrl = lookup?.url ?? document?.url ?? receipt.external_url;
+  const { receipt, document } = entry;
+  const source = entry.source ?? (document
+    ? a2ajLegalSourceProvider.source(document) : null);
+  const retrievedSourceUrl = document?.url ?? receipt.external_url;
   // The ordinary authority link may use CanLII. Passage links must stay on the
   // provider document whose text was actually used to verify the fragment.
   const citationUrl =
@@ -100,7 +98,6 @@ export function presentLegalEvidence(
           receipt.citation,
           range[1],
           range[2],
-          lookup ? [lookup] : [],
           document ? [document] : [],
         )
     : null;
@@ -111,17 +108,15 @@ export function presentLegalEvidence(
       label: string;
     } : null;
   const a2ajUrl = receipt.provider === "a2aj" && receipt.span_text && a2ajLocator
-    ? lookup
-      ? buildA2AJPinpointUrl(lookup, quotes, source, lookup.block)
-      : document
-        ? buildA2AJDocumentPinpointUrl(
-            document,
-            a2ajLocator,
-            receipt.span_text,
-            quotes,
-            source,
-          )
-        : null
+    ? document
+      ? buildA2AJDocumentPinpointUrl(
+          document,
+          a2ajLocator,
+          receipt.span_text,
+          quotes,
+          source,
+        )
+      : null
     : null;
   const passageUrl = fragmentSourceUrl && receipt.span_text
     ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(

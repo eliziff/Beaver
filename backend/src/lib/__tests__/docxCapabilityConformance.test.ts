@@ -5,7 +5,7 @@
  * wire": the model drafts simplified Markdown and a deterministic renderer
  * (`renderDocxMarkdown` in chat/tools/docxMarkdown.ts) converts it to DOCX;
  * source DOCX files are read back into the model-visible drafting view
- * (`extractDocxDraftingSource` in docxDraftingSource.ts, plus the redline
+ * (`docxDraftingMarkdown` in docxDraftingMarkdown.ts, plus the redline
  * projection for the plane it flattens).
  *
  * This suite pins, per feature class, what the REAL conversion functions
@@ -39,7 +39,7 @@ import JSZip from "jszip";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
-import { extractDocxDraftingSource } from "../docxDraftingSource";
+import { docxDraftingMarkdown } from "../docxDraftingMarkdown";
 import { projectDocxRedline } from "../docx/redline";
 import { extractDocxBodyText } from "../docxTrackedChanges";
 import { buildPathologyFixtures } from "./fixtures/docx-pathologies/generate";
@@ -120,30 +120,23 @@ const MATRIX_MARKDOWN = [
 
 describe("tables (merged / nested)", () => {
   it("ingestion: merge structure and cell text are capturable", async () => {
-    const source = await extractDocxDraftingSource(fixture("merged-table"));
+    const markdown = await docxDraftingMarkdown(fixture("merged-table"));
 
     // gfm keeps merged tables as raw HTML, so colspan/rowspan survive.
-    expect(source.markdown).toMatch(/<table[^>]*>/u);
-    expect(source.markdown).toContain('colspan="2"');
-    expect(source.markdown).toContain('rowspan="2"');
+    expect(markdown).toMatch(/<table[^>]*>/u);
+    expect(markdown).toContain('colspan="2"');
+    expect(markdown).toContain('rowspan="2"');
     for (const cell of ["Consideration", "Cash", "On closing", "Deferred"]) {
-      expect(source.markdown).toContain(cell);
+      expect(markdown).toContain(cell);
     }
-    expect(source.warnings).toContain(
-      "Merged or nested tables must be normalized without dropping their text.",
-    );
-    expect(source.requires_review).toBe(true);
   });
 
-  it("ingestion: a nested table is flagged for normalization", async () => {
-    const source = await extractDocxDraftingSource(fixture("kitchen-sink"));
+  it("ingestion: a nested table remains visible", async () => {
+    const markdown = await docxDraftingMarkdown(fixture("kitchen-sink"));
 
     // The outer table plus the nested one both render as raw HTML tables.
-    expect((source.markdown.match(/<table/gu) ?? []).length).toBeGreaterThanOrEqual(
+    expect((markdown.match(/<table/gu) ?? []).length).toBeGreaterThanOrEqual(
       2,
-    );
-    expect(source.warnings).toContain(
-      "Merged or nested tables must be normalized without dropping their text.",
     );
   });
 
@@ -182,13 +175,13 @@ describe("auto-numbering", () => {
     );
     expect(body).not.toMatch(/\d/u);
 
-    const source = await extractDocxDraftingSource(bytes);
+    const markdown = await docxDraftingMarkdown(bytes);
     // Pandoc resolves the numbering into the markdown — the model sees
     // the labels as literal text (matching upstream Mike behaviour).
     // gfm emits "1.  Definitions." (double space after the period and a
     // trailing period from the document text).
-    expect(source.markdown).toMatch(/1\.\s+Definitions/iu);
-    expect(source.markdown).toContain("Affiliate has the meaning given.");
+    expect(markdown).toMatch(/1\.\s+Definitions/iu);
+    expect(markdown).toContain("Affiliate has the meaning given.");
   });
 
   it("output: headings and ordered lists carry numbering properties", async () => {
@@ -227,15 +220,11 @@ describe("tracked changes", () => {
     // The drafting source flattens tracked changes to the accepted view and
     // warns that revision intent was flattened — the redline mode is the
     // review surface where the marks survive.
-    const source = await extractDocxDraftingSource(bytes);
+    const markdown = await docxDraftingMarkdown(bytes);
     // Pandoc emits the accepted view as plain markdown paragraphs.
-    expect(source.markdown).toContain("The seat of arbitration is Toronto.");
-    expect(source.markdown).toContain("Costs follow the cause.");
-    expect(source.markdown).not.toContain("Zurich");
-    expect(source.warnings).toContain(
-      "Tracked changes are shown accepted in the drafting view; use the redline view to review the original revisions.",
-    );
-    expect(source.requires_review).toBe(true);
+    expect(markdown).toContain("The seat of arbitration is Toronto.");
+    expect(markdown).toContain("Costs follow the cause.");
+    expect(markdown).not.toContain("Zurich");
 
     // The redline projection is where the marks survive.
     const redline = await projectDocxRedline(bytes);
@@ -263,27 +252,14 @@ describe("tracked changes", () => {
 });
 
 describe("headers and footers", () => {
-  it("ingestion: literal header/footer text is a documented drop with warnings", async () => {
+  it("ingestion: literal header/footer text is outside the drafting view", async () => {
     const bytes = fixture("header-footer-text");
 
     const body = await extractDocxBodyText(bytes);
     expect(body).toBe("Recitals.");
 
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.markdown).not.toContain("PRIVILEGED AND CONFIDENTIAL");
-    expect(source.warnings).toContain(
-      "Headers are not included in the drafting source.",
-    );
-    expect(source.warnings).toContain(
-      "Footers are not included in the drafting source.",
-    );
-    expect(source.requires_review).toBe(true);
-  });
-
-  it("ingestion: a page-number-only footer is not a dropped-text warning", async () => {
-    const source = await extractDocxDraftingSource(fixture("fields"));
-    expect(source.warnings).toEqual([]);
-    expect(source.requires_review).toBe(false);
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).not.toContain("PRIVILEGED AND CONFIDENTIAL");
   });
 
   it("output: an always-on page-number footer ships; no header part exists", async () => {
@@ -308,16 +284,13 @@ describe("footnotes", () => {
   it("ingestion: native notes become markers plus definitions", async () => {
     const bytes = fixture("footnotes");
 
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.markdown).toContain("[^1]");
-    expect(source.markdown).toContain("[^2]");
-    expect(source.markdown).toContain("[^1]: See Schedule B.");
-    expect(source.markdown).toContain("[^2]: As amended.");
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).toContain("[^1]");
+    expect(markdown).toContain("[^2]");
+    expect(markdown).toContain("[^1]: See Schedule B.");
+    expect(markdown).toContain("[^2]: As amended.");
     // Native note anchor markup is gone; only the markers remain.
-    expect(source.markdown).not.toContain('href="#footnote-');
-    expect(source.requires_review).toBe(true);
-
-    expect(source.warnings).toContain("Endnotes may require manual review.");
+    expect(markdown).not.toContain('href="#footnote-');
   });
 
   it("output: markers render a native footnote part and reference", async () => {
@@ -346,12 +319,8 @@ describe("text boxes", () => {
     // Pandoc drops drawingML text-box content, so it is not visible in the
     // drafting view — unlike mammoth which carried it through as HTML. The
     // raw-XML detection still fires the warning.
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.markdown).not.toContain("Draft only - not for execution.");
-    expect(source.warnings).toContain(
-      "Text-box content is not included in the drafting source.",
-    );
-    expect(source.requires_review).toBe(true);
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).not.toContain("Draft only - not for execution.");
   });
 
   it("output: Markdown has no text-box concept, so none is authored", async () => {
@@ -364,14 +333,12 @@ describe("text boxes", () => {
 });
 
 describe("real document ingestion", () => {
-  it("ferry-boats-remission: a real regulation reads clean with no review flag", async () => {
+  it("ferry-boats-remission: a real regulation reads cleanly", async () => {
     const bytes = await realFerryBoatsRemission();
 
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.requires_review).toBe(false);
-    expect(source.warnings).toEqual([]);
-    expect(source.markdown).toContain("Ferry-Boats Remission Order, 2016");
-    expect(source.markdown).toContain("1 Remission is granted");
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).toContain("Ferry-Boats Remission Order, 2016");
+    expect(markdown).toContain("1 Remission is granted");
 
     const body = await extractDocxBodyText(bytes);
     // Literal "1" / "(a)" markers in a real instrument stay literal because
@@ -403,9 +370,9 @@ describe("real-world corruption fixtures", () => {
 
     // Pandoc reads the document clean — dangling style references do not
     // produce warnings (Pandoc ignores undefined styles silently).
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.markdown).toContain("Governing Law");
-    expect(source.markdown).toContain("$87.3 million");
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).toContain("Governing Law");
+    expect(markdown).toContain("$87.3 million");
     // No mammoth-style "referenced but not defined" warnings — Pandoc treats
     // undefined styles as Normal paragraphs.
   });
@@ -416,7 +383,7 @@ describe("real-world corruption fixtures", () => {
     // The package has no readable central directory, so there is no text to
     // salvage; both ingestion surfaces must fail closed with a readable error
     // rather than leak JSZip's "Corrupted zip: …" internals.
-    await expect(extractDocxDraftingSource(bytes)).rejects.toThrow(
+    await expect(docxDraftingMarkdown(bytes)).rejects.toThrow(
       /corrupted or truncated/i,
     );
     await expect(extractDocxBodyText(bytes)).rejects.toThrow(
@@ -429,7 +396,7 @@ describe("real-world corruption fixtures", () => {
 
     // Pandoc cannot parse the malformed document.xml and exits non-zero;
     // the drafting view fails closed with a message naming the part.
-    await expect(extractDocxDraftingSource(bytes)).rejects.toThrow(
+    await expect(docxDraftingMarkdown(bytes)).rejects.toThrow(
       /malformed XML in word\/document\.xml/i,
     );
 
@@ -446,27 +413,21 @@ describe("round trip: rendered Markdown re-ingests without losing substance", ()
     const bytes = await renderDocxMarkdown(MATRIX_MARKDOWN, {
       title: "Agreement",
     });
-    const source = await extractDocxDraftingSource(bytes);
+    const markdown = await docxDraftingMarkdown(bytes);
 
-    expect(source.markdown).toContain("Definitions");
-    expect(source.markdown).toContain("**Vendor**");
+    expect(markdown).toContain("Definitions");
+    expect(markdown).toContain("**Vendor**");
     // gfm emits pipe tables matching our write-side dialect.
-    expect(source.markdown).toMatch(/\|/u); // pipe table delimiter
-    expect(source.markdown).toContain("Price");
-    expect(source.markdown).toContain("[^1]");
-    expect(source.markdown).toContain("[^1]: This is the source footnote.");
+    expect(markdown).toMatch(/\|/u); // pipe table delimiter
+    expect(markdown).toContain("Price");
+    expect(markdown).toContain("[^1]");
+    expect(markdown).toContain("[^1]: This is the source footnote.");
     // The (a)/(b) list preserved as markdown list items.
-    expect(source.markdown).toMatch(/^\d/um); // numbered list
-    expect(source.markdown).toContain("First obligation");
-    // A re-ingest of our own output is no longer warning-free because
-    // Pandoc emits headings as bold text for our docx-package-rendered
-    // files (the style name "Heading 1" case mismatch is corrected by
-    // our styles pre-patch). The substance survives.
-    expect(source.warnings).toEqual([]);
-    expect(source.requires_review).toBe(false);
+    expect(markdown).toMatch(/^\d/um); // numbered list
+    expect(markdown).toContain("First obligation");
   });
 
-  it("content controls re-ingest as flattened placeholder text, with a warning naming the tag", async () => {
+  it("content controls re-ingest as flattened placeholder text", async () => {
     const bytes = await renderDocxMarkdown(
       ["{{party_name}}", "", "The purchaser is {{purchaser}}."].join("\n"),
       { title: "Agreement" },
@@ -479,13 +440,9 @@ describe("round trip: rendered Markdown re-ingests without losing substance", ()
     // Re-ingesting reads the placeholder text, not the markers — and the
     // drafting view now warns that the controls were flattened, naming the
     // tag the model can re-render to keep the control.
-    const source = await extractDocxDraftingSource(bytes);
-    expect(source.markdown).toContain("[Party name]");
-    expect(source.markdown).toContain("[Purchaser]");
-    expect(source.markdown).not.toContain("{{party_name}}");
-    expect(source.warnings).toContain(
-      "Content controls are flattened to placeholder text in the drafting view (2 total, e.g. [Party name] = {{party_name}}); re-render them as {{tag}} markers to keep the controls.",
-    );
-    expect(source.requires_review).toBe(true);
+    const markdown = await docxDraftingMarkdown(bytes);
+    expect(markdown).toContain("[Party name]");
+    expect(markdown).toContain("[Purchaser]");
+    expect(markdown).not.toContain("{{party_name}}");
   });
 });

@@ -21,7 +21,7 @@ const writes = new Map<string, Promise<void>>();
 const dataRoot = () => path.resolve(mikeLocalDataHome());
 const projectionRoot = () => path.join(dataRoot(), "projections", "v1");
 
-export function localDataPath(candidate: string) {
+function localDataPath(candidate: string) {
   const root = dataRoot();
   const resolved = path.resolve(candidate);
   const relative = path.relative(root, resolved);

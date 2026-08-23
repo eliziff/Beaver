@@ -1,143 +1,14 @@
-import {
-  a2ajLegalSourceProvider,
-  type A2AJLocatorLookup,
-} from "../../legalSources/a2aj";
-import { collapseProvisionLabels } from "../../provisionLabels";
-import { referenceLabelsOutside } from "../../legalDocumentNavigator";
+import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "../../resourceReferences";
-import { jsonRecord } from "../../value";
-import {
-  lookupSourceDocLabel,
-  sourceDocSubtreeLabels,
-} from "../../sourceDoc";
-import {
-  createA2AJLookupEvidence,
-  type LegalEvidenceReceipt,
-} from "../legalEvidence";
-
-export function a2ajLookupEvidenceBlocks(
-  lookup: A2AJLocatorLookup,
-  sourceClass: "case" | "legislation",
-) {
-  if (lookup.status !== "found" || !lookup.block) return [];
-  return a2ajLegalSourceProvider.lookupBlocks(lookup).flatMap(({ role, lookup }) => {
-    const receipt = createA2AJLookupEvidence(lookup, sourceClass);
-    return receipt ? [{ role, lookup, receipt }] : [];
-  });
-}
+import type { LegalEvidenceReceipt } from "../legalEvidence";
 
 export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
-
-const MAX_REFERENCE_SECTIONS = 50;
-const MAX_REFERENCE_TEXT_CHARS = 32_000;
-
-export async function readA2AJReferenceNeighborhood(
-  lookup: A2AJLocatorLookup,
-  direction: A2AJReferenceDirection,
-  signal?: AbortSignal,
-) {
-  const empty = (failures: string[] = []) => ({
-    lookups: [] as A2AJLocatorLookup[],
-    truncated: false,
-    failures,
-    omitted: [] as string[],
-    limitReason: null as "characters" | "sections" | null,
-  });
-  if (
-    direction === "none" ||
-    lookup.status !== "found" ||
-    !lookup.block ||
-    lookup.requested.kind !== "section"
-  ) return empty();
-  const document = await a2ajLegalSourceProvider.document({
-    citation: lookup.citation,
-    docType: "laws",
-    language: lookup.language,
-    dataset: lookup.dataset,
-    signal,
-  });
-  const source = document ? a2ajLegalSourceProvider.source(document) : null;
-  const graph = jsonRecord(document?.analysis?.structure)?.cross_references as
-    | Parameters<typeof referenceLabelsOutside>[0]
-    | undefined;
-  if (!source || !graph) return empty(["reference graph source unavailable"]);
-  const seed = lookupSourceDocLabel(source, "section", lookup.block.label);
-  if (seed.status !== "found" || !seed.block) {
-    return empty(["requested section is not addressable in the reference graph"]);
-  }
-  if (graph.documentAbstained) {
-    return empty([graph.note ?? "reference graph abstained"]);
-  }
-  const subtree = sourceDocSubtreeLabels(source.blocks, seed.block.label);
-  const follow = direction === "inbound" ? "in"
-    : direction === "outbound" ? "out" : "both";
-  const unique = referenceLabelsOutside(graph, subtree, follow).filter(
-    (label) => label.toLowerCase() !== seed.block!.label.toLowerCase(),
-  );
-  const selected = unique.slice(0, MAX_REFERENCE_SECTIONS);
-  const lookups: A2AJLocatorLookup[] = [];
-  const failures: string[] = [];
-  let chars = 0;
-  let limitReason: "characters" | "sections" | null =
-    unique.length > selected.length ? "sections" : null;
-  const omitted = unique.slice(selected.length);
-  for (const label of selected) {
-    const related = await a2ajLegalSourceProvider.lookup({
-      citation: lookup.citation,
-      docType: "laws",
-      language: lookup.language,
-      dataset: lookup.dataset,
-      kind: "section",
-      locator: label,
-      signal,
-    });
-    if (!related || related.status !== "found" || !related.block) {
-      failures.push(`could not resolve ${label}`);
-      continue;
-    }
-    if (chars + related.block.text.length > MAX_REFERENCE_TEXT_CHARS) {
-      limitReason = "characters";
-      omitted.push(...selected.slice(selected.indexOf(label)));
-      break;
-    }
-    chars += related.block.text.length;
-    lookups.push(related);
-  }
-  return {
-    lookups,
-    truncated: omitted.length > 0,
-    failures,
-    omitted: [...new Set(omitted)],
-    limitReason,
-  };
-}
 
 function activityText(value: unknown, maximum: number) {
   const text = typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : "";
   return !text ? undefined : text.length <= maximum
     ? text
     : `${text.slice(0, maximum - 1).trimEnd()}…`;
-}
-
-function activityLocatorLabel(label: string, kind?: string) {
-  const value = label
-    .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
-    .replace(/^[a-z]+=/iu, "")
-    .trim();
-  const prefix = kind === "paragraph"
-    ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
-    : kind === "section"
-      ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu
-      : null;
-  return prefix
-    ? value.replace(prefix, "").replace(new RegExp(`([–—-])${prefix.source.slice(1)}`, "giu"), "$1")
-    : value;
-}
-
-function activityLocatorNoun(kind: string, plural: boolean) {
-  if (kind === "paragraph") return plural ? "paras" : "para";
-  if (kind === "section") return plural ? "ss" : "s";
-  return plural ? `${kind}s` : kind;
 }
 
 export function assistantToolActivityLabel(
@@ -194,10 +65,10 @@ export function assistantToolActivityLabel(
     const locator = activityText(args.locator, 80);
     const end = activityText(args.end_locator, 80);
     if (kind && locator) {
-      const first = activityLocatorLabel(locator, kind);
-      const last = end ? activityLocatorLabel(end, kind) : undefined;
+      const first = activityText(locator, 80)!;
+      const last = end ? activityText(end, 80) : undefined;
       const plural = Boolean(last && last !== first);
-      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
+      return `Reading ${kind} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
@@ -280,8 +151,7 @@ export function assistantReadEvidenceActivityLabel(
   const last = passages.at(-1);
   if (!first || !last) return null;
   const title = sourceName ?? first.name ?? first.citation;
-  const labels = [...new Set(passages.map(({ locator }) =>
-    activityLocatorLabel(locator.label, locator.kind)))];
+  const labels = [...new Set(passages.map(({ locator }) => locator.label.trim()))];
   const firstLabel = activityText(labels[0], 80);
   const lastLabel = activityText(labels.at(-1), 80);
   const contextBlocks = Number.isInteger(args.context_blocks) && Number(args.context_blocks) > 0
@@ -291,17 +161,8 @@ export function assistantReadEvidenceActivityLabel(
     : "";
   if (!firstLabel || !lastLabel) return `Reading ${title}${context}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}${context}`;
+    return `Reading ${firstLabel} through ${lastLabel} of ${title}${context}`;
   }
-  // Collapsed display groups (nested provisions subsumed by their parent,
-  // endpoint pairing per root section, paragraph run-lengths). Falls back
-  // to plain enumeration when labels leave the locator grammar.
-  const groups = collapseProvisionLabels(labels, first.locator.kind);
-  if (!groups) {
-    const plural = labels.length > 1 || /[–—-]/u.test(firstLabel);
-    const scope = labels.length === 1 ? firstLabel : labels.join(", ");
-    return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope} of ${title}${context}`;
-  }
-  const plural = groups.length > 1 || /[–—-]/u.test(groups[0]);
-  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${groups.join(", ")} of ${title}${context}`;
+  const scope = labels.length === 1 ? firstLabel : labels.join(", ");
+  return `Reading ${scope} of ${title}${context}`;
 }

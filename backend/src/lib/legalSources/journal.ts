@@ -8,18 +8,18 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
-import { analyzeDocumentNative } from "../structureNative";
+import {
+  deriveDocumentNative,
+  documentAnchorsNative,
+  documentHasOriginNative,
+  documentTextNative,
+  type NativeDocument,
+} from "../structureNative";
 import type {
   LegalSourceProvider,
   LegalSourceReference,
 } from ".";
-import { sourceDocPassages } from "./sourceDocPassages";
-import {
-  lookupSourceDoc,
-  type SourceDoc,
-  type SourceDocLocatorKind,
-  type SourceDocLookup,
-} from "../sourceDoc";
+import { nativeDocumentPassages } from "./sourceDocPassages";
 
 type Row = Record<string, unknown>;
 type FinalContractPages = { filename: string; signature: string };
@@ -48,22 +48,11 @@ export type JournalArticleDocument = {
   title: string;
   date: string | null;
   url: string;
-  analysis: {
-    structure: unknown;
-    source_doc: SourceDoc;
-  };
+  native: NativeDocument;
   upstreamLicense: string | null;
   journalName: string | null;
   authors: string | null;
   language: "en";
-};
-
-export type JournalArticleLookup = SourceDocLookup & {
-  provider: "journal";
-  identifier: string;
-  hitId: string;
-  url: string;
-  anchor: string | null;
 };
 
 const databases = new Map<
@@ -497,16 +486,14 @@ function finalContractPages(articleId: number): FinalContractPages | null {
 }
 
 async function analyzeJournal(request: unknown) {
-  const result = await analyzeDocumentNative(request);
-  if (!result.source_doc) throw new Error("Rust omitted SourceDoc");
-  return result as typeof result & { source_doc: SourceDoc };
+  return deriveDocumentNative(request);
 }
 
 function finalContractSource(
   articleId: number, url: string, pages: FinalContractPages, pageRows: JournalPageRow[],
 ) {
   return analyzeJournal({ kind: "journal", article_id: articleId, url,
-    filename: pages.filename, page_rows: pageRows, source_doc: true });
+    filename: pages.filename, page_rows: pageRows });
 }
 
 function articleRow(identifier: string) {
@@ -547,10 +534,10 @@ async function document(
        WHERE article_id = ? ORDER BY page_order`,
     )
     .all(articleId) as JournalPageRow[];
-  const analyzed = registered
+  const native = registered
     ? await finalContractSource(articleId, url, registered, pageRows)
     : await analyzeJournal({ kind: "journal", article_id: articleId, url,
-        text: publicText, page_rows: pageRows, source_doc: true });
+        text: publicText, page_rows: pageRows });
   const document: JournalArticleDocument = {
     provider: "journal",
     identity: String(articleId),
@@ -560,7 +547,7 @@ async function document(
     title: string(row, "name_en") ?? `Article ${articleId}`,
     date: string(row, "document_date_en"),
     url,
-    analysis: { ...analyzed, source_doc: analyzed.source_doc },
+    native,
     upstreamLicense: string(row, "upstream_license"),
     journalName: string(row, "journal_name"),
     authors: string(row, "authors"),
@@ -573,32 +560,10 @@ async function document(
   return document;
 }
 
-function lookup(
-  document: JournalArticleDocument,
-  kind: SourceDocLocatorKind,
-  locator: string,
-  contextBlocks = 0,
-): JournalArticleLookup {
-  const lookup = lookupSourceDoc(
-    document.analysis.source_doc,
-    kind,
-    locator,
-    contextBlocks,
-  );
-  const label = lookup.block?.label ?? lookup.requestedLabel;
-  return {
-    ...lookup,
-    provider: "journal",
-    identifier: document.identity,
-    hitId: `journal:${document.articleId}:${kind}:${label}`,
-    url: document.url,
-    anchor: lookup.block?.anchor ?? null,
-  };
-}
-
 async function viewer(identifier: string) {
   const article = await document(identifier);
   if (!article) return null;
+  const anchors = documentAnchorsNative(article.native);
   const payload = {
     schemaVersion: "mike.legal-source.v1" as const,
     provider: "journal" as const,
@@ -621,12 +586,12 @@ async function viewer(identifier: string) {
       authors: article.authors,
       journalName: article.journalName,
     },
-    text: article.analysis.source_doc.text,
-    structureSource: article.analysis.source_doc.blocks.some(({ origin }) => origin === "native")
-      ? article.analysis.source_doc.blocks.some(({ origin }) => origin === "heuristic")
+    text: documentTextNative(article.native),
+    structureSource: documentHasOriginNative(article.native, "native")
+      ? documentHasOriginNative(article.native, "heuristic")
         ? "hybrid" as const : "native" as const
       : "flat_text" as const,
-    anchors: article.analysis.source_doc.blocks,
+    anchors,
     truncated: false,
   };
   return {
@@ -661,10 +626,9 @@ function exactJournalIdentity(value: string) {
 }
 
 const provider: LegalSourceProvider<
-  SourceDoc | string,
+  NativeDocument | string,
   {
     document: JournalArticleDocument;
-    lookup?: JournalArticleLookup;
   }
 > = {
   id: "journal",
@@ -735,13 +699,10 @@ const provider: LegalSourceProvider<
   async readPassage(request) {
     const article = await document(request.source.id);
     if (!article) return [];
-    return sourceDocPassages({
+    return nativeDocumentPassages({
       request,
       reference: journalReference(article),
-      document: article.analysis.source_doc,
-      native: { document: article },
-      lookup: (kind, value, contextBlocks) =>
-        lookup(article, kind, value, contextBlocks),
+      document: article.native,
     });
   },
 };
@@ -750,6 +711,5 @@ export const journalLegalSourceProvider = Object.assign(provider, {
   closeDatabases,
   find: findArticles,
   document,
-  lookup,
   viewer,
 });

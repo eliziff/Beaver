@@ -1,5 +1,4 @@
-import { lookupSourceDoc } from "../sourceDoc";
-import { analyzeDocumentNative } from "../structureNative";
+import { deriveDocumentNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -13,7 +12,7 @@ import {
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { sourceDocPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./sourceDocPassages";
 
 const API_ORIGIN = "https://api.govinfo.gov";
 const WEB_ORIGIN = "https://www.govinfo.gov";
@@ -117,9 +116,8 @@ async function fetchGovInfoCase(
     stringValue(body.description),
   ].filter((value): value is string => Boolean(value)).join("\n");
   const url = `${WEB_ORIGIN}/app/details/${result.packageId}`;
-  const analyzed = await analyzeDocumentNative({
+  const native = await deriveDocumentNative({
     kind: "native_markup",
-    source_doc: true,
     input: {
       provider: "govinfo",
       id: result.packageId,
@@ -128,13 +126,12 @@ async function fetchGovInfoCase(
       scope: { kind: "excerpt", excerptOf: result.packageId },
     },
   });
-  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
   return {
     provider: "govinfo",
     identity: result.packageId,
     title,
     url,
-    analysis: { ...analyzed, source_doc: analyzed.source_doc },
+    native,
     attachments: pdfAttachment(body),
   };
 }
@@ -164,13 +161,11 @@ export const govInfoLegalSourceProvider: RemoteLegalSourceProvider = {
       url: `${WEB_ORIGIN}/app/details/${source.id}`,
     };
     const document = await fetchGovInfoCase(result, signal);
-    return sourceDocPassages({
+    return nativeDocumentPassages({
       request,
       reference: { ...source, ...reference(result), title: document.title },
-      document: document.analysis.source_doc,
-      native: { document },
-      lookup: (kind, value, contextBlocks) =>
-        lookupSourceDoc(document.analysis.source_doc, kind, value, contextBlocks),
+      document: document.native,
+      native: document,
     });
   },
 };
