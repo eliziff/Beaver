@@ -106,6 +106,14 @@ The original lineation won 829 documents; the three alternate hypotheses won
 narrow `NativeDocument` queries do not materialize. This is an intermediate
 optimization receipt, not the performance target.
 
+The next pass kept SourceDoc's lookup index native-only and restored its public
+serialization to `{}`, matching the historical TypeScript `Map` and the A2AJ
+provider freeze. Refreshing the 872-document ratchet changed only 587 SourceDoc
+component hashes, their whole-document hashes, and the aggregate hash
+`ca12121d573c2a4dbc544b4e524f37d7ef3bdcf21c685720ba51577573e738fd`;
+every detector component, input, denominator, and total stayed identical. Rust
+derivation fell to 4.208 s and full gate snapshots to 6.093 s.
+
 ## Gate
 
 The gate fails closed unless the agreement denominator is 124 and the PDF
