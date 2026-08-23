@@ -1,0 +1,261 @@
+{
+  "schemaVersion": "beaver.defined-terms-docx-freeze.v1",
+  "roots": [
+    "benchmarks/docx_corpus",
+    "benchmarks/docx_edit/fixtures"
+  ],
+  "membershipSha256": "f8ecadf50acf21162e1e80560c45e08c55fed1151d923efbc55605951f10a9a7",
+  "totals": {
+    "documents": 27,
+    "succeeded": 26,
+    "errors": 1,
+    "definitions": 14,
+    "findings": 6,
+    "abstained": 18
+  },
+  "entries": [
+    {
+      "inputSha256": "0c6055da0074af2b38b203a31152f28772b41d9b169216a5d4656607adcdd65c",
+      "bytes": 91652,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "5f761b033c1bba58ad4f897764ed25f9a7c542edbba63aaa6a98c5782292f481"
+    },
+    {
+      "inputSha256": "1a48b51419ccafdf3ce41517e195996db8e7143e916a7fa4519e5775c1ac365a",
+      "bytes": 26376,
+      "roots": [
+        1
+      ],
+      "outcome": "ok",
+      "outputSha256": "62096e9e0cc631e599f6706cc6cd3b0b6ec003d636c75725e7f2e58d2f84e82b"
+    },
+    {
+      "inputSha256": "313926923eab458ecb6e6d862044c8295dd54e02ca70bf7da91d89a625171c25",
+      "bytes": 163672,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "23edffb27858cd9df2e3d7b916d6030dca821f01cce336e1777911d0acfa24f4"
+    },
+    {
+      "inputSha256": "3bde606a572d0c5331d0bd2e76360ff86e371807baaea0245d1dcce165410ded",
+      "bytes": 2868329,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "fe05389d4dcdd0bb35eb09ac35b20b03efaa9c4de7da128b77c855d34ffd2f58"
+    },
+    {
+      "inputSha256": "576a04f6a1786bdb2a75cb65b69147b78cd65cd19b90ca7cfdc0f97338dcd6c4",
+      "bytes": 39580,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "eb0c9829cf34a279ba60143489087a362426320f01e934f5a614ec78ddf025d2"
+    },
+    {
+      "inputSha256": "5e5de78d27edcc1081f8fa29ede7697c3d63fcb88f1d18e8b32b83818dcee3f9",
+      "bytes": 96399,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "55fd9ae4045373f571ca35de17234badcc6308666bdd382c0879705546e7e90d"
+    },
+    {
+      "inputSha256": "6a4abcd8fd492f319994d27369222788118feefed9b650776336801cbd8ec0be",
+      "bytes": 62250,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "9b94db75efddf5a5bd22b834f7db52a38ef2b805fd410479451bbbb90a2f0d3e"
+    },
+    {
+      "inputSha256": "7a32378d053d8ab9ac850bbc05701de124d8b789a4a59af5614a4ef2edc95f7d",
+      "bytes": 8681,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "95cb8b7ac682e956080c9150ef2410ea6be9a7485689ded56c9f034ea3cad787"
+    },
+    {
+      "inputSha256": "80823845aefdc74a4f809b88f0664fc8136e67f80812f98bb130da1757e2cce2",
+      "bytes": 94138,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "42d4da91cc08d71160887ae9b05085a8e4bdf42b26f9e70a48be2b7fba0389d0"
+    },
+    {
+      "inputSha256": "90eff555965b5b9e0e77d7c53601d60baa9da440297add587850b91d2d894fdc",
+      "bytes": 223853,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "a782e84b150a1885c26cf8e3297098a6edd754993403cae69f14ed833b267a54"
+    },
+    {
+      "inputSha256": "91e3dbfa28d62a1e88029d460c0195a6cb27dbccc5d6d203548bf2fb0b5da7aa",
+      "bytes": 121004,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "83293c192652c42f1b59a381369dc7c95fc5a699fef74b0e618088d9d2f73181"
+    },
+    {
+      "inputSha256": "91f0a3b5e058c0fac93e6a0d885ba144279708baf37f1705c182f75ef87c447d",
+      "bytes": 4757,
+      "roots": [
+        1
+      ],
+      "outcome": "error",
+      "error": "DOCX is corrupted or truncated (not a readable ZIP archive): Corrupted zip: can't find end of central directory"
+    },
+    {
+      "inputSha256": "9222572d2a48d9e1a115d6fc305fe79ea4498f99de4a624700b86b594e15a43e",
+      "bytes": 5425207,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "7ae4755783d12a32f87f0f97b45046686a42545c780ca90219467a56da9143d6"
+    },
+    {
+      "inputSha256": "9a238242303ef35352c897f5a9193e1f95d5f235775350382eacc34cf8082ab6",
+      "bytes": 91035,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "af44bd1ddf10392d26a983524b22bab18053612edc5e87bd62591917368bae95"
+    },
+    {
+      "inputSha256": "b3b2ccbb7e4c5a9c4d2751be5fc110549ec34259d2d8ccbcabd33dc3756488d9",
+      "bytes": 8896,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "342dd7378d75ce79da8f3cf9ef0248989505e0ed41f2b51853c41a47e3c44da2"
+    },
+    {
+      "inputSha256": "b4be0ced1ce34e89159659a52df4e116efc97356fe87c5b888e699cfc09fe356",
+      "bytes": 1498228,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "09f21eede65f885e4cd8791fb67236158ff21ed193fe1ae01fcd4ca9ce53afad"
+    },
+    {
+      "inputSha256": "b5accb78d3e69fd5bb88550c08a8ae97ba024884c1508abff2d6cac4df00825f",
+      "bytes": 26039,
+      "roots": [
+        1
+      ],
+      "outcome": "ok",
+      "outputSha256": "71509bd06c674b0bf5ee42421210f93945abe3f564c7a277534dc864f3190fdc"
+    },
+    {
+      "inputSha256": "b95dc0ab1791d3699f23c582e1c18c8917629a9b49eac210ae56e9f963e692eb",
+      "bytes": 82335,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "273cb5df46a69ac0f3786e6fa78c8afcb40268f450444a4fa0b36fe6cb773dd0"
+    },
+    {
+      "inputSha256": "c85025084ef42b21b5c1c5c3840a5dcbd100642a5f1c03cac7cd1e4e76312191",
+      "bytes": 8429,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "54c88c958e683765cd6579424e6a98842611ef80b8b996032f973f0daa335346"
+    },
+    {
+      "inputSha256": "cc55243853a0c941279ae8df31cfa50757c215ac42aa0d611d59a7a617e7c11b",
+      "bytes": 37191,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "9151d7486d3b02e968572e3930f30b1a8e4fa10aeba8c55a3f5b91e7b802faad"
+    },
+    {
+      "inputSha256": "d2cac50bdd02b31ae08d1cea736900abcb86ff5eb9281a2b4bfcaef80791cccd",
+      "bytes": 9994,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "0d447fbca2a17fd9f56e9303a618f46c91a0897064f0a56a1ece55d0c2543b90"
+    },
+    {
+      "inputSha256": "d39af6e3b979735b8e215bdcaa445906511f878e8fa7c1841e928e294da43814",
+      "bytes": 11071,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "18364c90c0e1373e8bbf4cf1d7be3f0e996fd6e13e2fb0795c5afb7fe699f0ba"
+    },
+    {
+      "inputSha256": "d7f77892740470e3288c23f8326a810a8e2fdb8edc2eac9094d3cc8d6c2533c0",
+      "bytes": 103954,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "ca3790644672ee850b1d7a981248ff2e8f6e38444b9d777bd8af8de977106dac"
+    },
+    {
+      "inputSha256": "e0a0aea53715312f38238587da017c2b97bb49d2ab7a392e6e59236950b99223",
+      "bytes": 78465,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "4e2316a5cedf7bd6f610feaa9ffbfaae014f3fb41b5c41df1d1fb465882aa75b"
+    },
+    {
+      "inputSha256": "ef88bd16a1b2f10a8eb7ff1d9b06ae83bb8b9e72f0911a6e0d20204f1da54710",
+      "bytes": 56630,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "57ebde86d005fbca9af13389d142a3a4b4338b95eeb37af03b7c5ec7b181af7b"
+    },
+    {
+      "inputSha256": "f5968d5ae12966e3e79c025aa7616f3b2baddd754015c77a5e42a85f2e1f4bc3",
+      "bytes": 95657,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "8b0648dfadfdd9f0d42da750df159ef7b6eaa93af7124179af81f3d925663f97"
+    },
+    {
+      "inputSha256": "fdc9b96b537b9f7757205af694fffa63f227c48590594ba9e4487a7e9e2f7f95",
+      "bytes": 8100,
+      "roots": [
+        0
+      ],
+      "outcome": "ok",
+      "outputSha256": "7eddf12e6ff3ffa6663caf9b5d2b43a41f67ede0624af75fddbf2ff177778d7c"
+    }
+  ]
+}
