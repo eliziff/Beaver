@@ -92,13 +92,16 @@ The historical checkout was `b275951d832bdc4806757c580338b464c3f3da6b`
 with addon SHA-256 `5a3ec165...378a4`; the measured Rust addon SHA-256 was
 `3bfa515e...8fe0`.
 
-On 2026-08-23, the first Rust-native optimization pass removed per-line
-definition metadata work, stopped materializing discarded lineation graphs,
-made SourceDoc projection lazy, and replaced descendant rescans with one
-ordered pass. The paired 872-document oracle remained exact. Rust measured
-1.570 ms median / 11.784 s aggregate including projection, versus TypeScript
-at 2.617 ms / 19.531 s (1.67x median, 1.66x aggregate). This is an intermediate
-optimization receipt, not the performance target.
+On 2026-08-23, the Rust-native optimization passes removed per-line definition
+metadata work, stopped materializing discarded lineation graphs, shared text
+coordinates and line parsing, replaced hot anchored regexes with exact prefix
+guards or byte parsing, made SourceDoc projection lazy, and removed repeated
+navigation and descendant scans. The paired 872-document oracle remained
+exact. Rust measured 1.295 ms median / 7.560 s aggregate including full gate
+snapshots, versus TypeScript at 2.722 ms / 20.166 s (2.10x median, 2.67x
+aggregate); Rust derivation alone took 5.568 s. The original lineation won 829
+documents; the three recovery hypotheses won 18, 21, and 4. This is an
+intermediate optimization receipt, not the performance target.
 
 ## Gate
 
