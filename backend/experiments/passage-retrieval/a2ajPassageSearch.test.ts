@@ -11,7 +11,7 @@ import {
   MissingPassageIndexError,
   searchLocalA2AJPassages,
 } from "./a2ajPassageSearch";
-import { citationLookupKey } from "../../src/lib/citationKey";
+import { citationLookupKeyNative as citationLookupKey } from "../../src/lib/structureNative";
 import { ensurePassageIndex, searchPassages } from "./passageRetrieval";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "a2aj-passage-test-"));

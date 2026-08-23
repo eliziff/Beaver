@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyCitatorExcerpt } from "../citatorExcerpts";
+import { classifyCitatorExcerptNative as classifyCitatorExcerpt } from "../structureNative";
 
 // Real edge excerpts from the 2026-07-30 full citator build (random
 // sample probe recorded in the research plan / session log).

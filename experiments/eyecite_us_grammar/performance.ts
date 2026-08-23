@@ -3,7 +3,7 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { citationsInText } from "../../backend/src/lib/citationKey";
+import { citationsInTextNative as citationsInText } from "../../backend/src/lib/structureNative";
 
 const count = 37_000;
 const maxSeconds = 15;

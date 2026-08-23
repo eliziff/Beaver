@@ -1,7 +1,7 @@
 import {
-  citationLookupKey,
-  citationsInText,
-} from "../../src/lib/citationKey";
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+} from "../../src/lib/structureNative";
 
 export const ATTRIBUTIONS = [
   "current_court",

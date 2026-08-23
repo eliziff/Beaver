@@ -41,10 +41,10 @@ import {
 } from "../../backend/src/lib/courtlistenerLocalBulk";
 import { verifyCourtlistenerCitations } from "../../backend/src/lib/legalSources/courtlistener";
 import {
-  citationLookupKey,
-  citationsInText,
-} from "../../backend/src/lib/citationKey";
-import { classifyCitatorExcerpt } from "../../backend/src/lib/citatorExcerpts";
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  classifyCitatorExcerptNative as classifyCitatorExcerpt,
+} from "../../backend/src/lib/structureNative";
 import {
   contentWordCount,
   corpusAlienness,

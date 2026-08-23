@@ -5,11 +5,10 @@ import {
   type ModelIssueCard,
 } from "./caseSemanticMvp";
 import {
-  createTextSourceDoc,
-  sourceDocQuoteWords,
-  type SourceDoc,
-} from "../../src/lib/sourceDoc";
-import { citationLookupKey, citationsInText } from "../../src/lib/citationKey";
+  citationLookupKeyNative as citationLookupKey,
+  citationsInTextNative as citationsInText,
+  quoteWordsNative,
+} from "../../src/lib/structureNative";
 import {
   ATTRIBUTIONS,
   DIRECT_HISTORY_LABELS,
@@ -58,14 +57,14 @@ function targetNamePhrases(name: string | null): TargetNamePhrase[] {
   const full = name.trim();
   const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
   const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
-  const firstSideWords = sourceDocQuoteWords(sides[0]);
+  const firstSideWords = quoteWordsNative(sides[0]);
   const genericFirstSide = sides.length > 1 && firstSideWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(firstSideWords[0]);
   const preferredParty = (crown || genericFirstSide ? sides[1] : sides[0])
     .replace(/^the\s+/iu, "")
     .replace(/\s*\([^)]*\)\s*$/u, "")
     .replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "")
     .trim();
-  const partyWords = sourceDocQuoteWords(preferredParty);
+  const partyWords = quoteWordsNative(preferredParty);
   const first = partyWords[0] ?? "";
   const derivedPartyWords = partyWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase()) ? [] : partyWords;
   const shortWords = sides.length === 1
@@ -73,7 +72,7 @@ function targetNamePhrases(name: string | null): TargetNamePhrase[] {
     : first.length >= 5 && !GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase())
       ? [first]
       : derivedPartyWords.slice(0, 2);
-  const fullWords = sourceDocQuoteWords(full);
+  const fullWords = quoteWordsNative(full);
   const phrases = [
     { words: fullWords, fullStyleOfCause: true },
     { words: derivedPartyWords, fullStyleOfCause: false },
@@ -179,15 +178,15 @@ function isIncompatibleDatedShortForm(
  * merely decorates an immediately following target citation is not duplicated.
  */
 export function detectCaseTargetOccurrences(
-  source: SourceDoc,
+  source: string,
   target: CaseTargetIdentity,
 ): CaseTargetOccurrence[] {
-  const bodyEnd = source.blocks.filter(({ kind }) => kind === "paragraph").at(-1)?.end ?? source.text.length;
+  const bodyEnd = source.length;
   const targetCitations = [target.citation, ...target.citationAliases];
   const targetKeys = new Set(targetCitations.map(citationLookupKey).filter(Boolean));
   const targetYears = new Set(targetCitations.flatMap((citation) => citation.match(/\b(?:18|19|20)\d{2}\b/gu) ?? []));
   const citationCandidates = targetCitations
-    .flatMap((surface) => citationSurfaceSpans(source.text, surface))
+    .flatMap((surface) => citationSurfaceSpans(source, surface))
     .sort((left, right) => left.start - right.start || right.end - left.end);
   const citations: Array<{ start: number; end: number; text: string }> = [];
   for (const candidate of citationCandidates) {
@@ -201,20 +200,20 @@ export function detectCaseTargetOccurrences(
     start: match.start,
     end: match.end,
     citationKey: citationLookupKey(match.text),
-    linkedContext: footnoteReferenceContext(source.text, match.start, bodyEnd),
+    linkedContext: footnoteReferenceContext(source, match.start, bodyEnd),
   }));
 
   const allNameSpans = targetNamePhrases(target.name).flatMap(({ words, fullStyleOfCause }) =>
-    wordSequenceSpans(source.text, words).map(({ start, end }) => ({ start, end, fullStyleOfCause }))
+    wordSequenceSpans(source, words).map(({ start, end }) => ({ start, end, fullStyleOfCause }))
   );
   const incompatibleNameSpans = allNameSpans.filter(({ end }) =>
-    directlyDecoratesIncompatibleCitation(source.text, end, targetKeys) ||
-    isIncompatibleDatedShortForm(source.text, end, targetYears)
+    directlyDecoratesIncompatibleCitation(source, end, targetKeys) ||
+    isIncompatibleDatedShortForm(source, end, targetYears)
   );
   const candidateSpans = allNameSpans.filter(({ start, end, fullStyleOfCause }) =>
-    (fullStyleOfCause || shortNameReferenceCue(source.text, start, end)) &&
+    (fullStyleOfCause || shortNameReferenceCue(source, start, end)) &&
     !citations.some((citation) => start < citation.end && end > citation.start) &&
-    !directlyDecoratesCitation(source.text, end, citations) &&
+    !directlyDecoratesCitation(source, end, citations) &&
     !incompatibleNameSpans.some((incompatible) =>
       incompatible.start <= start && incompatible.end >= end
     )
@@ -229,11 +228,11 @@ export function detectCaseTargetOccurrences(
   const nameOccurrences = names.map((span, index): CaseTargetOccurrence => ({
     id: `tn${index + 1}`,
     kind: "case_name",
-    quote: source.text.slice(span.start, span.end),
+    quote: source.slice(span.start, span.end),
     start: span.start,
     end: span.end,
     citationKey: citationLookupKey(target.citation),
-    linkedContext: footnoteReferenceContext(source.text, span.start, bodyEnd),
+    linkedContext: footnoteReferenceContext(source, span.start, bodyEnd),
   }));
   return [...citationOccurrences, ...nameOccurrences];
 }
@@ -466,7 +465,7 @@ type ParticipantInput = {
 
 type ExactQuote = { quote: string; start: number; end: number };
 
-function exactQuote(text: string, base: number, quote: string, source?: SourceDoc): ExactQuote | string {
+function exactQuote(text: string, base: number, quote: string, source?: string): ExactQuote | string {
   return quote ? resolveUniqueGroundedQuote(text, base, quote, source) : "quote is empty";
 }
 
@@ -538,8 +537,8 @@ export function resolveCaseTargetMvp(args: {
   const errors: string[] = [];
   const normalizedEvidence = normalizeOpinionPositionEvidence(args.opinionPositions);
   const opinionPositions = normalizedEvidence.positions;
-  const sourceDoc = createTextSourceDoc(args.sourceText);
-  const opinionDocs = new Map(args.opinions.map((opinion) => [opinion.id, createTextSourceDoc(opinion.text)]));
+  const sourceDoc = args.sourceText;
+  const opinionDocs = new Map(args.opinions.map((opinion) => [opinion.id, opinion.text]));
   const duplicateIssueIds = duplicateKeys(args.caseIssues, ({ id }) => id);
   const issueById = new Map<string, ModelCaseIssue>();
   for (const issue of args.caseIssues) {
