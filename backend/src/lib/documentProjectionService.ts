@@ -13,7 +13,6 @@ import {
   type PdfLinkEvidence,
   type PdfLocatorKind,
   type PdfLookupInput,
-  type PdfLookupUnit,
 } from "./documentProjectionPdf";
 import {
   atomicWriteProjection,
@@ -32,6 +31,7 @@ import {
   derivePdfNative,
   docxTableCellsNative,
   documentTextBytesNative,
+  pdfPageCountNative,
   pdfDocumentSummaryNative,
   type LegalPdfOcrProvider,
   type NativeDocument,
@@ -58,7 +58,6 @@ export type {
   PdfLinkEvidence,
   PdfLocatorKind,
   PdfLookupInput,
-  PdfLookupUnit,
 };
 
 export type PdfParseState = {
@@ -210,11 +209,9 @@ async function preparePdf(input: {
   input.signal?.throwIfAborted();
   if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
     throw new Error("PDF preparation requires valid document and version IDs");
-  const inspected = await inspectPdf(input.sourcePath, {
-    expectedSha256: input.sourceSha256,
+  const sourceSha256 = input.sourceSha256 ?? (await inspectPdf(input.sourcePath, {
     signal: input.signal,
-  });
-  const sourceSha256 = inspected.sourceSha256;
+  })).sourceSha256;
   const reference = { documentId: input.documentId, versionId: input.versionId, sourceSha256 };
   const previous = await readState(reference);
   const profile = profileFor(input.ocrProvider, input.layout);
@@ -282,7 +279,7 @@ async function preparePdf(input: {
     await writeState(input.sourcePath, state);
     const projection: Extract<DocumentReadProjection, { kind: "pdf" }> = {
       kind: "pdf",
-      sourceDoc: native,
+      document: native,
       pageCount: result.projectionPageCount,
       tableCells: [],
     };
@@ -316,19 +313,7 @@ async function parsePdfPages(input: Omit<Parameters<typeof preparePdf>[0], "page
   return (await preparePdf(input)).state;
 }
 
-async function pdfState(input: PdfStateReference & { sourcePath: string }) {
-  const state = await readState(input);
-  if (!state) return null;
-  try {
-    const inspected = await inspectPdf(input.sourcePath, {
-      expectedSha256: input.sourceSha256,
-    });
-    return inspected.sourceSha256 === state.source_sha256 ? state : null;
-  } catch {
-    await rm(path.dirname(statePath(input)), { recursive: true, force: true });
-    return null;
-  }
-}
+const pdfState = readState;
 
 async function removePdf(input: PdfStateReference & { sourcePath: string }) {
   projectionMemory.delete(projectionKey(input));
@@ -355,24 +340,24 @@ export type DocumentProjectionInput = Readonly<{
 
 export type DocumentReadProjection =
   | {
-      kind: "source-doc";
-      sourceDoc: NativeDocument;
+      kind: "document";
+      document: NativeDocument;
       tableCells: [];
     }
   | {
       kind: "pdf";
-      sourceDoc: NativeDocument;
+      document: NativeDocument;
       pageCount: number;
       tableCells: [];
     }
   | {
       kind: "docx";
-      sourceDoc: NativeDocument;
+      document: NativeDocument;
       tableCells: NativeTableCell[];
     }
   | {
       kind: "spreadsheet-grid";
-      sourceDoc: NativeDocument;
+      document: NativeDocument;
       grid: SpreadsheetLlmStructure;
       tableCells: SpreadsheetLlmStructure["tableCells"];
     };
@@ -427,7 +412,7 @@ async function compileReadProjection(
     const tableCells = docxTableCellsNative(document);
     return {
       kind: "docx",
-      sourceDoc: document,
+      document,
       tableCells,
     };
   }
@@ -445,7 +430,7 @@ async function compileReadProjection(
     });
     return {
       kind: "spreadsheet-grid",
-      sourceDoc: document,
+      document,
       grid,
       tableCells: grid.tableCells,
     };
@@ -478,7 +463,7 @@ async function compileReadProjection(
       sourceSha256,
       signal,
     });
-    return { kind: "source-doc", sourceDoc: prepared.projection.sourceDoc,
+    return { kind: "document", document: prepared.projection.document,
       tableCells: [] };
   }
   const document = await deriveDocumentNative({
@@ -488,7 +473,7 @@ async function compileReadProjection(
     table_cells: [],
     reconstruct_lineation: true,
   });
-  return { kind: "source-doc", sourceDoc: document, tableCells: [] };
+  return { kind: "document", document, tableCells: [] };
 }
 
 function assertProjectionOutput(projection: DocumentReadProjection) {
@@ -497,7 +482,7 @@ function assertProjectionOutput(projection: DocumentReadProjection) {
     : projection.kind === "pdf"
       ? { kind: projection.kind, pageCount: projection.pageCount }
       : { kind: projection.kind, tableCells: projection.tableCells };
-  if (documentTextBytesNative(projection.sourceDoc) +
+  if (documentTextBytesNative(projection.document) +
       Buffer.byteLength(JSON.stringify(value)) > MAX_PROJECTION_OUTPUT_BYTES)
     throw new Error("Document projection output exceeds the read limit");
 }
@@ -533,7 +518,6 @@ async function preparedForSource(
   reference: PdfStateReference,
   pages?: number[],
 ) {
-  await inspectPdf(sourcePath, { expectedSha256: reference.sourceSha256 });
   const key = projectionKey(reference);
   let pending = projectionMemory.get(key);
   if (!pending) {
@@ -558,24 +542,22 @@ async function preparedForSource(
 async function lookupPdf(
   sourcePath: string,
   input: PdfLookupInput,
-  options?: {
+  options: {
     persistEvidence?: boolean;
     capturePages?: (pages: { number: number; text: string }[]) => void;
-    cacheKey?: string;
-    documentId?: string;
-    versionId?: string;
+    cacheKey: string;
+    documentId: string;
+    versionId: string;
+    sourceSha256: string;
     pages?: number[];
   },
 ) {
-  if (!options?.documentId || !options.versionId)
-    return lookupPdfStructure(null, input, options);
-  const inspected = await inspectPdf(sourcePath);
   const prepared = await preparedForSource(sourcePath, {
     documentId: options.documentId,
     versionId: options.versionId,
-    sourceSha256: inspected.sourceSha256,
+    sourceSha256: options.sourceSha256,
   }, options.pages);
-  return lookupPdfStructure(prepared.projection.sourceDoc, input, {
+  return lookupPdfStructure(prepared.projection.document, input, {
     ...options,
     sourceSha256: prepared.state.source_sha256,
     parserVersion: prepared.state.parser_version,
@@ -593,25 +575,32 @@ async function preparedForEvidence(sourcePath: string, handle: string) {
 
 async function rehydrateEvidence(sourcePath: string, handle: string) {
   const prepared = await preparedForEvidence(sourcePath, handle);
-  return rehydratePdfEvidence(prepared.projection.sourceDoc, handle);
+  return rehydratePdfEvidence(prepared.projection.document, handle);
 }
 
 async function verifyEvidence(sourcePath: string, handle: string) {
   const prepared = await preparedForEvidence(sourcePath, handle);
-  return verifyPdfLinkEvidence(prepared.projection.sourceDoc, handle);
+  return verifyPdfLinkEvidence(prepared.projection.document, handle);
 }
 
 async function rehydrateLink(sourcePath: string, handle: string) {
   const prepared = await preparedForEvidence(sourcePath, handle);
-  return rehydratePdfLinkEvidence(prepared.projection.sourceDoc, handle);
+  return rehydratePdfLinkEvidence(prepared.projection.document, handle);
 }
 
 export const documentProjectionService = Object.freeze({
   read,
+  pdfPageCount: async (bytes: Buffer, sourceSha256: string, signal?: AbortSignal) => {
+    return pdfPageCountNative(await publishPdfBytes(bytes, sourceSha256, signal));
+  },
   parsePdf,
   parsePdfPages,
-  publishPdf: (bytes: Buffer, expected?: string, signal?: AbortSignal) =>
-    publishPdfBytes(bytes, expected ?? sha256(bytes), signal),
+  publishPdf: (bytes: Buffer, expected?: string, signal?: AbortSignal) => {
+    const actual = sha256(bytes);
+    if (expected && expected !== actual)
+      throw new Error("PDF source bytes no longer match their version");
+    return publishPdfBytes(bytes, actual, signal);
+  },
   pdfState,
   removePdf,
   lookupPdf,

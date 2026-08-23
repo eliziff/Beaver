@@ -15,9 +15,11 @@ import {
 type NativeDocument = object;
 type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  sourceDocSnapshot(document: NativeDocument): SourceSnapshot;
+  documentText(document: NativeDocument): string;
+  documentRevision(document: NativeDocument): string;
+  documentAnchors(document: NativeDocument): unknown[];
+  documentHasOrigin(document: NativeDocument, origin: string): boolean;
 };
-type SourceSnapshot = { blocks: Array<{ origin: "native" | "heuristic" }> };
 
 type Row = Record<string, unknown>;
 type Part = { name: string; rows: number; bytes: number; sha256: string };
@@ -74,7 +76,7 @@ const databaseFile = path.resolve(args.get("a2aj-db") ?? process.env.MIKE_A2AJ_B
   path.join(localProviders, "a2aj", "a2aj.sqlite"));
 const searchFile = path.join(path.dirname(databaseFile), "a2aj-cases-fulltext.sqlite");
 const nativeFile = path.resolve(process.env.LEGAL_STRUCTURE_NATIVE ?? path.join(
-  ROOT, "legal-pdf-parser", "target", "release",
+  ROOT, "native", "legal-structure-node", "target", "release",
   process.platform === "win32" ? "legal_structure_node.dll"
     : process.platform === "darwin" ? "liblegal_structure_node.dylib"
       : "liblegal_structure_node.so",
@@ -90,15 +92,9 @@ const native = module.exports as StructureAddon;
 
 const expected = JSON.parse(readFileSync(path.join(
   __dirname, "installed-provider-baseline.json",
-), "utf8")) as { serializer_contract_sha256: string; inventory: Inventory };
-const serializerContract = JSON.stringify({
-  schema: "source-doc-public-bytes.v1",
-  serialization: "UTF-8 JSON.stringify(SourceDoc)",
-  fields: ["provider", "id", "url", "docType", "status", "revision", "text", "blocks", "ranges"],
-});
-if (hash(serializerContract) !== expected.serializer_contract_sha256) {
-  throw new Error("SourceDoc serializer contract drift");
-}
+), "utf8")) as { inventory: Inventory };
+const serializerContractSha = hash("native-document-public.v1:" +
+  "JSON.stringify([documentRevision,documentText,documentAnchors,hasNative,hasHeuristic])");
 const harnessSha = hash(readFileSync(__filename));
 const adapterSha = hash([
   "a2ajLocalBulk.ts",
@@ -137,10 +133,17 @@ function sourceDigest(row: Row) {
   }
   return { source_bytes: bytes, source_sha256: digest.digest("hex") };
 }
-function mode(source: SourceSnapshot): "native" | "hybrid" | "flat" {
-  const nativeBlocks = source.blocks.some(({ origin }) => origin === "native");
-  return nativeBlocks && source.blocks.some(({ origin }) => origin === "heuristic")
+function publicFields(native: StructureAddon, document: NativeDocument) {
+  const anchors = native.documentAnchors(document);
+  const nativeBlocks = native.documentHasOrigin(document, "native");
+  const heuristicBlocks = native.documentHasOrigin(document, "heuristic");
+  const bytes = Buffer.from(JSON.stringify([
+    native.documentRevision(document), native.documentText(document),
+    anchors, nativeBlocks, heuristicBlocks,
+  ]));
+  const mode = nativeBlocks && heuristicBlocks
     ? "hybrid" : nativeBlocks ? "native" : "flat";
+  return { mode, canonical_bytes: bytes.length, canonical_sha256: hash(bytes), blocks: anchors.length } as const;
 }
 
 function bounds(database: DatabaseSync, total: number, shard: number) {
@@ -186,12 +189,12 @@ async function runWorker(shard: number) {
     const directory = path.join(output, "a2aj", String(shard));
     mkdirSync(path.join(directory, "parts"), { recursive: true });
     const configSha = hash(JSON.stringify({ inventory: inventory.a2aj, signatures: inventory.signatures,
-      engine, harnessSha, adapterSha, workers, shard, wanted, batch, range }));
+      engine, harnessSha, adapterSha, serializerContractSha, workers, shard, wanted, batch, range }));
     const summaryFile = path.join(directory, "summary.json");
     let summary: Summary = existsSync(summaryFile)
       ? JSON.parse(readFileSync(summaryFile, "utf8")) as Summary
       : { schema_version: "source-structure-installed-freeze.v1", config_sha256: configSha,
-        baseline_commit: "current-worktree", serializer_contract_sha256: expected.serializer_contract_sha256,
+        baseline_commit: "current-worktree", serializer_contract_sha256: serializerContractSha,
         inventory, providers: { a2aj: emptyCounts(), courtlistener: emptyCounts(), journal: emptyCounts() },
         parts: [], manifest_root_sha256: hash("[]"), complete: false,
         engine, harness_sha256: harnessSha, adapter_code_sha256: adapterSha };
@@ -223,19 +226,16 @@ async function runWorker(shard: number) {
             failure: "provider_unavailable", error_sha256: hash("provider_unavailable") };
         } else try {
           const doc = await native.deriveDocumentStructure({
-            kind: "a2aj", source_doc: true, input: { citation: document.citation,
+            kind: "a2aj", input: { citation: document.citation,
               source_kind: document.docType ?? "cases",
               text: document.sectionMap ? "" : document.text, url: document.url,
               alternate_citation: document.alternateCitation, dataset: document.dataset,
               name: document.name,
               ...(document.sectionMap
                 ? { section_map: Object.entries(document.sectionMap) } : {}) } });
-          const source = native.sourceDocSnapshot(doc);
-          const bytes = Buffer.from(JSON.stringify(source));
+          const fields = publicFields(native, doc);
           record = { v: 1, provider: "a2aj", source_id: String(id),
-            source_kind: String(row.doc_type), ...proof, status: "pass", mode: mode(source),
-            canonical_bytes: bytes.length, canonical_sha256: hash(bytes),
-            blocks: source.blocks.length };
+            source_kind: String(row.doc_type), ...proof, status: "pass", ...fields };
         } catch (error) {
           const message = error instanceof Error ? `${error.name}:${error.message}` : String(error);
           record = { v: 1, provider: "a2aj", source_id: String(id),
@@ -298,7 +298,7 @@ async function coordinate() {
   if (artifactBytes > 40 * 1024 * 1024) throw new Error("Compressed receipt exceeds 40 MiB");
   const summary: Summary = { schema_version: "source-structure-installed-freeze.parallel.v1",
     config_sha256: hash(JSON.stringify({ engine, harnessSha, adapterSha, workers, limit, batch })),
-    baseline_commit: "current-worktree", serializer_contract_sha256: expected.serializer_contract_sha256,
+    baseline_commit: "current-worktree", serializer_contract_sha256: serializerContractSha,
     inventory: children[0].summary.inventory,
     scope: onlyId ? { kind: "selected-id", rows: 1 }
       : limit ? { kind: "prefix-sample", rows: counts.attempted } : { kind: "full" }, workers,

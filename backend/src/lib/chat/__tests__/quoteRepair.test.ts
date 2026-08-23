@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   groundedProseErrorsNative,
-  markedQuoteSpansNative,
   quoteRepairSuggestionNative,
 } from "../../structureNative";
 
@@ -17,16 +16,6 @@ const source = (evidenceId: string, text: string, labels?: string[]) =>
 describe("quote verification", () => {
   it("accepts exact inline and block quotations", () => {
     const text = "🦫 The court wrote “exact words” here.\r> A CR block.\r\n> A CRLF block.\u2028> A line-separator block.\u2029> A paragraph-separator block.";
-    const spans = markedQuoteSpansNative(text);
-    expect(spans.map(({ text }) => text)).toEqual([
-      "exact words",
-      "A CR block.",
-      "A CRLF block.",
-      "A line-separator block.",
-      "A paragraph-separator block.",
-    ]);
-    expect(spans.map(({ start, end }) => text.slice(start, end)))
-      .toEqual(spans.map(({ text }) => text));
     expect(groundedProseErrorsNative(text, ["e"], [source("e",
       "The reasons contain exact words. A CR block. A CRLF block. A line-separator block. A paragraph-separator block.")]))
       .toEqual([]);

@@ -3,39 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  consolidateAmendment,
-  deleteProvisionAndRenumberSiblings,
-} from "../structureNative";
-
-const STATUTE = [
-  "PART I",
-  "INTERPRETATION",
-  "",
-  "1. In this Act, “Minister” means the Minister of Justice.",
-  "",
-  "5. (1) A person may apply to the Minister for a permit.",
-  "",
-  "(2) The Minister shall respond within sixty days after the application.",
-  "",
-  "8. This Act binds His Majesty in right of Canada.",
-].join("\n");
-
-describe("consolidateAmendment", () => {
-  it("parses, applies, and verifies an amendment in one call", async () => {
-    const result = await consolidateAmendment(
-      STATUTE,
-      "Section 5 of the Act is amended— (1) in subsection (2), by striking " +
-        "“sixty” and inserting “ninety”; and (2) by adding at the end the " +
-        "following: “(3) A refusal must include reasons.”",
-    );
-    expect(result.parse.unparsed).toEqual([]);
-    expect(result.failures).toEqual([]);
-    expect(result.text).toContain("within ninety days");
-    expect(result.text).toContain("(3) A refusal must include reasons.");
-    expect(result.verification.newTextMissing).toBe(0);
-  });
-});
+import { deleteProvisionAndRenumberSiblings } from "../structureNative";
 
 describe("deleteProvisionAndRenumberSiblings", () => {
   const agreement = [

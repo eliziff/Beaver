@@ -32,6 +32,18 @@ async function nativeDocument(
 }
 
 describe("verified legal-source links", () => {
+  it("treats source line wrapping as whitespace when proving uniqueness", async () => {
+    const text = "A phrase split across\na source line remains one rendered passage.";
+    const document = await nativeDocument(text);
+    const result = buildLegalSourcePinpointUrl({
+      url: document.url!,
+      blockText: "A phrase split across a source line remains one rendered passage.",
+      documentText: document.native,
+    }, ["phrase split across a source line"]);
+
+    expect(result).toContain(":~:text=phrase%20split%20across%20a%20source%20line");
+  });
+
   it("uses BCLaws HTML section anchors", () => {
     const result = buildLegalSourcePinpointUrl(
       {

@@ -5,16 +5,17 @@ import { citationAuthorityMetricsBatch } from "../caselawCitator";
 import { classifyLegalMarkdown, deriveOriginalPdfCandidates } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import {
+  providerCitationsInTextNative,
   deriveDocumentNative,
   documentAnchorsNative,
-  documentHasOriginNative,
+  documentRevisionNative,
   documentTextNative,
   normalizeDocumentLocatorNative,
   type NativeDocument,
   type NativeDocumentBlock,
 } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import type { LegalSourceProvider, LegalSourceReference,
   LegalSourceResolveRequest, LegalSourceSearchHit } from ".";
 
@@ -35,8 +36,6 @@ export type A2AJCompiledDocument = Omit<A2AJDocument, "text" | "sectionMap"> & {
 };
 
 const BASE_URL = "https://api.a2aj.ca";
-const CANADIAN_CITATION =
-  /\b(?:\d{4}\s+[A-Z][A-Z0-9]{1,12}\s+\d+|\d+\s+S\.?C\.?R\.?\s+\d+|R\.?S\.?[A-Z]\.?\s+\d{4})\b/iu;
 const JURISDICTIONS = {
   FED: "Federal", AB: "Alberta", BC: "British Columbia", MB: "Manitoba",
   NB: "New Brunswick", NL: "Newfoundland and Labrador", NS: "Nova Scotia",
@@ -388,14 +387,14 @@ async function viewer(args: {
         language: found.language, upstreamLicense: found.upstreamLicense,
       },
       text,
-      structureSource: documentHasOriginNative(compiled, "native")
-        ? "section_map" as const : "flat_text" as const,
       anchors,
       presentation: { source: "a2aj_markdown" as const, segments: readerSegments(text, anchors, docType) },
       truncated: fullText.length > max,
     };
-    const digest = crypto.createHash("sha256").update(JSON.stringify(payload)).digest("base64url");
-    return { payload, etag: `"${digest}"` };
+    const digest = crypto.createHash("sha256").update(JSON.stringify([
+      documentRevisionNative(compiled), payload.reference, payload.metadata, max,
+    ])).digest("base64url");
+    return { payload, etag: `"${digest}"`, native: compiled };
   }
   return null;
 }
@@ -438,7 +437,8 @@ const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
   A2AJCompiledDocument> = {
   id: "a2aj",
   canResolve: (request: LegalSourceResolveRequest) => request.kind === "legislation" ||
-    (request.kind === "case" && CANADIAN_CITATION.test(request.text)),
+    (request.kind === "case" && providerCitationsInTextNative(request.text)
+      .some(({ jurisdiction }) => jurisdiction === "ca")),
   async resolve(request) {
     const kind = request.kind === "legislation" ? "legislation" : "case";
     const found = await document({ citation: request.text,

@@ -5,12 +5,13 @@ import type {
   LegalSourceReference,
 } from ".";
 import {
+  providerCitationsInTextNative,
   deriveDocumentNative,
   documentHasOriginNative,
   documentTextNative,
   type NativeDocument,
 } from "../structureNative";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { nonemptyString as asString } from "../value";
 import {
   courtlistenerLocalBulkAvailable,
@@ -24,9 +25,6 @@ import {
 const COURTLISTENER_BASE = "https://www.courtlistener.com/api/rest/v4";
 const COURTLISTENER_WEB_BASE = "https://www.courtlistener.com";
 const COURTLISTENER_STORAGE_BASE = "https://storage.courtlistener.com";
-const US_REPORTER =
-  /\b\d{1,4}\s+(?:U\.?\s*S\.?|S\.?\s*Ct\.?|L\.?\s*Ed\.?(?:\s*2d)?|F\.?(?:\s*Supp\.?)?(?:\s*2d|\s*3d|\s*4th)?)\s+\d{1,6}\b/iu;
-
 type JsonRecord = Record<string, unknown>;
 
 async function courtlistenerFetch<T>(
@@ -365,14 +363,13 @@ function truncate(value: string | null, maxChars: number): string | null {
 }
 
 function parseCitationParts(value: string) {
-  const match = value
-    .trim()
-    .match(/\b(\d{1,4})\s+([A-Za-z][A-Za-z0-9.\s]*?)\s+(\d{1,7})\b/);
-  if (!match) return null;
+  const match = providerCitationsInTextNative(value)
+    .find(({ family }) => family === "reporter");
+  if (!match?.volume || !match.reporter || !match.page) return null;
   return {
-    volume: match[1],
-    reporter: match[2].replace(/\s+/g, " ").trim(),
-    page: match[3],
+    volume: match.volume,
+    reporter: match.reporter.replace(/\s+/g, " ").trim(),
+    page: match.page,
   };
 }
 
@@ -835,7 +832,8 @@ function provider(
   return {
     id: "courtlistener",
     canResolve: (request) =>
-      request.kind === "case" && US_REPORTER.test(request.text),
+      request.kind === "case" && providerCitationsInTextNative(request.text)
+        .some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
       const verified = await verifyCitations({
         citations: [request.text],

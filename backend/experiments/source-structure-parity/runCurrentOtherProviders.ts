@@ -21,7 +21,9 @@ type Summary = { schema_version: string; config_sha256?: string; baseline_commit
   harness_sha256?: string; adapter_code_sha256?: string; artifact_bytes?: number };
 type NativeDocument = object;
 type Addon = { deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  sourceDocSnapshot(document: NativeDocument): { blocks: Array<{ origin: string }> } };
+  documentText(document: NativeDocument): string; documentRevision(document: NativeDocument): string;
+  documentAnchors(document: NativeDocument): unknown[];
+  documentHasOrigin(document: NativeDocument, origin: string): boolean };
 
 const ROOT = path.resolve(__dirname, "../../..");
 const args = new Map<string, string>();
@@ -33,6 +35,7 @@ for (let at = 2; at < process.argv.length; at += 1) {
   else { args.set(key.slice(2), value); at += 1; }
 }
 const hash = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
+const serializerContractSha = hash("native-document-public.v1:JSON.stringify([documentRevision,documentText,documentAnchors,hasNative,hasHeuristic])");
 const seedRoot = path.resolve(args.get("seed") ?? path.join(__dirname,
   "results/installed-provider-freeze-full"));
 const output = path.resolve(args.get("output") ?? path.join(ROOT,
@@ -40,7 +43,7 @@ const output = path.resolve(args.get("output") ?? path.join(ROOT,
 const provider = args.get("provider") as Provider | undefined;
 const shard = args.has("shard") ? Number(args.get("shard")) : null;
 const nativeFile = path.resolve(process.env.LEGAL_STRUCTURE_NATIVE ?? path.join(ROOT,
-  "legal-pdf-parser/target/release/legal_structure_node.dll"));
+  "native/legal-structure-node/target/release/legal_structure_node.dll"));
 const providersRoot = path.join(process.env.LOCALAPPDATA ?? "",
   "OpenLegalProducts/LegalData/providers");
 const courtlistenerFile = path.resolve(args.get("courtlistener-db") ?? path.join(providersRoot,
@@ -96,13 +99,17 @@ function first(row: Row, names: string[]) {
     typeof value === "string" && value.trim()) as string | undefined;
 }
 function publicFields(native: Addon, document: NativeDocument) {
-  const source = native.sourceDocSnapshot(document);
-  const bytes = Buffer.from(JSON.stringify(source));
-  const hasNative = source.blocks.some(({ origin }) => origin === "native");
-  const mode = hasNative && source.blocks.some(({ origin }) => origin === "heuristic")
+  const anchors = native.documentAnchors(document);
+  const hasNative = native.documentHasOrigin(document, "native");
+  const hasHeuristic = native.documentHasOrigin(document, "heuristic");
+  const bytes = Buffer.from(JSON.stringify([
+    native.documentRevision(document), native.documentText(document),
+    anchors, hasNative, hasHeuristic,
+  ]));
+  const mode = hasNative && hasHeuristic
     ? "hybrid" : hasNative ? "native" : "flat";
   return { status: "pass", mode, canonical_bytes: bytes.length,
-    canonical_sha256: hash(bytes), blocks: source.blocks.length };
+    canonical_sha256: hash(bytes), blocks: anchors.length };
 }
 const PUBLIC = ["status", "mode", "canonical_bytes", "canonical_sha256", "blocks",
   "failure", "error_sha256", "structure"];
@@ -202,12 +209,12 @@ async function runWorker(provider: Provider, shard: number) {
   const directory = path.join(output, provider, String(shard));
   mkdirSync(path.join(directory, "parts"), { recursive: true });
   const configSha = hash(JSON.stringify({ provider, shard, seed: seed.manifest_root_sha256,
-    engine, harnessSha, adapterSha }));
+    engine, harnessSha, adapterSha, serializerContractSha }));
   const summaryFile = path.join(directory, "summary.json");
   const summary: Summary = existsSync(summaryFile)
     ? JSON.parse(readFileSync(summaryFile, "utf8")) as Summary
     : { schema_version: "source-structure-installed-freeze.v1", config_sha256: configSha,
-      baseline_commit: "current-worktree", serializer_contract_sha256: seed.serializer_contract_sha256,
+      baseline_commit: "current-worktree", serializer_contract_sha256: serializerContractSha,
       inventory: seed.inventory, providers: { a2aj: emptyCounts(), courtlistener: emptyCounts(),
         journal: emptyCounts() }, parts: [], manifest_root_sha256: hash("[]"), complete: false,
       engine, harness_sha256: harnessSha, adapter_code_sha256: adapterSha };
@@ -300,7 +307,7 @@ async function coordinate() {
   const shards = children.map(({ provider, shard, summary }) => ({ provider, shard,
     manifest_root_sha256: summary.manifest_root_sha256 }));
   const summary: Summary = { schema_version: "source-structure-installed-freeze.parallel.v1",
-    baseline_commit: "current-worktree", serializer_contract_sha256: seed.serializer_contract_sha256,
+    baseline_commit: "current-worktree", serializer_contract_sha256: serializerContractSha,
     inventory: seed.inventory, scope: { kind: "full" }, providers: totals, shards,
     manifest_root_sha256: hash(JSON.stringify(shards.map(({ manifest_root_sha256 }) =>
       manifest_root_sha256))), complete: true, engine, harness_sha256: harnessSha,

@@ -1134,7 +1134,12 @@ export function buildLineCorePinpointUrl(
       return baseUrl;
     }
     let target: { text: string; prefix: string; suffix: string } | null = null;
-    for (const asciiOnly of [true, false]) {
+    for (const { asciiOnly, allowContext } of [
+      { asciiOnly: true, allowContext: false },
+      { asciiOnly: false, allowContext: false },
+      { asciiOnly: true, allowContext: true },
+      { asciiOnly: false, allowContext: true },
+    ]) {
       for (let length = Math.min(12, desired.lastWord - desired.firstWord + 1);
         length >= 2 && !target; length -= 1) {
       const starts = Array.from(
@@ -1156,9 +1161,10 @@ export function buildLineCorePinpointUrl(
         const suffixRaw = document.text.slice(documentWords[last].end, documentWords[suffixLast].end);
         const suffix = suffixLast === last || /[^\s]/u.test(suffixGap)
           ? "" : normalizeWhitespace(suffixRaw);
-        const contexts: Array<[string, string]> = directiveMatchCount(document, candidate) === 1
+        const bareUnique = directiveMatchCount(document, candidate) === 1;
+        const contexts: Array<[string, string]> = bareUnique
           ? [["", ""]]
-          : [[prefix, ""], ["", suffix], [prefix, suffix]];
+          : allowContext ? [[prefix, ""], ["", suffix], [prefix, suffix]] : [];
         const context = contexts.find(([before, after]) =>
           (before || after || directiveMatchCount(document, candidate) === 1) &&
           directiveMatchCount(document, candidate, before, after) === 1);

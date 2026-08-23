@@ -617,12 +617,6 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
   return { claims, errors };
 }
 
-const CASE_NAME = /(?:^|[^\p{L}])(?:R\.|[A-Z][\p{L}\p{M}'\u2019.&-]*(?:\s+(?:of|the|and|&|[A-Z][\p{L}\p{M}'\u2019.&-]*)){0,6})\s+v(?:\.|ersus)?\s+[A-Z][\p{L}\p{M}'\u2019.&-]*/mu;
-
-export function hasCaseNameInText(text: string) {
-  return CASE_NAME.test(text);
-}
-
 export function legalEvidenceProseIntegrityErrors(
   text: string,
   citedEvidenceIds: readonly string[],
@@ -697,9 +691,8 @@ export function finalizeLegalEvidence(
   state: LegalEvidenceTurnState,
   draft: string,
 ) {
-  const namesAuthority = hasCaseNameInText(draft);
   const citesAuthority = hasCitationInTextNative(draft) || hasCanadianDecisionLink(draft);
-  if (!state.mode && !state.answer && (namesAuthority || citesAuthority))
+  if (!state.mode && !state.answer && citesAuthority)
     state.mode = "citation_structure";
   if (!state.mode) return true;
   state.attempted = true;
@@ -720,35 +713,14 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   if (state.failure) return null;
   if (!state.answer) return null;
   const refs = new Map<string, number>();
-  for (const group of legalEvidenceCitationGroups(state)) {
-    for (const member of group.members) {
-      refs.set(member.receipt.evidence_id, group.ref);
-    }
-  }
+  for (const entry of legalEvidenceCitationEntries(state))
+    refs.set(entry.receipt.evidence_id, entry.ref);
   return state.answer.map((claim) => {
     const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
       refs.has(id) ? [`[${refs.get(id)}]`] : []))];
     return `${claim.text}${markers.length ? ` ${markers.join("")}` : ""}`;
   }).join("\n\n");
 }
-
-/**
- * Citation entries grouped into display citations: consecutive entries from
- * the same instrument whose section locators form one provision family
- * share a ref and render as a single range pinpoint ("s 50(1)" for a
- * parent plus its clauses). Everything else stays one-to-one.
- */
-export type LegalEvidenceCitationGroup = {
-  ref: number;
-  members: Array<RegisteredEvidence & { ref: number }>;
-  collapsedLabel?: string;
-};
-
-export const legalEvidenceCitationGroups = (
-  state: LegalEvidenceTurnState,
-): LegalEvidenceCitationGroup[] => legalEvidenceCitationEntries(state).map(
-  (entry, index) => ({ ref: index + 1, members: [entry] }),
-);
 
 export function legalEvidenceCitationEntries(
   state: LegalEvidenceTurnState,

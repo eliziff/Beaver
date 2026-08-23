@@ -39,8 +39,8 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => ({
 const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
   api_keys: {} as UserApiKeys }) as Awaited<ReturnType<
     typeof import("../userSettings").getUserModelSettings>>;
-const project = vi.fn(async (input: { bytes?: Buffer }) => ({ kind: "source-doc" as const,
-  text: input.bytes?.toString("utf8") ?? "", sourceDoc: {} as never, tableCells: [] as [] }));
+const project = vi.fn(async (input: { bytes?: Buffer }) => ({ kind: "document" as const,
+  text: input.bytes?.toString("utf8") ?? "", document: {} as never, tableCells: [] as [] }));
 const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {

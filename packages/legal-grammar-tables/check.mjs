@@ -5,11 +5,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const workspace = path.resolve(root, "../..");
-const corpusPath = path.join(root, "grammar-corpus.json");
+const corpusPath = path.join(workspace, "legal-structure/data/grammar-corpus.json");
 const eyeciteReceiptPath = path.join(root, "eyecite-us-receipt.json");
-const manifestPath = path.join(root, "manifest.json");
+const manifestPath = path.join(workspace, "legal-structure/data/manifest.json");
 const bundles = [
-  path.join(workspace, "legal-pdf-parser/data/legal-grammar-tables"),
   path.join(workspace, "AuthoritiesHelper/data/legal-grammar-tables"),
 ];
 const allowedTableKeys = new Set(["description", "defs", "entries"]);

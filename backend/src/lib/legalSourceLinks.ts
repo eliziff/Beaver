@@ -4,12 +4,13 @@ import {
   type A2AJLocatorKind,
 } from "./legalSources/a2aj";
 import {
+  providerCitationsInTextNative,
   documentTextNative,
   paragraphRangeDirectiveNative,
   textFragmentDirectivesNative,
   type NativeDocument,
 } from "./structureNative";
-import { buildCanliiCaseUrl } from "./canliiUrls";
+import { A2AJ_CANLII_COURT_ROUTES } from "./canliiUrls";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
@@ -300,30 +301,12 @@ export function buildA2AJDocumentPinpointUrl(
   );
 }
 
-const ANSWER_CASE_CITATION =
-  /\b(((?:19|20)\d{2})\s+([A-Za-z][A-Za-z0-9-]{1,15})\s+(\d+))\b/giu;
-
-function answerCaseCitations(answer: string) {
-  return [...answer.matchAll(ANSWER_CASE_CITATION)].flatMap((match) => {
-    const citation = match[1].replace(/\s+/gu, " ");
-    const dataset = match[3].toUpperCase();
-    const url = buildCanliiCaseUrl({
-      dataset,
-      citations: [citation],
-      language: "en",
-    });
-    return url
-      ? [
-          {
-            start: match.index,
-            end: match.index + match[0].length,
-            label: match[0],
-            citation,
-            dataset,
-            url,
-          },
-        ]
-      : [];
+function hasCanadianCaseCitation(value: string) {
+  return providerCitationsInTextNative(value).some(({ family, year, court }) => {
+    const dataset = court?.toUpperCase() ?? "";
+    return family === "neutral" &&
+      (year?.startsWith("19") || year?.startsWith("20")) &&
+      dataset in A2AJ_CANLII_COURT_ROUTES;
   });
 }
 
@@ -342,7 +325,7 @@ function rewriteModelCanadianDecisionUrls(answer: string) {
     .replace(
       /\[([^\]\r\n]+)\]\(([^)\r\n]*)\)/gu,
       (full, label: string) =>
-        answerCaseCitations(label).length ? label : full,
+        hasCanadianCaseCitation(label) ? label : full,
     )
     .replace(
       /\[([^\]\r\n]+)\]\((https?:\/\/[^\s)]+)\)/gu,

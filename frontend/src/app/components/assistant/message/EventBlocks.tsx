@@ -157,15 +157,7 @@ export function ActivityRow({
                                 <CitationPillMarkdown
                                     text={activity.markdown}
                                     sources={activity.sources}
-                                    onSourceClick={(source) => {
-                                        const exact = activity.sources?.find(
-                                            (candidate) =>
-                                                candidate.citation ===
-                                                    source.citation &&
-                                                candidate.url === source.url,
-                                        );
-                                        if (exact) onSourceClick?.(exact);
-                                    }}
+                                    onSourceClick={onSourceClick}
                                 />
                             ) : (
                                 <GfmMarkdown

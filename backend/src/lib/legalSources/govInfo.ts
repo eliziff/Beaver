@@ -12,7 +12,7 @@ import {
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 const API_ORIGIN = "https://api.govinfo.gov";
 const WEB_ORIGIN = "https://www.govinfo.gov";

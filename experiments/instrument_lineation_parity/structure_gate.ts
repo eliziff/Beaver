@@ -1,529 +1,228 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
-import {
-  instrumentCorpusFiles,
-  readAgreement,
-  readPdf,
-  ROOT,
-} from "./corpus";
+import { instrumentCorpusFiles, readAgreement, readPdf, ROOT,
+  type PdfCorpusFile } from "./corpus";
 
 const BASELINE = path.join(import.meta.dirname, "structure-baseline.json");
 const REPORT = path.join(ROOT, ".tmp/instrument-structure-gate.json");
+const DETAILS = path.join(ROOT, ".tmp/instrument-structure-mismatches");
 const WRITE_BASELINE = process.argv.includes("--write-baseline");
-const ORACLE_ROOT = process.argv.find((argument) =>
-  argument.startsWith("--oracle-root=")
-)?.slice("--oracle-root=".length);
-const ORACLE_ADDON = process.argv.find((argument) =>
-  argument.startsWith("--oracle-addon=")
-)?.slice("--oracle-addon=".length);
-const LIMIT = Number(process.argv.find((argument) =>
-  argument.startsWith("--limit=")
-)?.slice("--limit=".length) ?? Infinity);
+const CANDIDATE = process.argv.includes("--candidate");
+const AGREEMENTS_ONLY = process.argv.includes("--agreements-only");
+const argument = (name: string) => process.argv.find((value) =>
+  value.startsWith(`--${name}=`))?.slice(name.length + 3);
+const LIMIT = Number(argument("limit") ?? Infinity);
+const JOBS = Number(argument("jobs") ?? 4);
+const MATCH = argument("match")?.toLowerCase();
+const AGAINST = argument("against");
 
 type NativeDocument = object;
-type StructureAddon = {
-  deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  documentSnapshot(document: NativeDocument): { structure: any };
-  sourceDocSnapshot(document: NativeDocument): any;
-};
-
-function loadAddon(): StructureAddon {
-  const filename = process.env.LEGAL_STRUCTURE_NATIVE?.trim() || path.join(
-    ROOT,
-    "legal-pdf-parser",
-    "target",
-    "release",
-    process.platform === "win32" ? "legal_structure_node.dll"
-      : process.platform === "darwin" ? "liblegal_structure_node.dylib"
-      : "liblegal_structure_node.so",
-  );
-  const module = { exports: {} } as NodeModule;
-  process.dlopen(module, path.resolve(filename));
-  return module.exports as StructureAddon;
-}
-
-const nativeAddon = loadAddon();
-
-const COMPONENTS = [
-  "nodes",
-  "sourceDoc",
-  "definedTerms",
-  "schedules",
-  "crossReferences",
-  "ladder",
-  "contents",
-] as const;
-type Component = typeof COMPONENTS[number];
-
-type Entry = {
-  id: string;
-  inputSha256: string;
+type Fingerprint = {
+  schemaVersion: "legalpdf.document-fingerprint.v1";
   resultSha256: string;
-  components: Record<Component, string>;
+  components: Record<string, string>;
+  counts: { nodes: number; notes: number; authorities: number;
+    definitions: number; diagnostics: number };
 };
-
-type Totals = {
-  documents: number;
-  nodes: number;
-  sourceDocBlocks: number;
-  tableNodes: number;
-  definedTerms: number;
-  schedules: number;
-  internalReferences: number;
-  externalReferences: number;
-  unresolvedReferences: number;
-  contentsPresent: number;
-  contentsRefused: number;
+type Addon = {
+  derivePdfDocument(request: unknown): Promise<NativeDocument>;
+  deriveDocumentFingerprint(request: unknown): Promise<Fingerprint>;
+  deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
+  documentSnapshot(document: NativeDocument): unknown;
+  documentText(document: NativeDocument): string;
+  documentAnchors(document: NativeDocument): unknown;
 };
-
+type Entry = Fingerprint & { id: string; inputSha256: string; inputBytes: number };
 type Baseline = {
-  schemaVersion: "beaver.instrument-structure-freeze.v1";
+  schemaVersion: "beaver.instrument-structure-freeze.v2";
   denominators: { agreements: number; pdfs: number; pages: number; lines: number };
   inputBytes: number;
   inputSha256: string;
   resultSha256: string;
-  totals: Totals;
   entries: Entry[];
 };
+type Job = { kind: "agreement"; file: string } | { kind: "pdf"; file: PdfCorpusFile };
 
-type Difference = { path: string; expected: unknown; actual: unknown };
-
-function timing(values: number[]) {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return {
-    medianMs: sorted.length
-      ? Number(((sorted[middle] + sorted[Math.floor((sorted.length - 1) / 2)]) / 2).toFixed(3))
-      : null,
-    totalMs: Number(values.reduce((sum, value) => sum + value, 0).toFixed(3)),
-  };
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+const safeName = (id: string) => `${id.replace(/[^a-z0-9.-]+/giu, "_").slice(0, 100)}-${sha256(id).slice(0, 10)}.json`;
+function framed(hash: ReturnType<typeof createHash>, value: string) {
+  hash.update(`${Buffer.byteLength(value)}:`).update(value).update("\n");
+}
+function loadAddon(filename = process.env.LEGAL_STRUCTURE_NATIVE?.trim() || path.join(
+    ROOT, "native/legal-structure-node/target/release",
+    process.platform === "win32" ? "legal_structure_node.dll"
+      : process.platform === "darwin" ? "liblegal_structure_node.dylib"
+      : "liblegal_structure_node.so",
+  )): Addon {
+  const module = { exports: {} } as NodeModule;
+  process.dlopen(module, path.resolve(filename));
+  return module.exports as Addon;
 }
 
-function display(value: unknown): unknown {
-  if (typeof value !== "string" || value.length <= 160) return value;
-  return `${value.slice(0, 157)}...`;
-}
-
-function differences(
-  expected: unknown,
-  actual: unknown,
-  at = "",
-  found: Difference[] = [],
-): Difference[] {
-  if (found.length >= 20 || Object.is(expected, actual)) return found;
-  if (Array.isArray(expected) && Array.isArray(actual)) {
-    if (expected.length !== actual.length) {
-      found.push({ path: `${at}.length`, expected: expected.length, actual: actual.length });
-    }
-    for (let index = 0; index < Math.max(expected.length, actual.length); index += 1) {
-      differences(expected[index], actual[index], `${at}[${index}]`, found);
-    }
-    return found;
+async function main() {
+  if (WRITE_BASELINE && CANDIDATE) throw new Error("choose --candidate or --write-baseline");
+  if (WRITE_BASELINE && AGAINST) throw new Error("--against cannot replace the baseline");
+  if (!Number.isInteger(JOBS) || JOBS < 1) throw new Error("--jobs must be a positive integer");
+  if (LIMIT !== Infinity && (!Number.isInteger(LIMIT) || LIMIT < 1)) {
+    throw new Error("--limit must be a positive integer");
   }
-  if (expected && actual && typeof expected === "object" && typeof actual === "object") {
-    const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
-    for (const key of [...keys].sort()) {
-      differences(
-        (expected as Record<string, unknown>)[key],
-        (actual as Record<string, unknown>)[key],
-        at ? `${at}.${key}` : key,
-        found,
-      );
-    }
-    return found;
+  const addon = loadAddon();
+  const referenceAddon = AGAINST ? loadAddon(path.resolve(AGAINST)) : null;
+  const corpus = await instrumentCorpusFiles(!AGREEMENTS_ONLY);
+  const allJobs: Job[] = [
+    ...corpus.agreements.map((file) => ({ kind: "agreement" as const, file })),
+    ...corpus.pdfs.map((file) => ({ kind: "pdf" as const, file })),
+  ];
+  const jobs = allJobs.filter((job) => !MATCH ||
+    (typeof job.file === "string" ? job.file : job.file.file).toLowerCase().includes(MATCH))
+    .slice(0, LIMIT);
+  if (WRITE_BASELINE && (MATCH || Number.isFinite(LIMIT))) {
+    throw new Error("refusing to replace the durable baseline from a partial corpus");
   }
-  found.push({ path: at, expected: display(expected), actual: display(actual) });
-  return found;
-}
-
-function skeletonProducts(skeleton: any) {
-  return {
-    nodes: skeleton.nodes.map(({ heading: _, ...node }: any) => node),
-    sourceDoc: { provider: skeleton.doc.provider, id: skeleton.doc.id,
-      url: skeleton.doc.url, revision: skeleton.doc.revision,
-      docType: skeleton.doc.docType, status: skeleton.doc.status,
-      textSha256: sha256(skeleton.doc.text), blocks: skeleton.doc.blocks,
-      index: [...skeleton.doc.index.entries()], ranges: skeleton.doc.ranges },
-    definedTerms: skeleton.definedTerms,
-    schedules: skeleton.schedules,
-    crossReferences: skeleton.crossReferences,
-    ladder: skeleton.ladder,
-    contents: { outline: skeleton.outline, refusal: skeleton.outlineRefusal },
-  };
-}
-
-function skeletonAnalysis(
-  text: string,
-  skeleton: any,
-  crossReferenceGraphFromSkeleton: (text: string, skeleton: any) => any,
-) {
-  const { nodes: _, ...crossReferences } = crossReferenceGraphFromSkeleton(text, skeleton);
-  return { products: { ...skeletonProducts(skeleton), crossReferences }, crossReferences };
-}
-
-function legacyProducts(text: string, analyzed: any) {
-  const structure = analyzed.structure;
-  const sourceDoc = analyzed.source_doc;
-  if (!sourceDoc) throw new Error("Rust omitted SourceDoc");
-  const sourceNodes = structure.nodes.filter((node: any) =>
-    node.kind === "section" && node.label
-  );
-  const byId = new Map(sourceNodes.map((node: any) => [node.id, node]));
-  const depth = (node: any): number => {
-    let value = 0;
-    for (let parent = node.parent_id; parent && byId.has(parent);) {
-      value += 1;
-      parent = (byId.get(parent) as any).parent_id;
-    }
-    return value;
-  };
-  const schedules: string[] = [];
-  const nodes = sourceNodes.map((node: any) => {
-    const label = node.label as string;
-    const kind = label.startsWith("art") ? "article"
-      : label.startsWith("part") ? "part"
-      : label.startsWith("div") ? "division"
-      : /^(?:sched|exh|annex|app)/u.test(label) ? "schedule"
-      : label.includes("(") ? "subsection" : "section";
-    const contentStart = node.content_start;
-    const start = node.range.start;
-    const rawHead = text.slice(start, contentStart).trim();
-    const head = rawHead.replace(/[\u2013\u2014\-.:]+\s*$/u, "").trim();
-    const scheduleHead = kind === "schedule"
-      ? rawHead.match(/^(SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)\s+([A-Z0-9][\w.\-]*)/u)
-      : null;
-    const scheduleName = scheduleHead ? `${scheduleHead[1]} ${scheduleHead[2]}` : head;
-    const parent = node.parent_id ? byId.get(node.parent_id) as any : undefined;
-    const display = kind === "section" || kind === "subsection"
-      ? label.replace(/^sec/u, "Section ")
-      : (kind === "schedule" ? scheduleName : head)
-        .replace(/^\S+/u, (word: string) => word.toUpperCase());
-    if (kind === "schedule") schedules.push(scheduleName);
-    return { kind, label, display,
-      depth: depth(node), start, end: node.range.end,
-      ...(parent?.label ? { parentLabel: parent.label } : {}) };
-  });
-  const count = (code: string) => structure.diagnostics
-    .filter((row: any) => row.code === code).length;
-  const labels = new Map(sourceNodes
-    .filter((node: any) => !/^(?:art|part)/u.test(node.label))
-    .map((node: any) => [node.id, node.label]));
-  const definedTerms = (structure.definitions ?? []).map((term: any) => ({
-    term: term.term,
-    sectionLabel: labels.get(term.definitions[0]?.node_id) ?? null,
-    definitions: term.definitions.length,
-  })).sort((a: any, b: any) => a.term.localeCompare(b.term));
-  const references = structure.cross_references;
-  return {
-    nodes,
-    sourceDoc: { provider: sourceDoc.provider, id: sourceDoc.id, url: sourceDoc.url,
-      revision: sourceDoc.revision, docType: sourceDoc.docType, status: sourceDoc.status,
-      textSha256: sha256(sourceDoc.text ?? ""), blocks: sourceDoc.blocks,
-      index: Object.entries(sourceDoc.index), ranges: sourceDoc.ranges },
-    definedTerms, schedules,
-    crossReferences: references,
-    ladder: { increments: count("instrument_ladder_increment"),
-      levelOpens: count("instrument_ladder_level_open"),
-      midcounterOpens: count("instrument_ladder_midcounter_open"),
-      forwardJumps: count("instrument_ladder_forward_jump"),
-      restarts: count("instrument_ladder_restart"),
-      violations: count("instrument_ladder_violation") },
-    contents: { outline: structure.contents?.outline ?? null,
-      refusal: structure.contents?.refusal ?? null },
-  };
-}
-
-function sha256(value: string | Buffer): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function hashJson(value: unknown): string {
-  return sha256(JSON.stringify(value));
-}
-
-function addFramed(hash: ReturnType<typeof createHash>, value: string): void {
-  hash.update(String(Buffer.byteLength(value)));
-  hash.update(":");
-  hash.update(value);
-  hash.update("\n");
-}
-
-function emptyTotals(): Totals {
-  return {
-    documents: 0,
-    nodes: 0,
-    sourceDocBlocks: 0,
-    tableNodes: 0,
-    definedTerms: 0,
-    schedules: 0,
-    internalReferences: 0,
-    externalReferences: 0,
-    unresolvedReferences: 0,
-    contentsPresent: 0,
-    contentsRefused: 0,
-  };
-}
-
-async function main(): Promise<void> {
-  const { agreements, pdfs } = await instrumentCorpusFiles();
-  if ((ORACLE_ROOT === undefined) !== (ORACLE_ADDON === undefined)) {
-    throw new Error("--oracle-root and --oracle-addon must be supplied together");
-  }
-  let oracle: {
-    clearSkeletonCache(): void;
-    compileAgreementSkeleton(text: string, id: string): Promise<any>;
-    crossReferenceGraphFromSkeleton(text: string, skeleton: any): any;
-  } | null = null;
-  const priorAnalysis = async (id: string, text: string) => {
-    if (!ORACLE_ROOT || !ORACLE_ADDON) return null;
-    if (!oracle) {
-      const previousNative = process.env.LEGAL_STRUCTURE_NATIVE;
-      process.env.LEGAL_STRUCTURE_NATIVE = path.resolve(ORACLE_ADDON);
-      try {
-        const root = path.resolve(ORACLE_ROOT, "backend/src/lib");
-        oracle = {
-          ...await import(pathToFileURL(path.join(root, "legalTextSkeleton.ts")).href),
-          ...await import(pathToFileURL(path.join(root, "legalCrossReference.ts")).href),
-        };
-        oracle.clearSkeletonCache();
-        const skeleton = await oracle.compileAgreementSkeleton(text, id);
-        return skeletonAnalysis(text, skeleton, oracle.crossReferenceGraphFromSkeleton);
-      } finally {
-        if (previousNative === undefined) delete process.env.LEGAL_STRUCTURE_NATIVE;
-        else process.env.LEGAL_STRUCTURE_NATIVE = previousNative;
-      }
-    }
-    oracle.clearSkeletonCache();
-    const skeleton = await oracle.compileAgreementSkeleton(text, id);
-    return skeletonAnalysis(text, skeleton, oracle.crossReferenceGraphFromSkeleton);
-  };
-  const expected = WRITE_BASELINE
-    ? null
+  if (!jobs.length) throw new Error("no corpus documents matched the selection");
+  const expected = WRITE_BASELINE || CANDIDATE || AGAINST ? null
     : JSON.parse(await fs.readFile(BASELINE, "utf8")) as Baseline;
-  const started = performance.now();
-  const timings = { rustDerive: [] as number[], rustProjection: [] as number[],
-    rustTotal: [] as number[], typescript: [] as number[] };
-  const inputHash = createHash("sha256");
-  const resultHash = createHash("sha256");
-  const entries: Entry[] = [];
-  const totals = emptyTotals();
-  const selectedHypotheses = [0, 0, 0, 0];
-  const mismatches: Array<{
-    id: string;
-    fields: string[];
-    expected?: string;
-    actual?: string;
-    differences?: Partial<Record<Component, Difference[]>>;
-  }> = [];
-  let inputBytes = 0;
+  if (expected && expected.schemaVersion !== "beaver.instrument-structure-freeze.v2") {
+    throw new Error("baseline schema changed; review the fingerprint, then run --write-baseline");
+  }
+  const expectedById = new Map(expected?.entries.map((entry) => [entry.id, entry]));
+  const entries = new Array<Entry>(jobs.length);
+  const mismatches: Array<{ id: string; fields: string[] }> = [];
+  let cursor = 0;
+  let checked = 0;
   let pages = 0;
   let lines = 0;
+  const started = performance.now();
+  const inputHash = createHash("sha256");
+  const resultHash = createHash("sha256");
+  const pending = new Map<number, { entry: Entry; text: string }>();
+  let nextHash = 0;
+  let reportWrite = Promise.resolve();
 
-  const writeReport = async (complete: boolean) => {
-    await fs.mkdir(path.dirname(REPORT), { recursive: true });
-    await fs.writeFile(REPORT, `${JSON.stringify({
-      schemaVersion: "beaver.instrument-structure-gate-report.v1",
-      complete,
-      mode: ORACLE_ROOT ? "oracle" : WRITE_BASELINE ? "write-baseline" : "verify",
-      checked: entries.length,
-      denominators: { agreements: agreements.length, pdfs: pdfs.length, pages, lines },
-      inputBytes,
-      totals,
-      selectedHypotheses,
-      mismatches: mismatches.length,
-      mismatchSamples: ORACLE_ROOT ? mismatches : mismatches.slice(0, 40),
-      timings: {
-        rustDerive: timing(timings.rustDerive),
-        rustProjection: timing(timings.rustProjection),
-        rustTotal: timing(timings.rustTotal),
-        ...(timings.typescript.length ? { typescript: timing(timings.typescript) } : {}),
+  const writeReport = (complete: boolean) => {
+    reportWrite = reportWrite.then(async () => {
+      await fs.mkdir(path.dirname(REPORT), { recursive: true });
+      await fs.writeFile(REPORT, `${JSON.stringify({
+        schemaVersion: "beaver.instrument-structure-gate-report.v2",
+        complete, mode: WRITE_BASELINE ? "write-baseline" : AGAINST ? "differential"
+          : CANDIDATE ? "candidate" : "verify",
+        checked, selected: jobs.length, jobs: JOBS, mismatches,
+        elapsedSeconds: Number(((performance.now() - started) / 1_000).toFixed(3)),
+      }, null, 2)}\n`);
+    });
+    return reportWrite;
+  };
+  const diagnose = async (id: string, text: string, actual: Entry, prior?: Entry) => {
+    const document = await addon.deriveDocumentStructure({
+      kind: "instrument", id, text, reconstruct_lineation: true,
+    });
+    await fs.mkdir(DETAILS, { recursive: true });
+    await fs.writeFile(path.join(DETAILS, safeName(id)), `${JSON.stringify({
+      id,
+      changedComponents: Object.keys(actual.components)
+        .filter((name) => prior?.components[name] !== actual.components[name]),
+      expected: prior,
+      actual,
+      production: {
+        snapshot: addon.documentSnapshot(document),
+        textSha256: sha256(addon.documentText(document)),
+        anchors: addon.documentAnchors(document),
       },
-      elapsedSeconds: (performance.now() - started) / 1_000,
-      ...(WRITE_BASELINE ? { entries } : {}),
     }, null, 2)}\n`);
   };
-
-  const nativeAnalysis = async (id: string, text: string, record = true) => {
-    const started = performance.now();
-    const native = await nativeAddon.deriveDocumentStructure({ kind: "instrument", id, text,
-      reconstruct_lineation: true });
-    const derived = performance.now();
-    const structure = nativeAddon.documentSnapshot(native).structure;
-    const sourceDoc = nativeAddon.sourceDocSnapshot(native);
-    const products = legacyProducts(text, { structure, source_doc: sourceDoc });
-    const finished = performance.now();
-    if (record) {
-      timings.rustDerive.push(derived - started);
-      timings.rustProjection.push(finished - derived);
-      timings.rustTotal.push(finished - started);
-    }
-    if ((sourceDoc.text ?? "") !== text) {
-      throw new Error(`${id}: SourceDoc text differs from its instrument input`);
-    }
-    return { products, structure };
-  };
-  let warmed = false;
-  const check = async (id: string, text: string) => {
-    if (ORACLE_ROOT && !warmed) {
-      await nativeAnalysis(id, text, false);
-      await priorAnalysis(id, text);
-      warmed = true;
-    }
-    let analyzed: Awaited<ReturnType<typeof nativeAnalysis>>;
-    let previous: Awaited<ReturnType<typeof priorAnalysis>> = null;
-    const runPrevious = async () => {
-      const started = performance.now();
-      previous = await priorAnalysis(id, text);
-      timings.typescript.push(performance.now() - started);
-    };
-    if (ORACLE_ROOT && entries.length % 2 === 1) {
-      await runPrevious();
-      analyzed = await nativeAnalysis(id, text);
-    } else {
-      analyzed = await nativeAnalysis(id, text);
-      if (ORACLE_ROOT) await runPrevious();
-    }
-    const { products } = analyzed;
-    selectedHypotheses[analyzed.structure.selected_hypothesis ?? 0] += 1;
-    const components = Object.fromEntries(
-      COMPONENTS.map((name) => [name, hashJson(products[name])]),
-    ) as Record<Component, string>;
-    const entry: Entry = {
-      id,
-      inputSha256: sha256(text),
-      resultSha256: hashJson(products),
-      components,
-    };
-    entries.push(entry);
-    addFramed(inputHash, id);
-    addFramed(inputHash, text);
-    addFramed(resultHash, id);
-    addFramed(resultHash, entry.resultSha256);
-    inputBytes += Buffer.byteLength(text);
-    totals.documents += 1;
-    totals.nodes += products.nodes.length;
-    totals.sourceDocBlocks += products.sourceDoc.blocks.length;
-    totals.tableNodes += products.nodes.filter(
-      (node) => node.kind === "table" || node.kind === "row" || node.kind === "cell",
-    ).length;
-    totals.definedTerms += products.definedTerms.length;
-    totals.schedules += products.schedules.length;
-    totals.internalReferences += products.crossReferences.counts.detected -
-      products.crossReferences.counts.external;
-    totals.externalReferences += products.crossReferences.counts.external;
-    totals.unresolvedReferences += products.crossReferences.counts.unresolved;
-    totals.contentsPresent += Number(products.contents.outline !== null);
-    totals.contentsRefused += Number(products.contents.refusal !== null);
-
-    const prior = expected?.entries[entries.length - 1];
-    if (prior) {
-      const fields: string[] = COMPONENTS.filter(
-        (name) => prior.components[name] !== components[name],
-      );
-      if (prior.id !== id) fields.unshift("id");
-      if (prior.inputSha256 !== entry.inputSha256) fields.unshift("input");
-      if (fields.length || prior.resultSha256 !== entry.resultSha256) {
-        let exactDifferences: Partial<Record<Component, Difference[]>> | undefined;
-        if (ORACLE_ROOT && ORACLE_ADDON) {
-          if (!previous) throw new Error("Structure oracle did not produce a result");
-          exactDifferences = Object.fromEntries(fields
-            .filter((field): field is Component => COMPONENTS.includes(field as Component))
-            .map((field) => [field, differences(previous.products[field], products[field])])) as
-            Partial<Record<Component, Difference[]>>;
+  const worker = async () => {
+    for (;;) {
+      const index = cursor++;
+      if (index >= jobs.length) return;
+      const job = jobs[index];
+      let source: { id: string; text: string };
+      if (job.kind === "agreement") source = await readAgreement(job.file);
+      else {
+        const pdf = await readPdf(job.file, addon);
+        pages += pdf.pages;
+        lines += pdf.lines;
+        source = pdf;
+      }
+      const request = {
+        kind: "instrument", id: source.id, text: source.text, reconstruct_lineation: true,
+      };
+      const fingerprint = await addon.deriveDocumentFingerprint(request);
+      const reference = referenceAddon && await referenceAddon.deriveDocumentFingerprint(request);
+      if (fingerprint.schemaVersion !== "legalpdf.document-fingerprint.v1") {
+        throw new Error(`${source.id}: unexpected fingerprint schema ${fingerprint.schemaVersion}`);
+      }
+      const entry: Entry = { id: source.id, inputSha256: sha256(source.text),
+        inputBytes: Buffer.byteLength(source.text), ...fingerprint };
+      if (reference && reference.resultSha256 !== entry.resultSha256) {
+        mismatches.push({ id: source.id, fields: Object.keys(entry.components)
+          .filter((name) => reference.components[name] !== entry.components[name]) });
+      }
+      entries[index] = entry;
+      pending.set(index, { entry, text: source.text });
+      while (pending.has(nextHash)) {
+        const value = pending.get(nextHash)!;
+        pending.delete(nextHash++);
+        framed(inputHash, value.entry.id); framed(inputHash, value.text);
+        framed(resultHash, value.entry.id); framed(resultHash, value.entry.resultSha256);
+      }
+      const prior = expectedById.get(source.id);
+      if (expected && (!prior || prior.inputSha256 !== entry.inputSha256 ||
+          prior.resultSha256 !== entry.resultSha256)) {
+        const fields = !prior ? ["missing-baseline-entry"] : [
+          ...(prior.inputSha256 === entry.inputSha256 ? [] : ["input"]),
+          ...Array.from(new Set([...Object.keys(prior.components), ...Object.keys(entry.components)]))
+            .filter((name) => prior.components[name] !== entry.components[name]),
+        ];
+        if (prior && prior.resultSha256 !== entry.resultSha256 && fields.length === 0) {
+          fields.push("result");
         }
-        mismatches.push({
-          id,
-          fields,
-          expected: prior.resultSha256,
-          actual: entry.resultSha256,
-          ...(exactDifferences ? { differences: exactDifferences } : {}),
-        });
+        mismatches.push({ id: source.id, fields });
+        if (mismatches.length <= 20) await diagnose(source.id, source.text, entry, prior);
       }
-    } else if (expected) {
-      mismatches.push({ id, fields: ["missing-baseline-entry"] });
-    }
-    if (previous) {
-      const fields = COMPONENTS.filter(
-        (name) => hashJson(previous!.products[name]) !== components[name],
-      );
-      if (fields.length) {
-        mismatches.push({
-          id,
-          fields,
-          expected: hashJson(previous.products),
-          actual: entry.resultSha256,
-          differences: Object.fromEntries(fields.map((field) => [
-            field, differences(previous!.products[field], products[field]),
-          ])) as Partial<Record<Component, Difference[]>>,
-        });
+      checked += 1;
+      const progress = checked;
+      if (progress % 100 === 0) {
+        await writeReport(false);
+        process.stderr.write(`[${progress}/${jobs.length}] mismatches=${mismatches.length} ` +
+          `elapsed=${((performance.now() - started) / 1_000).toFixed(1)}s\n`);
       }
-    }
-
-    if (entries.length % 10 === 0) {
-      await writeReport(false);
-      process.stderr.write(
-        `[${entries.length}/${agreements.length + pdfs.length}] ` +
-        `mismatches=${mismatches.length} elapsed=${((performance.now() - started) / 1_000).toFixed(1)}s\n`,
-      );
     }
   };
+  await writeReport(false);
+  await Promise.all(Array.from({ length: Math.min(JOBS, jobs.length) }, worker));
 
-  for (const file of agreements) {
-    if (entries.length >= LIMIT) break;
-    const document = await readAgreement(file);
-    await check(document.id, document.text);
-  }
-  for (const file of pdfs) {
-    if (entries.length >= LIMIT) break;
-    const document = await readPdf(file);
-    pages += document.pages;
-    lines += document.lines;
-    await check(document.id, document.text);
-  }
-  if (!Number.isFinite(LIMIT) && (pages !== 24_707 || lines !== 1_221_262)) {
-    throw new Error(`PDF surface drift: pages=${pages}, lines=${lines}`);
-  }
-
+  const inputBytes = entries.reduce((sum, entry) => sum + entry.inputBytes, 0);
   const baseline: Baseline = {
-    schemaVersion: "beaver.instrument-structure-freeze.v1",
-    denominators: { agreements: agreements.length, pdfs: pdfs.length, pages, lines },
-    inputBytes,
-    inputSha256: inputHash.digest("hex"),
-    resultSha256: resultHash.digest("hex"),
-    totals,
-    entries,
+    schemaVersion: "beaver.instrument-structure-freeze.v2",
+    denominators: { agreements: jobs.filter((job) => job.kind === "agreement").length,
+      pdfs: jobs.filter((job) => job.kind === "pdf").length, pages, lines },
+    inputBytes, inputSha256: inputHash.digest("hex"), resultSha256: resultHash.digest("hex"), entries,
   };
   if (WRITE_BASELINE) {
-    await fs.writeFile(BASELINE, `${JSON.stringify(baseline)}\n`);
-  } else if (!Number.isFinite(LIMIT)) {
-    if (expected?.entries.length !== entries.length) {
-      mismatches.push({
-        id: "<corpus>",
-        fields: ["entry-count"],
-        expected: String(expected?.entries.length),
-        actual: String(entries.length),
-      });
-    }
-    if (JSON.stringify(expected?.denominators) !== JSON.stringify(baseline.denominators) ||
-        expected?.inputBytes !== baseline.inputBytes ||
-        expected?.inputSha256 !== baseline.inputSha256 ||
-        expected?.resultSha256 !== baseline.resultSha256 ||
-        JSON.stringify(expected?.totals) !== JSON.stringify(baseline.totals)) {
+    const temporary = `${BASELINE}.${process.pid}.tmp`;
+    await fs.writeFile(temporary, `${JSON.stringify(baseline)}\n`);
+    await fs.rename(temporary, BASELINE);
+  }
+  else if (expected && !MATCH && !Number.isFinite(LIMIT)) {
+    if (expected?.entries.length !== entries.length) mismatches.push({ id: "<corpus>", fields: ["entry-count"] });
+    if (expected?.inputSha256 !== baseline.inputSha256 || expected?.resultSha256 !== baseline.resultSha256 ||
+        JSON.stringify(expected?.denominators) !== JSON.stringify(baseline.denominators)) {
       mismatches.push({ id: "<aggregate>", fields: ["receipt"] });
     }
   }
   await writeReport(true);
-  process.stderr.write(
-    `[${entries.length}/${agreements.length + pdfs.length}] ` +
-    `mismatches=${mismatches.length} elapsed=${((performance.now() - started) / 1_000).toFixed(1)}s\n`,
-  );
+  process.stderr.write(`[${checked}/${jobs.length}] mismatches=${mismatches.length} ` +
+    `elapsed=${((performance.now() - started) / 1_000).toFixed(1)}s\n`);
   if (mismatches.length) process.exitCode = 1;
 }
 
-void main().catch((error) => {
+void main().catch(async (error) => {
   console.error(error);
+  await fs.mkdir(path.dirname(REPORT), { recursive: true });
+  const prior = await fs.readFile(REPORT, "utf8").then(JSON.parse).catch(() => ({}));
+  await fs.writeFile(REPORT, `${JSON.stringify({ ...prior, complete: false,
+    error: error instanceof Error ? error.message : String(error) }, null, 2)}\n`);
   process.exitCode = 1;
 });

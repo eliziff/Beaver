@@ -599,7 +599,7 @@ def main() -> int:
         / "data"
         / "canlii-186d92f8c0a4.db"
     ).resolve()
-    corpus_path = REPO / "packages" / "legal-grammar-tables" / "grammar-corpus.json"
+    corpus_path = REPO / "legal-structure" / "data" / "grammar-corpus.json"
     harvested = REPO / "benchmarks" / "grammar_vectors" / "harvested.jsonl"
     scorer_sha = sha256_file(Path(__file__))
     baseline, candidate, grammar = load_patterns(corpus_path, args.candidate)

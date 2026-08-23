@@ -1,0 +1,41 @@
+[package]
+name = "legal-structure-node"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["legalpdf"]
+legalpdf = ["dep:legalpdf"]
+diagnostics = ["legalpdf", "legalpdf/profiling"]
+
+[dependencies]
+legal-structure = { path = "../../legal-structure", features = ["a2aj", "journal"] }
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
+napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
+napi-derive = "3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+strip = true
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = false
+
+[profile.iterate]
+inherits = "dev"
+opt-level = 1
+debug-assertions = false
+overflow-checks = false

@@ -32,7 +32,7 @@
   "throughput": {
     "rustStructureReplayPagesPerSecond": 1000,
     "fullNativeCachedReplaySeconds": 30,
-    "sourceDocTextMegabytesPerSecond": 50,
+    "documentTextMegabytesPerSecond": 50,
     "krakenQualityGpuPagesPerSecond": 5.5,
     "krakenQualityLaptopPagesPerSecond": 2.0,
     "nonDigitalSelectiveGpuMinutes": 60

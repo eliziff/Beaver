@@ -125,7 +125,7 @@ provenance.
 
 ## Beaver implementation reviewed
 
-- `packages/legal-grammar-tables/grammar-corpus.json`
+- `legal-structure/data/grammar-corpus.json`
 - `packages/legal-grammar-tables/check.mjs`
 - `legal-pdf-parser/rust/src/grammar_tables.rs`
 - `legal-pdf-parser/rust/src/deterministic_citations.rs`
