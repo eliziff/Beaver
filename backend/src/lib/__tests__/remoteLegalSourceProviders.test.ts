@@ -36,10 +36,7 @@ function provider(id: "tna" | "govuk-et" | "govinfo") {
 }
 
 function native(passage: LegalSourcePassage) {
-  return passage.native as {
-    document: RemoteLegalSourceDocument;
-    lookup?: { status: string; block?: { text: string; origin: string } | null };
-  };
+  return passage.native as RemoteLegalSourceDocument;
 }
 
 describe("remote legal-source providers", () => {
@@ -121,10 +118,7 @@ describe("remote legal-source providers", () => {
       locator: { anchor: "para_24" },
       role: "selected",
     });
-    expect(native(paragraph).lookup).toMatchObject({
-      status: "found",
-      block: { origin: "native" },
-    });
+    expect(paragraph.blockArtifact).toMatchObject({ origin: "native" });
     expect(paragraph.text).toContain("distinctive legal words");
     expect(subsection.locator.anchor).toBe("section_2__subsection_1");
   });
@@ -212,17 +206,14 @@ describe("remote legal-source providers", () => {
       source,
       locator: { kind: "paragraph", value: "4" },
     });
-    const document = native(paragraph).document;
+    const document = native(paragraph);
 
     expect(document.attachments).toHaveLength(2);
     expect(document.attachments[0]).toMatchObject({
       filename: "judgment.pdf",
       pageCount: 9,
     });
-    expect(native(paragraph).lookup).toMatchObject({
-      status: "found",
-      block: { origin: "heuristic" },
-    });
+    expect(paragraph.blockArtifact).toMatchObject({ origin: "heuristic" });
   });
 
   it("selects one exact GovInfo package, exposes PDF metadata, and rejects ambiguity", async () => {
@@ -285,7 +276,7 @@ describe("remote legal-source providers", () => {
       kind: "case",
     });
     const [passage] = await govinfo.readPassage!({ source });
-    const document = native(passage).document;
+    const document = native(passage);
 
     expect(source.id).toBe("USCOURTS-cod-1_22-cv-00930");
     expect(document.attachments).toEqual([

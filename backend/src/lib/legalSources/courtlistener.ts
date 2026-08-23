@@ -239,8 +239,7 @@ async function compactOpinion(
     "html_anon_2020",
     "html",
   );
-  const text = firstString(opinion, "plainText", "plain_text") ??
-    stripOpinionMarkup(rawMarkup);
+  const text = firstString(opinion, "plainText", "plain_text");
   const compacted = {
     opinionId:
       asNumber(opinion.opinionId) ??
@@ -363,37 +362,6 @@ function truncate(value: string | null, maxChars: number): string | null {
   if (!value) return null;
   if (value.length <= maxChars) return value;
   return `${value.slice(0, Math.max(0, maxChars - 1))}…`;
-}
-
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_match, code) =>
-      String.fromCharCode(Number.parseInt(code, 10)),
-    )
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) =>
-      String.fromCharCode(Number.parseInt(code, 16)),
-    );
-}
-
-function stripOpinionMarkup(value: string | null): string | null {
-  if (!value) return null;
-  return decodeHtmlEntities(
-    value
-      .replace(/<page-number[^>]*>(.*?)<\/page-number>/gis, "$1")
-      .replace(/<\/p>/gi, "\n\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(div|section|opinion|blockquote|li|h[1-6])>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim(),
-  );
 }
 
 function parseCitationParts(value: string) {

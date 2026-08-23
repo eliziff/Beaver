@@ -65,30 +65,6 @@ async function searchEmploymentTribunalCase(
   return matches.size === 1 ? [...matches.values()][0] : null;
 }
 
-function decodeHtml(value: string) {
-  return value
-    .replace(/<br\s*\/?>/giu, "\n")
-    .replace(/<\/(?:div|h[1-6]|li|p|tr)>/giu, "\n")
-    .replace(/<[^>]+>/gu, " ")
-    .replace(/&nbsp;|&#160;/giu, " ")
-    .replace(/&amp;/giu, "&")
-    .replace(/&lt;/giu, "<")
-    .replace(/&gt;/giu, ">")
-    .replace(/&quot;/giu, '"')
-    .replace(/&apos;|&#39;/giu, "'")
-    .replace(/[ \t]+/gu, " ")
-    .replace(/ *\n */gu, "\n")
-    .replace(/\n{3,}/gu, "\n\n")
-    .trim();
-}
-
-function hiddenText(value: unknown): string {
-  if (typeof value === "string") return decodeHtml(value);
-  return Array.isArray(value)
-    ? value.map(hiddenText).filter(Boolean).join("\n")
-    : "";
-}
-
 function hiddenMarkup(value: unknown): string {
   if (typeof value === "string") return value;
   return Array.isArray(value)
@@ -131,7 +107,7 @@ async function fetchEmploymentTribunalCase(
   const details = objectValue(body.details) ?? {};
   const title = stringValue(body.title) ?? result.title;
   const description = stringValue(body.description);
-  const text = [title, description, hiddenText(details.hidden_indexable_content)]
+  const text = [title, description]
     .filter((value): value is string => Boolean(value))
     .join("\n\n");
   const hiddenHtml = hiddenMarkup(details.hidden_indexable_content);
