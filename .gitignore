@@ -3,6 +3,7 @@ dist
 frontend/public/pdfjs-standard-fonts/
 out
 build
+target/
 
 .env
 .env.*
@@ -30,6 +31,7 @@ __pycache__/
 # Raw experiment output stays local. Reviewed findings belong in RESULTS.md.
 experiments/**/results/
 experiments/**/receipts/
+experiments/instrument_lineation_parity/cache/
 backend/experiments/**/results/
 backend/experiments/**/receipts/
 

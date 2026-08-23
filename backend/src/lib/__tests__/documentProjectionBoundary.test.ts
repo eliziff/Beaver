@@ -27,7 +27,7 @@ const allowedOwners: Record<string, string[]> = {
     "lib/legalSources/govUkEmploymentTribunal.ts",
     "lib/legalSources/journal.ts",
     "lib/legalSources/remoteProvider.ts",
-    "lib/legalSources/sourceDocPassages.ts",
+    "lib/legalSources/nativeDocumentPassages.ts",
     "lib/legalSources/tna.ts",
     "lib/providerPdfLibraryBridge.ts",
     "lib/tabular/application.ts",

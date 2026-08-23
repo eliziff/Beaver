@@ -11,7 +11,7 @@ import { positiveInteger as integer } from "../value";
 import {
   deriveDocumentNative,
   documentAnchorsNative,
-  documentHasOriginNative,
+  documentRevisionNative,
   documentTextNative,
   type NativeDocument,
 } from "../structureNative";
@@ -19,7 +19,7 @@ import type {
   LegalSourceProvider,
   LegalSourceReference,
 } from ".";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 type Row = Record<string, unknown>;
 type FinalContractPages = { filename: string; signature: string };
@@ -583,18 +583,17 @@ async function viewer(identifier: string) {
       journalName: article.journalName,
     },
     text: documentTextNative(article.native),
-    structureSource: documentHasOriginNative(article.native, "native")
-      ? documentHasOriginNative(article.native, "heuristic")
-        ? "hybrid" as const : "native" as const
-      : "flat_text" as const,
     anchors,
     truncated: false,
   };
   return {
     payload,
+    native: article.native,
     etag: `"${crypto
       .createHash("sha256")
-      .update(JSON.stringify(payload))
+      .update(JSON.stringify([
+        documentRevisionNative(article.native), payload.reference, payload.metadata,
+      ]))
       .digest("base64url")}"`,
   };
 }

@@ -16,7 +16,6 @@ export async function courtlistenerPdfRendition(value: object, userId?: string) 
     const queued = await queueProviderPdfAttachment({
       provider: "courtlistener",
       identity: String(clusterId),
-      structureSource: "flat_text",
       url: pdfUrl,
       canonicalUrl: text(source.url),
       title: text(source.caseName) ?? text(source.case_name) ??

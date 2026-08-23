@@ -83,7 +83,7 @@ SPECS = [
     spec("bilingual-amending-acts", "benchmarks/legal-generalization-corpus/amending-acts", "benchmarks", "bilingual text", "paired source text", ["headings", "numbered_units", "paragraphs", "exclusions"]),
     spec("docx-private-corpus", "benchmarks/docx_corpus", "docx", "docx", "private manifest", ["headings", "numbered_units", "paragraphs", "notes"]),
     spec("docx-edit-real-fixtures", "benchmarks/docx_edit/fixtures", "docx", "docx/text", "tracked fixture manifest", ["headings", "numbered_units", "paragraphs", "notes"]),
-    spec("authored-legal-grammar", "packages/legal-grammar-tables", "grammar", "grammar json", "authored vectors", ["headings", "numbered_units", "notes", "exclusions"], kind="grammar"),
+    spec("authored-legal-grammar", "legal-structure/data", "grammar", "grammar json", "authored vectors", ["headings", "numbered_units", "notes", "exclusions"], kind="grammar"),
     spec("harvested-grammar-vectors", "benchmarks/grammar_vectors", "grammar", "jsonl", "harvested vectors", ["headings", "numbered_units", "notes", "exclusions"]),
     spec("structure-stress-probes", "benchmarks/structure_stress/probes", "sourcedoc", "text/jsonl", "probe truth", ["headings", "numbered_units", "notes", "paragraphs", "exclusions"]),
     spec("kraken-ocr-benchmark-splits", "legal-pdf-parser/experiments/kraken-lite/kraken-lite-native/benchmark-splits", "ocr", "page lists", "manual gold and reviewed silver", kind="references"),

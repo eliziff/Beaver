@@ -13,6 +13,13 @@ let temporaryDirectory: string | null = null;
 const native = {};
 const sourceSha256 = "a".repeat(64);
 const cacheKey = "cache-key";
+const lookupOptions = {
+  cacheKey,
+  documentId: "document-1",
+  versionId: "version-1",
+  sourceSha256,
+  parserVersion: "0.4.0",
+};
 
 function engineLookup(request: Record<string, unknown>) {
   const query = request;
@@ -70,22 +77,15 @@ afterEach(async () => {
 describe("PDF evidence boundary", () => {
   it("binds cache-backed lookup results to stable, rehydratable evidence", async () => {
     const pdf = await import("../documentProjectionPdf");
-    const options = {
-      cacheKey,
-      documentId: "document-1",
-      versionId: "version-1",
-      sourceSha256,
-      parserVersion: "0.4.0",
-    };
     const first = await pdf.lookupPdfStructure(
       native,
       { locatorKind: "page", locator: "1" },
-      options,
+      lookupOptions,
     );
     const second = await pdf.lookupPdfStructure(
       native,
       { locatorKind: "page", locator: "1" },
-      options,
+      lookupOptions,
     );
 
     expect(first).toMatchObject({
@@ -116,11 +116,11 @@ describe("PDF evidence boundary", () => {
 
   it("rejects unbounded requests before invoking the engine", async () => {
     const { lookupPdfStructure } = await import("../documentProjectionPdf");
-    await expect(lookupPdfStructure(null, {
+    await expect(lookupPdfStructure(native, {
       locatorKind: "paragraph",
       locator: "2",
       contextBlocks: 3,
-    })).resolves.toMatchObject({
+    }, lookupOptions)).resolves.toMatchObject({
       status: "invalid",
       error: "Invalid or unbounded PDF locator",
     });
@@ -129,20 +129,13 @@ describe("PDF evidence boundary", () => {
 
   it("fails closed when the native lookup is unavailable", async () => {
     const { lookupPdfStructure } = await import("../documentProjectionPdf");
-    const options = {
-      cacheKey,
-      documentId: "document-1",
-      versionId: "version-1",
-      sourceSha256,
-      parserVersion: "0.4.0",
-    };
     queryPdfNative.mockImplementationOnce(() => {
       throw new Error("native document unavailable");
     });
     await expect(lookupPdfStructure(
       native,
       { locatorKind: "page", locator: "1" },
-      options,
+      lookupOptions,
     )).resolves.toMatchObject({ status: "unavailable", exact: false });
   });
 });

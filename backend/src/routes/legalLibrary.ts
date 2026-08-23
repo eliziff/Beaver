@@ -25,6 +25,7 @@ import {
   readProviderPdfAttachmentState,
   type ProviderPdfAttachment,
 } from "../lib/providerPdfLibraryBridge";
+import { documentHasOriginNative, type NativeDocument } from "../lib/structureNative";
 
 function text(value: unknown, name: string, maximum = 500) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -85,9 +86,10 @@ function notModified(req: Request, etag: string) {
 
 function a2ajPdfRenditionRequest(
   payload: A2AJViewerPayload,
+  native: NativeDocument,
 ): ProviderPdfAttachment | null {
   if (
-    payload.structureSource !== "flat_text" ||
+    documentHasOriginNative(native, "native") ||
     !payload.metadata.pdfUrl ||
     !payload.metadata.url
   ) {
@@ -96,7 +98,6 @@ function a2ajPdfRenditionRequest(
   return {
     provider: "a2aj",
     identity: `${payload.reference.dataset || ""}:${payload.reference.citation}`,
-    structureSource: "flat_text",
     url: payload.metadata.pdfUrl,
     canonicalUrl: payload.metadata.url,
     title: payload.metadata.title,
@@ -137,12 +138,9 @@ async function sendViewer(
     Vary: "Authorization",
   });
   const pdfRenditionRequest = pointer.pdfRendition
-    ? {
-        ...pointer.pdfRendition,
-        structureSource: resolved.payload.structureSource,
-      }
+    ? pointer.pdfRendition
     : resolved.payload.provider === "a2aj"
-      ? a2ajPdfRenditionRequest(resolved.payload)
+      ? a2ajPdfRenditionRequest(resolved.payload, resolved.native)
       : null;
   if (pdfRenditionRequest) {
     void queueProviderPdfAttachment(pdfRenditionRequest, userId(res)).catch(() => undefined);
@@ -282,7 +280,7 @@ router.post("/", asyncRoute(async (req, res) => {
     return;
   }
   const reference = resolved.payload.reference;
-  const pdfRenditionRequest = a2ajPdfRenditionRequest(resolved.payload);
+  const pdfRenditionRequest = a2ajPdfRenditionRequest(resolved.payload, resolved.native);
   let pdfRenditionPointer: LegalSourcePdfRendition | undefined;
   if (pdfRenditionRequest) {
     try {
@@ -309,10 +307,7 @@ router.post("/", asyncRoute(async (req, res) => {
     pdfRendition: pdfRenditionPointer,
   });
   if (pdfRenditionPointer) {
-    void queueProviderPdfAttachment({
-      ...pdfRenditionPointer,
-      structureSource: "flat_text",
-    }, userId(res)).catch(() => undefined);
+    void queueProviderPdfAttachment(pdfRenditionPointer, userId(res)).catch(() => undefined);
   }
   res.status(201).json(saved);
 }));
@@ -340,10 +335,7 @@ router.get("/:referenceId/pdf-status", asyncRoute(async (req, res) => {
   }
   res.json(
     await providerCall("Provider PDF status unavailable", () =>
-      readProviderPdfAttachmentState({
-        ...pdfRendition,
-        structureSource: "flat_text",
-      }, userId(res))),
+      readProviderPdfAttachmentState(pdfRendition, userId(res))),
   );
 }));
 

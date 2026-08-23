@@ -50,6 +50,7 @@ import {
   docxStructureLintNative,
   documentPageMapNative,
   documentRevisionNative,
+  documentTextBytesNative,
   documentTextNative,
   graphScopeNative,
   lookupStructureBlockNative,
@@ -391,7 +392,7 @@ async function saveDocxEdits(params: {
     bytes: params.bytes,
   }).catch(() => null);
   const lint = lintProjection?.kind === "docx"
-    ? docxStructureLintNative(lintProjection.sourceDoc)
+    ? docxStructureLintNative(lintProjection.document)
     : null;
   return documentResult({
     ok: true,
@@ -743,7 +744,7 @@ function cleanSearchEvidenceSpan(
   const matchEnd = hit.at + hit.excerpt.length;
   const source = nativeDocumentArtifact(passage.documentArtifact);
   if (passage.role === "document" && source &&
-      documentTextNative(source) === passage.text) {
+      passage.blockArtifact === passage.documentArtifact) {
     const block = smallestContainingBlock(source, hit.at, matchEnd);
     if (block) return {
       text: block.text,
@@ -1278,7 +1279,7 @@ async function runCodingShapeCall(
       }
     }
     if (raw) {
-      const sourceDoc = await deriveDocumentNative({
+      const document = await deriveDocumentNative({
         kind: "instrument",
         id: documentId,
         text: raw.text,
@@ -1289,7 +1290,7 @@ async function runCodingShapeCall(
         ...raw,
         pages: { pages: [], source: "unindexed" as const },
         tableCells: [],
-        sourceDoc,
+        document,
       };
     }
     return extractDocument(documents, scope, documentId, versionId);
@@ -1421,6 +1422,7 @@ async function runCodingShapeCall(
                 cacheKey,
                 documentId: meta.id,
                 versionId: file.version.id,
+                sourceSha256: file.version.source_sha256,
                 pages: selectedPages,
               },
             );
@@ -1446,6 +1448,7 @@ async function runCodingShapeCall(
                 cacheKey,
                 documentId: meta.id,
                 versionId: file.version.id,
+                sourceSha256: file.version.source_sha256,
               },
             );
           }
@@ -1522,7 +1525,7 @@ async function runCodingShapeCall(
       return fail("references requires an exact section handle.");
     }
     if (sectionArg) {
-      const lookup = lookupStructureBlockNative(document.sourceDoc, sectionArg);
+      const lookup = lookupStructureBlockNative(document.document, sectionArg);
       if (lookup.status !== "found" || !lookup.block) {
         return fail(
           `Section '${sectionArg}' not found (${lookup.status}` +
@@ -1535,7 +1538,7 @@ async function runCodingShapeCall(
       const block = lookup.block;
       if (references !== "none") {
         const scope = oneHopLegalScope(
-          document.sourceDoc,
+          document.document,
           block,
           references,
         );
@@ -1786,7 +1789,7 @@ async function runCodingShapeCall(
     const starts = sourceLineStarts(document.text);
     let scopeSpan: TextRange | null = null;
     if (grepSection) {
-      const lookup = lookupStructureBlockNative(document.sourceDoc, grepSection);
+      const lookup = lookupStructureBlockNative(document.document, grepSection);
       if (lookup.status !== "found" || !lookup.block) {
         const candidates = lookup.matches.length
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
@@ -1903,9 +1906,9 @@ export async function extractDocument(
     sourceSha256: file.version.source_sha256,
     bytes: file.bytes,
   });
-  const { sourceDoc } = projection;
-  const text = documentTextNative(sourceDoc);
-  let pages: NativePageMap = documentPageMapNative(sourceDoc);
+  const { document } = projection;
+  const text = documentTextNative(document);
+  let pages: NativePageMap = documentPageMapNative(document);
   if (!pages.pages.length && fileType === "pdf")
     pages = { pages: [], source: "unindexed" };
   return {
@@ -1913,7 +1916,7 @@ export async function extractDocument(
     text,
     pages,
     tableCells: projection.tableCells,
-    sourceDoc,
+    document,
   };
 }
 
@@ -2271,8 +2274,8 @@ async function runAdvancedDocxEdit(params: {
         sourceSha256: file.version.source_sha256,
         bytes: file.bytes,
       });
-      const sourceDoc = projection.sourceDoc;
-      if (projection.kind !== "docx" || !documentTextNative(sourceDoc)) {
+      const document = projection.document;
+      if (projection.kind !== "docx" || !documentTextBytesNative(document)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
       resolvedRequests = requests.map((request, index) => {
@@ -2288,19 +2291,19 @@ async function runAdvancedDocxEdit(params: {
           `ops[${index}].scope.at is not a provision or page address`);
         let spans: { start: number; end: number }[];
         if (address.kind === "page") {
-          const lookup = resolveDocumentPageNative(sourceDoc, address.spec);
+          const lookup = resolveDocumentPageNative(document, address.spec);
           if (lookup.status !== "found") throw new Error(
             `ops[${index}].scope.at did not resolve (${lookup.status})`);
           spans = [{ start: lookup.page.start, end: lookup.page.end }];
         } else {
-          const seed = lookupStructureBlockNative(sourceDoc, address.locator);
+          const seed = lookupStructureBlockNative(document, address.locator);
           if (seed.status !== "found" || !seed.block) throw new Error(
             `ops[${index}].scope.at did not resolve (${seed.status})`);
           const follow = scope.follow ?? "none";
           spans = [{ start: seed.block.start, end: seed.block.end }];
           if (follow !== "none") {
             const walked = graphScopeNative(
-              sourceDoc,
+              document,
               seed.block.label,
               follow,
               scope.depth ?? 1,
@@ -2429,7 +2432,7 @@ async function runDocxWorkflow(
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
-    ...docxStructureLintNative(projection.sourceDoc),
+    ...docxStructureLintNative(projection.document),
   };
 }
 
@@ -2694,7 +2697,7 @@ export function assistantTools<Context extends {
           sourceSha256: file.version.source_sha256,
           bytes,
         });
-        const text = documentTextNative(projection.sourceDoc);
+        const text = documentTextNative(projection.document);
         if (projection.kind !== "docx" || !text) {
           return fail("DOCX body text could not be extracted");
         }

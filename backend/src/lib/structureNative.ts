@@ -13,10 +13,14 @@ type RuntimeOptions = {
   exists?: (candidate: string) => boolean;
 };
 
-function engineRoot(options: RuntimeOptions = {}) {
+function pdfEngineRoot(options: RuntimeOptions = {}) {
   const env = options.env ?? process.env;
   return path.resolve(options.engineRoot || env.LEGALPDF_ENGINE_ROOT?.trim() ||
     path.join(__dirname, "../../../legal-pdf-parser"));
+}
+
+function structureAddonRoot() {
+  return path.resolve(__dirname, "../../../native/legal-structure-node");
 }
 
 function nativeLibraryNames(platform: NodeJS.Platform) {
@@ -53,7 +57,7 @@ function configuredLegalPdfOcrProvider(options: RuntimeOptions = {}): LegalPdfOc
     if (requested === "kraken-lite" || requested === "tesseract") return requested;
     throw new Error("MIKE_PDF_OCR_PROVIDER must be none, kraken-lite, or tesseract");
   }
-  const root = engineRoot({ ...options, env });
+  const root = pdfEngineRoot({ ...options, env });
   const exists = options.exists ?? existsSync;
   const [runtime, layout] = nativeLibraryNames(options.platform ?? process.platform);
   return ["runtime/kraken/model.onnx", "runtime/kraken/codec.json",
@@ -63,7 +67,7 @@ function configuredLegalPdfOcrProvider(options: RuntimeOptions = {}): LegalPdfOc
 
 export function configuredLegalPdfProfile(options: RuntimeOptions = {}): LegalPdfProfile {
   const env = options.env ?? process.env;
-  const root = engineRoot({ ...options, env });
+  const root = pdfEngineRoot({ ...options, env });
   const exists = options.exists ?? existsSync;
   const platform = options.platform ?? process.platform;
   const profile: LegalPdfProfile = {};
@@ -145,20 +149,26 @@ type StructureAddon = {
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<DocxSupraCleanupResult>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
   derivePdfDocument(request: unknown): Promise<NativeDocument>;
+  pdfPageCount(path: string): Promise<number>;
   pdfDocumentSummary(document: NativeDocument): unknown;
   documentCitedAuthorities(document: NativeDocument):
     Array<{ citation: string; canonical?: string; type?: string }>;
   docxStructureLint(document: NativeDocument): NativeDocxLintReport;
   docxTableCells(document: NativeDocument): NativeTableCell[];
-  sourceDocText(document: NativeDocument): string;
-  sourceDocTextBytes(document: NativeDocument): number;
-  sourceDocRevision(document: NativeDocument): string;
-  normalizeSourceDocLocator(kind: string, locator: string): string;
-  tokenizeSourceText(text: string): NativeWordSpan[];
-  sourceDocQuoteWords(text: string): string[];
+  documentText(document: NativeDocument): string;
+  documentTextBytes(document: NativeDocument): number;
+  documentRevision(document: NativeDocument): string;
+  normalizeDocumentLocator(kind: string, locator: string): string;
   citationLookupKey(text: string): string;
   citationsInText(text: string, extendedUsFallback: boolean): Array<{
     text: string; start: number; end: number;
+  }>;
+  providerCitationsInText(text: string): Array<{
+    text: string; start: number; end: number;
+    family: "neutral" | "reporter" | "statute";
+    jurisdiction?: "ca" | "uk" | "us";
+    year?: string; court?: string; number?: string;
+    volume?: string; reporter?: string; page?: string;
   }>;
   caselawCitationLookupKey(text: string): string;
   hasCitationInText(text: string): boolean;
@@ -170,23 +180,18 @@ type StructureAddon = {
   groundedProseErrors(text: string, citedEvidenceIds: string[],
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
-  markedQuoteSpans(text: string): Array<{ text: string; start: number; end: number }>;
-  lookupSourceDoc(document: NativeDocument, kind: string, locator: string,
-    contextBlocks: number): NativeDocumentLookup;
-  readSourceDocRange(document: NativeDocument, kind: string, from: string,
+  readDocumentRange(document: NativeDocument, kind: string, from: string,
     to: string, contextBlocks: number): NativeDocumentRange | null;
-  sourceDocSmallestContainingBlock(document: NativeDocument, start: number,
+  smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativeDocumentBlock | null;
-  sourceDocHasOrigin(document: NativeDocument, origin: string): boolean;
-  sourceDocAnchors(document: NativeDocument): NativeDocumentAnchor[];
-  textPhraseSpans(text: string, words: string[], start?: number,
-    end?: number, sameLine?: boolean, limit?: number): NativeQuoteSpan[];
+  documentHasOrigin(document: NativeDocument, origin: string): boolean;
+  documentAnchors(document: NativeDocument): NativeDocumentAnchor[];
   textFragmentDirectives(blockText: string, quotes: string[], pageScoped: boolean,
     documentText?: string, document?: NativeDocument): string[];
-  sourceDocParagraphRangeDirective(document: NativeDocument, start: string,
+  documentParagraphRangeDirective(document: NativeDocument, start: string,
     end: string): string | null;
-  sourceDocPageMap(document: NativeDocument): NativePageMap;
-  resolveSourceDocPage(document: NativeDocument, requested: string): NativePageLookup;
+  documentPageMap(document: NativeDocument): NativePageMap;
+  resolveDocumentPage(document: NativeDocument, requested: string): NativePageLookup;
   lookupStructureBlock(document: NativeDocument, locator: string,
     contextBlocks: number): NativeDocumentLookup;
   parseDocumentAddress(spec: string): NativeDocumentAddress | null;
@@ -195,8 +200,6 @@ type StructureAddon = {
   queryPdfDocument(document: NativeDocument, query: unknown): unknown;
   deleteProvisionAndRenumberSiblings(source: string, target: string,
     reconstructLineation?: boolean): Promise<DeleteAndRenumberResult>;
-  consolidateAmendment(source: string, amendment: string,
-    reconstructLineation?: boolean): Promise<ApplyAmendmentsResult & { parse: AmendParseResult }>;
 };
 
 export type NativeDocument = object;
@@ -276,55 +279,6 @@ type NativeDocumentLookup = {
   after: NativeDocumentBlock[];
 };
 
-type AmendOpKind = "strike_text" | "insert_text" | "substitute_text" |
-  "append_text" | "strike_provision" | "replace_provision" | "add_provision" |
-  "add_at_end" | "repeal_provision" | "redesignate";
-type AmendOp = {
-  kind: AmendOpKind;
-  target: string;
-  oldText?: string;
-  newText?: string;
-  position?: "after" | "before";
-  anchorText?: string;
-  afterChild?: string;
-  newLabel?: string;
-  everyOccurrence?: boolean;
-  anchorLast?: boolean;
-  wholeWord?: boolean;
-  raw: string;
-};
-type AmendParseResult = {
-  ops: AmendOp[];
-  unparsed: Array<{ excerpt: string; reason: string }>;
-};
-type AmendReceipt = {
-  op: AmendOp;
-  start: number;
-  end: number;
-  removed: string;
-  inserted: string;
-  occurrences?: number;
-};
-type AmendFailure = {
-  op: AmendOp;
-  code: "target_not_found" | "old_text_not_found" | "old_text_ambiguous" |
-    "anchor_not_found" | "anchor_ambiguous" | "missing_new_text" |
-    "overlapping_ops" | "unsupported_apply";
-  detail: string;
-};
-type ApplyAmendmentsResult = {
-  text: string;
-  applied: AmendReceipt[];
-  failures: AmendFailure[];
-  verification: {
-    newTextPresent: number;
-    newTextMissing: number;
-    oldTextGone: number;
-    oldTextLingers: number;
-    ladderViolationsBefore: number;
-    ladderViolationsAfter: number;
-  };
-};
 type ApplyAmendOptions = { reconstructLineation?: boolean };
 type DeleteAndRenumberFailureCode = "target_not_found" | "target_ambiguous" |
   "unsupported_target" | "sibling_ambiguous" | "sibling_sequence_unsupported" |
@@ -364,7 +318,7 @@ function addonFilename() {
 
 function loadAddon() {
   if (addon) return addon;
-  const root = engineRoot();
+  const root = structureAddonRoot();
   const filename = process.env.LEGAL_STRUCTURE_NATIVE?.trim() ||
     path.join(root, "target", "release", addonFilename());
   if (!existsSync(filename)) {
@@ -385,6 +339,7 @@ export const fixDocxSupraCrossReferencesNative = (bytes: Buffer) =>
 export const hasDocxSupraReferencesNative = (bytes: Buffer) =>
   loadAddon().hasDocxSupraReferences(bytes);
 export const derivePdfNative = (request: unknown) => loadAddon().derivePdfDocument(request);
+export const pdfPageCountNative = (path: string) => loadAddon().pdfPageCount(path);
 
 export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
   return loadAddon().queryPdfDocument(document, query) as T;
@@ -400,40 +355,32 @@ export const docxTableCellsNative = (document: NativeDocument) =>
   loadAddon().docxTableCells(document);
 
 export const documentTextNative = (document: NativeDocument) =>
-  loadAddon().sourceDocText(document);
+  loadAddon().documentText(document);
 export const documentTextBytesNative = (document: NativeDocument) =>
-  loadAddon().sourceDocTextBytes(document);
+  loadAddon().documentTextBytes(document);
 
 export const documentRevisionNative = (document: NativeDocument) =>
-  loadAddon().sourceDocRevision(document);
+  loadAddon().documentRevision(document);
 
 export const normalizeDocumentLocatorNative = (kind: "paragraph" | "page" |
   "section" | "footnote", locator: string) =>
-  loadAddon().normalizeSourceDocLocator(kind, locator);
-
-export const lookupDocumentNative = (document: NativeDocument,
-  kind: "paragraph" | "page" | "section" | "footnote", locator: string,
-  contextBlocks = 0) => loadAddon().lookupSourceDoc(document, kind, locator, contextBlocks);
+  loadAddon().normalizeDocumentLocator(kind, locator);
 
 export const readDocumentRangeNative = (document: NativeDocument,
   kind: "paragraph" | "page" | "section" | "footnote", from: string,
   to: string, contextBlocks = 0) =>
-  loadAddon().readSourceDocRange(document, kind, from, to, contextBlocks);
+  loadAddon().readDocumentRange(document, kind, from, to, contextBlocks);
 
 export const smallestContainingDocumentBlockNative = (document: NativeDocument,
   start: number, end: number) =>
-  loadAddon().sourceDocSmallestContainingBlock(document, start, end);
+  loadAddon().smallestContainingDocumentBlock(document, start, end);
 
 export const documentHasOriginNative = (document: NativeDocument,
-  origin: "native" | "heuristic") => loadAddon().sourceDocHasOrigin(document, origin);
+  origin: "native" | "heuristic") => loadAddon().documentHasOrigin(document, origin);
 
 export const documentAnchorsNative = (document: NativeDocument) =>
-  loadAddon().sourceDocAnchors(document);
+  loadAddon().documentAnchors(document);
 
-export type NativeWordSpan = { word: string; start: number; end: number };
-export type NativeQuoteSpan = {
-  start: number; end: number; firstWord: number; lastWord: number;
-};
 export type NativePageMap = {
   pages: Array<{ ordinal: number; pdfPage: number | null;
     printedLabel: string | null; start: number; end: number }>;
@@ -455,13 +402,12 @@ type NativeGraphScope = {
   depth: number;
 };
 
-export const tokenizeTextNative = (text: string) =>
-  loadAddon().tokenizeSourceText(text);
-export const quoteWordsNative = (text: string) => loadAddon().sourceDocQuoteWords(text);
 export const citationLookupKeyNative = (text: string) =>
   loadAddon().citationLookupKey(text);
 export const citationsInTextNative = (text: string, extendedUsFallback = true) =>
   loadAddon().citationsInText(text, extendedUsFallback);
+export const providerCitationsInTextNative = (text: string) =>
+  loadAddon().providerCitationsInText(text);
 export const caselawCitationLookupKeyNative = (text: string) =>
   loadAddon().caselawCitationLookupKey(text);
 export const hasCitationInTextNative = (text: string) =>
@@ -474,11 +420,6 @@ export const groundedProseErrorsNative = (text: string,
   }>) => loadAddon().groundedProseErrors(text, [...citedEvidenceIds], visibleEvidence);
 export const quoteRepairSuggestionNative = (claim: string, spans: string[]) =>
   loadAddon().quoteRepairSuggestion(claim, spans);
-export const markedQuoteSpansNative = (text: string) =>
-  loadAddon().markedQuoteSpans(text);
-export const textPhraseSpansNative = (text: string, words: string[], start?: number,
-  end?: number, sameLine?: boolean, limit?: number) =>
-  loadAddon().textPhraseSpans(text, words, start, end, sameLine, limit);
 export const textFragmentDirectivesNative = (blockText: string, quotes: string[],
   document?: string | NativeDocument, pageScoped = false) =>
   loadAddon().textFragmentDirectives(blockText, quotes, pageScoped,
@@ -486,11 +427,11 @@ export const textFragmentDirectivesNative = (blockText: string, quotes: string[]
     typeof document === "string" ? undefined : document);
 export const paragraphRangeDirectiveNative = (document: NativeDocument,
   start: string, end: string) =>
-  loadAddon().sourceDocParagraphRangeDirective(document, start, end);
+  loadAddon().documentParagraphRangeDirective(document, start, end);
 export const documentPageMapNative = (document: NativeDocument) =>
-  loadAddon().sourceDocPageMap(document);
+  loadAddon().documentPageMap(document);
 export const resolveDocumentPageNative = (document: NativeDocument, requested: string) =>
-  loadAddon().resolveSourceDocPage(document, requested);
+  loadAddon().resolveDocumentPage(document, requested);
 export const lookupStructureBlockNative = (document: NativeDocument, locator: string,
   contextBlocks = 0) => loadAddon().lookupStructureBlock(document, locator, contextBlocks);
 export const parseDocumentAddressNative = (spec: string) =>
@@ -503,9 +444,4 @@ export async function deleteProvisionAndRenumberSiblings(source: string, target:
   options: ApplyAmendOptions = {}) {
   return loadAddon().deleteProvisionAndRenumberSiblings(
     source, target, options.reconstructLineation);
-}
-export async function consolidateAmendment(source: string, amendment: string,
-  options: ApplyAmendOptions = {}) {
-  return loadAddon().consolidateAmendment(
-    source, amendment, options.reconstructLineation);
 }

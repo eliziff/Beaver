@@ -1164,7 +1164,7 @@ grammar consumer, runs every table vector in each runtime, fails on missing or
 extra entries and byte drift, and differentially compares match spans against
 the displaced implementations before those implementations are deleted.
 
-Current state: `packages/legal-grammar-tables/grammar-corpus.json` has 72
+Current state: `legal-structure/data/grammar-corpus.json` has 72
 entries and 296 vectors, and its Legal PDF Parser and Authorities Helper copies
 are byte-identical. Rust deterministic splitting, backend TypeScript citation
 scanning, and Authorities Helper consume the corpus. The eight US full/short
