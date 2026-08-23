@@ -196,8 +196,7 @@ async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocu
     name: document.name,
     sectionMap: document.sectionMap,
   });
-  const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
-  return { ...metadata, native };
+  return compiledDocument(document, native);
 }
 
 function locator(value: string) {
@@ -220,7 +219,7 @@ function compiledDocument(
   native: NativeDocument,
 ): A2AJCompiledDocument {
   const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
-  return { ...metadata, docType: "laws", native };
+  return { ...metadata, native };
 }
 
 async function document(args: {

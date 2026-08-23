@@ -346,8 +346,7 @@ export const deriveDocxNative = (bytes: Buffer, id: string) =>
 export const derivePdfNative = (request: unknown) => loadAddon().derivePdfDocument(request);
 
 export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
-  const bytes = loadAddon().queryPdfDocument(document, query);
-  return JSON.parse(bytes.toString("utf8")) as T;
+  return parsed<T>(loadAddon().queryPdfDocument(document, query));
 }
 
 const parsed = <T>(bytes: Buffer) => JSON.parse(bytes.toString("utf8")) as T;
