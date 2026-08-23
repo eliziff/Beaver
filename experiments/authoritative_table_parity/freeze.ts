@@ -3,9 +3,15 @@ import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { openDocxSession } from "../../backend/src/lib/docx/session";
 import { spreadsheetToLLMStructure } from "../../backend/src/lib/spreadsheet";
-import { deriveDocumentNative, documentStructureNative } from "../../backend/src/lib/structureNative";
+import {
+  deriveDocumentNative,
+  deriveDocxNative,
+  docxTableCellsNative,
+  documentAnchorsNative,
+  documentTextNative,
+  type NativeDocument,
+} from "../../backend/src/lib/structureNative";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RESULTS = path.join(import.meta.dirname, "results");
@@ -116,13 +122,15 @@ function normalizeError(error: unknown): string {
 async function extract(artifact: Artifact): Promise<RawResult> {
   const bytes = await fs.readFile(path.join(ROOT, artifact.path));
   let extracted: { text: string; tableCells: TableCellSpan[] };
+  let native: NativeDocument | undefined;
   try {
     extracted = artifact.format === ".docx"
       ? await (async () => {
-          const session = await openDocxSession(bytes);
-          if (!session.has("word/document.xml")) return { text: "", tableCells: [] };
-          const document = await session.document(artifact.path);
-          return { text: document.text, tableCells: document.tableCells };
+          native = await deriveDocxNative(bytes, artifact.path);
+          return {
+            text: documentTextNative(native),
+            tableCells: docxTableCellsNative(native),
+          };
         })()
       : await spreadsheetToLLMStructure(bytes);
   } catch (error) {
@@ -130,11 +138,11 @@ async function extract(artifact: Artifact): Promise<RawResult> {
   }
   if (!extracted.tableCells.length) return { ...artifact, status: "no_cells" };
   try {
-    const native = await deriveDocumentNative({
+    native ??= await deriveDocumentNative({
       kind: "instrument", id: artifact.path, text: extracted.text,
       table_cells: extracted.tableCells, reconstruct_lineation: true,
     });
-    const nodes = documentStructureNative<any>(native).nodes;
+    const nodes = documentAnchorsNative(native);
     return {
       ...artifact,
       status: "table_facts",

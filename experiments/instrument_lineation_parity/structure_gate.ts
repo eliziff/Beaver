@@ -26,8 +26,8 @@ const LIMIT = Number(process.argv.find((argument) =>
 type NativeDocument = object;
 type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  documentSnapshot(document: NativeDocument): Buffer;
-  sourceDocSnapshot(document: NativeDocument): Buffer;
+  documentSnapshot(document: NativeDocument): { structure: any };
+  sourceDocSnapshot(document: NativeDocument): any;
 };
 
 function loadAddon(): StructureAddon {
@@ -46,7 +46,6 @@ function loadAddon(): StructureAddon {
 }
 
 const nativeAddon = loadAddon();
-const nativeJson = <T>(value: Buffer) => JSON.parse(value.toString("utf8")) as T;
 
 const COMPONENTS = [
   "nodes",
@@ -352,8 +351,8 @@ async function main(): Promise<void> {
     const native = await nativeAddon.deriveDocumentStructure({ kind: "instrument", id, text,
       reconstruct_lineation: true });
     const derived = performance.now();
-    const structure = nativeJson<any>(nativeAddon.documentSnapshot(native)).structure;
-    const sourceDoc = nativeJson<any>(nativeAddon.sourceDocSnapshot(native));
+    const structure = nativeAddon.documentSnapshot(native).structure;
+    const sourceDoc = nativeAddon.sourceDocSnapshot(native);
     const products = legacyProducts(text, { structure, source_doc: sourceDoc });
     const finished = performance.now();
     if (record) {
