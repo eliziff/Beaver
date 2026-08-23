@@ -34,6 +34,7 @@ if (!candidateRoot) throw new Error("Candidate receipt is required");
 const baselineRoot = path.resolve(args.get("baseline") ?? path.join(
   __dirname, "results", "installed-provider-freeze-full",
 ));
+const semanticDifferential = args.has("baseline");
 const onlyId = args.get("only-id");
 const reportPath = args.get("report");
 const hash = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
@@ -60,18 +61,32 @@ function receipt(root: string): Receipt {
   return { root, summary, parallel };
 }
 const receipts = { baseline: receipt(baselineRoot), candidate: receipt(candidateRoot) };
-if (candidateRoot !== baselineRoot && (!receipts.candidate.summary.engine ||
-    !receipts.candidate.summary.harness_sha256 || !receipts.candidate.summary.adapter_code_sha256)) {
-  fail("Candidate provenance is incomplete");
-}
-for (const value of Object.values(receipts)) {
-  same(value.summary.serializer_contract_sha256,
-    expected.serializer_contract_sha256, "serializer contract");
+for (const [name, value] of Object.entries(receipts)) if (candidateRoot !== baselineRoot &&
+    (!value.summary.engine || !value.summary.harness_sha256 || !value.summary.adapter_code_sha256)) {
+  fail(`${name} provenance is incomplete`);
 }
 if (receipts.baseline.summary.scope?.kind !== "full") fail("Authoritative full baseline required");
-same(receipts.baseline.summary.inventory, expected.inventory, "frozen inventory");
-same(receipts.baseline.summary.manifest_root_sha256,
-  expected.manifest_root_sha256, "frozen manifest root");
+if (semanticDifferential) {
+  if (receipts.candidate.summary.scope?.kind !== "full") fail("Full candidate required");
+  same(receipts.baseline.summary.serializer_contract_sha256,
+    receipts.candidate.summary.serializer_contract_sha256, "semantic serializer contract");
+  same(receipts.baseline.summary.inventory, receipts.candidate.summary.inventory,
+    "semantic inventory");
+  same(receipts.baseline.summary.harness_sha256,
+    receipts.candidate.summary.harness_sha256, "semantic harness");
+  same(receipts.baseline.summary.adapter_code_sha256,
+    receipts.candidate.summary.adapter_code_sha256, "semantic adapter");
+  if (receipts.baseline.summary.engine?.binary_sha256 ===
+      receipts.candidate.summary.engine?.binary_sha256) fail("Semantic differential reused one engine");
+} else {
+  same(receipts.baseline.summary.serializer_contract_sha256,
+    expected.serializer_contract_sha256, "serializer contract");
+  same(receipts.candidate.summary.serializer_contract_sha256,
+    expected.serializer_contract_sha256, "serializer contract");
+  same(receipts.baseline.summary.inventory, expected.inventory, "frozen inventory");
+  same(receipts.baseline.summary.manifest_root_sha256,
+    expected.manifest_root_sha256, "frozen manifest root");
+}
 
 function partRows(directory: string, parts: Part[], provider?: Provider) {
   return function* () {
@@ -245,6 +260,7 @@ for (const provider of selected) {
       fail(`${provider} identity mismatch at ${id}`);
     }
     if (a.source_bytes !== b.source_bytes || a.source_sha256 !== b.source_sha256) {
+      if (semanticDifferential) fail(`${provider}/${id} source proof drift`);
       counters.raw_proof_contract_mismatch += 1;
     }
     const pairedStructureProof = a.structure_input_sha256 !== undefined &&

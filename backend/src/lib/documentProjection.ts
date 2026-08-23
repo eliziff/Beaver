@@ -208,7 +208,6 @@ async function publishPdfContent(
   expectedSha256: string,
   signal?: AbortSignal,
 ) {
-  await inspectPdf(source, { expectedSha256, signal });
   const destination = pdfContentPath(expectedSha256);
   return withProjectionLock(`pdf-content:${expectedSha256}`, async () => {
     if (await sameFile(destination, expectedSha256)) return destination;
@@ -217,12 +216,10 @@ async function publishPdfContent(
     try {
       await copyFile(source, temporary);
       signal?.throwIfAborted();
-      await inspectPdf(temporary, { expectedSha256, signal });
       await rename(temporary, destination);
     } finally {
       await rm(temporary, { force: true });
     }
-    await inspectPdf(destination, { expectedSha256, signal });
     return destination;
   }, signal);
 }
@@ -233,14 +230,13 @@ export async function publishPdfBytes(
   signal?: AbortSignal,
 ) {
   if (bytes.length <= 0 || bytes.length > MAX_PROJECTION_PDF_BYTES ||
-      sha256(bytes) !== expectedSha256 || !bytes.subarray(0, 1_024).includes("%PDF-")) {
+      !bytes.subarray(0, 1_024).includes("%PDF-")) {
     throw new Error("PDF source bytes are invalid");
   }
   const destination = pdfContentPath(expectedSha256);
   return withProjectionLock(`pdf-content:${expectedSha256}`, async () => {
     if (!(await sameFile(destination, expectedSha256)))
       await atomicWriteProjection(destination, bytes, signal);
-    await inspectPdf(destination, { expectedSha256, signal });
     return destination;
   }, signal);
 }

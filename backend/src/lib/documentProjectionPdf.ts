@@ -20,7 +20,7 @@ export type PdfLookupInput = {
 
 type CanonicalKind = "page" | "paragraph" | "footnote" | "section";
 
-export type PdfLookupUnit = {
+type PdfLookupUnit = {
   id: string;
   kind: CanonicalKind;
   locator: string;
@@ -43,8 +43,6 @@ export type PdfLookupUnit = {
   };
 };
 
-const SCHEMA_VERSION = "mike.pdf_lookup.v1";
-const MAX_CONTEXT_BLOCKS = 2;
 const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
 const LEGAL_PDF_RESULT_SCHEMA = "legalpdf.document-result.v1";
@@ -197,7 +195,7 @@ function sameValues<T>(left: T[], right: T[]) {
 
 type NormalizedPage = { number: number; text: string };
 
-type EngineLookup = {
+type PdfStructureLookup = {
   schema_version: "legalpdf.structure-lookup.v1";
   requested: {
     locator_kind: PdfLocatorKind;
@@ -212,24 +210,11 @@ type EngineLookup = {
   after: PdfLookupUnit[];
   matches: string[];
   pages: { page_number: number; text: string }[];
-  status: "found" | "not_found" | "ambiguous" | "invalid" | "unavailable";
-  exact: boolean;
   error?: string;
-};
-
-function validInput(input: PdfLookupInput) {
-  return RESOURCE_LOCATOR_KINDS.includes(input.locatorKind) &&
-    Boolean(input.locator.trim()) &&
-    input.locator.length <= 200 &&
-    (input.endLocator?.length ?? 0) <= 200 &&
-    Number.isInteger(input.contextBlocks ?? 0) &&
-    (input.contextBlocks ?? 0) >= 0 &&
-    (input.contextBlocks ?? 0) <= MAX_CONTEXT_BLOCKS &&
-    (input.page === undefined ||
-      (Number.isInteger(input.page) && input.page > 0)) &&
-    (input.occurrence === undefined ||
-      (Number.isInteger(input.occurrence) && input.occurrence > 0));
-}
+} & ({ status: "found"; exact: true } | {
+  status: "not_found" | "ambiguous" | "invalid" | "unavailable";
+  exact: false;
+});
 
 function contractInput(input: PdfLookupInput) {
   return {
@@ -242,25 +227,7 @@ function contractInput(input: PdfLookupInput) {
   };
 }
 
-function baseResult(input: PdfLookupInput) {
-  return {
-    schema_version: SCHEMA_VERSION,
-    requested: {
-      locator_kind: input.locatorKind,
-      locator: input.locator,
-      end_locator: input.endLocator || null,
-      context_blocks: input.contextBlocks ?? 0,
-      page: input.page ?? null,
-      occurrence: input.occurrence ?? null,
-    },
-    units: [] as PdfLookupUnit[],
-    before: [] as PdfLookupUnit[],
-    after: [] as PdfLookupUnit[],
-    matches: [] as string[],
-  };
-}
-
-function checkedLookup(value: EngineLookup) {
+function checkedLookup(value: PdfStructureLookup) {
   if (value.schema_version !== "legalpdf.structure-lookup.v1" ||
       !["found", "not_found", "ambiguous", "invalid", "unavailable"].includes(value.status) ||
       !Array.isArray(value.units) || !Array.isArray(value.before) ||
@@ -271,37 +238,33 @@ function checkedLookup(value: EngineLookup) {
   return value;
 }
 
-type LookupSource = {
-  state: {
-    document_id: string;
-    version_id: string;
-    source_sha256: string;
-    parser_version: string;
-    cache_key: string;
-  };
-};
-
 async function finishLookup(
-  loaded: LookupSource,
   input: PdfLookupInput,
-  result: EngineLookup,
-  options?: { persistEvidence?: boolean; capturePages?: (pages: NormalizedPage[]) => void },
+  result: PdfStructureLookup,
+  options: {
+    persistEvidence?: boolean;
+    capturePages?: (pages: NormalizedPage[]) => void;
+    cacheKey: string;
+    documentId: string;
+    versionId: string;
+    sourceSha256: string;
+    parserVersion: string;
+  },
 ) {
-  const base = baseResult(input);
   const lookup = checkedLookup(result);
   const pages = lookup.pages.map(({ page_number: number, text }) => ({ number, text }));
   options?.capturePages?.(pages);
   if (lookup.status !== "found") {
-    return {
-      ...base,
-      status: lookup.status,
-      exact: lookup.exact,
-      matches: lookup.matches,
-      ...(lookup.error ? { error: lookup.error } : {}),
-    };
+    return lookup;
   }
 
-  const { state } = loaded;
+  const state = {
+    document_id: options.documentId,
+    version_id: options.versionId,
+    source_sha256: options.sourceSha256,
+    parser_version: options.parserVersion,
+    cache_key: options.cacheKey,
+  };
   const { units, before, after } = lookup;
   const textSha256 = sha256(units.map((unit) => unit.text).join("\u001e"));
   const artifactIds = units.map((unit) => unit.id);
@@ -357,13 +320,7 @@ async function finishLookup(
   }
 
   return {
-    ...base,
-    status: "found" as const,
-    exact: true,
-    units,
-    before,
-    after,
-    matches: artifactIds,
+    ...lookup,
     source: {
       handle: `mike-source:sha256:${state.source_sha256}`,
       document_id: state.document_id,
@@ -392,54 +349,21 @@ async function finishLookup(
   };
 }
 
-function unavailable(input: PdfLookupInput, error: unknown) {
-  const code = (error as NodeJS.ErrnoException).code;
-  return {
-    ...baseResult(input),
-    status: "unavailable" as const,
-    exact: false,
-    error: code ? "PDF lookup source or artifact is unavailable" : "PDF lookup failed",
-  };
-}
-
 export async function lookupPdfStructure(
-  document: NativeDocument | null,
+  document: NativeDocument,
   input: PdfLookupInput,
-  options?: {
+  options: {
     persistEvidence?: boolean;
     capturePages?: (pages: NormalizedPage[]) => void;
-    cacheKey?: string;
-    documentId?: string;
-    versionId?: string;
-    pages?: number[];
-    sourceSha256?: string;
-    parserVersion?: string;
+    cacheKey: string;
+    documentId: string;
+    versionId: string;
+    sourceSha256: string;
+    parserVersion: string;
   },
 ) {
-  if (!validInput(input)) {
-    return {
-      ...baseResult(input),
-      status: "invalid" as const,
-      exact: false,
-      error: "Invalid or unbounded PDF locator",
-    };
-  }
-  try {
-    if (!options?.cacheKey || !options.documentId || !options.versionId ||
-        !options.sourceSha256 || !options.parserVersion)
-      throw new Error("PDF lookup requires a cache and document identity");
-    if (!document) throw new Error("PDF lookup requires a native document");
-    const result = queryPdfNative<EngineLookup>(document, contractInput(input));
-    return await finishLookup({ state: {
-      document_id: options.documentId,
-      version_id: options.versionId,
-      source_sha256: options.sourceSha256,
-      parser_version: options.parserVersion,
-      cache_key: options.cacheKey,
-    } }, input, result, options);
-  } catch (error) {
-    return unavailable(input, error);
-  }
+  const result = queryPdfNative<PdfStructureLookup>(document, contractInput(input));
+  return finishLookup(input, result, options);
 }
 
 async function verifiedPdfEvidence(
@@ -455,9 +379,6 @@ async function verifiedPdfEvidence(
     versionId: receipt.source.version_id,
     sourceSha256: receipt.source.source_sha256,
     parserVersion: receipt.source.parser_version,
-    ...(receipt.lookup.locatorKind === "page"
-      ? { pages: receipt.evidence.page_numbers }
-      : {}),
     capturePages: (rows) => {
       pageRows = rows;
     },

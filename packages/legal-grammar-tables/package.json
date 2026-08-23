@@ -1,17 +1,11 @@
 {
   "name": "@beaver/legal-grammar-tables",
   "version": "1.0.0",
-  "description": "Portable legal citation, pinpoint, footnote, provision, and reference grammars",
+  "description": "Validation tooling for Beaver's portable legal grammar corpus",
   "scripts": {
     "check": "node check.mjs",
     "sync": "node check.mjs --sync"
   },
-  "files": [
-    "grammar-corpus.json",
-    "eyecite-us-receipt.json",
-    "manifest.json",
-    "check.mjs",
-    "README.md"
-  ],
+  "private": true,
   "license": "AGPL-3.0-only"
 }

@@ -11,7 +11,7 @@ import {
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { escapeXmlText } from "../text";
 
 const ORIGIN = "https://www.gov.uk";

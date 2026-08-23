@@ -23,7 +23,6 @@ import { enqueueJob, wakeJobWorker, type JobHandler } from "./jobQueue";
 export type ProviderPdfAttachment = {
   provider: string;
   identity: string;
-  structureSource: "native" | "hybrid" | "flat_text" | "section_map";
   url: string;
   canonicalUrl?: string | null;
   filename?: string | null;
@@ -44,7 +43,6 @@ export type ProviderPdfAttachmentState = {
 };
 
 type SafeRequest = ProviderPdfAttachment & {
-  structureSource: "flat_text";
   canonicalUrl: string | null;
   filename: string | null;
   title: string | null;
@@ -87,7 +85,6 @@ function safeRequest(input: ProviderPdfAttachment): SafeRequest {
   const request = {
     provider: input.provider,
     identity,
-    structureSource: "flat_text" as const,
     url: sourceUrl(input.url).toString(),
     canonicalUrl: input.canonicalUrl ? publicUrl(input.canonicalUrl).toString() : null,
     filename: text(input.filename, 260),
@@ -217,7 +214,6 @@ export async function queueProviderPdfAttachment(
   input: ProviderPdfAttachment,
   userId: string,
 ) {
-  if (input.structureSource !== "flat_text") return null;
   const request = safeRequest(input);
   let record: PdfRecord | null = null;
   await withProjectionLock(request.requestReference, async () => {
@@ -242,7 +238,7 @@ async function stateFor(request: SafeRequest, expected: string | null, userId: s
   }
   const parsed = await documentProjectionService.pdfState({
     documentId: `provider-pdf-${digest!.slice(0, 32)}`,
-    versionId: digest!.slice(0, 32), sourcePath: content, sourceSha256: digest!,
+    versionId: digest!.slice(0, 32), sourceSha256: digest!,
   });
   if (!parsed || !["ready", "degraded"].includes(parsed.status)) {
     await enqueueProviderJob(request, userId);
@@ -254,7 +250,6 @@ export async function readProviderPdfAttachmentState(
   input: ProviderPdfAttachment,
   userId: string,
 ) {
-  if (input.structureSource !== "flat_text") return null;
   return stateFor(safeRequest(input), null, userId);
 }
 
@@ -310,7 +305,7 @@ async function readyEvidence<Lookup extends { status: string }>(
   const sourcePath = pdfContentPath(current.source_sha256);
   const parsed = await documentProjectionService.pdfState({
     documentId: `provider-pdf-${current.source_sha256.slice(0, 32)}`,
-    versionId: current.source_sha256.slice(0, 32), sourcePath,
+    versionId: current.source_sha256.slice(0, 32),
     sourceSha256: current.source_sha256,
   });
   if (!parsed || !["ready", "degraded"].includes(parsed.status)) return {
@@ -330,6 +325,7 @@ export const lookupProviderPdfReference = (
       cacheKey,
       documentId: `provider-pdf-${sourceSha256.slice(0, 32)}`,
       versionId: sourceSha256.slice(0, 32),
+      sourceSha256,
     }),
     (result) => result.status === "found" ? result.evidence.handle : null);
 
@@ -365,7 +361,6 @@ export async function queueProviderPdfRenditions(
       const queued = await queueProviderPdfAttachment({
         provider: document.provider,
         identity: document.identity,
-        structureSource: "flat_text",
         url: attachment.url,
         canonicalUrl: document.url,
         filename: attachment.filename,

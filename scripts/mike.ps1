@@ -195,31 +195,7 @@ function Get-Python {
     return $python
 }
 
-function Get-Cargo {
-    $cargo = Resolve-Application @('cargo.exe', 'cargo')
-    if (-not $cargo) {
-        throw 'Rust is missing. Install Rust with rustup to build the Legal PDF engine.'
-    }
-    return $cargo
-}
-
-function Build-LegalPdf([string]$Binary) {
-    $cargo = Get-Cargo
-    $engine = Join-Path $Repo 'legal-pdf-parser'
-    Push-Location $engine
-    try {
-        & $cargo build --release --locked --features full
-        $buildExitCode = $LASTEXITCODE
-    }
-    finally {
-        Pop-Location
-    }
-    if ($buildExitCode -ne 0 -or -not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
-        throw 'Legal PDF Rust build failed.'
-    }
-}
-
-function Resolve-LegalPdfBinary([switch]$Build) {
+function Resolve-LegalPdfBinary {
     $configured = Get-ConfigValue 'LEGALPDF_BINARY'
     if ($configured) {
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
@@ -232,9 +208,6 @@ function Resolve-LegalPdfBinary([switch]$Build) {
         throw "LEGALPDF_BINARY does not resolve to an executable: $configured"
     }
     $managed = Join-Path $Repo 'legal-pdf-parser\target\release\legalpdf.exe'
-    if ($Build) {
-        Build-LegalPdf $managed
-    }
     if (Test-Path -LiteralPath $managed -PathType Leaf) {
         return (Resolve-Path -LiteralPath $managed).Path
     }

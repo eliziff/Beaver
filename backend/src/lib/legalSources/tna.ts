@@ -2,6 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import {
+  providerCitationsInTextNative,
   deriveDocumentNative,
   documentCitedAuthoritiesNative,
 } from "../structureNative";
@@ -15,12 +16,10 @@ import {
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
-import { nativeDocumentPassages } from "./sourceDocPassages";
+import { nativeDocumentPassages } from "./nativeDocumentPassages";
 
 const ORIGIN = "https://caselaw.nationalarchives.gov.uk";
 const HOSTS = ["caselaw.nationalarchives.gov.uk"] as const;
-const CITATION =
-  /\[(?:19|20)\d{2}\]\s+(?:UKSC|UKPC|EWCA\s+(?:Civ|Crim)|EWHC|EWCC|EWFC|EWCOP|EWCR|UKUT|UKFTT|EAT)\s+\d+(?:\s+\((?:Admin|Admlty|Ch|Comm|Fam|KB|QB|TCC|Pat|IPEC|SCCO|AAC|IAC|LC|GRC|TC|B)\))?/iu;
 
 type TnaSearchResult = {
   citation: string;
@@ -41,8 +40,8 @@ const parseXml = (xml: string) => {
   return parser.parse(xml);
 };
 
-const citationFrom = (value: string) =>
-  value.match(CITATION)?.[0].replace(/\s+/gu, " ").trim() ?? "";
+const citationFrom = (value: string) => providerCitationsInTextNative(value)
+  .find(({ jurisdiction }) => jurisdiction === "uk");
 
 const normalized = (value: string) =>
   value.replace(/\s+/gu, " ").trim().toLowerCase();
@@ -86,11 +85,10 @@ async function fetchXml(url: string, accept: string, signal?: AbortSignal) {
 }
 
 async function searchTnaCase(text: string, signal?: AbortSignal) {
-  const citation = citationFrom(text);
-  if (!citation) return null;
-  const court = citation.match(
-    /\]\s+(EWCA\s+(?:Civ|Crim)|UKSC|UKPC|EWHC|EWCC|EWFC|EWCOP|EWCR|UKUT|UKFTT|EAT)\b/iu,
-  )?.[1].replace(/\s+/gu, "/").toLowerCase() ?? "";
+  const match = citationFrom(text);
+  if (!match?.court) return null;
+  const citation = match.text.replace(/\s+/gu, " ").trim();
+  const court = match.court.replace(/\s+/gu, "/").toLowerCase();
   const query = new URLSearchParams({
     query: `"${citation}"`,
     court,
@@ -183,7 +181,7 @@ const reference = (result: TnaSearchResult) => ({
 
 export const tnaLegalSourceProvider: RemoteLegalSourceProvider = {
   id: "tna",
-  canResolve: ({ kind, text }) => kind === "case" && Boolean(citationFrom(text)),
+  canResolve: ({ kind, text }) => kind === "case" && !!citationFrom(text),
   async resolve({ text, signal }) {
     const result = await searchTnaCase(text, signal);
     return result ? [reference(result)] : [];

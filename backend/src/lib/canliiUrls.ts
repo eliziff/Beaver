@@ -1,3 +1,5 @@
+import { providerCitationsInTextNative } from "./structureNative";
+
 /**
  * Deterministic CanLII case URLs. `A2AJ_CANLII_COURT_ROUTES` is a verbatim
  * data port of ALR Quote Verifier's `verifier_core/canlii_urls.py`; URL
@@ -6,7 +8,7 @@
  * CanLII does not redirect near-miss database slugs. Unknown courts therefore
  * abstain instead of deriving a plausible route.
  */
-const A2AJ_CANLII_COURT_ROUTES: Record<string, string> = {
+export const A2AJ_CANLII_COURT_ROUTES: Record<string, string> = {
   ABAER: "ab/abaer",
   ABCA: "ab/abca",
   ABCGYARB: "ab/abcgyarb",
@@ -420,9 +422,6 @@ const A2AJ_CANLII_COURT_ROUTES: Record<string, string> = {
   YTTLRB: "yt/yttlrb",
 };
 
-const NEUTRAL_CASE_CITATION =
-  /\b(\d{4})\s+([A-Za-z][A-Za-z0-9-]{1,15})\s+(\d+)\b/gu;
-
 export function buildCanliiCaseUrl({
   dataset,
   citations,
@@ -436,14 +435,12 @@ export function buildCanliiCaseUrl({
   const route = A2AJ_CANLII_COURT_ROUTES[expectedCourt];
   if (!route) return null;
 
-  for (const citation of citations) {
-    for (const match of citation?.matchAll(NEUTRAL_CASE_CITATION) ?? []) {
-      const [, year, court, number] = match;
-      if (court.toUpperCase() !== expectedCourt) continue;
-      const slugCourt = expectedCourt === "CANLII" ? "canlii" : court.toLowerCase();
-      const slug = `${year}${slugCourt}${number}`;
-      return `https://www.canlii.org/${language}/${route}/doc/${year}/${slug}/${slug}.html`;
-    }
+  for (const match of providerCitationsInTextNative(citations.filter(Boolean).join("\n;\n"))) {
+    if (match.family !== "neutral" || !match.year || !match.court || !match.number ||
+        match.court.toUpperCase() !== expectedCourt) continue;
+    const slugCourt = expectedCourt === "CANLII" ? "canlii" : match.court.toLowerCase();
+    const slug = `${match.year}${slugCourt}${match.number}`;
+    return `https://www.canlii.org/${language}/${route}/doc/${match.year}/${slug}/${slug}.html`;
   }
   return null;
 }

@@ -21,6 +21,10 @@
   changes, rebuild the narrow integration boundary at checkpoints, and reserve
   full release builds and corpus gates for a complete candidate. The same
   principle applies outside Rust to virtually all LLM coding work.
+- For `legal-structure`, reuse the warm Node-adapter target with
+  `cargo check --manifest-path native/legal-structure-node/Cargo.toml --offline`.
+  Do not check `legal-structure/Cargo.toml` directly; that creates a separate
+  cold target and recompiles the same dependencies.
 - Test behaviour and durable contracts, not incidental UI copy or implementation presence.
 - Prefer the smallest test that proves a public outcome or resulting state. Use doubles only to control expensive or hard-to-trigger dependencies; delete tests that merely replay stubbed values or assert internal call choreography.
 - Never commit credentials, AppData, downloaded corpora, caches, generated artifacts, or managed runtimes.

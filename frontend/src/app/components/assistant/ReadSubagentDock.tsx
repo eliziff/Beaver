@@ -104,7 +104,7 @@ export function ReadSubagentDock({
                                     <details open className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs leading-5 text-gray-700">
                                         <summary className="cursor-pointer font-medium text-gray-600">Final output{panel.sources.length ? ` · ${panel.sources.length} verified ${panel.sources.length === 1 ? "passage" : "passages"}` : ""}</summary>
                                         <div aria-label="Agent final output" className="prose prose-sm mt-2 max-w-none break-words text-xs leading-5 text-gray-700 [overflow-wrap:anywhere] [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_h4]:text-xs [&_li]:text-xs [&_p]:text-xs">
-                                            <CitationPillMarkdown text={panel.output} sources={panel.sources} onSourceClick={(source) => onSourceClick?.(source as ReadSubagentSource)} />
+                                            <CitationPillMarkdown text={panel.output} sources={panel.sources} onSourceClick={onSourceClick} />
                                         </div>
                                     </details>
                                 ) : panel.status === "error" ? <p className="ms-5 mt-2 rounded-xl rounded-br-sm bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">Reading agent failed.</p> : null}

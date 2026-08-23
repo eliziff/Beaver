@@ -384,7 +384,6 @@ export interface LegalSourceViewerPayload {
     pdfUrl?: string | null;
   };
   text: string;
-  structureSource: "native" | "hybrid" | "flat_text" | "section_map";
   anchors: {
     kind: "paragraph" | "page" | "section" | "footnote";
     label: string;

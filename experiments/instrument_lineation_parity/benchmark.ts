@@ -10,16 +10,17 @@ const RECEIPT = path.join(DIR, "receipt.json");
 const BASELINE = path.join(import.meta.dirname, "structure-baseline.json");
 const TSX = path.join(ROOT, "backend/node_modules/tsx/dist/cli.mjs");
 const LIMIT = Number(process.argv.find((value) => value.startsWith("--limit="))?.slice(8) ?? Infinity);
-const PROJECT = process.argv.includes("--project-source-doc");
 const PARITY = process.argv.includes("--parity");
+const MEASURE_MEMORY = process.argv.includes("--memory");
 const WORKER = process.argv.find((value) => value.startsWith("--worker="))?.slice(9);
+const RECONSTRUCT_LINEATION = !process.argv.includes("--no-reconstruct-lineation");
 const GC_CADENCE = 25;
 
 type Document = { id: string; text: string; pages?: number; lines?: number };
 type NativeDocument = object;
 type Addon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  sourceDocTextBytes(document: NativeDocument): number;
+  derivePdfDocument(request: unknown): Promise<NativeDocument>;
 };
 type Memory = ReturnType<typeof process.memoryUsage>;
 type Locator = { kind: "agreement" | "pdf"; index: number; id: string; bytes: number };
@@ -41,7 +42,7 @@ const gitCommit = (cwd: string) => execFileSync("git", ["rev-parse", "HEAD"], {
 
 function addonPath() {
   return path.resolve(process.env.LEGAL_STRUCTURE_NATIVE?.trim() || path.join(
-    ROOT, "legal-pdf-parser/target/release",
+    ROOT, "native/legal-structure-node/target/release",
     process.platform === "win32" ? "legal_structure_node.dll"
       : process.platform === "darwin" ? "liblegal_structure_node.dylib"
       : "liblegal_structure_node.so",
@@ -54,8 +55,8 @@ function loadAddon(filename: string): Addon {
   return module.exports as Addon;
 }
 
-function peakSampler() {
-  const peak = memory();
+function peakSampler(initial: Memory) {
+  const peak = { ...initial };
   const sample = () => {
     const current = memory();
     for (const key of Object.keys(current) as Array<keyof Memory>) {
@@ -71,7 +72,8 @@ async function writePartial(mode: string, value: object) {
   await fs.writeFile(path.join(DIR, `${mode}.json`), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function streamCorpus(limit: number, visit: (document: Document, count: number) => Promise<void>) {
+async function streamCorpus(addon: Addon, limit: number,
+  visit: (document: Document, count: number) => Promise<void>) {
   const { agreements, pdfs } = await instrumentCorpusFiles();
   const hash = createHash("sha256");
   const locators: Locator[] = [];
@@ -82,7 +84,6 @@ async function streamCorpus(limit: number, visit: (document: Document, count: nu
   let inputBytes = 0;
   let agreementLoadMs = 0;
   let pdfLoadDecompressionMs = 0;
-  const sampler = peakSampler();
   const consume = async (kind: Locator["kind"], index: number, document: Document, loadMs: number) => {
     const bytes = Buffer.byteLength(document.text);
     if (kind === "agreement") { agreementsRead += 1; agreementLoadMs += loadMs; }
@@ -92,9 +93,7 @@ async function streamCorpus(limit: number, visit: (document: Document, count: nu
     }
     inputBytes += bytes;
     locators.push({ kind, index, id: document.id, bytes });
-    sampler.sample();
     await visit(document, locators.length);
-    sampler.sample();
   };
   for (let index = 0; index < agreements.length && locators.length < limit; index += 1) {
     const started = performance.now();
@@ -103,22 +102,22 @@ async function streamCorpus(limit: number, visit: (document: Document, count: nu
   }
   for (let index = 0; index < pdfs.length && locators.length < limit; index += 1) {
     const started = performance.now();
-    const document = await readPdf(pdfs[index]);
+    const document = await readPdf(pdfs[index], addon);
     await consume("pdf", index, document, performance.now() - started);
   }
-  sampler.stop();
   return { locators, surface: { agreements: agreementsRead, pdfs: pdfsRead, pages, lines,
     inputBytes, inputSha256: hash.digest("hex") }, fixtureLoad: {
     agreementMs: round(agreementLoadMs), pdfReadDecompressionMs: round(pdfLoadDecompressionMs),
-    totalMs: round(agreementLoadMs + pdfLoadDecompressionMs) }, peakMemory: sampler.peak };
+    totalMs: round(agreementLoadMs + pdfLoadDecompressionMs) } };
 }
 
-async function readTarget(kind: Locator["kind"], index: number) {
+async function readTarget(addon: Addon, kind: Locator["kind"], index: number) {
   const files = await instrumentCorpusFiles();
   const file = kind === "agreement" ? files.agreements[index] : files.pdfs[index];
   if (!file) throw new Error(`benchmark target missing: ${kind}:${index}`);
   const started = performance.now();
-  const document = kind === "agreement" ? await readAgreement(file) : await readPdf(file);
+  const document = kind === "agreement" ? await readAgreement(file as string)
+    : await readPdf(file as (typeof files.pdfs)[number], addon);
   return { document, loadMs: round(performance.now() - started) };
 }
 
@@ -127,99 +126,88 @@ async function workerMain(mode: string) {
   const locked = { documents: baseline.denominators.agreements + baseline.denominators.pdfs,
     denominators: baseline.denominators, inputBytes: baseline.inputBytes,
     inputSha256: baseline.inputSha256 };
-  await writePartial(mode, { schemaVersion: "beaver.instrument-structure-benchmark-worker.v1",
+  await writePartial(mode, { schemaVersion: "beaver.instrument-structure-benchmark-worker.v2",
     mode, complete: false, checked: 0, locked });
   const targetKind = process.argv.find((value) => value.startsWith("--target-kind="))?.slice(14) as Locator["kind"] | undefined;
   const targetIndex = Number(process.argv.find((value) => value.startsWith("--target-index="))?.slice(15));
-  const target = targetKind ? await readTarget(targetKind, targetIndex) : null;
-  const nativeFile = mode === "corpus" ? null : addonPath();
-  const addon = nativeFile ? loadAddon(nativeFile) : null;
+  const nativeFile = addonPath();
+  const addon = loadAddon(nativeFile);
+  const target = targetKind ? await readTarget(addon, targetKind, targetIndex) : null;
+  const timed = mode === "derive";
+  const measuredMemory = mode === "memory" || target !== null;
+  if (measuredMemory) global.gc?.();
+  const memoryBaseline = measuredMemory ? memory() : undefined;
+  const sampler = memoryBaseline ? peakSampler(memoryBaseline) : undefined;
   const derive: number[] = [];
-  const projection: number[] = [];
-  const sampler = peakSampler();
   let live: Memory | undefined;
   let released: Memory | undefined;
   const deriveOne = async (document: Document, count: number) => {
     let native: NativeDocument | undefined;
-    const started = performance.now();
-    native = await addon!.deriveDocumentStructure({ kind: "instrument", id: document.id,
-      text: document.text, reconstruct_lineation: true });
-    derive.push(performance.now() - started);
-    if (PROJECT || target) {
-      const projected = performance.now();
-      addon!.sourceDocTextBytes(native);
-      projection.push(performance.now() - projected);
-    }
-    sampler.sample();
+    const started = timed ? performance.now() : 0;
+    native = await addon.deriveDocumentStructure({ kind: "instrument", id: document.id,
+      text: document.text, reconstruct_lineation: RECONSTRUCT_LINEATION });
+    if (timed) derive.push(performance.now() - started);
+    sampler?.sample();
     if (target) { global.gc?.(); live = memory(); }
     native = undefined;
-    if (target || count % GC_CADENCE === 0) {
+    if (measuredMemory && (target || count % GC_CADENCE === 0)) {
       await new Promise((resolve) => setImmediate(resolve));
       global.gc?.();
-      sampler.sample();
+      sampler?.sample();
       if (target) released = memory();
     }
-    if (count % 10 === 0) {
+    if (count % 100 === 0) {
       process.stderr.write(`[${mode}] ${count}/${Number.isFinite(LIMIT) ? LIMIT : locked.documents}\n`);
       await writePartial(mode, { complete: false, checked: count,
-        deriveTotalMs: round(total(derive)), projectionTotalMs: round(total(projection)),
-        fixtureLoadExcluded: true, peakMemory: sampler.peak });
+        ...(timed ? { deriveTotalMs: round(total(derive)) } : {}),
+        fixtureLoadExcluded: true, ...(sampler ? { peakMemory: sampler.peak } : {}) });
     }
   };
 
-  let streamed;
-  if (target) {
-    await deriveOne(target.document, 1);
-    streamed = { locators: [{ kind: targetKind!, index: targetIndex, id: target.document.id,
+  const streamed = target ? (await deriveOne(target.document, 1), {
+    locators: [{ kind: targetKind!, index: targetIndex, id: target.document.id,
       bytes: Buffer.byteLength(target.document.text) }], surface: null,
-      fixtureLoad: { targetReadDecompressionMs: target.loadMs }, peakMemory: memory() };
-  } else {
-    streamed = await streamCorpus(LIMIT, mode === "corpus" ? async (_document, count) => {
-      if (count % 10 === 0) {
-        process.stderr.write(`[corpus] ${count}/${Number.isFinite(LIMIT) ? LIMIT : locked.documents}\n`);
-        await writePartial(mode, { complete: false, checked: count, locked });
-      }
-    } : deriveOne);
+    fixtureLoad: { targetReadDecompressionMs: target.loadMs },
+  }) : await streamCorpus(addon, LIMIT, deriveOne);
+  sampler?.stop();
+  if (measuredMemory && !target) {
+    await new Promise((resolve) => setImmediate(resolve));
+    global.gc?.();
+    released = memory();
   }
-  sampler.stop();
   const full = streamed.locators.length === locked.documents;
   const valid = !full || JSON.stringify(streamed.surface) === JSON.stringify({
     ...locked.denominators, inputBytes: locked.inputBytes, inputSha256: locked.inputSha256,
   });
   if (!valid) throw new Error(`locked corpus receipt drift: ${JSON.stringify(streamed.surface)}`);
-  const common = { schemaVersion: "beaver.instrument-structure-benchmark-worker.v1", mode,
+  const common = { schemaVersion: "beaver.instrument-structure-benchmark-worker.v2", mode,
     complete: true, selectedDocuments: streamed.locators.length,
     selectedBytes: streamed.locators.reduce((sum, item) => sum + item.bytes, 0), locked,
     corpusValidation: full ? { matches: true, actual: streamed.surface }
       : { skipped: true, reason: target ? "single-document memory probe" : "--limit smoke" },
     fixtureLoad: streamed.fixtureLoad,
-    peakMemory: mode === "corpus" ? streamed.peakMemory : sampler.peak };
-  if (mode === "corpus") {
-    const ordered = [...streamed.locators].sort((left, right) => left.bytes - right.bytes);
-    const result = { ...common, selected: ordered.length ? {
-      median: ordered[Math.floor((ordered.length - 1) / 2)], largest: ordered.at(-1),
-    } : null };
+    addon: { path: nativeFile, sha256: createHash("sha256")
+      .update(await fs.readFile(nativeFile)).digest("hex") } };
+  if (timed) {
+    const deriveMs = total(derive);
+    const measuredBytes = streamed.locators.reduce((sum, item) => sum + item.bytes, 0);
+    const result = { ...common,
+      engine: { totalMs: round(deriveMs), medianMs: percentile(derive, .5),
+        p95Ms: percentile(derive, .95),
+        docsPerSecond: deriveMs ? round(derive.length * 1_000 / deriveMs) : null,
+        mibPerSecond: deriveMs ? round(measuredBytes / 1_048_576 * 1_000 / deriveMs) : null } };
     await writePartial(mode, result);
     return result;
   }
-  const warm = derive.slice(1);
-  const deriveMs = total(derive);
-  const warmMs = total(warm);
-  const measuredBytes = streamed.locators.reduce((sum, item) => sum + item.bytes, 0);
-  const warmBytes = streamed.locators.slice(1).reduce((sum, item) => sum + item.bytes, 0);
-  const result = { ...common, addon: { path: nativeFile, sha256: createHash("sha256")
-    .update(await fs.readFile(nativeFile!)).digest("hex") }, gcCadenceDocuments: GC_CADENCE,
-    engine: { coldFirstCallMs: derive.length ? round(derive[0]) : null,
-      warm: { totalMs: round(warmMs), medianMs: percentile(warm, .5), p95Ms: percentile(warm, .95),
-        docsPerSecond: warmMs ? round(warm.length * 1_000 / warmMs) : null,
-        mibPerSecond: warmMs ? round(warmBytes / 1_048_576 * 1_000 / warmMs) : null },
-      deriveTotalMs: round(deriveMs), docsPerSecond: deriveMs ? round(derive.length * 1_000 / deriveMs) : null,
-      mibPerSecond: deriveMs ? round(measuredBytes / 1_048_576 * 1_000 / deriveMs) : null,
-      nativeSourceDocProjectionTrigger: PROJECT || target ? { totalMs: round(total(projection)),
-        medianMs: percentile(projection, .5), p95Ms: percentile(projection, .95),
-        operation: "sourceDocTextBytes (no JSON serialization)" } : null },
-    memory: { peak: sampler.peak, ...(target ? { live, released,
-      releasedDeltaFromLive: memoryDelta(released!, live!) } : {}) } };
+  const ordered = [...streamed.locators].sort((left, right) => left.bytes - right.bytes);
+  const result = { ...common, gcCadenceDocuments: GC_CADENCE,
+    selected: target || !ordered.length ? null : {
+      median: ordered[Math.floor((ordered.length - 1) / 2)], largest: ordered.at(-1),
+    }, memory: { baseline: memoryBaseline, peak: sampler!.peak, released,
+      peakDeltaFromBaseline: memoryDelta(sampler!.peak, memoryBaseline!),
+      releasedDeltaFromBaseline: memoryDelta(released!, memoryBaseline!),
+      ...(live ? { live, liveDeltaFromBaseline: memoryDelta(live, memoryBaseline!),
+      } : {}) } };
   await writePartial(mode, result);
   return result;
 }
@@ -227,7 +215,7 @@ async function workerMain(mode: string) {
 function runChild(mode: string, extra: string[] = []): Promise<any> {
   return new Promise((resolve, reject) => {
     const args = ["--expose-gc", TSX, import.meta.filename, `--worker=${mode}`,
-      ...(Number.isFinite(LIMIT) ? [`--limit=${LIMIT}`] : []), ...(PROJECT ? ["--project-source-doc"] : []), ...extra];
+      ...(Number.isFinite(LIMIT) ? [`--limit=${LIMIT}`] : []), ...extra];
     const child = spawn(process.execPath, args, { cwd: ROOT, env: process.env,
       stdio: ["ignore", "pipe", "inherit"] });
     let stdout = "";
@@ -255,19 +243,24 @@ async function parityGate() {
 async function main() {
   if (WORKER) { process.stdout.write(JSON.stringify(await workerMain(WORKER))); return; }
   await fs.mkdir(DIR, { recursive: true });
-  const corpus = await runChild("corpus");
   const derive = await runChild("derive");
-  const probe = (mode: string, target: Locator) => runChild(mode,
-    [`--target-kind=${target.kind}`, `--target-index=${target.index}`]);
-  const median = corpus.selected && await probe("probe-median", corpus.selected.median);
-  const largest = corpus.selected && await probe("probe-largest", corpus.selected.largest);
-  const receipt = { schemaVersion: "beaver.instrument-structure-benchmark.v1", complete: true,
+  let memoryReceipt;
+  if (MEASURE_MEMORY) {
+    const corpus = await runChild("memory");
+    const probe = (mode: string, target: Locator) => runChild(mode,
+      [`--target-kind=${target.kind}`, `--target-index=${target.index}`]);
+    const median = corpus.selected && await probe("probe-median", corpus.selected.median);
+    const sameTarget = corpus.selected?.median.kind === corpus.selected?.largest.kind &&
+      corpus.selected?.median.index === corpus.selected?.largest.index;
+    memoryReceipt = { corpus, median,
+      largest: sameTarget ? median : corpus.selected && await probe("probe-largest", corpus.selected.largest) };
+  }
+  const receipt = { schemaVersion: "beaver.instrument-structure-benchmark.v2", complete: true,
     createdAt: new Date().toISOString(), rootGitCommit: gitCommit(ROOT),
-    rustGitCommit: gitCommit(path.join(ROOT, "legal-pdf-parser")), corpus, derive,
-    memoryProbes: { median, largest },
-    enginePeakIncrementOverCorpusOnly: memoryDelta(derive.memory.peak, corpus.peakMemory),
+    rustGitCommit: gitCommit(path.join(ROOT, "legal-pdf-parser")), derive,
+    ...(memoryReceipt ? { memory: memoryReceipt } : {}),
     ...(PARITY ? { parity: await parityGate() } : {}),
-    interpretation: "Fixture I/O, projection-trigger, GC, and parity wall time are excluded from native derivation speed." };
+    interpretation: "Fixture I/O, forced GC, memory sampling, and parity wall time are excluded from production N-API latency." };
   await fs.writeFile(RECEIPT, `${JSON.stringify(receipt, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
   if (receipt.parity?.exitCode) process.exitCode = 1;

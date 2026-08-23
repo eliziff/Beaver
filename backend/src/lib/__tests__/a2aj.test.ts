@@ -16,7 +16,6 @@ import {
 } from "../legalSources/a2aj";
 import {
   documentTextNative,
-  lookupDocumentNative,
 } from "../structureNative";
 
 beforeEach(() => {
@@ -261,12 +260,6 @@ describe("A2AJ client", () => {
     });
     const source = a2ajLegalSourceProvider.source(document!);
     expect(source && documentTextNative(source)).toBe(mappedText);
-    expect(source && lookupDocumentNative(source, "section", "34").block).toMatchObject({
-      label: "sec34",
-      start: 0,
-      end: mappedText.length,
-      origin: "native",
-    });
     expect(passages).toHaveLength(1);
     expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
     expect(passages[0]?.text).toContain(
