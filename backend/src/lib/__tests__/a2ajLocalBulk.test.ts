@@ -110,11 +110,8 @@ describe("local A2AJ bulk data", () => {
       docType: "laws",
       name: "Criminal Code",
       text: "Stale flat rendition.",
-      structure: { source: "flat_text" },
+      sectionMap: { "34": "34(1) Parent defence provision." },
     });
-    expect(bulk.getLocalA2AJSectionMap(law!)?.["34"]).toBe(
-      "34(1) Parent defence provision.",
-    );
     expect(
       bulk.searchLocalA2AJ({
         query: "constitutional remedy",
@@ -146,6 +143,6 @@ describe("local A2AJ bulk data", () => {
       citation: "2022 SCC 88",
     });
     expect(longDocument?.text).toHaveLength(50_000);
-    expect(longDocument?.structure.status).toBe("unavailable");
+    expect(longDocument?.analysis).toBeUndefined();
   });
 });

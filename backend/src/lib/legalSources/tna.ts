@@ -1,9 +1,8 @@
 import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
-import { sha256 } from "../hash";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
-import { lookupLegalSourceDoc, nativeMarkupCitedRefs } from "../sourceDocNativeMarkup";
-import { deriveNativeMarkupSourceDoc } from "../sourceDocStructureHost";
+import { analyzeDocumentNative } from "../structureNative";
+import { lookupSourceDoc, type SourceDoc } from "../sourceDoc";
 import type { LegalSourceReference } from ".";
 import { sourceDocPassages } from "./sourceDocPassages";
 import {
@@ -11,6 +10,7 @@ import {
   legalSourceUrl,
   objectValue,
   stringValue,
+  type NativeMarkupRef,
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
@@ -146,22 +146,37 @@ async function fetchTnaCase(
     "application/akn+xml, application/xml, text/xml",
     signal,
   );
+  const analyzed = await analyzeDocumentNative<{
+    structure: unknown;
+    source_doc?: SourceDoc;
+  }>({
+    kind: "native_markup",
+    source_doc: true,
+    input: {
+      provider: "tna", id: result.citation, url, text: "", markup: xml,
+      citation: result.citation,
+    },
+  });
+  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+  const structure = objectValue(analyzed.structure);
+  const citedAuthorities = arrayValue(structure?.cited_authorities).flatMap((value) => {
+    const authority = objectValue(value);
+    const citation = stringValue(authority?.citation);
+    return citation ? [{
+      citation,
+      canonical: stringValue(authority?.canonical),
+      type: stringValue(authority?.type),
+    } satisfies NativeMarkupRef] : [];
+  });
   return {
     provider: "tna",
     identity: result.citation,
     title: result.title,
     url,
-    structure: await deriveNativeMarkupSourceDoc({
-      provider: "tna",
-      id: result.citation,
-      url,
-      text: "",
-      markup: xml,
-      citation: result.citation,
-    }),
+    analysis: { ...analyzed, source_doc: analyzed.source_doc },
     attachments: [],
-    citedAuthorities: nativeMarkupCitedRefs(xml),
-    sourceSha256: sha256(xml),
+    citedAuthorities,
+    sourceSha256: stringValue(structure?.source_sha256) ?? undefined,
   };
 }
 
@@ -197,11 +212,11 @@ export const tnaLegalSourceProvider: RemoteLegalSourceProvider = {
     return sourceDocPassages({
       request,
       reference: { ...source, ...reference(result), title: document.title },
-      document: document.structure,
+      document: document.analysis.source_doc,
       revision: document.sourceSha256,
       native: { document },
       lookup: (kind, value, contextBlocks) =>
-        lookupLegalSourceDoc(document.structure, kind, value, contextBlocks),
+        lookupSourceDoc(document.analysis.source_doc, kind, value, contextBlocks),
     });
   },
 };

@@ -2,9 +2,10 @@ import {
   a2ajLegalSourceProvider,
   type A2AJLocatorLookup,
 } from "../../legalSources/a2aj";
-import { crossReferenceGraphFromSourceDoc } from "../../legalCrossReference";
 import { collapseProvisionLabels } from "../../provisionLabels";
+import { graphScope } from "../../legalDocumentNavigator";
 import { parseResourceReference } from "../../resourceReferences";
+import { jsonRecord } from "../../value";
 import {
   lookupSourceDocLabel,
   sourceDocSubtreeLabels,
@@ -56,12 +57,14 @@ export async function readA2AJReferenceNeighborhood(
     signal,
   });
   const source = document ? a2ajLegalSourceProvider.source(document) : null;
-  if (!source) return empty(["reference graph source unavailable"]);
+  const graph = jsonRecord(document?.analysis?.structure)?.cross_references as
+    | Parameters<typeof graphScope>[1]
+    | undefined;
+  if (!source || !graph) return empty(["reference graph source unavailable"]);
   const seed = lookupSourceDocLabel(source, "section", lookup.block.label);
   if (seed.status !== "found" || !seed.block) {
     return empty(["requested section is not addressable in the reference graph"]);
   }
-  const graph = crossReferenceGraphFromSourceDoc(source);
   if (graph.documentAbstained) {
     return empty([graph.note ?? "reference graph abstained"]);
   }

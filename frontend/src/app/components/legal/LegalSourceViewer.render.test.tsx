@@ -53,10 +53,8 @@ function viewerPayload(): LegalSourceViewerPayload {
             upstreamLicense: null,
         },
         text,
-        structure: {
-            status: "usable",
-            source: "native",
-            blocks: [
+        structureSource: "native",
+        anchors: [
                 {
                     kind: "page",
                     label: "page1",
@@ -69,9 +67,7 @@ function viewerPayload(): LegalSourceViewerPayload {
                     start: 0,
                     end: text.length,
                 },
-            ],
-            counts: { paragraph: 1, page: 1, section: 0, footnote: 0 },
-        },
+        ],
         presentation: {
             source: "a2aj_markdown",
             segments: [
@@ -145,9 +141,7 @@ function multiSlicePayload(): LegalSourceViewerPayload {
         ...base,
         text,
         presentation: undefined,
-        structure: {
-            ...base.structure,
-            blocks: [
+        anchors: [
                 { kind: "page", label: "page1", start: 0, end: third },
                 { kind: "paragraph", label: "par1", start: 0, end: second },
                 {
@@ -168,9 +162,7 @@ function multiSlicePayload(): LegalSourceViewerPayload {
                     start: third,
                     end: text.length,
                 },
-            ],
-            counts: { paragraph: 3, page: 2, section: 0, footnote: 0 },
-        },
+        ],
     };
 }
 
@@ -187,7 +179,7 @@ describe("legal source reader", () => {
 
     it("treats provider anchor labels as data, not regular expressions", async () => {
         const untrusted = viewerPayload();
-        untrusted.structure.blocks[1].label = "par(";
+        untrusted.anchors[1].label = "par(";
         api.direct.mockResolvedValue(untrusted);
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" />);
         expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
@@ -340,9 +332,7 @@ describe("legal source reader", () => {
             ...base,
             text,
             presentation: undefined,
-            structure: {
-                ...base.structure,
-                blocks: paragraphs.map((paragraph, index) => {
+            anchors: paragraphs.map((paragraph, index) => {
                     const start = text.indexOf(paragraph);
                     return {
                         kind: "paragraph" as const,
@@ -350,9 +340,7 @@ describe("legal source reader", () => {
                         start,
                         end: start + paragraph.length,
                     };
-                }),
-                counts: { paragraph: 12, page: 0, section: 0, footnote: 0 },
-            },
+            }),
         });
         const { container } = render(
             <LegalSourceViewer
