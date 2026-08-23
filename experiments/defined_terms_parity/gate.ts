@@ -23,7 +23,7 @@ const INSTRUMENT_BASELINE = path.join(
 const REPORT = path.join(ROOT, ".tmp/defined-terms-parity/report.json");
 const RUNNER = path.join(
   ROOT,
-  "legal-pdf-parser/target/debug/defined-terms-parity.exe",
+  "legal-pdf-parser/target/release/defined-terms-parity.exe",
 );
 const DOCX_ROOTS = [
   path.join(ROOT, "benchmarks/docx_corpus"),
@@ -324,12 +324,14 @@ async function main(): Promise<void> {
     uses: 0,
     duplicates: 0,
   };
+  const benchmark = { typescriptMs: 0, rustMs: 0 };
   const writeReport = async (complete: boolean) => {
     await fs.mkdir(path.dirname(REPORT), { recursive: true });
     await fs.writeFile(REPORT, `${JSON.stringify({
       schemaVersion: "beaver.defined-terms-parity-report.v1",
       complete,
       totals,
+      benchmark,
       mismatches: [...groups].map(([cause, { count, examples }]) => ({
         cause,
         count,
@@ -373,7 +375,10 @@ async function main(): Promise<void> {
       const texts = docxParagraphTexts(xml);
       const text = texts.join("\n");
       const paragraphs = paragraphsFor(text, texts, id);
+      let tick = performance.now();
       const expected = oracleDefinitions(text, paragraphs);
+      benchmark.typescriptMs += performance.now() - tick;
+      tick = performance.now();
       const actual = await runner.analyze({
         id,
         text,
@@ -383,6 +388,7 @@ async function main(): Promise<void> {
           source_artifact_id,
         })),
       });
+      benchmark.rustMs += performance.now() - tick;
       const report = await lintDocxStructure(entry.bytes);
       const legacy = {
         paragraphs: texts.length,
@@ -428,7 +434,10 @@ async function main(): Promise<void> {
   const { agreements, pdfs } = await instrumentCorpusFiles();
   const checkInstrument = async (id: string, text: string) => {
     const paragraphs = instrumentParagraphs(text, id);
+    let tick = performance.now();
     const expected = oracleDefinitions(text, paragraphs);
+    benchmark.typescriptMs += performance.now() - tick;
+    tick = performance.now();
     const actual = await runner.analyze({
       id,
       text,
@@ -438,6 +447,7 @@ async function main(): Promise<void> {
         source_artifact_id,
       })),
     });
+    benchmark.rustMs += performance.now() - tick;
     const frozen = baselineById.get(id) as {
       inputSha256: string;
     } | undefined;
@@ -479,7 +489,7 @@ async function main(): Promise<void> {
   await runner.close();
   await writeReport(true);
   if (groups.size) throw new Error(`defined-term parity failed with ${groups.size} mismatch groups`);
-  process.stdout.write(`${JSON.stringify(totals)}\n`);
+  process.stdout.write(`${JSON.stringify({ ...totals, benchmark })}\n`);
 }
 
 void main().catch((error) => {
