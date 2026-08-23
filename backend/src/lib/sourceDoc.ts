@@ -1,5 +1,4 @@
 import { normalizeWhitespace } from "./text";
-import { sha256 } from "./hash";
 
 /**
  * One immutable, content-hashed artifact per fetched source (master plan
@@ -108,14 +107,6 @@ export function sourceDocSubtreeLabels(
   return labels;
 }
 
-const LOCATOR_KINDS: SourceDocLocatorKind[] = [
-  "paragraph",
-  "page",
-  "section",
-  "footnote",
-];
-const MAX_REPORTED_MISSING = 64;
-
 // Identical to legalSourceLinks' WORD_RE so quote matching cannot diverge
 // between the link builder and the SourceDoc index.
 const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
@@ -159,162 +150,6 @@ export function sourceDocQuoteText(text: string) {
 
 export function sourceDocQuoteWords(quote: string) {
   return tokenizeSourceText(sourceDocQuoteText(quote)).map(({ word }) => word);
-}
-
-function labelNumber(kind: SourceDocLocatorKind, label: string) {
-  const match = label.match(kind === "section" ? /^sec(\d{1,8})(?:$|[.\-(])/iu
-    : /^(?:par|page=?|fn)(\d{1,6})$/iu);
-  return match ? Number(match[1]) : null;
-}
-
-function locatorRange(
-  kind: SourceDocLocatorKind,
-  blocks: SourceDocBlock[],
-): SourceDocLocatorRange {
-  const empty = {
-    kind,
-    count: 0,
-    first: null,
-    last: null,
-    missing: [],
-    missingTruncated: false,
-  };
-  if (!blocks.length) return empty;
-  const physicalLabels = new Set(
-    blocks.map((block) => block.label.toLowerCase()),
-  );
-  const aliasOnly = new Set(
-    blocks.flatMap((block) =>
-      (block.aliases ?? [])
-        .map((label) => label.toLowerCase())
-        .filter((label) => !physicalLabels.has(label)),
-    ),
-  );
-  const count = blocks.length + aliasOnly.size;
-  // Sections nest, so only top-level provisions define the advertised range;
-  // paragraphs, pages and footnotes are flat.
-  const spine =
-    kind === "section"
-      ? blocks.filter((block) => !block.label.includes("("))
-      : blocks;
-  if (!spine.length) {
-    return { ...empty, count };
-  }
-  const numbered = [
-    ...new Set(
-      spine.flatMap((block) => [block.label, ...(block.aliases ?? [])]),
-    ),
-  ].map((label) => ({
-    label,
-    value: labelNumber(kind, label),
-  }));
-  const present = numbered.filter(
-    (entry): entry is { label: string; value: number } => entry.value !== null,
-  );
-  if (present.length !== numbered.length) {
-    // A non-numeric spine (e.g. "A.01.001") has an order but no gap notion.
-    return {
-      kind,
-      count,
-      first: spine[0].label,
-      last: spine.at(-1)!.label,
-      missing: [],
-      missingTruncated: false,
-    };
-  }
-  const values = new Set(present.map((entry) => entry.value));
-  const lowest = present.reduce((best, entry) =>
-    entry.value < best.value ? entry : best,
-  );
-  const highest = present.reduce((best, entry) =>
-    entry.value > best.value ? entry : best,
-  );
-  const missing: string[] = [];
-  let missingTruncated = false;
-  for (let value = lowest.value + 1; value < highest.value; value += 1) {
-    if (values.has(value)) continue;
-    if (missing.length >= MAX_REPORTED_MISSING) {
-      missingTruncated = true;
-      break;
-    }
-    missing.push(
-      kind === "section"
-        ? `sec${value}`
-        : kind === "paragraph"
-          ? `par${value}`
-          : kind === "page"
-            ? `page${value}`
-            : `fn${value}`,
-    );
-  }
-  return {
-    kind,
-    count,
-    first: lowest.label,
-    last: highest.label,
-    missing,
-    missingTruncated,
-  };
-}
-
-export function createSourceDoc(args: {
-  provider: SourceDocProvider | null;
-  id: string;
-  url?: string | null;
-  docType?: "cases" | "laws" | null;
-  text: string;
-  blocks: SourceDocBlock[];
-}): SourceDoc {
-  const blocks = args.blocks;
-  const index = new Map<string, number>();
-  const duplicates = new Set<string>();
-  const byKind: Record<SourceDocLocatorKind, SourceDocBlock[]> = {
-    paragraph: [], page: [], section: [], footnote: [],
-  };
-  blocks.forEach((block, position) => {
-    if ((LOCATOR_KINDS as SourceDocBlockKind[]).includes(block.kind)) {
-      byKind[block.kind as SourceDocLocatorKind].push(block);
-    }
-    for (const label of new Set(
-      [block.label, ...(block.aliases ?? []), block.anchor].filter(
-        (value): value is string => Boolean(value),
-      ),
-    )) {
-      const key = label.toLowerCase();
-      if (index.has(key)) duplicates.add(key);
-      else index.set(key, position);
-    }
-  });
-  for (const key of duplicates) index.delete(key);
-  const ranges = Object.fromEntries(
-    LOCATOR_KINDS.map((kind) => [
-      kind,
-      locatorRange(kind, byKind[kind]),
-    ]),
-  ) as Record<SourceDocLocatorKind, SourceDocLocatorRange>;
-
-  const doc: SourceDoc = {
-    provider: args.provider,
-    id: args.id,
-    url: args.url ?? null,
-    revision: "",
-    docType: args.docType ?? null,
-    status: blocks.length ? "usable" : "unavailable",
-    text: args.text,
-    blocks,
-    index: Object.fromEntries(index),
-    ranges,
-  };
-  // Hashing a 2.3 MB statute costs more than compiling it. Do it on first use.
-  let revision: string | null = null;
-  Object.defineProperty(doc, "revision", {
-    enumerable: true,
-    configurable: false,
-    get() {
-      return (revision ??= sha256(doc.text));
-    },
-  });
-  return doc;
 }
 
 /**

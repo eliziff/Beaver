@@ -29,6 +29,7 @@ import {
   pageMapFromSourceDoc,
   parseAddress,
   resolvePage,
+  referenceLabelsOutside,
   type FollowDirection,
   type PageMap,
 } from "../legalDocumentNavigator";
@@ -227,15 +228,14 @@ function oneHopLegalScope(
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";
-  const reached = new Map([...subtree].flatMap((label) =>
-    (graphScope(doc, graph, label, { follow, depth: 1 })?.nodes ?? [])
-      .flatMap((node) => subtree.has(node.label)
-        ? [] : [[node.label, node] as const])));
+  const byLabel = new Map(doc.blocks.map((node) => [node.label, node]));
+  const reached = referenceLabelsOutside(graph, subtree, follow)
+    .flatMap((label) => byLabel.get(label) ?? []);
   return {
     seed,
     nodes: [
       seed,
-      ...[...reached.values()].sort((left, right) => left.start - right.start),
+      ...reached.sort((left, right) => left.start - right.start),
     ],
   };
 }
