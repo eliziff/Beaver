@@ -562,4 +562,21 @@ describe("verified legal-source links", () => {
     )!;
     expect(result.match(/text=/gu)).toHaveLength(1);
   });
+
+  it("targets the Competition Tribunal PDF instead of its empty HTML shell", () => {
+    const passage = "The Tribunal considered the scope of its exclusive jurisdiction.";
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/item/464444/index.do",
+        anchor: "par22",
+        blockText: passage,
+        documentText: passage,
+      },
+      [passage],
+    )!;
+
+    expect(result).toMatch(
+      /^https:\/\/decisions\.ct-tc\.gc\.ca\/ct-tc\/cdo\/en\/464444\/1\/document\.do#:~:text=/u,
+    );
+  });
 });
