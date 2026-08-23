@@ -13,10 +13,61 @@ fs.mkdirSync(resultsDir, { recursive: true });
 const manifestPath = path.join(resultsDir, "manifest.jsonl");
 const seedsPath = path.join(resultsDir, "seeds.jsonl");
 const coveragePath = path.join(resultsDir, "coverage.json");
-const TARGET_DECISIONS = Number(process.env.CORPUS_TARGET ?? 1000);
-const PER_DATASET_FLOOR = 10;
-const SLEEP_MS = 1050;
+const TARGET_DECISIONS = Number(process.env.CORPUS_TARGET ?? (process.argv.includes("--laws") ? 400 : 1000));
+const PER_DATASET_FLOOR = process.argv.includes("--laws") ? 15 : 10;
+const SLEEP_MS = process.argv.includes("--laws") ? 250 : 1050;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const DOC_TYPE = process.argv.includes("--laws") ? "laws" : "cases";
+const KIND = DOC_TYPE === "laws" ? "section" : "paragraph";
+const BLOCK_KIND = DOC_TYPE === "laws" ? "section" : "paragraph";
+const DOC_KIND = DOC_TYPE === "laws" ? "legislation" : "case";
+const ANCHOR_PREFIX = DOC_TYPE === "laws" ? "sec" : "par";
+
+// Principle: reliability over completeness — drop tiny hard bits at edges,
+// paint the core, never paint extraneous content. Harvest centres hard tokens
+// interior (centre -8) so edges are clean prose; builder variants cover
+// interior hard bits. Multi-directive windows use trimmed short-exact cores
+// with ≥10-word separation and uniqueness verification.
+const HARVEST_LEADING_LABELS = [
+  /^\[\s*\d{1,4}\s*\]\s*/u,
+  /^\d{1,4}\]\s*/u,
+  /^\d{1,4}(?:\.\d{1,4})*\s*(?:\(\s*[A-Za-z0-9]{1,5}\s*\)\s*)+/u,
+  /^\(\s*[A-Za-z0-9]{1,5}\s*\)\s*/u,
+  /^[A-Za-z]{1,3}\)\s*/u,
+  /^\d{1,4}[.)]\s*/u,
+  /^\d{1,4}\s+(?=[A-Z“"(])/u,
+];
+function stripHarvestLeadingLabels(text) {
+  let stripped = text;
+  for (let iter = 0; iter < 4; iter += 1) {
+    let changed = false;
+    for (const pattern of HARVEST_LEADING_LABELS) {
+      const match = stripped.match(pattern)?.[0];
+      if (match && match.length < stripped.trimEnd().length) {
+        stripped = stripped.slice(match.length);
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+  return stripped.trim();
+}
+function countOccurrences(haystack, needle) {
+  if (!needle) return 0;
+  let count = 0;
+  let pos = 0;
+  while ((pos = haystack.indexOf(needle, pos)) !== -1) {
+    count += 1;
+    if (count > 1) break;
+    pos += needle.length;
+  }
+  return count;
+}
+function isUniquePhrase(haystack, phrase) {
+  return countOccurrences(haystack, phrase) === 1;
+}
 
 const root = path.resolve(here, "..", "..");
 const { a2ajLegalSourceProvider } = await import(
@@ -70,15 +121,16 @@ for (const row of await loadJsonl(manifestPath)) {
 const seededLabels = new Set((await loadJsonl(seedsPath)).map((row) => row.label));
 
 if (!fs.existsSync(coveragePath)) {
-  const coverage = await a2ajLegalSourceProvider.coverage("cases");
-  fs.writeFileSync(coveragePath, JSON.stringify(coverage, null, 1));
+  const casesCov = await a2ajLegalSourceProvider.coverage("cases");
+  const lawsCov = await a2ajLegalSourceProvider.coverage("laws");
+  fs.writeFileSync(coveragePath, JSON.stringify([...casesCov, ...lawsCov], null, 1));
   await sleep(SLEEP_MS);
 }
 const coverage = JSON.parse(fs.readFileSync(coveragePath, "utf8"));
 
 function planQuotas() {
   const usable = coverage
-    .filter((row) => row.docType === "cases" && row.documentCount > 0)
+    .filter((row) => row.docType === DOC_TYPE && row.documentCount > 0)
     .sort((a, b) => a.dataset.localeCompare(b.dataset));
   const quotas = new Map(usable.map((row) => [row.dataset, PER_DATASET_FLOOR]));
   let assigned = quotas.size * PER_DATASET_FLOOR;
@@ -113,13 +165,18 @@ function wordSlice(text, startWord, words) {
 function findWindows(text) {
   const hits = [];
   const lower = text.toLowerCase();
-  const patterns = [
+  const base = [
     [/\((?:[a-z][\w.'’ ]{0,28})?,? at paras?\.\s*\d/gu, "hard-case-cite"],
     [/(?:^|[^a-z])s\.\s?\d/gu, "hard-statute-ref"],
     [/\bsections?\s+\d/gu, "hard-section-word"],
     [/\b(act|code|regulations?|rules)\b/gu, "hard-act-name"],
   ];
-  for (const [pattern, tag] of patterns) {
+  const hardLegislation = DOC_TYPE === "laws" ? [
+    [/\b\d+\(\d+\)(?:\([a-z]+\))?(?:\([ivx]+\))?/gu, "hard-nested-subsection"],
+    [/\b(regulations?|act|code)\b[^.]{0,40}\bs\.\s*\d/gu, "hard-statute-in-provision"],
+    [/\bs\.\s*\d+\(\d+\)/gu, "hard-statute-subsection"],
+  ] : [];
+  for (const [pattern, tag] of [...base, ...hardLegislation]) {
     pattern.lastIndex = 0;
     let match;
     while ((match = pattern.exec(lower))) {
@@ -144,9 +201,9 @@ function wordIndexAt(text, charIndex) {
 function receiptsForDoc(citation, dataset, url, source) {
   const rng = mulberry32(hash32(`${dataset}:${citation}`));
   const blocks = (source.blocks ?? [])
-    .filter((block) => block.kind === "paragraph")
+    .filter((block) => block.kind === BLOCK_KIND)
     .map((block) => ({
-      label: String(block.label ?? "").replace(/^par/i, ""),
+      label: String(block.label ?? "").replace(new RegExp(`^${ANCHOR_PREFIX}`, "i"), ""),
       text: source.text.slice(block.start, block.end).replace(/\s+/gu, " ").trim(),
     }))
     .filter((block) => {
@@ -158,17 +215,17 @@ function receiptsForDoc(citation, dataset, url, source) {
   const sanitize = String(citation).replace(/[^\w.-]+/gu, "_");
   const receipts = [];
   const pushReceipt = (blockLabel, shape, quote) => {
-    let label = `${dataset}_${sanitize}_p${blockLabel}_${shape}`;
+    let label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${blockLabel}_${shape}`;
     let suffix = 2;
-    while (seededLabels.has(label)) label = `${dataset}_${sanitize}_p${blockLabel}_${shape}_${suffix++}`;
+    while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${blockLabel}_${shape}_${suffix++}`;
     seededLabels.add(label);
     receipts.push({
       label,
-      providerClass: "a2aj-case",
+      providerClass: DOC_TYPE === "laws" ? "a2aj-legislation" : "a2aj-case",
       dataset,
       shape,
       url,
-      anchor: `par${blockLabel}`,
+      anchor: `${ANCHOR_PREFIX}${blockLabel}`,
       blockText: blocks.find((b) => b.label === blockLabel)?.text ?? "",
       quotes: [quote],
     });
@@ -180,6 +237,9 @@ function receiptsForDoc(citation, dataset, url, source) {
   if (shortQuote) pushReceipt(shortBlock.label, "short-exact", shortQuote);
 
   // Receipt 2: authority-cluster window when present, else long range.
+  // Principle: hard token is centred interior (centre -8 → ≥8 words lead, 8-14 trail)
+  // so edges are clean prose; builder variants cover interior hard bits. Edges
+  // are trimmed if a tiny label leaked in, preserving the core.
   const order = [0.5, 0.25, 0.75, 0.08, 0.92].map(
     (fraction) => blocks[Math.min(blocks.length - 1, Math.floor(blocks.length * fraction))],
   );
@@ -190,8 +250,20 @@ function receiptsForDoc(citation, dataset, url, source) {
       const centre = wordIndexAt(block.text, hit.index);
       const start = Math.max(0, centre - 8);
       const width = hit.tag === "hard-act-name" ? 16 : 22;
-      const quote = wordSlice(block.text, start, width);
-      if (!quote) continue;
+      const raw = wordSlice(block.text, start, width);
+      if (!raw) continue;
+      const quote = stripHarvestLeadingLabels(raw);
+      if (!quote || quote.split(/\s+/u).length < 10) continue;
+      // Verify hard token still present interior (not trimmed away) — crude check that
+      // cleaned quote still contains a hard-ish fragment (digit or Act/Code word).
+      const lower = quote.toLowerCase();
+      const stillHard = /(?:\d\(|\bs\.\s*\d|\bsections?\s+\d|\bact\b|\bcode\b|\bregulations?\b)/u.test(lower)
+        || hit.tag === "hard-case-cite";
+      if (!stillHard && hit.tag !== "hard-case-cite") {
+        // If trimming removed the hit entirely, skip this hit and try next block.
+        // The centre -8 already made the hit interior; stripping should not erase it.
+        continue;
+      }
       pushReceipt(block.label, hit.tag, quote);
       hardDone = true;
       break;
@@ -201,7 +273,75 @@ function receiptsForDoc(citation, dataset, url, source) {
     const longBlock = blocks[Math.floor(rng() * blocks.length)];
     const longStart = Math.floor(longBlock.text.split(/\s+/u).length * 0.15);
     const longQuote = wordSlice(longBlock.text, longStart, 70);
-    if (longQuote) pushReceipt(longBlock.label, "long-range", longQuote);
+    if (longQuote) {
+      const cleanedLong = stripHarvestLeadingLabels(longQuote);
+      pushReceipt(longBlock.label, "long-range", cleanedLong || longQuote);
+    }
+  }
+
+  // Receipt 3: multi-directive — two short-exact cores in SAME block, ≥10 words apart,
+  // each leader-trimmed and verified distinct (non-overlapping, unique in block).
+  // Builder will emit one URL with two text= directives; reliability over
+  // completeness means each core is a clean core, not a hard edge.
+  {
+    let multiDone = false;
+    // Deterministic candidate order: shuffle blocks with document-seeded rng.
+    const multiCandidates = [...blocks];
+    for (let i = multiCandidates.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = multiCandidates[i];
+      multiCandidates[i] = multiCandidates[j];
+      multiCandidates[j] = tmp;
+    }
+    for (const candidate of multiCandidates) {
+      if (multiDone) break;
+      const tokens = candidate.text.split(/\s+/u);
+      if (tokens.length < 32) continue;
+      const startA = 2;
+      const rawA = wordSlice(candidate.text, startA, 9);
+      if (!rawA) continue;
+      const windowA = stripHarvestLeadingLabels(rawA);
+      if (!windowA || windowA.split(/\s+/u).length < 6) continue;
+      if (!isUniquePhrase(candidate.text, windowA)) continue;
+      const minStartB = startA + 9 + 10;
+      const maxStartB = tokens.length - 9;
+      if (minStartB > maxStartB) continue;
+      const mid = Math.floor(tokens.length * 0.5);
+      let baseB = Math.max(minStartB, mid);
+      if (baseB > maxStartB) baseB = minStartB;
+      const attempts = [baseB, baseB + 3, Math.max(minStartB, baseB - 5), minStartB, maxStartB - 4];
+      let windowB = null;
+      let finalStartB = baseB;
+      for (const candStart of attempts) {
+        if (candStart < minStartB || candStart > maxStartB) continue;
+        const rawB = wordSlice(candidate.text, candStart, 9);
+        if (!rawB) continue;
+        const cleanedB = stripHarvestLeadingLabels(rawB);
+        if (!cleanedB || cleanedB.split(/\s+/u).length < 6) continue;
+        if (cleanedB === windowA) continue;
+        if (!isUniquePhrase(candidate.text, cleanedB)) continue;
+        windowB = cleanedB;
+        finalStartB = candStart;
+        break;
+      }
+      if (!windowB) continue;
+      if (finalStartB < startA + 9 + 10) continue;
+      let label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${candidate.label}_multi-directive`;
+      let suffix = 2;
+      while (seededLabels.has(label)) label = `${dataset}_${sanitize}_${ANCHOR_PREFIX}${candidate.label}_multi-directive_${suffix++}`;
+      seededLabels.add(label);
+      receipts.push({
+        label,
+        providerClass: DOC_TYPE === "laws" ? "a2aj-legislation" : "a2aj-case",
+        dataset,
+        shape: "multi-directive",
+        url,
+        anchor: `${ANCHOR_PREFIX}${candidate.label}`,
+        blockText: candidate.text,
+        quotes: [windowA, windowB],
+      });
+      multiDone = true;
+    }
   }
   return receipts;
 }
@@ -227,7 +367,7 @@ async function main() {
       let hits = [];
       try {
         hits = await a2ajLegalSourceProvider.search({
-          text: query, kinds: ["case"], language: "en", perProviderLimit: 50,
+          text: query, kinds: [DOC_KIND], language: "en", perProviderLimit: 50,
           collection: dataset,
         }) ?? [];
       } catch (error) {
@@ -253,7 +393,7 @@ async function main() {
       let lookup = null;
       try {
         lookup = await a2ajLegalSourceProvider.lookup({
-          citation, docType: "cases", language: "en", kind: "paragraph", locator: "1",
+          citation, docType: DOC_TYPE, language: "en", kind: KIND, locator: "1",
         });
       } catch (error) {
         appendJsonl(manifestPath, { citation, dataset, url: candidate.url, status: `lookup-error` });

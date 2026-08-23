@@ -20,6 +20,16 @@ screenshot. The harness never queries publisher DOM structure: the builder
 under test cannot see it either, so the verifier must not use information
 the builder could not have.
 
+## Design principle: reliability over coverage
+
+The north star is a highlight that paints reliably. It is acceptable to drop
+small, fragile stretches - leading paragraph markers (`[63]`), leading
+pinpoints after a seam (`s. 1`, `para. 33`), detached punctuation at an edge -
+rather than emit spellings that may fail. A clean match that omits a tiny
+edge beats a complete span that does not paint. Strategies already honour
+this: leading-label stripping, seam tails that drop the opening pinpoint, and
+seam heads truncated at the punctuation.
+
 ## Pipeline stages (all idempotent)
 
 1. `coverage` - snapshot dataset list once (`results/coverage.json`).
@@ -30,10 +40,42 @@ the builder could not have.
    short-exact, one authority-cluster window when present, else long-range).
    Deterministic: per-citation RNG, fixed queries, stable labels. Resume =
    re-run; completed decisions are skipped via the manifest.
-3. `gate.mjs` - sequential, polite (~1.5s between loads), resumable via
+3. `gate.mjs` - sequential, polite (~0.9s between loads), resumable via
    `--results` JSONL keyed by label; screenshots under `results/shots/`.
 4. `aggregate.mjs` - verdict breakdowns by provider host / shape / dataset;
    failure screenshots listed for manual reading.
+
+## Replay tier (fast iteration loop)
+
+Live gating is ~30 min/cycle even parallelized. The replay tier cuts the
+loop to minutes:
+
+- `crawl-pages.mjs` - one-time parallel crawl caching each unique page's
+  HTML under `results/page-html/` (manifest: `page-html-manifest.jsonl`).
+  Decisia hosts are fetched with the load-bearing
+  `iframe=true&site_preference=mobile` parameters and a 4s post-load settle,
+  because they inject the decision text after load (caching early shells
+  was the first replay bug).
+- `gate-replay.mjs` - same verdicts/placement as `gate.mjs`, but pages are
+  served locally through route interception; no publisher traffic, no
+  politeness pause, 6 workers, 200ms settle. Full corpus in minutes.
+  `--builder production|candidate` selects the builder under test.
+  Placement uses a text-node walk with ancestor climb (layout-forcing
+  innerText only on candidate blocks).
+- `calibrate.mjs` - certifies replay fidelity: replay-production verdicts
+  are diffed against collected live results (builder held constant), and
+  replay-candidate placement against live placement where available.
+- `make-cached-subset.mjs` - seeds whose pages are cached so far; allows
+  replay testing mid-crawl.
+- `purge-decisia-cache.mjs` - drops Decisia-family cache entries for
+  re-crawl after capture bugs.
+
+Known dead end: same-document `location.hash` navigation does NOT process
+`:~:text=` fragments (Chrome strips the directive), so each seed still
+needs a real navigation; per-document reuse is impossible.
+
+Live Chrome remains for calibration drift checks and promotion acceptance;
+strategy iteration happens in replay.
 
 Raw outputs stay under `results/` (gitignored). Durable conclusions go to
 `RESULTS.md`.
