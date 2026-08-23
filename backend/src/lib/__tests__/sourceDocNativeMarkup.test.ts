@@ -497,6 +497,12 @@ describe("native markup compilation", () => {
     expect(summarizeLegalSourceDoc(doc).source).toBe("flat_text");
   });
 
+  it("uses provider text when CourtListener markup renders empty", async () => {
+    const doc = await deriveNativeMarkupSourceDoc({ provider: "courtlistener",
+      id: "empty-markup", text: "Provider plain text.", markup: "<div></div>" });
+    expect(doc.text).toBe("Provider plain text.");
+  });
+
   it("uses CourtListener numbered divs as native paragraphs", async () => {
     const markup = [1, 2, 3]
       .map(

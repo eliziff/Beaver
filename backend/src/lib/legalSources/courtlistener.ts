@@ -236,7 +236,7 @@ async function attachOpinionStructure(
     provider: "courtlistener",
     id: compacted.opinionId === null ? "" : String(compacted.opinionId),
     url: compacted.url,
-    text: text ?? stripOpinionMarkup(markup) ?? "",
+    text: text ?? "",
     markup,
     pageCitations,
   } as const;
@@ -267,10 +267,8 @@ async function compactOpinion(
     "html_anon_2020",
     "html",
   );
-  const rawText = rawMarkup ?? firstString(opinion, "plainText", "plain_text");
-  // Native markup is rendered by the Rust adapter. Preserve the historical
-  // stripper only as the fail-closed fallback for empty provider markup.
-  const text = rawMarkup ? null : stripOpinionMarkup(rawText);
+  const text = firstString(opinion, "plainText", "plain_text") ??
+    stripOpinionMarkup(rawMarkup);
   const compacted = {
     opinionId:
       asNumber(opinion.opinionId) ??
