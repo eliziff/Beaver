@@ -5,7 +5,6 @@ import {
 } from "./legalSources/a2aj";
 import {
   providerCitationsInTextNative,
-  documentTextNative,
   paragraphRangeDirectiveNative,
   textFragmentDirectivesNative,
   type NativeDocument,
@@ -34,7 +33,7 @@ export type LegalSourceEvidence = {
   url: string;
   anchor?: string;
   /** The passage the quote must appear in. */
-  blockText: QuoteSource;
+  blockText: string;
   /** The corpus the fragment must be unique in; the block when absent. */
   documentText?: QuoteSource;
   pageScoped?: boolean;
@@ -194,6 +193,9 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
 
   let resolvedAnchor =
     anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
+  if (/\/document\.do$/iu.test(url.pathname) || url.pathname.toLowerCase().endsWith(".pdf")) {
+    resolvedAnchor = /^page=\d+$/iu.test(resolvedAnchor) ? resolvedAnchor : "";
+  }
   if (bclaws) {
     resolvedAnchor = resolvedAnchor.replace(/^sec(?=\d)/iu, "section");
   }
@@ -217,7 +219,7 @@ function buildA2AJSourcePinpointUrl(
     "dataset" | "citation" | "alternateCitation" | "language" | "url"
   >,
   locator: { kind: A2AJLocatorKind; label: string },
-  blockText: QuoteSource,
+  blockText: string,
   quotes: string[],
   document: NativeDocument | null,
 ) {
@@ -236,16 +238,11 @@ export function buildLegalSourcePinpointUrl(
   quotes: string[],
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
-  const blockText = typeof evidence.blockText === "string"
-    ? evidence.blockText
-    : documentTextNative(evidence.blockText);
-  if (!baseUrl || !blockText) return baseUrl;
+  if (!baseUrl || !evidence.blockText) return baseUrl;
   const directives = textFragmentDirectivesNative(
-    blockText,
+    evidence.blockText,
     quotes,
-    evidence.documentText ?? (typeof evidence.blockText === "string"
-      ? undefined
-      : evidence.blockText),
+    evidence.documentText,
     evidence.pageScoped === true,
   );
   return appendDirectives(baseUrl, directives);
@@ -299,7 +296,7 @@ function isCanadianDecisionUrl(url: URL) {
 export function buildA2AJDocumentPinpointUrl(
   document: A2AJDocument | A2AJCompiledDocument,
   locator: { kind: A2AJLocatorKind; label: string },
-  blockText: QuoteSource,
+  blockText: string,
   quotes: string[],
   source: NativeDocument | null = "native" in document ? document.native : null,
 ) {

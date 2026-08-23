@@ -690,6 +690,7 @@ dependencies = [
  "ort",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
 ]
 
@@ -795,6 +796,7 @@ dependencies = [
  "hayro",
  "image",
  "legal-pdf-core",
+ "legal-structure",
  "libloading 0.8.9",
  "ort",
  "regex",

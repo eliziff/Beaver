@@ -101,10 +101,10 @@ function editedFilename(version: StoredDocumentVersion) {
   }`;
 }
 
-async function pageCount(fileType: string, bytes: Buffer, sourceSha256: string) {
+async function pageCount(fileType: string, bytes: Buffer) {
   if (fileType !== "pdf") return null;
   try {
-    return await documentProjectionService.pdfPageCount(bytes, sourceSha256);
+    return await documentProjectionService.pdfPageCount(bytes);
   } catch {
     throw new ApplicationError(400, "PDF is invalid or unsupported");
   }
@@ -167,7 +167,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       id, documentId: input.documentId, versionNumber: input.versionNumber,
       source: input.source, createdAt: new Date().toISOString(), filename, fileType,
       sizeBytes: input.bytes.byteLength,
-      pageCount: await pageCount(fileType, input.bytes, sourceSha256),
+      pageCount: await pageCount(fileType, input.bytes),
       sourceSha256, blobKey, pdfBlobKey: fileType === "pdf" ? blobKey : null, cleanupKeys: [],
       provenance: input.edits
         ? provenanceWithEdits(input.provenance, input.edits)
@@ -557,7 +557,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       if (target.fileType !== fileType) return { status: "type-mismatch" as const };
       const updated = await replace(scope, documentId, target, { filename, fileType,
         bytes: file.bytes,
-        pageCount: await pageCount(fileType, file.bytes, sha256(file.bytes)),
+        pageCount: await pageCount(fileType, file.bytes),
         createdAt: new Date().toISOString(), provenance: null });
       return { status: "replaced" as const, version: responseVersion(updated) };
     },

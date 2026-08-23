@@ -79,9 +79,9 @@ export async function readAgreement(file: string) {
   };
 }
 
-type PdfExtraction = {
+type PdfDocument = {
   source_sha256: string;
-  extraction: { pages: Array<{ lines: Array<{ text: string }> }> };
+  pages: Array<{ lines: Array<{ text: string }> }>;
 };
 
 export async function readPdf(file: PdfCorpusFile, addon: PdfAddon) {
@@ -103,21 +103,16 @@ export async function readPdf(file: PdfCorpusFile, addon: PdfAddon) {
   }
   const scratch = await fs.mkdtemp(path.join(tmpdir(), "beaver-instrument-"));
   try {
-    let productError: unknown;
-    try {
-      await addon.derivePdfDocument({ kind: "pdf", id: file.id, source_pdf: file.file,
-        cache_dir: scratch });
-    } catch (error) {
-      productError = error;
-    }
-    const extractionRoot = path.join(scratch, "parse-v1/extractions");
-    const extractions = (await fs.readdir(extractionRoot)).filter((name) => name.endsWith(".json.gz"));
-    if (extractions.length !== 1) throw new Error(`${file.id}: expected one parser extraction`);
+    await addon.derivePdfDocument({ kind: "pdf", id: file.id, source_pdf: file.file,
+      cache_dir: scratch });
+    const documentRoot = path.join(scratch, "parse-v1/documents");
+    const documents = (await fs.readdir(documentRoot)).filter((name) => name.endsWith(".json.gz"));
+    if (documents.length !== 1) throw new Error(`${file.id}: expected one parser document`);
     const cached = JSON.parse(gunzipSync(await fs.readFile(
-      path.join(extractionRoot, extractions[0]),
-    )).toString("utf8")) as PdfExtraction;
+      path.join(documentRoot, documents[0]),
+    )).toString("utf8")) as PdfDocument;
     let lines = 0;
-    const pageTexts = cached.extraction.pages.map((page) => {
+    const pageTexts = cached.pages.map((page) => {
       if (!Array.isArray(page.lines) || page.lines.some((line) => typeof line.text !== "string")) {
         throw new Error(`${file.id}: invalid PDF line surface`);
       }
@@ -126,7 +121,7 @@ export async function readPdf(file: PdfCorpusFile, addon: PdfAddon) {
     });
     const text = pageTexts.join("\n");
     const inputSha256 = createHash("sha256").update(text).digest("hex");
-    if (cached.source_sha256 !== file.id.slice(4) || cached.extraction.pages.length !== file.pages ||
+    if (cached.source_sha256 !== file.id.slice(4) || cached.pages.length !== file.pages ||
         lines !== file.lines || inputSha256 !== file.inputSha256) {
       throw new Error(`${file.id}: production PDF extraction differs from the frozen input`);
     }
@@ -135,9 +130,6 @@ export async function readPdf(file: PdfCorpusFile, addon: PdfAddon) {
     const header = JSON.stringify({ id: file.id, inputSha256, pages: file.pages, lines });
     await fs.writeFile(temporary, gzipSync(`${header}\n${text}`));
     await fs.rename(temporary, textFile);
-    if (productError) process.stderr.write(
-      `${file.id}: raw extraction preserved; PDF product validation failed: ${productError}\n`,
-    );
     return { id: file.id, text, pages: file.pages, lines };
   } finally {
     await fs.rm(scratch, { recursive: true, force: true });

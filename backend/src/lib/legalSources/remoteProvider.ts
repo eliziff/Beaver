@@ -11,12 +11,6 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 export type JsonObject = Record<string, unknown>;
 
-export type NativeMarkupRef = {
-  citation: string;
-  canonical: string | null;
-  type: string | null;
-};
-
 export type RemoteLegalSourceAttachment = {
   title: string | null;
   url: string;
@@ -32,7 +26,6 @@ export type RemoteLegalSourceDocument = {
   url: string;
   native: NativeDocument;
   attachments: RemoteLegalSourceAttachment[];
-  citedAuthorities?: NativeMarkupRef[];
   sourceSha256?: string;
 };
 

@@ -252,11 +252,15 @@ async function finishLookup(
   },
 ) {
   const lookup = checkedLookup(result);
-  const pages = lookup.pages.map(({ page_number: number, text }) => ({ number, text }));
-  options?.capturePages?.(pages);
   if (lookup.status !== "found") {
+    options?.capturePages?.(
+      lookup.pages.map(({ page_number: number, text }) => ({ number, text })),
+    );
     return lookup;
   }
+  const { pages: foundPages, ...foundLookup } = lookup;
+  const pages = foundPages.map(({ page_number: number, text }) => ({ number, text }));
+  options?.capturePages?.(pages);
 
   const state = {
     document_id: options.documentId,
@@ -320,7 +324,7 @@ async function finishLookup(
   }
 
   return {
-    ...lookup,
+    ...foundLookup,
     source: {
       handle: `mike-source:sha256:${state.source_sha256}`,
       document_id: state.document_id,
@@ -471,7 +475,6 @@ function evidenceBlockText(units: PdfLookupUnit[]) {
 
 function evidenceSources(
   units: PdfLookupUnit[],
-  viewPath: string,
   documentText: string,
 ) {
   const seen = new Set<string>();
@@ -485,12 +488,8 @@ function evidenceSources(
     return [{
       key,
       label: unit.locator,
-      href: pageNumbers[0]
-        ? `${viewPath}#page=${pageNumbers[0]}`
-        : viewPath,
       blockText: evidenceBlockText([unit]),
       documentText,
-      pageScoped: pageNumbers.length === 1,
       pageNumbers,
     }];
   });
@@ -507,26 +506,10 @@ function buildLinkEvidence(
     .map((number) => byNumber.get(number))
     .filter((page): page is NormalizedPage => Boolean(page));
   const documentText = boundPages.map(({ text }) => text).join("\n");
-  const viewPath = evidenceViewPath(
-    lookup.source.document_id,
-    lookup.source.version_id,
-    handle,
-  );
-  const pages = boundPages.map(({ number, text }) => {
-    const href = `${viewPath}#page=${number}`;
-    return {
-      pageNumber: number,
-      href,
-      label: `[page ${number}]`,
-      blockText: text,
-      evidence: {
-        url: href,
-        blockText: text,
-        documentText,
-        pageScoped: true as const,
-      },
-    };
-  });
+  const pages = boundPages.map(({ number: pageNumber, text: blockText }) => ({
+    pageNumber,
+    blockText,
+  }));
   if (!pages.length) {
     throw new Error("PDF evidence has no exact page text for linking");
   }
@@ -535,7 +518,6 @@ function buildLinkEvidence(
   ].sort((left, right) => left - right);
   const sources = evidenceSources(
     [...lookup.before, ...lookup.units, ...lookup.after],
-    viewPath,
     documentText,
   );
   return {

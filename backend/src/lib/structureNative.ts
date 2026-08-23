@@ -149,20 +149,14 @@ type StructureAddon = {
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<DocxSupraCleanupResult>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
   derivePdfDocument(request: unknown): Promise<NativeDocument>;
-  pdfPageCount(path: string): Promise<number>;
+  pdfPageCount(bytes: Buffer): Promise<number>;
   pdfDocumentSummary(document: NativeDocument): unknown;
-  documentCitedAuthorities(document: NativeDocument):
-    Array<{ citation: string; canonical?: string; type?: string }>;
   docxStructureLint(document: NativeDocument): NativeDocxLintReport;
-  docxTableCells(document: NativeDocument): NativeTableCell[];
-  documentText(document: NativeDocument): string;
+  documentText(document: NativeDocument, limit?: number): string;
   documentTextBytes(document: NativeDocument): number;
   documentRevision(document: NativeDocument): string;
   normalizeDocumentLocator(kind: string, locator: string): string;
   citationLookupKey(text: string): string;
-  citationsInText(text: string, extendedUsFallback: boolean): Array<{
-    text: string; start: number; end: number;
-  }>;
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
     family: "neutral" | "reporter" | "statute";
@@ -177,7 +171,7 @@ type StructureAddon = {
     citeTokens: number; citeRuns: number; citeCharCoverage: number;
     functionWords: number; proseWindow: string | null; rule: string;
   };
-  groundedProseErrors(text: string, citedEvidenceIds: string[],
+  groundedProseErrors(text: string, citedEvidenceIds: readonly string[],
     visibleEvidence: unknown): string[];
   quoteRepairSuggestion(claim: string, spans: string[]): string | null;
   readDocumentRange(document: NativeDocument, kind: string, from: string,
@@ -185,7 +179,8 @@ type StructureAddon = {
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativeDocumentBlock | null;
   documentHasOrigin(document: NativeDocument, origin: string): boolean;
-  documentAnchors(document: NativeDocument): NativeDocumentAnchor[];
+  documentAnchors(document: NativeDocument, end?: number): Array<Pick<NativeDocumentBlock,
+    "kind" | "label" | "start" | "end" | "parentLabel">>;
   textFragmentDirectives(blockText: string, quotes: string[], pageScoped: boolean,
     documentText?: string, document?: NativeDocument): string[];
   documentParagraphRangeDirective(document: NativeDocument, start: string,
@@ -198,23 +193,11 @@ type StructureAddon = {
   graphScope(document: NativeDocument, seed: string, follow: string,
     depth: number, includeDescendants: boolean, includeUnits: boolean): NativeGraphScope | null;
   queryPdfDocument(document: NativeDocument, query: unknown): unknown;
-  deleteProvisionAndRenumberSiblings(source: string, target: string,
+  deleteProvisionAndRenumberSiblings(document: NativeDocument, target: string,
     reconstructLineation?: boolean): Promise<DeleteAndRenumberResult>;
 };
 
 export type NativeDocument = object;
-
-export type NativeTableCell = {
-  table: number;
-  tableName?: string;
-  row: number;
-  column: number;
-  rowSpan?: number;
-  columnSpan?: number;
-  address?: string;
-  start: number;
-  end: number;
-};
 
 type NativeDocxLintReport = {
   paragraphs: number;
@@ -237,7 +220,7 @@ type NativeDocxLintReport = {
   notes: string[];
 };
 
-export type DocxSupraCleanupResult = {
+type DocxSupraCleanupResult = {
   bytes: Buffer;
   detected: number;
   converted: number;
@@ -262,8 +245,6 @@ export type NativeDocumentBlock = {
   parentLabel?: string;
 };
 
-type NativeDocumentAnchor = Pick<NativeDocumentBlock,
-  "kind" | "label" | "start" | "end" | "parentLabel">;
 type NativeDocumentRange = {
   selected: NativeDocumentBlock[];
   before: NativeDocumentBlock[];
@@ -279,18 +260,6 @@ type NativeDocumentLookup = {
   after: NativeDocumentBlock[];
 };
 
-type ApplyAmendOptions = { reconstructLineation?: boolean };
-type DeleteAndRenumberFailureCode = "target_not_found" | "target_ambiguous" |
-  "unsupported_target" | "sibling_ambiguous" | "sibling_sequence_unsupported" |
-  "heading_not_found" | "reference_to_deleted_target" | "unresolved_reference" |
-  "ambiguous_reference" | "external_reference" | "overlapping_ops" |
-  "verification_failed";
-type DeleteAndRenumberFailure = {
-  code: DeleteAndRenumberFailureCode;
-  detail: string;
-  start?: number;
-  end?: number;
-};
 export type DeleteAndRenumberReceipt = {
   kind: "delete_provision" | "renumber_heading" | "update_cross_reference";
   start: number;
@@ -304,7 +273,15 @@ type DeleteAndRenumberResult = {
   text: string;
   mapping: Array<{ from: string; to: string }>;
   applied: DeleteAndRenumberReceipt[];
-  failures: DeleteAndRenumberFailure[];
+  failures: Array<{
+    code: "target_not_found" | "target_ambiguous" | "unsupported_target" |
+      "sibling_ambiguous" | "sibling_sequence_unsupported" | "heading_not_found" |
+      "reference_to_deleted_target" | "unresolved_reference" | "ambiguous_reference" |
+      "external_reference" | "overlapping_ops" | "verification_failed";
+    detail: string;
+    start?: number;
+    end?: number;
+  }>;
   verification: { headingsRenumbered: number; referencesUpdated: number };
 };
 
@@ -339,7 +316,7 @@ export const fixDocxSupraCrossReferencesNative = (bytes: Buffer) =>
 export const hasDocxSupraReferencesNative = (bytes: Buffer) =>
   loadAddon().hasDocxSupraReferences(bytes);
 export const derivePdfNative = (request: unknown) => loadAddon().derivePdfDocument(request);
-export const pdfPageCountNative = (path: string) => loadAddon().pdfPageCount(path);
+export const pdfPageCountNative = (bytes: Buffer) => loadAddon().pdfPageCount(bytes);
 
 export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
   return loadAddon().queryPdfDocument(document, query) as T;
@@ -347,15 +324,11 @@ export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
 
 export const pdfDocumentSummaryNative = <T = unknown>(document: NativeDocument) =>
   loadAddon().pdfDocumentSummary(document) as T;
-export const documentCitedAuthoritiesNative = (document: NativeDocument) =>
-  loadAddon().documentCitedAuthorities(document);
 export const docxStructureLintNative = (document: NativeDocument) =>
   loadAddon().docxStructureLint(document);
-export const docxTableCellsNative = (document: NativeDocument) =>
-  loadAddon().docxTableCells(document);
 
-export const documentTextNative = (document: NativeDocument) =>
-  loadAddon().documentText(document);
+export const documentTextNative = (document: NativeDocument, limit?: number) =>
+  loadAddon().documentText(document, limit);
 export const documentTextBytesNative = (document: NativeDocument) =>
   loadAddon().documentTextBytes(document);
 
@@ -378,8 +351,8 @@ export const smallestContainingDocumentBlockNative = (document: NativeDocument,
 export const documentHasOriginNative = (document: NativeDocument,
   origin: "native" | "heuristic") => loadAddon().documentHasOrigin(document, origin);
 
-export const documentAnchorsNative = (document: NativeDocument) =>
-  loadAddon().documentAnchors(document);
+export const documentAnchorsNative = (document: NativeDocument, end?: number) =>
+  loadAddon().documentAnchors(document, end);
 
 export type NativePageMap = {
   pages: Array<{ ordinal: number; pdfPage: number | null;
@@ -404,8 +377,6 @@ type NativeGraphScope = {
 
 export const citationLookupKeyNative = (text: string) =>
   loadAddon().citationLookupKey(text);
-export const citationsInTextNative = (text: string, extendedUsFallback = true) =>
-  loadAddon().citationsInText(text, extendedUsFallback);
 export const providerCitationsInTextNative = (text: string) =>
   loadAddon().providerCitationsInText(text);
 export const caselawCitationLookupKeyNative = (text: string) =>
@@ -417,7 +388,7 @@ export const classifyCitatorExcerptNative = (text: string) =>
 export const groundedProseErrorsNative = (text: string,
   citedEvidenceIds: readonly string[], visibleEvidence: ReadonlyArray<{
     evidenceId: string; text: string; labels?: string[];
-  }>) => loadAddon().groundedProseErrors(text, [...citedEvidenceIds], visibleEvidence);
+  }>) => loadAddon().groundedProseErrors(text, citedEvidenceIds, visibleEvidence);
 export const quoteRepairSuggestionNative = (claim: string, spans: string[]) =>
   loadAddon().quoteRepairSuggestion(claim, spans);
 export const textFragmentDirectivesNative = (blockText: string, quotes: string[],
@@ -440,8 +411,8 @@ export const graphScopeNative = (document: NativeDocument, seed: string,
   follow: "none" | "out" | "in" | "both" = "none", depth = 1,
   includeDescendants = false, includeUnits = false) =>
   loadAddon().graphScope(document, seed, follow, depth, includeDescendants, includeUnits);
-export async function deleteProvisionAndRenumberSiblings(source: string, target: string,
-  options: ApplyAmendOptions = {}) {
+export function deleteProvisionAndRenumberSiblings(document: NativeDocument, target: string,
+  options: { reconstructLineation?: boolean } = {}) {
   return loadAddon().deleteProvisionAndRenumberSiblings(
-    source, target, options.reconstructLineation);
+    document, target, options.reconstructLineation);
 }
