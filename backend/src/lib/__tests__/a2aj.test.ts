@@ -190,7 +190,7 @@ describe("A2AJ client", () => {
       contextBlocks: 1,
     });
 
-    expect(document?.structure.counts.paragraph).toBe(6);
+    expect(document?.analysis?.source_doc.ranges.paragraph.count).toBe(6);
     expect(lookup).toMatchObject({
       status: "found",
       sourceMethod: "structure_index",
@@ -250,7 +250,7 @@ describe("A2AJ client", () => {
     expect(document).toMatchObject({
       docType: "laws",
       text: mappedText,
-      structure: { source: "section_map" },
+      sectionMap: sections,
     });
     const source = a2ajLegalSourceProvider.source(document!);
     expect(source.text).toBe(mappedText);
@@ -263,7 +263,6 @@ describe("A2AJ client", () => {
     expect(lookup).toMatchObject({
       status: "found",
       sourceMethod: "provider_section",
-      structure: { source: "section_map" },
       block: { label: "sec34(1)(a)" },
     });
     expect(lookup?.block?.text).toContain(
@@ -416,9 +415,7 @@ describe("A2AJ client", () => {
         citation: "2099 SCC 2",
         dataset: "SCC",
       },
-      structure: {
-        counts: { paragraph: 6 },
-      },
+      structureSource: "flat_text",
       metadata: {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2099/index.do",
         pdfUrl:
@@ -436,6 +433,7 @@ describe("A2AJ client", () => {
         .flatMap((segment) => segment.blocks)
         .some((block) => block.text.includes("*")),
     ).toBe(false);
-    expect(first?.payload.structure).not.toHaveProperty("text");
+    expect(first?.payload.anchors.filter(({ kind }) => kind === "paragraph"))
+      .toHaveLength(6);
   });
 });

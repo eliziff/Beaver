@@ -24,6 +24,7 @@ import {
 } from "../../backend/src/lib/a2ajLocalBulk";
 import {
   a2ajLegalSourceProvider,
+  a2ajSourceDoc,
   type A2AJDocument,
 } from "../../backend/src/lib/legalSources/a2aj";
 import {
@@ -42,7 +43,6 @@ import {
   type SourceDoc,
   type SourceDocBlock,
 } from "../../backend/src/lib/sourceDoc";
-import { deriveA2AJSourceDoc } from "../../backend/src/lib/sourceDocStructureHost";
 import { setBelowNormalProcessPriority } from "../../backend/src/lib/processPriority";
 import {
   citationLookupKey,
@@ -3505,15 +3505,7 @@ export async function loadCase(candidate: Candidate): Promise<CaseRecord | null>
 }
 
 async function compileCaseSource(document: A2AJDocument) {
-  return a2ajLegalSourceProvider.source(document) ?? deriveA2AJSourceDoc({
-    citation: document.citation,
-    docType: document.docType ?? "cases",
-    text: document.text,
-    url: document.url,
-    alternateCitation: document.alternateCitation,
-    dataset: document.dataset,
-    name: document.name,
-  });
+  return a2ajLegalSourceProvider.source(document) ?? a2ajSourceDoc(document);
 }
 
 async function buildCaseRecord(candidate: Candidate, document: A2AJDocument): Promise<CaseRecord> {
@@ -6015,8 +6007,9 @@ async function selfTest() {
     "[4] More dissent reasoning contains enough ordinary substantive source text to establish a reliable paragraph block without experiment-local paragraph parsing. The dissent would allow the appeal, set aside the order, and remit the matter for reconsideration.\n",
     "Alpha J.; Beta J.; Gamma J.\n",
   ].join("");
-  const { deriveA2AJSourceDoc } = await import("../../backend/src/lib/sourceDocStructureHost");
-  const source = await deriveA2AJSourceDoc({ citation: "2099 SCC 1", dataset: "SCC", docType: "cases", text: recordText });
+  const source = await a2ajSourceDoc({ citation: "2099 SCC 1", dataset: "SCC",
+    docType: "cases", text: recordText, alternateCitation: null, name: null,
+    date: null, url: null, language: "en", upstreamLicense: null });
   const paragraphs = source.blocks.filter((block) => block.kind === "paragraph");
   if (paragraphs.map((block) => block.label).join(",") !== "par1,par2,par3,par4") throw new Error(`SourceDoc self-test failed: ${paragraphs.map((block) => block.label).join(",")}`);
   const candidate: Candidate = {
