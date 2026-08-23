@@ -18,7 +18,6 @@ const allowedOwners: Record<string, string[]> = {
   structureNative: [
     "lib/chat/assistantTools.ts",
     "lib/documentProjectionService.ts",
-    "lib/legalAmendOps.ts",
     "lib/legalSources/a2aj.ts",
     "lib/legalSources/courtlistener.ts",
     "lib/legalSources/govInfo.ts",

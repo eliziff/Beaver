@@ -25,7 +25,7 @@
  */
 import { appendFileSync, writeFileSync } from "node:fs";
 
-import { applyAmendOps, type AmendOp } from "../src/lib/legalAmendOps";
+import { applyAmendOps, type AmendOp } from "../src/lib/structureNative";
 
 function argument(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`);

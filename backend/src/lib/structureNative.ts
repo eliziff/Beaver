@@ -146,9 +146,93 @@ type StructureAddon = {
   derivePdfDocument(request: unknown): Promise<NativePdfDocument>;
   pdfDocumentSnapshot(document: NativePdfDocument): Buffer;
   queryPdfDocument(document: NativePdfDocument, query: unknown): Buffer;
+  joinAmendmentLocator(head: string, sub?: string): string;
+  parseAmendmentInstructions(text: string): Buffer;
+  applyAmendOps(source: string, ops: AmendOp[], reconstructLineation?: boolean): Promise<Buffer>;
+  deleteProvisionAndRenumberSiblings(source: string, target: string,
+    reconstructLineation?: boolean): Promise<Buffer>;
+  consolidateAmendment(source: string, amendment: string,
+    reconstructLineation?: boolean): Promise<Buffer>;
 };
 
 export type NativePdfDocument = object;
+export type AmendOpKind = "strike_text" | "insert_text" | "substitute_text" |
+  "append_text" | "strike_provision" | "replace_provision" | "add_provision" |
+  "add_at_end" | "repeal_provision" | "redesignate";
+export type AmendOp = {
+  kind: AmendOpKind;
+  target: string;
+  oldText?: string;
+  newText?: string;
+  position?: "after" | "before";
+  anchorText?: string;
+  afterChild?: string;
+  newLabel?: string;
+  everyOccurrence?: boolean;
+  anchorLast?: boolean;
+  wholeWord?: boolean;
+  raw: string;
+};
+export type AmendParseResult = {
+  ops: AmendOp[];
+  unparsed: Array<{ excerpt: string; reason: string }>;
+};
+export type AmendReceipt = {
+  op: AmendOp;
+  start: number;
+  end: number;
+  removed: string;
+  inserted: string;
+  occurrences?: number;
+};
+export type AmendFailure = {
+  op: AmendOp;
+  code: "target_not_found" | "old_text_not_found" | "old_text_ambiguous" |
+    "anchor_not_found" | "anchor_ambiguous" | "missing_new_text" |
+    "overlapping_ops" | "unsupported_apply";
+  detail: string;
+};
+export type ApplyAmendmentsResult = {
+  text: string;
+  applied: AmendReceipt[];
+  failures: AmendFailure[];
+  verification: {
+    newTextPresent: number;
+    newTextMissing: number;
+    oldTextGone: number;
+    oldTextLingers: number;
+    ladderViolationsBefore: number;
+    ladderViolationsAfter: number;
+  };
+};
+export type ApplyAmendOptions = { reconstructLineation?: boolean };
+export type DeleteAndRenumberFailureCode = "target_not_found" | "target_ambiguous" |
+  "unsupported_target" | "sibling_ambiguous" | "sibling_sequence_unsupported" |
+  "heading_not_found" | "reference_to_deleted_target" | "unresolved_reference" |
+  "ambiguous_reference" | "external_reference" | "overlapping_ops" |
+  "verification_failed";
+export type DeleteAndRenumberFailure = {
+  code: DeleteAndRenumberFailureCode;
+  detail: string;
+  start?: number;
+  end?: number;
+};
+export type DeleteAndRenumberReceipt = {
+  kind: "delete_provision" | "renumber_heading" | "update_cross_reference";
+  start: number;
+  end: number;
+  removed: string;
+  inserted: string;
+  from: string;
+  to: string | null;
+};
+export type DeleteAndRenumberResult = {
+  text: string;
+  mapping: Array<{ from: string; to: string }>;
+  applied: DeleteAndRenumberReceipt[];
+  failures: DeleteAndRenumberFailure[];
+  verification: { headingsRenumbered: number; referencesUpdated: number };
+};
 
 let addon: StructureAddon | undefined;
 
@@ -204,4 +288,26 @@ export async function analyzePdfNative<T>(request: unknown) {
 export async function queryPdfNative<T>(document: NativePdfDocument, query: unknown): Promise<T> {
   const bytes = loadAddon().queryPdfDocument(document, query);
   return JSON.parse(bytes.toString("utf8")) as T;
+}
+export const joinLocator = (head: string, sub?: string) =>
+  loadAddon().joinAmendmentLocator(head, sub);
+const amendmentParsed = <T>(bytes: Buffer) => JSON.parse(bytes.toString("utf8")) as T;
+export const parseAmendmentInstructions = (text: string) =>
+  amendmentParsed<AmendParseResult>(loadAddon().parseAmendmentInstructions(text));
+export async function applyAmendOps(source: string, ops: AmendOp[],
+  options: ApplyAmendOptions = {}) {
+  return amendmentParsed<ApplyAmendmentsResult>(await loadAddon().applyAmendOps(
+    source, ops, options.reconstructLineation));
+}
+export async function deleteProvisionAndRenumberSiblings(source: string, target: string,
+  options: ApplyAmendOptions = {}) {
+  return amendmentParsed<DeleteAndRenumberResult>(
+    await loadAddon().deleteProvisionAndRenumberSiblings(
+      source, target, options.reconstructLineation));
+}
+export async function consolidateAmendment(source: string, amendment: string,
+  options: ApplyAmendOptions = {}) {
+  return amendmentParsed<ApplyAmendmentsResult & { parse: AmendParseResult }>(
+    await loadAddon().consolidateAmendment(
+      source, amendment, options.reconstructLineation));
 }
