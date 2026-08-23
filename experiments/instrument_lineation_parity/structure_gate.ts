@@ -4,11 +4,6 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
-  deriveDocumentNative,
-  documentStructureNative,
-  projectDocumentSourceNative,
-} from "../../backend/src/lib/structureNative";
-import {
   instrumentCorpusFiles,
   readAgreement,
   readPdf,
@@ -27,6 +22,31 @@ const ORACLE_ADDON = process.argv.find((argument) =>
 const LIMIT = Number(process.argv.find((argument) =>
   argument.startsWith("--limit=")
 )?.slice("--limit=".length) ?? Infinity);
+
+type NativeDocument = object;
+type StructureAddon = {
+  deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
+  documentSnapshot(document: NativeDocument): Buffer;
+  sourceDocSnapshot(document: NativeDocument): Buffer;
+};
+
+function loadAddon(): StructureAddon {
+  const filename = process.env.LEGAL_STRUCTURE_NATIVE?.trim() || path.join(
+    ROOT,
+    "legal-pdf-parser",
+    "target",
+    "release",
+    process.platform === "win32" ? "legal_structure_node.dll"
+      : process.platform === "darwin" ? "liblegal_structure_node.dylib"
+      : "liblegal_structure_node.so",
+  );
+  const module = { exports: {} } as NodeModule;
+  process.dlopen(module, path.resolve(filename));
+  return module.exports as StructureAddon;
+}
+
+const nativeAddon = loadAddon();
+const nativeJson = <T>(value: Buffer) => JSON.parse(value.toString("utf8")) as T;
 
 const COMPONENTS = [
   "nodes",
@@ -141,7 +161,7 @@ function skeletonAnalysis(
   skeleton: any,
   crossReferenceGraphFromSkeleton: (text: string, skeleton: any) => any,
 ) {
-  const crossReferences = crossReferenceGraphFromSkeleton(text, skeleton);
+  const { nodes: _, ...crossReferences } = crossReferenceGraphFromSkeleton(text, skeleton);
   return { products: { ...skeletonProducts(skeleton), crossReferences }, crossReferences };
 }
 
@@ -327,11 +347,11 @@ async function main(): Promise<void> {
 
   const nativeAnalysis = async (id: string, text: string, record = true) => {
     const started = performance.now();
-    const native = await deriveDocumentNative({ kind: "instrument", id, text,
+    const native = await nativeAddon.deriveDocumentStructure({ kind: "instrument", id, text,
       reconstruct_lineation: true });
     const derived = performance.now();
-    const structure = documentStructureNative<any>(native);
-    const sourceDoc = projectDocumentSourceNative<any>(native);
+    const structure = nativeJson<any>(nativeAddon.documentSnapshot(native)).structure;
+    const sourceDoc = nativeJson<any>(nativeAddon.sourceDocSnapshot(native));
     const products = legacyProducts(text, { structure, source_doc: sourceDoc });
     const finished = performance.now();
     if (record) {
