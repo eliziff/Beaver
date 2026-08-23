@@ -4,7 +4,6 @@ import { guardedRemoteFetch } from "../remoteUrlSafety";
 import {
   providerCitationsInTextNative,
   deriveDocumentNative,
-  documentCitedAuthoritiesNative,
 } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
@@ -12,7 +11,6 @@ import {
   legalSourceUrl,
   objectValue,
   stringValue,
-  type NativeMarkupRef,
   type RemoteLegalSourceDocument,
   type RemoteLegalSourceProvider,
 } from "./remoteProvider";
@@ -153,11 +151,6 @@ async function fetchTnaCase(
       citation: result.citation,
     },
   });
-  const citedAuthorities = documentCitedAuthoritiesNative(native).map((authority) => ({
-    citation: authority.citation,
-    canonical: authority.canonical ?? null,
-    type: authority.type ?? null,
-  } satisfies NativeMarkupRef));
   return {
     provider: "tna",
     identity: result.citation,
@@ -165,7 +158,6 @@ async function fetchTnaCase(
     url,
     native,
     attachments: [],
-    citedAuthorities,
   };
 }
 

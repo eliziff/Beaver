@@ -1,14 +1,13 @@
 use legal_structure::{
     a2aj_document_structure, analyze_instrument, analyze_native_markup,
-    caselaw_citation_lookup_key, citation_lookup_key, citations_in_text, classify_citator_excerpt,
+    caselaw_citation_lookup_key, citation_lookup_key, classify_citator_excerpt,
     derive_document_structure, document_fingerprint, docx_structure_lint, grounded_prose_errors,
     has_citation_in_text, journal_document_structure, journal_text_document_structure,
-    marked_quote_spans, normalize_document_locator, parse_address, phrase_spans,
-    provider_citations_in_text, quote_repair_suggestion, text_fragment_directives,
-    tokenize_source_text, A2ajInput, AuthoritativeTableCell, DocumentFingerprint, DocumentInput,
-    DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection,
-    InstrumentCrossReferenceGraph, JournalPageLabel, NativeMarkupInput, PhraseOptions,
-    VisibleEvidenceText,
+    normalize_document_locator, parse_address, provider_citations_in_text, quote_repair_suggestion,
+    text_fragment_directives, utf16_prefix_ceil, A2ajInput, AuthoritativeTableCell,
+    DocumentFingerprint,
+    DocumentInput, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure, FollowDirection,
+    InstrumentCrossReferenceGraph, JournalPageLabel, NativeMarkupInput, VisibleEvidenceText,
 };
 #[cfg(feature = "legalpdf")]
 use napi::bindgen_prelude::Buffer;
@@ -52,10 +51,11 @@ enum StructureRequest {
 
 fn page_labels(rows: Vec<serde_json::Value>) -> Vec<JournalPageLabel> {
     rows.into_iter()
-        .filter_map(|row| {
+        .filter_map(|mut row| {
+            let row = row.as_object_mut()?;
             let pdf_page = row.get("pdf_page")?.as_u64()?.try_into().ok()?;
-            let label = match row.get("page_label")? {
-                serde_json::Value::String(value) => value.clone(),
+            let label = match row.remove("page_label")? {
+                serde_json::Value::String(value) => value,
                 value @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_)) => {
                     value.to_string()
                 }
@@ -68,11 +68,6 @@ fn page_labels(rows: Vec<serde_json::Value>) -> Vec<JournalPageLabel> {
 
 enum NativeProduct {
     Structure(DocumentStructure),
-    #[cfg(feature = "legalpdf")]
-    Docx {
-        structure: DocumentStructure,
-        table_cells: Vec<AuthoritativeTableCell>,
-    },
     #[cfg(feature = "legalpdf")]
     Pdf(legalpdf::PdfDocumentResult),
 }
@@ -94,8 +89,6 @@ impl NativeDocument {
     fn structure(&self) -> &DocumentStructure {
         match &self.product {
             NativeProduct::Structure(structure) => structure,
-            #[cfg(feature = "legalpdf")]
-            NativeProduct::Docx { structure, .. } => structure,
             #[cfg(feature = "legalpdf")]
             NativeProduct::Pdf(document) => document.structure(),
         }
@@ -338,14 +331,10 @@ mod legalpdf_exports {
         type JsValue = ExternalRef<NativeDocument>;
 
         fn compute(&mut self) -> napi::Result<Self::Output> {
-            let (structure, table_cells) =
-                legalpdf::analyze_docx_bytes(&self.bytes, std::mem::take(&mut self.id))
-                    .map_err(|error| Error::from_reason(error.to_string()))?;
+            let structure = legalpdf::analyze_docx_bytes(&self.bytes, std::mem::take(&mut self.id))
+                .map_err(|error| Error::from_reason(error.to_string()))?;
             Ok(NativeDocument {
-                product: NativeProduct::Docx {
-                    structure,
-                    table_cells,
-                },
+                product: NativeProduct::Structure(structure),
                 query: DocumentQuery::new(),
             })
         }
@@ -403,7 +392,7 @@ mod legalpdf_exports {
     }
 
     pub struct PdfPageCountTask {
-        path: String,
+        bytes: Buffer,
     }
 
     impl Task for PdfPageCountTask {
@@ -411,7 +400,7 @@ mod legalpdf_exports {
         type JsValue = u32;
 
         fn compute(&mut self) -> napi::Result<Self::Output> {
-            legalpdf::pdf_page_count(std::path::Path::new(&self.path))
+            legalpdf::pdf_page_count(&self.bytes)
                 .map_err(|error| Error::from_reason(error.to_string()))
         }
 
@@ -421,8 +410,8 @@ mod legalpdf_exports {
     }
 
     #[napi(js_name = "pdfPageCount")]
-    pub fn pdf_page_count_node(path: String) -> AsyncTask<PdfPageCountTask> {
-        AsyncTask::new(PdfPageCountTask { path })
+    pub fn pdf_page_count_node(bytes: Buffer) -> AsyncTask<PdfPageCountTask> {
+        AsyncTask::new(PdfPageCountTask { bytes })
     }
 
     #[napi(js_name = "pdfDocumentSummary")]
@@ -434,20 +423,6 @@ mod legalpdf_exports {
             return Err(Error::from_reason("PDF summary requires a PDF document"));
         };
         js_value(env, &legalpdf::pdf_document_summary(document))
-    }
-}
-
-#[napi(js_name = "documentCitedAuthorities")]
-pub fn document_cited_authorities_node(
-    env: Env,
-    document: &External<NativeDocument>,
-) -> napi::Result<Unknown<'static>> {
-    match &document.product {
-        NativeProduct::Structure(structure) => js_value(env, &structure.cited_authorities),
-        #[cfg(feature = "legalpdf")]
-        NativeProduct::Docx { structure, .. } => js_value(env, &structure.cited_authorities),
-        #[cfg(feature = "legalpdf")]
-        NativeProduct::Pdf(_) => js_value(env, &Vec::<serde_json::Value>::new()),
     }
 }
 
@@ -470,23 +445,10 @@ pub fn docx_structure_lint_node(
     )
 }
 
-#[cfg(feature = "legalpdf")]
-#[napi(js_name = "docxTableCells")]
-pub fn docx_table_cells_node(
-    env: Env,
-    document: &External<NativeDocument>,
-) -> napi::Result<Unknown<'static>> {
-    let NativeProduct::Docx { table_cells, .. } = &document.product else {
-        return Err(Error::from_reason(
-            "DOCX table cells require a DOCX document",
-        ));
-    };
-    js_value(env, table_cells)
-}
-
 #[napi(js_name = "documentText")]
-pub fn document_text_node(document: &External<NativeDocument>) -> String {
-    document.structure().query_text().to_owned()
+pub fn document_text_node(document: &External<NativeDocument>, limit: Option<u32>) -> String {
+    let text = document.structure().query_text();
+    limit.map_or(text, |limit| utf16_prefix_ceil(text, limit as usize)).to_owned()
 }
 
 #[napi(js_name = "documentTextBytes")]
@@ -503,11 +465,15 @@ pub fn document_revision_node(document: &External<NativeDocument>) -> String {
 pub fn document_anchors_node(
     env: Env,
     document: &External<NativeDocument>,
+    end: Option<u32>,
 ) -> napi::Result<Unknown<'static>> {
     let structure = document.structure();
     js_value(
         env,
-        &document.query().anchors(structure).collect::<Vec<_>>(),
+        &document
+            .query()
+            .anchors(structure, end.map(|value| value as usize))
+            .collect::<Vec<_>>(),
     )
 }
 
@@ -516,23 +482,9 @@ pub fn normalize_document_locator_node(kind: String, locator: String) -> napi::R
     Ok(normalize_document_locator(document_kind(&kind)?, &locator))
 }
 
-#[napi(js_name = "tokenizeSourceText")]
-pub fn tokenize_source_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
-    js_value(env, &tokenize_source_text(&text))
-}
-
 #[napi(js_name = "citationLookupKey")]
 pub fn citation_lookup_key_node(text: String) -> String {
     citation_lookup_key(&text)
-}
-
-#[napi(js_name = "citationsInText")]
-pub fn citations_in_text_node(
-    env: Env,
-    text: String,
-    extended_us_fallback: bool,
-) -> napi::Result<Unknown<'static>> {
-    js_value(env, &citations_in_text(&text, extended_us_fallback))
 }
 
 #[napi(js_name = "providerCitationsInText")]
@@ -569,11 +521,6 @@ pub fn grounded_prose_errors_node(
 #[napi(js_name = "quoteRepairSuggestion")]
 pub fn quote_repair_suggestion_node(claim: String, spans: Vec<String>) -> Option<String> {
     quote_repair_suggestion(&claim, &spans)
-}
-
-#[napi(js_name = "markedQuoteSpans")]
-pub fn marked_quote_spans_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
-    js_value(env, &marked_quote_spans(&text))
 }
 
 #[napi(js_name = "readDocumentRange")]
@@ -615,31 +562,6 @@ pub fn smallest_containing_document_block_node(
     )
 }
 
-#[napi(js_name = "textPhraseSpans")]
-pub fn text_phrase_spans_node(
-    env: Env,
-    text: String,
-    words: Vec<String>,
-    start: Option<u32>,
-    end: Option<u32>,
-    same_line: Option<bool>,
-    limit: Option<u32>,
-) -> napi::Result<Unknown<'static>> {
-    js_value(
-        env,
-        &phrase_spans(
-            &text,
-            &words,
-            PhraseOptions {
-                start: start.map(|value| value as usize),
-                end: end.map(|value| value as usize),
-                same_line: same_line.unwrap_or(false),
-                limit: limit.map(|value| value as usize),
-            },
-        ),
-    )
-}
-
 #[napi(js_name = "textFragmentDirectives")]
 pub fn text_fragment_directives_node(
     block_text: String,
@@ -651,8 +573,9 @@ pub fn text_fragment_directives_node(
     document.map_or_else(
         || text_fragment_directives(&block_text, document_text.as_deref(), &quotes, page_scoped),
         |document| {
+            let structure = document.structure();
             document.query().text_fragment_directives(
-                document.structure(),
+                structure,
                 &block_text,
                 &quotes,
                 page_scoped,
@@ -803,41 +726,13 @@ js_task!(
 
 #[napi(js_name = "deleteProvisionAndRenumberSiblings")]
 pub fn delete_provision_and_renumber_siblings_node(
-    source: String,
+    document: &External<NativeDocument>,
     target: String,
     reconstruct_lineation: Option<bool>,
 ) -> AsyncTask<DeleteAndRenumberTask> {
     AsyncTask::new(DeleteAndRenumberTask {
-        source,
+        source: document.structure().query_text().to_owned(),
         target,
-        reconstruct_lineation: reconstruct_lineation.unwrap_or(true),
-    })
-}
-
-js_task!(
-    ConsolidateAmendmentTask {
-        source: String,
-        amendment: String,
-        reconstruct_lineation: bool
-    },
-    |task: &mut ConsolidateAmendmentTask| {
-        legal_structure::consolidate_amendment(
-            &task.source,
-            &task.amendment,
-            task.reconstruct_lineation,
-        )
-    }
-);
-
-#[napi(js_name = "consolidateAmendment")]
-pub fn consolidate_amendment_node(
-    source: String,
-    amendment: String,
-    reconstruct_lineation: Option<bool>,
-) -> AsyncTask<ConsolidateAmendmentTask> {
-    AsyncTask::new(ConsolidateAmendmentTask {
-        source,
-        amendment,
         reconstruct_lineation: reconstruct_lineation.unwrap_or(true),
     })
 }

@@ -207,7 +207,7 @@ export function createTabularApplication(
       sourceSha256: content.version.source_sha256,
       bytes: content.bytes,
     }, { signal });
-    const markdown = documentTextNative(projection.document);
+    const markdown = documentTextNative(projection.document, MAX_DOCUMENT_CHARS);
     throwIfAborted(signal);
     return { id: documentId, filename: content.filename.slice(0, 500),
       markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };

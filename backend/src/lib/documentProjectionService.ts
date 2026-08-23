@@ -29,13 +29,11 @@ import {
   deriveDocumentNative,
   deriveDocxNative,
   derivePdfNative,
-  docxTableCellsNative,
   documentTextBytesNative,
   pdfPageCountNative,
   pdfDocumentSummaryNative,
   type LegalPdfOcrProvider,
   type NativeDocument,
-  type NativeTableCell,
 } from "./structureNative";
 import {
   isPlainTextDocumentType,
@@ -247,6 +245,7 @@ async function preparePdf(input: {
     const native = await derivePdfNative({
       kind: "pdf",
       source_pdf: input.sourcePath,
+      verified_source_sha256: sourceSha256,
       cache_dir: CACHE_DIRECTORY,
       ...(pages ? { pages } : {}),
       ...profile,
@@ -281,7 +280,6 @@ async function preparePdf(input: {
       kind: "pdf",
       document: native,
       pageCount: result.projectionPageCount,
-      tableCells: [],
     };
     rememberProjection(reference, projection);
     return { state, projection };
@@ -342,23 +340,19 @@ export type DocumentReadProjection =
   | {
       kind: "document";
       document: NativeDocument;
-      tableCells: [];
     }
   | {
       kind: "pdf";
       document: NativeDocument;
       pageCount: number;
-      tableCells: [];
     }
   | {
       kind: "docx";
       document: NativeDocument;
-      tableCells: NativeTableCell[];
     }
   | {
       kind: "spreadsheet-grid";
       document: NativeDocument;
-      grid: SpreadsheetLlmStructure;
       tableCells: SpreadsheetLlmStructure["tableCells"];
     };
 
@@ -392,9 +386,21 @@ function rememberProjection(
   reference: PdfStateReference,
   projection: DocumentReadProjection,
 ) {
-  if (projectionMemory.size >= 8 && !projectionMemory.has(projectionKey(reference)))
+  cacheProjection(projectionKey(reference), Promise.resolve(projection));
+}
+
+function cacheProjection(key: string, pending: Promise<DocumentReadProjection>) {
+  if (projectionMemory.size >= 8 && !projectionMemory.has(key))
     projectionMemory.delete(projectionMemory.keys().next().value!);
-  projectionMemory.set(projectionKey(reference), Promise.resolve(projection));
+  projectionMemory.set(key, pending);
+  return pending;
+}
+
+function projectionFor(key: string, load: () => Promise<DocumentReadProjection>) {
+  return projectionMemory.get(key) ?? cacheProjection(key, load().catch((error) => {
+    projectionMemory.delete(key);
+    throw error;
+  }));
 }
 
 async function compileReadProjection(
@@ -409,11 +415,9 @@ async function compileReadProjection(
       bytes,
       `${input.documentId}:${input.versionId}`,
     );
-    const tableCells = docxTableCellsNative(document);
     return {
       kind: "docx",
       document,
-      tableCells,
     };
   }
   if (isSpreadsheetDocumentType(fileType)) {
@@ -431,7 +435,6 @@ async function compileReadProjection(
     return {
       kind: "spreadsheet-grid",
       document,
-      grid,
       tableCells: grid.tableCells,
     };
   }
@@ -463,25 +466,23 @@ async function compileReadProjection(
       sourceSha256,
       signal,
     });
-    return { kind: "document", document: prepared.projection.document,
-      tableCells: [] };
+    return { kind: "document", document: prepared.projection.document };
   }
   const document = await deriveDocumentNative({
     kind: "instrument",
     id: `${input.documentId}:${input.versionId}`,
     text,
-    table_cells: [],
     reconstruct_lineation: true,
   });
-  return { kind: "document", document, tableCells: [] };
+  return { kind: "document", document };
 }
 
 function assertProjectionOutput(projection: DocumentReadProjection) {
-  const value = projection.kind === "docx"
-    ? { kind: projection.kind, tableCells: projection.tableCells }
-    : projection.kind === "pdf"
-      ? { kind: projection.kind, pageCount: projection.pageCount }
-      : { kind: projection.kind, tableCells: projection.tableCells };
+  const value = projection.kind === "pdf"
+    ? { kind: projection.kind, pageCount: projection.pageCount }
+    : projection.kind === "spreadsheet-grid"
+      ? { kind: projection.kind, tableCells: projection.tableCells }
+      : { kind: projection.kind };
   if (documentTextBytesNative(projection.document) +
       Buffer.byteLength(JSON.stringify(value)) > MAX_PROJECTION_OUTPUT_BYTES)
     throw new Error("Document projection output exceeds the read limit");
@@ -494,20 +495,12 @@ async function read(input: DocumentProjectionInput, options: { signal?: AbortSig
     versionId: input.versionId,
     sourceSha256: source.sourceSha256,
   });
-  let pending = projectionMemory.get(key);
-  if (!pending) {
-    pending = compileReadProjection(input, source, options.signal).then((projection) => {
+  const pending = projectionFor(key, () =>
+    compileReadProjection(input, source, options.signal).then((projection) => {
       assertProjectionOutput(projection);
       options.signal?.throwIfAborted();
       return projection;
-    }).catch((error) => {
-      projectionMemory.delete(key);
-      throw error;
-    });
-    if (projectionMemory.size >= 8)
-      projectionMemory.delete(projectionMemory.keys().next().value!);
-    projectionMemory.set(key, pending);
-  }
+    }));
   const result = await pending;
   options.signal?.throwIfAborted();
   return result;
@@ -519,20 +512,12 @@ async function preparedForSource(
   pages?: number[],
 ) {
   const key = projectionKey(reference);
-  let pending = projectionMemory.get(key);
-  if (!pending) {
-    pending = preparePdf({
+  const pending = projectionFor(key, () =>
+    preparePdf({
       ...reference,
       sourcePath,
       ...(pages?.length ? { pages } : {}),
-    }).then(({ projection }) => projection).catch((error) => {
-      projectionMemory.delete(key);
-      throw error;
-    });
-    if (projectionMemory.size >= 8)
-      projectionMemory.delete(projectionMemory.keys().next().value!);
-    projectionMemory.set(key, pending);
-  }
+    }).then(({ projection }) => projection));
   const [projection, state] = await Promise.all([pending, readState(reference)]);
   if (projection.kind !== "pdf" || !state || !["ready", "degraded"].includes(state.status))
     throw new Error("PDF canonical result is unavailable");
@@ -590,9 +575,7 @@ async function rehydrateLink(sourcePath: string, handle: string) {
 
 export const documentProjectionService = Object.freeze({
   read,
-  pdfPageCount: async (bytes: Buffer, sourceSha256: string, signal?: AbortSignal) => {
-    return pdfPageCountNative(await publishPdfBytes(bytes, sourceSha256, signal));
-  },
+  pdfPageCount: pdfPageCountNative,
   parsePdf,
   parsePdfPages,
   publishPdf: (bytes: Buffer, expected?: string, signal?: AbortSignal) => {

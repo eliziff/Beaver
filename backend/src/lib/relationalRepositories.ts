@@ -15,6 +15,7 @@ import type {
   StoredDocumentVersion,
 } from "./documentRepository";
 import type { DocumentParseState, StoredAssistantEdit } from "./documentStore";
+import { wakeJobWorker } from "./jobQueue";
 import type { LibraryFolder, LibraryRepository, LibraryScope } from "./libraryStore";
 import { normalizeDocumentMetadata, normalizeDocumentNotes } from "./normalize";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
@@ -209,6 +210,7 @@ export const documentRepository: DocumentRepository = {
         ${document.createdAt},${document.updatedAt})`, tx);
       await addVersion(tx, version, scope.userId);
     });
+    if (input.version.fileType === "pdf") wakeJobWorker();
   },
   async get(scope, id, owner = false) {
     return aggregate(await relationalDatabase(), scope, id, owner);
@@ -227,7 +229,7 @@ export const documentRepository: DocumentRepository = {
   },
   async insertVersion(scope, id, input) {
     const db = await relationalDatabase();
-    return db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const current = await aggregate(tx, scope, id);
       if (!current) return "missing";
       if (current.document.currentVersionId !== input.expectedCurrentVersionId) return "conflict";
@@ -239,10 +241,13 @@ export const documentRepository: DocumentRepository = {
       await addEdits(tx, id, input.version.id, input.edits);
       return "created";
     });
+    if (result === "created" && input.version.fileType === "pdf") wakeJobWorker();
+    return result;
   },
   async updateVersion(scope, id, input) {
     const db = await relationalDatabase();
-    return db.transaction(async (tx) => {
+    let queuedPdf = false;
+    const result = await db.transaction(async (tx) => {
       const current = await aggregate(tx, scope, id);
       if (!current) return "missing";
       const version = current.versions.find(({ id: versionId }) => versionId === input.versionId);
@@ -267,14 +272,19 @@ export const documentRepository: DocumentRepository = {
         AND document_id=${id} AND version_id=${input.versionId}`, tx);
       await changes(sql`UPDATE documents SET updated_at=${now()},filename=${update.filename}
         WHERE id=${id}`, tx);
-      if (update.fileType === "pdf") await enqueuePdfPreparation({
-        userId: scope.userId,
-        documentId: id,
-        versionId: update.id,
-        sourceSha256: update.sourceSha256,
-      }, tx);
+      if (update.fileType === "pdf") {
+        await enqueuePdfPreparation({
+          userId: scope.userId,
+          documentId: id,
+          versionId: update.id,
+          sourceSha256: update.sourceSha256,
+        }, tx);
+        queuedPdf = true;
+      }
       return "updated";
     });
+    if (queuedPdf) wakeJobWorker();
+    return result;
   },
   async renameVersion(scope, id, versionId, filename) {
     const db = await relationalDatabase();

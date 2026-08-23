@@ -579,4 +579,20 @@ describe("verified legal-source links", () => {
       /^https:\/\/decisions\.ct-tc\.gc\.ca\/ct-tc\/cdo\/en\/464444\/1\/document\.do#:~:text=/u,
     );
   });
+
+  it("drops HTML paragraph anchors from resolved PDF documents", () => {
+    const passage = "The Applicant relied heavily on the previous decision.";
+    const result = buildLegalSourcePinpointUrl(
+      {
+        url: "https://decisia.lexum.com/nsc/nssc/en/459053/1/document.do",
+        anchor: "par17",
+        blockText: passage,
+        documentText: passage,
+      },
+      [passage],
+    )!;
+    expect(result).toMatch(/\/document\.do#:~:text=/u);
+    expect(result).not.toContain("#par17");
+  });
+
 });
