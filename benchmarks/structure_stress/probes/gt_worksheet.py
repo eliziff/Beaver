@@ -18,13 +18,14 @@ import json
 import random
 import re
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
 from alr_probe import alr, paragraph_index, v1  # noqa: E402
-from legal_structure import compile_document  # noqa: E402
+from legal_structure import Document  # noqa: E402
 
 LS_NUM = re.compile(r"^[ \t]*(?:\[(\d{1,4})\]|(\d{1,4})\.(?=\s)|(\d{1,4})(?=\s))")
 
@@ -199,19 +200,23 @@ def cmd_grade(args) -> int:
         alr_has = av == "usable"
         production_error = None
         production = None
+        production_ms = None
         try:
-            production = compile_document({
-                "docType": "cases",
-                "citation": r.get("citation") or doc_id,
-                "dataset": r["court"],
-                "name": r.get("name"),
-                "text": t,
-            })
+            production_started = time.perf_counter()
+            production = Document(
+                "cases",
+                r.get("citation") or doc_id,
+                t,
+                dataset=r["court"],
+                name=r.get("name"),
+            )
+            production_ms = round(
+                (time.perf_counter() - production_started) * 1000, 3
+            )
         except Exception as exc:
             production_error = str(exc)
             compile_errors.append((doc_id, production_error))
-        summary = production["summary"] if production else {}
-        production_has = summary.get("kind") == "paragraphs"
+        production_has = production is not None and production.kind == "paragraphs"
         rows.append({
             "id": doc_id, "court": r["court"], "lang": r["lang"],
             "date": r.get("date"), "truth_numbered": has,
@@ -221,11 +226,11 @@ def cmd_grade(args) -> int:
             "v1_max": v1i["max"] if v1_has else None,
             "alr": av, "alr_has": alr_has,
             "alr_max": ai.get("last") if alr_has else None,
-            "production": summary.get("kind", "error"),
+            "production": production.kind if production else "error",
             "production_has": production_has,
-            "production_max": summary.get("last") if production_has else None,
-            "production_count": summary.get("count", 0),
-            "production_ms": production.get("elapsedMs") if production else None,
+            "production_max": production.last if production_has else None,
+            "production_count": production.count if production else 0,
+            "production_ms": production_ms,
             "production_error": production_error,
         })
     if not rows:

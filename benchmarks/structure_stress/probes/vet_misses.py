@@ -18,7 +18,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from legal_structure import compile_document  # noqa: E402
+from legal_structure import Document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 
@@ -86,14 +86,21 @@ def main() -> int:
                 if args.limit and checked >= args.limit:
                     break
                 checked += 1
-                result = compile_document({
-                    "docType": "cases",
-                    "citation": citation,
-                    "alternateCitation": alternate or "",
-                    "dataset": court,
-                    "text": text or "",
-                })
-                structure = {**result["summary"], "engine": result["compiler"]}
+                document = Document(
+                    "cases",
+                    citation,
+                    text or "",
+                    alternate_citation=alternate or None,
+                    dataset=court,
+                )
+                structure = {
+                    "kind": document.kind,
+                    "count": document.count,
+                    "first": document.first,
+                    "last": document.last,
+                    "span": document.span,
+                    "engine": "legal-structure",
+                }
                 for reason in wanted[citation]:
                     cross[(reason.split("_0")[0], structure["kind"])] += 1
                 row = {

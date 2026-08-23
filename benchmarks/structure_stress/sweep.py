@@ -119,7 +119,7 @@ SHORT_STRING_ENTRIES = {
 
 SLOW_DOC_SECONDS = 2.0
 
-from legal_structure import compile_document  # noqa: E402
+from legal_structure import Document  # noqa: E402
 
 PILCROW_RE = re.compile(r"¶\s?\d")
 
@@ -238,16 +238,26 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
         )
         if record["cited_count"] > 0 and cite_hits == 0:
             record["fail"].append("cites_expected_none_found")
-        compiled = compile_document({
-            "docType": "cases",
-            "citation": self_cite,
-            "alternateCitation": metadata.get("alternate_citation") or "",
-            "dataset": metadata.get("dataset") or doc_id.split(":", 1)[0],
-            "text": text,
-        })
-        structure = {**compiled["summary"], "engine": compiled["compiler"]}
+        structure_started = time.perf_counter()
+        document = Document(
+            "cases",
+            self_cite,
+            text,
+            alternate_citation=metadata.get("alternate_citation") or None,
+            dataset=metadata.get("dataset") or doc_id.split(":", 1)[0],
+        )
+        structure = {
+            "kind": document.kind,
+            "count": document.count,
+            "first": document.first,
+            "last": document.last,
+            "span": document.span,
+            "engine": "legal-structure",
+        }
         record["structure"] = structure
-        record["source_doc_ms"] = compiled["elapsedMs"]
+        record["source_doc_ms"] = round(
+            (time.perf_counter() - structure_started) * 1000, 3
+        )
         if structure["kind"] == "none":
             record["fail"].append("no_addressable_structure")
         elif structure["kind"] == "paragraphs" and structure.get("span", 1.0) < 0.55:
@@ -262,15 +272,18 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
     elif kind == "law":
         want = set(metadata.get("section_labels") or [])
         expected_count = len(want) or metadata.get("num_sections") or 0
-        compiled = compile_document({
-            "docType": "laws",
-            "citation": metadata.get("citation") or "",
-            "alternateCitation": metadata.get("alternate_citation") or "",
-            "dataset": metadata.get("dataset") or doc_id.split(":", 1)[0],
-            "name": metadata.get("name") or "",
-            "text": text,
-        })
-        record["source_doc_ms"] = compiled["elapsedMs"]
+        structure_started = time.perf_counter()
+        document = Document(
+            "laws",
+            metadata.get("citation") or "",
+            text,
+            alternate_citation=metadata.get("alternate_citation") or None,
+            dataset=metadata.get("dataset") or doc_id.split(":", 1)[0],
+            name=metadata.get("name") or None,
+        )
+        record["source_doc_ms"] = round(
+            (time.perf_counter() - structure_started) * 1000, 3
+        )
         if len(want) == 1 and next(iter(want)).lower() in {
             "order", "ordonnance", "proclamation",
         }:
@@ -282,13 +295,13 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             record["sections"] = {
                 "expected_count": expected_count,
                 "single_instrument": True,
-                "engine": compiled["compiler"],
+                "engine": "legal-structure",
             }
         else:
             found = {
                 label[3:]
-                for block in compiled["blocks"]["section"]
-                for label in [block["label"], *block.get("aliases", [])]
+                for physical, aliases, _start, _end in document.blocks("section")
+                for label in [physical, *aliases]
             }
             recovery = len(want & found) / len(want) if want else None
             precision = len(want & found) / len(found) if found else None
@@ -297,7 +310,7 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
                 "recovery_production": recovery,
                 "precision_production": precision,
                 "actual": len(found),
-                "engine": compiled["compiler"],
+                "engine": "legal-structure",
             }
             best = recovery or 0.0
             if want and best < 0.5:

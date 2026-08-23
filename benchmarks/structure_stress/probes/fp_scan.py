@@ -36,7 +36,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-from legal_structure import compile_document  # noqa: E402
+from legal_structure import Document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 MAX_DOC_CHARS = 8_000_000
@@ -54,27 +54,34 @@ def screen_case(
     text: str, citation: str, alternate: str, dataset: str
 ) -> tuple[dict, list[str], list[str]]:
     """Run generic screens over blocks returned by the production compiler."""
-    result = compile_document({
-        "docType": "cases",
-        "citation": citation,
-        "alternateCitation": alternate,
-        "dataset": dataset,
-        "text": text,
-    })
-    claim = {**result["summary"], "engine": result["compiler"]}
+    document = Document(
+        "cases",
+        citation,
+        text,
+        alternate_citation=alternate or None,
+        dataset=dataset or None,
+    )
+    claim = {
+        "kind": document.kind,
+        "count": document.count,
+        "first": document.first,
+        "last": document.last,
+        "span": document.span,
+        "engine": "legal-structure",
+    }
     kind = claim["kind"]
     suspects: list[str] = []
-    entries: list[dict] = []
+    entries: list[tuple[str, list[str], int, int]] = []
     if kind == "paragraphs":
-        entries = result["blocks"]["paragraph"]
-        numbers = [int(entry["label"][3:]) for entry in entries]
+        entries = document.blocks("paragraph")
+        numbers = [int(label[3:]) for label, _aliases, _start, _end in entries]
         first, last = numbers[0], numbers[-1]
         coverage = len(entries) / max(1, last - first + 1)
-        terminal = entries[-1]["start"] / max(1, len(text))
+        terminal = entries[-1][2] / max(1, len(text))
         lead_hits = sum(
             1
-            for entry in entries
-            if _prev_line_tail(text, entry["start"]) in QUOTE_OR_COLON
+            for _label, _aliases, start, _end in entries
+            if _prev_line_tail(text, start) in QUOTE_OR_COLON
         )
         claim.update(coverage=round(coverage, 3), terminal_ratio=round(terminal, 3),
                      lead_hits=lead_hits)
@@ -87,7 +94,7 @@ def screen_case(
         if lead_hits / len(entries) > 0.30:
             suspects.append("para_quote_colon_leads")
     elif kind == "pages":
-        entries = result["blocks"]["page"]
+        entries = document.blocks("page")
         coverage = claim["count"] / max(1, claim["last"] - claim["first"] + 1)
         claim.update(coverage=round(coverage, 3))
         if coverage < 0.90:
@@ -96,9 +103,8 @@ def screen_case(
     if suspects and entries:
         picks = entries[:2] + (entries[-2:] if len(entries) > 2 else [])
         excerpts = [
-            f"[{entry['label']}] "
-            f"{text[entry['start']:entry['end']][:110]!r}"
-            for entry in picks
+            f"[{label}] {text[start:end][:110]!r}"
+            for label, _aliases, start, end in picks
         ]
     return claim, suspects, excerpts
 
@@ -230,27 +236,27 @@ def scan_laws(con, per_set: int) -> dict:
                 if not want:
                     continue
                 text = (text or "")[:MAX_DOC_CHARS]
-                result = compile_document({
-                    "docType": "laws",
-                    "citation": cite or "",
-                    "alternateCitation": alternate or "",
-                    "dataset": name,
-                    "name": instrument or "",
-                    "text": text,
-                })
+                document = Document(
+                    "laws",
+                    cite or "",
+                    text,
+                    alternate_citation=alternate or None,
+                    dataset=name,
+                    name=instrument or None,
+                )
                 found = {
                     label[3:]
-                    for block in result["blocks"]["section"]
-                    for label in [block["label"], *block.get("aliases", [])]
+                    for physical, aliases, _start, _end in document.blocks("section")
+                    for label in [physical, *aliases]
                 }
                 docs += 1
                 combined_recs.append(len(want & found) / len(want))
-                bucket = micro.setdefault(result["compiler"], Counter())
+                bucket = micro.setdefault("legal-structure", Counter())
                 bucket["tp"] += len(want & found)
                 bucket["fp"] += len(found - want)
                 bucket["fn"] += len(want - found)
                 if found - want:
-                    examples = fp_examples.setdefault(result["compiler"], Counter())
+                    examples = fp_examples.setdefault("legal-structure", Counter())
                     for label in list(found - want)[:4]:
                         examples[label] += 1
     return {"docs": docs, "micro": micro, "fp_examples": fp_examples,

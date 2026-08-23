@@ -31,7 +31,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import sweep  # noqa: E402
-from legal_structure import compile_document  # noqa: E402
+from legal_structure import Document  # noqa: E402
 
 A2AJ = Path(r"C:\Users\elias\AppData\Local\ALR Quote Verifier\a2aj_corpus")
 
@@ -185,24 +185,24 @@ def main() -> int:
     # Shipping SourceDoc compiler cost isolated; no harness detector exists.
     t0 = time.perf_counter()
     for _id, _k, text, metadata in case_jobs:
-        compile_document({
-            "docType": "cases",
-            "citation": metadata.get("self_cite") or "",
-            "alternateCitation": metadata.get("alternate_citation") or "",
-            "dataset": metadata.get("dataset") or "",
-            "text": text[:sweep.MAX_DOC_CHARS],
-        })
+        Document(
+            "cases",
+            metadata.get("self_cite") or "",
+            text[:sweep.MAX_DOC_CHARS],
+            alternate_citation=metadata.get("alternate_citation") or None,
+            dataset=metadata.get("dataset") or None,
+        )
     case_structure_s = time.perf_counter() - t0
     t0 = time.perf_counter()
     for _id, _k, text, metadata in law_jobs:
-        compile_document({
-            "docType": "laws",
-            "citation": metadata.get("citation") or "",
-            "alternateCitation": metadata.get("alternate_citation") or "",
-            "dataset": metadata.get("dataset") or "",
-            "name": metadata.get("name") or "",
-            "text": text[:sweep.MAX_DOC_CHARS],
-        })
+        Document(
+            "laws",
+            metadata.get("citation") or "",
+            text[:sweep.MAX_DOC_CHARS],
+            alternate_citation=metadata.get("alternate_citation") or None,
+            dataset=metadata.get("dataset") or None,
+            name=metadata.get("name") or None,
+        )
     law_structure_s = time.perf_counter() - t0
     case_mb = sum(len(j[2]) for j in case_jobs) / 1e6
     law_mb = sum(len(j[2]) for j in law_jobs) / 1e6

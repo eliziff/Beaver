@@ -107,7 +107,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from legal_structure import compile_document
+from legal_structure import Document
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
@@ -264,10 +264,12 @@ def case_occurrences(text: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
     return occurrences, kind_counts
 
 
-def paragraph_for_offset(paragraphs: list[dict[str, Any]], offset: int) -> int | None:
-    for block in paragraphs:
-        if block["start"] <= offset < block["end"]:
-            return int(block["label"][3:])
+def paragraph_for_offset(
+    paragraphs: list[tuple[str, list[str], int, int]], offset: int
+) -> int | None:
+    for label, _aliases, start, end in paragraphs:
+        if start <= offset < end:
+            return int(label[3:])
     return None
 
 
@@ -664,17 +666,13 @@ def build(args: argparse.Namespace) -> None:
             occurrences, kind_counts = case_occurrences(text)
             for kind, count in kind_counts.items():
                 kind_totals[kind] = kind_totals.get(kind, 0) + count
-            paragraphs = (
-                compile_document({
-                    "docType": "cases",
-                    "citation": case["citation"] or "",
-                    "alternateCitation": case["citation2"] or "",
-                    "dataset": case["court"] or "",
-                    "text": text,
-                })["blocks"]["paragraph"]
-                if occurrences
-                else []
-            )
+            paragraphs = Document(
+                "cases",
+                case["citation"] or "",
+                text,
+                alternate_citation=case["citation2"] or None,
+                dataset=case["court"] or None,
+            ).blocks("paragraph") if occurrences else []
             case_id = counters["cases_indexed"] + 1
             case_edges = 0
             mined_keys: set[str] = set()

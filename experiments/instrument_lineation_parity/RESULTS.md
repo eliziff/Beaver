@@ -96,12 +96,15 @@ On 2026-08-23, the Rust-native optimization passes removed per-line definition
 metadata work, stopped materializing discarded lineation graphs, shared text
 coordinates and line parsing, replaced hot anchored regexes with exact prefix
 guards or byte parsing, made SourceDoc projection lazy, and removed repeated
-navigation and descendant scans. The paired 872-document oracle remained
-exact. Rust measured 1.295 ms median / 7.560 s aggregate including full gate
-snapshots, versus TypeScript at 2.722 ms / 20.166 s (2.10x median, 2.67x
-aggregate); Rust derivation alone took 5.568 s. The original lineation won 829
-documents; the three recovery hypotheses won 18, 21, and 4. This is an
-intermediate optimization receipt, not the performance target.
+navigation, descendant, definition, and impossible-line scans. Dead selection
+APIs and duplicate graph/SourceDoc projections were also removed. The paired
+872-document oracle remained exact. Rust measured 1.201 ms median / 6.302 s
+aggregate including full gate snapshots, versus TypeScript at 2.664 ms /
+19.900 s (2.22x median, 3.16x aggregate); Rust derivation alone took 4.377 s.
+The original lineation won 829 documents; the three alternate hypotheses won
+18, 21, and 4. Gate projection includes full JSON snapshots that production's
+narrow `NativeDocument` queries do not materialize. This is an intermediate
+optimization receipt, not the performance target.
 
 ## Gate
 
