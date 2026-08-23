@@ -5,13 +5,13 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  run: vi.fn(),
+  analyze: vi.fn(),
   profile: vi.fn(),
 }));
 
-vi.mock("../legalPdfProcess", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../legalPdfProcess")>()),
-  runLegalPdfDocument: mocks.run,
+vi.mock("../structureNative", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../structureNative")>()),
+  analyzePdfNative: mocks.analyze,
   configuredLegalPdfProfile: mocks.profile,
 }));
 
@@ -42,41 +42,39 @@ function profile(options?: { env?: NodeJS.ProcessEnv }) {
   };
 }
 
-function envelope(
-  operation: "inspect" | "prepare",
-  sourceSha256: string,
-  result: Record<string, unknown>,
-) {
-  return {
-    schema_version: "legalpdf.document-result.v1",
-    operation,
-    source: {
-      sha256: sourceSha256,
-      parser_version: "0.4.0",
-      cache_key: operation === "inspect" ? null : `cache-${sourceSha256.slice(0, 12)}`,
-      cache_hit: false,
-      page_count: 7,
-    },
-    result,
-  };
-}
-
 beforeEach(() => {
   mocks.profile.mockImplementation(profile);
-  mocks.run.mockImplementation(async (request: { operation: "inspect" | "prepare"; source_pdf: string }) => {
+  mocks.analyze.mockImplementation(async (request: { source_pdf: string }) => {
     const sourceSha256 = digest(await readFile(request.source_pdf));
-    return request.operation === "inspect"
-      ? envelope("inspect", sourceSha256, {
-          page_count: 7,
-          pages_needing_ocr: [5],
-        })
-      : envelope("prepare", sourceSha256, {
-          status: "ready",
-          page_count: 7,
-          pages_needing_ocr: [5],
-          ocr_routed_pages: [],
-          counts: { paragraphs: 10, footnotes: 2 },
-        });
+    return { native: {}, result: {
+      structure: {
+        text: "",
+        nodes: [
+          ...Array.from({ length: 10 }, (_, index) => ({
+            id: `paragraph-${index + 1}`, kind: "paragraph",
+          })),
+          { id: "section-1", kind: "section" },
+          { id: "section-2", kind: "section" },
+        ],
+        notes: [{}, {}],
+      },
+      pdf_source_map: {
+        pages: Array.from({ length: 7 }, (_, physical_index) => ({ physical_index })),
+        table_ids: [],
+        image_ids: [],
+      },
+      pairing_audit: {},
+      source_doc: { provider: "local-pdf", id: "fixture", text: "", blocks: [] },
+      source: {
+        sha256: sourceSha256,
+        parser_version: "0.4.0",
+        cache_key: `cache-${sourceSha256.slice(0, 12)}`,
+        page_count: 7,
+        status: "ready",
+        pages_needing_ocr: [4],
+        ocr_routed_pages: [],
+      },
+    } };
   });
 });
 
@@ -119,8 +117,7 @@ describe("PDF preparation", () => {
     expect(state).not.toHaveProperty("repair_contract");
     await expect(documentProjectionService.pdfState(reference))
       .resolves.toMatchObject({ cache_key: state.cache_key, status: "ready" });
-    expect(mocks.run.mock.calls.map(([request]) => request.operation))
-      .toEqual(["inspect", "prepare"]);
+    expect(mocks.analyze).toHaveBeenCalledTimes(1);
   });
 
   it("routes a bounded retry through native OCR and local layout", async () => {
@@ -145,8 +142,8 @@ describe("PDF preparation", () => {
       layout_provider: "ppdoc",
       selected_pages: [5],
     });
-    expect(mocks.run.mock.calls[1][0]).toMatchObject({
-      operation: "prepare",
+    expect(mocks.analyze.mock.calls[0][0]).toMatchObject({
+      kind: "pdf",
       pages: [5],
       ocr: { provider: "kraken-lite" },
       layout: { provider: "ppdoc" },
@@ -164,14 +161,12 @@ describe("PDF preparation", () => {
       sourcePath: built.sourcePath,
       sourceSha256: "f".repeat(64),
     })).rejects.toThrow("source bytes no longer match their version");
-    expect(mocks.run).not.toHaveBeenCalled();
+    expect(mocks.analyze).not.toHaveBeenCalled();
   });
 
   it("stores a safe failure state without exposing parser paths", async () => {
     const built = await fixture();
-    mocks.run.mockImplementationOnce(async () =>
-      envelope("inspect", built.sourceSha256, { page_count: 7, pages_needing_ocr: [] }))
-      .mockRejectedValueOnce(new Error("failed at C:\\private\\source.pdf"));
+    mocks.analyze.mockRejectedValueOnce(new Error("failed at C:\\private\\source.pdf"));
     const { documentProjectionService } = await import("../documentProjectionService");
     const reference = {
       documentId: "document-1",
@@ -190,9 +185,7 @@ describe("PDF preparation", () => {
   it("removes transient state when preparation is aborted", async () => {
     const built = await fixture();
     const controller = new AbortController();
-    mocks.run.mockImplementationOnce(async () =>
-      envelope("inspect", built.sourceSha256, { page_count: 7, pages_needing_ocr: [] }))
-      .mockImplementationOnce(async () => new Promise((_, reject) => {
+    mocks.analyze.mockImplementationOnce(async () => new Promise((_, reject) => {
         controller.signal.addEventListener("abort", () =>
           reject(new DOMException("Aborted", "AbortError")), { once: true });
       }));
@@ -204,7 +197,7 @@ describe("PDF preparation", () => {
       sourceSha256: built.sourceSha256,
     };
     const pending = documentProjectionService.parsePdf({ ...reference, signal: controller.signal });
-    await vi.waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(mocks.analyze).toHaveBeenCalledTimes(1));
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });

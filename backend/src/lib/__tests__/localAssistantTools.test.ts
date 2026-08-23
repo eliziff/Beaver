@@ -25,10 +25,6 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
   ) => fetch(input, init),
 }));
 
-vi.mock("../legalPdfSourceDoc", () => ({
-  countLegalPdfPages: vi.fn().mockResolvedValue(1),
-}));
-
 let temporaryDirectory: string | null = null;
 
 beforeEach(() => { process.env.AUTH_MODE = "local"; });
@@ -133,7 +129,6 @@ afterEach(async () => {
   vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
-  vi.doUnmock("../legalStructureSidecar");
   vi.doUnmock("../chat/tools/sourceSearchTools");
   vi.doUnmock("node:fs/promises");
   vi.unstubAllGlobals();

@@ -15,10 +15,8 @@
 // scan cannot pair is reported as an abstention, not guessed at; findings
 // carry the arithmetic so a reader can judge materiality.
 import { extractAnchors } from "./legalTextAnchors";
-import {
-  compileAgreementSkeleton,
-  type SkeletonNode,
-} from "../../src/lib/legalTextSkeleton";
+import type { SourceDoc } from "../../src/lib/sourceDoc";
+import { analyzeDocumentNative } from "../../src/lib/structureNative";
 
 export interface ConflictDocument {
   name: string;
@@ -164,13 +162,19 @@ type SectionAt = (at: number) => Promise<string | null>;
  * (the A2AJ lane in `passageRetrieval`), and no such feed reaches this scan.
  */
 function sectionResolver(text: string): SectionAt {
-  let nodes: Promise<SkeletonNode[]> | null = null;
+  let blocks: Promise<SourceDoc["blocks"]> | null = null;
   return async (at) => {
-    nodes ??= compileAgreementSkeleton(text).then((skeleton) => skeleton.nodes);
-    let best: SkeletonNode | null = null;
-    for (const node of await nodes) {
-      if (node.start > at || at >= node.end) continue;
-      if (!best || node.depth > best.depth) best = node;
+    blocks ??= analyzeDocumentNative({
+      kind: "instrument", id: "conflict-scan", text,
+      reconstruct_lineation: true, source_doc: true,
+    }).then(({ source_doc }) => {
+      if (!source_doc) throw new Error("Rust omitted SourceDoc");
+      return source_doc.blocks;
+    });
+    let best: SourceDoc["blocks"][number] | null = null;
+    for (const block of await blocks) {
+      if (block.kind !== "section" || block.start > at || at >= block.end) continue;
+      if (!best || block.end - block.start < best.end - best.start) best = block;
     }
     return best?.label ?? null;
   };

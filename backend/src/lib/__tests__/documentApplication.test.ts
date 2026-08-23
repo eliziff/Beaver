@@ -11,8 +11,13 @@ import type {
 } from "../documentRepository";
 import { createFilesystemObjectStorage, type ObjectStorage } from "../storage";
 
-const countLegalPdfPages = vi.hoisted(() => vi.fn(async () => 1));
-vi.mock("../legalPdfSourceDoc", () => ({ countLegalPdfPages }));
+const readProjection = vi.hoisted(() => vi.fn(async () => ({
+  kind: "pdf",
+  pdfSourceMap: { pages: [{}] },
+})));
+vi.mock("../documentProjectionService", () => ({
+  documentProjectionService: { read: readProjection },
+}));
 const docx = (text: string) => new JSZip().file("word/document.xml", text, {
   date: new Date("2000-01-01T00:00:00Z"),
 })
@@ -119,7 +124,7 @@ describe("shared document application", () => {
     const { repository } = memoryRepository();
     const objects = createFilesystemObjectStorage(root);
     const documents = createDocumentApplication(repository, objects);
-    countLegalPdfPages.mockRejectedValueOnce(new Error("invalid file trailer"));
+    readProjection.mockRejectedValueOnce(new Error("invalid file trailer"));
 
     await expect(documents.create({ userId: "owner" }, {
       filename: "broken.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.4"),

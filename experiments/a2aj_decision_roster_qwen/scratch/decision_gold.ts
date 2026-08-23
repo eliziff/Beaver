@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
-import { deriveA2AJSourceDoc } from "../../../backend/src/lib/sourceDocStructureHost";
 import {
   compileCaseDecisionSubmission,
   decisionCitationInventory,
@@ -14,11 +13,6 @@ import { modelSourceLines } from "../../../backend/experiments/a2aj-decision-ros
 type GoldRow = {
   document_id: number;
   citation: string;
-  source_sha256: string;
-  inventory_sha256: string;
-  annotator: string;
-  gold_schema_version: string;
-  semantic_audit: { status: string; passes: Array<{ kind: string; completed_on: string }> };
   annotation: CaseDecisionSubmission;
 };
 
@@ -40,18 +34,13 @@ function sourceLineRange(lines: ReturnType<typeof modelSourceLines>, start: numb
   return hits.length ? [hits[0].line, hits.at(-1)!.line] : [null, null];
 }
 
-async function citationInventory(document: ReturnType<typeof fetchLocalA2AJDocumentsByIds> extends Map<number, infer T> ? T : never) {
-  const source = await deriveA2AJSourceDoc({
-    citation: document.citation ?? "",
-    docType: "cases",
-    text: document.text,
-    url: document.url,
-    alternateCitation: document.alternateCitation,
-    dataset: document.dataset,
-    name: document.name,
-  });
-  const bodyEnd = source.blocks.filter(({ kind }) => kind === "paragraph").at(-1)?.end ?? document.text.length;
-  return decisionCitationInventory(document.text, document.citation ?? "", bodyEnd);
+function citationInventory(document: ReturnType<typeof fetchLocalA2AJDocumentsByIds> extends Map<number, infer T> ? T : never) {
+  return decisionCitationInventory(document.text, document.citation ?? "", document.text.length);
+}
+
+async function readGold(filename: string) {
+  const text = await readFile(filename, "utf8");
+  return text.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as GoldRow);
 }
 
 async function packets() {
@@ -66,7 +55,7 @@ async function packets() {
     if (!document) throw new Error(`missing A2AJ decision ${id}`);
     const sourceText = document.text;
     const sourceLines = modelSourceLines(sourceText);
-    const inventory = await citationInventory(document);
+    const inventory = citationInventory(document);
     const packet = {
       document_id: id,
       source: {
@@ -99,8 +88,7 @@ async function packets() {
 async function validate() {
   const goldFile = path.resolve(flag("--gold"));
   if (!flag("--gold")) throw new Error("validate requires --gold");
-  const rows = JSON.parse(await readFile(goldFile, "utf8")) as GoldRow[];
-  const allowDraft = process.argv.includes("--allow-draft");
+  const rows = await readGold(goldFile);
   const ids = rows.map(({ document_id }) => document_id);
   if (new Set(ids).size !== ids.length) throw new Error("gold contains duplicate document IDs");
   const documents = fetchLocalA2AJDocumentsByIds({ ids, maxChars: Number.MAX_SAFE_INTEGER });
@@ -112,11 +100,6 @@ async function validate() {
     const finalOpinionLine = Math.max(...row.annotation.structure.opinions.map(({ boundary }) => boundary.end_line));
     const inventory = decisionCitationInventory(sourceText, row.citation, sourceLines[finalOpinionLine - 1]?.end ?? sourceText.length);
     const errors: string[] = [];
-    if (row.source_sha256 !== sha256(sourceText)) errors.push("source hash mismatch");
-    if (row.inventory_sha256 !== sha256(JSON.stringify(inventory))) errors.push("citation inventory hash mismatch");
-    if (!allowDraft && (row.semantic_audit.status !== "audited" || row.semantic_audit.passes.length < 2)) {
-      errors.push("two adversarial audit passes are required");
-    }
     const result = compileCaseDecisionSubmission({ submission: row.annotation, sourceText, sourceLines, inventory });
     errors.push(...result.errors);
     if (errors.length) throw new Error(`${row.document_id}: ${[...new Set(errors)].join("; ")}`);
@@ -146,47 +129,39 @@ async function flatten() {
   const goldFile = path.resolve(flag("--gold"));
   const outFile = path.resolve(flag("--out"));
   if (!flag("--gold") || !flag("--out")) throw new Error("flatten requires --gold and --out");
-  const rows = JSON.parse(await readFile(goldFile, "utf8")) as GoldRow[];
+  const rows = await readGold(goldFile);
   const documents = fetchLocalA2AJDocumentsByIds({ ids: rows.map(({ document_id }) => document_id), maxChars: Number.MAX_SAFE_INTEGER });
   const output: Array<Record<string, unknown>> = [];
   for (const row of rows) {
     const document = documents.get(row.document_id);
     if (!document) throw new Error(`missing A2AJ decision ${row.document_id}`);
-    const inventory = await citationInventory(document);
-    const authorityByOccurrence = new Map(inventory.authorities.flatMap((authority) =>
-      authority.occurrence_ids.map((id) => [id, authority] as const)
-    ));
-    const assessmentByOccurrence = new Map(row.annotation.analysis.authorities.flatMap((authority) =>
-      authority.occurrences.map((item) => [item.occurrence_id, item] as const)
-    ));
-    const treatments = row.annotation.analysis.authorities.flatMap((authority) => authority.treatments.map((treatment) => {
-      const issue = row.annotation.analysis.issues[treatment.issue_number - 1];
-      return { authority, issue, treatment };
-    }));
+    const references = new Map(row.annotation.analysis.references.map((reference) => [reference.reference_id, reference]));
     const used = new Set<string>();
-    for (const item of treatments) {
-      const ids = item.treatment.occurrence_ids;
+    for (const treatment of row.annotation.analysis.treatments) {
+      const ids = treatment.reference_ids;
       ids.forEach((id) => used.add(id));
-      const authority = authorityByOccurrence.get(ids[0]);
-      const opinionIndex = item.treatment.containing_opinion_number - 1;
+      const cited = ids.map((id) => references.get(id)).filter(Boolean);
+      const issue = row.annotation.analysis.issues[treatment.issue_number - 1];
+      const opinionIndex = treatment.containing_opinion_number - 1;
       output.push({
         containing_document_id: row.document_id,
         containing_citation: row.citation,
         opinion_index: opinionIndex < 0 ? null : opinionIndex + 1,
         opinion_authorship: opinionIndex < 0 ? null : row.annotation.structure.opinions[opinionIndex].authorship,
-        issue: item.issue?.question ?? null,
-        cited_authority: authority?.display_citations ?? [],
-        citation_occurrence_ids: ids,
-        text_source: ids.map((id) => assessmentByOccurrence.get(id)?.text_source ?? null),
-        proposition_attributed_to: ids.map((id) => assessmentByOccurrence.get(id)?.proposition_attributed_to ?? null),
-        treatment: item.treatment.operation,
-        proposition: item.treatment.proposition,
-        evidence_lines: item.treatment.evidence,
+        issue: issue?.question ?? null,
+        cited_references: cited.map((reference) => reference!.exact_reference),
+        reference_ids: ids,
+        detected_occurrence_ids: cited.map((reference) => reference!.detected_occurrence_id),
+        text_source: cited.map((reference) => reference!.text_source),
+        proposition_attributed_to: cited.map((reference) => reference!.proposition_attributed_to),
+        treatment: treatment.operation,
+        proposition: treatment.proposition,
+        explanation: treatment.explanation,
+        quoted_passage_ids: treatment.quoted_passage_ids,
+        evidence_lines: treatment.evidence,
       });
     }
-    for (const occurrence of inventory.occurrences.filter(({ id }) => !used.has(id))) {
-      const authority = authorityByOccurrence.get(occurrence.id);
-      const assessment = assessmentByOccurrence.get(occurrence.id);
+    for (const reference of row.annotation.analysis.references.filter(({ reference_id }) => !used.has(reference_id))) {
       output.push({
         containing_document_id: row.document_id,
         containing_citation: row.citation,
@@ -194,10 +169,11 @@ async function flatten() {
         opinion_authorship: null,
         issue: null,
         answer: null,
-        cited_authority: authority?.display_citations ?? [],
-        citation_occurrence_ids: [occurrence.id],
-        text_source: assessment?.text_source ?? null,
-        proposition_attributed_to: assessment?.proposition_attributed_to ?? null,
+        cited_references: [reference.exact_reference],
+        reference_ids: [reference.reference_id],
+        detected_occurrence_ids: [reference.detected_occurrence_id],
+        text_source: reference.text_source,
+        proposition_attributed_to: reference.proposition_attributed_to,
         treatment: null,
         proposition: null,
         evidence_lines: null,

@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import {
-  clearSkeletonCache,
-  compileAgreementSkeleton,
-} from "../../backend/src/lib/legalTextSkeleton";
+import { analyzeDocumentNative } from "../../backend/src/lib/structureNative";
 import {
   instrumentCorpusFiles,
   readAgreement,
@@ -58,6 +55,85 @@ type Baseline = {
   totals: Totals;
   entries: Entry[];
 };
+
+function legacyProducts(text: string, analyzed: any) {
+  const structure = analyzed.structure;
+  const sourceDoc = analyzed.source_doc;
+  if (!sourceDoc) throw new Error("Rust omitted SourceDoc");
+  const sourceNodes = structure.nodes.filter((node: any) =>
+    node.kind === "section" && node.label
+  );
+  const byId = new Map(sourceNodes.map((node: any) => [node.id, node]));
+  const depth = (node: any): number => {
+    let value = 0;
+    for (let parent = node.parent_id; parent && byId.has(parent);) {
+      value += 1;
+      parent = (byId.get(parent) as any).parent_id;
+    }
+    return value;
+  };
+  const schedules: string[] = [];
+  const nodes = sourceNodes.map((node: any) => {
+    const label = node.label as string;
+    const kind = label.startsWith("art") ? "article"
+      : label.startsWith("part") ? "part"
+      : label.startsWith("div") ? "division"
+      : /^(?:sched|exh|annex|app)/u.test(label) ? "schedule"
+      : label.includes("(") ? "subsection" : "section";
+    const contentStart = node.content_start;
+    const start = node.range.start;
+    const rawHeading = text.slice(contentStart).split("\n", 1)[0];
+    const rawHead = text.slice(start, contentStart).trim();
+    const head = rawHead.replace(/[\u2013\u2014\-.:]+\s*$/u, "").trim();
+    const scheduleHead = kind === "schedule"
+      ? rawHead.match(/^(SCHEDULE|Schedule|EXHIBIT|Exhibit|ANNEX|Annex|APPENDIX|Appendix)\s+([A-Z0-9][\w.\-]*)/u)
+      : null;
+    const scheduleName = scheduleHead ? `${scheduleHead[1]} ${scheduleHead[2]}` : head;
+    const parent = node.parent_id ? byId.get(node.parent_id) as any : undefined;
+    const inline = kind === "subsection" && parent &&
+      !text.slice(parent.range.start, start).includes("\n");
+    const display = kind === "section" || kind === "subsection"
+      ? label.replace(/^sec/u, "Section ")
+      : (kind === "schedule" ? scheduleName : head)
+        .replace(/^\S+/u, (word: string) => word.toUpperCase());
+    if (kind === "schedule") schedules.push(scheduleName);
+    return { kind, label, display,
+      heading: (inline ? rawHeading.replace(/\r$/u, "") : rawHeading.trim())
+        .slice(0, kind === "subsection" ? 80 : 120),
+      depth: depth(node), start, end: node.range.end,
+      ...(parent?.label ? { parentLabel: parent.label } : {}) };
+  });
+  const count = (code: string) => structure.diagnostics
+    .filter((row: any) => row.code === code).length;
+  const labels = new Map(sourceNodes.map((node: any) => [node.id, node.label]));
+  const definedTerms = structure.definitions.map((term: any) => ({
+    term: term.term,
+    sectionLabel: labels.get(term.definitions[0]?.node_id) ?? null,
+    definitions: term.definitions.length,
+  })).sort((a: any, b: any) => a.term.localeCompare(b.term));
+  const references = structure.cross_references;
+  const unresolved = [...new Set((references?.edges ?? [])
+    .filter((edge: any) => edge.status === "unresolved")
+    .map((edge: any) => edge.normalizedLocator))].sort().slice(0, 64);
+  return {
+    nodes,
+    sourceDoc: { provider: sourceDoc.provider, id: sourceDoc.id, url: sourceDoc.url,
+      revision: sourceDoc.revision, docType: sourceDoc.docType, status: sourceDoc.status,
+      textSha256: sha256(sourceDoc.text), blocks: sourceDoc.blocks,
+      index: Object.entries(sourceDoc.index), ranges: sourceDoc.ranges },
+    definedTerms, schedules,
+    crossReferences: { internal: (references?.counts.detected ?? 0) - (references?.counts.external ?? 0),
+      external: references?.counts.external ?? 0, unresolved },
+    ladder: { increments: count("instrument_ladder_increment"),
+      levelOpens: count("instrument_ladder_level_open"),
+      midcounterOpens: count("instrument_ladder_midcounter_open"),
+      forwardJumps: count("instrument_ladder_forward_jump"),
+      restarts: count("instrument_ladder_restart"),
+      violations: count("instrument_ladder_violation") },
+    contents: { outline: structure.contents?.outline ?? null,
+      refusal: structure.contents?.refusal ?? null },
+  };
+}
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -128,34 +204,12 @@ async function main(): Promise<void> {
   };
 
   const check = async (id: string, text: string) => {
-    clearSkeletonCache();
-    const skeleton = await compileAgreementSkeleton(text, id);
-    if (skeleton.doc.text !== text) {
+    const analyzed = await analyzeDocumentNative<any>({ kind: "instrument", id, text,
+      reconstruct_lineation: true, source_doc: true });
+    const products = legacyProducts(text, analyzed);
+    if (analyzed.source_doc.text !== text) {
       throw new Error(`${id}: SourceDoc text differs from its instrument input`);
     }
-    const products = {
-      nodes: skeleton.nodes,
-      sourceDoc: {
-        provider: skeleton.doc.provider,
-        id: skeleton.doc.id,
-        url: skeleton.doc.url,
-        revision: skeleton.doc.revision,
-        docType: skeleton.doc.docType,
-        status: skeleton.doc.status,
-        textSha256: sha256(skeleton.doc.text),
-        blocks: skeleton.doc.blocks,
-        index: [...skeleton.doc.index.entries()],
-        ranges: skeleton.doc.ranges,
-      },
-      definedTerms: skeleton.definedTerms,
-      schedules: skeleton.schedules,
-      crossReferences: skeleton.crossReferences,
-      ladder: skeleton.ladder,
-      contents: {
-        outline: skeleton.outline,
-        refusal: skeleton.outlineRefusal,
-      },
-    };
     const components = Object.fromEntries(
       COMPONENTS.map((name) => [name, hashJson(products[name])]),
     ) as Record<Component, string>;
@@ -172,18 +226,18 @@ async function main(): Promise<void> {
     addFramed(resultHash, entry.resultSha256);
     inputBytes += Buffer.byteLength(text);
     totals.documents += 1;
-    totals.nodes += skeleton.nodes.length;
-    totals.sourceDocBlocks += skeleton.doc.blocks.length;
-    totals.tableNodes += skeleton.nodes.filter(
+    totals.nodes += products.nodes.length;
+    totals.sourceDocBlocks += products.sourceDoc.blocks.length;
+    totals.tableNodes += products.nodes.filter(
       (node) => node.kind === "table" || node.kind === "row" || node.kind === "cell",
     ).length;
-    totals.definedTerms += skeleton.definedTerms.length;
-    totals.schedules += skeleton.schedules.length;
-    totals.internalReferences += skeleton.crossReferences.internal;
-    totals.externalReferences += skeleton.crossReferences.external;
-    totals.unresolvedReferences += skeleton.crossReferences.unresolved.length;
-    totals.contentsPresent += Number(skeleton.outline !== null);
-    totals.contentsRefused += Number(skeleton.outlineRefusal !== null);
+    totals.definedTerms += products.definedTerms.length;
+    totals.schedules += products.schedules.length;
+    totals.internalReferences += products.crossReferences.internal;
+    totals.externalReferences += products.crossReferences.external;
+    totals.unresolvedReferences += products.crossReferences.unresolved.length;
+    totals.contentsPresent += Number(products.contents.outline !== null);
+    totals.contentsRefused += Number(products.contents.refusal !== null);
 
     const prior = expected?.entries[entries.length - 1];
     if (prior) {

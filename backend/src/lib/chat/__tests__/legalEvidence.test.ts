@@ -24,7 +24,8 @@ import {
 import { createLegalEvidenceCitations } from "../citations";
 import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
-import { createTextSourceDoc } from "../../sourceDoc";
+
+const textSource = (text: string) => ({ text });
 
 function passage(locatorLabel = "par12") {
   return createTnaEvidence({
@@ -218,7 +219,7 @@ describe("production legal evidence", () => {
       "Delay in seeking child support may arise for unrelated reasons.",
       "Delay in seeking child support requires a distinct final proposition.",
     ].join("\n");
-    const source = createTextSourceDoc(text);
+    const source = textSource(text);
     const receipt = {
       ...passage("par101"),
       provider: "a2aj" as const,

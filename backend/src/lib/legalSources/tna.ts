@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import { analyzeDocumentNative } from "../structureNative";
-import { lookupSourceDoc, type SourceDoc } from "../sourceDoc";
+import { lookupSourceDoc } from "../sourceDoc";
 import type { LegalSourceReference } from ".";
 import { sourceDocPassages } from "./sourceDocPassages";
 import {
@@ -146,10 +146,7 @@ async function fetchTnaCase(
     "application/akn+xml, application/xml, text/xml",
     signal,
   );
-  const analyzed = await analyzeDocumentNative<{
-    structure: unknown;
-    source_doc?: SourceDoc;
-  }>({
+  const analyzed = await analyzeDocumentNative({
     kind: "native_markup",
     source_doc: true,
     input: {

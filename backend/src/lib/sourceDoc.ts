@@ -23,13 +23,19 @@ export type SourceDocLocatorKind =
   | "section"
   | "footnote";
 
+export type SourceDocBlockKind =
+  | SourceDocLocatorKind
+  | "table"
+  | "row"
+  | "cell";
+
 /** Where a block boundary came from, not how confident we are in its text. */
 type SourceDocOrigin = "native" | "heuristic";
 
 export type WordSpan = { word: string; start: number; end: number };
 
 export type SourceDocBlock = {
-  kind: SourceDocLocatorKind;
+  kind: SourceDocBlockKind;
   label: string;
   start: number;
   end: number;
@@ -63,13 +69,13 @@ export type SourceDoc = {
   docType: "cases" | "laws" | null;
   status: "usable" | "unavailable";
   text: string;
-  /** tokenized exactly once, lazily (see createSourceDoc) */
-  tokens: WordSpan[];
   blocks: SourceDocBlock[];
   /** normalized locator -> index into `blocks` */
-  index: Map<string, number>;
+  index: Readonly<Record<string, number>>;
   ranges: Record<SourceDocLocatorKind, SourceDocLocatorRange>;
 };
+
+export type SourceText = Pick<SourceDoc, "text">;
 
 export type SourceDocLookup = {
   status: "found" | "not_found" | "unavailable" | "ambiguous";
@@ -123,6 +129,15 @@ export function tokenizeSourceText(text: string): WordSpan[] {
       end: match.index + match[0].length,
     });
   }
+  return tokens;
+}
+
+const tokenLists = new WeakMap<SourceText, WordSpan[]>();
+export function sourceDocTokens(doc: SourceText) {
+  const existing = tokenLists.get(doc);
+  if (existing) return existing;
+  const tokens = tokenizeSourceText(doc.text);
+  tokenLists.set(doc, tokens);
   return tokens;
 }
 
@@ -257,7 +272,9 @@ export function createSourceDoc(args: {
     paragraph: [], page: [], section: [], footnote: [],
   };
   blocks.forEach((block, position) => {
-    byKind[block.kind].push(block);
+    if ((LOCATOR_KINDS as SourceDocBlockKind[]).includes(block.kind)) {
+      byKind[block.kind as SourceDocLocatorKind].push(block);
+    }
     for (const label of new Set(
       [block.label, ...(block.aliases ?? []), block.anchor].filter(
         (value): value is string => Boolean(value),
@@ -284,23 +301,11 @@ export function createSourceDoc(args: {
     docType: args.docType ?? null,
     status: blocks.length ? "usable" : "unavailable",
     text: args.text,
-    tokens: [],
     blocks,
-    index,
+    index: Object.fromEntries(index),
     ranges,
   };
-  // Tokenizing (or hashing) a 2.3 MB statute costs far more than compiling it,
-  // and most documents are never quote-checked. Do each once, on first use,
-  // and never again; the properties are non-enumerable so a stray
-  // JSON.stringify of a SourceDoc cannot force (or serialize) them.
-  let tokens: WordSpan[] | null = null;
-  Object.defineProperty(doc, "tokens", {
-    enumerable: false,
-    configurable: false,
-    get() {
-      return (tokens ??= tokenizeSourceText(doc.text));
-    },
-  });
+  // Hashing a 2.3 MB statute costs more than compiling it. Do it on first use.
   let revision: string | null = null;
   Object.defineProperty(doc, "revision", {
     enumerable: true,
@@ -313,18 +318,8 @@ export function createSourceDoc(args: {
 }
 
 /**
- * A SourceDoc view of a text-only artifact whose upstream representation has
- * no structural blocks. It carries the text and token index used by quote and
- * fragment queries; provider compilers should pass their real SourceDoc
- * instead of converting it through this helper.
- */
-export function createTextSourceDoc(text: string): SourceDoc {
-  return createSourceDoc({ provider: null, id: "", text, blocks: [] });
-}
-
-/**
  * "[para. 12]", "para 12", "12" -> "par12". One grammar for every provider;
- * unrecognized input returns "" rather than a guess.
+ * named sections use normalized `sectitle:` keys.
  */
 export function normalizeSourceDocLocator(
   kind: SourceDocLocatorKind,
@@ -350,10 +345,18 @@ export function normalizeSourceDocLocator(
     .replace(/\s+/gu, "");
   // Federal regulations number sections alphanumerically ("A.01.001"); every
   // other corpus numbers them decimally ("83.01(1)(b)(ii)").
-  return /^\d{1,8}[A-Za-z]{0,3}(?:[.-]\d{1,8}[A-Za-z]{0,3}){0,3}(?:\([^)]+\))*$/u.test(compact) ||
+  if (/^\d{1,8}[A-Za-z]{0,3}(?:[.-]\d{1,8}[A-Za-z]{0,3}){0,3}(?:\([^)]+\))*$/u.test(compact) ||
     /^[A-Za-z]{1,3}(?:[.-][0-9A-Za-z]{1,8}){1,3}(?:\([^)]+\))*$/u.test(compact)
-    ? `sec${compact}`
-    : "";
+  ) return `sec${compact}`;
+  const heading = value
+    .replace(/^(?:ss?\.?|sections?)\s*/iu, "")
+    .replace(/[.\s]+$/gu, "");
+  if (/^(?:[IVXLCDM]+|[A-Z])$/u.test(heading)) return `sec${heading}`;
+  const title = heading
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  return title ? `sectitle:${title}` : "";
 }
 
 export function sourceDocBlockText(doc: SourceDoc, block: SourceDocBlock) {
@@ -366,7 +369,7 @@ function materialize(doc: SourceDoc, block: SourceDocBlock) {
 
 function sourceDocBlocksOfKind(
   doc: SourceDoc,
-  kind: SourceDocLocatorKind,
+  kind: SourceDocBlockKind,
 ) {
   return doc.blocks.filter((block) => block.kind === kind);
 }
@@ -377,10 +380,22 @@ export function lookupSourceDoc(
   locator: string,
   contextBlocks = 0,
 ): SourceDocLookup {
+  const exact = locator.trim();
+  const matchesBlock = (labels: (block: SourceDocBlock) => string[]) =>
+    doc.blocks.some((block) =>
+      block.kind === kind &&
+      labels(block).some((label) => label.toLowerCase() === exact.toLowerCase()),
+    );
+  const requestedLabel = matchesBlock((block) => [block.label])
+    ? exact
+    : normalizeSourceDocLocator(kind, locator) ||
+      (matchesBlock((block) => [block.anchor ?? "", ...(block.aliases ?? [])])
+        ? exact
+        : "");
   return lookupSourceDocLabel(
     doc,
     kind,
-    normalizeSourceDocLocator(kind, locator),
+    requestedLabel,
     contextBlocks,
   );
 }
@@ -392,7 +407,7 @@ export function lookupSourceDoc(
  */
 export function lookupSourceDocLabel(
   doc: SourceDoc,
-  kind: SourceDocLocatorKind,
+  kind: SourceDocBlockKind,
   requestedLabel: string,
   contextBlocks = 0,
 ): SourceDocLookup {
@@ -408,7 +423,7 @@ export function lookupSourceDocLabel(
     };
   }
   const key = requestedLabel.toLowerCase();
-  const position = doc.index.get(key);
+  const position = Object.hasOwn(doc.index, key) ? doc.index[key] : undefined;
   const selected =
     position !== undefined && doc.blocks[position].kind === kind
       ? doc.blocks[position]
@@ -533,9 +548,9 @@ type SourceDocSearchState = {
   lineBreaks: number[] | null;
 };
 
-const searchStates = new WeakMap<SourceDoc, SourceDocSearchState>();
+const searchStates = new WeakMap<SourceText, SourceDocSearchState>();
 
-function searchState(doc: SourceDoc): SourceDocSearchState {
+function searchState(doc: SourceText): SourceDocSearchState {
   const existing = searchStates.get(doc);
   if (existing) return existing;
   const created = { queries: 0, postings: null, lineBreaks: null };
@@ -543,10 +558,10 @@ function searchState(doc: SourceDoc): SourceDocSearchState {
   return created;
 }
 
-function postingsFor(doc: SourceDoc, state: SourceDocSearchState) {
+function postingsFor(doc: SourceText, state: SourceDocSearchState) {
   if (state.postings) return state.postings;
   const postings = new Map<string, number[]>();
-  doc.tokens.forEach((token, position) => {
+  sourceDocTokens(doc).forEach((token, position) => {
     const bucket = postings.get(token.word);
     if (bucket) bucket.push(position);
     else postings.set(token.word, [position]);
@@ -555,7 +570,7 @@ function postingsFor(doc: SourceDoc, state: SourceDocSearchState) {
   return postings;
 }
 
-function lineBreaksFor(doc: SourceDoc, state: SourceDocSearchState) {
+function lineBreaksFor(doc: SourceText, state: SourceDocSearchState) {
   if (state.lineBreaks) return state.lineBreaks;
   const lineBreaks: number[] = [];
   for (
@@ -588,7 +603,7 @@ function crossesLineBreak(lineBreaks: number[], start: number, end: number) {
  * scanning to the end.
  */
 function scanPhraseSpans(
-  doc: SourceDoc,
+  doc: SourceText,
   words: string[],
   options: SourceDocPhraseOptions,
 ): SourceDocQuoteSpan[] {
@@ -652,7 +667,7 @@ export type SourceDocPhraseOptions = {
  * verifies everywhere.
  */
 export function sourceDocPhraseSpans(
-  doc: SourceDoc,
+  doc: SourceText,
   words: string[],
   options: SourceDocPhraseOptions = {},
 ): SourceDocQuoteSpan[] {
@@ -663,7 +678,7 @@ export function sourceDocPhraseSpans(
   if (!state.postings && !options.block && state.queries === 1) {
     return scanPhraseSpans(doc, words, options);
   }
-  const tokens = doc.tokens;
+  const tokens = sourceDocTokens(doc);
   const postings = state.postings ?? postingsFor(doc, state);
   const lineBreaks = options.sameLine ? lineBreaksFor(doc, state) : [];
   const from = options.block

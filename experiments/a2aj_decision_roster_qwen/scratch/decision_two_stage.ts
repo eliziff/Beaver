@@ -23,8 +23,8 @@ import {
 } from "../runner";
 import { streamChatWithTools } from "../../../backend/src/lib/llm";
 import { shutdownCodexAppServers } from "../../../backend/src/lib/llm/codexAppServer";
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import { setBelowNormalProcessPriority } from "../../../backend/src/lib/processPriority";
+import { createA2AJPassageEvidence } from "../../../backend/src/lib/chat/legalEvidence";
 
 function flag(name: string, fallback = "") {
   const index = process.argv.indexOf(name);
@@ -82,6 +82,36 @@ function correctionMessages(draft: string, errors: string[], grounding: unknown)
       ].join("\n"),
     },
   ];
+}
+
+function evidenceReceipts(record: NonNullable<Awaited<ReturnType<typeof loadCase>>>, grounding: any) {
+  const receipts = new Map<string, ReturnType<typeof createA2AJPassageEvidence>>();
+  const add = (start: number, end: number, blockId: string) => {
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end <= start || end > record.source.text.length) return;
+    const receipt = createA2AJPassageEvidence({
+      citation: record.candidate.citation,
+      name: record.candidate.name,
+      dataset: record.candidate.dataset,
+      language: record.document.language,
+      sourceText: record.source.text,
+      spanText: record.source.text.slice(start, end),
+      start, end,
+      externalUrl: record.document.url,
+      sourceClass: "case",
+      blockId,
+    });
+    receipts.set(receipt.evidence_id, receipt);
+  };
+  for (const reference of grounding?.references ?? []) {
+    for (const [index, span] of (reference.source_matches ?? []).entries()) add(span.start, span.end, `case-decision:reference:${reference.reference_id}:${index}`);
+  }
+  for (const quote of grounding?.quoted_passages ?? []) {
+    for (const [index, span] of (quote.source_matches ?? []).entries()) add(span.start, span.end, `case-decision:quote:${quote.quote_id}:${index}`);
+  }
+  for (const treatment of grounding?.treatments ?? []) {
+    if (treatment.evidence) add(treatment.evidence.start, treatment.evidence.end, `case-decision:treatment:${treatment.treatment_index}`);
+  }
+  return [...receipts.values()];
 }
 
 async function mapPool<T>(items: T[], size: number, work: (item: T, index: number) => Promise<void>) {
@@ -232,6 +262,8 @@ async function main() {
         structure_attempts: structureAttempts, treatment_attempts: treatmentAttempts,
         coverage: validation?.case_decision_mvp?.coverage ?? null,
         grounding: validation?.case_decision_mvp?.grounding ?? null,
+        evidence_receipts: evidenceReceipts(record, validation?.case_decision_mvp?.grounding),
+        source_sha256: record.sourceSha256,
       };
       results[index] = receipt;
       await appendJsonl(receipts, { kind: "case_receipt", receipt });
@@ -274,6 +306,5 @@ void running
   .finally(async () => {
     if (!selfTesting) {
       await shutdownCodexAppServers();
-      await shutdownSourceStructureEngine();
     }
   });

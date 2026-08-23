@@ -1,4 +1,4 @@
-import { lookupSourceDoc, type SourceDoc } from "../sourceDoc";
+import { lookupSourceDoc } from "../sourceDoc";
 import { analyzeDocumentNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
@@ -142,9 +142,7 @@ async function fetchEmploymentTribunalCase(
         .map((value) => `<p>${escapeXmlText(value)}</p>`)
         .join("") + hiddenHtml
     : null;
-  const analyzed = await analyzeDocumentNative<{
-    structure: unknown; source_doc?: SourceDoc;
-  }>({
+  const analyzed = await analyzeDocumentNative({
     kind: "native_markup",
     source_doc: true,
     input: {

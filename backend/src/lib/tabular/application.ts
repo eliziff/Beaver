@@ -206,7 +206,7 @@ export function createTabularApplication(
       sourceSha256: content.version.source_sha256,
       bytes: content.bytes,
     }, { signal });
-    const markdown = projection.text;
+    const markdown = projection.sourceDoc.text;
     throwIfAborted(signal);
     return { id: documentId, filename: content.filename.slice(0, 500),
       markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };

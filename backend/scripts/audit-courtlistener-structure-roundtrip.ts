@@ -11,9 +11,9 @@ import { DatabaseSync } from "node:sqlite";
 import { constants, setPriority } from "node:os";
 
 import {
-  lookupLegalSourceDoc,
-} from "../src/lib/sourceDocNativeMarkup";
-import { deriveNativeMarkupSourceDoc } from "../src/lib/sourceDocStructureHost";
+  lookupSourceDoc,
+} from "../src/lib/sourceDoc";
+import { analyzeDocumentNative } from "../src/lib/structureNative";
 import type {
   SourceDoc,
   SourceDocBlock,
@@ -154,7 +154,7 @@ function verifyKind(
     (label) => keys.get(label.toLowerCase())?.length === 1,
   );
   const locator = unique ?? selected.label;
-  const lookup = lookupLegalSourceDoc(doc, kind, locator, 2);
+  const lookup = lookupSourceDoc(doc, kind, locator, 2);
 
   if (unique) {
     if (
@@ -273,12 +273,13 @@ for (const raw of query.iterate()) {
   };
   let result: AuditRow;
   try {
-    const document = await deriveNativeMarkupSourceDoc({
-      provider: "courtlistener",
-      id: String(id),
-      text,
-      markup,
+    const analyzed = await analyzeDocumentNative({
+      kind: "native_markup",
+      source_doc: true,
+      input: { provider: "courtlistener", id: String(id), text, markup },
     });
+    const document = analyzed.source_doc;
+    if (!document) throw new Error("Rust omitted SourceDoc");
     result = {
       ...base,
       textLength: document.text.length,

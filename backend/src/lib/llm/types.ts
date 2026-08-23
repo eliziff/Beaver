@@ -171,6 +171,8 @@ export type StreamChatParams = {
   resolveTools?: () => Tool[];
   /** Optional provider-call cap. Interactive loops otherwise stop after 32 rounds. */
   maxIterations?: number;
+  /** Retry count for one provider round. Defaults to 3; set to 1 for quota-counted calls. */
+  maxProviderAttempts?: number;
   callbacks?: StreamCallbacks;
   runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
   /** Drain user steering at the next completed provider step. */

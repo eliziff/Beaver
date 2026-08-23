@@ -213,7 +213,7 @@ async function runWorker(shard: number) {
             source_kind: String(row.doc_type), ...proof, status: "failure",
             failure: "provider_unavailable", error_sha256: hash("provider_unavailable") };
         } else try {
-          const analyzed = await analyzeDocumentNative<{ source_doc?: SourceDoc }>({
+          const analyzed = await analyzeDocumentNative({
             kind: "a2aj", source_doc: true, input: { citation: document.citation,
               source_kind: document.docType ?? "cases",
               text: document.sectionMap ? "" : document.text, url: document.url,

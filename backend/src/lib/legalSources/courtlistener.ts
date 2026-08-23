@@ -260,9 +260,7 @@ async function compactOpinion(
   if (!text && !rawMarkup) {
     return compacted;
   }
-  const analyzed = await analyzeDocumentNative<{
-    structure: unknown; source_doc?: SourceDoc;
-  }>({
+  const analyzed = await analyzeDocumentNative({
     kind: "native_markup",
     source_doc: true,
     input: {

@@ -1,6 +1,5 @@
 import path from "node:path";
 
-import { shutdownSourceStructureEngine } from "../../../backend/src/lib/sourceStructureEngine";
 import { candidatesFromPairFile, loadCase } from "../runner";
 
 async function main() {
@@ -26,5 +25,4 @@ main()
   .catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
-  })
-  .finally(shutdownSourceStructureEngine);
+  });

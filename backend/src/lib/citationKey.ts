@@ -41,7 +41,7 @@ const STANDARD_SHORT_CANDIDATE =
   /(?=(?<citation>(?<![A-Za-z0-9])(?<volume>[1-9][0-9]*) (?<reporter>[^;\r\n]{1,180}?),? at\s?(?:p(?:\.|age)?)? (?<page>[0-9]+|_+)(?![A-Za-z0-9])))/g;
 const COMMON_US_LAW =
   /(?<![A-Za-z0-9])\d+\s+U\.?\s*S\.?\s*C\.?(?:\s*§+\s*|\s+)\d(?:[A-Za-z0-9().-]*[A-Za-z0-9)])?(?![A-Za-z0-9])/g;
-const RESIDUAL_US_CUE = /[0-9]|\b(?:const|code|laws?|reg(?:ulation)?s?|no\.)\b/i;
+const RESIDUAL_US_CUE = /§|\b(?:admin\.|cas\.|code|comp\.|gov't|lab\.|misc\.?|reg\.|stat\.|t\.?c\.?m\.?)\b/giu;
 let standardSurfaces: ReadonlyMap<string, "journal" | "reporter"> | undefined;
 
 function splitLiteralAlternation(source: string): string[] {
@@ -108,16 +108,17 @@ function standardUsMatches(value: string): CitationMatch[] {
   return found;
 }
 
-function needsUsFallback(value: string, found: CitationMatch[]): boolean {
-  const ordered = [...found].sort((left, right) => left.start - right.start);
-  let cursor = 0;
-  for (const match of ordered) {
-    if (match.start > cursor && RESIDUAL_US_CUE.test(value.slice(cursor, match.start))) {
-      return true;
-    }
-    cursor = Math.max(cursor, match.end);
+function usFallbackRanges(value: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const seen = new Set<string>();
+  for (const cue of value.matchAll(RESIDUAL_US_CUE)) {
+    const start = value.lastIndexOf("\n", cue.index - 1) + 1;
+    const nextBreak = value.indexOf("\n", cue.index + cue[0].length);
+    const end = nextBreak < 0 ? value.length : nextBreak;
+    const key = `${start}:${end}`;
+    if (!seen.has(key)) { seen.add(key); ranges.push({ start, end }); }
   }
-  return RESIDUAL_US_CUE.test(value.slice(cursor));
+  return ranges;
 }
 
 function usPatterns(): RegExp[] {
@@ -126,7 +127,10 @@ function usPatterns(): RegExp[] {
   return usCitationPatterns;
 }
 
-export function citationsInText(text: string): CitationMatch[] {
+export function citationsInText(
+  text: string,
+  options: { extendedUsFallback?: boolean } = {},
+): CitationMatch[] {
   const value = text || "";
   const found = [...value.matchAll(CITATION_IN_TEXT)].map((match) => ({
     text: match[0],
@@ -138,11 +142,12 @@ export function citationsInText(text: string): CitationMatch[] {
   for (let match = COMMON_US_LAW.exec(value); match; match = COMMON_US_LAW.exec(value)) {
     pushMatch(found, match);
   }
-  if (needsUsFallback(value, found)) {
+  for (const range of options.extendedUsFallback === false ? [] : usFallbackRanges(value)) {
+    const candidate = value.slice(range.start, range.end);
     for (const pattern of usPatterns()) {
       pattern.lastIndex = 0;
-      for (let match = pattern.exec(value); match; match = pattern.exec(value)) {
-        pushMatch(found, match);
+      for (let match = pattern.exec(candidate); match; match = pattern.exec(candidate)) {
+        found.push({ text: match[0], start: range.start + match.index, end: range.start + match.index + match[0].length });
       }
     }
   }

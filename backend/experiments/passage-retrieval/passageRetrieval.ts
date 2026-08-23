@@ -23,9 +23,8 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { compileAgreementSkeleton } from "../../src/lib/legalTextSkeleton";
 import { sourceDocBlockText, type SourceDoc } from "../../src/lib/sourceDoc";
-import { deriveA2AJSourceDoc } from "../../src/lib/sourceDocStructureHost";
+import { analyzeDocumentNative } from "../../src/lib/structureNative";
 
 export type ChunkSpan = { start: number; end: number };
 
@@ -82,8 +81,13 @@ export async function clauseChunkText(
   text: string,
   options?: ChunkOptions,
 ): Promise<ChunkSpan[]> {
+  const analyzed = await analyzeDocumentNative({
+    kind: "instrument", id: "passage", text,
+    reconstruct_lineation: true, source_doc: true,
+  });
+  if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
   return structuralChunkText(
-    (await compileAgreementSkeleton(text)).doc,
+    analyzed.source_doc,
     options,
     "section",
   );
@@ -420,32 +424,20 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
           documents += 1;
           counted = true;
         }
-        const sourceDoc =
-          options.mode === "clause"
-            ? // A2AJ ships publisher line breaks, so there is no extraction
-              // lineation damage to reconstruct and the lineation competition must not
-              // run: legislation and case law keep the structure the
-              // hardened statute/paragraph work gives them.
-              (await compileAgreementSkeleton(
-                text,
-                `${String(row.id)}:${language}`,
-                { reconstructLineation: false },
-              )).doc
-            : await deriveA2AJSourceDoc({
-                citation,
-                docType:
-                  row.doc_type === "laws" || row.doc_type === "cases"
-                    ? row.doc_type
-                    : options.docType ?? "cases",
-                text,
-                name,
-              });
+        const sourceKind = row.doc_type === "laws" || row.doc_type === "cases"
+          ? row.doc_type : options.docType ?? "cases";
+        const analyzed = await analyzeDocumentNative({
+          kind: "a2aj", source_doc: true,
+          input: { citation, source_kind: sourceKind, text, name },
+        });
+        if (!analyzed.source_doc) throw new Error("Rust omitted SourceDoc");
+        const sourceDoc = analyzed.source_doc;
         const spans =
           options.mode === "clause"
             ? structuralChunkText(
                 sourceDoc,
                 options,
-                "section",
+                sourceKind === "laws" ? "section" : "paragraph",
               )
             : chunkText(text, options);
         for (const span of spans) {

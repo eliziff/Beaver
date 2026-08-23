@@ -69,6 +69,12 @@ describe("citationsInText", () => {
     ]);
   });
 
+  it("can skip only the expensive custom-US fallback for hint-only scans", () => {
+    expect(citationsInText("See 410 U.S. 113 and T.C.M. (RIA) 2004-279.", {
+      extendedUsFallback: false,
+    }).map(({ text }) => text)).toEqual(["410 U.S. 113"]);
+  });
+
   it("keeps the reporter shapes the excerpt classifier depends on", () => {
     // Regression pin for the detector promoted out of citatorExcerpts:
     // volume-reporter-page and "(1985), 48 C.R. (3d) 226" first-instance
