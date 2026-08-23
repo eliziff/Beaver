@@ -485,14 +485,10 @@ function finalContractPages(articleId: number): FinalContractPages | null {
   return { filename, signature: `${filename}:${source.size}:${Math.trunc(source.mtimeMs)}` };
 }
 
-async function analyzeJournal(request: unknown) {
-  return deriveDocumentNative(request);
-}
-
 function finalContractSource(
   articleId: number, url: string, pages: FinalContractPages, pageRows: JournalPageRow[],
 ) {
-  return analyzeJournal({ kind: "journal", article_id: articleId, url,
+  return deriveDocumentNative({ kind: "journal", article_id: articleId, url,
     filename: pages.filename, page_rows: pageRows });
 }
 
@@ -536,7 +532,7 @@ async function document(
     .all(articleId) as JournalPageRow[];
   const native = registered
     ? await finalContractSource(articleId, url, registered, pageRows)
-    : await analyzeJournal({ kind: "journal", article_id: articleId, url,
+    : await deriveDocumentNative({ kind: "journal", article_id: articleId, url,
         text: publicText, page_rows: pageRows });
   const document: JournalArticleDocument = {
     provider: "journal",

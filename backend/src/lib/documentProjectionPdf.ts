@@ -271,32 +271,6 @@ function checkedLookup(value: EngineLookup) {
   return value;
 }
 
-// Keep evidence's canonical JSON field order stable while the engine owns values.
-function evidenceUnit(unit: PdfLookupUnit): PdfLookupUnit {
-  return {
-    id: unit.id,
-    kind: unit.kind,
-    locator: unit.locator,
-    text: unit.text,
-    page_numbers: unit.page_numbers,
-    confidence: unit.confidence,
-    confidence_basis: unit.confidence_basis,
-    provenance: unit.provenance,
-    ...(unit.proposition ? { proposition: {
-      sentence: unit.proposition.sentence,
-      passage_since_prior_note: unit.proposition.passage_since_prior_note,
-    } } : {}),
-    ...(unit.note ? { note: {
-      label: unit.note.label,
-      occurrence: unit.note.occurrence,
-      restart_sequence: unit.note.restart_sequence,
-      reference_page: unit.note.reference_page,
-      body_pages: unit.note.body_pages,
-      warnings: unit.note.warnings,
-    } } : {}),
-  };
-}
-
 type LookupSource = {
   state: {
     document_id: string;
@@ -328,9 +302,7 @@ async function finishLookup(
   }
 
   const { state } = loaded;
-  const units = lookup.units.map(evidenceUnit);
-  const before = lookup.before.map(evidenceUnit);
-  const after = lookup.after.map(evidenceUnit);
+  const { units, before, after } = lookup;
   const textSha256 = sha256(units.map((unit) => unit.text).join("\u001e"));
   const artifactIds = units.map((unit) => unit.id);
   const contextArtifactIds = [...before, ...after].map((unit) => unit.id);
