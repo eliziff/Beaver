@@ -17,10 +17,12 @@ process.env.LEGAL_STRUCTURE_NATIVE = process.env.LEGAL_STRUCTURE_NATIVE?.trim() 
       : "liblegal_structure_node.so",
 );
 
-const DEFAULT_PDFS = ["NSCA-2003-NSCA-6", "BCSC-2023-BCSC-1112", "LEG-FED-E-18"]
-  .map((name) => path.resolve(
-    "legal-pdf-parser/experiments/kraken-lite/kraken-lite-native/court-scan-corpus",
-    name, "source.pdf"));
+const corpus = "legal-pdf-parser/experiments/kraken-lite/kraken-lite-native/court-scan-corpus";
+const DEFAULT_PDFS = [
+  path.resolve(corpus, "NSCA-2003-NSCA-6/source.pdf"),
+  path.resolve("benchmarks/legal-generalization-corpus/raw/ca-case-2021-scc-wastech-services.pdf"),
+  path.resolve(corpus, "LEG-FED-E-18/source.pdf"),
+];
 const CHILD_RESULT = "BEAVER_PDF_BENCHMARK=";
 
 const round = (value: number) => Number(value.toFixed(3));
@@ -72,7 +74,7 @@ async function waitUntilPrepared(
   for (;;) {
     const state = (await documents.metadata(
       { userId: "production-benchmark" }, documentId))?.parse_state;
-    if (state?.status === "ready" || state?.status === "degraded") return;
+    if (state?.status === "ready" || state?.status === "degraded") return state;
     if (state?.status === "failed" || state?.status === "cancelled")
       throw new Error(`PDF preparation ${state.status}: ${state.error ?? "unknown error"}`);
     if (performance.now() - started > 300_000) throw new Error("PDF preparation timed out");

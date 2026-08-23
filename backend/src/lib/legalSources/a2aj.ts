@@ -372,10 +372,9 @@ async function viewer(args: {
     const found = await document({ ...args, docType });
     if (!found) continue;
     const compiled = found.native;
-    const fullText = documentTextNative(compiled);
+    const fullText = documentTextNative(compiled, max + 1);
     const text = fullText.slice(0, max);
-    const anchors = documentAnchorsNative(compiled).filter(({ start }) => start < text.length)
-      .map((anchor) => ({ ...anchor, end: Math.min(anchor.end, text.length) }));
+    const anchors = documentAnchorsNative(compiled, text.length);
     const payload = {
       schemaVersion: "mike.legal-source.v1" as const, provider: "a2aj" as const,
       reference: { docType, citation: found.citation, language: found.language,

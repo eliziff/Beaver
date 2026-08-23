@@ -130,7 +130,7 @@ export function createDocumentsRouter(
       address: string; value: string; row: number; column: number;
       rowSpan?: number; columnSpan?: number;
     }>>();
-    for (const cell of projection.grid.tableCells) {
+    for (const cell of projection.tableCells) {
       const values = sheets.get(cell.tableName) ?? [];
       values.push({
         address: cell.address,

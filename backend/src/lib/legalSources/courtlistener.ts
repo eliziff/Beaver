@@ -252,10 +252,9 @@ async function compactOpinion(
     joined_by_str: asString(opinion.joined_by_str),
     url: absoluteWebUrl(opinion.absolute_url ?? opinion.url),
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
-    text: truncate(text, maxChars),
   };
   if (!text && !rawMarkup) {
-    return compacted;
+    return { ...compacted, text: null };
   }
   const native = await deriveDocumentNative({
     kind: "native_markup",
@@ -270,7 +269,7 @@ async function compactOpinion(
   });
   return {
     ...compacted,
-    text: truncate(documentTextNative(native), maxChars),
+    text: truncate(documentTextNative(native, maxChars + 1), maxChars),
     native,
   };
 }

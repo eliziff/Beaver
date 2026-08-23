@@ -1283,7 +1283,6 @@ async function runCodingShapeCall(
         kind: "instrument",
         id: documentId,
         text: raw.text,
-        table_cells: [],
         reconstruct_lineation: true,
       });
       return {
@@ -1915,7 +1914,7 @@ export async function extractDocument(
     versionId: file.version.id,
     text,
     pages,
-    tableCells: projection.tableCells,
+    tableCells: projection.kind === "spreadsheet-grid" ? projection.tableCells : [],
     document,
   };
 }
@@ -2701,7 +2700,10 @@ export function assistantTools<Context extends {
         if (projection.kind !== "docx" || !text) {
           return fail("DOCX body text could not be extracted");
         }
-        const plan = await deleteProvisionAndRenumberSiblings(text, target);
+        const plan = await deleteProvisionAndRenumberSiblings(
+          projection.document,
+          target,
+        );
         if (plan.failures.length) {
           return result({
             ok: false,
