@@ -145,6 +145,12 @@ function extendTerminalPunctuation(source: string, end: number, quote: string) {
   return end + (match?.[0].length ?? 0);
 }
 
+function extendLeadingPunctuation(source: string, start: number, quote: string) {
+  const leading = quote.trimStart().match(/^[\[(\{"'\u2018\u201c\u00ab]*/u)?.[0] ?? "";
+  return leading && source.slice(Math.max(0, start - leading.length), start) === leading
+    ? start - leading.length : start;
+}
+
 function leadingLabelLength(text: string): number {
   for (const label of LEADING_SPAN_LABELS) {
     const match = text.match(label)?.[0];
@@ -401,6 +407,7 @@ function chooseSourceSpan(
 ): NativeQuoteSpan | null {
   const extend = (span: NativeQuoteSpan) => ({
     ...span,
+    start: extendLeadingPunctuation(doc.text, span.start, quote),
     end: extendTerminalPunctuation(doc.text, span.end, quote),
   });
   let spans = phraseSpans(doc, quoteWordsNative(quote)).map(extend);
@@ -468,9 +475,15 @@ function textDirective(target: string, prefix = "", suffix = "") {
   return `text=${encodedPrefix}${encodedTarget}${encodedSuffix}`;
 }
 
-function textRangeDirective(start: string, end: string, prefix = "") {
+function textRangeDirective(
+  start: string,
+  end: string,
+  prefix = "",
+  suffix = "",
+) {
   const context = prefix ? `${encodeTextFragment(normalizeWhitespace(prefix))}-,` : "";
-  return `text=${context}${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}`;
+  const after = suffix ? `,-${encodeTextFragment(normalizeWhitespace(suffix))}` : "";
+  return `text=${context}${encodeTextFragment(normalizeWhitespace(start))},${encodeTextFragment(normalizeWhitespace(end))}${after}`;
 }
 
 /**
@@ -809,6 +822,9 @@ export function sourceUrl(rawUrl: string, anchor?: string): string | null {
 
   let resolvedAnchor =
     anchor !== undefined ? anchor : convertedCanliiPdf ? "" : existingAnchor;
+  if (/\/document\.do$/iu.test(url.pathname) || url.pathname.toLowerCase().endsWith(".pdf")) {
+    resolvedAnchor = /^page=\d+$/iu.test(resolvedAnchor) ? resolvedAnchor : "";
+  }
   if (bclaws) {
     resolvedAnchor = resolvedAnchor.replace(/^sec(?=\d)/iu, "section");
   }
@@ -1040,15 +1056,37 @@ export function buildLegalSourcePinpointUrl(
   return appendDirectives(baseUrl, directives);
 }
 
+/** The exact, maximal source-derived cores that a URL is required to paint. */
+export function maximalCoreQuotes(
+  evidence: Pick<LegalSourceEvidence, "blockText">,
+  quotes: string[],
+) {
+  const block = asDoc(evidence.blockText);
+  const cores: string[] = [];
+  const seen = new Set<string>();
+  for (const quote of quotes) {
+    const key = quoteWordsNative(quote).join(" ");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const selected = chooseSourceSpan(block, quote);
+    if (!selected) return [];
+    const span = adjustSpanEdges(block, selected);
+    const core = normalizeWhitespace(block.text.slice(span.start, span.end));
+    if (!core) return [];
+    cores.push(core);
+  }
+  return cores;
+}
+
 /**
- * Minimal falsification candidate: one shortest unambiguous range per quote.
- * The range leaves all interior publisher structure out of the directive;
- * endpoint phrases grow only when the flattened document requires it.
+ * One maximal-core range per quote. Each endpoint is independently unique in
+ * the full flattened document (using adjacent context when necessary), so a
+ * browser cannot pair an earlier repeated start with the intended end.
  */
 export function buildCoreRangePinpointUrl(
   evidence: LegalSourceEvidence,
   quotes: string[],
-  minimumBoundaryWords = 1,
+  minimumBoundaryWords = 4,
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
   const block = asDoc(evidence.blockText);
@@ -1064,26 +1102,68 @@ export function buildCoreRangePinpointUrl(
     if (!selected) return baseUrl;
     const span = adjustSpanEdges(block, selected);
     const target = normalizeWhitespace(block.text.slice(span.start, span.end));
+    const desired = locateDocumentQuote(block, document, span);
+    if (!desired) return baseUrl;
     const width = span.lastWord - span.firstWord + 1;
-    // A range needs two non-overlapping boundary runs. For shorter passages,
-    // the whole quote is both smaller and less ambiguous than weakened ends.
-    if (width <= minimumBoundaryWords * 2) {
+    if (width < 2) {
       if (directiveMatchCount(document, target) !== 1) return baseUrl;
       built.push({ directive: textDirective(target), start: span.start });
       continue;
     }
-    let directive: string | null = null;
-    for (let size = minimumBoundaryWords; size <= Math.min(12, width - 1); size += 1) {
+
+    const documentWords = tokens(document);
+    const contextForBoundary = (
+      boundary: { text: string; first: number; last: number },
+      edge: "start" | "end",
+    ) => {
+      const first = desired.firstWord + boundary.first - span.firstWord;
+      const last = desired.firstWord + boundary.last - span.firstWord;
+      const available = edge === "start" ? first : documentWords.length - last - 1;
+      for (let size = 0; size <= available; size += 1) {
+        const prefix = edge === "start" && size
+          ? normalizeWhitespace(document.text.slice(documentWords[first - size].start, documentWords[first].start))
+          : "";
+        const suffix = edge === "end" && size
+          ? normalizeWhitespace(document.text.slice(documentWords[last].end, documentWords[last + size].end))
+          : "";
+        if (directiveMatchCount(document, boundary.text, prefix, suffix) === 1) {
+          return { prefix, suffix };
+        }
+      }
+      return null;
+    };
+
+    const smallest = Math.min(Math.max(1, minimumBoundaryWords), Math.floor(width / 2));
+    const heads = [];
+    const tails = [];
+    const headKeys = new Set<string>();
+    const tailKeys = new Set<string>();
+    for (let size = smallest; size < width; size += 1) {
       const head = edgePhrase(block, span, "start", size);
+      if (head) {
+        const key = `${head.first}:${head.last}:${head.text}`;
+        if (!headKeys.has(key)) {
+          headKeys.add(key);
+          const context = contextForBoundary(head, "start");
+          if (context) heads.push({ ...head, ...context });
+        }
+      }
       const tail = edgePhrase(block, span, "end", size);
-      if (!head || !tail || head.last >= tail.first) continue;
-      if (rangeDirectiveMatchCount(document, head.text, tail.text) === 1) {
-        directive = textRangeDirective(head.text, tail.text);
-        break;
+      if (tail) {
+        const key = `${tail.first}:${tail.last}:${tail.text}`;
+        if (!tailKeys.has(key)) {
+          tailKeys.add(key);
+          const context = contextForBoundary(tail, "end");
+          if (context) tails.push({ ...tail, ...context });
+        }
       }
     }
-    if (!directive) return baseUrl;
-    built.push({ directive, start: span.start });
+    const candidates = heads.flatMap((head) => tails
+      .filter((tail) => head.last < tail.first)
+      .map((tail) => textRangeDirective(head.text, tail.text, head.prefix, tail.suffix)));
+    if (!candidates.length) return baseUrl;
+    candidates.sort((left, right) => left.length - right.length);
+    built.push({ directive: candidates[0], start: span.start });
   }
   return appendDirectives(
     baseUrl,
@@ -1103,9 +1183,19 @@ function locateDocumentQuote(block: QuoteView, document: QuoteView, selected: Na
     const offset = selected.firstWord - first;
     const firstWord = matches[0].firstWord + offset;
     const lastWord = firstWord + selected.lastWord - selected.firstWord;
+    const leading = block.text.slice(selected.start, blockWords[selected.firstWord].start);
+    const trailing = block.text.slice(blockWords[selected.lastWord].end, selected.end);
+    let start = documentWords[firstWord].start;
+    let end = documentWords[lastWord].end;
+    if (leading && document.text.slice(Math.max(0, start - leading.length), start) === leading) {
+      start -= leading.length;
+    }
+    if (trailing && document.text.slice(end, end + trailing.length) === trailing) {
+      end += trailing.length;
+    }
     return {
-      start: documentWords[firstWord].start,
-      end: documentWords[lastWord].end,
+      start,
+      end,
       firstWord,
       lastWord,
     };
@@ -1154,6 +1244,7 @@ export function buildLineCorePinpointUrl(
     for (let seam = desired.firstWord; seam < desired.lastWord && !target; seam += 1) {
       const gap = document.text.slice(documentWords[seam].end, documentWords[seam + 1].start);
       if (!/[^\x00-\x7F]/u.test(gap)) continue;
+      if (/[\u2018\u201C«]/u.test(gap)) continue;
       for (const size of [4, 3, 2, 1, 6]) {
         const headFirst = Math.max(desired.firstWord, seam - size + 1);
         const tailLast = Math.min(desired.lastWord, seam + size);
@@ -1173,7 +1264,14 @@ export function buildLineCorePinpointUrl(
           const prefixFirst = Math.max(0, headFirst - 2);
           const prefix = normalizeWhitespace(document.text.slice(
             documentWords[prefixFirst].start, documentWords[headFirst].start));
-          target = { directive: textRangeDirective(head, tail, prefix) };
+          const rangeUnique = rangeDirectiveMatchCount(document, head, tail) === 1;
+          target = {
+            directive: rangeUnique
+              ? textRangeDirective(head, tail)
+              : directiveMatchCount(document, head, "", tail) === 1
+                ? textDirective(head, "", tail)
+                : textRangeDirective(head, tail, prefix),
+          };
           break;
         }
       }
@@ -1226,6 +1324,136 @@ export function buildLineCorePinpointUrl(
       return baseUrl;
     }
     built.push({ directive: target.directive, start: selected.start });
+  }
+  return appendDirectives(baseUrl,
+    built.sort((left, right) => left.start - right.start).map(({ directive }) => directive));
+}
+
+function fragmentSpelling(value: string) {
+  return normalizeWhitespace(value)
+    .replace(/([\u2018\u201c])\s+/gu, "$1")
+    .replace(/([\[(])\s+/gu, "$1")
+    .replace(/\s+([\u2019\u201d\]\),.;:!?])/gu, "$1");
+}
+
+function literalCount(document: string, ...parts: string[]) {
+  const haystack = fragmentSpelling(document).toLocaleLowerCase();
+  const needle = fragmentSpelling(parts.join(" ")).toLocaleLowerCase();
+  let count = 0;
+  for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + 1)) {
+    count += 1;
+    if (count === 2) break;
+  }
+  return count;
+}
+
+/** Paint every requested word. Split only where bilingual PDF columns can
+ * reorder source lines or at an opening quotation. */
+export function buildMaximalPinpointUrl(
+  evidence: LegalSourceEvidence,
+  quotes: string[],
+) {
+  const baseUrl = sourceUrl(evidence.url, evidence.anchor);
+  const block = asDoc(evidence.blockText);
+  if (!baseUrl || !block.text) return baseUrl;
+  const document = verificationDoc(evidence, block);
+  const words = tokens(document);
+  const pdf = /\.pdf(?:$|[?#])|\/document\.do(?:$|[?#])/iu.test(baseUrl.split("#")[0]);
+  if (!pdf) {
+    const coreRange = buildCoreRangePinpointUrl(evidence, quotes);
+    if (coreRange.includes(":~:text=")) return coreRange;
+  }
+  const built: Array<{ directive: string; start: number }> = [];
+  const seen = new Set<string>();
+  const directiveFor = (piece: { start: number; end: number; firstWord: number; lastWord: number }, strictUnique = true) => {
+    const target = fragmentSpelling(document.text.slice(piece.start, piece.end));
+    if (!target) return "";
+    let directive = literalCount(document.text, target) === 1 &&
+      (!strictUnique || directiveMatchCount(document, target) === 1)
+      ? textDirective(target)
+      : "";
+    for (let size = 1; size <= 12 && !directive; size += 1) {
+      const prefixFirst = Math.max(0, piece.firstWord - size);
+      const suffixLast = Math.min(words.length - 1, piece.lastWord + size);
+      const prefixGap = document.text.slice(words[piece.firstWord - 1]?.end ?? piece.start, piece.start);
+      const suffixGap = document.text.slice(piece.end, words[piece.lastWord + 1]?.start ?? piece.end);
+      const prefix = piece.firstWord > 0 && /^\s*$/u.test(prefixGap)
+        ? fragmentSpelling(document.text.slice(words[prefixFirst].start, piece.start)) : "";
+      const suffix = piece.lastWord + 1 < words.length && /^\s*$/u.test(suffixGap)
+        ? fragmentSpelling(document.text.slice(piece.end, words[suffixLast].end)) : "";
+      for (const [before, after] of [[prefix, ""], ["", suffix], [prefix, suffix]]) {
+        if ((before || after) &&
+            literalCount(document.text, before, target, after) === 1 &&
+            (!strictUnique || directiveMatchCount(document, target, before, after) === 1)) {
+          directive = textDirective(target, before, after);
+          break;
+        }
+      }
+    }
+    for (let size = 1; size <= Math.min(12,
+      Math.floor((piece.lastWord - piece.firstWord + 1) / 2)) && !directive; size += 1) {
+      const head = fragmentSpelling(document.text.slice(
+        words[piece.firstWord].start, words[piece.firstWord + size - 1].end));
+      const tail = fragmentSpelling(document.text.slice(
+        words[piece.lastWord - size + 1].start, words[piece.lastWord].end));
+      if (rangeDirectiveMatchCount(document, head, tail) === 1) {
+        directive = textRangeDirective(head, tail);
+      }
+    }
+    return directive;
+  };
+  for (const quote of quotes) {
+    const key = quoteWordsNative(quote).join(" ");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const selected = chooseSourceSpan(block, quote);
+    const desired = selected && locateDocumentQuote(block, document, selected);
+    if (!selected || !desired) return baseUrl;
+    const pieces: Array<{ start: number; end: number; firstWord: number; lastWord: number }> = [];
+    let hasOpeningSeam = false;
+    let pieceStart = desired.start;
+    let pieceFirstWord = desired.firstWord;
+    for (let seam = desired.firstWord; seam < desired.lastWord; seam += 1) {
+      const gapStart = words[seam].end;
+      const gapEnd = words[seam + 1].start;
+      const gap = document.text.slice(gapStart, gapEnd);
+      const opening = pdf && seam - desired.firstWord < 3
+        ? gap.search(/[\u2018\u201c«]/u) : -1;
+      const lineBreak = pdf && /[\r\n]/u.test(gap) &&
+        seam - pieceFirstWord + 1 >= 4 && desired.lastWord - seam >= 4;
+      if (opening < 0 && !lineBreak) continue;
+      hasOpeningSeam ||= opening >= 0;
+      pieces.push({ start: pieceStart, end: opening >= 0 ? gapStart + opening : gapStart,
+        firstWord: pieceFirstWord, lastWord: seam });
+      pieceStart = opening >= 0 ? gapStart + opening : gapEnd;
+      pieceFirstWord = seam + 1;
+    }
+    pieces.push({ start: pieceStart, end: desired.end,
+      firstWord: pieceFirstWord, lastWord: desired.lastWord });
+    for (let index = pieces.length - 1; !hasOpeningSeam && index >= 0 && pieces.length > 1; index -= 1) {
+      const piece = pieces[index];
+      const sourcePiece = document.text.slice(piece.start, piece.end);
+      const leadingGap = document.text.slice(words[piece.firstWord - 1]?.end ?? piece.start, piece.start);
+      const detachedParenthetical = /\(\s*$/u.test(leadingGap) &&
+        piece.lastWord - piece.firstWord + 1 < 5;
+      if (!detachedParenthetical && literalCount(document.text, sourcePiece) === 1) continue;
+      const neighbor = index ? index - 1 : 1;
+      pieces[neighbor] = {
+        start: Math.min(piece.start, pieces[neighbor].start),
+        end: Math.max(piece.end, pieces[neighbor].end),
+        firstWord: Math.min(piece.firstWord, pieces[neighbor].firstWord),
+        lastWord: Math.max(piece.lastWord, pieces[neighbor].lastWord),
+      };
+      pieces.splice(index, 1);
+    }
+    let quoteBuilt = pieces.map((piece) => ({ directive: directiveFor(piece), start: piece.start }));
+    if (quoteBuilt.some(({ directive }) => !directive)) {
+      const whole = { start: desired.start, end: desired.end,
+        firstWord: desired.firstWord, lastWord: desired.lastWord };
+      quoteBuilt = [{ directive: directiveFor(whole, false), start: whole.start }];
+    }
+    if (!quoteBuilt[0]?.directive) return baseUrl;
+    built.push(...quoteBuilt);
   }
   return appendDirectives(baseUrl,
     built.sort((left, right) => left.start - right.start).map(({ directive }) => directive));

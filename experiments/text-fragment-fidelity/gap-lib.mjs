@@ -58,7 +58,7 @@ function htmlToText(html, markBlocks) {
     text = text.replace(/<\/(p|li|blockquote|h[1-6]|tr|td|th|div|section|article|pre)>/giu, "\n");
     text = text.replace(/<br\s*\/?>/giu, "\n");
   }
-  return text.replace(/<[^>]+>/gu, " ");
+  return text.replace(/<[^>]+>/gu, "");
 }
 
 function pdfToText(file) {

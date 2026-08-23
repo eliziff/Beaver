@@ -59,7 +59,7 @@ def read_jsonl(path: Path):
     if not path.exists():
         return []
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         if line.strip():
             rows.append(json.loads(line))
     return rows
@@ -70,29 +70,111 @@ def add_timing(timings: dict, name: str, started: float):
 
 
 def range_probe_verdict(quote_proofs: list[dict], ranges: list[dict]):
-    expected = [proof.get("documentRects", []) for proof in quote_proofs]
-    if any(not rects for rects in expected):
+    expected = [(proof.get("wordStart"), proof.get("wordEnd")) for proof in quote_proofs]
+    if any(start is None or end is None for start, end in expected):
         return "intended-not-located"
-    def point(rect, end=False):
-        return (rect["y"], rect["x"] + (rect["width"] if end else 0))
-    def order(left, right):
-        return left[0] - right[0] if abs(left[0] - right[0]) > 2 else left[1] - right[1]
-    def same(left, right):
-        return abs(left[0] - right[0]) <= 2 and abs(left[1] - right[1]) <= 6
-    intended = [(point(rects[0]), point(rects[-1], True)) for rects in expected]
-    if not ranges or any(candidate.get("status") != "matched" or not candidate.get("first") or not candidate.get("last") for candidate in ranges):
-        return "range-unresolved"
-    matched = ranges
+    matched = [candidate for candidate in ranges if candidate.get("status") == "matched"]
     if not matched:
-        return "range-no-match"
-    spans = [(point(candidate["first"]), point(candidate["last"], True)) for candidate in matched]
-    if any(not any(order(start, wanted_start) >= -6 and order(end, wanted_end) <= 6 for wanted_start, wanted_end in intended) for start, end in spans):
+        return "range-unresolved"
+    spans = [(candidate["wordStart"], candidate["wordEnd"]) for candidate in matched]
+    if any(not any(wanted_start <= start and end <= wanted_end
+                   for wanted_start, wanted_end in expected) for start, end in spans):
         return "range-stray"
-    for wanted_start, wanted_end in intended:
-        contained = [(start, end) for start, end in spans if order(start, wanted_start) >= -6 and order(end, wanted_end) <= 6]
-        if not any(same(start, wanted_start) for start, _ in contained) or not any(same(end, wanted_end) for _, end in contained):
+    for wanted_start, wanted_end in expected:
+        cursor = wanted_start
+        for start, end in sorted((span for span in spans
+                                  if wanted_start <= span[0] and span[1] <= wanted_end)):
+            if end <= cursor:
+                continue
+            if start > cursor:
+                break
+            cursor = max(cursor, end)
+        if cursor < wanted_end:
             return "range-partial"
     return "range-exact"
+
+
+def _fold_space(value: str) -> str:
+    return re.sub(r"[\s\u00a0\u202f\u2007\u2009\u200b]+", " ", value.lower()).strip()
+
+
+def _fold_words(value: str) -> str:
+    return " ".join(re.findall(r"[^\W_]+", value.lower(), re.UNICODE))
+
+
+def _starts(text: str, query: str, start: int = 0):
+    found = []
+    at = text.find(query, start)
+    while at >= 0:
+        found.append(at)
+        at = text.find(query, at + 1)
+    return found
+
+
+def cached_text_range_proof(rendered: str, seed: dict):
+    words_text = _fold_words(rendered)
+    expected = []
+    proofs = []
+    block = _fold_words(seed.get("blockText", ""))
+    for raw in seed.get("paintQuotes") or seed.get("quotes") or []:
+        wanted = _fold_words(raw)
+        hits = _starts(words_text, wanted) if wanted else []
+        if len(hits) != 1:
+            proofs.append({"status": "quote-not-rendered" if not hits else "ambiguous-location", "occurrences": len(hits)})
+            continue
+        at = hits[0]
+        start = len(words_text[:at].split())
+        end = start + len(wanted.split())
+        expected.append((start, end))
+        proofs.append({"status": "located", "occurrences": 1, "wordStart": start, "wordEnd": end,
+                       "contained": bool(block and wanted in block)})
+
+    target = seed.get("target", "")
+    fragment = urlparse(target).fragment
+    payload = fragment.split(":~:", 1)[1] if ":~:" in fragment else fragment
+    ranges = []
+    text = _fold_space(rendered)
+    word_spans = list(re.finditer(r"[^\W_]+", text, re.UNICODE))
+    for encoded in (part[5:] for part in payload.split("&") if part.startswith("text=")):
+        try:
+            pieces = [_fold_space(unquote(part)) for part in encoded.split(",")]
+        except Exception:
+            ranges.append({"raw": encoded, "status": "decode-error"})
+            continue
+        prefix = pieces.pop(0)[:-1] if pieces and pieces[0].endswith("-") else ""
+        suffix = pieces.pop()[1:] if pieces and pieces[-1].startswith("-") else ""
+        start_text = pieces[0] if pieces else ""
+        end_text = pieces[1] if len(pieces) > 1 else ""
+        starts = []
+        if prefix:
+            for prefix_at in _starts(text, prefix):
+                at = prefix_at + len(prefix)
+                while at < len(text) and text[at] == " ":
+                    at += 1
+                if text.startswith(start_text, at):
+                    starts.append(at)
+        else:
+            starts = _starts(text, start_text)
+        matches = []
+        for start_at in starts:
+            start_end = start_at + len(start_text)
+            ends = [start_end] if not end_text else [at + len(end_text) for at in _starts(text, end_text, start_end)]
+            for end_at in ends:
+                suffix_at = end_at
+                while suffix_at < len(text) and text[suffix_at] == " ":
+                    suffix_at += 1
+                if not suffix or text.startswith(suffix, suffix_at):
+                    matches.append((start_at, end_at))
+                    break
+        if not matches:
+            ranges.append({"raw": encoded, "status": "unmatched"})
+            continue
+        start_at, end_at = matches[0]
+        word_start = next((i for i, match in enumerate(word_spans) if match.end() > start_at), len(word_spans))
+        word_end = next((i for i, match in enumerate(word_spans) if match.start() >= end_at), len(word_spans))
+        ranges.append({"raw": encoded, "status": "matched", "candidateCount": len(matches),
+                       "wordStart": word_start, "wordEnd": word_end})
+    return proofs, ranges
 
 
 def url_key(raw: str) -> str:
@@ -155,7 +237,14 @@ LOCATE_SCRIPT = r"""
 const quote = arguments[0];
 const block = arguments[1];
 const anchor = arguments[2];
+const shared = arguments[3] ?? {};
+const measure = arguments[4] ?? false;
 const norm = (s) => (s ?? "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+let text;
+let map;
+if (shared.locateIndex) {
+  ({text, map} = shared.locateIndex);
+} else {
 const nodes = [];
 const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 let node;
@@ -164,30 +253,39 @@ while ((node = walker.nextNode())) {
   if (!parent || parent.closest("script,style,noscript,template")) continue;
   nodes.push(node);
 }
-let text = "";
-const map = [];
-let spaced = true;
+let rendered = "";
+const rawMap = measure ? [] : null;
+let previousBlock = null;
+const blockOf = (n) => n.parentElement?.closest("address,article,aside,blockquote,dd,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,tbody,td,tfoot,th,thead,tr,ul") ?? document.body;
+const appendSpace = (n, offset) => {
+  if (rendered && !rendered.endsWith(" ")) {
+    rendered += " ";
+    if (measure) rawMap.push({n, o:offset});
+  }
+};
 for (const n of nodes) {
   const value = n.textContent ?? "";
-  for (let i = 0; i < value.length; i += 1) {
-    const folded = norm(value[i]);
-    if (folded) {
-      text += folded;
-      map.push({ n, o: i });
-      spaced = false;
-    } else if (!spaced && text.length) {
-      text += " ";
-      map.push({ n, o: i });
-      spaced = true;
-    }
-  }
-  if (!spaced && text.length) {
+  const block = blockOf(n);
+  if (previousBlock && block !== previousBlock) appendSpace(n, 0);
+  rendered += value.toLocaleLowerCase();
+  if (measure) for (let i = 0; i < value.length; i += 1) rawMap.push({n, o:i});
+  previousBlock = block;
+}
+const renderedWords = [...rendered.matchAll(/[\p{L}\p{N}]+/gu)];
+text = "";
+map = [];
+for (const match of renderedWords) {
+  if (text) {
     text += " ";
-    map.push({ n, o: Math.max(0, value.length - 1) });
-    spaced = true;
+    if (measure) map.push(rawMap[match.index]);
+  }
+  for (let i = 0; i < match[0].length; i += 1) {
+    text += match[0][i];
+    if (measure) map.push(rawMap[match.index + i]);
   }
 }
-text = text.trimEnd();
+shared.locateIndex = {text, map};
+}
 const wanted = norm(quote);
 const wantedBlock = norm(block);
 if (!wanted) return { status: "empty-quote" };
@@ -207,24 +305,25 @@ if (wantedBlock) {
   }
 }
 const anchorEl = anchor ? (document.getElementById(anchor) || document.querySelector(`[name="${CSS.escape(anchor)}"]`)) : null;
-const anchorRect = anchorEl?.getBoundingClientRect();
-const makeRange = (start) => {
-  const first = map[start];
-  const last = map[Math.min(map.length - 1, start + wanted.length - 1)];
-  if (!first || !last) return null;
-  const range = document.createRange();
-  range.setStart(first.n, Math.min(first.o, first.n.length));
-  range.setEnd(last.n, Math.min(last.n.length, last.o + 1));
-  const rects = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
-  return { range, rects };
-};
+const anchorOffset = anchorEl ? map.findIndex((point) => anchorEl.contains(point.n.parentElement)) : -1;
 const scored = occurrences.map((start) => {
-  const made = makeRange(start);
-  if (!made || !made.rects.length) return null;
+  let geometry = null;
+  if (measure) {
+    const first = map[start];
+    const last = map[Math.min(map.length - 1, start + wanted.length - 1)];
+    if (!first || !last) return null;
+    const range = document.createRange();
+    range.setStart(first.n, Math.min(first.o, first.n.length));
+    range.setEnd(last.n, Math.min(last.n.length, last.o + 1));
+    const rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    if (!rects.length) return null;
+    geometry = {
+      top: rects[0].top + window.scrollY,
+      rects: rects.map((rect) => ({x:rect.x+window.scrollX,y:rect.y+window.scrollY,width:rect.width,height:rect.height})),
+    };
+  }
   const contained = blockStarts.some((b) => b <= start && start + wanted.length <= b + wantedBlock.length);
-  const top = made.rects[0].top + window.scrollY;
-  const anchorTop = anchorRect ? anchorRect.top + window.scrollY : null;
-  const anchorDistance = anchorTop == null ? null : Math.abs(top - anchorTop);
+  const anchorDistance = anchorOffset < 0 ? null : Math.abs(start - anchorOffset);
   // Context agreement disambiguates when publisher markup prevents an exact
   // full-block match. Compare up to 120 normalized characters on each side.
   const qInBlock = wantedBlock.indexOf(wanted);
@@ -239,7 +338,7 @@ const scored = occurrences.map((start) => {
       if (text.slice(start + wanted.length, start + wanted.length + n) === after.slice(0, n)) { context += n; break; }
     }
   }
-  return { start, made, contained, context, anchorDistance, top };
+  return { start, contained, context, anchorDistance, geometry };
 }).filter(Boolean);
 scored.sort((a, b) => Number(b.contained) - Number(a.contained) || b.context - a.context || (a.anchorDistance ?? 1e15) - (b.anchorDistance ?? 1e15));
 if (!scored.length) return { status: "quote-not-laid-out", occurrences: occurrences.length };
@@ -247,9 +346,10 @@ const best = scored[0];
 const second = scored[1];
 const tied = second && best.contained === second.contained && best.context === second.context && best.anchorDistance == null && second.anchorDistance == null;
 if (tied) return { status: "ambiguous-location", occurrences: occurrences.length, context: best.context };
-const documentRects = best.made.rects.map((r) => ({x:r.x+window.scrollX,y:r.y+window.scrollY,width:r.width,height:r.height}));
-window.scrollTo(0, Math.max(0, best.top - window.innerHeight / 2));
-return { status: "located", occurrences: occurrences.length, contained: best.contained, context: best.context, anchorDistance: best.anchorDistance, documentTop: best.top, normalizedOffset: best.start, documentRects, scrollY: window.scrollY, innerHeight: window.innerHeight };
+const wordStart = text.slice(0, best.start).trim().split(/\s+/u).filter(Boolean).length;
+const wordCount = wanted.split(/\s+/u).filter(Boolean).length;
+if (measure) window.scrollTo(0, Math.max(0, best.geometry.top - window.innerHeight / 2));
+return { status: "located", occurrences: occurrences.length, contained: best.contained, context: best.context, anchorDistance: best.anchorDistance, normalizedOffset: best.start, normalizedEnd: best.start + wanted.length, wordStart, wordEnd: wordStart + wordCount, documentTop: best.geometry?.top, documentRects: best.geometry?.rects ?? [], scrollY: window.scrollY, innerHeight: window.innerHeight };
 """
 
 MINE_DIRECTIVE_SCRIPT = r"""
@@ -307,22 +407,94 @@ return {start, end, prefix, suffix};
 
 WINDOW_FIND_PROBE_SCRIPT = r"""
 const target = arguments[0] ?? '';
+const shared = arguments[1] ?? {};
+const measure = arguments[2] ?? false;
 const hash = target.includes('#') ? target.slice(target.indexOf('#') + 1) : '';
 const marker = hash.indexOf(':~:');
 const payload = marker >= 0 ? hash.slice(marker + 3) : hash;
 const rawDirectives = payload.split('&').filter((part) => part.startsWith('text=')).map((part) => part.slice(5));
-const selection = getSelection();
-const reset = () => {
-  const range = document.createRange();
-  range.selectNodeContents(document.body);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
+const clean = (value) => (value ?? '').toLocaleLowerCase().replace(/[\s\u00a0\u202f\u2007\u2009\u200b]+/gu, ' ').trim();
+let text;
+let map;
+let wordSpans;
+if (shared.directiveIndex) {
+  ({text, map, wordSpans} = shared.directiveIndex);
+} else {
+const nodes = [];
+const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+let node;
+while ((node = walker.nextNode())) {
+  if (!node.parentElement || node.parentElement.closest('script,style,noscript,template')) continue;
+  nodes.push(node);
+}
+text = '';
+map = measure ? [] : null;
+let previousBlock = null;
+const blockOf = (n) => n.parentElement?.closest('address,article,aside,blockquote,dd,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,tbody,td,tfoot,th,thead,tr,ul') ?? document.body;
+const appendSpace = (n, offset) => {
+  if (text && !text.endsWith(' ')) {
+    text += ' ';
+    if (measure) map.push({n, o:offset});
+  }
 };
-const find = (text) => window.find(text, false, false, false, false, false, false);
-const snapshot = (range) => {
+for (const n of nodes) {
+  const block = blockOf(n);
+  if (previousBlock && block !== previousBlock) appendSpace(n, 0);
+  const value = n.textContent ?? '';
+  for (let offset = 0; offset < value.length; offset += 1) {
+    const char = value[offset];
+    if (/[\s\u00a0\u202f\u2007\u2009\u200b]/u.test(char)) appendSpace(n, offset);
+    else {
+      text += char.toLocaleLowerCase();
+      if (measure) map.push({n, o:offset});
+    }
+  }
+  previousBlock = block;
+}
+text = text.trimEnd();
+wordSpans = [...text.matchAll(/[\p{L}\p{N}]+/gu)].map((match) => ({start:match.index, end:match.index+match[0].length}));
+shared.directiveIndex = {text, map, wordSpans};
+}
+const wordOffset = (at) => {
+  let low = 0, high = wordSpans.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (wordSpans[mid].end <= at) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+};
+const wordEndOffset = (at) => {
+  let low = 0, high = wordSpans.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (wordSpans[mid].start < at) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+};
+const occurrences = (query, from = 0) => {
+  const found = [];
+  for (let at = text.indexOf(query, from); at >= 0; at = text.indexOf(query, at + 1)) found.push(at);
+  return found;
+};
+const snapshot = (start, end) => {
+  const result = {
+    startOffset: start,
+    endOffset: end,
+    wordStart: wordOffset(start),
+    wordEnd: wordEndOffset(end),
+  };
+  if (!measure) return result;
+  const first = map[start];
+  const last = map[Math.max(start, end - 1)];
+  if (!first || !last) return {...result, text:'', rectCount:0, first:null, last:null};
+  const range = document.createRange();
+  range.setStart(first.n, Math.min(first.o, first.n.length));
+  range.setEnd(last.n, Math.min(last.n.length, last.o + 1));
   const rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
   return {
+    ...result,
     text: range.toString(),
     rectCount: rects.length,
     first: rects.length ? {x:rects[0].x+scrollX,y:rects[0].y+scrollY,width:rects[0].width,height:rects[0].height} : null,
@@ -337,30 +509,62 @@ for (const raw of rawDirectives) {
   let prefix = null, suffix = null;
   if (pieces[0]?.endsWith('-')) prefix = pieces.shift().slice(0, -1);
   if (pieces.at(-1)?.startsWith('-')) suffix = pieces.pop().slice(1);
-  const [start, end = null] = pieces;
-  reset();
-  if (!start || !find(start)) { results.push({raw, status:'start-not-found'}); continue; }
-  const startRange = selection.getRangeAt(0).cloneRange();
-  let matched = startRange;
-  if (end) {
-    if (!find(end)) { results.push({raw, status:'end-not-found', start:snapshot(startRange)}); continue; }
-    const endRange = selection.getRangeAt(0).cloneRange();
-    matched = document.createRange();
-    matched.setStart(startRange.startContainer, startRange.startOffset);
-    matched.setEnd(endRange.endContainer, endRange.endOffset);
+  const [startRaw, endRaw = null] = pieces;
+  const start = clean(startRaw);
+  const end = clean(endRaw);
+  prefix = clean(prefix);
+  suffix = clean(suffix);
+  if (!start) { results.push({raw, status:'empty-start'}); continue; }
+  const starts = [];
+  if (prefix) {
+    for (const prefixAt of occurrences(prefix)) {
+      let at = prefixAt + prefix.length;
+      while (text[at] === ' ') at += 1;
+      if (text.startsWith(start, at)) starts.push(at);
+    }
+  } else {
+    starts.push(...occurrences(start));
   }
-  results.push({raw, status:'matched', prefix, suffix, ...snapshot(matched)});
+  const matches = [];
+  for (const startAt of starts) {
+    const startEnd = startAt + start.length;
+    if (!end) {
+      let suffixAt = startEnd;
+      while (text[suffixAt] === ' ') suffixAt += 1;
+      if (!suffix || text.startsWith(suffix, suffixAt)) matches.push([startAt, startEnd]);
+      continue;
+    }
+    for (const endAt of occurrences(end, startEnd)) {
+      const endEnd = endAt + end.length;
+      let suffixAt = endEnd;
+      while (text[suffixAt] === ' ') suffixAt += 1;
+      if (!suffix || text.startsWith(suffix, suffixAt)) { matches.push([startAt, endEnd]); break; }
+    }
+  }
+  if (!matches.length) { results.push({raw, status:'unmatched'}); continue; }
+  results.push({raw, status:'matched', prefix, suffix, candidateCount:matches.length, ...snapshot(...matches[0])});
 }
-selection.removeAllRanges();
 return results;
 """
 
 RANGE_BATCH_SCRIPT = (
     "const locate = function() {" + LOCATE_SCRIPT + "};"
     "const resolve = function() {" + WINDOW_FIND_PROBE_SCRIPT + "};"
+    "const shared = {};"
     "const quotes = arguments[0] ?? [];"
-    "const proofs = quotes.map((wanted) => locate(wanted, arguments[1], arguments[2]));"
-    "return {quotes: proofs, ranges: resolve(arguments[3])};"
+    "const proofs = quotes.map((wanted) => locate(wanted, arguments[1], arguments[2], shared, true));"
+    "return {quotes: proofs, ranges: resolve(arguments[3], shared, true)};"
+)
+
+RANGE_PAGE_BATCH_SCRIPT = (
+    "const locate = function() {" + LOCATE_SCRIPT + "};"
+    "const resolve = function() {" + WINDOW_FIND_PROBE_SCRIPT + "};"
+    "const shared = {};"
+    "return (arguments[0] ?? []).map((input) => ({"
+    "label: input.label,"
+    "quotes: (input.quotes ?? []).map((wanted) => locate(wanted, input.block, input.anchor, shared)),"
+    "ranges: resolve(input.target, shared)"
+    "}));"
 )
 
 def channel_mask(channel, low, high):
@@ -402,7 +606,8 @@ def html_paint_proof(driver, local: str, seed: dict, cache_file: str, save_shots
     add_timing(timings, "navigationMs", phase)
     phase = time.perf_counter()
     probe = driver.execute_script(
-        RANGE_BATCH_SCRIPT, seed.get("quotes") or [], seed.get("blockText", ""), seed.get("anchor", ""), target,
+        RANGE_BATCH_SCRIPT, seed.get("paintQuotes") or seed.get("quotes") or [],
+        seed.get("blockText", ""), seed.get("anchor", ""), target,
     )
     add_timing(timings, "paintPrepMs", phase)
     quote_proofs = probe["quotes"]
@@ -495,6 +700,11 @@ def normalized_with_raw_map(text: str):
     return "".join(chars), raw_map
 
 
+def search_normalized(text: str):
+    """PDFium-style case-insensitive text with whitespace folded, punctuation intact."""
+    return re.sub(r"\s+", " ", text.casefold()).strip()
+
+
 def all_occurrences(text: str, wanted: str):
     found = []
     at = 0
@@ -513,11 +723,11 @@ def raw_directives(target: str):
 
 def parse_directive(raw: str):
     pieces = raw.split(",")
-    prefix = normalized_with_raw_map(unquote(pieces.pop(0)[:-1]))[0] if pieces and pieces[0].endswith("-") else ""
-    suffix = normalized_with_raw_map(unquote(pieces.pop()[1:]))[0] if pieces and pieces[-1].startswith("-") else ""
+    prefix = search_normalized(unquote(pieces.pop(0)[:-1])) if pieces and pieces[0].endswith("-") else ""
+    suffix = search_normalized(unquote(pieces.pop()[1:])) if pieces and pieces[-1].startswith("-") else ""
     if not 1 <= len(pieces) <= 2:
         return None
-    terms = [normalized_with_raw_map(unquote(piece))[0] for piece in pieces]
+    terms = [search_normalized(unquote(piece)) for piece in pieces]
     return prefix, terms[0], terms[1] if len(terms) == 2 else "", suffix
 
 
@@ -565,34 +775,106 @@ def subsequence_count(wanted: list[str], available: list[str]):
     return at
 
 
-def anchored_core_matches(page_text: str, span: tuple[int, int, int], block_text: str, quote_text: str):
-    _, start, end = span
-    block_words = block_text.split()
-    quote_words = quote_text.split()
-    page_words = [(match.group(), match.start(), match.end()) for match in re.finditer(r"\S+", page_text)]
-    core = [word for word, word_start, word_end in page_words if word_start >= start and word_end <= end]
-    quote_starts = sequence_starts(block_words, quote_words)
-    if len(quote_starts) != 1 or not core:
+def common_prefix_count(left: list[str], right: list[str]):
+    return next((at for at, pair in enumerate(zip(left, right)) if pair[0] != pair[1]),
+                min(len(left), len(right)))
+
+
+def word_spans(text: str):
+    return [(match.group(), match.start(), match.end())
+            for match in re.finditer(r"[^\W\d_]+|\d+", text, flags=re.UNICODE)]
+
+
+def quote_islands(pages: list[str], block_text: str, quote_text: str):
+    """Locate every quote word, then split only where live PDF order inserts words."""
+    quote_words = [word for word, _, _ in word_spans(normalized_with_raw_map(quote_text)[0])]
+    block_words = [word for word, _, _ in word_spans(normalized_with_raw_map(block_text)[0])]
+    quote_at = sequence_starts(block_words, quote_words)
+    if len(quote_at) != 1 or not quote_words:
+        return None
+    before = block_words[max(0, quote_at[0] - 32):quote_at[0]]
+    after_at = quote_at[0] + len(quote_words)
+    after = block_words[after_at:after_at + 32]
+    flat = []
+    for page_index, page_text in enumerate(pages):
+        flat.extend((word, page_index, start, end)
+                    for word, start, end in word_spans(page_text))
+    values = [word for word, _, _, _ in flat]
+    candidates = []
+    for first in sequence_starts(values, quote_words[:1]):
+        indices = [first]
+        cursor = first + 1
+        for wanted in quote_words[1:]:
+            try:
+                found = values.index(wanted, cursor, min(len(values), first + len(quote_words) + 4096))
+            except ValueError:
+                break
+            indices.append(found)
+            cursor = found + 1
+        if len(indices) != len(quote_words):
+            continue
+        cursor = indices[-1]
+        reversed_indices = [cursor]
+        for wanted in reversed(quote_words[:-1]):
+            found = next((index for index in range(cursor - 1, first - 1, -1)
+                          if values[index] == wanted), None)
+            if found is None:
+                break
+            reversed_indices.append(found)
+            cursor = found
+        if len(reversed_indices) != len(quote_words):
+            continue
+        indices = list(reversed(reversed_indices))
+        page_before = values[max(0, first - 4096):first]
+        page_after = values[indices[-1] + 1:indices[-1] + 4097]
+        context = common_prefix_count(list(reversed(before)), list(reversed(page_before))) + \
+            common_prefix_count(after, page_after)
+        inserted = indices[-1] - first + 1 - len(indices)
+        candidates.append((context, -inserted, indices))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    if len(candidates) > 1 and candidates[0][:2] == candidates[1][:2]:
+        return None
+    _, _, indices = candidates[0]
+    islands = []
+    run_first = indices[0]
+    run_last = indices[0]
+    for index in indices[1:]:
+        if index == run_last + 1 and flat[index][1] == flat[run_last][1]:
+            run_last = index
+            continue
+        islands.append((flat[run_first][1], flat[run_first][2], flat[run_last][3]))
+        run_first = run_last = index
+    islands.append((flat[run_first][1], flat[run_first][2], flat[run_last][3]))
+    return islands
+
+
+def spans_cover(wanted: tuple[int, int, int], selected: list[dict], page_text: str = ""):
+    page, start, end = wanted
+    cursor = start
+    for _, span_start, span_end in sorted(
+        (item["span"] for item in selected if item["span"][0] == page),
+        key=lambda span: span[1],
+    ):
+        if span_end <= cursor:
+            continue
+        if span_start > cursor and (not page_text or word_spans(page_text[cursor:span_start])):
+            return False
+        cursor = max(cursor, span_end)
+        if cursor >= end:
+            return True
+    return cursor >= end or bool(page_text) and not word_spans(page_text[cursor:end])
+
+
+def span_stays_within_words(span: tuple[int, int, int], wanted: tuple[int, int, int], page_text: str):
+    """Allow requested punctuation around an island, never extra live words."""
+    page, start, end = span
+    if page != wanted[0] or end < wanted[1] or start > wanted[2]:
         return False
-    core_offsets = sequence_starts(quote_words, core)
-    if len(core_offsets) != 1:
-        return False
-    block_core = quote_starts[0] + core_offsets[0]
-    page_core = next((index for index, (_, word_start, _) in enumerate(page_words) if word_start == start), None)
-    if page_core is None:
-        return False
-    before = block_words[max(0, block_core - 32):block_core]
-    after_at = block_core + len(core)
-    after = block_words[after_at:min(len(block_words), after_at + 32)]
-    page_before = [word for word, _, _ in page_words[max(0, page_core - 384):page_core]]
-    page_after = [word for word, _, _ in page_words[page_core + len(core):page_core + len(core) + 384]]
-    before_count = subsequence_count(list(reversed(before)), list(reversed(page_before)))
-    after_count = subsequence_count(after, page_after)
-    evidence = len(before) + len(after)
-    one_side = before_count >= min(12, len(before)) or after_count >= min(12, len(after))
-    two_sides = (before_count + after_count >= min(16, evidence)
-                 and before_count >= min(4, len(before)) and after_count >= min(4, len(after)))
-    return evidence >= 8 and (one_side or two_sides)
+    return not word_spans(page_text[min(start, wanted[1]):wanted[1]]) and not word_spans(
+        page_text[wanted[2]:max(end, wanted[2])]
+    )
 
 
 def pdfium_pages(file: Path):
@@ -622,7 +904,7 @@ def pdfium_pages(file: Path):
 def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
     pages = text_cache.get(file)
     if pages is None:
-        pages = [normalized_with_raw_map(text)[0] for text in pdfium_pages(file)]
+        pages = [search_normalized(text) for text in pdfium_pages(file)]
         text_cache[file] = pages
     selected = []
     ambiguous = []
@@ -635,73 +917,27 @@ def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
             selected.append({"directive": unquote(directive), "span": matches[0], "parsed": parse_directive(directive)})
 
     intended = []
-    core_only = False
-    block_text = normalized_with_raw_map(seed.get("blockText", ""))[0]
+    block_text = seed.get("blockText", "")
     for quote_text_raw in seed.get("quotes") or []:
-        quote_text = normalized_with_raw_map(quote_text_raw)[0]
-        hits = [(page, start, end) for page, text in enumerate(pages) for start, end in all_occurrences(text, quote_text)]
-        if block_text:
-            block_hits = {(page, start, end) for page, text in enumerate(pages) for start, end in all_occurrences(text, block_text)}
-            contained = [hit for hit in hits if any(
-                hit[0] == block_page and block_start <= hit[1] and hit[2] <= block_end
-                for block_page, block_start, block_end in block_hits
-            )]
-            if contained:
-                hits = contained
-        if len(hits) == 1:
-            intended.append(hits[0])
-            continue
-        cores = [item["span"] for item in selected if item["parsed"]
-                 and anchored_core_matches(pages[item["span"][0]], item["span"], block_text, quote_text)]
-        for item in ambiguous:
-            anchored = [span for span in item["spans"]
-                        if anchored_core_matches(pages[span[0]], span, block_text, quote_text)]
-            if len(anchored) == 1:
-                resolved = {"directive": item["directive"], "span": anchored[0],
-                            "parsed": item["parsed"], "contextDisambiguated": True}
-                selected.append(resolved)
-                cores.append(anchored[0])
-        cores = list(dict.fromkeys(cores))
-        if not cores:
-            projected = []
-            for directive in raw_directives(seed["target"]):
-                parsed = parse_directive(directive)
-                if not parsed or parsed[2] or not (parsed[0] or parsed[3]):
-                    continue
-                for page, text in enumerate(pages):
-                    for start, end in all_occurrences(text, parsed[1]):
-                        span = (page, start, end)
-                        if anchored_core_matches(text, span, block_text, quote_text):
-                            projected.append({"directive": unquote(directive), "span": span,
-                                              "parsed": parsed, "contextProjected": True})
-            if len(projected) == 1:
-                selected.extend(projected)
-                cores = [projected[0]["span"]]
-        if not cores:
-            return {"status": "pdf-quote-not-unique", "quote": quote_text_raw, "quoteOccurrences": len(hits)}
-        intended.extend(cores)
-        core_only = True
-    unresolved = [item for item in ambiguous if not any(
-        selected_item["directive"] == item["directive"] and selected_item.get("contextDisambiguated")
-        for selected_item in selected
-    )]
-    if unresolved:
-        return {"status": "pdf-directive-ambiguous", "selected": selected, "ambiguous": unresolved,
-                "intended": intended}
+        islands = quote_islands(pages, block_text, quote_text_raw)
+        if not islands:
+            return {"status": "pdf-intended-not-located", "quote": quote_text_raw}
+        intended.extend(islands)
+    if ambiguous:
+        return {"status": "pdf-directive-ambiguous", "selected": selected,
+                "ambiguous": ambiguous, "intended": intended}
     extraneous = [item for item in selected if not any(
-        item["span"][0] == wanted[0] and wanted[1] <= item["span"][1] and item["span"][2] <= wanted[2]
-        for wanted in intended
+        span_stays_within_words(item["span"], wanted, pages[wanted[0]]) for wanted in intended
     )]
     if extraneous:
         return {"status": "pdf-directive-extraneous", "intended": intended, "selected": selected, "extraneous": extraneous}
-    if not selected or any(not any(
-        item["span"][0] == wanted[0] and wanted[1] <= item["span"][1] and item["span"][2] <= wanted[2]
-        for item in selected
-    ) for wanted in intended):
-        return {"status": "pdf-no-compatible-directive", "intended": intended, "selected": selected}
-    exact = not core_only and sorted(item["span"] for item in selected) == sorted(intended)
+    uncovered = [wanted for wanted in intended
+                 if not spans_cover(wanted, selected, pages[wanted[0]])]
+    if uncovered:
+        return {"status": "pdf-incomplete-coverage", "intended": intended,
+                "selected": selected, "uncovered": uncovered}
     return {
-        "status": "pdf-location-exact" if exact else "pdf-location-safe-core",
+        "status": "pdf-location-exact",
         "pages": sorted({item["span"][0] + 1 for item in selected}),
         "intended": intended,
         "selected": selected,
@@ -733,6 +969,7 @@ def run():
     parser.add_argument("--save-shots", action="store_true")
     parser.add_argument("--find-probe", action="store_true")
     parser.add_argument("--range-only", action="store_true")
+    parser.add_argument("--range-cache-only", action="store_true")
     parser.add_argument("--pdf-proof-only", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.shard_index < args.shard_count:
@@ -777,7 +1014,12 @@ def run():
         return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:20]
 
     fingerprints = {seed["label"]: input_hash(seed) for seed in targets}
-    done = {row["label"]: row.get("inputHash") for row in read_jsonl(out_path)}
+    accepted = {"range-exact"} if args.range_only else {"exact-match"}
+    done = {
+        row["label"]: row.get("inputHash")
+        for row in read_jsonl(out_path)
+        if row.get("verdict") in accepted
+    }
     pending = [seed for seed in targets if done.get(seed["label"]) != fingerprints[seed["label"]]]
     if args.limit:
         pending = pending[:args.limit]
@@ -803,6 +1045,29 @@ def run():
                 output.flush()
                 tally[result["verdict"]] = tally.get(result["verdict"], 0) + 1
                 if index % 25 == 0:
+                    print(json.dumps({"progress": index, "of": len(pending)}), flush=True)
+        print(json.dumps({"rows": len(pending), "seconds": round(time.perf_counter() - started, 2), "verdicts": tally}), flush=True)
+        return
+    if args.range_cache_only:
+        if not args.range_only or args.only != "html":
+            raise ValueError("--range-cache-only requires --range-only --only html")
+        started = time.perf_counter()
+        tally = {}
+        with out_path.open("a", encoding="utf-8") as output:
+            for index, seed in enumerate(pending, 1):
+                base = seed["target"].split("#", 1)[0]
+                row = manifest.get(url_key(base))
+                rendered_file = BROWSER_TEXT_CACHE / f"{Path(row['file']).stem}.txt" if row else None
+                if not rendered_file or not rendered_file.exists():
+                    result = {"label": seed["label"], "verdict": "rendered-cache-miss", "target": seed["target"]}
+                else:
+                    proofs, ranges = cached_text_range_proof(rendered_file.read_text(encoding="utf-8"), seed)
+                    result = {"label": seed["label"], "verdict": range_probe_verdict(proofs, ranges),
+                              "target": seed["target"], "cacheFile": row["file"], "quotes": proofs, "findRanges": ranges}
+                result["inputHash"] = fingerprints[seed["label"]]
+                output.write(json.dumps(result, ensure_ascii=False) + "\n")
+                tally[result["verdict"]] = tally.get(result["verdict"], 0) + 1
+                if index % 250 == 0:
                     print(json.dumps({"progress": index, "of": len(pending)}), flush=True)
         print(json.dumps({"rows": len(pending), "seconds": round(time.perf_counter() - started, 2), "verdicts": tally}), flush=True)
         return
@@ -836,6 +1101,18 @@ def run():
         frame_id = driver.execute_cdp_cmd("Page.getFrameTree", {})["frameTree"]["frame"]["id"]
         pdf_text_cache = {}
         loaded_range_base = None
+        loaded_range_probes = {}
+        range_page_inputs = {}
+        if args.range_only:
+            for pending_seed in pending:
+                pending_base = pending_seed.get("target", "").split("#", 1)[0]
+                range_page_inputs.setdefault(pending_base, []).append({
+                    "label": pending_seed["label"],
+                    "quotes": pending_seed.get("paintQuotes") or pending_seed.get("quotes") or [],
+                    "block": pending_seed.get("blockText", ""),
+                    "anchor": pending_seed.get("anchor", ""),
+                    "target": pending_seed.get("target", ""),
+                })
         work_started = time.perf_counter()
         try:
             for index, seed in enumerate(pending, 1):
@@ -853,7 +1130,7 @@ def run():
                         phase = time.perf_counter()
                         proof = pdf_proof(file, seed, pdf_text_cache)
                         add_timing(timings, "pdfProofMs", phase)
-                        if proof["status"] not in ("pdf-location-exact", "pdf-location-safe-core"):
+                        if proof["status"] != "pdf-location-exact":
                             result = {"label": seed["label"], "verdict": proof["status"], "target": target, "cacheFile": row["file"], "proof": proof}
                         else:
                             local = f"{server.origin}/page/{quote(row['file'])}?seed={replay_id}" + (f"#{fragment}" if fragment else "")
@@ -885,7 +1162,7 @@ def run():
                             else:
                                 result = {
                                     "label": seed["label"],
-                                    "verdict": "exact-match" if proof["status"] == "pdf-location-exact" else "safe-core-match",
+                                    "verdict": "exact-match",
                                     "target": target, "cacheFile": row["file"], "proof": proof,
                                     "highlightPixels": pixels, "highlightBounds": bounds,
                                     "screenshotSha256": hashlib.sha256(png).hexdigest(),
@@ -918,9 +1195,14 @@ def run():
                                 if not rendered_text_file.exists():
                                     rendered_text_file.write_text(driver.execute_script("return document.body.innerText"), encoding="utf-8")
                                 loaded_range_base = base
+                                loaded_range_probes = {
+                                    item["label"]: item for item in driver.execute_script(
+                                        RANGE_PAGE_BATCH_SCRIPT, range_page_inputs[base]
+                                    )
+                                }
                             add_timing(timings, "navigationMs", phase)
                             phase = time.perf_counter()
-                            probe = driver.execute_script(RANGE_BATCH_SCRIPT, seed.get("quotes") or [], seed.get("blockText", ""), seed.get("anchor", ""), target)
+                            probe = loaded_range_probes[seed["label"]]
                             add_timing(timings, "rangeProbeMs", phase)
                             quote_proofs = probe["quotes"]
                             find_ranges = probe["ranges"]
