@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
     directoryResource,
+    getDocumentParseStates,
     removeProjectDocument,
 } from "@/app/lib/beaverApi";
 import type { Folder } from "@/app/components/shared/types";
@@ -27,13 +28,15 @@ export function useProjectFiles() {
         ...resource,
         removeDocument: (id: string) => removeProjectDocument(projectId, id),
         refreshCollection: directory.reload,
-    }), [directory.reload, projectId, resource]);
+        refreshDocumentParseStates: async (documentIds: string[]) =>
+            directory.replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
+    }), [directory.reload, directory.replaceDocumentParseStates, projectId, resource]);
     return {
         documents: directory.documents,
         folders,
         operations,
         uploadFiles: async (files: File[]) => {
-            const added = await Promise.all(files.map(operations.uploadDocument));
+            const added = await operations.uploadDocuments(files);
             await reload(null);
             return added;
         },

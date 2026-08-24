@@ -1,30 +1,18 @@
+import { tmpdir } from "node:os";
+import { unlink } from "node:fs/promises";
 import type { RequestHandler } from "express";
 import multer from "multer";
+import { ApplicationError } from "./applicationError";
+import { documentFileType } from "./documentTypes";
 import { concurrentRequests } from "./requestConcurrency";
 
 const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 const MAX_UPLOAD_SIZE_MB = Math.round(
   MAX_UPLOAD_SIZE_BYTES / (1024 * 1024),
 );
-const uploadSlot = concurrentRequests(2, "The upload service is busy. Try again shortly.");
-const OFFICE_ZIP = /\.(?:docx|xlsx|xlsm|pptx)$/iu;
-
-async function validateOfficeArchive(file?: Express.Multer.File) {
-  if (!file || !OFFICE_ZIP.test(file.originalname)) return;
-  const { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } = await import("./zip");
-  const zip = await loadZip(file.buffer);
-  assertBoundedZip(zip, "Office document", {
-    maxEntries: 10_000, maxExpandedBytes: 256 * 1024 * 1024,
-  });
-  const budget = zipReadBudget(256 * 1024 * 1024);
-  for (const entry of Object.values(zip.files)) {
-    if (entry.dir) continue;
-    await readZipEntry(entry, 128 * 1024 * 1024, budget, "Office package part");
-  }
-}
-
-const memoryUpload = multer({
-  storage: multer.memoryStorage(),
+const uploadSlot = concurrentRequests(4, "The upload service is busy. Try again shortly.");
+const stagedUpload = multer({
+  storage: multer.diskStorage({ destination: tmpdir() }),
   limits: {
     fileSize: MAX_UPLOAD_SIZE_BYTES,
     files: 1,
@@ -38,10 +26,13 @@ const memoryUpload = multer({
 export function singleFileUpload(fieldName: string): RequestHandler {
   return (req, res, next) => uploadSlot(req, res, () => {
     try {
-      memoryUpload.single(fieldName)(req, res, (err) => {
+      stagedUpload.single(fieldName)(req, res, (err) => {
         if (!err) {
-          void validateOfficeArchive(req.file).then(() => next()).catch(() =>
-            res.status(400).json({ detail: "Office document archive is invalid or too large." }));
+          if (req.file) {
+            const cleanup = () => void unlink(req.file!.path).catch(() => undefined);
+            res.once("finish", cleanup).once("close", cleanup);
+          }
+          next();
           return;
         }
 
@@ -62,4 +53,10 @@ export function singleFileUpload(fieldName: string): RequestHandler {
       next(error);
     }
   });
+}
+
+export function uploadedDocument(file: Express.Multer.File, filename = file.originalname) {
+  const type = documentFileType(filename);
+  if (!type.ok) throw new ApplicationError(400, type.error);
+  return { filename, fileType: type.fileType, path: file.path, sizeBytes: file.size };
 }

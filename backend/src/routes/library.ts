@@ -2,7 +2,6 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { validateDocumentFile } from "../lib/documentTypes";
 import { type DocumentStore } from "../lib/documentStore";
 import {
   type LibraryScope,
@@ -12,8 +11,7 @@ import {
   normalizeLibraryKind,
 } from "../lib/normalize";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { singleFileUpload } from "../lib/upload";
-import { documentProjectionService } from "../lib/documentProjectionService";
+import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { enqueuePdfReprocess } from "../lib/pdfJobs";
 import {
   fixDocumentSupras,
@@ -91,14 +89,8 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     singleFileUpload("file"),
     libraryRoute(async (req, res, scope) => {
       const file = req.file ?? reject(400, "file is required");
-      const validated = validateDocumentFile(file.originalname, file.buffer);
-      const fileType = validated.ok
-        ? validated.fileType
-        : reject(400, validated.error);
       res.status(201).json(await documents.create(scope, {
-        filename: file.originalname,
-        fileType,
-        bytes: file.buffer,
+        ...uploadedDocument(file),
         libraryKind: scope.kind,
       }));
     }),
@@ -205,9 +197,7 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     const file = await documents.read(scope, documentId, versionId(requested), false)
       ?? reject(404, "Version not found");
     if (file.fileType !== "pdf") reject(409, "Version is not a PDF");
-    return { ...file, path: await documentProjectionService.publishPdf(
-      file.bytes, file.version.source_sha256,
-    ) };
+    return file;
   };
 
   router.post("/:kind/documents/:documentId/actions/retry-pdf-parse",

@@ -16,6 +16,7 @@ import type {
 } from "./documentRepository";
 import type { DocumentParseState, StoredAssistantEdit } from "./documentStore";
 import { wakeJobWorker } from "./jobQueue";
+import { pdfLifecycleMark } from "./pdfLifecycleDiagnostics";
 import type { LibraryFolder, LibraryRepository, LibraryScope } from "./libraryStore";
 import { normalizeDocumentMetadata, normalizeDocumentNotes } from "./normalize";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
@@ -66,10 +67,12 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   };
   if (status !== "succeeded") return null;
   const result = decode<Record<string, unknown>>(row.pdf_job_result, {});
+  const completed = { ...detail, ...(Number.isSafeInteger(result.pageCount) &&
+    Number(result.pageCount) > 0 ? { page_count: Number(result.pageCount) } : {}) };
   if (result.status === "ready" || result.status === "degraded") {
-    return { status: result.status, ...detail };
+    return { status: result.status, ...completed };
   }
-  if (result.status === "ocr_required") return { status: "degraded", ...detail };
+  if (result.status === "ocr_required") return { status: "degraded", ...completed };
   return result.status === "failed"
     ? { status: "failed", ...detail, error: "PDF processing failed" }
     : null;
@@ -142,7 +145,7 @@ async function aggregate(db: RelationalDatabase, scope: ApplicationScope,
     FROM documents d LEFT JOIN application_jobs j ON j.id=(SELECT q.id
       FROM application_jobs q WHERE q.document_id=d.id
         AND q.document_version_id=d.current_version_id
-        AND q.kind IN('pdf.prepare','pdf.pages','pdf.reprocess')
+        AND q.kind IN('pdf.prepare','pdf.reprocess')
       ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
     WHERE d.id=${documentId} AND ${documentAccess(scope, owner)}`, db);
   if (!document?.current_version_id) return null;
@@ -210,7 +213,10 @@ export const documentRepository: DocumentRepository = {
         ${document.createdAt},${document.updatedAt})`, tx);
       await addVersion(tx, version, scope.userId);
     });
-    if (input.version.fileType === "pdf") wakeJobWorker();
+    if (input.version.fileType === "pdf") {
+      pdfLifecycleMark("queue.enqueued", input.document.id);
+      wakeJobWorker();
+    }
   },
   async get(scope, id, owner = false) {
     return aggregate(await relationalDatabase(), scope, id, owner);
@@ -219,6 +225,19 @@ export const documentRepository: DocumentRepository = {
     const db = await relationalDatabase();
     const values = await Promise.all([...new Set(ids)].map((id) => aggregate(db, scope, id)));
     return values.flatMap((value) => value ? [value] : []);
+  },
+  async parseStates(scope, ids) {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return [];
+    return (await rows(sql`SELECT d.id,j.status pdf_job_status,
+      j.progress pdf_job_progress,j.result pdf_job_result
+      FROM documents d LEFT JOIN application_jobs j ON j.id=(SELECT q.id
+        FROM application_jobs q WHERE q.document_id=d.id
+          AND q.document_version_id=d.current_version_id
+          AND q.kind IN('pdf.prepare','pdf.reprocess')
+        ORDER BY q.updated_at DESC,q.id DESC LIMIT 1)
+      WHERE d.id IN(${sql.join(unique)}) AND ${documentAccess(scope)}`))
+      .map((row) => ({ id: String(row.id), parseState: pdfParseState(row) }));
   },
   async deletionIds(scope, projectIds, includeOwned) {
     if (!includeOwned && !projectIds.length) return [];

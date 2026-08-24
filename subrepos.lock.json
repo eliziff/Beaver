@@ -10,25 +10,21 @@
     },
     "AuthoritiesHelper": {
       "branch": "main",
-      "commit": "9d002632ea77c4349ab459c73f83281cbfddc170",
       "bundle": null,
       "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
     },
     "legal-pdf-parser": {
       "branch": "main",
-      "commit": "de0a666e3b10244fc0972f8421af4475d1f298f5",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-pdf-parser.git"
     },
     "legal-browser-ocr": {
       "branch": "main",
-      "commit": "b57912d8a10ecc8d321a8a9fa025cb67db0754c1",
       "bundle": null,
       "remote": "https://github.com/eliziff/legal-browser-ocr.git"
     },
     "mike-workflows": {
       "branch": "main",
-      "commit": "b45b1ba83691ab6e504c35146da0cea8e0dcbb91",
       "bundle": null,
       "remote": "https://github.com/Open-Legal-Products/mike-workflows.git"
     }

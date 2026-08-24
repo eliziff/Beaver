@@ -148,8 +148,8 @@ type StructureAddon = {
   deriveDocxDocument(bytes: Buffer, id: string): Promise<NativeDocument>;
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<DocxSupraCleanupResult>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
-  derivePdfDocument(request: unknown): Promise<NativeDocument>;
-  pdfPageCount(bytes: Buffer): Promise<number>;
+  derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
+  restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): unknown;
   docxStructureLint(document: NativeDocument): NativeDocxLintReport;
   documentText(document: NativeDocument, limit?: number): string;
@@ -315,8 +315,9 @@ export const fixDocxSupraCrossReferencesNative = (bytes: Buffer) =>
   loadAddon().fixDocxSupraCrossReferences(bytes);
 export const hasDocxSupraReferencesNative = (bytes: Buffer) =>
   loadAddon().hasDocxSupraReferences(bytes);
-export const derivePdfNative = (request: unknown) => loadAddon().derivePdfDocument(request);
-export const pdfPageCountNative = (bytes: Buffer) => loadAddon().pdfPageCount(bytes);
+export const derivePdfNative = (bytes: Buffer, request: unknown) =>
+  loadAddon().derivePdfDocument(bytes, request);
+export const restorePdfNative = (request: unknown) => loadAddon().restorePdfDocument(request);
 
 export function queryPdfNative<T>(document: NativeDocument, query: unknown): T {
   return loadAddon().queryPdfDocument(document, query) as T;

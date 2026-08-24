@@ -155,7 +155,6 @@ describe("PdfView", () => {
             isEvalSupported: false,
             maxImageSize: 40_000_000,
         });
-        expect(mocks.buffer.byteLength).toBe(8);
         expect(mocks.cancelled).toBeGreaterThan(0);
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
     });

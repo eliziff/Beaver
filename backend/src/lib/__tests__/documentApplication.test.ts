@@ -11,13 +11,6 @@ import type {
 } from "../documentRepository";
 import { createFilesystemObjectStorage, type ObjectStorage } from "../storage";
 
-const readProjection = vi.hoisted(() => vi.fn(async () => ({
-  kind: "pdf",
-  pdfSourceMap: { pages: [{}] },
-})));
-vi.mock("../documentProjectionService", () => ({
-  documentProjectionService: { read: readProjection },
-}));
 const docx = (text: string) => new JSZip().file("word/document.xml", text, {
   date: new Date("2000-01-01T00:00:00Z"),
 })
@@ -41,6 +34,13 @@ function memoryRepository() {
       return ids.flatMap((id) => {
         const value = values.get(id);
         return value?.document.userId === scope.userId ? [value] : [];
+      });
+    },
+    async parseStates(scope, ids) {
+      return ids.flatMap((id) => {
+        const value = values.get(id);
+        return value?.document.userId === scope.userId
+          ? [{ id, parseState: value.document.parseState ?? null }] : [];
       });
     },
     async insertVersion(scope, id, input) {
@@ -120,21 +120,6 @@ function modes() {
 }
 
 describe("shared document application", () => {
-  it("rejects malformed PDFs before storing them", async () => {
-    const { repository } = memoryRepository();
-    const objects = createFilesystemObjectStorage(root);
-    const documents = createDocumentApplication(repository, objects);
-    readProjection.mockRejectedValueOnce(new Error("invalid file trailer"));
-
-    await expect(documents.create({ userId: "owner" }, {
-      filename: "broken.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.4"),
-    })).rejects.toMatchObject({
-      status: 400,
-      message: "PDF is invalid or unsupported",
-    });
-    expect((await objects.list()).keys).toEqual([]);
-  });
-
   it("rejects oversized Office packages before storing them", async () => {
     const archive = new JSZip();
     for (let index = 0; index <= 4_096; index += 1) archive.file(`word/${index}.xml`, "x");

@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { Dirent } from "node:fs";
+import { createReadStream, createWriteStream, type Dirent } from "node:fs";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 
 export const MAX_OBJECT_SIZE_BYTES = 100 * 1024 * 1024;
 const DEFAULT_STORAGE_TIMEOUT_MS = 15_000;
 export const SIGNED_GET_TTL_SECONDS = 90;
+type StorageBody = Uint8Array | { path: string; sizeBytes: number };
 
 type StorageOptions = {
   signal?: AbortSignal;
@@ -24,7 +26,7 @@ type SignedGetOptions = StorageOptions & {
 };
 
 export type ObjectStorage = {
-  put(key: string, bytes: Uint8Array, contentType: string,
+  put(key: string, body: StorageBody, contentType: string,
     options?: StorageOptions): Promise<void>;
   get(key: string, options?: StorageOptions & { maxBytes?: number }): Promise<Buffer | null>;
   remove(key: string, options?: StorageOptions): Promise<void>;
@@ -156,6 +158,17 @@ function checkedBytes(bytes: Uint8Array) {
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+function checkedBody(body: StorageBody) {
+  if (!(body instanceof Uint8Array)) {
+    if (!Number.isSafeInteger(body.sizeBytes) || body.sizeBytes < 0 ||
+        body.sizeBytes > MAX_OBJECT_SIZE_BYTES) {
+      throw new Error(`Object exceeds the ${MAX_OBJECT_SIZE_BYTES}-byte limit`);
+    }
+    return body;
+  }
+  return checkedBytes(body);
+}
+
 function isNotFound(error: unknown) {
   const value = error as {
     name?: string; Code?: string; code?: string;
@@ -217,7 +230,7 @@ type S3Runtime = {
     credentials: { accessKeyId: string; secretAccessKey: string };
   }) => S3Client;
   PutObjectCommand: S3CommandConstructor<S3ObjectInput & {
-    Body: Buffer; ContentLength: number; ContentType: string;
+    Body: Buffer | ReturnType<typeof createReadStream>; ContentLength: number; ContentType: string;
   }>;
   GetObjectCommand: S3CommandConstructor<
     S3ObjectInput & { ResponseContentDisposition?: string }, S3GetOutput
@@ -280,17 +293,19 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
   }));
 
   return {
-    async put(key, bytes, type, options) {
+    async put(key, input, type, options) {
       validateObjectKey(key);
-      const body = checkedBytes(bytes);
+      const source = checkedBody(input);
       const signal = storageSignal(options);
       signal.throwIfAborted();
       const { client, commands } = await load();
+      const body = source instanceof Uint8Array
+        ? source : createReadStream(source.path, { signal });
       await client.send(new commands.PutObjectCommand({
         Bucket: config.bucket,
         Key: key,
         Body: body,
-        ContentLength: body.byteLength,
+        ContentLength: source instanceof Uint8Array ? source.byteLength : source.sizeBytes,
         ContentType: contentType(type),
       }), { abortSignal: signal });
     },
@@ -380,16 +395,23 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
     return result;
   };
   return {
-    async put(key, bytes, type, options) {
+    async put(key, input, type, options) {
       contentType(type);
-      const body = checkedBytes(bytes);
+      const body = checkedBody(input);
       const signal = storageSignal(options);
       const target = resolve(key);
       signal.throwIfAborted();
       await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
       const temporary = `${target}.${randomUUID()}.tmp`;
       try {
-        await writeFile(temporary, body, { flag: "wx", mode: 0o600, signal });
+        if (body instanceof Uint8Array) {
+          await writeFile(temporary, body, { flag: "wx", mode: 0o600, signal });
+        } else {
+          await pipeline(createReadStream(body.path, { signal }),
+            createWriteStream(temporary, { flags: "wx", mode: 0o600, signal }));
+          if ((await stat(temporary)).size !== body.sizeBytes)
+            throw new Error("Staged object size changed while copying");
+        }
         signal.throwIfAborted();
         await rename(temporary, target);
       } catch (error) {

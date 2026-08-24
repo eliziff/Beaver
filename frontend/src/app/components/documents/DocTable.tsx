@@ -28,7 +28,6 @@ import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     TableLoadingRows, TableSelectionCheckbox, TableStickyCell, useTableSelection }
     from "@/app/components/shared/TablePrimitive";
 import { pillButtonClassName } from "@/app/components/ui/pill-button";
-import { preloadDocumentFile } from "@/app/hooks/useDocumentFile";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
@@ -76,8 +75,6 @@ function prewarmDocumentView(doc: Document) {
         .toLowerCase().replace(/^\./u, "");
     if (type === "pdf" || !!doc.pdf_storage_path) {
         void getPdfJs();
-        void preloadDocumentFile(doc.id, doc.current_version_id, doc.updated_at)
-            .catch(() => {});
     }
 }
 type InlineNameInputProps = {
@@ -175,8 +172,11 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
     ));
 }
 interface DocTableOperations {
-    removeDocument?: (documentId: string) => Promise<void>; uploadDocument: (file: File) => Promise<Document>;
+    removeDocument?: (documentId: string) => Promise<void>;
+    uploadDocument: (file: File) => Promise<Document>;
+    uploadDocuments: (files: File[]) => Promise<Document[]>;
     refreshCollection: (parentFolderId?: string | null) => Promise<void>;
+    refreshDocumentParseStates: (documentIds: string[]) => Promise<void>;
     /** Requeue a failed structural PDF parse (library lanes only). */
     retryPdfParse?: (documentId: string) => Promise<unknown>;
     createFolder: (name: string, parentFolderId?: string | null) => Promise<DocTableFolder>;
@@ -302,22 +302,23 @@ export function DocTable({
     const detachesDocument = documentRemovalMode === "detach";
     const removeDocument = operations.removeDocument ?? deleteDocument;
     const refreshCollection = operations.refreshCollection;
-    const hasActivePreparation = documents.some(({ parse_state: parseState }) =>
-        parseState?.status === "queued" || parseState?.status === "parsing");
+    const activePreparationIds = documents.flatMap(({ id, parse_state: parseState }) =>
+        parseState?.status === "queued" || parseState?.status === "parsing" ? [id] : []);
+    const activePreparationKey = activePreparationIds.join("\0");
     useEffect(() => {
-        if (!hasActivePreparation) return;
+        if (!activePreparationKey) return;
         let stopped = false;
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
             if (!stopped && document.visibilityState === "visible") {
-                try { await refreshCollection(); }
+                try { await operations.refreshDocumentParseStates(activePreparationIds); }
                 catch (error) { console.error("PDF preparation refresh failed", error); }
             }
-            if (!stopped) timer = setTimeout(poll, 1_500);
+            if (!stopped) timer = setTimeout(poll, 500);
         };
-        timer = setTimeout(poll, 1_500);
+        timer = setTimeout(poll, 500);
         return () => { stopped = true; clearTimeout(timer); };
-    }, [hasActivePreparation, refreshCollection]);
+    }, [activePreparationKey, operations.refreshDocumentParseStates]);
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
@@ -673,7 +674,7 @@ export function DocTable({
         if (supported.length === 0) return;
         set("uploadingDroppedFilenames", supported.map((file) => file.name));
         try {
-            await Promise.all(supported.map((file) => operations.uploadDocument(file)));
+            await operations.uploadDocuments(supported);
             await refreshCollection();
         } catch (err) {
             console.error("Document drop upload failed", err);

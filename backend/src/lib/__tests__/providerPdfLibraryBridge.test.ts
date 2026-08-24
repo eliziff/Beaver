@@ -6,8 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   dnsLookup: vi.fn(),
-  parsePdf: vi.fn(),
-  pdfState: vi.fn(),
+  preparePdf: vi.fn(),
   lookupPdf: vi.fn(),
   rehydratePdfLink: vi.fn(),
 }));
@@ -19,8 +18,7 @@ vi.mock("undici", async (importOriginal) => ({
 }));
 vi.mock("../documentProjectionService", () => ({
   documentProjectionService: {
-    parsePdf: mocks.parsePdf,
-    pdfState: mocks.pdfState,
+    preparePdf: mocks.preparePdf,
     lookupPdf: mocks.lookupPdf,
     rehydratePdfLink: mocks.rehydratePdfLink,
   },
@@ -63,9 +61,7 @@ beforeEach(async () => {
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
   process.env.AUTH_MODE = "local";
   mocks.dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-  mocks.parsePdf.mockResolvedValue({ status: "ready", cache_key: "provider-cache" });
-  mocks.pdfState.mockImplementation(async () => mocks.parsePdf.mock.calls.length
-    ? { status: "ready", cache_key: "provider-cache" } : null);
+  mocks.preparePdf.mockResolvedValue({ status: "ready", pageCount: 1 });
   vi.resetModules();
 });
 
@@ -178,12 +174,12 @@ describe("provider PDF projection bridge", () => {
       linkEvidence: { handle },
     });
     expect(mocks.lookupPdf).toHaveBeenCalledWith(
-      expect.stringContaining(`${digest(bytes)}.pdf`),
+      bytes,
       { locatorKind: "page", locator: "1" },
       {
-        cacheKey: "provider-cache",
         documentId: `provider-pdf-${digest(bytes).slice(0, 32)}`,
         versionId: digest(bytes).slice(0, 32),
+        sourceSha256: digest(bytes),
       },
     );
   });

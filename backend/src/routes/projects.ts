@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { validateDocumentFile } from "../lib/documentTypes";
 import type { ChatStore } from "../lib/chatStore";
 import { type DocumentStore } from "../lib/documentStore";
 import {
@@ -11,7 +10,7 @@ import {
   type ProjectStore,
 } from "../lib/projectStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { singleFileUpload } from "../lib/upload";
+import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { isJsonRecord, jsonRecord } from "../lib/value";
 
 const bodyOf = (req: Request): Record<string, unknown> =>
@@ -198,12 +197,8 @@ export function createProjectsRouter(
     singleFileUpload("file"),
     route(async (req, res, scope) => {
       const file = req.file ?? reject(400, "file is required");
-      const validated = validateDocumentFile(file.originalname, file.buffer);
-      if (!validated.ok) return reject(400, validated.error);
       res.status(201).json(await documents.create(scope, {
-        filename: file.originalname,
-        fileType: validated.fileType,
-        bytes: file.buffer,
+        ...uploadedDocument(file),
         projectId: req.params.projectId,
       }));
     }),

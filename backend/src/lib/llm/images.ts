@@ -78,8 +78,10 @@ export function toLlmImage(
 export function imageValidationError(
   filename: string,
   value: Buffer | ArrayBuffer,
+  sizeBytes = value.byteLength,
 ): string | null {
   if (!isImageDocumentType(path.extname(filename).slice(1))) return null;
+  if (sizeBytes > MAX_IMAGE_BYTES) return `Image "${filename}" exceeds the 5 MB limit.`;
   try {
     validateImageBytes(filename, value);
     return null;

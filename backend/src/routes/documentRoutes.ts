@@ -6,7 +6,6 @@ import { asyncRoute } from "../lib/asyncRoute";
 import {
   contentTypeForDocumentType,
   isSpreadsheetDocumentType,
-  validateDocumentFile,
 } from "../lib/documentTypes";
 import type {
   DocumentContent,
@@ -16,7 +15,7 @@ import type { LibraryStore } from "../lib/libraryStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
-import { singleFileUpload } from "../lib/upload";
+import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { documentProjectionService } from "../lib/documentProjectionService";
 
 const scope = applicationScope, MAX_ZIP_FILES = 100;
@@ -54,11 +53,6 @@ const archiveName = (name: string, index: number) => {
     .replace(/^[. ]+|[. ]+$/gu, "") || "document";
   return `${String(index + 1).padStart(3, "0")}-${safe}`;
 };
-
-function validatedFileType(name: string, bytes: Buffer) {
-  const validated = validateDocumentFile(name, bytes);
-  return validated.ok ? validated.fileType : reject(400, validated.error);
-}
 
 async function sendDownload(
   documents: DocumentStore,
@@ -108,6 +102,21 @@ export function createDocumentsRouter(
     }));
   }));
 
+  router.post("/parse-states", asyncRoute(async (req, res) => {
+    const ids: unknown = req.body?.document_ids;
+    if (!Array.isArray(ids) || !ids.length || ids.length > 100 ||
+        ids.some((id) => typeof id !== "string" || !id))
+      reject(400, "document_ids must contain 1 to 100 document IDs");
+    res.json(await documents.parseStates(scope(res), ids as string[]));
+  }));
+
+  router.get("/:documentId", asyncRoute(async (req, res) => {
+    const document = await documents.metadata(scope(res), req.params.documentId)
+      ?? reject(404, "Document not found");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json(document);
+  }));
+
   router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {
     const file = await documents.read(
       scope(res), req.params.documentId, versionId(req), false,
@@ -121,7 +130,7 @@ export function createDocumentsRouter(
       filename: file.filename,
       fileType: file.fileType,
       sourceSha256: file.version.source_sha256,
-      bytes: file.bytes,
+      readBytes: () => file.bytes,
     });
     if (projection.kind !== "spreadsheet-grid") {
       return reject(422, "Spreadsheet could not be displayed");
@@ -154,11 +163,8 @@ export function createDocumentsRouter(
     singleFileUpload("file"),
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
-      const fileType = validatedFileType(file.originalname, file.buffer);
       res.status(201).json(await documents.create(scope(res), {
-        filename: file.originalname,
-        fileType,
-        bytes: file.buffer,
+        ...uploadedDocument(file),
         libraryKind: "file",
       }));
     }),
@@ -194,11 +200,8 @@ export function createDocumentsRouter(
     const file = await documents.read(scope(res), req.params.documentId, requested, false)
       ?? reject(404, "Document not found");
     if (file.fileType.toLowerCase() !== "pdf") reject(404, "Document not found");
-    const source = await documentProjectionService.publishPdf(
-      file.bytes, file.version.source_sha256,
-    );
     const receipt = await evidence(req.params.documentId, file, () =>
-      documentProjectionService.rehydratePdfLink(source, handle));
+      documentProjectionService.rehydratePdfLink(file.bytes, handle));
     const query = new URLSearchParams({ version_id: file.version.id,
       evidence: handle, rendition: "pdf" });
     const page = receipt.pageNumbers[0];
@@ -225,9 +228,8 @@ export function createDocumentsRouter(
       const file = await documents.read(
         scope(res), req.params.documentId, versionId(req), rendition === "pdf",
       ) ?? reject(404, "Document not found");
-      const source = await documentProjectionService.publishPdf(file.bytes);
       await evidence(req.params.documentId, file, () =>
-        documentProjectionService.verifyPdfEvidence(source, handle));
+        documentProjectionService.verifyPdfEvidence(file.bytes, handle));
     }
     await sendDownload(
       documents, req, res, rendition === "pdf",
@@ -247,11 +249,10 @@ export function createDocumentsRouter(
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const resolvedName = filename(req, file.originalname);
-      const fileType = validatedFileType(resolvedName, file.buffer);
       const version = await documents.addVersion(
         scope(res),
         req.params.documentId,
-        { filename: resolvedName, fileType, bytes: file.buffer },
+        uploadedDocument(file, resolvedName),
       );
       if (!version) reject(404, "Document not found");
       res.status(201).json(version);
@@ -306,10 +307,9 @@ export function createDocumentsRouter(
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
       const resolvedName = filename(req, file.originalname);
-      const fileType = validatedFileType(resolvedName, file.buffer);
       const result = await documents.replaceVersion(
         scope(res), req.params.documentId, req.params.versionId,
-        { filename: resolvedName, fileType, bytes: file.buffer },
+        uploadedDocument(file, resolvedName),
       );
       if (result.status !== "replaced") {
         if (result.status === "missing") reject(404, "Version not found");

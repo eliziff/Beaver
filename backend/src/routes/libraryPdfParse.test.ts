@@ -7,19 +7,10 @@ import type { LibraryStore } from "../lib/libraryStore";
 const mocks = vi.hoisted(() => ({
   readDocument: vi.fn(),
   documentMetadata: vi.fn(),
-  publishPdf: vi.fn(async () => "C:\\projected\\source.pdf"),
   enqueuePdfReprocess: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isLocalRuntime: () => true }));
-vi.mock("../lib/documentProjectionService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/documentProjectionService")>()),
-  documentProjectionService: {
-    ...(await importOriginal<typeof import("../lib/documentProjectionService")>())
-      .documentProjectionService,
-    publishPdf: mocks.publishPdf,
-  },
-}));
 vi.mock("../lib/pdfJobs", () => ({
   enqueuePdfReprocess: mocks.enqueuePdfReprocess,
 }));

@@ -39,15 +39,17 @@ git -C .\AuthoritiesHelper rev-parse HEAD
 git -C .\legal-pdf-parser rev-parse HEAD
 ```
 
-The values must match `subrepos.lock.json`. The OpenLegalData bundle contains
-committed source history only; local corpora, databases, managed runtimes,
-caches, and generated artifacts are excluded.
+Public repositories are pinned by their Git gitlinks. `subrepos.lock.json`
+records their remotes and branches without duplicating those commit IDs.
+OpenLegalData remains pinned by the commit in `subrepos.lock.json`; its bundle
+contains committed source history only, excluding local corpora, databases,
+managed runtimes, caches, and generated artifacts.
 
 ## Updating a public submodule
 
-Commit and push the standalone repository first. Then stage its gitlink in
-Beaver and update the corresponding `commit` in `subrepos.lock.json`. Do not
-reintroduce a bundle for a repository that has a public remote.
+Commit and push the standalone repository first, then stage its gitlink in
+Beaver. Dependabot normally opens this gitlink update automatically. Do not
+reintroduce a duplicate commit pin or a bundle for a public repository.
 
 OpenLegalData remains bundle-backed until it has an approved remote. After an
 OpenLegalData source commit, regenerate only that bundle and update its lock:

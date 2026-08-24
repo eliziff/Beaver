@@ -31,6 +31,9 @@ export type DocumentRepository = {
   create(scope: DocumentScope, input: CreateDocumentMetadata): Promise<void>;
   get(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentAggregate | null>;
   getMany(scope: DocumentScope, ids: string[]): Promise<DocumentAggregate[]>;
+  parseStates(scope: DocumentScope, ids: string[]): Promise<Array<{
+    id: string; parseState: DocumentParseState | null;
+  }>>;
   deletionIds(scope: DocumentScope, projectIds: string[], includeOwned: boolean): Promise<string[]>;
   insertVersion(scope: DocumentScope, id: string, input: { expectedCurrentVersionId: string;
     version: StoredDocumentVersion; edits?: StoredAssistantEdit[] }): Promise<"created" | Write>;

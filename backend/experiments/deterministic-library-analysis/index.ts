@@ -1,5 +1,4 @@
 import { draftingLint } from "./legalDraftingLint";
-import { consolidateAmendment } from "../../src/lib/structureNative";
 import {
   computeDeadline,
   type DeadlineJurisdiction,
@@ -15,7 +14,6 @@ import { termDriftReport } from "./legalTermDrift";
 export const EXPERIMENTAL_LIBRARY_ANALYSES = [
   "anchor_coverage",
   "conflict_scan",
-  "apply_amendment",
   "deadline",
   "term_drift",
   "drafting_lint",
@@ -59,16 +57,6 @@ export async function runExperimentalLibraryAnalysis(
       );
     case "conflict_scan":
       return conflictScan(named(strings(args.document_ids)));
-    case "apply_amendment": {
-      const [source, amendment] = requireDocuments([
-        string(args.source_document_id),
-        string(args.amendment_document_id),
-      ].filter(Boolean));
-      if (!source) throw new Error("source_document_id is required");
-      const prose = amendment?.text ?? string(args.amendment_text);
-      if (!prose) throw new Error("Amendment text is required");
-      return consolidateAmendment(source.text, prose);
-    }
     case "deadline":
       return computeDeadline({
         anchor: string(args.anchor_date),
