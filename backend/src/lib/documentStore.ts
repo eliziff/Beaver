@@ -3,6 +3,39 @@ import type { EditDiffSegment } from "./docxTrackedChanges";
 import type { ApplicationScope } from "./applicationError";
 
 export type DocumentScope = ApplicationScope;
+export type LegalPdfOcrProvider = "kraken-lite" | "tesseract";
+export type LegalPdfProfile = {
+  ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
+  layout?: { provider: "ppdoc"; settings: Record<string, unknown> };
+};
+export type PdfProfileSelection = {
+  cacheKey: string;
+  profile: LegalPdfProfile;
+  status: "ready" | "degraded";
+};
+export function decodePdfProfileSelection(value: unknown): PdfProfileSelection | undefined {
+  const record = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+  const profile = record?.profile && typeof record.profile === "object" &&
+    !Array.isArray(record.profile) ? record.profile as Record<string, unknown> : null;
+  const setting = (value: unknown, provider: string | readonly string[]) => {
+    if (value === undefined) return true;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const entry = value as Record<string, unknown>;
+    const providers = typeof provider === "string" ? [provider] : provider;
+    return typeof entry.provider === "string" && providers.includes(entry.provider) &&
+      !!entry.settings && typeof entry.settings === "object" && !Array.isArray(entry.settings);
+  };
+  return record && profile && typeof record.cacheKey === "string" &&
+    /^[a-f0-9]{64}$/u.test(record.cacheKey) &&
+    (record.status === "ready" || record.status === "degraded") &&
+    Object.keys(profile).every((key) => key === "ocr" || key === "layout") &&
+    setting(profile.ocr, ["tesseract", "kraken-lite"]) &&
+    setting(profile.layout, "ppdoc")
+    ? { cacheKey: record.cacheKey, profile: profile as LegalPdfProfile,
+      status: record.status }
+    : undefined;
+}
 export type DocumentParseState = {
   status: "queued" | "parsing" | "ready" | "degraded" | "failed" | "cancelled";
   phase?: "inspecting" | "extracting" | "ocr";
@@ -20,8 +53,12 @@ export type DocumentVersion = Record<string, unknown> & { id: string; version_nu
   source: string; created_at: string; filename: string; storage_path?: string | null;
   file_type: string; size_bytes: number; page_count?: number | null;
   deleted_at?: string | null; source_sha256: string };
+export type DocumentProjectionSource = Readonly<{
+  documentId: string; versionId: string; fileType: string; sourceSha256: string;
+  pdfProfile?: PdfProfileSelection; readBytes: () => Buffer | Promise<Buffer>;
+}>;
 export type DocumentContent = { bytes: Buffer; version: DocumentVersion; filename: string;
-  fileType: string; hasPdfRendition: boolean };
+  fileType: string; hasPdfRendition: boolean; pdfProfile?: PdfProfileSelection };
 export type DocumentDownload = { kind: "bytes"; content: DocumentContent }
   | { kind: "redirect"; url: string };
 export type AssistantEdit = { changeId: string; delWId?: string; insWId?: string;
@@ -74,6 +111,10 @@ export type DocumentStore = {
   files(scope: DocumentScope, ids: string[], maxBytes?: number): Promise<DocumentContent[]>;
   read(scope: DocumentScope, id: string, versionId: string | null,
     preferPdf: boolean): Promise<DocumentContent | null>;
+  recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
+    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
+  projectionSource(scope: DocumentScope, id: string, versionId: string | null):
+    Promise<DocumentProjectionSource | null>;
   download(scope: DocumentScope, id: string, versionId: string | null, preferPdf: boolean,
     disposition: "inline" | "attachment"): Promise<DocumentDownload | null>;
   versions(scope: DocumentScope, id: string): Promise<{ current_version_id: string | null;

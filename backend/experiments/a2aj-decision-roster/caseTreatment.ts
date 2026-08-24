@@ -1,7 +1,6 @@
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-} from "../../src/lib/structureNative";
+import { structureNative } from "../../src/lib/structureNative";
+
+const { citationLookupKey, providerCitationsInText: citationsInText } = structureNative();
 
 export const ATTRIBUTIONS = [
   "current_court",

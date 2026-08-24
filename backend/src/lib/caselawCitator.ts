@@ -4,11 +4,7 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { courtLevel } from "./courtLevels";
 import { withReadonlySqlite } from "./legalDataPath";
-import {
-  caselawCitationLookupKeyNative,
-  citationLookupKeyNative,
-  classifyCitatorExcerptNative,
-} from "./structureNative";
+import { structureNative } from "./structureNative";
 
 /**
  * Read surface for the Stage 1 citator note-up graph built by
@@ -157,7 +153,7 @@ function keysForQuery(database: DatabaseSync, key: string): string[] {
  * key, and an absent graph degrades to the literal normalized key.
  */
 export function citationAliasKeysBatch(citations: string[]): string[][] {
-  const keys = citations.map(citationLookupKeyNative);
+  const keys = structureNative().citationLookupKeys(citations);
   if (!keys.some(Boolean)) return keys.map(() => []);
   return (
     withDatabase((database) =>
@@ -169,7 +165,7 @@ export function citationAliasKeysBatch(citations: string[]): string[][] {
 export function citationAuthorityMetricsBatch(
   citations: string[],
 ): Array<CitationAuthorityMetric | null> {
-  const keys = citations.map(citationLookupKeyNative);
+  const keys = structureNative().citationLookupKeys(citations);
   if (!keys.some(Boolean)) return keys.map(() => null);
   if (!process.env.MIKE_CITATOR_DB?.trim() && defaultAuthorityMetricsAvailable === false) {
     return keys.map(() => null);
@@ -227,7 +223,7 @@ export function noteUpCitations(args: {
   courtCode?: string;
   sort?: NoteUpSort;
 }): NoteUpResult | null {
-  const key = caselawCitationLookupKeyNative(args.citation);
+  const key = structureNative().caselawCitationLookupKey(args.citation);
   const wanted = Math.max(1, Math.min(50, Math.trunc(args.size ?? 10)));
   const courtScope = args.courtScope ?? "all";
   const courtCode = args.courtCode?.trim().toUpperCase() || null;
@@ -425,15 +421,17 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
         ...(citedParagraph === null ? [] : [`,par${citedParagraph},`]),
         STANDS_FOR_CONSIDERED,
       ) as Row[];
+    const propositions = rows.map((row) => String(row.proposition).trim());
+    const verdicts = structureNative().classifyCitatorExcerpts(propositions);
     let rejected = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
-    for (const row of rows) {
+    for (const [index, row] of rows.entries()) {
       // The classifier GATES commentary but never rewrites it: its prose
       // window trims a word off both ends because citator excerpts
       // truncate mid-word, while a paired proposition is sentence-exact
       // already - the verbatim text the widened tier will hash against.
-      const proposition = String(row.proposition).trim();
-      const verdict = classifyCitatorExcerptNative(proposition);
+      const proposition = propositions[index]!;
+      const verdict = verdicts[index]!;
       if (
         (verdict.kind !== "prose" && verdict.kind !== "mixed") ||
         !verdict.proseWindow
@@ -474,7 +472,7 @@ export function noteUpAnalysis(args: {
   courtScope?: NoteUpCourtScope;
   courtCode?: string;
 }): NoteUpAnalysis | null {
-  const key = caselawCitationLookupKeyNative(args.citation);
+  const key = structureNative().caselawCitationLookupKey(args.citation);
   const cap = Math.max(1, Math.min(24, Math.trunc(args.size ?? 8)));
   const courtScope = args.courtScope ?? "all";
   const courtCode = args.courtCode?.trim().toUpperCase() || null;
@@ -529,11 +527,14 @@ export function noteUpAnalysis(args: {
         STANDS_FOR_CONSIDERED,
       )
       .filter((group) => matchesCourt(group.court, courtScope, courtCode)) as Row[];
+    const verdicts = structureNative().classifyCitatorExcerpts(
+      groups.map((group) => String(group.first_excerpt)),
+    );
     let authorityList = 0;
     let insufficient = 0;
     const usable: Array<StandsForCandidate & { occurrences: number }> = [];
-    for (const group of groups) {
-      const verdict = classifyCitatorExcerptNative(String(group.first_excerpt));
+    for (const [index, group] of groups.entries()) {
+      const verdict = verdicts[index]!;
       if (verdict.kind === "authority_list") {
         authorityList += 1;
         continue;

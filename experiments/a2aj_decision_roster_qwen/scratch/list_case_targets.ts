@@ -1,11 +1,10 @@
 import { a2ajLocalBulkPath } from "../../../backend/src/lib/a2ajLocalBulk";
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-  classifyCitatorExcerptNative as classifyCitatorExcerpt,
-} from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { candidatesByDocumentIds, loadCase, parseDocumentIds } from "../runner";
+
+const { citationLookupKey, providerCitationsInText: citationsInText,
+  classifyCitatorExcerpt } = structureNative();
 
 async function main() {
 const ids = parseDocumentIds(process.argv.slice(2).filter((value) => !value.startsWith("--")).join(","));

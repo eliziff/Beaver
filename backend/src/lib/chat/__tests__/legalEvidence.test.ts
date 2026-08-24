@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -24,8 +23,7 @@ import {
 import { createLegalEvidenceCitations } from "../citations";
 import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
-
-const textSource = (text: string) => ({ text });
+import { structureNative } from "../../structureNative";
 
 function passage(locatorLabel = "par12") {
   return createTnaEvidence({
@@ -219,12 +217,21 @@ describe("production legal evidence", () => {
       "Delay in seeking child support may arise for unrelated reasons.",
       "Delay in seeking child support requires a distinct final proposition.",
     ].join("\n");
-    const source = textSource(text);
+    const native = await structureNative().deriveDocumentStructure({
+      kind: "a2aj",
+      input: {
+        citation: "2006 SCC 37",
+        source_kind: "cases",
+        text,
+        dataset: "SCC",
+        url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
+      },
+    });
     const receipt = {
       ...passage("par101"),
       provider: "a2aj" as const,
       stable_source_id: "a2aj:en:scc:2006 scc 37",
-      source_sha256: `sha256:${crypto.createHash("sha256").update(text).digest("hex")}`,
+      source_sha256: structureNative().documentRevision(native),
       citation: "2006 SCC 37",
       dataset: "SCC",
       external_url:
@@ -239,22 +246,16 @@ describe("production legal evidence", () => {
       name: "D.B.S. v S.R.G.",
       date: "2006-07-31",
       url: receipt.external_url,
-      text,
+      verifiedPdf: null,
       language: "en" as const,
       upstreamLicense: null,
-      structure: {
-        status: "unavailable" as const,
-        source: "flat_text" as const,
-        counts: { paragraph: 0, page: 0, section: 0 },
-      },
+      native,
     };
     vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
-    vi.spyOn(a2ajLegalSourceProvider, "source").mockReturnValue(source);
 
     expect(await restorePriorLegalEvidence([receipt])).toEqual([{
       receipt,
       document,
-      source,
     }]);
   });
 

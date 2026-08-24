@@ -13,12 +13,14 @@ import os from "node:os";
 import path from "node:path";
 
 import { fetchLocalA2AJDocument } from "../../backend/src/lib/a2ajLocalBulk";
-import { hasCitationInTextNative as hasCitationInText } from "../../backend/src/lib/structureNative";
+import { structureNative } from "../../backend/src/lib/structureNative";
 import { contentWordCount, lintLegalClaim } from "./legalClaimLint";
 import {
   streamChatWithTools,
   type NormalizedLlmUsage,
 } from "../../backend/src/lib/llm";
+
+const { hasCitationInText } = structureNative();
 
 type Condition = "quote_only" | "source_context";
 type FrozenRow = {

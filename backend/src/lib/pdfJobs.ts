@@ -64,6 +64,13 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       signal: context.signal,
       progress: (value: PdfPreparationProgress) => context.progress(value),
     });
+    if (!await documents.recordPdfPreparation({ userId: job.userId }, documentId, {
+      versionId: documentVersionId,
+      sourceSha256: summary.sourceSha256,
+      pageCount: summary.pageCount,
+      pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
+        status: summary.status },
+    })) return { skipped: "source-unavailable" };
     return { status: summary.status, pageCount: summary.pageCount };
   };
   const reprocess: JobHandler = async (job, context) => {
@@ -86,6 +93,13 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       signal: context.signal,
       progress: (value: PdfPreparationProgress) => context.progress(value),
     });
+    if (!await documents.recordPdfPreparation({ userId: job.userId }, job.documentId, {
+      versionId: job.documentVersionId,
+      sourceSha256: summary.sourceSha256,
+      pageCount: summary.pageCount,
+      pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
+        status: summary.status },
+    })) return { skipped: "source-unavailable" };
     return { status: summary.status, pageCount: summary.pageCount };
   };
   return { "pdf.prepare": run, "pdf.reprocess": reprocess };

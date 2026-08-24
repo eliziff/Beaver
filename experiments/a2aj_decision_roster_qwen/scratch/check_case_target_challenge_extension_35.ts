@@ -9,9 +9,10 @@ import {
   type CaseTargetOccurrence,
 } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
+
+const { citationLookupKey } = structureNative();
 
 type Target = { document_id: number | null; citation: string; citation_aliases: string[]; name: string | null };
 type Occurrence = CaseTargetOccurrence & { context: { start: number; end_exclusive: number; quote: string; sha256: string } };
@@ -41,7 +42,7 @@ function rank(...parts: Array<string | number | null>) {
 }
 
 function expectedOccurrences(text: string, target: Target): Occurrence[] {
-  return detectCaseTargetOccurrences(createTextSourceDoc(text), {
+  return detectCaseTargetOccurrences(text, {
     citation: target.citation,
     citationAliases: target.citation_aliases,
     name: target.name,

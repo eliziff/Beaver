@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   dnsLookup: vi.fn(),
   preparePdf: vi.fn(),
   lookupPdf: vi.fn(),
-  rehydratePdfLink: vi.fn(),
 }));
 
 vi.mock("dns/promises", () => ({ default: { lookup: mocks.dnsLookup } }));
@@ -20,7 +19,6 @@ vi.mock("../documentProjectionService", () => ({
   documentProjectionService: {
     preparePdf: mocks.preparePdf,
     lookupPdf: mocks.lookupPdf,
-    rehydratePdfLink: mocks.rehydratePdfLink,
   },
 }));
 
@@ -160,7 +158,6 @@ describe("provider PDF projection bridge", () => {
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(bytes)));
     const handle = `mike-evidence:v1:${"a".repeat(64)}`;
     mocks.lookupPdf.mockResolvedValue({ status: "found", evidence: { handle } });
-    mocks.rehydratePdfLink.mockResolvedValue({ handle, sources: [], pages: [] });
     const bridge = await import("../providerPdfLibraryBridge");
     await startProviderWorker(bridge);
     await bridge.queueProviderPdfAttachment(attachment, "local-user");
@@ -171,7 +168,6 @@ describe("provider PDF projection bridge", () => {
     )).resolves.toMatchObject({
       availability: "ready",
       lookup: { status: "found", evidence: { handle } },
-      linkEvidence: { handle },
     });
     expect(mocks.lookupPdf).toHaveBeenCalledWith(
       bytes,

@@ -4,10 +4,12 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
-import {
-  tokenizeTextNative,
-  groundedProseErrorsNative,
-} from "../../backend/src/lib/structureNative";
+import { structureNative } from "../../backend/src/lib/structureNative";
+
+const { groundedProseErrors } = structureNative();
+const tokenizeText = (text: string) => [...text.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)]
+  .map((match) => ({ word: match[0].toLowerCase(), start: match.index,
+    end: match.index + match[0].length }));
 
 type Source = {
   evidenceId: string;
@@ -73,12 +75,12 @@ function paragraphs(text: string) {
     .replace(/\r\n?/gu, "\n")
     .split(/\n\s*\n/gu)
     .map((value) => value.replace(/^\s{0,3}(?:#{1,6}|>+)\s*/gmu, "").trim())
-    .filter((value) => tokenizeTextNative(value).length >= 8);
+    .filter((value) => tokenizeText(value).length >= 8);
 }
 
 function boundaryWindows(source: Source) {
   for (const paragraph of paragraphs(source.text)) {
-    const tokens = tokenizeTextNative(paragraph);
+    const tokens = tokenizeText(paragraph);
     for (let index = 0; index <= tokens.length - 8; index += 1) {
       const eight = tokens.slice(index, index + 8);
       const text = paragraph.slice(eight[0].start, eight[7].end);
@@ -95,7 +97,7 @@ function boundaryWindows(source: Source) {
 
 function shortEightTokenWindow(source: Source) {
   for (const paragraph of paragraphs(source.text)) {
-    const tokens = tokenizeTextNative(paragraph);
+    const tokens = tokenizeText(paragraph);
     for (let index = 0; index <= tokens.length - 8; index += 1) {
       const window = tokens.slice(index, index + 8);
       if (window.map(({ word }) => word).join(" ").length >= 40) continue;
@@ -108,14 +110,14 @@ function shortEightTokenWindow(source: Source) {
 }
 
 function unmarkedRejected(text: string, sources: Source[]) {
-  return groundedProseErrorsNative(text, [], sources).some((error) =>
+  return groundedProseErrors(text, [], sources).some((error) =>
     error.includes("unmarked copied passage"),
   );
 }
 
 function evaluateBoundarySweep() {
   const factualVacuum = "Charter decisions should not and must not be made in a factual vacuum.";
-  const factualTokens = tokenizeTextNative(factualVacuum);
+  const factualTokens = tokenizeText(factualVacuum);
   const factualCharacters = factualTokens.map(({ word }) => word).join(" ").length;
   const candidates = [
     { lexicalTokens: 8, normalizedCharacters: 40 },
@@ -293,7 +295,7 @@ function traceEvaluation() {
         result.factualVacuum.unmarkedSubmittedClaimObserved ||=
           claim.text.toLocaleLowerCase().includes("factual vacuum");
         result.beaverOutputs.claims += 1;
-        const errors = groundedProseErrorsNative(
+        const errors = groundedProseErrors(
           claim.text,
           Array.isArray(claim.evidence_ids) ? claim.evidence_ids : [],
           visible,
@@ -301,7 +303,7 @@ function traceEvaluation() {
         if (errors.length) {
           const serialized = /^unmarked copied passage (.+) matches visible evidence/u.exec(errors[0])?.[1];
           const copied = serialized ? JSON.parse(serialized) as string : "";
-          const copiedTokens = tokenizeTextNative(copied);
+          const copiedTokens = tokenizeText(copied);
           const classification = /Canadian Charter of Rights and Freedoms|resolutions of the Senate and House of Commons/u
             .test(copied) ? "false-rejection" : "true-positive";
           reviewedMatches.push({

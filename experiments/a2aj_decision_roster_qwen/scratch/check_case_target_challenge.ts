@@ -11,9 +11,10 @@ import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
+
+const { citationLookupKey } = structureNative();
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -26,7 +27,7 @@ function sha256(value: string) {
 }
 
 function expectedOccurrences(text: string, target: Record<string, any>) {
-  return detectCaseTargetOccurrences(createTextSourceDoc(text), {
+  return detectCaseTargetOccurrences(text, {
     citation: target.citation,
     citationAliases: target.citation_aliases,
     name: target.name,

@@ -34,9 +34,9 @@ export type TextOpScope =
   | { kind: "range"; from_text: string; to_text: string }
   /**
    * Spans already resolved by the address layer (`at: "8.01"`, a page, a
-   * clause plus what it references). Resolution needs a skeleton and a page
-   * map; execution needs neither, so the address layer resolves and hands
-   * down offsets and this module stays free of that dependency.
+   * clause plus what it references). Rust resolves the address against the
+   * NativeDocument; execution only needs the resulting spans, so this module
+   * stays free of structure-engine dependencies.
    *
    * Both layers project the DOCX with `extractDocxBodyText`, which is what
    * makes an offset resolved for reading valid for editing. That shared

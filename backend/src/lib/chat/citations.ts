@@ -4,7 +4,6 @@ import {
   type RegisteredEvidence,
 } from "./legalEvidence";
 import {
-  citationPresentationText,
   presentLegalEvidence,
   type CitationPresentation,
 } from "./citationPresentation";
@@ -27,8 +26,8 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
   return {
     stableId: receipt.stable_source_id,
     sourceSha256: receipt.source_sha256,
-    authority: citationPresentationText(presentation.authority),
-    shortAuthority: citationPresentationText(presentation.shortAuthority),
+    authority: presentation.authority,
+    shortAuthority: presentation.shortAuthority,
     mainUrl: presentation.sourceUrl,
     pinpoint: presentation.locator ? {
       text: presentation.locator.text,
@@ -56,8 +55,8 @@ export function createLegalEvidenceCitations(
       const presentation = presentLegalEvidence(entry);
       const locator = receiptLocator(entry, presentation);
       const display = {
-        authority: citationPresentationText(presentation.authority),
-        short_authority: citationPresentationText(presentation.shortAuthority),
+        authority: presentation.authority,
+        short_authority: presentation.shortAuthority,
         ...(presentation.locator && {
           locator_separator: presentation.locator.separator,
         }),

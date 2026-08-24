@@ -9,7 +9,7 @@
 
 import { parentPort } from "node:worker_threads";
 import { createHash } from "node:crypto";
-import { deriveDocumentNative, documentAnchorsNative, documentTextNative } from "../../backend/src/lib/structureNative";
+import { structureNative } from "../../backend/src/lib/structureNative";
 import {
   analyzeOpinionStructure,
   partitionOpinionStructure,
@@ -111,15 +111,16 @@ function buildOpinions(
 }
 
 async function processJob(job: WorkerJob): Promise<WorkerResult> {
-  const native = await deriveDocumentNative({
-    kind: "a2aj", source_doc: true, input: {
+  const structure = structureNative();
+  const native = await structure.deriveDocumentStructure({
+    kind: "a2aj", input: {
       citation: job.citation, source_kind: "cases", text: job.text,
       url: job.url, alternate_citation: job.alternateCitation,
       dataset: job.dataset, name: job.name,
     },
   });
-  const text = documentTextNative(native);
-  const blocks = documentAnchorsNative(native);
+  const text = structure.documentText(native);
+  const blocks = structure.documentAnchors(native);
   const paragraphs = blocks.filter((block) => block.kind === "paragraph");
   const pages = blocks
     .filter((block) => block.kind === "page")

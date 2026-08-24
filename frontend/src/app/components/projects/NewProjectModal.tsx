@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Upload, User, X } from "lucide-react";
-import { addDocumentToProject, createProject, directoryResource,
+import { addDocumentToProject, createProject, directoryResource, uploadDocumentsSettled,
     type UserLookupResult } from "@/app/lib/beaverApi";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
@@ -48,12 +48,15 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             if (!createdProject) setCreatedProject(project);
             const projectFiles = directoryResource({ projectId: project.id });
             const additions = [
-                ...documents.map(({ id }) => ({ kind: "document" as const, id,
-                    run: addDocumentToProject(project.id, id) })),
-                ...files.map((file) => ({ kind: "file" as const, id: file.name,
-                    run: projectFiles.uploadDocument(file) })),
+                ...documents.map(({ id }) => ({ kind: "document" as const, id })),
+                ...files.map((file) => ({ kind: "file" as const, id: file.name })),
             ];
-            const results = await Promise.allSettled(additions.map(({ run }) => run));
+            const [documentResults, fileResults] = await Promise.all([
+                Promise.allSettled(documents.map(({ id }) =>
+                    addDocumentToProject(project.id, id))),
+                uploadDocumentsSettled(files, projectFiles.uploadDocument),
+            ]);
+            const results = [...documentResults, ...fileResults];
             const succeeded = new Set(additions.flatMap((addition, index) =>
                 results[index].status === "fulfilled" ? [`${addition.kind}:${addition.id}`] : []));
             setDocuments((current) => current.filter(({ id }) =>

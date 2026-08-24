@@ -1,4 +1,3 @@
-import { quoteWordsNative, textPhraseSpansNative } from "../../src/lib/structureNative";
 import { ATTRIBUTIONS } from "./caseTreatment";
 
 // Keep issue and target evidence on one speaker/source vocabulary.
@@ -149,27 +148,16 @@ export function resolveUniqueGroundedQuote(
   text: string,
   base: number,
   quote: string,
-  source = text,
 ): ExactQuote | string {
   const relativeStart = text.indexOf(quote);
   if (relativeStart >= 0 && text.indexOf(quote, relativeStart + 1) < 0) {
     return { quote, start: base + relativeStart, end: base + relativeStart + quote.length };
   }
-  const words = quoteWordsNative(quote);
-  if (words.length < 4) return relativeStart < 0 ? "quote is missing" : "quote is not unique";
-  const spans = textPhraseSpansNative(source, words, undefined, undefined, false, 2);
-  if (!spans.length) return "quote is missing";
-  if (spans.length > 1) return "quote is not unique";
-  const span = spans[0];
-  return {
-    quote: text.slice(span.start, span.end),
-    start: base + span.start,
-    end: base + span.end,
-  };
+  return relativeStart < 0 ? "quote is missing" : "quote is not unique";
 }
 
-function exactQuote(opinion: OpinionInput, quote: string, source: string): ExactQuote | string {
-  const resolved = resolveUniqueGroundedQuote(opinion.text, opinion.start, quote, source);
+function exactQuote(opinion: OpinionInput, quote: string): ExactQuote | string {
+  const resolved = resolveUniqueGroundedQuote(opinion.text, opinion.start, quote);
   return typeof resolved === "string" && resolved === "quote is missing"
     ? "quote is missing from the opinion"
     : typeof resolved === "string" && resolved === "quote is not unique"
@@ -177,7 +165,7 @@ function exactQuote(opinion: OpinionInput, quote: string, source: string): Exact
     : resolved;
 }
 
-function quoteCandidates(opinion: OpinionInput, quote: string, source: string): ExactQuote[] {
+function quoteCandidates(opinion: OpinionInput, quote: string): ExactQuote[] {
   const exact: ExactQuote[] = [];
   for (let cursor = 0; exact.length < 32;) {
     const start = opinion.text.indexOf(quote, cursor);
@@ -185,24 +173,16 @@ function quoteCandidates(opinion: OpinionInput, quote: string, source: string): 
     exact.push({ quote, start: opinion.start + start, end: opinion.start + start + quote.length });
     cursor = start + Math.max(1, quote.length);
   }
-  if (exact.length) return exact;
-  const words = quoteWordsNative(quote);
-  if (words.length < 4) return [];
-  return textPhraseSpansNative(source, words, undefined, undefined, false, 32).map((span) => ({
-    quote: opinion.text.slice(span.start, span.end),
-    start: opinion.start + span.start,
-    end: opinion.start + span.end,
-  }));
+  return exact;
 }
 
 function exactDiscussionSpan(
   opinion: OpinionInput,
   startQuote: string,
   endQuote: string,
-  source: string,
 ) {
-  const starts = quoteCandidates(opinion, startQuote, source);
-  const ends = quoteCandidates(opinion, endQuote, source);
+  const starts = quoteCandidates(opinion, startQuote);
+  const ends = quoteCandidates(opinion, endQuote);
   if (!starts.length) return "start quote is missing from the opinion";
   if (!ends.length) return "end quote is missing from the opinion";
   const pairs = starts.flatMap((start) => ends
@@ -221,7 +201,6 @@ export function resolveIssueCards(
   rejections: Array<{ issueId: string; errors: string[] }>;
 } {
   const opinionById = new Map(opinions.map((opinion) => [opinion.id, opinion]));
-  const sourceByOpinionId = new Map(opinions.map((opinion) => [opinion.id, opinion.text]));
   const seenCards = new Set<string>();
   const accepted: ResolvedIssueCard[] = [];
   const rejections: Array<{ issueId: string; errors: string[] }> = [];
@@ -240,7 +219,7 @@ export function resolveIssueCards(
         return [];
       }
       evidenceIds.add(item.id);
-      const quote = exactQuote(opinion, item.quote, sourceByOpinionId.get(opinion.id)!);
+      const quote = exactQuote(opinion, item.quote);
       if (typeof quote === "string") {
         errors.push(`${item.id} ${quote}`);
         return [];
@@ -249,8 +228,7 @@ export function resolveIssueCards(
     }) : [];
 
     const discussionSpans = opinion ? card.discussion_spans.flatMap((span, index) => {
-      const source = sourceByOpinionId.get(opinion.id)!;
-      const resolved = exactDiscussionSpan(opinion, span.start_quote, span.end_quote, source);
+      const resolved = exactDiscussionSpan(opinion, span.start_quote, span.end_quote);
       if (typeof resolved === "string") {
         errors.push(`discussion ${index + 1} ${resolved}`);
         return [];

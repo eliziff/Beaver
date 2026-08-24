@@ -8,7 +8,6 @@ import {
   detectCaseTargetOccurrences,
 } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk.ts";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 
 type Json = Record<string, any>;
 
@@ -42,7 +41,7 @@ function freezeKey(pair: Json) {
 }
 
 function occurrences(sourceText: string, target: Json) {
-  return detectCaseTargetOccurrences(createTextSourceDoc(sourceText), {
+  return detectCaseTargetOccurrences(sourceText, {
     citation: String(target.citation),
     citationAliases: Array.isArray(target.citation_aliases) ? target.citation_aliases : [],
     name: typeof target.name === "string" ? target.name : null,

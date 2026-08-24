@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // Materialize the deliberately minimal one-range-per-quote candidate.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
-import { resolveCachedSourceUrl } from "./source-representation.mjs";
+import {
+  cachedDerivedPdfEvidence,
+} from "./source-representation.mjs";
 
 const here = import.meta.dirname;
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 (globalThis as { __dirname?: string }).__dirname = path.join(here, "../../backend/src/lib");
 const {
   buildCoreRangePinpointUrl,
   buildLineCorePinpointUrl,
-  buildMaximalPinpointUrl,
+  buildMaximalPinpointPlan,
   maximalCoreQuotes,
   sourceUrl,
 } = await import("./builder-candidate.ts");
@@ -65,15 +69,28 @@ const rows = seeds.map((seed) => {
   const documentKey = seedDocumentKey(seed);
   const documentText = doctext.get(documentKey ?? "");
   if (documentText) fullDocuments += 1;
+  const source = sourceUrl(seed.url, seed.anchor) ?? seed.url;
   const evidence = {
-    url: resolveCachedSourceUrl(sourceUrl(seed.url, seed.anchor) ?? seed.url),
+    url: source,
+    verifiedPdf: cachedDerivedPdfEvidence(source),
     ...(seed.anchor ? { anchor: seed.anchor } : {}),
     blockText: seed.blockText ?? "",
     ...(documentText ? { documentText } : {}),
   };
   let target;
+  let paintQuotes;
+  let sourceWordIntervals;
+  let sourceSafeComplete;
+  let paintedWords;
   if (mode === "range") target = buildCoreRangePinpointUrl(evidence, seed.quotes ?? [], boundary);
-  else if (mode === "maximal") target = buildMaximalPinpointUrl(evidence, seed.quotes ?? []);
+  else if (mode === "maximal") {
+    const plan = buildMaximalPinpointPlan(evidence, seed.quotes ?? []);
+    target = plan.target;
+    paintQuotes = plan.paintQuotes;
+    sourceWordIntervals = plan.sourceWordIntervals;
+    sourceSafeComplete = plan.sourceSafeComplete;
+    paintedWords = plan.paintedWords;
+  }
   else {
     const candidate = buildLineCorePinpointUrl(evidence, seed.quotes ?? []);
     const fragment = candidate.split(":~:")[1];
@@ -88,7 +105,9 @@ const rows = seeds.map((seed) => {
   }
   return {
     ...seed,
-    paintQuotes: maximalCoreQuotes(evidence, seed.quotes ?? []),
+    paintQuotes: paintQuotes ?? maximalCoreQuotes(evidence, seed.quotes ?? []),
+    ...(mode === "maximal" && { sourceWordIntervals }),
+    ...(sourceSafeComplete !== undefined && { sourceSafeComplete, paintedWords }),
     target,
   };
 });
@@ -105,6 +124,9 @@ console.log(JSON.stringify({
   blockFallbacks: rows.length - fullDocuments,
   links: rows.filter((row) => directives(row.target)).length,
   directives: rows.reduce((sum, row) => sum + directives(row.target), 0),
+  sourceSafeComplete: rows.filter((row) => row.sourceSafeComplete === true).length,
+  sourceSafeIncomplete: rows.filter((row) => row.sourceSafeComplete === false).length,
+  paintedWords: rows.reduce((sum, row) => sum + (row.paintedWords ?? 0), 0),
   averageUrl: Math.round(rows.reduce((sum, row) => sum + row.target.length, 0) / rows.length),
   maximumUrl: Math.max(...rows.map((row) => row.target.length)),
   output,

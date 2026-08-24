@@ -5,20 +5,18 @@ import {
   createTnaEvidence,
   createPublicJournalPassageEvidence,
 } from "../legalEvidence";
-import {
-  citationPresentationText,
-  presentLegalEvidence,
-} from "../citationPresentation";
-import { deriveDocumentNative } from "../../structureNative";
+import { presentLegalEvidence } from "../citationPresentation";
+import { structureNative } from "../../structureNative";
 
 describe("legal evidence citation presentation", () => {
-  it("owns authority, McGill locator, and source/passage destinations", () => {
+  it("owns authority, McGill locator, and source/passage destinations", async () => {
+    const text = "The appeal is allowed.";
     const receipt = createTnaEvidence({
       jurisdiction: "CA",
       sourceClass: "case",
       stableSourceId: "case:1",
-      sourceText: "The appeal is allowed.",
-      spanText: "The appeal is allowed.",
+      sourceText: text,
+      spanText: text,
       citation: "2026 SCC 1",
       name: "Example v State",
       dataset: "fixture",
@@ -26,8 +24,12 @@ describe("legal evidence citation presentation", () => {
       locatorKind: "paragraph",
       locatorLabel: "par12",
     });
-    const presented = presentLegalEvidence({ receipt });
-    expect(citationPresentationText(presented.authority)).toBe("Example v State, 2026 SCC 1");
+    const source = await structureNative().deriveDocumentStructure({
+      kind: "a2aj",
+      input: { citation: receipt.citation, source_kind: "cases", text },
+    });
+    const presented = presentLegalEvidence({ receipt, source });
+    expect(presented.authority).toBe("Example v State, 2026 SCC 1");
     expect(presented.locator).toEqual({ separator: " at ", text: "para 12" });
     expect(presented.sourceUrl).toBe("https://example.test/case");
     expect(presented.passageUrl).toContain("https://example.test/case#:~:text=");
@@ -55,7 +57,7 @@ describe("legal evidence citation presentation", () => {
       locatorKind: "section",
       locatorLabel: "sec77",
     });
-    const source = await deriveDocumentNative({
+    const source = await structureNative().deriveDocumentStructure({
       kind: "a2aj",
       input: {
         citation: receipt.citation,
@@ -81,7 +83,7 @@ describe("legal evidence citation presentation", () => {
       "[42] The appellate court stated the distinctive controlling principle.";
     const url =
       "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do";
-    const source = await deriveDocumentNative({
+    const source = await structureNative().deriveDocumentStructure({
       kind: "a2aj",
       input: {
         citation: "2026 FCA 42",
@@ -100,6 +102,7 @@ describe("legal evidence citation presentation", () => {
       name: "Example v Canada",
       date: null,
       url,
+      verifiedPdf: null,
       text,
       language: "en" as const,
       upstreamLicense: null,
@@ -155,7 +158,7 @@ describe("legal evidence citation presentation", () => {
       locatorLabel: "page47",
     });
     const presented = presentLegalEvidence({ receipt });
-    expect(citationPresentationText(presented.authority)).toBe(
+    expect(presented.authority).toBe(
       "A Author, \u201cA Long Title\u201d (2025) 63:2 Alta L Rev 47",
     );
     expect(presented.locator).toEqual({ separator: " at ", text: "47" });

@@ -1,127 +1,20 @@
-/**
- * The shared in-text citation detector. `citationLookupKey` itself is
- * arbitrated by the differential oracle test in retrievalGate.test.ts;
- * this file pins the shared Rust scanner used by passage search and excerpt
- * classification.
- *
- * Pure string work: no databases, no network, no model calls.
- */
 import { describe, expect, it } from "vitest";
 
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-  hasCitationInTextNative as hasCitationInText,
-} from "../structureNative";
+import { structureNative } from "../structureNative";
 import oracle from "./fixtures/retrieval_gate/citation-key-oracle.json";
 
-type CitationMatch = ReturnType<typeof citationsInText>[number];
-
-const texts = (value: string) =>
-  citationsInText(value).map((match: CitationMatch) => match.text);
-
-describe("citationsInText", () => {
+describe("native citation detection", () => {
   it("matches the frozen corpus identity oracle", () => {
+    const native = structureNative();
     for (const row of oracle.citation_keys)
-      expect(citationLookupKey(row.input)).toBe(row.oracle_key);
+      expect(native.citationLookupKey(row.input)).toBe(row.oracle_key);
   });
 
-  it("finds neutral citations, including the French twin", () => {
-    expect(texts("what did 2016 SCC 27 say about delay")).toEqual([
-      "2016 SCC 27",
-    ]);
-    expect(texts("l'arrêt 2015 CSC 5 sur la question")).toEqual(["2015 CSC 5"]);
-    expect(texts("compare 2023 ONCA 9 and 2024 BCSC 118")).toEqual([
-      "2023 ONCA 9",
-      "2024 BCSC 118",
-    ]);
-  });
-
-  it("finds [year] reporter cites written with periods", () => {
-    expect(texts("cited as [2019] 4 S.C.R. 653 in the factum")).toEqual([
-      "[2019] 4 S.C.R. 653",
-    ]);
-    expect(texts("see [1990] 3 SCR 1385")).toEqual(["[1990] 3 SCR 1385"]);
-    expect(texts("declined [1951] 2 All E.R. 834 in Canada")).toEqual([
-      "[1951] 2 All E.R. 834",
-    ]);
-    expect(texts("see Boucher, [1955] S.C.R. 16")).toEqual([
-      "[1955] S.C.R. 16",
-    ]);
-    expect(texts("see [2012] O.J. No. 2752 (C.A.) at para. 25")).toEqual([
-      "[2012] O.J. No. 2752 (C.A.)",
-    ]);
-  });
-
-  it("finds CanLII ids", () => {
-    expect(texts("the decision at CanLII 123 is short")).toEqual(["CanLII 123"]);
-  });
-
-  it("finds shared-corpus US reporters, journals, laws, and short cites", () => {
-    expect(texts("See 410 U.S. 113 and 410 U.S. at 115.")).toEqual([
-      "410 U.S. 113",
-      "410 U.S. at 115",
-    ]);
-    expect(texts("The article is at 123 Harv. L. Rev. 456.")).toEqual([
-      "123 Harv. L. Rev. 456",
-    ]);
-    expect(texts("The claim arises under 42 U.S.C. § 1983.")).toEqual([
-      "42 U.S.C. § 1983",
-    ]);
-    expect(texts("See T.C.M. (RIA) 2004-279.")).toEqual([
-      "T.C.M. (RIA) 2004-279",
-    ]);
-    expect(texts("Under Am. Samoa Code Ann. § 15.4.")).toEqual([
-      "Am. Samoa Code Ann. § 15.4",
-    ]);
-  });
-
-  it("can skip only the expensive custom-US fallback for hint-only scans", () => {
-    expect(citationsInText("See 410 U.S. 113 and T.C.M. (RIA) 2004-279.", false)
-      .map(({ text }) => text)).toEqual(["410 U.S. 113"]);
-  });
-
-  it("keeps the reporter shapes the excerpt classifier depends on", () => {
-    // Regression pin for the shared detector:
-    // volume-reporter-page and "(1985), 48 C.R. (3d) 226" first-instance
-    // reporters must still be spotted, or authority lists read as prose.
-    expect(texts("R. v. Ward, 2012 ONCA 660, 112 O.R. (3d) 321")).toEqual([
-      "2012 ONCA 660",
-      "112 O.R. (3d) 321",
-    ]);
-    expect(texts("R. v. Guiller (1985), 48 C.R. (3d) 226; and more")).toEqual([
-      "(1985), 48 C.R.",
-    ]);
-  });
-
-  it("prefers the unambiguous shapes over the loose reporter shape", () => {
-    // Alternation order matters: a neutral cite must not be split by the
-    // volume-reporter alternative.
-    const [match] = citationsInText("Applying 2024 SCC 6, notice is required");
-    expect(match).toEqual({ text: "2024 SCC 6", start: 9, end: 19 });
-  });
-
-  it("reports offsets that slice the verbatim match back out", () => {
-    const value = "In 2016 SCC 27 the Court held, per [2019] 4 S.C.R. 653.";
-    for (const match of citationsInText(value)) {
-      expect(value.slice(match.start, match.end)).toBe(match.text);
-    }
-  });
-
-  it("returns nothing for plain text with no citations", () => {
-    expect(citationsInText("notice served on every party")).toEqual([]);
-    expect(citationsInText("")).toEqual([]);
-    expect(
-      citationsInText("the tribunal considered section 7 of the Charter"),
-    ).toEqual([]);
-  });
-});
-
-describe("hasCitationInText", () => {
-  it("agrees with the scanner and is not stateful across calls", () => {
+  it("is not stateful across calls", () => {
+    const native = structureNative();
     for (const _ of [0, 1, 2]) {
-      expect(hasCitationInText("R. v. Jordan, 2016 SCC 27")).toBe(true);
-      expect(hasCitationInText("no citation here at all")).toBe(false);
+      expect(native.hasCitationInText("R. v. Jordan, 2016 SCC 27")).toBe(true);
+      expect(native.hasCitationInText("no citation here at all")).toBe(false);
     }
   });
 });

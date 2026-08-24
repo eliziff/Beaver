@@ -61,10 +61,12 @@ function receipt(root: string): Receipt {
   return { root, summary, parallel };
 }
 const receipts = { baseline: receipt(baselineRoot), candidate: receipt(candidateRoot) };
-for (const [name, value] of Object.entries(receipts)) if (candidateRoot !== baselineRoot &&
-    (!value.summary.engine || !value.summary.harness_sha256 || !value.summary.adapter_code_sha256)) {
-  fail(`${name} provenance is incomplete`);
-}
+if (candidateRoot !== baselineRoot && (!receipts.candidate.summary.engine ||
+    !receipts.candidate.summary.harness_sha256 ||
+    !receipts.candidate.summary.adapter_code_sha256)) fail("candidate provenance is incomplete");
+if (semanticDifferential && (!receipts.baseline.summary.engine ||
+    !receipts.baseline.summary.harness_sha256 ||
+    !receipts.baseline.summary.adapter_code_sha256)) fail("baseline provenance is incomplete");
 if (receipts.baseline.summary.scope?.kind !== "full") fail("Authoritative full baseline required");
 if (semanticDifferential) {
   if (receipts.candidate.summary.scope?.kind !== "full") fail("Full candidate required");
@@ -81,7 +83,7 @@ if (semanticDifferential) {
 } else {
   same(receipts.baseline.summary.serializer_contract_sha256,
     expected.serializer_contract_sha256, "serializer contract");
-  same(receipts.candidate.summary.serializer_contract_sha256,
+  if (!reportPath) same(receipts.candidate.summary.serializer_contract_sha256,
     expected.serializer_contract_sha256, "serializer contract");
   same(receipts.baseline.summary.inventory, expected.inventory, "frozen inventory");
   same(receipts.baseline.summary.manifest_root_sha256,

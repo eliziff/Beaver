@@ -1,25 +1,20 @@
 import {
   type A2AJCompiledDocument,
-  type A2AJDocument,
   type A2AJLocatorKind,
 } from "./legalSources/a2aj";
 import {
-  providerCitationsInTextNative,
-  paragraphRangeDirectiveNative,
-  textFragmentDirectivesNative,
+  structureNative,
   type NativeDocument,
 } from "./structureNative";
+import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
 import { A2AJ_CANLII_COURT_ROUTES } from "./canliiUrls";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
  * fragments verified to select exactly one place in the document.
  *
- * Everything here queries either the canonical native document or, for
- * isolated strings, the same Rust text primitives.
+ * Everything here queries the canonical native document.
  */
-
-export type QuoteSource = string | NativeDocument;
 
 type A2AJCitationIdentity = {
   citation: string | null;
@@ -31,11 +26,12 @@ type A2AJCitationIdentity = {
 
 export type LegalSourceEvidence = {
   url: string;
+  verifiedPdf?: VerifiedPdfEvidence | null;
   anchor?: string;
   /** The passage the quote must appear in. */
   blockText: string;
-  /** The corpus the fragment must be unique in; the block when absent. */
-  documentText?: QuoteSource;
+  /** The corpus the fragment must be unique in. */
+  documentText: NativeDocument;
   pageScoped?: boolean;
 };
 
@@ -151,17 +147,6 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
   if (convertedCanliiPdf) {
     url.pathname = url.pathname.replace(/\.pdf$/iu, ".html");
   }
-  // Every Competition Tribunal item has a text-layer PDF; unlike older
-  // index.do records, that representation always contains the decision.
-  if (/^decisions\.ct-tc\.gc\.ca$/iu.test(url.hostname)) {
-    const item = url.pathname.match(/^\/ct-tc\/cdo\/en\/item\/(\d+)\/index\.do$/iu);
-    if (item) {
-      url.pathname = `/ct-tc/cdo/en/${item[1]}/1/document.do`;
-      url.search = "";
-      url.hash = "";
-      return local ? url.pathname : url.toString();
-    }
-  }
   if (isDecisiaDocument(url)) {
     // INTENTIONAL, LOAD-BEARING FEATURE - text fragments cannot work on
     // Decisia without both parameters. This is not a flaw, lint, or
@@ -197,7 +182,10 @@ function sourceUrl(rawUrl: string, anchor?: string): string | null {
     resolvedAnchor = /^page=\d+$/iu.test(resolvedAnchor) ? resolvedAnchor : "";
   }
   if (bclaws) {
-    resolvedAnchor = resolvedAnchor.replace(/^sec(?=\d)/iu, "section");
+    resolvedAnchor = resolvedAnchor.replace(
+      /^sec(\d+(?:\.\d+)*)(?:\(.*\))?$/iu,
+      "section$1",
+    );
   }
   if (justiceLawsHtml) {
     resolvedAnchor = /^h-\d+$/iu.test(existingAnchor) ? existingAnchor : "";
@@ -213,23 +201,49 @@ function appendDirectives(url: string, directives: string[]) {
     : `${url}#:~:${directives.join("&")}`;
 }
 
+function isPdfSourceUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl, "http://mike.local");
+    const path = url.pathname.toLocaleLowerCase();
+    const href = url.href.toLocaleLowerCase();
+    return path.endsWith(".pdf") || path.endsWith("/document.do") ||
+      url.searchParams.get("rendition")?.toLocaleLowerCase() === "pdf" ||
+      href.includes("laws.yukon.ca/cms/images/legislation/") ||
+      href.includes("justice.gov.nt.ca/en/files/legislation/") ||
+      href.includes("princeedwardisland.ca/sites/default/files/legislation/") ||
+      /publications\.saskatchewan\.ca\/api\/v1\/products\/[^/]+\/formats\//u.test(href);
+  } catch {
+    const path = rawUrl.toLocaleLowerCase().split(/[?#]/u, 1)[0];
+    return path.endsWith(".pdf") || path.endsWith("/document.do");
+  }
+}
+
+function publisherMayAnnotateLegalReference(rawUrl: string) {
+  try {
+    return new URL(rawUrl, "http://mike.local").hostname === "www.bclaws.gov.bc.ca";
+  } catch {
+    return false;
+  }
+}
+
 function buildA2AJSourcePinpointUrl(
   source: Pick<
-    A2AJDocument,
-    "dataset" | "citation" | "alternateCitation" | "language" | "url"
+    A2AJCompiledDocument,
+    "dataset" | "citation" | "alternateCitation" | "language" | "url" |
+      "verifiedPdf"
   >,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: string,
   quotes: string[],
-  document: NativeDocument | null,
+  document: NativeDocument,
 ) {
   if (!source.url) return null;
   return buildLegalSourcePinpointUrl({
     url: source.url,
+    verifiedPdf: source.verifiedPdf,
     anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
     blockText,
-    ...(document && { documentText: document }),
-    pageScoped: locator.kind === "page",
+    documentText: document,
   }, quotes);
 }
 
@@ -239,13 +253,34 @@ export function buildLegalSourcePinpointUrl(
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
   if (!baseUrl || !evidence.blockText) return baseUrl;
-  const directives = textFragmentDirectivesNative(
+  const plan = (url: string, pdf: boolean) => structureNative().textFragmentPlan(
     evidence.blockText,
     quotes,
+    pdf,
+    publisherMayAnnotateLegalReference(url),
     evidence.documentText,
-    evidence.pageScoped === true,
   );
-  return appendDirectives(baseUrl, directives);
+  let targetUrl = baseUrl;
+  let pdf = isPdfSourceUrl(targetUrl);
+  if (!pdf && evidence.verifiedPdf?.pdfOnly) {
+    const verifiedPdfUrl = sourceUrl(evidence.verifiedPdf.url, evidence.anchor);
+    if (verifiedPdfUrl) {
+      targetUrl = verifiedPdfUrl;
+      pdf = true;
+    }
+  }
+  let selected = plan(targetUrl, pdf);
+  if (!pdf && !selected.sourceSafeComplete && evidence.verifiedPdf) {
+    const verifiedPdfUrl = sourceUrl(evidence.verifiedPdf.url, evidence.anchor);
+    if (verifiedPdfUrl) {
+      const fallback = plan(verifiedPdfUrl, true);
+      if (fallback.sourceSafeComplete || fallback.paintedWords > selected.paintedWords) {
+        targetUrl = verifiedPdfUrl;
+        selected = fallback;
+      }
+    }
+  }
+  return appendDirectives(targetUrl, selected.directives);
 }
 
 function normalizedIdentity(value: string | null | undefined) {
@@ -255,7 +290,7 @@ function normalizedIdentity(value: string | null | undefined) {
 function identityMatches(
   citation: A2AJCitationIdentity,
   source: Pick<
-    A2AJDocument,
+    A2AJCompiledDocument,
     "citation" | "alternateCitation" | "dataset"
   >,
 ) {
@@ -294,23 +329,23 @@ function isCanadianDecisionUrl(url: URL) {
 
 /** Rebuild the same A2AJ link after a prior-turn receipt has been rehydrated. */
 export function buildA2AJDocumentPinpointUrl(
-  document: A2AJDocument | A2AJCompiledDocument,
+  document: A2AJCompiledDocument,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: string,
   quotes: string[],
-  source: NativeDocument | null = "native" in document ? document.native : null,
+  source: NativeDocument | null = null,
 ) {
   return buildA2AJSourcePinpointUrl(
     document,
     locator,
     blockText,
     quotes,
-    source,
+    source ?? document.native,
   );
 }
 
 function hasCanadianCaseCitation(value: string) {
-  return providerCitationsInTextNative(value).some(({ family, year, court }) => {
+  return structureNative().providerCitationsInText(value).some(({ family, year, court }) => {
     const dataset = court?.toUpperCase() ?? "";
     return family === "neutral" &&
       (year?.startsWith("19") || year?.startsWith("20")) &&
@@ -357,13 +392,13 @@ export function buildA2AJParagraphRangeUrl(
   citation: string,
   start: string,
   end: string,
-  documents: Array<A2AJDocument | A2AJCompiledDocument>,
+  documents: A2AJCompiledDocument[],
 ) {
   const sources = new Map<
     NativeDocument,
     {
       source: NativeDocument;
-      metadata: A2AJDocument | A2AJCompiledDocument;
+      metadata: A2AJCompiledDocument;
     }
   >();
   for (const document of documents) {
@@ -374,13 +409,12 @@ export function buildA2AJParagraphRangeUrl(
         document,
       )
     ) {
-      const source = "native" in document ? document.native : null;
-      if (!source) continue;
+      const source = document.native;
       sources.set(source, { source, metadata: document });
     }
   }
   const candidates = [...sources.values()].flatMap(({ source, metadata }) => {
-    const directive = paragraphRangeDirectiveNative(source, start, end);
+    const directive = structureNative().documentParagraphRangeDirective(source, start, end);
     return directive === null ? [] : [{ metadata, directive }];
   });
   const structured = candidates.length === 1 ? candidates[0] : null;

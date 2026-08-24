@@ -1,4 +1,4 @@
-import { deriveDocumentNative } from "../structureNative";
+import { structureNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -117,7 +117,7 @@ async function fetchEmploymentTribunalCase(
         .map((value) => `<p>${escapeXmlText(value)}</p>`)
         .join("") + hiddenHtml
     : null;
-  const native = await deriveDocumentNative({
+  const native = await structureNative().deriveDocumentStructure({
     kind: "native_markup",
     input: {
       provider: "govuk-et",

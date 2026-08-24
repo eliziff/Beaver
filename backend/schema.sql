@@ -129,7 +129,8 @@ create table if not exists document_versions (
   version_number integer not null, source text not null, created_at text not null,
   filename text not null, file_type text not null, size_bytes integer not null,
   page_count integer, source_sha256 text not null, storage_path text not null,
-  pdf_storage_path text, cleanup_paths jsonb not null default '[]', provenance jsonb,
+  pdf_storage_path text, pdf_profile jsonb, cleanup_paths jsonb not null default '[]',
+  provenance jsonb,
   unique(document_id,version_number)
 );
 create table if not exists document_edits (

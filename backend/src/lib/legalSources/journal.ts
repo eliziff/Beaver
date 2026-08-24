@@ -9,10 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { legalProviderDatabase } from "../legalDataPath";
 import { positiveInteger as integer } from "../value";
 import {
-  deriveDocumentNative,
-  documentAnchorsNative,
-  documentRevisionNative,
-  documentTextNative,
+  structureNative,
   type NativeDocument,
 } from "../structureNative";
 import type {
@@ -117,18 +114,6 @@ function journalSearchDatabasePath() {
   return configured
     ? path.resolve(configured)
     : legalProviderDatabase("journals", "public_endpoint-search.sqlite");
-}
-
-function closeDatabases() {
-  for (const { connection } of databases.values()) connection.close();
-  for (const { connection } of searchDatabases.values()) connection.close();
-  for (const { connection } of finalContractDatabases.values()) {
-    connection.close();
-  }
-  databases.clear();
-  searchDatabases.clear();
-  finalContractDatabases.clear();
-  documents.clear();
 }
 
 function database() {
@@ -488,7 +473,7 @@ function finalContractPages(articleId: number): FinalContractPages | null {
 function finalContractSource(
   articleId: number, url: string, pages: FinalContractPages, pageRows: JournalPageRow[],
 ) {
-  return deriveDocumentNative({ kind: "journal", article_id: articleId, url,
+  return structureNative().deriveDocumentStructure({ kind: "journal", article_id: articleId, url,
     filename: pages.filename, page_rows: pageRows });
 }
 
@@ -526,13 +511,14 @@ async function document(
   if (cached) return cached;
   const pageRows = database()
     .prepare(
-      `SELECT page_label, pdf_page FROM article_pages
+      `SELECT CAST(page_label AS TEXT) AS page_label,
+              CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
        WHERE article_id = ? ORDER BY page_order`,
     )
     .all(articleId) as JournalPageRow[];
   const native = registered
     ? await finalContractSource(articleId, url, registered, pageRows)
-    : await deriveDocumentNative({ kind: "journal", article_id: articleId, url,
+    : await structureNative().deriveDocumentStructure({ kind: "journal", article_id: articleId, url,
         text: publicText, page_rows: pageRows });
   const document: JournalArticleDocument = {
     provider: "journal",
@@ -559,7 +545,10 @@ async function document(
 async function viewer(identifier: string) {
   const article = await document(identifier);
   if (!article) return null;
-  const anchors = documentAnchorsNative(article.native);
+  const viewer = structureNative().legalSourceViewer(
+    article.native,
+    "paragraph",
+  );
   const payload = {
     schemaVersion: "mike.legal-source.v1" as const,
     provider: "journal" as const,
@@ -582,9 +571,8 @@ async function viewer(identifier: string) {
       authors: article.authors,
       journalName: article.journalName,
     },
-    text: documentTextNative(article.native),
-    anchors,
-    truncated: false,
+    slices: viewer.slices,
+    truncated: viewer.truncated,
   };
   return {
     payload,
@@ -592,7 +580,7 @@ async function viewer(identifier: string) {
     etag: `"${crypto
       .createHash("sha256")
       .update(JSON.stringify([
-        documentRevisionNative(article.native), payload.reference, payload.metadata,
+        viewer.documentRevision, payload.reference, payload.metadata,
       ]))
       .digest("base64url")}"`,
   };
@@ -620,12 +608,9 @@ function exactJournalIdentity(value: string) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-const provider: LegalSourceProvider<
-  NativeDocument | string,
-  {
+const provider: LegalSourceProvider<{
     document: JournalArticleDocument;
-  }
-> = {
+  }> = {
   id: "journal",
   canResolve: ({ kind }) => kind === "journal",
   async resolve(request) {
@@ -703,8 +688,5 @@ const provider: LegalSourceProvider<
 };
 
 export const journalLegalSourceProvider = Object.assign(provider, {
-  closeDatabases,
-  find: findArticles,
-  document,
   viewer,
 });

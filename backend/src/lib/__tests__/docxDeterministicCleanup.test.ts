@@ -1,9 +1,8 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import {
-  fixDocxSupraCrossReferencesNative as fixDocxSupraCrossReferences,
-  hasDocxSupraReferencesNative as hasDocxSupraReferences,
-} from "../structureNative";
+import { structureNative } from "../structureNative";
+
+const { fixDocxSupraCrossReferences, hasDocxSupraReferences } = structureNative();
 
 const W =
   "http://schemas.openxmlformats.org/wordprocessingml/2006/main";

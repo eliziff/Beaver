@@ -195,35 +195,26 @@ function Get-Python {
     return $python
 }
 
-function Resolve-LegalPdfBinary {
-    $configured = Get-ConfigValue 'LEGALPDF_BINARY'
+function Resolve-LegalStructureNative {
+    $configured = Get-ConfigValue 'LEGAL_STRUCTURE_NATIVE'
     if ($configured) {
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
             return (Resolve-Path -LiteralPath $configured).Path
         }
-        $resolved = Resolve-Application @($configured)
-        if ($resolved) {
-            return $resolved
-        }
-        throw "LEGALPDF_BINARY does not resolve to an executable: $configured"
+        throw "LEGAL_STRUCTURE_NATIVE does not resolve to a library: $configured"
     }
-    $managed = Join-Path $Repo 'legal-pdf-parser\target\release\legalpdf.exe'
+    $filename = if ($IsWindows -or $env:OS -eq 'Windows_NT') {
+        'legal_structure_node.dll'
+    } elseif ($IsMacOS) {
+        'liblegal_structure_node.dylib'
+    } else {
+        'liblegal_structure_node.so'
+    }
+    $managed = Join-Path $Repo "native\legal-structure-node\target\release\$filename"
     if (Test-Path -LiteralPath $managed -PathType Leaf) {
         return (Resolve-Path -LiteralPath $managed).Path
     }
-    $installed = Resolve-Application @('legalpdf.exe', 'legalpdf')
-    if ($installed) {
-        return $installed
-    }
-    throw 'Legal PDF Rust binary is missing. Run: cargo build --release --features full --manifest-path .\legal-pdf-parser\Cargo.toml'
-}
-
-function Get-LegalPdfRuntimeVersion([string]$Binary) {
-    $version = Get-CommandVersion $Binary @('--version')
-    if ([string]$version -notmatch '^legalpdf \d+\.\d+\.\d+$') {
-        throw "Unexpected Legal PDF runtime version output: '$version'"
-    }
-    return $version.ToString().Trim()
+    throw 'Legal structure native module is missing. Build native/legal-structure-node once for this platform.'
 }
 
 function Get-ConfigValue([string]$Name) {
@@ -421,9 +412,8 @@ function Invoke-Doctor {
         $failed = $true
     }
     try {
-        $legalPdfBinary = Resolve-LegalPdfBinary
-        $legalPdfVersion = Get-LegalPdfRuntimeVersion $legalPdfBinary
-        Write-Host "Legal PDF: $legalPdfVersion ($legalPdfBinary)"
+        $legalStructureNative = Resolve-LegalStructureNative
+        Write-Host "Legal structure native module: $legalStructureNative"
     }
     catch {
         Write-Host "ERROR: $($_.Exception.Message)"
@@ -520,8 +510,7 @@ function Start-Stack {
     Assert-Builds
     $node = Get-Node
     $codex = Resolve-Codex -Optional
-    $legalPdfBinary = Resolve-LegalPdfBinary
-    [void](Get-LegalPdfRuntimeVersion $legalPdfBinary)
+    $legalStructureNative = Resolve-LegalStructureNative
     if ($WithTableOfAuthorities) { [void](Get-Python) }
     Assert-PortsFree
 
@@ -534,14 +523,14 @@ function Start-Stack {
     Write-State $state
     $launched = @()
     $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_COMMAND', 'Process')
-    $previousLegalPdfBinary = [Environment]::GetEnvironmentVariable('LEGALPDF_BINARY', 'Process')
+    $previousLegalStructureNative = [Environment]::GetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', 'Process')
     $previousNodeEnvironment = [Environment]::GetEnvironmentVariable('NODE_ENV', 'Process')
     try {
         # Pin resolved executables for the Beaver child; PATH is untouched.
         if ($codex) {
             [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $codex, 'Process')
         }
-        [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $legalPdfBinary, 'Process')
+        [Environment]::SetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', $legalStructureNative, 'Process')
 
         $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
         [Environment]::SetEnvironmentVariable('PORT', '3000', 'Process')
@@ -569,7 +558,7 @@ function Start-Stack {
     }
     finally {
         [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $previousCodex, 'Process')
-        [Environment]::SetEnvironmentVariable('LEGALPDF_BINARY', $previousLegalPdfBinary, 'Process')
+        [Environment]::SetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', $previousLegalStructureNative, 'Process')
         [Environment]::SetEnvironmentVariable('PORT', $previousPort, 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', $previousNodeEnvironment, 'Process')
     }

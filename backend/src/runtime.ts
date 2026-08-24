@@ -1,5 +1,5 @@
 import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
-import { availableParallelism, totalmem } from "node:os";
+import { availableParallelism, constants, setPriority, totalmem } from "node:os";
 import type { ChatToolContext } from "./lib/chat/turnEngine";
 import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope } from "./lib/chatStore";
@@ -18,6 +18,7 @@ const lazy = <T>(load: () => Promise<T>) => {
   return () => value ??= load();
 };
 const local = isLocalRuntime();
+if (local) setPriority(constants.priority.PRIORITY_BELOW_NORMAL);
 function enabled(name: string, fallback: boolean) {
   const value = process.env[name]?.trim().toLowerCase();
   if (!value) return fallback;
@@ -26,7 +27,7 @@ function enabled(name: string, fallback: boolean) {
   throw new Error(`${name} must be true or false`);
 }
 const capabilities = { connectors: enabled("MCP_CONNECTORS_ENABLED", !local) };
-const preparationWorkers = Math.min(4,
+const preparationWorkers = local ? 1 : Math.min(4,
   Math.max(1, Math.floor(availableParallelism() / 8)),
   Math.max(1, Math.floor(totalmem() / (8 * 1024 ** 3))));
 const connectors = lazy(async () => {

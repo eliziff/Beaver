@@ -11,8 +11,7 @@
  * Deterministic: extract definition bodies per document, normalize
  * conservatively (whitespace + quote glyphs only), diff across documents.
  */
-import { documentAnchorsNative } from "../../src/lib/structureNative";
-import { deriveDocumentNative } from "../../src/lib/structureNative";
+import { structureNative } from "../../src/lib/structureNative";
 
 export interface TermDriftDoc {
   name: string;
@@ -200,12 +199,12 @@ export async function termDriftReport(
     // AUTHORITATIVE feed with the publisher's line breaks (the A2AJ lane),
     // and no such feed reaches this function.
     const analyzed = definitions.length
-      ? await deriveDocumentNative({
+      ? await structureNative().deriveDocumentStructure({
           kind: "instrument", id: doc.name, text: doc.text,
-          reconstruct_lineation: true, source_doc: true,
+          reconstruct_lineation: true,
         })
       : null;
-    const nodes = analyzed ? documentAnchorsNative(analyzed) : [];
+    const nodes = analyzed ? structureNative().documentAnchors(analyzed) : [];
     const seen = new Map<string, TermDefinition>();
     for (const def of definitions) {
       const existing = seen.get(def.term);

@@ -26,7 +26,7 @@ import {
   createA2AJPassageEvidence,
 } from "../../src/lib/chat/legalEvidence";
 import {
-  documentTextNative,
+  structureNative,
   type NativeDocumentBlock,
 } from "../../src/lib/structureNative";
 import { fnv1a64 } from "../../../experiments/legal_grounding_framing/legalClaimLint";
@@ -294,7 +294,7 @@ describe("provisional legal evidence contract", () => {
     const source = a2ajLegalSourceProvider.source(document!);
     const first = selected[0]!.blockArtifact as NativeDocumentBlock;
     const last = selected.at(-1)!.blockArtifact as NativeDocumentBlock;
-    const sourceText = documentTextNative(source!);
+    const sourceText = structureNative().documentText(source!);
     const evidence = createA2AJPassageEvidence({
       citation: caseCitation,
       name: document!.name,

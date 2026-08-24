@@ -5,10 +5,7 @@ import type {
   LegalSourceReference,
 } from ".";
 import {
-  providerCitationsInTextNative,
-  deriveDocumentNative,
-  documentHasOriginNative,
-  documentTextNative,
+  structureNative,
   type NativeDocument,
 } from "../structureNative";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -215,9 +212,13 @@ function compactCluster(raw: unknown) {
   };
 }
 
+function opinionIdentifier(opinion: JsonRecord) {
+  return asNumber(opinion.opinionId) ?? asNumber(opinion.id) ??
+    asNumber(opinion.opinion_id);
+}
+
 async function compactOpinion(
   opinion: JsonRecord,
-  maxChars: number,
   pageCitations: string[] = [],
 ) {
   // CourtListener uses html_with_citations on its own opinion pages and
@@ -239,10 +240,7 @@ async function compactOpinion(
   );
   const text = firstString(opinion, "plainText", "plain_text");
   const compacted = {
-    opinionId:
-      asNumber(opinion.opinionId) ??
-      asNumber(opinion.id) ??
-      asNumber(opinion.opinion_id),
+    opinionId: opinionIdentifier(opinion),
     type: asString(opinion.type),
     author:
       asString(opinion.author_str) ??
@@ -254,9 +252,9 @@ async function compactOpinion(
     pdfUrl: absoluteStorageUrl(opinion.storagePath ?? opinion.local_path),
   };
   if (!text && !rawMarkup) {
-    return { ...compacted, text: null };
+    return compacted;
   }
-  const native = await deriveDocumentNative({
+  const native = await structureNative().deriveDocumentStructure({
     kind: "native_markup",
     input: {
       provider: "courtlistener",
@@ -267,11 +265,7 @@ async function compactOpinion(
       pageCitations,
     },
   });
-  return {
-    ...compacted,
-    text: truncate(documentTextNative(native, maxChars + 1), maxChars),
-    native,
-  };
+  return { ...compacted, native };
 }
 
 function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
@@ -281,7 +275,7 @@ function uniqueOpinionPdfUrl(opinions: Array<{ pdfUrl: string | null }>) {
 
 function hasNativeOpinionStructure(opinion: object) {
   const document = opinionDocument(opinion);
-  return document ? documentHasOriginNative(document, "native") : false;
+  return document ? structureNative().documentHasOrigin(document, "native") : false;
 }
 
 function opinionDocument(opinion: object) {
@@ -290,8 +284,7 @@ function opinionDocument(opinion: object) {
 
 async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   clusterId: number;
-  maxChars: number;
-  includeFullText?: boolean;
+  opinionId?: number;
   apiToken?: string | null;
   signal?: AbortSignal;
 }) {
@@ -306,12 +299,10 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     args.signal,
   );
   const opinions: Awaited<ReturnType<typeof compactOpinion>>[] = [];
-  const rawOpinions: JsonRecord[] = [];
   let nextUrl: string | null = `/opinions/?cluster=${args.clusterId}`;
   let pages = 0;
-  let remainingChars = args.maxChars;
 
-  while (nextUrl && pages < MAX_OPINION_PAGES && remainingChars > 0) {
+  while (nextUrl && pages < MAX_OPINION_PAGES) {
     pages += 1;
     const data = await courtlistenerFetch<JsonRecord>(
       nextUrl,
@@ -319,24 +310,16 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
       args.apiToken,
     );
     const results = Array.isArray(data.results) ? data.results : [];
-    const opinionMaxChars = args.includeFullText
-      ? Math.max(500, Math.floor(remainingChars / Math.max(1, results.length)))
-      : Math.min(3000, remainingChars);
     const pageOpinions = results.filter(
       (opinion): opinion is JsonRecord =>
         !!opinion && typeof opinion === "object" && !Array.isArray(opinion),
     );
-    for (const opinion of pageOpinions) {
-      if (remainingChars <= 0) break;
-      const compacted = await compactOpinion(
-        opinion,
-        Math.max(1, Math.min(opinionMaxChars, remainingChars)),
-        pageCitations,
-      );
-      rawOpinions.push(opinion);
+    for (const opinion of pageOpinions.filter((opinion) =>
+      args.opinionId === undefined || opinionIdentifier(opinion) === args.opinionId)) {
+      const compacted = await compactOpinion(opinion, pageCitations);
       opinions.push(compacted);
-      remainingChars -= compacted.text?.length ?? 0;
     }
+    if (args.opinionId !== undefined && opinions.length) break;
     nextUrl = asString(data.next);
   }
 
@@ -344,7 +327,7 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
     id: args.clusterId,
     url:
       absoluteWebUrl(cluster.absolute_url) ??
-      absoluteWebUrl(rawOpinions[0]?.absolute_url) ??
+      opinions[0]?.url ??
       `${COURTLISTENER_WEB_BASE}/opinion/${args.clusterId}/`,
     pdfUrl:
       absoluteStorageUrl(cluster.filepath_pdf_harvard) ??
@@ -355,14 +338,8 @@ async function fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint(args: {
   };
 }
 
-function truncate(value: string | null, maxChars: number): string | null {
-  if (!value) return null;
-  if (value.length <= maxChars) return value;
-  return `${value.slice(0, Math.max(0, maxChars - 1))}…`;
-}
-
 function parseCitationParts(value: string) {
-  const match = providerCitationsInTextNative(value)
+  const match = structureNative().providerCitationsInText(value)
     .find(({ family }) => family === "reporter");
   if (!match?.volume || !match.reporter || !match.page) return null;
   return {
@@ -521,18 +498,17 @@ async function fetchCourtlistenerCitationLookup(args: {
   };
 }
 
-async function getBulkCourtlistenerCaseOpinions(args: {
-  clusterId: number;
-  maxChars: number;
-}) {
-  const local = getLocalCourtlistenerCase(args.clusterId);
+async function getBulkCourtlistenerCaseOpinions(clusterId: number, opinionId?: number) {
+  const local = getLocalCourtlistenerCase(clusterId);
   if (local) {
     const pageCitations = await capPageCitations(
       local.cluster.filepathJsonHarvard,
     );
-    const opinions = await Promise.all(local.opinions.map((opinion) =>
-      compactLocalOpinion(opinion, args.maxChars, pageCitations),
-    ));
+    const opinions = await Promise.all(
+      local.opinions
+        .filter((opinion) => opinionId === undefined || opinion.id === opinionId)
+        .map((opinion) => compactLocalOpinion(opinion, pageCitations)),
+    );
     return {
       ...compactLocalBulkCluster(local.cluster, local.citations, opinions),
       opinions,
@@ -544,7 +520,6 @@ async function getBulkCourtlistenerCaseOpinions(args: {
 
 async function compactLocalOpinion(
   opinion: LocalCourtlistenerOpinion,
-  maxChars: number,
   pageCitations: string[],
 ) {
   return compactOpinion(
@@ -567,7 +542,6 @@ async function compactLocalOpinion(
       xml_scan: opinion.xmlScan,
       html_with_citations: opinion.htmlWithCitations,
     },
-    maxChars,
     pageCitations,
   );
 }
@@ -714,79 +688,20 @@ async function searchCases(args: {
 }
 
 async function caseOpinions(args: {
-  clusterId?: number;
-  includeFullText?: boolean;
-  maxChars?: number;
+  clusterId: number;
+  opinionId?: number;
   apiToken?: string | null;
   signal?: AbortSignal;
 }) {
-  if (!args.clusterId || !Number.isFinite(args.clusterId)) {
-    return { error: "clusterId is required." };
-  }
-  const clusterId = Math.floor(args.clusterId);
-  const maxChars = Math.max(1000, Math.min(50000, args.maxChars ?? 12000));
-  const bulk = await getBulkCourtlistenerCaseOpinions({
-    clusterId,
-    maxChars,
-  });
+  const bulk = await getBulkCourtlistenerCaseOpinions(args.clusterId, args.opinionId);
   if (bulk) return bulk;
 
   return fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint({
-    clusterId,
-    maxChars,
-    includeFullText: args.includeFullText,
+    clusterId: args.clusterId,
+    opinionId: args.opinionId,
     apiToken: args.apiToken,
     signal: args.signal,
   });
-}
-
-async function cases(args: {
-  clusterIds?: number[];
-  includeFullText?: boolean;
-  maxChars?: number;
-  apiToken?: string | null;
-  signal?: AbortSignal;
-}) {
-  const clusterIds = Array.from(
-    new Set(
-      (args.clusterIds ?? [])
-        .filter((value) => Number.isFinite(value) && value > 0)
-        .map((value) => Math.floor(value)),
-    ),
-  );
-  if (!clusterIds.length) {
-    return { error: "clusterIds is required.", cases: [] };
-  }
-
-  const cases = await Promise.all(
-    clusterIds.map(async (clusterId) => {
-      try {
-        const result = await caseOpinions({
-          clusterId,
-          includeFullText: args.includeFullText,
-          maxChars: args.maxChars,
-          apiToken: args.apiToken,
-          signal: args.signal,
-        });
-        return {
-          clusterId,
-          ...(result && typeof result === "object"
-            ? (result as JsonRecord)
-            : { result }),
-        };
-      } catch (err) {
-        return {
-          clusterId,
-          id: clusterId,
-          opinions: [],
-          error:
-            err instanceof Error ? err.message : "CourtListener case fetch failed.",
-        };
-      }
-    }),
-  );
-
-  return { cases };
 }
 
 function uniqueCitationCluster(value: unknown) {
@@ -827,11 +742,11 @@ type CourtlistenerLegalSourceNative = {
 
 function provider(
   options: CourtlistenerProviderOptions = {},
-): LegalSourceProvider<NativeDocument | string, CourtlistenerLegalSourceNative> {
+): LegalSourceProvider<CourtlistenerLegalSourceNative> {
   return {
     id: "courtlistener",
     canResolve: (request) =>
-      request.kind === "case" && providerCitationsInTextNative(request.text)
+      request.kind === "case" && structureNative().providerCitationsInText(request.text)
         .some(({ jurisdiction }) => jurisdiction === "us"),
     async resolve(request) {
       const verified = await verifyCitations({
@@ -892,36 +807,35 @@ function provider(
     async readPassage(request) {
       const clusterId = Number(request.source.id);
       if (!Number.isSafeInteger(clusterId) || clusterId <= 0) return [];
-      const payload = await cases({
-        clusterIds: [clusterId],
-        includeFullText: true,
-        maxChars: 50_000,
-        apiToken: options.apiToken,
-        signal: request.signal,
-      });
-      const caseRecord = Array.isArray(payload.cases)
-        ? (payload.cases[0] as JsonRecord | undefined)
+      const wantedOpinionId = request.source.part
+        ? Number(request.source.part)
         : undefined;
-      if (!caseRecord) return [];
+      if (wantedOpinionId !== undefined &&
+          (!Number.isSafeInteger(wantedOpinionId) || wantedOpinionId <= 0)) return [];
+      let caseRecord: JsonRecord;
+      try {
+        caseRecord = await caseOpinions({
+          clusterId,
+          opinionId: wantedOpinionId,
+          apiToken: options.apiToken,
+          signal: request.signal,
+        });
+      } catch {
+        request.signal?.throwIfAborted();
+        return [];
+      }
       const opinions = Array.isArray(caseRecord.opinions)
         ? caseRecord.opinions.filter(
             (opinion): opinion is object =>
               Boolean(opinion) && typeof opinion === "object",
           )
         : [];
-      const wantedOpinionId = request.source.part
-        ? Number(request.source.part)
-        : null;
       const caseUrl = asString(caseRecord.url);
       return opinions.flatMap((opinion) => {
         const opinionRecord = opinion as JsonRecord;
-        const opinionId =
-          asNumber(opinionRecord.opinionId) ??
-          asNumber(opinionRecord.id) ??
-          asNumber(opinionRecord.opinion_id);
+        const opinionId = opinionIdentifier(opinionRecord);
         if (
-          wantedOpinionId !== null &&
-          (!Number.isSafeInteger(wantedOpinionId) || opinionId !== wantedOpinionId)
+          wantedOpinionId !== undefined && opinionId !== wantedOpinionId
         ) {
           return [];
         }
@@ -946,6 +860,5 @@ function provider(
 
 export const courtlistenerLegalSourceProvider = Object.assign(provider(), {
   configured: provider,
-  caseOpinions,
   hasNativeOpinionStructure,
 });

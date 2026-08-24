@@ -12,22 +12,12 @@
 // - scrollable: assert the page scrolls after the jump (default true)
 // - shouldFail: negative control — the gate PASSES only if checks FAIL
 // - blocked: site bot-walls automation; record SKIP, never FAIL
-// Also accepts the SourceDoc gate shape {host_class, locator_kind, url, expected_anchor, expected_text}.
 import { chromium } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const casesPath = process.argv[2] ?? "scripts/deeplink-gate.cases.json";
-const rawCases = JSON.parse(readFileSync(casesPath, "utf8"));
-const cases = rawCases.map((c) => ({
-  name: c.name ?? `${c.host_class}-${c.locator_kind}`,
-  url: c.url,
-  expect: c.expect ?? {
-    anchor: c.expected_anchor ?? undefined,
-    text: c.expected_text ?? undefined,
-    shouldFail: /^EXPECTED FAIL/u.test(c.note ?? "") || undefined,
-  },
-}));
+const cases = JSON.parse(readFileSync(casesPath, "utf8"));
 
 const outDir = path.join(
   "benchmarks",
