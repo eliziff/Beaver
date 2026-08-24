@@ -429,7 +429,8 @@ The July recommendation to build "contract structural lint" is now stale.
 Beaver already has deterministic cross-reference graphs
 (`legalCrossReference.ts`), term/definition drift (`legalTermDrift.ts`),
 deadline arithmetic with Canadian jurisdiction calendars (`legalDeadlines.ts`),
-amendment parsing/application (`legalAmendOps.ts`), structural DOCX lint,
+experimental amendment consolidation
+(`legal-structure/experiments/amendment-consolidation`), structural DOCX lint,
 figure reconciliation, conflict scans and evidence-backed citations. Those are
 successful examples of converting catalogue prose into machinery. They should
 be extended through their existing contracts, not proposed again under new

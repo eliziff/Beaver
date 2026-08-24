@@ -14,7 +14,6 @@ import {
   type LegalSourceResolveRequest,
   type LegalSourceSearchRequest,
 } from "./legalSources";
-import type { QuoteSource } from "./legalSourceLinks";
 import {
   govUkEmploymentTribunalLegalSourceProvider,
 } from "./legalSources/govUkEmploymentTribunal";
@@ -24,7 +23,7 @@ import { tnaLegalSourceProvider } from "./legalSources/tna";
 function createLegalSourceOperations(
   options: { courtlistener?: CourtlistenerProviderOptions } = {},
 ) {
-  return createLegalSourceRegistry<QuoteSource, unknown>(
+  return createLegalSourceRegistry<unknown>(
     [
       a2ajLegalSourceProvider,
       options.courtlistener
@@ -35,7 +34,7 @@ function createLegalSourceOperations(
       govInfoLegalSourceProvider,
       journalLegalSourceProvider,
       hansardLegalSourceProvider,
-    ] satisfies LegalSourceProvider<QuoteSource, unknown>[],
+    ] satisfies LegalSourceProvider<unknown>[],
   );
 }
 

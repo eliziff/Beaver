@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { instrumentCorpusFiles, readAgreement, readPdf, ROOT,
   type PdfCorpusFile } from "./corpus";
+import type { NativeDocument } from "../../backend/src/lib/structureNative";
 
 const BASELINE = path.join(import.meta.dirname, "structure-baseline.json");
 const REPORT = path.join(ROOT, ".tmp/instrument-structure-gate.json");
@@ -18,7 +19,6 @@ const JOBS = Number(argument("jobs") ?? 4);
 const MATCH = argument("match")?.toLowerCase();
 const AGAINST = argument("against");
 
-type NativeDocument = object;
 type Fingerprint = {
   schemaVersion: "legalpdf.document-fingerprint.v1";
   resultSha256: string;
@@ -30,7 +30,6 @@ type Addon = {
   derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
   deriveDocumentFingerprint(request: unknown): Promise<Fingerprint>;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  documentSnapshot(document: NativeDocument): unknown;
   documentText(document: NativeDocument): string;
   documentAnchors(document: NativeDocument): unknown;
 };
@@ -126,7 +125,6 @@ async function main() {
       expected: prior,
       actual,
       production: {
-        snapshot: addon.documentSnapshot(document),
         textSha256: sha256(addon.documentText(document)),
         anchors: addon.documentAnchors(document),
       },

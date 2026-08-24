@@ -30,6 +30,13 @@ function memoryRepository() {
       const value = values.get(id);
       return value?.document.userId === scope.userId ? value : null;
     },
+    async version(scope, id, versionId) {
+      const value = values.get(id);
+      return value?.document.userId === scope.userId
+        ? value.versions.find((version) => version.id ===
+          (versionId ?? value.document.currentVersionId)) ?? null
+        : null;
+    },
     async getMany(scope, ids) {
       return ids.flatMap((id) => {
         const value = values.get(id);

@@ -5,13 +5,12 @@ import path from "node:path";
 
 import { spreadsheetToLLMStructure } from "../../backend/src/lib/spreadsheet";
 import {
-  deriveDocumentNative,
-  deriveDocxNative,
-  docxTableCellsNative,
-  documentAnchorsNative,
-  documentTextNative,
+  structureNative,
   type NativeDocument,
+  type NativeDocumentBlock,
 } from "../../backend/src/lib/structureNative";
+
+const native = structureNative();
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RESULTS = path.join(import.meta.dirname, "results");
@@ -25,6 +24,7 @@ type Artifact = { path: string; bytes: number; sha256: string; format: string };
 type TableCellSpan = {
   table: number; tableName?: string; row: number; column: number;
   address?: string; columnSpan?: number; rowSpan?: number;
+  displayValue?: string;
   start: number; end: number;
 };
 type RawResult = Artifact & {
@@ -119,17 +119,43 @@ function normalizeError(error: unknown): string {
     .slice(0, 300);
 }
 
+function projectedNode(node: Pick<NativeDocumentBlock,
+  "kind" | "label" | "start" | "end" | "parentLabel">) {
+  return {
+    kind: node.kind,
+    label: node.label,
+    start: node.start,
+    end: node.end,
+    ...(node.parentLabel ? { parentLabel: node.parentLabel } : {}),
+  };
+}
+
+function docxTableCells(document: NativeDocument): TableCellSpan[] {
+  return native.documentTableCells(document).map((cell) => ({
+    table: cell.table,
+    tableName: cell.tableName,
+    row: cell.row,
+    column: cell.column,
+    address: cell.address,
+    displayValue: cell.displayValue,
+    ...(cell.columnSpan ? { columnSpan: cell.columnSpan } : {}),
+    ...(cell.rowSpan ? { rowSpan: cell.rowSpan } : {}),
+    start: cell.start,
+    end: cell.end,
+  }));
+}
+
 async function extract(artifact: Artifact): Promise<RawResult> {
   const bytes = await fs.readFile(path.join(ROOT, artifact.path));
   let extracted: { text: string; tableCells: TableCellSpan[] };
-  let native: NativeDocument | undefined;
+  let document: NativeDocument | undefined;
   try {
     extracted = artifact.format === ".docx"
       ? await (async () => {
-          native = await deriveDocxNative(bytes, artifact.path);
+          document = await native.deriveDocxDocument(bytes, artifact.path);
           return {
-            text: documentTextNative(native),
-            tableCells: docxTableCellsNative(native),
+            text: native.documentText(document),
+            tableCells: docxTableCells(document),
           };
         })()
       : await spreadsheetToLLMStructure(bytes);
@@ -138,11 +164,11 @@ async function extract(artifact: Artifact): Promise<RawResult> {
   }
   if (!extracted.tableCells.length) return { ...artifact, status: "no_cells" };
   try {
-    native ??= await deriveDocumentNative({
+    document ??= await native.deriveDocumentStructure({
       kind: "instrument", id: artifact.path, text: extracted.text,
       table_cells: extracted.tableCells, reconstruct_lineation: true,
     });
-    const nodes = documentAnchorsNative(native);
+    const nodes = native.documentAnchors(document).map(projectedNode);
     return {
       ...artifact,
       status: "table_facts",

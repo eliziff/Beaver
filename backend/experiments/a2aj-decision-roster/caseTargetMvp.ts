@@ -4,11 +4,9 @@ import {
   resolveIssueCards,
   type ModelIssueCard,
 } from "./caseSemanticMvp";
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-  quoteWordsNative,
-} from "../../src/lib/structureNative";
+import { structureNative } from "../../src/lib/structureNative";
+
+const { citationLookupKey, providerCitationsInText: citationsInText } = structureNative();
 import {
   ATTRIBUTIONS,
   DIRECT_HISTORY_LABELS,
@@ -54,17 +52,19 @@ type TargetNamePhrase = {
 
 function targetNamePhrases(name: string | null): TargetNamePhrase[] {
   if (!name?.trim()) return [];
+  const words = (value: string) => value.toLocaleLowerCase()
+    .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [];
   const full = name.trim();
   const sides = full.split(/\s+v(?:\.|ersus)?\s+/iu);
   const crown = sides.length > 1 && /^(?:r\.?|the\s+(?:king|queen)|(?:his|her)\s+majesty)/iu.test(sides[0].trim());
-  const firstSideWords = quoteWordsNative(sides[0]);
+  const firstSideWords = words(sides[0]);
   const genericFirstSide = sides.length > 1 && firstSideWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(firstSideWords[0]);
   const preferredParty = (crown || genericFirstSide ? sides[1] : sides[0])
     .replace(/^the\s+/iu, "")
     .replace(/\s*\([^)]*\)\s*$/u, "")
     .replace(/(?:,?\s+(?:incorporated|inc\.?|limited|ltd\.?|corporation|corp\.?))\s*$/iu, "")
     .trim();
-  const partyWords = quoteWordsNative(preferredParty);
+  const partyWords = words(preferredParty);
   const first = partyWords[0] ?? "";
   const derivedPartyWords = partyWords.length === 1 && GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase()) ? [] : partyWords;
   const shortWords = sides.length === 1
@@ -72,7 +72,7 @@ function targetNamePhrases(name: string | null): TargetNamePhrase[] {
     : first.length >= 5 && !GENERIC_CASE_PARTY_WORDS.has(first.toLocaleLowerCase())
       ? [first]
       : derivedPartyWords.slice(0, 2);
-  const fullWords = quoteWordsNative(full);
+  const fullWords = words(full);
   const phrases = [
     { words: fullWords, fullStyleOfCause: true },
     { words: derivedPartyWords, fullStyleOfCause: false },
@@ -465,8 +465,8 @@ type ParticipantInput = {
 
 type ExactQuote = { quote: string; start: number; end: number };
 
-function exactQuote(text: string, base: number, quote: string, source?: string): ExactQuote | string {
-  return quote ? resolveUniqueGroundedQuote(text, base, quote, source) : "quote is empty";
+function exactQuote(text: string, base: number, quote: string): ExactQuote | string {
+  return quote ? resolveUniqueGroundedQuote(text, base, quote) : "quote is empty";
 }
 
 function containingOpinion(opinions: readonly OpinionInput[], start: number, end: number) {
@@ -537,8 +537,6 @@ export function resolveCaseTargetMvp(args: {
   const errors: string[] = [];
   const normalizedEvidence = normalizeOpinionPositionEvidence(args.opinionPositions);
   const opinionPositions = normalizedEvidence.positions;
-  const sourceDoc = args.sourceText;
-  const opinionDocs = new Map(args.opinions.map((opinion) => [opinion.id, opinion.text]));
   const duplicateIssueIds = duplicateKeys(args.caseIssues, ({ id }) => id);
   const issueById = new Map<string, ModelCaseIssue>();
   for (const issue of args.caseIssues) {
@@ -626,7 +624,7 @@ export function resolveCaseTargetMvp(args: {
     }
     if (!join.evidence_quotes.length) local.push("missing evidence quote");
     for (const quote of join.evidence_quotes) {
-      const evidence = exactQuote(args.sourceText, 0, quote, sourceDoc);
+      const evidence = exactQuote(args.sourceText, 0, quote);
       if (typeof evidence === "string") local.push(`evidence ${evidence}`);
     }
     if (local.length === 0) {
@@ -727,8 +725,8 @@ export function resolveCaseTargetMvp(args: {
         local.push(`issue ${issueId} is absent from every linked mention`);
       }
     }
-    const opinionDoc = opinion ? opinionDocs.get(opinion.id)! : undefined;
-    const evidence = opinion ? exactQuote(opinion.text, opinion.start, normalizedTreatment.evidence_quote, opinionDoc) : "opinion is unavailable";
+    const evidence = opinion ? exactQuote(opinion.text, opinion.start,
+      normalizedTreatment.evidence_quote) : "opinion is unavailable";
     const proposition = normalizedTreatment.target_proposition_as_characterized?.trim() || null;
     if (typeof evidence === "string" && opinion) local.push(`evidence ${evidence} in ${opinion.id}`);
     if (normalizedTreatment.target_proposition_as_characterized !== null && proposition === null) {
@@ -758,7 +756,7 @@ export function resolveCaseTargetMvp(args: {
   for (const history of args.targetDirectHistory) {
     const local: string[] = [];
     if (duplicateHistoryIds.has(history.id)) local.push("duplicate direct-history id");
-    const sourceEvidence = exactQuote(args.sourceText, 0, history.evidence_quote, sourceDoc);
+    const sourceEvidence = exactQuote(args.sourceText, 0, history.evidence_quote);
     const opinionId = typeof sourceEvidence === "string"
       ? history.opinion_id
       : containingOpinion(args.opinions, sourceEvidence.start, sourceEvidence.end)?.id ?? null;
@@ -775,7 +773,7 @@ export function resolveCaseTargetMvp(args: {
     const evidence = typeof sourceEvidence !== "string"
       ? sourceEvidence
       : opinion
-        ? exactQuote(opinion.text, opinion.start, history.evidence_quote, opinionDocs.get(opinion.id)!)
+        ? exactQuote(opinion.text, opinion.start, history.evidence_quote)
         : sourceEvidence;
     mentions.forEach((mention) => {
       if (opinionId !== null && mention.opinion_id !== null && mention.opinion_id !== opinionId) {

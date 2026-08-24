@@ -25,10 +25,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { a2ajLocalBulkPath } from "../../src/lib/a2ajLocalBulk";
 import { citationAliasKeysBatch } from "../../src/lib/caselawCitator";
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-} from "../../src/lib/structureNative";
+import { structureNative } from "../../src/lib/structureNative";
 import { withReadonlySqlite } from "../../src/lib/legalDataPath";
 import {
   passageIndexPath,
@@ -37,6 +34,8 @@ import {
   type PassageHit,
 } from "./passageRetrieval";
 import { rerankPassages } from "./retrievalRerank";
+
+const { citationLookupKey, providerCitationsInText: citationsInText } = structureNative();
 
 type Row = Record<string, unknown>;
 type Language = "en" | "fr";
@@ -107,7 +106,7 @@ function languageField(row: Row, field: string, language: Language) {
 
 /**
  * Citation-shaped substrings of a natural-language query come from the
- * shared detector (`citationsInText`). The whole query and its
+ * shared provider detector. The whole query and its
  * comma/semicolon fragments are tried too, so a query that IS a citation
  * ("RSA 2000, c A-4.2") resolves without a shape rule for every reporter.
  */

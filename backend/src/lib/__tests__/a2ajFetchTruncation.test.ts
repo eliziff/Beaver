@@ -13,7 +13,7 @@ vi.mock("../remoteUrlSafety", async (importOriginal) => ({
 
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { readLegalSourcePassage } from "../legalSourceRegistry";
-import { documentTextNative, type NativeDocument } from "../structureNative";
+import { structureNative, type NativeDocument } from "../structureNative";
 
 beforeEach(() => {
   // This suite probes provider truncation, not the machine's local corpus.
@@ -117,6 +117,6 @@ describe("unified A2AJ document reads", () => {
       label: "par2",
       text: selected.text,
     });
-    expect(documentTextNative(selected.documentArtifact as NativeDocument)).toBe(text);
+    expect(structureNative().documentText(selected.documentArtifact as NativeDocument)).toBe(text);
   });
 });

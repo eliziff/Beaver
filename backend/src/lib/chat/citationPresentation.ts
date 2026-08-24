@@ -5,24 +5,16 @@ import {
   legalSourceLocatorAnchor,
 } from "../legalSourceLinks";
 import { buildCanliiCaseUrl } from "../canliiUrls";
-import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
-import {
-  tokenizeLegalInline,
-  type LegalInlineToken,
-} from "../legalSourcePresentation";
+import { plainInlineText } from "../legalSourcePresentation";
 import type { RegisteredEvidence } from "./legalEvidence";
 
 export type CitationPresentation = {
-  authority: LegalInlineToken[];
-  shortAuthority: LegalInlineToken[];
+  authority: string;
+  shortAuthority: string;
   locator: { separator: " at " | ", "; text: string } | null;
   sourceUrl: string | null;
   passageUrl: string | null;
 };
-
-export function citationPresentationText(tokens: LegalInlineToken[]) {
-  return tokens.map(({ text }) => text).join("");
-}
 
 function receiptLocator(entry: RegisteredEvidence): CitationPresentation["locator"] {
   const { kind, label } = entry.receipt.locator;
@@ -46,8 +38,7 @@ export function presentLegalEvidence(
   quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
 ): CitationPresentation {
   const { receipt, document } = entry;
-  const source = entry.source ?? (document
-    ? a2ajLegalSourceProvider.source(document) : null);
+  const source = entry.source ?? document?.native ?? null;
   const retrievedSourceUrl = document?.url ?? receipt.external_url;
   // The ordinary authority link may use CanLII. Passage links must stay on the
   // provider document whose text was actually used to verify the fragment.
@@ -90,7 +81,7 @@ export function presentLegalEvidence(
         )
       : null
     : null;
-  const passageUrl = fragmentSourceUrl && receipt.span_text
+  const passageUrl = fragmentSourceUrl && receipt.span_text && source
     ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
           {
             url: fragmentSourceUrl,
@@ -102,7 +93,7 @@ export function presentLegalEvidence(
                 )
               : undefined,
             blockText: receipt.span_text,
-            ...(source && { documentText: source }),
+            documentText: source,
           },
           quotes,
         )
@@ -115,8 +106,8 @@ export function presentLegalEvidence(
       ? `${name}, ${citation}`
       : citation || name || "Source";
   return {
-    authority: tokenizeLegalInline(authority),
-    shortAuthority: tokenizeLegalInline(name || citation || "Source"),
+    authority: plainInlineText(authority),
+    shortAuthority: plainInlineText(name || citation || "Source"),
     locator: receiptLocator(entry),
     sourceUrl: citationUrl,
     passageUrl,

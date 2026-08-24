@@ -307,6 +307,29 @@ export type DirectoryEntry =
 export type DirectoryScope =
   | { projectId: string }
   | { library: LibraryKind };
+export async function uploadDocumentsSettled(
+  files: File[], upload: (file: File) => Promise<Document>,
+) {
+  const results = new Array<PromiseSettledResult<Document>>(files.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
+    while (next < files.length) {
+      const index = next++;
+      try {
+        results[index] = { status: "fulfilled", value: await upload(files[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }));
+  return results;
+}
+export async function uploadDocuments(files: File[], upload: (file: File) => Promise<Document>) {
+  return (await uploadDocumentsSettled(files, upload)).map((result) => {
+    if (result.status === "rejected") throw result.reason;
+    return result.value;
+  });
+}
 export function directoryResource(scope: DirectoryScope) {
   const root = "projectId" in scope
     ? `/projects/${segment(scope.projectId)}`
@@ -314,22 +337,11 @@ export function directoryResource(scope: DirectoryScope) {
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
   const uploadDocument = (file: File) => multipartRequest<Document>(documents, file);
-  const uploadDocuments = async (files: File[]) => {
-    const uploaded = new Array<Document>(files.length);
-    let next = 0;
-    await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
-      while (next < files.length) {
-        const index = next++;
-        uploaded[index] = await uploadDocument(files[index]);
-      }
-    }));
-    return uploaded;
-  };
   return {
     list: (options: PageQuery & { parent_id?: string | null } = {}, signal?: AbortSignal) =>
       apiRequest<Page<DirectoryEntry>>(pagePath(`${root}${"projectId" in scope ? "/directory" : ""}`, options), { signal }),
     uploadDocument,
-    uploadDocuments,
+    uploadDocuments: (files: File[]) => uploadDocuments(files, uploadDocument),
     createFolder: (name: string, parentFolderId?: string | null) =>
       post<Folder | LibraryFolder>(folders, { name, parent_folder_id: parentFolderId ?? null }),
     renameFolder: (folderId: string, name: string) =>
@@ -372,17 +384,6 @@ export interface LegalSourceCoverage {
   jurisdiction: string;
   sourceKind: "court" | "tribunal" | "legislation" | "regulation";
 }
-export type LegalSourceInlineToken =
-  | { kind: "text" | "em" | "strong" | "code" | "sup" | "sub"; text: string }
-  | { kind: "link"; text: string; href: string };
-type LegalSourceTextBlock = { text: string; inline: LegalSourceInlineToken[] };
-export type LegalSourcePresentationBlock =
-  | (LegalSourceTextBlock & { kind: "heading"; level: 2 | 3 | 4 | 5 })
-  | (LegalSourceTextBlock & { kind: "provision"; label: string; depth: number })
-  | (LegalSourceTextBlock & {
-      kind: "list-item"; marker: string; ordered: boolean; depth: number;
-    })
-  | (LegalSourceTextBlock & { kind: "blockquote" | "paragraph"; depth: number });
 export interface LegalSourceViewerPayload {
   reference: {
     docType: LegalDocumentType;
@@ -396,20 +397,22 @@ export interface LegalSourceViewerPayload {
     language: "en" | "fr";
     pdfUrl?: string | null;
   };
-  text: string;
-  anchors: {
-    kind: "paragraph" | "page" | "section" | "footnote";
-    label: string;
+  slices: {
     start: number;
+    end: number;
+    text: string;
+    depth: number;
+    anchors: LegalSourceViewerAnchor[];
+    primary: LegalSourceViewerAnchor | null;
   }[];
-  presentation?: {
-    segments: {
-      start: number;
-      end: number;
-      blocks: LegalSourcePresentationBlock[];
-    }[];
-  };
   truncated: boolean;
+}
+interface LegalSourceViewerAnchor {
+  kind: "paragraph" | "page" | "section" | "footnote";
+  label: string;
+  start: number;
+  end: number;
+  parentLabel?: string;
 }
 export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
   post<{ status: string }>(

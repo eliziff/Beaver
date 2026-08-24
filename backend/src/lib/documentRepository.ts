@@ -1,4 +1,4 @@
-import type { DocumentParseState, DocumentProvenance, DocumentScope,
+import type { DocumentParseState, DocumentProvenance, DocumentScope, PdfProfileSelection,
   StoredAssistantEdit } from "./documentStore";
 import type { LibraryKind } from "./normalize";
 
@@ -6,6 +6,7 @@ export type StoredDocumentVersion = {
   id: string; documentId: string; versionNumber: number; source: string; createdAt: string;
   filename: string; fileType: string; sizeBytes: number; pageCount: number | null;
   sourceSha256: string; blobKey: string; pdfBlobKey: string | null; cleanupKeys: string[];
+  pdfProfile?: PdfProfileSelection;
   provenance?: DocumentProvenance;
 };
 export type StoredDocument = {
@@ -30,6 +31,8 @@ export type DocumentRepository = {
     Promise<"ok" | "project-missing" | "folder-missing" | "folder-unavailable">;
   create(scope: DocumentScope, input: CreateDocumentMetadata): Promise<void>;
   get(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentAggregate | null>;
+  version(scope: DocumentScope, id: string, versionId: string | null):
+    Promise<StoredDocumentVersion | null>;
   getMany(scope: DocumentScope, ids: string[]): Promise<DocumentAggregate[]>;
   parseStates(scope: DocumentScope, ids: string[]): Promise<Array<{
     id: string; parseState: DocumentParseState | null;
@@ -41,6 +44,8 @@ export type DocumentRepository = {
     expectedBlobKey: string; update: UpdateVersionMetadata; edits?: StoredAssistantEdit[];
     resolveEdit?: { id: string; status: StoredAssistantEdit["status"] } }):
     Promise<"updated" | Write>;
+  recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
+    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
   renameVersion(scope: DocumentScope, id: string, versionId: string,
     filename: string): Promise<boolean>;
   deleteVersion(scope: DocumentScope, id: string, input: { versionId: string;

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
-import { directoryResource, uploadStandaloneDocument } from "@/app/lib/beaverApi";
+import { directoryResource, uploadDocuments, uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { FileDirectory } from "../shared/FileDirectory";
@@ -77,12 +77,9 @@ function OpenNewTRModal({
             const resource = activeProjectId
                 ? directoryResource({ projectId: activeProjectId })
                 : null;
-            const added = await Promise.all(
-                Array.from(files, (file) =>
-                    resource
-                        ? resource.uploadDocument(file)
-                        : uploadStandaloneDocument(file),
-                ),
+            const added = await uploadDocuments(
+                Array.from(files),
+                resource ? resource.uploadDocument : uploadStandaloneDocument,
             );
             (activeProjectId ? setProjectUploads : setStandaloneUploads)(
                 (current) => [...added, ...current],

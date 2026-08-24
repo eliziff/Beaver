@@ -38,8 +38,7 @@ const inspectUpload = async (input: DocumentFile) => {
     throw new ApplicationError(413, "Document exceeds the maximum object size");
   const hash = createHash("sha256"), chunks: Buffer[] = [];
   let headBytes = 0, sizeBytes = 0;
-  for await (const value of createReadStream(input.path)) {
-    const chunk = Buffer.from(value);
+  for await (const chunk of createReadStream(input.path)) {
     sizeBytes += chunk.byteLength;
     if (sizeBytes > MAX_OBJECT_SIZE_BYTES)
       throw new ApplicationError(413, "Document exceeds the maximum object size");
@@ -256,14 +255,19 @@ export function createDocumentApplication(repository: DocumentRepository,
       fileType: usePdf ? "pdf" : version.fileType, filename: editedFilename(version) };
   };
 
+  const loadVersion = async (version: StoredDocumentVersion, key = version.blobKey,
+    fileType = version.fileType, filename = editedFilename(version)) => {
+    const bytes = await objects.get(key);
+    return bytes && { bytes, version: responseVersion(version), filename, fileType,
+      hasPdfRendition: !!version.pdfBlobKey,
+      ...(version.pdfProfile ? { pdfProfile: version.pdfProfile } : {}) };
+  };
+
   const content = async (scope: DocumentScope, aggregate: DocumentAggregate,
     requested: string | null, preferPdf: boolean): Promise<DocumentContent | null> => {
     const selected = await selectedVersion(scope, aggregate, requested, preferPdf);
     if (!selected) return null;
-    const bytes = await objects.get(selected.key);
-    return bytes && { bytes, version: responseVersion(selected.version),
-      filename: selected.filename, fileType: selected.fileType,
-      hasPdfRendition: !!selected.version.pdfBlobKey };
+    return loadVersion(selected.version, selected.key, selected.fileType, selected.filename);
   };
 
   const add = async (scope: DocumentScope, aggregate: DocumentAggregate,
@@ -443,8 +447,34 @@ export function createDocumentApplication(repository: DocumentRepository,
     },
 
     async read(scope, documentId, versionId, preferPdf) {
+      if (!preferPdf) {
+        const version = await repository.version(scope, documentId, versionId);
+        if (!version) return null;
+        return loadVersion(version);
+      }
       const aggregate = await repository.get(scope, documentId);
       return aggregate ? content(scope, aggregate, versionId, preferPdf) : null;
+    },
+
+    recordPdfPreparation(scope, documentId, input) {
+      return repository.recordPdfPreparation(scope, documentId, input);
+    },
+
+    async projectionSource(scope, documentId, versionId) {
+      const version = await repository.version(scope, documentId, versionId);
+      if (!version) return null;
+      return {
+        documentId,
+        versionId: version.id,
+        fileType: version.fileType,
+        sourceSha256: version.sourceSha256,
+        ...(version.pdfProfile ? { pdfProfile: version.pdfProfile } : {}),
+        readBytes: async () => {
+          const bytes = await objects.get(version.blobKey);
+          if (!bytes) throw new Error("Document source is unavailable");
+          return bytes;
+        },
+      };
     },
 
     async download(scope, documentId, versionId, preferPdf, disposition) {

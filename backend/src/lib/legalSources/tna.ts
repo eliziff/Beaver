@@ -1,10 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
-import {
-  providerCitationsInTextNative,
-  deriveDocumentNative,
-} from "../structureNative";
+import { structureNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -38,7 +35,7 @@ const parseXml = (xml: string) => {
   return parser.parse(xml);
 };
 
-const citationFrom = (value: string) => providerCitationsInTextNative(value)
+const citationFrom = (value: string) => structureNative().providerCitationsInText(value)
   .find(({ jurisdiction }) => jurisdiction === "uk");
 
 const normalized = (value: string) =>
@@ -144,7 +141,7 @@ async function fetchTnaCase(
     "application/akn+xml, application/xml, text/xml",
     signal,
   );
-  const native = await deriveDocumentNative({
+  const native = await structureNative().deriveDocumentStructure({
     kind: "native_markup",
     input: {
       provider: "tna", id: result.citation, url, text: "", markup: xml,

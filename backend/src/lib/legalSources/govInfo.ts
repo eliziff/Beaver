@@ -1,4 +1,4 @@
-import { deriveDocumentNative } from "../structureNative";
+import { structureNative } from "../structureNative";
 import type { LegalSourceReference } from ".";
 import {
   arrayValue,
@@ -116,7 +116,7 @@ async function fetchGovInfoCase(
     stringValue(body.description),
   ].filter((value): value is string => Boolean(value)).join("\n");
   const url = `${WEB_ORIGIN}/app/details/${result.packageId}`;
-  const native = await deriveDocumentNative({
+  const native = await structureNative().deriveDocumentStructure({
     kind: "native_markup",
     input: {
       provider: "govinfo",

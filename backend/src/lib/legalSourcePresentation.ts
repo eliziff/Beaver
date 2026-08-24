@@ -1,25 +1,4 @@
 import { normalizeWhitespace } from "./text";
-export type LegalInlineToken =
-  | { kind: "text" | "em" | "strong" | "code" | "sup" | "sub"; text: string }
-  | { kind: "link"; text: string; href: string };
-
-type PresentedText = {
-  text: string;
-  inline: LegalInlineToken[];
-};
-
-export type LegalMarkdownBlock =
-  | (PresentedText & { kind: "heading"; level: 2 | 3 | 4 | 5 })
-  | {
-      kind: "list-item";
-      text: string;
-      inline: LegalInlineToken[];
-      marker: string;
-      ordered: boolean;
-      depth: number;
-    }
-  | (PresentedText & { kind: "blockquote"; depth: number })
-  | (PresentedText & { kind: "paragraph"; depth: number });
 
 type UpstreamPdfLink = {
   url: string;
@@ -37,16 +16,16 @@ export type OriginalPdfCandidateInput = {
 export type OriginalPdfCandidate = {
   url: string;
   label: string | null;
-  source: "decisia" | "canonical" | "metadata" | "markup";
+  source: "canonical" | "metadata" | "markup";
   score: number;
   reasons: string[];
 };
 
-const MARKDOWN_HEADING_RE =
-  /^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/u;
-const ORDERED_LIST_RE = /^([ \t]*)(\d+[.)])[ \t]+(.+)$/u;
-const UNORDERED_LIST_RE = /^([ \t]*)([-+*])[ \t]+(.+)$/u;
-const BLOCKQUOTE_RE = /^([ \t]*)(>+)[ \t]?(.*)$/u;
+export type VerifiedPdfEvidence = {
+  url: string;
+  pdfOnly: boolean;
+};
+
 function decodeHtmlEntities(value: string) {
   return value
     .replace(/&nbsp;/giu, " ")
@@ -57,308 +36,22 @@ function decodeHtmlEntities(value: string) {
     .replace(/&apos;|&#39;/giu, "'")
     .replace(/&#(\d+);/gu, (match, code: string) => {
       const value = Number.parseInt(code, 10);
-      return value >= 0 && value <= 0x10ffff
-        ? String.fromCodePoint(value)
-        : match;
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
     })
     .replace(/&#x([0-9a-f]+);/giu, (match, code: string) => {
       const value = Number.parseInt(code, 16);
-      return value >= 0 && value <= 0x10ffff
-        ? String.fromCodePoint(value)
-        : match;
+      return value <= 0x10ffff ? String.fromCodePoint(value) : match;
     });
 }
 
-function cleanTokenText(value: string) {
-  return decodeHtmlEntities(
-    value
-      .replace(/<script\b[\s\S]*?<\/script\s*>/giu, " ")
-      .replace(/<style\b[\s\S]*?<\/style\s*>/giu, " ")
-      .replace(/<[^>]+>/gu, " "),
-  ).replace(/\\([\\`*_[\]{}()#+.!>~-])/gu, "$1");
-}
-
-function safeInlineHref(value: string) {
-  const href = decodeHtmlEntities(value.trim());
-  if (/^#[^\s]*$/u.test(href)) return href;
-  try {
-    const url = new URL(href);
-    return ["http:", "https:"].includes(url.protocol) &&
-      !url.username &&
-      !url.password
-      ? href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-type InlineMatch = {
-  start: number;
-  end: number;
-  kind: Exclude<LegalInlineToken["kind"], "text">;
-  text: string;
-  href?: string;
-  priority: number;
-};
-
-function nextInlineMatch(value: string, offset: number): InlineMatch | null {
-  const patterns: Array<{
-    kind: InlineMatch["kind"];
-    expression: RegExp;
-    content: number;
-    href?: number;
-  }> = [
-    {
-      kind: "link",
-      expression:
-        /<a\b(?=[^>]*\bhref\s*=\s*(["'])(.*?)\1)[^>]*>([\s\S]*?)<\/a\s*>/giu,
-      content: 3,
-      href: 2,
-    },
-    {
-      kind: "strong",
-      expression: /<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)\s*>/giu,
-      content: 1,
-    },
-    {
-      kind: "em",
-      expression: /<(?:em|i|cite)\b[^>]*>([\s\S]*?)<\/(?:em|i|cite)\s*>/giu,
-      content: 1,
-    },
-    {
-      kind: "code",
-      expression: /<code\b[^>]*>([\s\S]*?)<\/code\s*>/giu,
-      content: 1,
-    },
-    {
-      kind: "strong",
-      expression: /\*\*([^*\r\n]+)\*\*/gu,
-      content: 1,
-    },
-    { kind: "strong", expression: /__([^_\r\n]+)__/gu, content: 1 },
-    {
-      kind: "code",
-      expression: /(`{1,3})([^`\r\n]+)\1/gu,
-      content: 2,
-    },
-    {
-      kind: "link",
-      expression:
-        /\[([^\]\r\n]+)\]\(([^)\s\r\n]+)(?:\s+["'][^"']*["'])?\)/gu,
-      content: 1,
-      href: 2,
-    },
-    {
-      kind: "sup",
-      expression: /<sup\b[^>]*>([\s\S]*?)<\/sup\s*>/giu,
-      content: 1,
-    },
-    {
-      kind: "sub",
-      expression: /<sub\b[^>]*>([\s\S]*?)<\/sub\s*>/giu,
-      content: 1,
-    },
-    { kind: "em", expression: /\*([^*\r\n]+)\*/gu, content: 1 },
-    {
-      kind: "em",
-      expression: /(?<![\p{L}\p{N}])_([^_\r\n]+)_(?![\p{L}\p{N}])/gu,
-      content: 1,
-    },
-  ];
-  let best: InlineMatch | null = null;
-  for (const [priority, pattern] of patterns.entries()) {
-    pattern.expression.lastIndex = offset;
-    const match = pattern.expression.exec(value);
-    if (!match || match.index < offset) continue;
-    const candidate: InlineMatch = {
-      start: match.index,
-      end: match.index + match[0].length,
-      kind: pattern.kind,
-      text: cleanTokenText(match[pattern.content]),
-      href: pattern.href === undefined ? undefined : match[pattern.href],
-      priority,
-    };
-    if (
-      !best ||
-      candidate.start < best.start ||
-      (candidate.start === best.start && candidate.priority < best.priority)
-    ) {
-      best = candidate;
-    }
-  }
-  return best;
-}
-
-/**
- * Tokenize A2AJ's inline Markdown subset without producing executable markup.
- */
-export function tokenizeLegalInline(markdown: string): LegalInlineToken[] {
-  const tokens: LegalInlineToken[] = [];
-  const pushText = (rawText: string) => {
-    const text = cleanTokenText(rawText);
-    if (!text) return;
-    const previous = tokens.at(-1);
-    if (previous?.kind === "text") previous.text += text;
-    else tokens.push({ kind: "text", text });
-  };
-
-  let offset = 0;
-  while (offset < markdown.length) {
-    const match = nextInlineMatch(markdown, offset);
-    if (!match) {
-      pushText(markdown.slice(offset));
-      break;
-    }
-    pushText(markdown.slice(offset, match.start));
-    const text = cleanTokenText(match.text);
-    if (text) {
-      if (match.kind === "link") {
-        const href = safeInlineHref(match.href ?? "");
-        if (href) tokens.push({ kind: "link", text, href });
-        else pushText(text);
-      } else {
-        tokens.push({ kind: match.kind, text });
-      }
-    }
-    offset = match.end;
-  }
-  return tokens;
-}
-
-function presentedText(value: string): PresentedText {
-  const inline = tokenizeLegalInline(value);
-  return {
-    text: normalizeWhitespace(inline.map(({ text }) => text).join("")),
-    inline,
-  };
-}
-
-function plainInlineText(value: string) {
-  return presentedText(value).text;
-}
-
-function indentationDepth(value: string) {
-  let columns = 0;
-  for (const character of value) {
-    columns += character === "\t" ? 4 : 1;
-  }
-  return Math.floor(columns / 2);
-}
-
-/**
- * Classify the small, deterministic Markdown/legal hierarchy emitted by A2AJ.
- *
- * This is intentionally not a general Markdown parser. It strips supported
- * inline syntax so renderers receive text, never markup to execute or reparse.
- */
-export function classifyLegalMarkdown(markdown: string): LegalMarkdownBlock[] {
-  const clean = (markdown ?? "")
-    .replace(/\u00a0/gu, " ")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "")
-    .replace(/\r\n?/gu, "\n");
-  const result: LegalMarkdownBlock[] = [];
-  let headingDepth = 0;
-  let paragraphLines: string[] = [];
-  let quote: { text: string[]; depth: number } | null = null;
-
-  const flushParagraph = () => {
-    const presented = presentedText(paragraphLines.join(" "));
-    if (presented.text) {
-      result.push({ kind: "paragraph", ...presented, depth: headingDepth });
-    }
-    paragraphLines = [];
-  };
-  const flushQuote = () => {
-    if (!quote) return;
-    const presented = presentedText(quote.text.join(" "));
-    if (presented.text) {
-      result.push({ kind: "blockquote", ...presented, depth: quote.depth });
-    }
-    quote = null;
-  };
-  const flushText = () => {
-    flushParagraph();
-    flushQuote();
-  };
-
-  for (const line of clean.split("\n")) {
-    if (!line.trim()) {
-      flushText();
-      continue;
-    }
-
-    const markdownHeading = line.match(MARKDOWN_HEADING_RE);
-    if (markdownHeading) {
-      flushText();
-      const level = Math.min(5, Math.max(2, markdownHeading[1].length)) as 2 | 3 | 4 | 5;
-      const presented = presentedText(markdownHeading[2]);
-      if (presented.text) {
-        headingDepth = level - 2;
-        result.push({ kind: "heading", ...presented, level });
-      }
-      continue;
-    }
-
-    const blockquote = line.match(BLOCKQUOTE_RE);
-    if (blockquote) {
-      flushParagraph();
-      const depth =
-        headingDepth +
-        indentationDepth(blockquote[1]) +
-        blockquote[2].length -
-        1;
-      if (quote && quote.depth !== depth) flushQuote();
-      quote ??= { text: [], depth };
-      quote.text.push(blockquote[3]);
-      continue;
-    }
-    flushQuote();
-
-    const compact = normalizeWhitespace(line);
-    if (/^-+\s*(?:and|et)\s*-+$/iu.test(compact)) {
-      flushParagraph();
-      const presented = presentedText(compact);
-      result.push({ kind: "paragraph", ...presented, depth: headingDepth });
-      continue;
-    }
-
-    const ordered = line.match(ORDERED_LIST_RE);
-    if (ordered) {
-      flushParagraph();
-      const presented = presentedText(ordered[3]);
-      if (presented.text) {
-        result.push({
-          kind: "list-item",
-          ...presented,
-          marker: ordered[2],
-          ordered: true,
-          depth: headingDepth + indentationDepth(ordered[1]),
-        });
-      }
-      continue;
-    }
-
-    const unordered = line.match(UNORDERED_LIST_RE);
-    if (unordered) {
-      flushParagraph();
-      const presented = presentedText(unordered[3]);
-      if (presented.text) {
-        result.push({
-          kind: "list-item",
-          ...presented,
-          marker: unordered[2],
-          ordered: false,
-          depth: headingDepth + indentationDepth(unordered[1]),
-        });
-      }
-      continue;
-    }
-
-    paragraphLines.push(line);
-  }
-  flushText();
-  return result;
+export function plainInlineText(value: string) {
+  return normalizeWhitespace(decodeHtmlEntities(value
+    .replace(/<script\b[\s\S]*?<\/script\s*>/giu, " ")
+    .replace(/<style\b[\s\S]*?<\/style\s*>/giu, " ")
+    .replace(/\[([^\]\r\n]+)\]\([^)\r\n]+\)/gu, "$1")
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/\\([\\`*_{}\[\]()#+.!>~-])/gu, "$1")
+    .replace(/[*_`~]/gu, "")));
 }
 
 type CandidateSource = OriginalPdfCandidate["source"];
@@ -367,7 +60,6 @@ type RankedCandidate = OriginalPdfCandidate & {
 };
 
 const SOURCE_PRIORITY: Record<CandidateSource, number> = {
-  decisia: 4,
   canonical: 3,
   metadata: 2,
   markup: 1,
@@ -384,15 +76,74 @@ function httpUrl(rawUrl: string, baseUrl?: URL) {
   }
 }
 
-function decisiaPdfUrl(source: URL) {
-  const match = source.pathname.match(/\/item\/(\d+)\/index\.do$/iu);
-  if (!match || match.index === undefined) return null;
-  const result = new URL(source);
-  result.pathname =
-    source.pathname.slice(0, match.index) + `/${match[1]}/1/document.do`;
-  result.search = "";
-  result.hash = "";
-  return result;
+const DECISIA_HOSTS = new Set([
+  "coadecisions.ontariocourts.ca",
+  "decisia.lexum.com",
+  "decision.tcc-cci.gc.ca",
+  "decisions.cart-crac.gc.ca",
+  "decisions.chrt-tcdp.gc.ca",
+  "decisions.citt-tcce.gc.ca",
+  "decisions.cmac-cacm.ca",
+  "decisions.ct-tc.gc.ca",
+  "decisions.fca-caf.gc.ca",
+  "decisions.fct-cf.gc.ca",
+  "decisions.fpslreb-crtespf.gc.ca",
+  "decisions.psdpt-tpfd.gc.ca",
+  "decisions.scc-csc.ca",
+  "decisions.sct-trp.ca",
+  "decisions.sst-tss.gc.ca",
+  "decisions.tatc.gc.ca",
+]);
+
+export function decisiaIndexUrl(rawUrl: string | URL) {
+  const source = httpUrl(String(rawUrl));
+  if (!source || source.protocol !== "https:" || source.port ||
+      !DECISIA_HOSTS.has(source.hostname.toLowerCase()) ||
+      !/\/item\/\d+\/index\.do$/iu.test(source.pathname)) return null;
+  source.search = "";
+  source.hash = "";
+  return source;
+}
+
+function classValue(attributes: string) {
+  const match = attributes.match(
+    /\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/iu,
+  );
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
+}
+
+function controlledDecisiaPdfUrl(controls: string[], source: URL) {
+  for (const control of controls) {
+    for (const link of markupLinks(control)) {
+      const candidate = httpUrl(link.url, source);
+      if (candidate?.origin === source.origin &&
+          /\/document\.do$/iu.test(candidate.pathname)) return candidate.toString();
+    }
+  }
+  return null;
+}
+
+/** Read only Decisia's representation controls, never judgment-body links. */
+export function verifiedDecisiaPdf(
+  markup: string,
+  rawUrl: string | URL,
+): VerifiedPdfEvidence | null {
+  const source = decisiaIndexUrl(rawUrl);
+  if (!source) return null;
+  const pdfOnlyControls = [...markup.matchAll(
+    /<([a-z][\w:-]*)\b([^>]*\bdecisia-decision-pdf-only\b[^>]*)>([\s\S]*?)<\/\1\s*>/giu,
+  )].map((match) => match[3]);
+  const pdfOnlyUrl = controlledDecisiaPdfUrl(pdfOnlyControls, source);
+  if (pdfOnlyUrl) return { url: pdfOnlyUrl, pdfOnly: true };
+
+  const documentControls: string[] = [];
+  for (const match of markup.matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li\s*>/giu)) {
+    if (classValue(match[1]).split(/\s+/u).includes("documents")) {
+      documentControls.push(match[2]);
+    }
+  }
+  const url = controlledDecisiaPdfUrl(documentControls, source);
+  return url ? { url, pdfOnly: false } : null;
 }
 
 function pdfScore(
@@ -516,15 +267,17 @@ export function deriveOriginalPdfCandidates(
     });
   };
 
-  const decisia = decisiaPdfUrl(canonical);
-  if (decisia) add(decisia, "decisia");
   add(canonical, "canonical");
   for (const link of input.upstreamLinks ?? []) {
     add(link.url, "metadata", link.label ?? link.rel ?? "", link.mediaType ?? "");
   }
-  for (const link of markupLinks(input.markup ?? "")) {
-    add(link.url, "markup", link.label ?? "");
-  }
+  const decisia = decisiaIndexUrl(canonical);
+  if (decisia) {
+    const pdf = verifiedDecisiaPdf(input.markup ?? "", decisia);
+    if (pdf) add(pdf.url, "markup", "PDF");
+  } else for (const link of markupLinks(input.markup ?? "")) {
+      add(link.url, "markup", link.label ?? "");
+    }
 
   return [...candidates.values()]
     .sort(

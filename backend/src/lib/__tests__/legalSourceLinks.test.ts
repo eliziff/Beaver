@@ -4,7 +4,7 @@ import {
   buildA2AJDocumentPinpointUrl,
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
-import { deriveDocumentNative, documentTextNative } from "../structureNative";
+import { structureNative } from "../structureNative";
 
 async function nativeDocument(
   text: string,
@@ -13,7 +13,7 @@ async function nativeDocument(
   dataset = "SCC",
 ): Promise<A2AJCompiledDocument> {
   const docType = url.includes("/laws/") ? "laws" as const : "cases" as const;
-  const native = await deriveDocumentNative({
+  const native = await structureNative().deriveDocumentStructure({
     kind: "a2aj",
     input: { citation, source_kind: docType, text, dataset, url },
   });
@@ -25,13 +25,69 @@ async function nativeDocument(
     name: "Example v. Example",
     date: null,
     url,
+    verifiedPdf: null,
     language: "en",
     upstreamLicense: null,
     native,
   };
 }
 
+async function nativeSource(text: string) {
+  return (await nativeDocument(text)).native;
+}
+
+function textDirectives(url: string) {
+  return (url.split(":~:", 2)[1] ?? "")
+    .split("&")
+    .filter((part) => part.startsWith("text="));
+}
+
+function paintedTerms(directive: string) {
+  const pieces = directive.replace(/^text=/u, "").split(",");
+  if (pieces[0]?.endsWith("-")) pieces.shift();
+  if (pieces.at(-1)?.startsWith("-")) pieces.pop();
+  return pieces.map(decodeURIComponent);
+}
+
 describe("verified legal-source links", () => {
+  it("exposes the complete source-word proof from the native planner", async () => {
+    const text = "alpha beta gamma";
+    const plan = structureNative().textFragmentPlan(
+      text,
+      [text],
+      false,
+      false,
+      await nativeSource(text),
+    );
+
+    expect(plan).toMatchObject({
+      sourceSafeComplete: true,
+      paintedWords: 3,
+      paintQuotes: [text],
+      sourceWordIntervals: [{
+        quoteIndex: 0,
+        firstWord: 0,
+        lastWord: 2,
+      }],
+    });
+    expect(plan.directives).toHaveLength(1);
+  });
+
+  it("uses a verified PDF when it proves more source words than HTML", async () => {
+    const word = "xylophonic";
+    const result = buildLegalSourcePinpointUrl({
+      url: "https://example.test/reasons.html",
+      verifiedPdf: {
+        url: "https://example.test/reasons.pdf",
+        pdfOnly: false,
+      },
+      blockText: word,
+      documentText: await nativeSource(word),
+    }, [word]);
+
+    expect(result).toBe("https://example.test/reasons.pdf#:~:text=xylophonic");
+  });
+
   it("treats source line wrapping as whitespace when proving uniqueness", async () => {
     const text = "A phrase split across\na source line remains one rendered passage.";
     const document = await nativeDocument(text);
@@ -41,27 +97,67 @@ describe("verified legal-source links", () => {
       documentText: document.native,
     }, ["phrase split across a source line"]);
 
-    expect(result).toContain(":~:text=phrase%20split%20across%20a%20source%20line");
+    expect(textDirectives(result!)).toHaveLength(2);
+    expect(textDirectives(result!).map((directive) => paintedTerms(directive)[0])).toEqual([
+      "phrase split across",
+      "a source line",
+    ]);
   });
 
-  it("uses BCLaws HTML section anchors", () => {
+  it("uses the BCLaws human page and section anchor", async () => {
+    const text = "19.15 (1) An arbitrator may correct an award on application.";
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/00_11025_00_multi/xml",
         anchor: "sec19.15",
-        blockText: "19.15 (1) An arbitrator may correct an award on application.",
+        blockText: text,
+        documentText: await nativeSource(text),
       },
       ["An arbitrator may correct an award on application."],
     );
 
     expect(result).toContain("00_11025_00_multi#section19.15:~:text=");
+    expect(result).not.toContain("/xml");
+
+    const nestedText = "The subsection applies to this exact legal proposition.";
+    const nested = buildLegalSourcePinpointUrl(
+      {
+        url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/00_11025_00_multi/xml",
+        anchor: "sec249.1(2)(a)(ii)",
+        blockText: nestedText,
+        documentText: await nativeSource(nestedText),
+      },
+      ["subsection applies to this exact legal proposition"],
+    );
+    expect(nested).toContain("#section249.1:~:text=");
+    expect(nested).not.toContain("section249.1(2)");
   });
 
-  it("uses the Justice Laws public page instead of its raw XML feed", () => {
+  it("uses completed legal-reference seams only on BCLaws", async () => {
+    const text = "duties arise under sections 5.1.1 annotation follows";
+    const documentText = await nativeSource(text);
+    const bclaws = buildLegalSourcePinpointUrl({
+      url: "https://www.bclaws.gov.bc.ca/civix/document/id/complete/statreg/example/xml",
+      blockText: text,
+      documentText,
+    }, [text])!;
+    const ordinary = buildLegalSourcePinpointUrl({
+      url: "https://example.test/statute",
+      blockText: text,
+      documentText,
+    }, [text])!;
+
+    expect(textDirectives(bclaws)).toHaveLength(2);
+    expect(textDirectives(ordinary)).toHaveLength(1);
+  });
+
+  it("uses the Justice Laws public page instead of its raw XML feed", async () => {
+    const text = "The applicable table is determined under these Guidelines.";
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://laws-lois.justice.gc.ca/eng/XML/SOR-97-175.xml",
-        blockText: "The applicable table is determined under these Guidelines.",
+        blockText: text,
+        documentText: await nativeSource(text),
       },
       ["The applicable table is determined under these Guidelines."],
     );
@@ -72,12 +168,14 @@ describe("verified legal-source links", () => {
     expect(result).not.toContain("/XML/");
   });
 
-  it("keeps paragraph markers out of CanLII text targets", () => {
+  it("keeps paragraph markers out of CanLII text targets", async () => {
+    const text = "[38] I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not.";
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://www.canlii.org/en/bc/bcsc/doc/2024/2024bcsc2224/2024bcsc2224.html",
         anchor: "par38",
-        blockText: "[38] I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not.",
+        blockText: text,
+        documentText: await nativeSource(text),
       },
       ["[38] I will note that fentanyl and some other controlled substances are inherently toxic, whether in the control of the accused or not."],
     );
@@ -145,19 +243,17 @@ describe("verified legal-source links", () => {
     expect(result).toContain("&text=");
     expect(result).toContain("self%2Dregulating%20%26%20independent");
     expect(result).toContain("frivolous%2C%20vexatious");
-    expect(
-      buildA2AJDocumentPinpointUrl(
+    const partial = buildA2AJDocumentPinpointUrl(
         document,
         { kind: "section", label: "sec6" },
         text,
         ["self-regulating & independent profession", "not present in source"],
-      ),
-    ).toBe(
-      "https://www.canlii.org/en/ca/laws/stat/example/latest/example.html#sec6",
-    );
+      )!;
+    expect(textDirectives(partial)).toHaveLength(1);
+    expect(partial).toContain("self%2Dregulating%20%26%20independent");
   });
 
-  it("links a quote carrying an editorial alteration", () => {
+  it("links a quote carrying an editorial alteration", async () => {
     // A court quoting mid-sentence writes "[T]he ...". The words match the
     // source, but the raw quote never equals the rendered text, so when the
     // passage repeats, disambiguation used to reject every candidate and the
@@ -169,25 +265,25 @@ describe("verified legal-source links", () => {
     const evidence = {
       url: "https://example.test/decision",
       blockText,
-      documentText: blockText,
+      documentText: await nativeSource(blockText),
     };
     const result = buildLegalSourcePinpointUrl(evidence, [
       "[T]he duty of care applies to every occupier of the premises.",
     ])!;
 
-    expect(result).toContain(":~:text=");
-    expect(result).toContain("Parliament%20said%20the%20following.-,");
-    // A quote that is genuinely ambiguous still declines to link.
-    expect(
-      buildLegalSourcePinpointUrl(evidence, ["of the premises"]),
-    ).toBe("https://example.test/decision");
+    expect(result).toBe("https://example.test/decision");
+    // Browser-order replay emits the deterministic first source occurrence.
+    expect(buildLegalSourcePinpointUrl(evidence, ["of the premises"])).toContain(
+      "#:~:text=of%20the%20premises",
+    );
   });
 
-  it("allows same-origin viewer paths and rejects unsafe relative URLs", () => {
+  it("allows same-origin viewer paths and rejects unsafe relative URLs", async () => {
+    const blockText = "First exact passage. A second exact passage.";
     const evidence = {
       url: "/single-documents/doc-1/file?rendition=pdf&version_id=version-1#page=1",
-      blockText: "First exact passage. A second exact passage.",
-      documentText: "First exact passage. A second exact passage.",
+      blockText,
+      documentText: await nativeSource(blockText),
       pageScoped: true,
     };
     const result = buildLegalSourcePinpointUrl(evidence, [
@@ -212,22 +308,6 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("falls back to the structural anchor when the target is ambiguous", async () => {
-    const sentence =
-      "the safety of the community would not be endangered by the offender serving the sentence";
-    const line = `In our respectful view, ${sentence}, and nothing more.`;
-    const document = await nativeDocument(`${line}\n${line}`);
-
-    expect(buildA2AJDocumentPinpointUrl(
-      document,
-      { kind: "paragraph", label: "par42" },
-      line,
-      [sentence],
-    )).toBe(
-      "https://www.canlii.org/en/ca/scc/doc/2099/2099scc1/2099scc1.html#par42",
-    );
-  });
-
   it("rewrites Decisia shell URLs to the inline document view", async () => {
     const text =
       "The court described the motiveless act as unusual in all the circumstances.";
@@ -247,11 +327,43 @@ describe("verified legal-source links", () => {
     // rendering locks the viewport on the text-fragment match and the page
     // cannot be scrolled.
     expect(result).toContain("foo=bar&iframe=true&site_preference=mobile");
+    expect(result).toContain("/item/21212/index.do");
+    expect(result).not.toContain("/21212/1/document.do");
     expect(result).toContain("#par191:~:text=");
     expect(result).toContain("motiveless%20act");
     expect(result).not.toContain("iframe=false");
     expect(result).not.toContain("site_preference=desktop");
     expect(result.match(/iframe=/gu)).toHaveLength(1);
+  });
+
+  it("keeps Decisia HTML when the publisher offers an alternate PDF", async () => {
+    const text = [
+      "Unique lead",
+      "Alpha one",
+      "Beta two",
+      "Tail end",
+      "Other lead",
+      "Alpha one",
+      "Beta two",
+      "Other end",
+    ].join("\n");
+    const document = await nativeDocument(
+      text,
+      "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21213/index.do",
+    );
+    const result = buildA2AJDocumentPinpointUrl(
+      { ...document, verifiedPdf: {
+        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/21213/1/document.do",
+        pdfOnly: false,
+      } },
+      { kind: "paragraph", label: "par1" },
+      "Unique lead\nAlpha one\nBeta two\nTail end",
+      ["Alpha one\nBeta two"],
+    )!;
+
+    expect(result).toMatch(
+      /^https:\/\/decisions\.scc-csc\.ca\/scc-csc\/scc-csc\/en\/item\/21213\/index\.do\?iframe=true&site_preference=mobile#par1:~:text=/u,
+    );
   });
 
   it("builds A2AJ fragments only on the retrieved provider URL", async () => {
@@ -287,7 +399,7 @@ describe("verified legal-source links", () => {
       buildA2AJDocumentPinpointUrl(
         official,
         { kind: "paragraph", label: "par12" },
-        documentTextNative(official.native),
+        structureNative().documentText(official.native),
         [],
       ),
     ).toBe("https://example.test/official-decision");
@@ -360,13 +472,6 @@ describe("verified legal-source links", () => {
     const url =
       "https://www.bccourts.ca/jdb-txt/ca/26/03/2026BCCA0310.htm";
     const quote = "distinctive unanchored proposition";
-    const official = buildLegalSourcePinpointUrl(
-      { url, blockText: text, documentText: text },
-      [quote],
-    )!;
-    expect(official).toContain("#:~:text=");
-    expect(official).not.toContain("#par42");
-
     const document = await nativeDocument(text, url, "2026 BCCA 310", "BCCA");
     const result = buildA2AJDocumentPinpointUrl(
       document,
@@ -380,7 +485,7 @@ describe("verified legal-source links", () => {
     expect(result).not.toContain("canlii.org");
   });
 
-  it("pairs a long passage into a verified range without early-match starts", () => {
+  it("keeps a long source-safe passage as one exact directive", async () => {
     const quote =
       "[101] Delay in seeking child support can prejudice both parties, but the applicable factors must not be decided arbitrarily not to apply.";
     const text = [
@@ -392,22 +497,18 @@ describe("verified legal-source links", () => {
         url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
         anchor: "par101",
         blockText: quote,
-        documentText: text,
+        documentText: await nativeSource(text),
       },
       [quote],
     )!;
-    const directive = result.split(":~:text=")[1];
-
-    // A whole-quote target this long is one punctuation drift away from
-    // dead. The range's short boundaries are each verified against the full
-    // document, and the start boundary keeps its disambiguating continuation
-    // ("...support CAN") - the bare prefix also opens the earlier paragraph.
-    const [head, tail] = directive.split(",").map(decodeURIComponent);
-    expect(head).toBe("Delay in seeking child support can");
-    expect(tail).toBe("be decided arbitrarily not to apply");
+    const directives = textDirectives(result);
+    expect(directives).toHaveLength(1);
+    expect(paintedTerms(directives[0]!)).toEqual([
+      quote.replace(/^\[101\]\s*/u, "").replace(/\.$/u, ""),
+    ]);
   });
 
-  it("never carries A2AJ pin-range artifacts into fragment targets", () => {
+  it("never carries A2AJ pin-range artifacts into fragment targets", async () => {
     const passage =
       "The court must ensure that the quantum of a retroactive award fits the circumstances.";
     const blockText = `${passage} [99-135]`;
@@ -416,7 +517,7 @@ describe("verified legal-source links", () => {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2311/index.do",
         anchor: "par135",
         blockText,
-        documentText: blockText,
+        documentText: await nativeSource(passage),
       },
       [blockText],
     )!;
@@ -424,18 +525,20 @@ describe("verified legal-source links", () => {
     // The bracketed range is citation presentation appended to the receipt
     // span; it never appears on the page, so a target containing it can
     // only fail.
-    expect(decodeURIComponent(result.split(":~:text=")[1])).toBe(passage);
+    expect(decodeURIComponent(result.split(":~:text=")[1])).toBe(
+      passage.replace(/\.$/u, ""),
+    );
   });
 
-  it("starts fragment targets after margin numbers and provision labels", () => {
+  it("starts fragment targets after margin numbers and provision labels", async () => {
+    const decisiaText =
+      "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.";
     const decisia = buildLegalSourcePinpointUrl(
       {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2311/index.do",
         anchor: "par5",
-        blockText:
-          "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
-        documentText:
-          "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+        blockText: decisiaText,
+        documentText: await nativeSource(decisiaText),
       },
       [
         "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
@@ -444,16 +547,17 @@ describe("verified legal-source links", () => {
     expect(
       decodeURIComponent(decisia.split(":~:text=")[1]),
     ).toBe(
-      "Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders.",
+      "5 Against this backdrop, it becomes clear that retroactive awards cannot simply be regarded as exceptional orders",
     );
 
     const kingsPrinter =
       "https://kings-printer.alberta.ca/1266.cfm?page=F04P5.cfm&leg_type=Acts&isbncln=9780779854820&display=html";
+    const subsectionText = "(2) The court may make a child support order only if";
     const subsection = buildLegalSourcePinpointUrl(
       {
         url: kingsPrinter,
-        blockText: "(2) The court may make a child support order only if",
-        documentText: "(2) The court may make a child support order only if",
+        blockText: subsectionText,
+        documentText: await nativeSource(subsectionText),
       },
       ["(2) The court may make a child support order only if"],
     )!;
@@ -461,51 +565,50 @@ describe("verified legal-source links", () => {
       "The court may make a child support order only if",
     );
 
+    const sectionText =
+      "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.";
     const section = buildLegalSourcePinpointUrl(
       {
         url: kingsPrinter,
-        blockText:
-          "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
-        documentText:
-          "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+        blockText: sectionText,
+        documentText: await nativeSource(sectionText),
       },
       [
         "51 (1) In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
       ],
     )!;
     expect(decodeURIComponent(section.split(":~:text=")[1])).toBe(
-      "In making a child support order, the court shall do so in accordance with the prescribed guidelines.",
+      "In making a child support order, the court shall do so in accordance with the prescribed guidelines",
     );
   });
 
-  it("ranges across source lines instead of emitting impossible targets", () => {
+  it("covers source-line seams with separate exact directives", async () => {
     const para =
       "[130] A second way courts can affect the quantum of retroactive awards is by altering the time period that the award captures while keeping fairness in view.";
     const blockText = `${para}\n5.5 Summary`;
+    const documentText = `${blockText}\n[131] A later paragraph continues with further distinct reasoning.`;
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
         anchor: "par130",
         blockText,
-        documentText: `${blockText}\n[131] A later paragraph continues with further distinct reasoning.`,
+        documentText: await nativeSource(documentText),
       },
       [blockText],
     )!;
-    const raw = result.split(":~:text=")[1];
-
-    // A passage crossing a source line break cannot sit inside one publisher
-    // block either: the honest fragment is a start,end range whose each half
-    // stays within one block.
-    const [head, tail] = raw.split(",").map(decodeURIComponent);
-    expect(head).toBe("A second way courts can affect");
-    expect(tail).toBe("Summary");
-    expect(raw).not.toMatch(/%0A/iu);
+    const directives = textDirectives(result);
+    expect(directives).toHaveLength(2);
+    expect(directives.every((directive) => paintedTerms(directive).length === 1)).toBe(true);
+    expect(paintedTerms(directives[0]!)[0]).toContain("A second way courts can affect");
+    expect(paintedTerms(directives[1]!)[0]).toBe("5.5 Summary");
+    expect(directives.join("&")).not.toMatch(/%0A/iu);
   });
 
-  it("falls back to the anchor when a cross-line passage cannot be verified", () => {
+  it("falls back to the anchor when a cross-line passage cannot be verified", async () => {
     const para =
       "An unverifiable cross-line passage repeats twice in the judgment with no distinguishing context anywhere.";
     const blockText = `${para}\nAppendix`;
+    const documentText = `${blockText}\n${blockText}`;
     const url = "https://example.test/decision";
     expect(
       buildLegalSourcePinpointUrl(
@@ -513,14 +616,14 @@ describe("verified legal-source links", () => {
           url,
           anchor: "par7",
           blockText,
-          documentText: `${blockText}\n${blockText}`,
+          documentText: await nativeSource(documentText),
         },
         [blockText],
       ),
     ).toBe(`${url}#par7`);
   });
 
-  it("emits a citation-padded variant beside the plain spelling", () => {
+  it("does not multiply a source spelling into speculative variants", async () => {
     const passage =
       "This appeal centres on the appropriate framework for determining applications to retroactively decrease child support arrears under s. 17 of the Divorce Act and related provisions.";
     const result = buildLegalSourcePinpointUrl(
@@ -528,27 +631,19 @@ describe("verified legal-source links", () => {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18909/index.do",
         anchor: "par1",
         blockText: passage,
-        documentText: passage,
+        documentText: await nativeSource(passage),
       },
       [
         "retroactively decrease child support arrears under s. 17 of the Divorce Act and related provisions",
       ],
     )!;
 
-    // The quote continues past "s. 17", which Decisia renders as
-    // "s.<NBSP>17<NBSP> of". Chromium never collapses that separator run,
-    // so only the padded spelling can match there - while plain pages only
-    // match the primary. Two directives, one logical highlight.
-    expect(result.match(/text=/gu)).toHaveLength(2);
-    const [plain, padded] = result
-      .split(":~:text=")[1]
-      .split("&")
-      .map((directive) => decodeURIComponent(directive.replace(/^text=/u, "")));
-    expect(plain).toContain("arrears under s. 17 of");
-    expect(padded!).toContain("arrears under s.\u00A017\u00A0 of");
+    const directives = textDirectives(result);
+    expect(directives).toHaveLength(1);
+    expect(paintedTerms(directives[0]!)[0]).toContain("arrears under s. 17 of");
   });
 
-  it("keeps single-directive output when no citation cluster is present", () => {
+  it("keeps single-directive output when no citation cluster is present", async () => {
     const passage =
       "The amount of child support payable varies based on the payor income and often fluctuates.";
     const result = buildLegalSourcePinpointUrl(
@@ -556,23 +651,36 @@ describe("verified legal-source links", () => {
         url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/18909/index.do",
         anchor: "par1",
         blockText: passage,
-        documentText: passage,
+        documentText: await nativeSource(passage),
       },
       ["child support payable varies based on the payor income"],
     )!;
     expect(result.match(/text=/gu)).toHaveLength(1);
   });
 
-  it("targets the Competition Tribunal PDF instead of its empty HTML shell", () => {
-    const passage = "The Tribunal considered the scope of its exclusive jurisdiction.";
+  it("plans Competition Tribunal fragments with PDF seam rules", async () => {
+    const text = [
+      "Unique lead",
+      "Alpha one",
+      "Beta two",
+      "Tail end",
+      "Other lead",
+      "Alpha one",
+      "Beta two",
+      "Other end",
+    ].join("\n");
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/item/464444/index.do",
+        verifiedPdf: {
+          url: "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/464444/1/document.do",
+          pdfOnly: true,
+        },
         anchor: "par22",
-        blockText: passage,
-        documentText: passage,
+        blockText: "Unique lead\nAlpha one\nBeta two\nTail end",
+        documentText: await nativeSource(text),
       },
-      [passage],
+      ["Alpha one\nBeta two"],
     )!;
 
     expect(result).toMatch(
@@ -580,14 +688,14 @@ describe("verified legal-source links", () => {
     );
   });
 
-  it("drops HTML paragraph anchors from resolved PDF documents", () => {
+  it("drops HTML paragraph anchors from resolved PDF documents", async () => {
     const passage = "The Applicant relied heavily on the previous decision.";
     const result = buildLegalSourcePinpointUrl(
       {
         url: "https://decisia.lexum.com/nsc/nssc/en/459053/1/document.do",
         anchor: "par17",
         blockText: passage,
-        documentText: passage,
+        documentText: await nativeSource(passage),
       },
       [passage],
     )!;

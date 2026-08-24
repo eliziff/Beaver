@@ -9,13 +9,12 @@ import {
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
 import { buildCanliiCaseUrl } from "../../../backend/src/lib/canliiUrls";
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-  classifyCitatorExcerptNative as classifyCitatorExcerpt,
-} from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import { selectedCandidates } from "../runner";
+
+const { citationLookupKey, providerCitationsInText: citationsInText,
+  classifyCitatorExcerpt } = structureNative();
 
 type CitationGroup = {
   citation: string;

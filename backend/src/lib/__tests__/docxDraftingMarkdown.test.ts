@@ -1,11 +1,16 @@
 import { Document, ImageRun, Packer, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
-import { docxDraftingMarkdown } from "../docxDraftingMarkdown";
 import { renderDocxMarkdown } from "../chat/tools/docxMarkdown";
 import {
   MAX_DRAFTING_DOCX_BYTES,
   MAX_DRAFTING_XML_ENTRY_BYTES,
 } from "../docx/core";
+import { structureNative } from "../structureNative";
+
+const draftingText = async (bytes: Buffer) => {
+  const native = structureNative();
+  return native.documentText(await native.deriveDocxDocument(bytes, "test", true));
+};
 
 describe("DOCX drafting Markdown", () => {
   it("preserves semantic structure and native footnote pairing", async () => {
@@ -27,7 +32,7 @@ describe("DOCX drafting Markdown", () => {
       { title: "Source precedent" },
     );
 
-    const markdown = await docxDraftingMarkdown(bytes);
+    const markdown = await draftingText(bytes);
 
     // Headings are preserved as # / ## markers (Pandoc resolves them
     // from the style definitions after our styles patch).
@@ -41,7 +46,7 @@ describe("DOCX drafting Markdown", () => {
     // Footnotes round-trip as [^N] / [^N]: markers natively
     expect(markdown).toContain("[^1]");
     expect(markdown).toContain("[^1]: This is the source footnote.");
-    // No mammoth-style footnote href noise
+    // No HTML footnote-link noise
     expect(markdown).not.toContain('href="#footnote-');
   });
 
@@ -70,7 +75,7 @@ describe("DOCX drafting Markdown", () => {
       }),
     );
 
-    const markdown = await docxDraftingMarkdown(bytes);
+    const markdown = await draftingText(bytes);
 
     expect(markdown).toContain("[Image omitted]");
     expect(markdown).not.toMatch(/data:/iu);
@@ -79,10 +84,10 @@ describe("DOCX drafting Markdown", () => {
 
   it("fails closed for invalid, oversized, and oversized-XML inputs", async () => {
     await expect(
-      docxDraftingMarkdown(Buffer.from("not a docx")),
+      draftingText(Buffer.from("not a docx")),
     ).rejects.toThrow();
     await expect(
-      docxDraftingMarkdown(Buffer.alloc(MAX_DRAFTING_DOCX_BYTES + 1)),
+      draftingText(Buffer.alloc(MAX_DRAFTING_DOCX_BYTES + 1)),
     ).rejects.toThrow("exceeds");
 
     const zip = new (await import("jszip")).default();
@@ -95,7 +100,7 @@ describe("DOCX drafting Markdown", () => {
       compression: "STORE",
     });
     expect(archive.length).toBeLessThan(MAX_DRAFTING_DOCX_BYTES);
-    await expect(docxDraftingMarkdown(archive)).rejects.toThrow(
+    await expect(draftingText(archive)).rejects.toThrow(
       "oversized XML",
     );
   });

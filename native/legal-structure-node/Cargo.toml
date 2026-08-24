@@ -14,7 +14,7 @@ diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
-legal-structure = { path = "../../legal-structure", features = ["a2aj", "journal"] }
+legal-structure = { path = "../../legal-structure", features = ["a2aj", "citator", "journal", "native-markup", "quote-verification"] }
 legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
@@ -23,6 +23,9 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 
 [build-dependencies]
 napi-build = "2"
+
+[patch.crates-io]
+hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }
 
 [profile.dev]
 debug = 0

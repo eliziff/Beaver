@@ -14,7 +14,11 @@ import type {
   StoredDocument,
   StoredDocumentVersion,
 } from "./documentRepository";
-import type { DocumentParseState, StoredAssistantEdit } from "./documentStore";
+import {
+  decodePdfProfileSelection,
+  type DocumentParseState,
+  type StoredAssistantEdit,
+} from "./documentStore";
 import { wakeJobWorker } from "./jobQueue";
 import { pdfLifecycleMark } from "./pdfLifecycleDiagnostics";
 import type { LibraryFolder, LibraryRepository, LibraryScope } from "./libraryStore";
@@ -47,8 +51,13 @@ type Row = Record<string, any>;
 const now = () => new Date().toISOString();
 const email = (scope: ApplicationScope) => scope.userEmail?.trim().toLowerCase() || "";
 const pdfParseState = (row: Row): DocumentParseState | null => {
+  const stored = decodePdfProfileSelection(decode(row.pdf_profile, null));
   const status = row.pdf_job_status;
-  if (typeof status !== "string") return null;
+  if (typeof status !== "string") return stored ? {
+    status: stored.status,
+    ...(Number.isSafeInteger(row.pdf_page_count) && Number(row.pdf_page_count) > 0
+      ? { page_count: Number(row.pdf_page_count) } : {}),
+  } : null;
   const progress = decode<Record<string, unknown>>(row.pdf_job_progress, {});
   const phase: DocumentParseState["phase"] =
     progress.phase === "inspecting" || progress.phase === "extracting" ||
@@ -72,10 +81,7 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   if (result.status === "ready" || result.status === "degraded") {
     return { status: result.status, ...completed };
   }
-  if (result.status === "ocr_required") return { status: "degraded", ...completed };
-  return result.status === "failed"
-    ? { status: "failed", ...detail, error: "PDF processing failed" }
-    : null;
+  return null;
 };
 const rows = async <T extends Row>(statement: SqlStatement, db?: RelationalDatabase) =>
   (await (db ?? await relationalDatabase()).query<T>(statement)).rows;
@@ -115,17 +121,21 @@ const storedDocument = (row: Row): StoredDocument => ({
   notes: normalizeDocumentNotes(row.notes),
   parseState: pdfParseState(row),
 });
-const storedVersion = (row: Row): StoredDocumentVersion => ({
-  id: String(row.id), documentId: String(row.document_id),
-  versionNumber: Number(row.version_number), source: String(row.source),
-  createdAt: String(row.created_at), filename: String(row.filename),
-  fileType: String(row.file_type), sizeBytes: Number(row.size_bytes),
-  pageCount: row.page_count === null ? null : Number(row.page_count),
-  sourceSha256: String(row.source_sha256), blobKey: String(row.storage_path),
-  pdfBlobKey: typeof row.pdf_storage_path === "string" ? row.pdf_storage_path : null,
-  cleanupKeys: decode<string[]>(row.cleanup_paths, []),
-  provenance: decode(row.provenance, undefined),
-});
+const storedVersion = (row: Row): StoredDocumentVersion => {
+  const profile = decodePdfProfileSelection(decode(row.pdf_profile, null));
+  return {
+    id: String(row.id), documentId: String(row.document_id),
+    versionNumber: Number(row.version_number), source: String(row.source),
+    createdAt: String(row.created_at), filename: String(row.filename),
+    fileType: String(row.file_type), sizeBytes: Number(row.size_bytes),
+    pageCount: row.page_count === null ? null : Number(row.page_count),
+    sourceSha256: String(row.source_sha256), blobKey: String(row.storage_path),
+    pdfBlobKey: typeof row.pdf_storage_path === "string" ? row.pdf_storage_path : null,
+    cleanupKeys: decode<string[]>(row.cleanup_paths, []),
+    provenance: decode(row.provenance, undefined),
+    ...(profile ? { pdfProfile: profile } : {}),
+  };
+};
 const storedEdit = (row: Row): StoredAssistantEdit & { versionId: string } => ({
   id: String(row.id), versionId: String(row.version_id), changeId: String(row.change_id),
   ...(row.del_w_id ? { delWId: String(row.del_w_id) } : {}),
@@ -139,10 +149,12 @@ const storedEdit = (row: Row): StoredAssistantEdit & { versionId: string } => ({
 
 async function aggregate(db: RelationalDatabase, scope: ApplicationScope,
   documentId: string, owner = false): Promise<DocumentAggregate | null> {
-  const document = await one(sql`SELECT d.*,j.status pdf_job_status,
+  const document = await one(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
+      j.status pdf_job_status,
       j.progress pdf_job_progress,j.result pdf_job_result,
       CASE WHEN d.user_id=${scope.userId} THEN 1 ELSE 0 END is_owner
-    FROM documents d LEFT JOIN application_jobs j ON j.id=(SELECT q.id
+    FROM documents d JOIN document_versions v ON v.id=d.current_version_id
+      LEFT JOIN application_jobs j ON j.id=(SELECT q.id
       FROM application_jobs q WHERE q.document_id=d.id
         AND q.document_version_id=d.current_version_id
         AND q.kind IN('pdf.prepare','pdf.reprocess')
@@ -165,10 +177,11 @@ async function addVersion(
 ) {
   await changes(sql`INSERT INTO document_versions(id,document_id,version_number,source,
     created_at,filename,file_type,size_bytes,page_count,source_sha256,storage_path,
-    pdf_storage_path,cleanup_paths,provenance) VALUES(${version.id},${version.documentId},
+    pdf_storage_path,pdf_profile,cleanup_paths,provenance) VALUES(${version.id},${version.documentId},
     ${version.versionNumber},${version.source},${version.createdAt},${version.filename},
     ${version.fileType},${version.sizeBytes},${version.pageCount},${version.sourceSha256},
-    ${version.blobKey},${version.pdfBlobKey},${encode(version.cleanupKeys)},
+    ${version.blobKey},${version.pdfBlobKey},${version.pdfProfile ? encode(version.pdfProfile) : null},
+    ${encode(version.cleanupKeys)},
     ${version.provenance ? encode(version.provenance) : null})`, db);
   if (version.fileType === "pdf") await enqueuePdfPreparation({
     userId,
@@ -200,6 +213,12 @@ export const documentRepository: DocumentRepository = {
         AND library_kind=${input.libraryKind}`)) return "folder-missing";
     return "ok";
   },
+  async version(scope, documentId, versionId) {
+    const row = await one(sql`SELECT v.* FROM documents d JOIN document_versions v
+      ON v.document_id=d.id AND v.id=COALESCE(${versionId},d.current_version_id)
+      WHERE d.id=${documentId} AND ${documentAccess(scope)}`);
+    return row ? storedVersion(row) : null;
+  },
   async create(scope, input) {
     const db = await relationalDatabase();
     await db.transaction(async (tx) => {
@@ -229,9 +248,11 @@ export const documentRepository: DocumentRepository = {
   async parseStates(scope, ids) {
     const unique = [...new Set(ids)];
     if (!unique.length) return [];
-    return (await rows(sql`SELECT d.id,j.status pdf_job_status,
+    return (await rows(sql`SELECT d.id,v.page_count pdf_page_count,v.pdf_profile,
+      j.status pdf_job_status,
       j.progress pdf_job_progress,j.result pdf_job_result
-      FROM documents d LEFT JOIN application_jobs j ON j.id=(SELECT q.id
+      FROM documents d JOIN document_versions v ON v.id=d.current_version_id
+        LEFT JOIN application_jobs j ON j.id=(SELECT q.id
         FROM application_jobs q WHERE q.document_id=d.id
           AND q.document_version_id=d.current_version_id
           AND q.kind IN('pdf.prepare','pdf.reprocess')
@@ -276,11 +297,14 @@ export const documentRepository: DocumentRepository = {
           edit.versionId === input.versionId)) return "conflict";
       const update = { ...version, ...Object.fromEntries(Object.entries(input.update)
         .filter(([, value]) => value !== undefined)) };
+      const pdfProfile = update.fileType === "pdf" &&
+        update.sourceSha256 === version.sourceSha256 ? update.pdfProfile : undefined;
       const changed = await changes(sql`UPDATE document_versions SET
         created_at=${update.createdAt},filename=${update.filename},file_type=${update.fileType},
         size_bytes=${update.sizeBytes},page_count=${update.pageCount},
         source_sha256=${update.sourceSha256},storage_path=${update.blobKey},
-        pdf_storage_path=${update.pdfBlobKey},cleanup_paths=${encode(update.cleanupKeys)},
+        pdf_storage_path=${update.pdfBlobKey},pdf_profile=${pdfProfile ? encode(pdfProfile) : null},
+        cleanup_paths=${encode(update.cleanupKeys)},
         provenance=${update.provenance ? encode(update.provenance) : null}
         WHERE id=${input.versionId} AND document_id=${id}
           AND storage_path=${input.expectedBlobKey}`, tx);
@@ -304,6 +328,13 @@ export const documentRepository: DocumentRepository = {
     });
     if (queuedPdf) wakeJobWorker();
     return result;
+  },
+  async recordPdfPreparation(scope, id, input) {
+    return await changes(sql`UPDATE document_versions SET page_count=${input.pageCount},
+      pdf_profile=${encode(input.pdfProfile)} WHERE id=${input.versionId}
+        AND document_id=${id} AND source_sha256=${input.sourceSha256} AND file_type='pdf'
+        AND EXISTS(SELECT 1 FROM documents d WHERE d.id=document_versions.document_id
+          AND ${documentAccess(scope)})`) > 0;
   },
   async renameVersion(scope, id, versionId, filename) {
     const db = await relationalDatabase();

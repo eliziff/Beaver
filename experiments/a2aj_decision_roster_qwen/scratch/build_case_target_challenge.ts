@@ -11,9 +11,10 @@ import {
   a2ajLocalBulkPath,
   fetchLocalA2AJDocumentsByIds,
 } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
+
+const { citationLookupKey } = structureNative();
 
 type Category = "multi_opinion_or_partial_join" | "attribution_trap" | "ordinary_control";
 type EvidenceKind = "opinion_boundary" | "party_or_reported_voice" | "current_decision_voice" | "current_decision_treatment";
@@ -239,7 +240,7 @@ async function main() {
       targetRow.citation2_fr,
     ].filter((value): value is string => typeof value === "string" && value.trim() !== "" && value !== spec.targetCitation))];
     const targetName = typeof targetRow.name_en === "string" ? targetRow.name_en : null;
-    const targetOccurrences = detectCaseTargetOccurrences(createTextSourceDoc(document.text), {
+    const targetOccurrences = detectCaseTargetOccurrences(document.text, {
       citation: spec.targetCitation,
       citationAliases: aliases,
       name: targetName,

@@ -7,7 +7,6 @@ import {
   detectCaseTargetOccurrences,
 } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk.ts";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
 import { validateGold } from "./gold_validation.ts";
 
 type Json = Record<string, any>;
@@ -67,7 +66,7 @@ function safePath(root: string, relative: string) {
 }
 
 function occurrenceContract(sourceText: string, target: Json) {
-  const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(sourceText), {
+  const occurrences = detectCaseTargetOccurrences(sourceText, {
     citation: String(target.citation),
     citationAliases: Array.isArray(target.citation_aliases) ? target.citation_aliases : [],
     name: typeof target.name === "string" ? target.name : null,

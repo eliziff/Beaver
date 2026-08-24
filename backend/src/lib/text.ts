@@ -38,6 +38,12 @@ export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
+/** Keep the scalar containing a JavaScript UTF-16 limit instead of splitting it. */
+export function utf16PrefixCeil(value: string, limit: number) {
+  const end = Math.min(limit, value.length);
+  return value.slice(0, end + Number((value.codePointAt(end - 1) ?? 0) > 0xffff));
+}
+
 export function countLabel(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }

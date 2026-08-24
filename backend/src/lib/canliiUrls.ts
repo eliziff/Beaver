@@ -1,4 +1,4 @@
-import { providerCitationsInTextNative } from "./structureNative";
+import { structureNative } from "./structureNative";
 
 /**
  * Deterministic CanLII case URLs. `A2AJ_CANLII_COURT_ROUTES` is a verbatim
@@ -435,7 +435,8 @@ export function buildCanliiCaseUrl({
   const route = A2AJ_CANLII_COURT_ROUTES[expectedCourt];
   if (!route) return null;
 
-  for (const match of providerCitationsInTextNative(citations.filter(Boolean).join("\n;\n"))) {
+  for (const match of structureNative().providerCitationsInText(
+    citations.filter(Boolean).join("\n;\n"))) {
     if (match.family !== "neutral" || !match.year || !match.court || !match.number ||
         match.court.toUpperCase() !== expectedCourt) continue;
     const slugCourt = expectedCourt === "CANLII" ? "canlii" : match.court.toLowerCase();

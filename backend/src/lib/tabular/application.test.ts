@@ -3,7 +3,6 @@ import type { DocumentStore } from "../documentStore";
 import type { UserApiKeys } from "../llm";
 import type { TabularRepository } from "../tabularStore";
 import { createTabularApplication, tabularDtos } from "./application";
-import type { runChatTurn } from "../chat/turnEngine";
 
 const scope = { userId: "owner", userEmail: "owner@example.test" };
 const review = { id: "review", user_id: "owner", project_id: "project",
@@ -39,23 +38,21 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => ({
 const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
   api_keys: {} as UserApiKeys }) as Awaited<ReturnType<
     typeof import("../userSettings").getUserModelSettings>>;
-const project = vi.fn(async (input: { bytes?: Buffer }) => ({ kind: "document" as const,
-  text: input.bytes?.toString("utf8") ?? "", document: {} as never, tableCells: [] as [] }));
 const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {
   it("maps committed, conflict, and missing writes explicitly", async () => {
-    const committed = createTabularApplication(port(), documentStore(), projects, { settings, project });
+    const committed = createTabularApplication(port(), documentStore(), projects, { settings });
     await expect(committed.update(scope, "review", { title: "Changed" }))
       .resolves.toMatchObject({ title: "Changed" });
 
     const conflict = createTabularApplication(port({ update: vi.fn(async () =>
-      ({ status: "conflict", value: review })) }), documentStore(), projects, { settings, project });
+      ({ status: "conflict", value: review })) }), documentStore(), projects, { settings });
     await expect(conflict.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 409 });
 
     const missing = createTabularApplication(port({ detail: vi.fn(async () => null) }),
-      documentStore(), projects, { settings, project });
+      documentStore(), projects, { settings });
     await expect(missing.update(scope, "review", { title: "Changed" }))
       .rejects.toMatchObject({ status: 404 });
   });
@@ -76,7 +73,7 @@ describe("TabularApplication", () => {
     } };
     const app = createTabularApplication(port({ detail: vi.fn(async () => ({
       review, cells: [done],
-    })) }), documentStore(), projects, { settings, project });
+    })) }), documentStore(), projects, { settings });
     const file = await app.export(scope, "review");
     const XLSX = await import("xlsx");
     const workbook = XLSX.read(file.bytes, { type: "buffer" });
@@ -90,33 +87,10 @@ describe("TabularApplication", () => {
   it("rejects oversized extraction files before invoking a model", async () => {
     const runTurn = vi.fn() as unknown as typeof import("../chat/turnEngine").runChatTurn;
     const app = createTabularApplication(port(),
-      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, runTurn, project });
+      documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, runTurn });
     await expect(app.regenerate(scope, "review", {
       document_id: "document", column_index: 0,
     })).rejects.toMatchObject({ status: 413 });
     expect(runTurn).not.toHaveBeenCalled();
-  });
-
-  it("propagates abort to the shared turn runtime", async () => {
-    let entered!: () => void;
-    const started = new Promise<void>((resolve) => { entered = resolve; });
-    const runTurn = vi.fn(async (options: Parameters<typeof runChatTurn>[0]) => {
-      await new Promise((_resolve, reject) => {
-        const abort = () => { const error = new Error("Stream aborted.");
-          error.name = "AbortError"; reject(error); };
-        options.signal!.addEventListener("abort", abort, { once: true });
-        entered();
-        if (options.signal!.aborted) abort();
-      });
-      throw new Error("unreachable");
-    }) as unknown as typeof import("../chat/turnEngine").runChatTurn;
-    const app = createTabularApplication(port(), documentStore(), projects,
-      { settings, runTurn, project });
-    const controller = new AbortController();
-    const work = app.regenerate(scope, "review", {
-      document_id: "document", column_index: 0,
-    }, controller.signal);
-    await started; controller.abort();
-    await expect(work).rejects.toMatchObject({ name: "AbortError" });
   });
 });

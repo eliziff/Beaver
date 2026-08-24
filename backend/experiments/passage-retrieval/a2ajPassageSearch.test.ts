@@ -11,8 +11,10 @@ import {
   MissingPassageIndexError,
   searchLocalA2AJPassages,
 } from "./a2ajPassageSearch";
-import { citationLookupKeyNative as citationLookupKey } from "../../src/lib/structureNative";
+import { structureNative } from "../../src/lib/structureNative";
 import { ensurePassageIndex, searchPassages } from "./passageRetrieval";
+
+const { citationLookupKey } = structureNative();
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "a2aj-passage-test-"));
 const sourceDb = path.join(dir, "a2aj.sqlite");

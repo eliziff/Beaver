@@ -26,13 +26,9 @@ export type RemoteLegalSourceDocument = {
   url: string;
   native: NativeDocument;
   attachments: RemoteLegalSourceAttachment[];
-  sourceSha256?: string;
 };
 
-export type RemoteLegalSourceProvider = LegalSourceProvider<
-  NativeDocument | string,
-  RemoteLegalSourceDocument
->;
+export type RemoteLegalSourceProvider = LegalSourceProvider<RemoteLegalSourceDocument>;
 
 export { objectValue };
 

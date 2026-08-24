@@ -1,7 +1,7 @@
 # Beaver master plan
 
 Status: canonical implementation plan
-Last reconciled: 2026-08-20
+Last reconciled: 2026-08-24
 
 This is the single source of truth for unfinished Beaver work. Earlier
 planning files remain as design records and technical appendices; their status
@@ -39,9 +39,10 @@ These decisions are not open backlog items:
 4. ALR Quote Verifier remains an independent product. Beaver does not import its
    private modules or require its checkout. Small algorithms and fixtures may
    be ported into neutral packages with parity tests.
-5. `legal-pdf-parser` is the neutral PDF structure package. Beaver,
-   Authorities Helper, ALR, and future applications consume thin
-   adapters.
+5. `legal-structure` is the standalone neutral semantic-structure engine.
+   `legal-pdf-parser` owns PDF extraction and rich source witnesses, pins an
+   exact gated engine revision, and calls it in process. Beaver, Authorities
+   Helper, ALR, and future applications remain thin consumers.
 6. Exact evidence, document versions, source locators, hashes, and tool
    receipts are durable state. A prose session summary is disposable context
    and is never legal authority.
@@ -67,10 +68,11 @@ These decisions are not open backlog items:
     contract. Routes, tools, DTOs, events, pagination semantics, and the
     automatically parameterized conformance suite are shared.
 14. `DocumentStructure` is the one canonical semantic result for an immutable
-    document version. `SourceDoc` is its optional linear legal-text projection;
-    typed grids, raw-preserving DOCX sessions, and neutral PDF artifacts remain
+    document version and lives inside an opaque Rust `NativeDocument`. Typed
+    grids, raw-preserving DOCX sessions, and neutral PDF artifacts remain
     authoritative format objects rather than duplicate semantic models. Beaver
-    does not replace source bytes with a universal lossy AST.
+    queries the native document directly and does not replace source bytes with
+    a universal lossy AST or maintain a TypeScript structure model.
 15. Every assistant view and provider uses one turn engine, executable tool
     registry, resource plane, and event contract. Specialist tools load by
     exact name; Beaver never ranks tool schemas from prompt similarity.
@@ -97,18 +99,19 @@ Status: **Active exact Rust port and contraction**
 
 The governing design and execution gates are in
 [Shared document structure](document-structure.md). In short: light source
-adapters preserve provider-native facts, one Rust analysis pipeline owns every
-shared detector, `DocumentStructure` is the canonical result, SourceDoc is an
-optional projection, and Beaver invokes the pipeline once per immutable
-document version through one typed structure host. The existing
-`documentProjectionService` remains the byte/file ingress for uploaded
-documents; provider adapters call the same host after their own fetch/render
-step rather than being forced through that file-oriented service.
+adapters preserve provider-native facts, the standalone Rust engine owns shared
+detectors and one canonical `DocumentStructure`, and an opaque `NativeDocument`
+answers bounded queries. Beaver uses one small native loader and calls the
+smallest applicable Rust operation; purpose-specific work does not derive an
+unrelated full document. `documentProjectionService` remains uploaded-file
+ingress and persistence orchestration, not a structure representation or
+forwarding layer. Provider adapters call Rust directly after acquisition.
 
 Neither the present provider silos nor Beaver's present consumer requests are
 compatibility constraints. Preserve useful behavior and detector quality, then
-replace the old calls, DTOs, duplicate representations, and granular native
-exports outright. Git retains the superseded plans and implementations.
+replace old calls, duplicate DTOs/models, SourceDoc/navigation layers, sidecars,
+and intermediate protocols outright. Git retains superseded plans and
+implementations.
 
 ## Implemented baseline
 
@@ -127,7 +130,7 @@ backlog:
 | Growing collections | Bounded cursor pages, server-side filters, exact-ID reads, local SQLite/FTS, shared frontend paging hooks, and the same local/cloud wire shapes |
 | Journal data | `public_endpoint.db` page/structure access and a contentless FTS5 sidecar |
 | PDF core | Standalone deterministic digital-born parser plus Beaver on-demand ingestion, content-addressed artifacts, exact page/paragraph/footnote/section lookup, cache, diagnostics, and provider adapters |
-| Source structure | Public `SourceDoc` behavior and the frozen provider/PDF parity fixtures exist; the current TypeScript-to-Rust bridge is transitional and is deleted by the canonical-stack cutover above |
+| Source structure | Rust `NativeDocument` owns the canonical `DocumentStructure` and bounded query operations; frozen provider/PDF parity fixtures gate removal of every remaining parallel TypeScript path |
 | DOCX citations | Bounded deterministic citation splitting and hyperlink insertion with a Codex worker only for unresolved splits |
 | Legal Library | Lightweight A2AJ/journal pointers and a structured source viewer |
 | Table of Authorities | Shared data path, dependency bootstrap, browser UI, standalone host, and a Beaver sibling route |
@@ -163,7 +166,7 @@ document projections, and behavior tests are shared. Ordinary feature work
 must not require remembering or reimplementing a second mode.
 
 The refactor replaces parallel assistant/tool, route/persistence,
-document/SourceDoc, DOCX, provider/evidence/cache, and frontend event/resource
+document/structure, DOCX, provider/evidence/cache, and frontend event/resource
 paths. It proceeds in net-negative vertical slices: a replacement, all callers,
 its behavior contract, and deletion of the superseded path land together. Git
 is the rollback mechanism; Beaver gets no legacy runtime shims.
@@ -536,12 +539,12 @@ Acceptance:
 
 Status: **Partial**
 
-the resource-plane `Read`/`Grep` surface, SourceDoc provider
-lookups, and DOCX structure reads already expose bounded pages/ranges, parser
-paragraphs/ranges, paired footnotes and propositions, encoded legal sections,
-verified section handles, and native DOCX table rows/cells. The remaining work
-is one format-neutral contract, complete provider fixture coverage, and removal
-of parallel parsers/result shapes under P0.0.
+The resource-plane `Read`/`Grep` surface and Rust document operations already
+expose bounded pages/ranges, parser paragraphs/ranges, paired footnotes and
+propositions, encoded legal sections, verified section handles, and native DOCX
+table rows/cells. The remaining work is complete provider fixture coverage and
+removal of parallel parsers/result shapes under P0.0; TypeScript does not retain
+a second navigation or structure contract.
 
 Expose compact tools for:
 
@@ -649,8 +652,9 @@ Acceptance:
   reproducible.
 - The fail-closed registry in
   `experiments/legal_pdf_corpus/LEGAL_PDF_SILVER_MASTER_PLAN.md` inventories
-  and runs every locally available corpus that can exercise PDF, SourceDoc,
-  grammar, OCR, or semantic-structure behavior. Unregistered applicable data,
+  and runs every locally available corpus that can exercise PDF,
+  native-document queries, grammar, OCR, or semantic-structure behavior.
+  Unregistered applicable data,
   silent skips, samples standing in for full corpora, and stale-cache receipts
   fail the release gate.
 - Model repair must improve a named structural metric without losing text,
@@ -704,16 +708,16 @@ and locators are attached at the edge after analysis.
 
 The exact port, Beaver invocation, corpus gates, and deletion standard are the
 single procedure in [Shared document structure](document-structure.md), not a
-separate SourceDoc consolidation.
+separate TypeScript structure or navigation stack.
 
 ### P1.2 Durable provider cache and bulk paths
 
 Status: **Active cutover**
 
-- Materialize the canonical `DocumentStructure` during provider installation
-  only where the measured lookup path needs an output store. Runtime derives
-  SourceDoc and other views from that row; it does not store a second detected
-  representation. A miss uses the same in-process Rust function.
+- Materialize the canonical Rust product during provider installation only
+  where the measured lookup path needs an output store. Runtime restores an
+  opaque `NativeDocument` and queries it directly; it does not store a second
+  detected representation. A miss uses the same in-process Rust function.
 - Bind each output store to its provider snapshot identity and engine/schema
   version, preserve resumable bounded transactions, and replace completed
   stores atomically.
@@ -931,11 +935,10 @@ Implemented:
   `table:N/row:N/col:N` handles on the same accepted-text offset plane used by
   tracked edits. Empty cells, `gridBefore`, horizontal/vertical merges, and
   nested-table text are covered without minting phantom addresses.
-- `library_delete_and_renumber_docx` atomically deletes one numbered provision,
-  closes a proven contiguous sibling gap, and updates resolved internal
-  pointers as tracked changes. It refuses ambiguous, unresolved, external,
-  already-gapped, and referenced-deleted targets. The contract is deliberately
-  delete/close-gap only; insertion/open-gap semantics remain unsupported.
+- Amendment consolidation and its fail-closed delete/renumber proof remain a
+  runnable Rust experiment under
+  `legal-structure/experiments/amendment-consolidation`; they are not a Beaver
+  production action until the broader consolidation design is proven.
 - One local assistant turn creates at most one assistant-edit version per
   document. Later mutations in that turn update it only when earlier tracked
   change IDs remain valid, so accept/reject receipts cannot dangle.
@@ -1438,10 +1441,10 @@ Acceptance:
 4. **Canonicalize product resources**: shared project, workflow, tabular, and
    chat behavior with mechanical SQLite/Supabase persistence encodings and the
    same automatically enumerated tests.
-5. **Canonicalize document intelligence**: land the one-model/three-command
-   legal-document stack above, finish SourceDoc/grid projections and one
-   raw-preserving DOCX session, and delete each superseded bridge as callers
-   move.
+5. **Canonicalize document intelligence**: publish the standalone Rust engine,
+   retain one canonical `DocumentStructure` inside opaque native documents,
+   finish exact grid queries and one raw-preserving DOCX session, and delete
+   every superseded bridge and TypeScript structure model as callers move.
 6. **Replace the browser runtime outright**: convert the complete route and
    deep-link inventory to Vite/React Router, serve it from the Express origin,
    retain bearer authentication, and delete Next/OpenNext, API-base/CORS

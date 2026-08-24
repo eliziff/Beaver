@@ -24,14 +24,20 @@ vi.mock("react-router-dom", () => ({
     ),
 }));
 import {
-    LegalInlineText,
     LegalSourceViewer,
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
 
 function viewerPayload(): LegalSourceViewerPayload {
-    const text = "[1] Analysis of the legal test.";
+    const text = [
+        "# Analysis",
+        "[1] The *ratio* controls.",
+        "1. First factor",
+        "2. Second factor",
+        "- Unordered factor",
+        "> Quoted holding.",
+    ].join("\n\n");
     return {
         schemaVersion: "mike.legal-source.v1",
         provider: "a2aj",
@@ -52,81 +58,14 @@ function viewerPayload(): LegalSourceViewerPayload {
             language: "en",
             upstreamLicense: null,
         },
-        text,
-        structureSource: "native",
-        anchors: [
-                {
-                    kind: "page",
-                    label: "page1",
-                    start: 0,
-                    end: text.length,
-                },
-                {
-                    kind: "paragraph",
-                    label: "par1",
-                    start: 0,
-                    end: text.length,
-                },
-        ],
-        presentation: {
-            source: "a2aj_markdown",
-            segments: [
-                {
-                    start: 0,
-                    end: text.length,
-                    blocks: [
-                        {
-                            kind: "heading",
-                            text: "Analysis",
-                            inline: [{ kind: "text", text: "Analysis" }],
-                            level: 2,
-                        },
-                        {
-                            kind: "paragraph",
-                            text: "The ratio controls.",
-                            inline: [
-                                { kind: "text", text: "The " },
-                                { kind: "em", text: "ratio" },
-                                { kind: "text", text: " controls." },
-                            ],
-                            depth: 0,
-                        },
-                        {
-                            kind: "list-item",
-                            text: "First factor",
-                            inline: [{ kind: "text", text: "First factor" }],
-                            marker: "1.",
-                            ordered: true,
-                            depth: 0,
-                        },
-                        {
-                            kind: "list-item",
-                            text: "Second factor",
-                            inline: [{ kind: "text", text: "Second factor" }],
-                            marker: "2.",
-                            ordered: true,
-                            depth: 0,
-                        },
-                        {
-                            kind: "list-item",
-                            text: "Unordered factor",
-                            inline: [
-                                { kind: "text", text: "Unordered factor" },
-                            ],
-                            marker: "-",
-                            ordered: false,
-                            depth: 0,
-                        },
-                        {
-                            kind: "blockquote",
-                            text: "Quoted holding.",
-                            inline: [{ kind: "text", text: "Quoted holding." }],
-                            depth: 0,
-                        },
-                    ],
-                },
-            ],
-        },
+        slices: [{
+            start: 0,
+            end: text.length,
+            text,
+            depth: 0,
+            anchors: [{ kind: "page", label: "page1", start: 0, end: text.length }],
+            primary: { kind: "paragraph", label: "par1", start: 0, end: text.length },
+        }],
         truncated: false,
     };
 }
@@ -139,29 +78,15 @@ function multiSlicePayload(): LegalSourceViewerPayload {
     const third = text.indexOf("[3]");
     return {
         ...base,
-        text,
-        presentation: undefined,
-        anchors: [
-                { kind: "page", label: "page1", start: 0, end: third },
-                { kind: "paragraph", label: "par1", start: 0, end: second },
-                {
-                    kind: "paragraph",
-                    label: "par2",
-                    start: second,
-                    end: third,
-                },
-                {
-                    kind: "page",
-                    label: "page2",
-                    start: third,
-                    end: text.length,
-                },
-                {
-                    kind: "paragraph",
-                    label: "par3",
-                    start: third,
-                    end: text.length,
-                },
+        slices: [
+            { start: 0, end: second, text: text.slice(0, second).trim(), depth: 0,
+                anchors: [{ kind: "page", label: "page1", start: 0, end: third }],
+                primary: { kind: "paragraph", label: "par1", start: 0, end: second } },
+            { start: second, end: third, text: text.slice(second, third).trim(), depth: 0,
+                anchors: [], primary: { kind: "paragraph", label: "par2", start: second, end: third } },
+            { start: third, end: text.length, text: text.slice(third).trim(), depth: 0,
+                anchors: [{ kind: "page", label: "page2", start: third, end: text.length }],
+                primary: { kind: "paragraph", label: "par3", start: third, end: text.length } },
         ],
     };
 }
@@ -179,7 +104,7 @@ describe("legal source reader", () => {
 
     it("treats provider anchor labels as data, not regular expressions", async () => {
         const untrusted = viewerPayload();
-        untrusted.anchors[1].label = "par(";
+        untrusted.slices[0].primary!.label = "par(";
         api.direct.mockResolvedValue(untrusted);
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" />);
         expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
@@ -331,7 +256,6 @@ describe("legal source reader", () => {
         api.direct.mockResolvedValue({
             ...base,
             text,
-            presentation: undefined,
             anchors: paragraphs.map((paragraph, index) => {
                     const start = text.indexOf(paragraph);
                     return {
@@ -358,48 +282,6 @@ describe("legal source reader", () => {
                     ),
                 ).every(Boolean),
             ).toBe(true),
-        );
-    });
-
-    it("renders only safe inline links and no literal Markdown markers", () => {
-        const { container } = render(
-            <p>
-                <LegalInlineText
-                    tokens={[
-                        { kind: "text", text: "See " },
-                        { kind: "em", text: "ratio" },
-                        { kind: "strong", text: " controls" },
-                        { kind: "code", text: " s.1" },
-                        { kind: "sup", text: "2" },
-                        { kind: "sub", text: "n" },
-                        { kind: "text", text: " and " },
-                        {
-                            kind: "link",
-                            text: "source",
-                            href: "https://example.test/case",
-                        },
-                        {
-                            kind: "link",
-                            text: "unsafe",
-                            href: "javascript:alert(1)",
-                        },
-                    ]}
-                />
-            </p>,
-        );
-
-        expect(container.textContent).toBe(
-            "See ratio controls s.12n and sourceunsafe",
-        );
-        expect(container.textContent).not.toMatch(/\*|<em>/u);
-        expect(container.querySelector("strong")).toHaveTextContent("controls");
-        expect(container.querySelector("code")).toHaveTextContent("s.1");
-        expect(container.querySelector("sup")).toHaveTextContent("2");
-        expect(container.querySelector("sub")).toHaveTextContent("n");
-        expect(container.querySelectorAll("a")).toHaveLength(1);
-        expect(container.querySelector("a")).toHaveAttribute(
-            "href",
-            "https://example.test/case",
         );
     });
 

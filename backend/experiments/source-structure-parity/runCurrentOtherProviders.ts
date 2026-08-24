@@ -6,6 +6,7 @@ import {
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { gunzipSync, gzipSync } from "node:zlib";
+import type { NativeDocument } from "../../src/lib/structureNative";
 
 type Provider = "courtlistener" | "journal";
 type Row = Record<string, unknown>;
@@ -19,7 +20,6 @@ type Summary = { schema_version: string; config_sha256?: string; baseline_commit
   shards?: Array<{ provider: Provider; shard: number; manifest_root_sha256: string }>;
   manifest_root_sha256: string; complete?: boolean; engine?: { binary_sha256: string };
   harness_sha256?: string; adapter_code_sha256?: string; artifact_bytes?: number };
-type NativeDocument = object;
 type Addon = { deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   documentText(document: NativeDocument): string; documentRevision(document: NativeDocument): string;
   documentAnchors(document: NativeDocument): unknown[];
@@ -41,6 +41,10 @@ const seedRoot = path.resolve(args.get("seed") ?? path.join(__dirname,
 const output = path.resolve(args.get("output") ?? path.join(ROOT,
   ".tmp/source-structure-current-other"));
 const provider = args.get("provider") as Provider | undefined;
+const selected: Provider[] = provider ? [provider]
+  : (args.get("providers") ?? "courtlistener,journal").split(",")
+    .filter((value): value is Provider => value === "courtlistener" || value === "journal");
+if (!selected.length) throw new Error("No supported provider selected");
 const shard = args.has("shard") ? Number(args.get("shard")) : null;
 const nativeFile = path.resolve(process.env.LEGAL_STRUCTURE_NATIVE ?? path.join(ROOT,
   "native/legal-structure-node/target/release/legal_structure_node.dll"));
@@ -56,11 +60,14 @@ function journalSource() {
     "SELECT value FROM meta WHERE key='source_path'",
   ).get() as Row).value)); } finally { database.close(); }
 }
-const journalFile = journalSource();
+const journalFile = selected.includes("journal") ? journalSource() : "";
 const journalFinalFile = path.resolve(args.get("journal-final-db") ??
   process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB ?? path.join(providersRoot,
     "journals/journals.db"));
-for (const filename of [seedRoot, nativeFile, courtlistenerFile, journalFile, journalFinalFile]) {
+const required = [seedRoot, nativeFile,
+  ...(selected.includes("courtlistener") ? [courtlistenerFile] : []),
+  ...(selected.includes("journal") ? [journalFile, journalFinalFile] : [])];
+for (const filename of required) {
   if (!existsSync(filename)) throw new Error(`Required offline input is absent: ${filename}`);
 }
 const harnessSha = hash(readFileSync(__filename));
@@ -188,7 +195,8 @@ async function journalRows(native: Addon, source: DatabaseSync, final: DatabaseS
     const text = typeof row.text === "string" ? row.text.trim() : "";
     const url = trustedUrl(first(row, ["galley_url", "url_en"]));
     if (!text || !url) { out.push(unavailable(seed)); continue; }
-    const pageRows = source.prepare(`SELECT page_label, pdf_page FROM article_pages
+    const pageRows = source.prepare(`SELECT CAST(page_label AS TEXT) AS page_label,
+      CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
       WHERE article_id=? ORDER BY page_order`).all(id);
     const registration = final.prepare(
       "SELECT source_dir FROM article_final_contracts WHERE article_id=?",
@@ -259,23 +267,25 @@ async function coordinate() {
   const inventory = seed.inventory as { courtlistener: { opinions: number };
     journal: { articles: number; page_rows: number; final_contracts: number };
     signatures: Record<string, string> };
-  const courtlistener = new DatabaseSync(courtlistenerFile, { readOnly: true });
-  const journal = new DatabaseSync(journalFile, { readOnly: true });
-  const final = new DatabaseSync(journalFinalFile, { readOnly: true });
+  const courtlistener = selected.includes("courtlistener")
+    ? new DatabaseSync(courtlistenerFile, { readOnly: true }) : null;
+  const journal = selected.includes("journal")
+    ? new DatabaseSync(journalFile, { readOnly: true }) : null;
+  const final = selected.includes("journal")
+    ? new DatabaseSync(journalFinalFile, { readOnly: true }) : null;
   try {
-    const opinions = count(courtlistener, "opinion");
-    const articles = count(journal, "articles"), pages = count(journal, "article_pages");
-    const contracts = count(final, "article_final_contracts");
-    if (opinions !== inventory.courtlistener.opinions ||
-      articles !== inventory.journal.articles || pages !== inventory.journal.page_rows ||
-      contracts !== inventory.journal.final_contracts ||
-      signature(courtlistenerFile, opinions) !== inventory.signatures.courtlistener ||
-      signature(journalFile, articles + pages) !== inventory.signatures.journal ||
-      signature(journalFinalFile, contracts) !== inventory.signatures["journal-final"])
+    const opinions = courtlistener ? count(courtlistener, "opinion") : 0;
+    const articles = journal ? count(journal, "articles") : 0;
+    const pages = journal ? count(journal, "article_pages") : 0;
+    const contracts = final ? count(final, "article_final_contracts") : 0;
+    if ((courtlistener && (opinions !== inventory.courtlistener.opinions ||
+        signature(courtlistenerFile, opinions) !== inventory.signatures.courtlistener)) ||
+      (journal && final && (articles !== inventory.journal.articles ||
+        pages !== inventory.journal.page_rows || contracts !== inventory.journal.final_contracts ||
+        signature(journalFile, articles + pages) !== inventory.signatures.journal ||
+        signature(journalFinalFile, contracts) !== inventory.signatures["journal-final"])))
       throw new Error("Installed provider inventory differs from the frozen baseline");
-  } finally { courtlistener.close(); journal.close(); final.close(); }
-  const selected: Provider[] = (args.get("providers") ?? "courtlistener,journal").split(",")
-    .filter((value): value is Provider => value === "courtlistener" || value === "journal");
+  } finally { courtlistener?.close(); journal?.close(); final?.close(); }
   const started = performance.now(), children: Array<{ provider: Provider; shard: number;
     summary: Summary }> = [];
   for (const current of selected) {
@@ -303,6 +313,7 @@ async function coordinate() {
     for (const key of ["attempted", "pass", "failure", "source_bytes", "canonical_bytes"] as const)
       target[key] += source[key];
     for (const mode of ["native", "hybrid", "flat"] as const) target.modes[mode] += source.modes[mode];
+    target.details.elapsed_ms = (target.details.elapsed_ms ?? 0) + (source.details.elapsed_ms ?? 0);
   }
   const shards = children.map(({ provider, shard, summary }) => ({ provider, shard,
     manifest_root_sha256: summary.manifest_root_sha256 }));
