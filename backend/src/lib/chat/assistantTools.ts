@@ -62,7 +62,7 @@ import {
   type NativePageMap,
   quoteRepairSuggestionNative,
 } from "../structureNative";
-import { preparePdf, preparePdfPages } from "../pdfJobs";
+import { pdfLifecyclePhase } from "../pdfLifecycleDiagnostics";
 import {
   lookupProviderPdfReference,
   rehydrateProviderPdfReference,
@@ -389,7 +389,7 @@ async function saveDocxEdits(params: {
     filename: version.filename,
     fileType: "docx",
     sourceSha256: version.source_sha256,
-    bytes: params.bytes,
+    readBytes: () => params.bytes,
   }).catch(() => null);
   const lint = lintProjection?.kind === "docx"
     ? docxStructureLintNative(lintProjection.document)
@@ -1345,7 +1345,7 @@ async function runCodingShapeCall(
               filename: file.filename,
               fileType: file.fileType,
               sourceSha256: file.version.source_sha256,
-              bytes: file.bytes,
+              readBytes: () => file.bytes,
             }, { signal });
             physicalPageCount = projection.kind === "pdf"
               ? projection.pageCount
@@ -1367,9 +1367,6 @@ async function runCodingShapeCall(
         }
       }
       try {
-        const sourcePath = await documentProjectionService.publishPdf(
-          file.bytes, file.version.source_sha256,
-        );
         let lookup: PdfLookupResult;
         if (handle) {
           const receipt = await documentProjectionService.readPdfEvidence(handle);
@@ -1380,7 +1377,7 @@ async function runCodingShapeCall(
             return fail("PDF evidence does not belong to this resource.");
           }
           lookup = await documentProjectionService.rehydratePdfEvidence(
-            sourcePath,
+            file.bytes,
             handle,
           );
         } else {
@@ -1389,68 +1386,32 @@ async function runCodingShapeCall(
             !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)
             ? Number(locator)
             : null;
+          let selectedPages: number[] | undefined;
           if (exactPage) {
             const contextBlocks = Math.max(0, Math.min(2,
               Math.trunc(Number(args.context_blocks) || 0)));
-            const selectedPages = Array.from(
+            selectedPages = Array.from(
               {
                 length: Math.min(physicalPageCount ?? exactPage + contextBlocks,
                   exactPage + contextBlocks) - Math.max(1, exactPage - contextBlocks) + 1,
               },
               (_, index) => Math.max(1, exactPage - contextBlocks) + index,
             );
-            const cacheKey = await preparePdfPages({
-              userId: scope.userId,
-              documentId: meta.id,
-              versionId: file.version.id,
-              sourceSha256: file.version.source_sha256,
-              pages: selectedPages,
-              signal,
-              onProgress: ({ phase }) => progress?.(
-                phase === "ocr"
-                  ? `Running OCR on page ${exactPage} of ${meta.filename}`
-                  : phase === "inspecting"
-                    ? `Inspecting page ${exactPage} of ${meta.filename}`
-                    : `Reading page ${exactPage} of ${meta.filename}`,
-              ),
-            });
-            lookup = await documentProjectionService.lookupPdf(
-              sourcePath,
-              locatorInput,
-              {
-                cacheKey,
-                documentId: meta.id,
-                versionId: file.version.id,
-                sourceSha256: file.version.source_sha256,
-                pages: selectedPages,
-              },
-            );
-          } else {
-            const cacheKey = await preparePdf({
-              userId: scope.userId,
-              documentId: meta.id,
-              versionId: file.version.id,
-              sourceSha256: file.version.source_sha256,
-              signal,
-              onProgress: ({ phase }) => progress?.(
-                phase === "ocr"
-                  ? `Running OCR on ${meta.filename}`
-                  : phase === "inspecting"
-                    ? `Inspecting ${meta.filename}`
-                    : `Reading ${meta.filename}`,
-              ),
-            });
-            lookup = await documentProjectionService.lookupPdf(
-              sourcePath,
-              locatorInput,
-              {
-                cacheKey,
-                documentId: meta.id,
-                versionId: file.version.id,
-                sourceSha256: file.version.source_sha256,
-              },
-            );
           }
+          lookup = await documentProjectionService.lookupPdf(file.bytes, locatorInput, {
+            documentId: meta.id,
+            versionId: file.version.id,
+            sourceSha256: file.version.source_sha256,
+            pages: selectedPages,
+            signal,
+            progress: ({ phase }) => progress?.(
+              phase === "ocr"
+                ? `Running OCR on ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`
+                : phase === "inspecting"
+                  ? `Inspecting ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`
+                  : `Reading ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`,
+            ),
+          });
         }
         const evidence = pdfLegalEvidence(
           meta.id,
@@ -1892,26 +1853,34 @@ export async function extractDocument(
   documentId: string,
   versionId?: string,
 ) {
-  const file = await documents.read(
-    scope, documentId, versionId ?? null, false,
-  );
-  if (!file) return null;
-  const fileType = file.fileType.toLowerCase();
-  const projection = await documentProjectionService.read({
-    documentId,
-    versionId: file.version.id,
-    filename: file.filename,
-    fileType,
-    sourceSha256: file.version.source_sha256,
-    bytes: file.bytes,
-  });
+  const listing = await documents.versions(scope, documentId);
+  const selectedId = versionId ?? listing?.current_version_id;
+  const version = listing?.versions.find(({ id }) => id === selectedId);
+  if (!version) return null;
+  const fileType = version.file_type.toLowerCase();
+  const projection = await pdfLifecyclePhase("open.projection", documentId, () =>
+    documentProjectionService.read({
+      documentId,
+      versionId: version.id,
+      filename: version.filename,
+      fileType,
+      sourceSha256: version.source_sha256,
+      readBytes: async () => {
+        const file = await pdfLifecyclePhase("open.source_read", documentId, () =>
+          documents.read(scope, documentId, version.id, false));
+        if (!file) throw new Error("Document source is unavailable");
+        return file.bytes;
+      },
+    }));
   const { document } = projection;
-  const text = documentTextNative(document);
-  let pages: NativePageMap = documentPageMapNative(document);
+  const text = pdfLifecyclePhase("open.text", documentId, () =>
+    documentTextNative(document));
+  let pages: NativePageMap = pdfLifecyclePhase("open.page_map", documentId, () =>
+    documentPageMapNative(document));
   if (!pages.pages.length && fileType === "pdf")
     pages = { pages: [], source: "unindexed" };
   return {
-    versionId: file.version.id,
+    versionId: version.id,
     text,
     pages,
     tableCells: projection.kind === "spreadsheet-grid" ? projection.tableCells : [],
@@ -2271,7 +2240,7 @@ async function runAdvancedDocxEdit(params: {
         filename: file.filename,
         fileType: file.fileType,
         sourceSha256: file.version.source_sha256,
-        bytes: file.bytes,
+        readBytes: () => file.bytes,
       });
       const document = projection.document;
       if (projection.kind !== "docx" || !documentTextBytesNative(document)) {
@@ -2421,7 +2390,7 @@ async function runDocxWorkflow(
     filename: file.filename,
     fileType: file.fileType,
     sourceSha256: file.version.source_sha256,
-    bytes: file.bytes,
+    readBytes: () => file.bytes,
   });
   if (projection.kind !== "docx") {
     throw new Error("DOCX structure projection is unavailable");
@@ -2694,7 +2663,7 @@ export function assistantTools<Context extends {
           filename: file.filename,
           fileType: file.fileType,
           sourceSha256: file.version.source_sha256,
-          bytes,
+          readBytes: () => bytes,
         });
         const text = documentTextNative(projection.document);
         if (projection.kind !== "docx" || !text) {

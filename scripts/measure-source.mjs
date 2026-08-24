@@ -195,15 +195,20 @@ const honestProduction = current.production + relocatedFeatureLines;
 const lock = JSON.parse(readFileSync(path.join(root, "subrepos.lock.json"), "utf8"));
 const subrepos = Object.fromEntries(Object.entries(lock.repositories).map(([name, pin]) => {
   const directory = path.join(root, name);
-  if (!existsSync(path.join(directory, ".git"))) return [name, { ...pin, available: false }];
+  const gitlink = pin.remote
+    ? git(["ls-files", "--stage", "--", name]).trim().split(/\s+/)[1]
+    : pin.commit;
+  if (!existsSync(path.join(directory, ".git"))) {
+    return [name, { ...pin, commit: gitlink, available: false }];
+  }
   const names = listed(["ls-files", "--cached", "--others", "--exclude-standard"], directory)
     .filter((file) => existsSync(path.join(directory, file)));
   const head = git(["rev-parse", "HEAD"], directory).trim();
   const receipt = authoredReceipt(directory, names);
   return [name, {
-    commit: pin.commit,
+    commit: gitlink,
     head,
-    pinMatches: head === pin.commit,
+    pinMatches: head === gitlink,
     dirty: git(["status", "--porcelain"], directory).trim() !== "",
     ...receipt,
   }];
@@ -296,7 +301,7 @@ const failures = [];
 if (budgetPath) {
   const budget = JSON.parse(readFileSync(budgetPath, "utf8"));
   const baselineSubrepos = budget.baselineSubrepos ?? Object.fromEntries(
-    Object.entries(lock.repositories).map(([name, pin]) => [name, pin.commit]),
+    Object.entries(subrepos).map(([name, repository]) => [name, repository.commit]),
   );
   if (Object.keys(baselineSubrepos).sort().join("\0") !== Object.keys(lock.repositories).sort().join("\0")) {
     failures.push("baseline subrepository set does not match the current locked set");
@@ -323,7 +328,7 @@ if (budgetPath) {
   }
   for (const [name, repository] of Object.entries(subrepos)) {
     if (repository.available === false) failures.push(`${name}: locked subrepository unavailable`);
-    else if (!repository.pinMatches) failures.push(`${name}: HEAD ${repository.head} != lock ${repository.commit}`);
+    else if (!repository.pinMatches) failures.push(`${name}: HEAD ${repository.head} != pin ${repository.commit}`);
     else if (repository.dirty) failures.push(`${name}: dirty subrepository`);
   }
   for (const name of Object.keys(unlockedRepositories)) {

@@ -27,7 +27,8 @@ describe("DocumentProjectionService", () => {
     zip.file("ppt/slides/slide1.xml", "x".repeat(8 * 1024 * 1024 + 1));
     const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     await expect((await service()).read({
-      documentId: "document-a", versionId: "version-1", fileType: "pptx", bytes,
+      documentId: "document-a", versionId: "version-1", fileType: "pptx",
+      readBytes: () => bytes,
     })).rejects.toThrow("oversized slide XML");
   });
 
@@ -37,7 +38,7 @@ describe("DocumentProjectionService", () => {
       documentId: "document-a",
       versionId: "version-1",
       fileType: "txt",
-      bytes: Buffer.from("source"),
+      readBytes: () => Buffer.from("source"),
     } as const;
 
     await expect(projections.read({ ...input, documentId: " bad" }))

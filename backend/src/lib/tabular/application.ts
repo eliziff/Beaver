@@ -194,22 +194,26 @@ export function createTabularApplication(
 
   async function document(scope: TabularScope, documentId: string, signal?: AbortSignal) {
     throwIfAborted(signal);
-    const content = await documents.read(scope, documentId, null, false);
-    throwIfAborted(signal);
-    if (!content) return fail(404, "Document not found");
-    if (content.bytes.byteLength > MAX_FILE_BYTES)
-      return fail(413, "Document exceeds the 25 MB tabular extraction limit");
+    const listing = await documents.versions(scope, documentId);
+    const version = listing?.versions.find(({ id }) => id === listing.current_version_id);
+    if (!version) return fail(404, "Document not found");
     const projection = await project({
       documentId,
-      versionId: content.version.id,
-      filename: content.filename,
-      fileType: content.fileType,
-      sourceSha256: content.version.source_sha256,
-      bytes: content.bytes,
+      versionId: version.id,
+      filename: version.filename,
+      fileType: version.file_type,
+      sourceSha256: version.source_sha256,
+      readBytes: async () => {
+        const content = await documents.read(scope, documentId, version.id, false);
+        if (!content) return fail(404, "Document not found");
+        if (content.bytes.byteLength > MAX_FILE_BYTES)
+          return fail(413, "Document exceeds the 25 MB tabular extraction limit");
+        return content.bytes;
+      },
     }, { signal });
     const markdown = documentTextNative(projection.document, MAX_DOCUMENT_CHARS);
     throwIfAborted(signal);
-    return { id: documentId, filename: content.filename.slice(0, 500),
+    return { id: documentId, filename: version.filename.slice(0, 500),
       markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };
   }
 

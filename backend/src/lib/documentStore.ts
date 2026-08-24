@@ -7,6 +7,7 @@ export type DocumentParseState = {
   status: "queued" | "parsing" | "ready" | "degraded" | "failed" | "cancelled";
   phase?: "inspecting" | "extracting" | "ocr";
   pages?: number[];
+  page_count?: number;
   error?: string;
 };
 export type DocumentRecord = Record<string, unknown> & { id: string; filename?: string | null;
@@ -49,11 +50,16 @@ export type ResolveEditResult = { status: "missing" | "invalid" }
   | { status: "conflict"; editStatus: string }
   | { status: "resolved" | "unchanged"; editStatus: string; versionId: string | null;
       versionNumber: number | null; downloadUrl: string | null };
-type DocumentFile = { filename: string; fileType: string; bytes: Buffer };
+export type DocumentFile = { filename: string; fileType: string } & (
+  { bytes: Buffer } | { path: string; sizeBytes: number }
+);
 
 export type DocumentStore = {
   resumeCleanup(): Promise<void>;
   metadata(scope: DocumentScope, id: string, owner?: boolean): Promise<DocumentRecord | null>;
+  parseStates(scope: DocumentScope, ids: string[]): Promise<Array<{
+    id: string; parse_state: DocumentParseState | null; page_count: number | null;
+  }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
     libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance }):
     Promise<CreatedDocumentRecord>;

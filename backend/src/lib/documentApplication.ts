@@ -1,20 +1,22 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { docxToPdf } from "./convert";
 import type { DocumentAggregate, DocumentRepository,
   StoredDocumentVersion } from "./documentRepository";
 import { contentTypeForDocumentType, shouldConvertToPdf,
   validateDocumentFile } from "./documentTypes";
-import type { DocumentContent, DocumentProvenance, DocumentScope,
+import type { DocumentContent, DocumentFile, DocumentProvenance, DocumentScope,
   DocumentStore, DocumentVersion, StoredAssistantEdit } from "./documentStore";
 import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { sha256 } from "./hash";
-import { documentProjectionService } from "./documentProjectionService";
 import { normalizeDocumentMetadata, normalizeDocumentNotes,
   type LibraryKind } from "./normalize";
 import { MAX_OBJECT_SIZE_BYTES, normalizeDownloadFilename, SIGNED_GET_TTL_SECONDS,
   type ObjectStorage, versionStorageKey } from "./storage";
 import { assertBoundedZip, loadZip } from "./zip";
+import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 
 class DocumentWriteConflict extends Error {}
 
@@ -23,34 +25,67 @@ const safeFilename = (value: string) => {
   return normalizeDownloadFilename(value);
 };
 
-const checkBytes = (bytes: Buffer) => {
-  if (bytes.byteLength > MAX_OBJECT_SIZE_BYTES)
+const ARCHIVE_TYPES = new Set(["docx", "xlsx", "xlsm", "pptx"]);
+const inspectUpload = async (input: DocumentFile) => {
+  if ("bytes" in input) {
+    if (input.bytes.byteLength > MAX_OBJECT_SIZE_BYTES)
+      throw new ApplicationError(413, "Document exceeds the maximum object size");
+    return { head: input.bytes, sizeBytes: input.bytes.byteLength,
+      sourceSha256: sha256(input.bytes) };
+  }
+  if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 0 ||
+      input.sizeBytes > MAX_OBJECT_SIZE_BYTES)
     throw new ApplicationError(413, "Document exceeds the maximum object size");
+  const hash = createHash("sha256"), chunks: Buffer[] = [];
+  let headBytes = 0, sizeBytes = 0;
+  for await (const value of createReadStream(input.path)) {
+    const chunk = Buffer.from(value);
+    sizeBytes += chunk.byteLength;
+    if (sizeBytes > MAX_OBJECT_SIZE_BYTES)
+      throw new ApplicationError(413, "Document exceeds the maximum object size");
+    hash.update(chunk);
+    if (headBytes < 1_024) {
+      const part = chunk.subarray(0, 1_024 - headBytes);
+      chunks.push(part); headBytes += part.byteLength;
+    }
+  }
+  if (sizeBytes !== input.sizeBytes) throw new Error("Uploaded file size changed while reading");
+  return { head: Buffer.concat(chunks), sizeBytes, sourceSha256: hash.digest("hex") };
 };
 
-const ARCHIVE_TYPES = new Set(["docx", "xlsx", "xlsm", "pptx"]);
-const validateUpload = async (filename: string, fileType: string, bytes: Buffer) => {
-  checkBytes(bytes);
+let archiveValidation = Promise.resolve();
+async function validateArchive(input: DocumentFile) {
+  const previous = archiveValidation;
+  let release!: () => void;
+  archiveValidation = new Promise<void>((resolve) => { release = resolve; });
+  await previous;
+  try {
+    const zip = await loadZip("bytes" in input ? input.bytes : await readFile(input.path));
+    assertBoundedZip(zip, "Office document", {
+      maxEntries: 4_096, maxExpandedBytes: 256 * 1024 * 1024,
+      selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: 64 * 1024 * 1024,
+        maxBytes: 128 * 1024 * 1024, name: "XML part" },
+    });
+  } finally { release(); }
+}
+
+const validateUpload = async (input: DocumentFile) => {
+  const { filename, fileType } = input, inspected = await inspectUpload(input);
   const name = safeFilename(filename);
-  const validated = validateDocumentFile(name, bytes);
+  const validated = validateDocumentFile(name, inspected.head, inspected.sizeBytes);
   if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
     throw new ApplicationError(400,
       validated.ok ? "Filename and document type do not match" : validated.error);
   }
   if (ARCHIVE_TYPES.has(validated.fileType)) {
     try {
-      const zip = await loadZip(bytes);
-      assertBoundedZip(zip, "Office document", {
-        maxEntries: 4_096, maxExpandedBytes: 256 * 1024 * 1024,
-        selected: { test: /\.xml(?:\.rels)?$/iu, maxEntryBytes: 64 * 1024 * 1024,
-          maxBytes: 128 * 1024 * 1024, name: "XML part" },
-      });
+      await validateArchive(input);
     } catch {
       throw new ApplicationError(400,
         "Office document archive is invalid or exceeds extraction limits");
     }
   }
-  return { filename: name, fileType: validated.fileType };
+  return { filename: name, fileType: validated.fileType, ...inspected };
 };
 
 const responseVersion = (version: StoredDocumentVersion): DocumentVersion => ({
@@ -74,7 +109,8 @@ const responseDocument = (aggregate: DocumentAggregate) => {
     library_kind: document.libraryKind,
     library_folder_id: document.projectId ? null : document.folderId,
     folder_id: document.folderId, filename: version.filename, file_type: version.fileType,
-    size_bytes: version.sizeBytes, page_count: version.pageCount,
+    size_bytes: version.sizeBytes,
+    page_count: version.pageCount ?? document.parseState?.page_count ?? null,
     source_sha256: version.sourceSha256, status: document.status,
     current_version_id: document.currentVersionId,
     active_version_number: version.versionNumber, created_at: document.createdAt,
@@ -99,15 +135,6 @@ function editedFilename(version: StoredDocumentVersion) {
   return `${dot > 0 ? name.slice(0, dot) : name} [Edited V${version.versionNumber}]${
     dot > 0 ? name.slice(dot) : ""
   }`;
-}
-
-async function pageCount(fileType: string, bytes: Buffer) {
-  if (fileType !== "pdf") return null;
-  try {
-    return await documentProjectionService.pdfPageCount(bytes);
-  } catch {
-    throw new ApplicationError(400, "PDF is invalid or unsupported");
-  }
 }
 
 function provenanceWithEdits(provenance: DocumentProvenance | undefined,
@@ -155,25 +182,26 @@ export function createDocumentApplication(repository: DocumentRepository,
 
   const makeVersion = async (input: { scope: DocumentScope; documentId: string;
     versionId?: string; versionNumber: number; source: string; filename: string;
-    fileType: string; bytes: Buffer; provenance?: DocumentProvenance;
+    provenance?: DocumentProvenance;
+    } & DocumentFile & {
     edits?: StoredAssistantEdit[] }) => {
     const id = input.versionId ?? randomUUID();
-    const { filename, fileType } = await validateUpload(
-      input.filename, input.fileType, input.bytes,
-    );
-    const sourceSha256 = sha256(input.bytes), blobKey = versionStorageKey(
+    const { filename, fileType, sizeBytes, sourceSha256 } = await validateUpload(input);
+    const blobKey = versionStorageKey(
       input.scope.userId, input.documentId, id, sourceSha256, filename);
     const version: StoredDocumentVersion = {
       id, documentId: input.documentId, versionNumber: input.versionNumber,
       source: input.source, createdAt: new Date().toISOString(), filename, fileType,
-      sizeBytes: input.bytes.byteLength,
-      pageCount: await pageCount(fileType, input.bytes),
+      sizeBytes,
+      pageCount: null,
       sourceSha256, blobKey, pdfBlobKey: fileType === "pdf" ? blobKey : null, cleanupKeys: [],
       provenance: input.edits
         ? provenanceWithEdits(input.provenance, input.edits)
         : input.provenance,
     };
-    await objects.put(blobKey, input.bytes, contentTypeForDocumentType(fileType));
+    await pdfLifecyclePhase("upload.blob_write", input.documentId, () =>
+      objects.put(blobKey, "bytes" in input ? input.bytes : { path: input.path, sizeBytes },
+        contentTypeForDocumentType(fileType)));
     return version;
   };
 
@@ -239,7 +267,7 @@ export function createDocumentApplication(repository: DocumentRepository,
   };
 
   const add = async (scope: DocumentScope, aggregate: DocumentAggregate,
-    file: { filename: string; fileType: string; bytes: Buffer }, input?: {
+    file: DocumentFile, input?: {
       source?: string; provenance?: DocumentProvenance; edits?: StoredAssistantEdit[] }) => {
     const version = await makeVersion({ scope, documentId: aggregate.document.id,
       versionNumber: Math.max(...aggregate.versions.map(({ versionNumber }) => versionNumber)) + 1,
@@ -260,19 +288,20 @@ export function createDocumentApplication(repository: DocumentRepository,
   };
 
   const replace = async (scope: DocumentScope, documentId: string,
-    current: StoredDocumentVersion, input: {
-      filename: string; fileType: string; bytes: Buffer; pageCount: number | null;
+    current: StoredDocumentVersion, input: DocumentFile & {
+      pageCount: number | null;
       provenance?: DocumentProvenance | null; createdAt?: string; edits?: StoredAssistantEdit[];
       resolveEdit?: { id: string; status: StoredAssistantEdit["status"] };
     }) => {
-    checkBytes(input.bytes);
-    const digest = sha256(input.bytes), key = versionStorageKey(
-      scope.userId, documentId, current.id, digest, input.filename);
-    await objects.put(key, input.bytes, contentTypeForDocumentType(input.fileType));
+    const { filename, fileType, sizeBytes, sourceSha256 } = await validateUpload(input);
+    const key = versionStorageKey(scope.userId, documentId, current.id,
+      sourceSha256, filename);
+    await objects.put(key, "bytes" in input ? input.bytes : { path: input.path, sizeBytes },
+      contentTypeForDocumentType(fileType));
     const oldKeys = objectKeys(current).filter((value) => value !== key);
-    const next: StoredDocumentVersion = { ...current, filename: input.filename,
-      fileType: input.fileType, sizeBytes: input.bytes.byteLength, pageCount: input.pageCount,
-      sourceSha256: digest, blobKey: key, pdfBlobKey: input.fileType === "pdf" ? key : null,
+    const next: StoredDocumentVersion = { ...current, filename,
+      fileType, sizeBytes, pageCount: input.pageCount,
+      sourceSha256, blobKey: key, pdfBlobKey: fileType === "pdf" ? key : null,
       cleanupKeys: oldKeys, provenance: input.provenance === null
         ? undefined : input.provenance ?? current.provenance,
       createdAt: input.createdAt ?? current.createdAt };
@@ -282,7 +311,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         versionId: current.id, expectedBlobKey: current.blobKey,
         update: { filename: next.filename, fileType: next.fileType,
           sizeBytes: next.sizeBytes, pageCount: next.pageCount,
-          sourceSha256: digest, blobKey: key, pdfBlobKey: next.pdfBlobKey,
+          sourceSha256, blobKey: key, pdfBlobKey: next.pdfBlobKey,
           cleanupKeys: oldKeys, provenance: input.provenance,
           ...(input.createdAt ? { createdAt: input.createdAt } : {}) },
         edits: input.edits, resolveEdit: input.resolveEdit,
@@ -324,6 +353,11 @@ export function createDocumentApplication(repository: DocumentRepository,
       return aggregate ? responseDocument(aggregate) : null;
     },
 
+    async parseStates(scope, ids) {
+      return (await repository.parseStates(scope, ids)).map(({ id, parseState }) =>
+        ({ id, parse_state: parseState, page_count: parseState?.page_count ?? null }));
+    },
+
     async create(scope, input) {
       const libraryKind = (input.libraryKind ?? "file") as LibraryKind,
         projectId = input.projectId ?? null, folderId = input.folderId ?? null;
@@ -338,8 +372,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       const documentId = randomUUID();
       const version = await makeVersion({ scope, documentId, versionNumber: 1,
         source: input.provenance?.action === "created" ? "generated" : "upload",
-        filename: input.filename, fileType: input.fileType, bytes: input.bytes,
-        provenance: input.provenance,
+        ...input,
       });
       const now = version.createdAt, document = {
         id: documentId, userId: scope.userId, projectId, libraryKind, folderId,
@@ -348,7 +381,8 @@ export function createDocumentApplication(repository: DocumentRepository,
         parseState: version.fileType === "pdf" ? { status: "queued" as const } : null,
       };
       try {
-        await repository.create(scope, { document, version });
+        await pdfLifecyclePhase("upload.repository", documentId, () =>
+          repository.create(scope, { document, version }));
       } catch (error) {
         await compensate(scope, version.blobKey, error);
       }
@@ -551,13 +585,9 @@ export function createDocumentApplication(repository: DocumentRepository,
       const aggregate = await repository.get(scope, documentId, true);
       const target = aggregate && activeVersion(aggregate, versionId);
       if (!aggregate || !target) return { status: "missing" as const };
-      const { filename, fileType } = await validateUpload(
-        file.filename, file.fileType, file.bytes,
-      );
-      if (target.fileType !== fileType) return { status: "type-mismatch" as const };
-      const updated = await replace(scope, documentId, target, { filename, fileType,
-        bytes: file.bytes,
-        pageCount: await pageCount(fileType, file.bytes),
+      if (target.fileType !== file.fileType) return { status: "type-mismatch" as const };
+      const updated = await replace(scope, documentId, target, { ...file,
+        pageCount: null,
         createdAt: new Date().toISOString(), provenance: null });
       return { status: "replaced" as const, version: responseVersion(updated) };
     },

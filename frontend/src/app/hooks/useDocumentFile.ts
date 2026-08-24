@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiBlobRequest } from "../lib/beaverApi";
+import { apiFetch } from "../lib/beaverApi";
 
 export type DocumentFile = {
   type: "pdf" | "spreadsheet" | "docx" | "text";
@@ -51,16 +51,17 @@ async function load(
   if (versionId) query.set("version_id", versionId);
   const search = query.toString();
   const generation = cacheGeneration;
-  const request = apiBlobRequest(
+  const request = apiFetch(
     `/single-documents/${encodeURIComponent(documentId)}/file${search ? `?${search}` : ""}`,
     { cache: "default", headers: { Accept: "*/*" } },
-  ).then(async ({ blob }) => {
+  ).then(async (response) => {
+    if (!response.ok) throw new Error(`Failed to load document (${response.status})`);
     if (generation !== cacheGeneration) throw new Error("Authentication changed");
     const result: DocumentFile = {
-      type: fileType(blob.type),
-      buffer: await blob.arrayBuffer(),
+      type: fileType(response.headers.get("content-type") ?? ""),
+      buffer: await response.arrayBuffer(),
     };
-    cache.set(key, result);
+    if (result.type !== "pdf") cache.set(key, result);
     const oldest = cache.keys().next().value;
     if (cache.size > 8 && oldest) cache.delete(oldest);
     return result;

@@ -224,23 +224,6 @@ async function publishPdfContent(
   }, signal);
 }
 
-export async function publishPdfBytes(
-  bytes: Buffer,
-  expectedSha256: string,
-  signal?: AbortSignal,
-) {
-  if (bytes.length <= 0 || bytes.length > MAX_PROJECTION_PDF_BYTES ||
-      !bytes.subarray(0, 1_024).includes("%PDF-")) {
-    throw new Error("PDF source bytes are invalid");
-  }
-  const destination = pdfContentPath(expectedSha256);
-  return withProjectionLock(`pdf-content:${expectedSha256}`, async () => {
-    if (!(await sameFile(destination, expectedSha256)))
-      await atomicWriteProjection(destination, bytes, signal);
-    return destination;
-  }, signal);
-}
-
 export async function publishPdfStream(
   stream: ReadableStream<Uint8Array>,
   signal?: AbortSignal,

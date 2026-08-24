@@ -58,11 +58,11 @@ function makeLimiter(name: string, max: number, window: number,
   });
 }
 
-const generalLimiter = makeLimiter("GENERAL", 300, 15, "MINUTES", undefined, false);
+const generalLimiter = makeLimiter("GENERAL", 3_000, 15, "MINUTES", undefined, false);
 const chatLimiter = makeLimiter("CHAT", 30, 15, "MINUTES",
   "Too many chat requests. Please try again later.");
 const chatCreateLimiter = makeLimiter("CHAT_CREATE", 60, 15, "MINUTES");
-const uploadLimiter = makeLimiter("UPLOAD", 50, 1, "HOURS",
+const uploadLimiter = makeLimiter("UPLOAD", 200, 1, "HOURS",
   "Too many upload requests. Please try again later.");
 const exportLimiter = makeLimiter("EXPORT", 10, 1, "HOURS",
   "Too many export requests. Please try again later.");

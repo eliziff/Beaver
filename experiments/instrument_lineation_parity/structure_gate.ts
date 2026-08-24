@@ -27,7 +27,7 @@ type Fingerprint = {
     definitions: number; diagnostics: number };
 };
 type Addon = {
-  derivePdfDocument(request: unknown): Promise<NativeDocument>;
+  derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
   deriveDocumentFingerprint(request: unknown): Promise<Fingerprint>;
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   documentSnapshot(document: NativeDocument): unknown;

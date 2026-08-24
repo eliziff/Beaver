@@ -1,6 +1,3 @@
-import path from "node:path";
-import { access, mkdir, readFile, rm } from "node:fs/promises";
-
 import { sha256 } from "./hash";
 import { assertBoundedZip } from "./zip";
 import {
@@ -9,17 +6,10 @@ import {
   rehydratePdfEvidence,
   rehydratePdfLinkEvidence,
   verifyPdfLinkEvidence,
-  type PdfEvidenceReceipt,
-  type PdfLinkEvidence,
   type PdfLocatorKind,
   type PdfLookupInput,
 } from "./documentProjectionPdf";
-import {
-  atomicWriteProjection,
-  inspectPdf,
-  projectionDirectory,
-  publishPdfBytes,
-} from "./documentProjection";
+import { projectionDirectory } from "./documentProjection";
 import {
   spreadsheetToLLMStructure,
   type SpreadsheetLlmStructure,
@@ -30,8 +20,8 @@ import {
   deriveDocxNative,
   derivePdfNative,
   documentTextBytesNative,
-  pdfPageCountNative,
   pdfDocumentSummaryNative,
+  restorePdfNative,
   type LegalPdfOcrProvider,
   type NativeDocument,
 } from "./structureNative";
@@ -45,46 +35,18 @@ import { extractEmailText } from "./emailText";
 import { extractPresentationText } from "./officeText";
 import { docxToPdf } from "./convert";
 import { isJsonRecord } from "./value";
+import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 
-const STATE_SCHEMA = "beaver.pdf-preparation.v1";
 const CACHE_DIRECTORY = projectionDirectory("legalpdf-cache", sha256("legalpdf-cache-v1"));
 
-export type PdfParseStatus = "parsing" | "ready" | "degraded" | "failed";
+export type PdfParseStatus = "ready" | "degraded";
 export type PdfOcrProvider = LegalPdfOcrProvider;
 export type {
-  PdfEvidenceReceipt,
-  PdfLinkEvidence,
   PdfLocatorKind,
   PdfLookupInput,
 };
 
-export type PdfParseState = {
-  schema_version: typeof STATE_SCHEMA;
-  document_id: string;
-  version_id: string;
-  status: PdfParseStatus;
-  source_sha256: string;
-  parser_version: string;
-  parser_config: {
-    ocr_provider: PdfOcrProvider | null;
-    layout_provider: "ppdoc" | null;
-    selected_pages?: number[];
-    profile_sha256: string;
-  };
-  cache_key: string;
-  attempts: number;
-  started_at: string;
-  updated_at: string;
-  completed_at?: string;
-  engine_status?: string;
-  page_count?: number;
-  counts?: Record<string, number>;
-  pages_needing_ocr?: number[];
-  ocr_routed_pages?: number[];
-  error?: string;
-};
-
-type PdfStateReference = {
+type ProjectionReference = {
   documentId: string;
   versionId: string;
   sourceSha256: string;
@@ -102,20 +64,27 @@ type PdfPreparationSummary = {
   pageCount: number;
   projectionPageCount: number;
   status: string;
-  pagesNeedingOcr?: unknown;
-  ocrRoutedPages?: unknown;
-  counts: Record<string, number>;
 };
 
-const exists = (filename: string) => access(filename).then(() => true, () => false);
-const statePath = (reference: PdfStateReference) => path.join(
-  projectionDirectory("pdf-state", sha256(JSON.stringify({
-    documentId: reference.documentId,
-    versionId: reference.versionId,
-    sourceSha256: reference.sourceSha256,
-  }))),
-  "state.json",
-);
+function preparedSummary(native: NativeDocument, expectedSha256?: string) {
+  const result = pdfDocumentSummaryNative<PdfPreparationSummary>(native);
+  if (!/^[a-f0-9]{64}$/u.test(result.sha256) ||
+      (expectedSha256 && result.sha256 !== expectedSha256))
+    throw new Error("PDF source changed after preparation began");
+  if (typeof result.cacheKey !== "string" || !result.cacheKey)
+    throw new Error("Legal PDF preparation returned no cache key");
+  const engineStatus = String(result.status || "degraded");
+  if (!["ready", "degraded", "ocr_required"].includes(engineStatus))
+    throw new Error("Legal PDF engine returned an invalid preparation status");
+  return {
+    status: (engineStatus === "ready" ? "ready" : "degraded") as PdfParseStatus,
+    sourceSha256: result.sha256,
+    parserVersion: result.parserVersion,
+    cacheKey: result.cacheKey,
+    pageCount: result.pageCount,
+    projectionPageCount: result.projectionPageCount,
+  };
+}
 
 function validProjectionId(value: string) {
   return value === value.trim() && value.length > 0 && value.length <= 256 &&
@@ -125,7 +94,7 @@ function validProjectionId(value: string) {
 function safeParserError(error: unknown) {
   const stderr = isJsonRecord(error) && typeof error.stderr === "string" ? error.stderr : "";
   const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
-  if (/invalid file trailer|couldn't parse input|PDF parsing failed/iu.test(message))
+  if (/invalid file trailer|couldn't parse input|PDF parsing failed|source bytes are invalid/iu.test(message))
     return "PDF is invalid or corrupt";
   if (/timed out|ETIMEDOUT/iu.test(message)) return "PDF structural parsing timed out";
   if (/Tesseract/iu.test(message)) return "Tesseract OCR could not start";
@@ -136,41 +105,6 @@ function safeParserError(error: unknown) {
   if (/source changed/iu.test(message))
     return "PDF source changed after preparation began";
   return "PDF structural parser failed";
-}
-
-function parseState(value: unknown): PdfParseState {
-  if (!isJsonRecord(value))
-    throw new Error("Invalid PDF preparation state");
-  const state = value as Partial<PdfParseState>;
-  if (state.schema_version !== STATE_SCHEMA ||
-      !validProjectionId(String(state.document_id || "")) ||
-      !validProjectionId(String(state.version_id || "")) ||
-      !/^[a-f0-9]{64}$/u.test(String(state.source_sha256 || "")) ||
-      !["parsing", "ready", "degraded", "failed"].includes(String(state.status))) {
-    throw new Error("Invalid PDF preparation state");
-  }
-  return state as PdfParseState;
-}
-
-async function readState(reference: PdfStateReference) {
-  try {
-    return parseState(JSON.parse(await readFile(statePath(reference), "utf8")));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-async function writeState(sourcePath: string, state: PdfParseState) {
-  if (!(await exists(sourcePath))) return false;
-  const filename = statePath({
-    documentId: state.document_id,
-    versionId: state.version_id,
-    sourceSha256: state.source_sha256,
-  });
-  await mkdir(path.dirname(filename), { recursive: true });
-  await atomicWriteProjection(filename, `${JSON.stringify(state, null, 2)}\n`);
-  return true;
 }
 
 function profileFor(
@@ -187,16 +121,25 @@ function profileFor(
   return profile;
 }
 
-function physicalArray(value: unknown) {
-  return Array.isArray(value) && value.every((item) => Number.isInteger(item) && Number(item) >= 0)
-    ? value.map((item) => Number(item) + 1)
-    : [];
+function pdfRequest(
+  input: { documentId: string; versionId: string; sourceSha256?: string },
+  profile: ReturnType<typeof configuredLegalPdfProfile>,
+  pages?: number[],
+) {
+  return {
+    kind: "pdf",
+    ...(input.sourceSha256 ? { expected_source_sha256: input.sourceSha256 } : {}),
+    cache_dir: CACHE_DIRECTORY,
+    ...(pages ? { pages } : {}),
+    ...profile,
+    id: `${input.documentId}:${input.versionId}`,
+  };
 }
 
-async function preparePdf(input: {
+async function openPdf(input: {
   documentId: string;
   versionId: string;
-  sourcePath: string;
+  bytes: Buffer;
   sourceSha256?: string;
   pages?: number[];
   ocrProvider?: PdfOcrProvider | null;
@@ -207,115 +150,41 @@ async function preparePdf(input: {
   input.signal?.throwIfAborted();
   if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
     throw new Error("PDF preparation requires valid document and version IDs");
-  const sourceSha256 = input.sourceSha256 ?? (await inspectPdf(input.sourcePath, {
-    signal: input.signal,
-  })).sourceSha256;
-  const reference = { documentId: input.documentId, versionId: input.versionId, sourceSha256 };
-  const previous = await readState(reference);
   const profile = profileFor(input.ocrProvider, input.layout);
   const pages = input.pages?.length
     ? [...new Set(input.pages)].sort((left, right) => left - right)
     : undefined;
-  const started = new Date().toISOString();
-  const parsing: PdfParseState = {
-    schema_version: STATE_SCHEMA,
-    document_id: input.documentId,
-    version_id: input.versionId,
-    status: "parsing",
-    source_sha256: sourceSha256,
-    parser_version: previous?.parser_version ?? "pending",
-    parser_config: {
-      ocr_provider: profile.ocr?.provider ?? null,
-      layout_provider: profile.layout?.provider ?? null,
-      ...(pages ? { selected_pages: pages } : {}),
-      profile_sha256: sha256(JSON.stringify(profile)),
-    },
-    cache_key: previous?.cache_key ?? "pending",
-    attempts: (previous?.attempts ?? 0) + 1,
-    started_at: started,
-    updated_at: started,
-  };
-  await writeState(input.sourcePath, parsing);
   try {
     await input.progress?.({ phase: "inspecting", pages: pages ?? [] });
     await input.progress?.({
       phase: profile.ocr ? "ocr" : "extracting",
       pages: pages ?? [],
     });
-    const native = await derivePdfNative({
-      kind: "pdf",
-      source_pdf: input.sourcePath,
-      verified_source_sha256: sourceSha256,
-      cache_dir: CACHE_DIRECTORY,
-      ...(pages ? { pages } : {}),
-      ...profile,
-      id: `${input.documentId}:${input.versionId}`,
-    });
-    const result = pdfDocumentSummaryNative<PdfPreparationSummary>(native);
+    const native = await pdfLifecyclePhase("prepare.native", input.documentId, () => derivePdfNative(
+      input.bytes,
+      pdfRequest(input, profile, pages)));
+    const summary = pdfLifecyclePhase("prepare.summary", input.documentId, () =>
+      preparedSummary(native, input.sourceSha256));
     input.signal?.throwIfAborted();
-    if (result.sha256 !== sourceSha256)
-      throw new Error("PDF source changed after preparation began");
-    const cacheKey = result.cacheKey;
-    if (typeof cacheKey !== "string" || !cacheKey)
-      throw new Error("Legal PDF preparation returned no cache key");
-    const engineStatus = String(result.status || "degraded");
-    if (!["ready", "degraded", "ocr_required"].includes(engineStatus))
-      throw new Error("Legal PDF engine returned an invalid preparation status");
-    const completed = new Date().toISOString();
-    const state: PdfParseState = {
-      ...parsing,
-      status: engineStatus === "ready" ? "ready" : "degraded",
-      parser_version: result.parserVersion,
-      cache_key: cacheKey,
-      engine_status: engineStatus,
-      page_count: result.pageCount,
-      counts: result.counts,
-      pages_needing_ocr: physicalArray(result.pagesNeedingOcr),
-      ocr_routed_pages: physicalArray(result.ocrRoutedPages),
-      completed_at: completed,
-      updated_at: completed,
-    };
-    await writeState(input.sourcePath, state);
     const projection: Extract<DocumentReadProjection, { kind: "pdf" }> = {
       kind: "pdf",
       document: native,
-      pageCount: result.projectionPageCount,
+      pageCount: summary.projectionPageCount,
     };
-    rememberProjection(reference, projection);
-    return { state, projection };
-  } catch (error) {
-    if (input.signal?.aborted) {
-      await rm(path.dirname(statePath(reference)), { recursive: true, force: true });
-      throw error;
+    if (!pages) {
+      rememberProjection({ documentId: input.documentId, versionId: input.versionId,
+        sourceSha256: summary.sourceSha256 }, projection);
     }
-    const completed = new Date().toISOString();
-    const failed: PdfParseState = {
-      ...parsing,
-      status: "failed",
-      error: safeParserError(error),
-      completed_at: completed,
-      updated_at: completed,
-    };
-    await writeState(input.sourcePath, failed);
-    throw new Error(failed.error, { cause: error });
+    return { summary, projection };
+  } catch (error) {
+    if (input.signal?.aborted) throw error;
+    throw new Error(safeParserError(error), { cause: error });
   }
 }
 
-async function parsePdf(input: Omit<Parameters<typeof preparePdf>[0], "pages">) {
-  return (await preparePdf(input)).state;
-}
-
-async function parsePdfPages(input: Omit<Parameters<typeof preparePdf>[0], "pages"> & {
-  pages: number[];
-}) {
-  return (await preparePdf(input)).state;
-}
-
-const pdfState = readState;
-
-async function removePdf(input: PdfStateReference & { sourcePath: string }) {
-  projectionMemory.delete(projectionKey(input));
-  await rm(path.dirname(statePath(input)), { recursive: true, force: true });
+async function preparePdf(input: Parameters<typeof openPdf>[0]) {
+  const { summary } = await openPdf(input);
+  return { status: summary.status, pageCount: summary.pageCount };
 }
 
 const MAX_DOCUMENT_INPUT_BYTES = 100 * 1024 * 1024;
@@ -324,19 +193,19 @@ const MAX_EXPANDED_PACKAGE_BYTES = 256 * 1024 * 1024;
 const MAX_PACKAGE_ENTRIES = 10_000;
 const MAX_PROJECTION_OUTPUT_BYTES = 64 * 1024 * 1024;
 const projectionMemory = new Map<string, Promise<DocumentReadProjection>>();
-const projectionKey = (input: PdfStateReference) =>
+const projectionKey = (input: ProjectionReference) =>
   `${input.documentId}\0${input.versionId}\0${input.sourceSha256}`;
 
-export type DocumentProjectionInput = Readonly<{
+type DocumentProjectionInput = Readonly<{
   documentId: string;
   versionId: string;
   fileType: string;
   filename?: string;
   sourceSha256?: string | null;
-  bytes: Buffer;
+  readBytes: () => Buffer | Promise<Buffer>;
 }>;
 
-export type DocumentReadProjection =
+type DocumentReadProjection =
   | {
       kind: "document";
       document: NativeDocument;
@@ -356,19 +225,17 @@ export type DocumentReadProjection =
       tableCells: SpreadsheetLlmStructure["tableCells"];
     };
 
-async function boundedSource(input: DocumentProjectionInput, signal?: AbortSignal) {
-  if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
-    throw new Error("Document projection requires valid document and version IDs");
-  signal?.throwIfAborted();
+async function boundedSource(input: DocumentProjectionInput) {
   const fileType = input.fileType.trim().toLowerCase();
-  const bytes = input.bytes;
+  const bytes = await input.readBytes();
   if (!bytes.length || bytes.length > MAX_DOCUMENT_INPUT_BYTES)
     throw new Error("Document projection input exceeds the read limit");
   if (["docx", "xlsx", "xlsm", "pptx"].includes(fileType) &&
       bytes.length > MAX_COMPRESSED_PACKAGE_BYTES)
     throw new Error("Compressed document exceeds the read limit");
-  const sourceSha256 = sha256(bytes);
-  if (input.sourceSha256 && input.sourceSha256 !== sourceSha256)
+  const sourceSha256 = fileType === "pdf" && input.sourceSha256
+    ? input.sourceSha256 : sha256(bytes);
+  if (fileType !== "pdf" && input.sourceSha256 && input.sourceSha256 !== sourceSha256)
     throw new Error("Document source bytes no longer match their version");
   return { bytes, fileType, sourceSha256 };
 }
@@ -383,7 +250,7 @@ async function assertBoundedSpreadsheetPackage(bytes: Buffer, fileType: string) 
 }
 
 function rememberProjection(
-  reference: PdfStateReference,
+  reference: ProjectionReference,
   projection: DocumentReadProjection,
 ) {
   cacheProjection(projectionKey(reference), Promise.resolve(projection));
@@ -439,11 +306,10 @@ async function compileReadProjection(
     };
   }
   if (fileType === "pdf") {
-    const sourcePath = await publishPdfBytes(bytes, sourceSha256, signal);
-    return (await preparePdf({
+    return (await openPdf({
       documentId: input.documentId,
       versionId: input.versionId,
-      sourcePath,
+      bytes,
       sourceSha256,
       signal,
     })).projection;
@@ -458,11 +324,10 @@ async function compileReadProjection(
   } else if (isPresentationDocumentType(fileType) || isWordDocumentType(fileType)) {
     const pdf = await docxToPdf(bytes);
     const sourceSha256 = sha256(pdf);
-    const sourcePath = await publishPdfBytes(pdf, sourceSha256, signal);
-    const prepared = await preparePdf({
+    const prepared = await openPdf({
       documentId: input.documentId,
       versionId: input.versionId,
-      sourcePath,
+      bytes: pdf,
       sourceSha256,
       signal,
     });
@@ -489,7 +354,35 @@ function assertProjectionOutput(projection: DocumentReadProjection) {
 }
 
 async function read(input: DocumentProjectionInput, options: { signal?: AbortSignal } = {}) {
-  const source = await boundedSource(input, options.signal);
+  options.signal?.throwIfAborted();
+  if (!validProjectionId(input.documentId) || !validProjectionId(input.versionId))
+    throw new Error("Document projection requires valid document and version IDs");
+  const reference = input.sourceSha256 && {
+    documentId: input.documentId,
+    versionId: input.versionId,
+    sourceSha256: input.sourceSha256,
+  };
+  const cached = reference && projectionMemory.get(projectionKey(reference));
+  if (cached) return cached.then((result) => {
+    options.signal?.throwIfAborted(); return result;
+  });
+  if (reference && input.fileType.trim().toLowerCase() === "pdf") {
+    const pending = projectionFor(projectionKey(reference), async () => {
+      const native = await pdfLifecyclePhase("open.native_cache", input.documentId, () =>
+        restorePdfNative(pdfRequest(reference, profileFor(undefined, undefined))));
+      const projection: DocumentReadProjection = native
+        ? { kind: "pdf", document: native,
+            pageCount: preparedSummary(native, reference.sourceSha256).projectionPageCount }
+        : await compileReadProjection(input, await boundedSource(input), options.signal);
+      assertProjectionOutput(projection);
+      options.signal?.throwIfAborted();
+      return projection;
+    });
+    const result = await pending;
+    options.signal?.throwIfAborted();
+    return result;
+  }
+  const source = await boundedSource(input);
   const key = projectionKey({
     documentId: input.documentId,
     versionId: input.versionId,
@@ -507,85 +400,91 @@ async function read(input: DocumentProjectionInput, options: { signal?: AbortSig
 }
 
 async function preparedForSource(
-  sourcePath: string,
-  reference: PdfStateReference,
-  pages?: number[],
+  bytes: Buffer,
+  reference: ProjectionReference,
+  options: {
+    pages?: number[];
+    signal?: AbortSignal;
+    progress?: (value: PdfPreparationProgress) => void | Promise<void>;
+  } = {},
 ) {
-  const key = projectionKey(reference);
+  const pages = options.pages?.length
+    ? [...new Set(options.pages)].sort((left, right) => left - right)
+    : undefined;
+  const key = pages
+    ? `${projectionKey(reference)}\0pages:${pages.join(",")}`
+    : projectionKey(reference);
   const pending = projectionFor(key, () =>
-    preparePdf({
+    openPdf({
       ...reference,
-      sourcePath,
-      ...(pages?.length ? { pages } : {}),
+      bytes,
+      ...(pages ? { pages } : {}),
+      signal: options.signal,
+      progress: options.progress,
     }).then(({ projection }) => projection));
-  const [projection, state] = await Promise.all([pending, readState(reference)]);
-  if (projection.kind !== "pdf" || !state || !["ready", "degraded"].includes(state.status))
+  const projection = await pending;
+  if (projection.kind !== "pdf")
     throw new Error("PDF canonical result is unavailable");
-  return { projection, state };
+  return { projection, summary: preparedSummary(projection.document, reference.sourceSha256) };
 }
 
 async function lookupPdf(
-  sourcePath: string,
+  bytes: Buffer,
   input: PdfLookupInput,
   options: {
     persistEvidence?: boolean;
     capturePages?: (pages: { number: number; text: string }[]) => void;
-    cacheKey: string;
     documentId: string;
     versionId: string;
     sourceSha256: string;
     pages?: number[];
+    signal?: AbortSignal;
+    progress?: (value: PdfPreparationProgress) => void | Promise<void>;
   },
 ) {
-  const prepared = await preparedForSource(sourcePath, {
+  const prepared = await preparedForSource(bytes, {
     documentId: options.documentId,
     versionId: options.versionId,
     sourceSha256: options.sourceSha256,
-  }, options.pages);
+  }, options);
   return lookupPdfStructure(prepared.projection.document, input, {
-    ...options,
-    sourceSha256: prepared.state.source_sha256,
-    parserVersion: prepared.state.parser_version,
+    persistEvidence: options.persistEvidence,
+    capturePages: options.capturePages,
+    cacheKey: prepared.summary.cacheKey,
+    documentId: options.documentId,
+    versionId: options.versionId,
+    sourceSha256: prepared.summary.sourceSha256,
+    parserVersion: prepared.summary.parserVersion,
   });
 }
 
-async function preparedForEvidence(sourcePath: string, handle: string) {
+async function preparedForEvidence(bytes: Buffer, handle: string) {
   const receipt = await readPdfEvidenceReceipt(handle);
-  return preparedForSource(sourcePath, {
+  return preparedForSource(bytes, {
     documentId: receipt.source.document_id,
     versionId: receipt.source.version_id,
     sourceSha256: receipt.source.source_sha256,
   });
 }
 
-async function rehydrateEvidence(sourcePath: string, handle: string) {
-  const prepared = await preparedForEvidence(sourcePath, handle);
+async function rehydrateEvidence(bytes: Buffer, handle: string) {
+  const prepared = await preparedForEvidence(bytes, handle);
   return rehydratePdfEvidence(prepared.projection.document, handle);
 }
 
-async function verifyEvidence(sourcePath: string, handle: string) {
-  const prepared = await preparedForEvidence(sourcePath, handle);
+async function verifyEvidence(bytes: Buffer, handle: string) {
+  const prepared = await preparedForEvidence(bytes, handle);
   return verifyPdfLinkEvidence(prepared.projection.document, handle);
 }
 
-async function rehydrateLink(sourcePath: string, handle: string) {
-  const prepared = await preparedForEvidence(sourcePath, handle);
+async function rehydrateLink(bytes: Buffer, handle: string) {
+  const prepared = await preparedForEvidence(bytes, handle);
   return rehydratePdfLinkEvidence(prepared.projection.document, handle);
 }
 
 export const documentProjectionService = Object.freeze({
   read,
-  pdfPageCount: pdfPageCountNative,
-  parsePdf,
-  parsePdfPages,
-  publishPdf: (bytes: Buffer, expected?: string, signal?: AbortSignal) => {
-    const actual = sha256(bytes);
-    if (expected && expected !== actual)
-      throw new Error("PDF source bytes no longer match their version");
-    return publishPdfBytes(bytes, actual, signal);
-  },
-  pdfState,
-  removePdf,
+  preparePdf,
   lookupPdf,
   readPdfEvidence: readPdfEvidenceReceipt,
   rehydratePdfEvidence: rehydrateEvidence,

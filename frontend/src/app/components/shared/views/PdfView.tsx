@@ -359,7 +359,6 @@ export function PdfView({
             return;
         }
         if (!result) return;
-        pdfRef.current = null;
         pagesRef.current = [];
         quotesRef.current = quoteList;
         zoomRef.current = 1;
@@ -376,12 +375,12 @@ export function PdfView({
             const lib = await getPdfJs();
             if (cancelled) return;
             const pdf = await lib.getDocument({
-                data: new Uint8Array(result.buffer.slice(0)),
+                data: new Uint8Array(result.buffer),
                 isEvalSupported: false,
                 maxImageSize: MAX_PDF_IMAGE_PIXELS,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,
             }).promise;
-            if (cancelled) return;
+            if (cancelled) return void pdf.destroy();
             if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 ||
                 pdf.numPages > MAX_PDF_PAGES) {
                 await pdf.destroy();
@@ -401,6 +400,9 @@ export function PdfView({
             cancelled = true;
             generationRef.current += 1;
             taskRef.current?.cancel();
+            const pdf = pdfRef.current;
+            pdfRef.current = null;
+            void pdf?.destroy();
         };
     }, [error, result, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
 

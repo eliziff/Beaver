@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 import {
   relationalDatabase,
   sql,
@@ -145,6 +146,7 @@ async function finish(id: string, workerId: string, result: Json) {
     last_error=NULL,dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
     completed_at=${timestamp},updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
+  wakeJobWaiters(id);
 }
 
 async function release(id: string, workerId: string) {
@@ -153,6 +155,7 @@ async function release(id: string, workerId: string) {
     attempts=CASE WHEN attempts>0 THEN attempts-1 ELSE 0 END,
     locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
+  wakeJobWaiters(id);
 }
 
 async function fail(job: ApplicationJob, workerId: string, error: unknown) {
@@ -165,6 +168,7 @@ async function fail(job: ApplicationJob, workerId: string, error: unknown) {
     interrupt_requested_at=NULL,dedupe_key=${exhausted ? null : job.dedupeKey},
     completed_at=${exhausted ? timestamp : null},updated_at=${timestamp}
     WHERE id=${job.id} AND status='running' AND locked_by=${workerId}`);
+  wakeJobWaiters(job.id);
 }
 
 export async function interruptJobs(groupKey: string, belowPriority: number) {
@@ -203,6 +207,25 @@ export async function pruneJobs(
   return rows.length;
 }
 
+const jobChanges = new EventEmitter().setMaxListeners(0);
+const wakeJobWaiters = (id: string) => { jobChanges.emit(id); };
+
+function nextJobChange(id: string, signal?: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      jobChanges.off(id, finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, 250);
+    timer.unref();
+    jobChanges.once(id, finish);
+    signal?.addEventListener("abort", finish, { once: true });
+    if (signal?.aborted) finish();
+  });
+}
+
 export async function waitForJob(
   id: string,
   userId: string,
@@ -217,6 +240,7 @@ export async function waitForJob(
   let previous = "";
   while (Date.now() < deadline) {
     if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const changed = nextJobChange(id, options.signal);
     const current = await getJob(id, userId);
     if (!current) throw new Error("Job unavailable");
     const progress = encode(current.progress);
@@ -227,20 +251,7 @@ export async function waitForJob(
     if (current.status === "succeeded") return current;
     if (current.status === "failed") throw new Error("Background job failed");
     if (current.status === "cancelled") throw new DOMException("Aborted", "AbortError");
-    await new Promise<void>((resolve, reject) => {
-      const finish = () => {
-        options.signal?.removeEventListener("abort", abort);
-        resolve();
-      };
-      const timer = setTimeout(finish, 250);
-      const abort = () => {
-        clearTimeout(timer);
-        options.signal?.removeEventListener("abort", abort);
-        reject(new DOMException("Aborted", "AbortError"));
-      };
-      options.signal?.addEventListener("abort", abort, { once: true });
-      timer.unref();
-    });
+    await changed;
   }
   throw new Error("Background job timed out");
 }
@@ -288,6 +299,7 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
             controller.abort();
             throw new DOMException("Aborted", "AbortError");
           }
+          wakeJobWaiters(next.id);
         },
       });
       if (controller.signal.aborted) await release(next.id, workerId);

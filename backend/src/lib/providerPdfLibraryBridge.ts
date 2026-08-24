@@ -39,7 +39,7 @@ export type ProviderPdfAttachmentState = {
   source_reference: string | null;
   download_status: "not_queued" | "queued" | "downloaded" | "failed";
   source_sha256: string | null;
-  parse_status: PdfParseStatus | null;
+  parse_status: PdfParseStatus | "parsing" | "failed" | null;
 };
 
 type SafeRequest = ProviderPdfAttachment & {
@@ -54,6 +54,7 @@ type PdfRecord = SafeRequest & {
   schema_version: 1;
   status: "queued" | "downloaded" | "failed";
   source_sha256?: string;
+  parse_status?: PdfParseStatus | "parsing" | "failed";
   updated_at: string;
 };
 
@@ -112,14 +113,19 @@ async function readRecord(key: string) {
     const request = safeRequest(value);
     if (value.schema_version !== 1 || request.requestKey !== key ||
         !["queued", "downloaded", "failed"].includes(value.status) ||
-        (value.source_sha256 && !/^[a-f0-9]{64}$/u.test(value.source_sha256))) return null;
+        (value.source_sha256 && !/^[a-f0-9]{64}$/u.test(value.source_sha256)) ||
+        (value.parse_status && !["parsing", "ready", "degraded", "failed"].includes(
+          value.parse_status))) return null;
     return { ...value, ...request };
   } catch { return null; }
 }
 
-async function writeRecord(request: SafeRequest, status: PdfRecord["status"], digest?: string) {
+async function writeRecord(request: SafeRequest, status: PdfRecord["status"], digest?: string,
+  parseStatus?: PdfRecord["parse_status"]) {
   const record: PdfRecord = { ...request, schema_version: 1, status,
-    ...(digest ? { source_sha256: digest } : {}), updated_at: new Date().toISOString() };
+    ...(digest ? { source_sha256: digest } : {}),
+    ...(parseStatus ? { parse_status: parseStatus } : {}),
+    updated_at: new Date().toISOString() };
   await atomicWriteProjection(recordPath(request.requestKey), `${JSON.stringify(record)}\n`);
   return record;
 }
@@ -177,15 +183,15 @@ async function download(request: SafeRequest, signal?: AbortSignal) {
   });
 }
 
-const parse = (path: string, digest: string, signal?: AbortSignal) =>
-  documentProjectionService.parsePdf({
+const parse = (bytes: Buffer, digest: string, signal?: AbortSignal) =>
+  documentProjectionService.preparePdf({
   documentId: `provider-pdf-${digest.slice(0, 32)}`,
-  versionId: digest.slice(0, 32), sourcePath: path, sourceSha256: digest,
-  layout: null, signal,
+  versionId: digest.slice(0, 32), bytes, sourceSha256: digest,
+  signal,
 });
 
 function state(request: SafeRequest, record: PdfRecord | null,
-  parseStatus: PdfParseStatus | null = null): ProviderPdfAttachmentState {
+  parseStatus = record?.parse_status ?? null): ProviderPdfAttachmentState {
   const digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
   const reference = digest ? sourceReference(request, digest) : null;
   return {
@@ -216,34 +222,32 @@ export async function queueProviderPdfAttachment(
 ) {
   const request = safeRequest(input);
   let record: PdfRecord | null = null;
+  let enqueue = false;
   await withProjectionLock(request.requestReference, async () => {
     record = await readRecord(request.requestKey);
     const content = record?.status === "downloaded"
       ? await verifiedContent(record.source_sha256) : null;
     if (!content && record?.status !== "queued") record = await writeRecord(request, "queued");
+    enqueue = !content || !["ready", "degraded"].includes(String(record?.parse_status));
   });
-  await enqueueProviderJob(request, userId);
+  if (enqueue) await enqueueProviderJob(request, userId);
   return state(request, record);
 }
 
 async function stateFor(request: SafeRequest, expected: string | null, userId: string) {
   let record = await readRecord(request.requestKey);
-  let digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
+  const digest = record?.status === "downloaded" ? record.source_sha256 ?? null : null;
   if (expected && digest !== expected) return state(request, null);
-  let content = await verifiedContent(digest ?? undefined);
+  const content = await verifiedContent(digest ?? undefined);
   if (!content) {
     const queued = await queueProviderPdfAttachment(request, userId);
     record = await readRecord(request.requestKey);
     return queued ?? state(request, record);
   }
-  const parsed = await documentProjectionService.pdfState({
-    documentId: `provider-pdf-${digest!.slice(0, 32)}`,
-    versionId: digest!.slice(0, 32), sourceSha256: digest!,
-  });
-  if (!parsed || !["ready", "degraded"].includes(parsed.status)) {
+  if (!record?.parse_status || record.parse_status === "parsing") {
     await enqueueProviderJob(request, userId);
   }
-  return state(request, record, parsed?.status ?? null);
+  return state(request, record);
 }
 
 export async function readProviderPdfAttachmentState(
@@ -271,16 +275,20 @@ export function providerPdfJobHandlers(): Record<string, JobHandler> {
       const { request } = await requestForReference(value.requestReference);
       const downloaded = await download(request, context.signal);
       await context.progress({ phase: "extracting" });
-      const parsed = await parse(downloaded.path, downloaded.digest, context.signal);
-      if (!["ready", "degraded"].includes(parsed.status)) {
-        throw new Error("ProviderPdfParseFailed");
+      await writeRecord(request, "downloaded", downloaded.digest, "parsing");
+      try {
+        const summary = await parse(
+          await readFile(downloaded.path), downloaded.digest, context.signal);
+        await writeRecord(request, "downloaded", downloaded.digest, summary.status);
+        return {
+          requestReference: request.requestReference,
+          sourceSha256: downloaded.digest,
+          status: summary.status,
+        };
+      } catch (error) {
+        await writeRecord(request, "downloaded", downloaded.digest, "failed");
+        throw error;
       }
-      return {
-        requestReference: request.requestReference,
-        sourceSha256: downloaded.digest,
-        cacheKey: parsed.cache_key,
-        status: parsed.status,
-      };
     },
   };
 }
@@ -288,7 +296,7 @@ export function providerPdfJobHandlers(): Record<string, JobHandler> {
 async function readyEvidence<Lookup extends { status: string }>(
   reference: string,
   userId: string,
-  lookup: (sourcePath: string, cacheKey: string, sourceSha256: string) => Promise<Lookup>,
+  lookup: (bytes: Buffer, sourceSha256: string) => Promise<Lookup>,
   handle: (result: Lookup) => string | null,
 ) {
   let resolved: Awaited<ReturnType<typeof requestForReference>>;
@@ -303,26 +311,18 @@ async function readyEvidence<Lookup extends { status: string }>(
       error: failed ? "Source PDF download or parse failed" : undefined };
   }
   const sourcePath = pdfContentPath(current.source_sha256);
-  const parsed = await documentProjectionService.pdfState({
-    documentId: `provider-pdf-${current.source_sha256.slice(0, 32)}`,
-    versionId: current.source_sha256.slice(0, 32),
-    sourceSha256: current.source_sha256,
-  });
-  if (!parsed || !["ready", "degraded"].includes(parsed.status)) return {
-    availability: "queued" as const, state: current,
-  };
-  const result = await lookup(sourcePath, parsed.cache_key, current.source_sha256);
+  const bytes = await readFile(sourcePath);
+  const result = await lookup(bytes, current.source_sha256);
   const evidence = handle(result);
   return { availability: "ready" as const, state: current, params: resolved.request,
     lookup: result, linkEvidence: evidence
-      ? await documentProjectionService.rehydratePdfLink(sourcePath, evidence) : null };
+      ? await documentProjectionService.rehydratePdfLink(bytes, evidence) : null };
 }
 
 export const lookupProviderPdfReference = (
   reference: string, userId: string, input: PdfLookupInput,
 ) => readyEvidence(reference, userId,
-    (source, cacheKey, sourceSha256) => documentProjectionService.lookupPdf(source, input, {
-      cacheKey,
+    (source, sourceSha256) => documentProjectionService.lookupPdf(source, input, {
       documentId: `provider-pdf-${sourceSha256.slice(0, 32)}`,
       versionId: sourceSha256.slice(0, 32),
       sourceSha256,

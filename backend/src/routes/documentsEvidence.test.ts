@@ -6,7 +6,6 @@ import type { LibraryStore } from "../lib/libraryStore";
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
-  publishPdf: vi.fn(async () => "C:\\projected\\source.pdf"),
   rehydratePdfLinkEvidence: vi.fn(),
   verifyPdfLinkEvidence: vi.fn(),
 }));
@@ -17,7 +16,6 @@ vi.mock("../lib/documentProjectionService", async (importOriginal) => ({
   documentProjectionService: {
     ...(await importOriginal<typeof import("../lib/documentProjectionService")>())
       .documentProjectionService,
-    publishPdf: mocks.publishPdf,
     rehydratePdfLink: mocks.rehydratePdfLinkEvidence,
     verifyPdfEvidence: mocks.verifyPdfLinkEvidence,
   },
@@ -121,7 +119,7 @@ describe("local PDF evidence viewer", () => {
       `href="/api/single-documents/document-1/file?version_id=version-1&amp;evidence=${encodeURIComponent(handle)}&amp;rendition=pdf#page=7"`,
     );
     expect(mocks.rehydratePdfLinkEvidence).toHaveBeenCalledWith(
-      "C:\\projected\\source.pdf",
+      file.bytes,
       handle,
     );
   });
@@ -163,7 +161,7 @@ describe("local PDF evidence viewer", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.verifyPdfLinkEvidence).toHaveBeenCalledWith(
-      "C:\\projected\\source.pdf",
+      file.bytes,
       handle,
     );
     expect(mocks.rehydratePdfLinkEvidence).not.toHaveBeenCalled();

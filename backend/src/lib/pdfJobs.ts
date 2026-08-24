@@ -2,7 +2,6 @@ import type { DocumentStore } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
-  waitForJob,
   wakeJobWorker,
   type ApplicationJob,
   type JobHandler,
@@ -11,6 +10,7 @@ import { documentProjectionService, type PdfOcrProvider,
   type PdfPreparationProgress } from "./documentProjectionService";
 import { sha256 } from "./hash";
 import type { RelationalDatabase } from "./relationalDatabase";
+import { pdfLifecycleMark, pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 
 const SHA256 = /^[a-f0-9]{64}$/u;
 const groupKey = (documentId: string, versionId: string, sourceSha256: string) =>
@@ -22,17 +22,10 @@ function documentPayload(job: ApplicationJob) {
     throw new Error("InvalidPdfJob");
   }
   const sourceSha256 = value.sourceSha256;
-  const rawPages = value.pages;
   if (typeof sourceSha256 !== "string" || !SHA256.test(sourceSha256)) {
     throw new Error("InvalidPdfJob");
   }
-  const pages = rawPages === undefined ? null : Array.isArray(rawPages) &&
-    rawPages.length > 0 && rawPages.length <= 32 && rawPages.every((page) =>
-      Number.isInteger(page) && Number(page) >= 1 && Number(page) <= 100_000)
-    ? [...new Set(rawPages.map(Number))].sort((left, right) => left - right)
-    : undefined;
-  if (pages === undefined) throw new Error("InvalidPdfJob");
-  return { sourceSha256, pages };
+  return { sourceSha256 };
 }
 
 function reprocessPayload(job: ApplicationJob) {
@@ -51,43 +44,27 @@ function reprocessPayload(job: ApplicationJob) {
 
 export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHandler> {
   const run: JobHandler = async (job, context) => {
-    if (!job.documentId || !job.documentVersionId) throw new Error("InvalidPdfJob");
+    const { documentId, documentVersionId } = job;
+    if (!documentId || !documentVersionId) throw new Error("InvalidPdfJob");
+    pdfLifecycleMark("queue.claimed", documentId);
     const input = documentPayload(job);
-    const content = await documents.read(
-      { userId: job.userId },
-      job.documentId,
-      job.documentVersionId,
-      false,
-    );
+    const content = await pdfLifecyclePhase("worker.source_read", documentId, () =>
+      documents.read(
+        { userId: job.userId }, documentId, documentVersionId, false,
+      ));
     if (!content || content.fileType !== "pdf" ||
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
-    const sourcePath = await documentProjectionService.publishPdf(
-      content.bytes,
-      input.sourceSha256,
-    );
-    if (input.pages) {
-      const state = await documentProjectionService.parsePdfPages({
-        documentId: job.documentId,
-        versionId: job.documentVersionId,
-        sourcePath,
-        sourceSha256: input.sourceSha256,
-        pages: input.pages,
-        signal: context.signal,
-        progress: (value: PdfPreparationProgress) => context.progress(value),
-      });
-      return { cacheKey: state.cache_key, status: state.status } as Record<string, string>;
-    }
-    const state = await documentProjectionService.parsePdf({
-      documentId: job.documentId,
-      versionId: job.documentVersionId,
-      sourcePath,
+    const summary = await documentProjectionService.preparePdf({
+      documentId,
+      versionId: documentVersionId,
+      bytes: content.bytes,
       sourceSha256: input.sourceSha256,
       signal: context.signal,
       progress: (value: PdfPreparationProgress) => context.progress(value),
     });
-    return { cacheKey: state.cache_key, status: state.status } as Record<string, string>;
+    return { status: summary.status, pageCount: summary.pageCount };
   };
   const reprocess: JobHandler = async (job, context) => {
     if (!job.documentId || !job.documentVersionId) throw new Error("InvalidPdfJob");
@@ -99,22 +76,19 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
-    const sourcePath = await documentProjectionService.publishPdf(
-      content.bytes, input.sourceSha256, context.signal,
-    );
-    const state = await documentProjectionService.parsePdf({
+    const summary = await documentProjectionService.preparePdf({
       documentId: job.documentId,
       versionId: job.documentVersionId,
-      sourcePath,
+      bytes: content.bytes,
       sourceSha256: input.sourceSha256,
       ocrProvider: input.ocrProvider,
       layout: input.layout,
       signal: context.signal,
       progress: (value: PdfPreparationProgress) => context.progress(value),
     });
-    return { cacheKey: state.cache_key, status: state.status } as Record<string, string>;
+    return { status: summary.status, pageCount: summary.pageCount };
   };
-  return { "pdf.prepare": run, "pdf.pages": run, "pdf.reprocess": reprocess };
+  return { "pdf.prepare": run, "pdf.reprocess": reprocess };
 }
 
 export function enqueuePdfPreparation(input: {
@@ -164,63 +138,4 @@ export async function enqueuePdfReprocess(input: {
   await interruptJobs(group, 50);
   wakeJobWorker();
   return queued;
-}
-
-async function preparedCacheKey(job: ApplicationJob, userId: string, options: {
-  signal?: AbortSignal;
-  onProgress?(progress: PdfPreparationProgress): void;
-}) {
-  const completed = await waitForJob(job.id, userId, {
-    signal: options.signal,
-    progress: (value) => {
-      if (value && typeof value === "object" && !Array.isArray(value) &&
-          (value.phase === "inspecting" || value.phase === "extracting" ||
-            value.phase === "ocr") && Array.isArray(value.pages)) {
-        options.onProgress?.(value as unknown as PdfPreparationProgress);
-      }
-    },
-  });
-  const result = completed.result;
-  if (!result || typeof result !== "object" || Array.isArray(result) ||
-      typeof result.cacheKey !== "string") throw new Error("PDF preparation failed");
-  return result.cacheKey;
-}
-
-export async function preparePdf(input: {
-  userId: string;
-  documentId: string;
-  versionId: string;
-  sourceSha256: string;
-  signal?: AbortSignal;
-  onProgress?(progress: PdfPreparationProgress): void;
-}) {
-  const queued = await enqueuePdfPreparation(input);
-  wakeJobWorker();
-  return preparedCacheKey(queued, input.userId, input);
-}
-
-export async function preparePdfPages(input: {
-  userId: string;
-  documentId: string;
-  versionId: string;
-  sourceSha256: string;
-  pages: number[];
-  signal?: AbortSignal;
-  onProgress?(progress: PdfPreparationProgress): void;
-}) {
-  const group = groupKey(input.documentId, input.versionId, input.sourceSha256);
-  const pages = [...new Set(input.pages)].sort((left, right) => left - right);
-  const queued = await enqueueJob({
-    kind: "pdf.pages",
-    dedupeKey: `${group}:pages:${pages.join(",")}`,
-    groupKey: group,
-    userId: input.userId,
-    documentId: input.documentId,
-    documentVersionId: input.versionId,
-    payload: { sourceSha256: input.sourceSha256, pages },
-    priority: 100,
-  });
-  await interruptJobs(group, 100);
-  wakeJobWorker();
-  return preparedCacheKey(queued, input.userId, input);
 }

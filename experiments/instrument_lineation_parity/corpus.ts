@@ -26,7 +26,7 @@ export type PdfCorpusFile = {
 };
 
 type PdfAddon = {
-  derivePdfDocument(request: unknown): Promise<object>;
+  derivePdfDocument(bytes: Buffer, request: unknown): Promise<object>;
 };
 
 async function filesBelow(root: string, suffix: string): Promise<string[]> {
@@ -103,8 +103,10 @@ export async function readPdf(file: PdfCorpusFile, addon: PdfAddon) {
   }
   const scratch = await fs.mkdtemp(path.join(tmpdir(), "beaver-instrument-"));
   try {
-    await addon.derivePdfDocument({ kind: "pdf", id: file.id, source_pdf: file.file,
-      cache_dir: scratch });
+    await addon.derivePdfDocument(await fs.readFile(file.file), {
+      kind: "pdf", id: file.id, source_name: path.basename(file.file),
+      expected_source_sha256: file.id.slice(4), cache_dir: scratch,
+    });
     const documentRoot = path.join(scratch, "parse-v1/documents");
     const documents = (await fs.readdir(documentRoot)).filter((name) => name.endsWith(".json.gz"));
     if (documents.length !== 1) throw new Error(`${file.id}: expected one parser document`);

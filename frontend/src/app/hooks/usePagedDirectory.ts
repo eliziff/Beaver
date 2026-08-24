@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import type { DirectoryEntry, Page } from "@/app/lib/beaverApi";
+import type { Document } from "@/app/components/shared/types";
 import { usePagedChains } from "./usePagedChains";
 
 const keyFor = (parentId: string | null, q: string) =>
@@ -18,7 +19,7 @@ export function usePagedDirectory(
 ) {
     const query = q.trim();
     const rootKey = keyFor(null, query);
-    const { chains, fetchPage } = usePagedChains(
+    const { chains, setChains, fetchPage } = usePagedChains(
         (key, cursor, signal) => load(
             key === "root" || key === "search" ? null : key,
             query,
@@ -43,6 +44,24 @@ export function usePagedDirectory(
     }, [chains, fetchPage, query]);
     const reload = useCallback((parentId: string | null = null) =>
         fetchPage(keyFor(parentId, query), null, false), [fetchPage, query]);
+    const replaceDocument = useCallback((document: Document) => setChains((current) =>
+        Object.fromEntries(Object.entries(current).map(([key, chain]) => [key, {
+            ...chain,
+            items: chain.items.map((item) => item.kind === "document" &&
+                item.document.id === document.id ? { kind: "document", document } : item),
+        }]))), [setChains]);
+    const replaceDocumentParseStates = useCallback((states: Array<
+        Pick<Document, "id" | "parse_state" | "page_count">
+    >) => {
+        const byId = new Map(states.map((state) => [state.id, state]));
+        setChains((current) => Object.fromEntries(Object.entries(current).map(([key, chain]) =>
+            [key, { ...chain, items: chain.items.map((item) => {
+                if (item.kind !== "document") return item;
+                const state = byId.get(item.document.id);
+                return state ? { kind: "document" as const, document: { ...item.document,
+                    parse_state: state.parse_state, page_count: state.page_count } } : item;
+            }) }])));
+    }, [setChains]);
     const derived = useMemo(() => {
         const activeChains = query
             ? [chains.search].filter((chain) => chain !== undefined)
@@ -73,5 +92,7 @@ export function usePagedDirectory(
         ensureParent,
         loadMore,
         reload,
+        replaceDocument,
+        replaceDocumentParseStates,
     };
 }
