@@ -21,6 +21,7 @@ target/
 *.tsbuildinfo
 .tmp-*
 .tmp/
+.worktrees/
 next-env.d.ts
 .DS_Store
 .vercel
