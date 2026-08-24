@@ -23,6 +23,7 @@ import { TabPillButton } from "../ui/tab-pill-button";
 import { usePagedDirectory } from "../../hooks/usePagedDirectory";
 import {
     directoryResource,
+    getDocumentParseStates,
     retryLibraryPdfParse,
     type LibraryKind,
 } from "../../lib/beaverApi";
@@ -102,9 +103,11 @@ export function LibraryCollectionPage({
             ...resource,
             refreshCollection: (parentId?: string | null) =>
                 directory.reload(parentId),
+            refreshDocumentParseStates: async (documentIds: string[]) =>
+                directory.replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
             retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
-        [directory.reload, kind, resource],
+        [directory.reload, directory.replaceDocumentParseStates, kind, resource],
     );
 
     function openChat() {

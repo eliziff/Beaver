@@ -20,7 +20,7 @@ type Document = { id: string; text: string; pages?: number; lines?: number };
 type NativeDocument = object;
 type Addon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
-  derivePdfDocument(request: unknown): Promise<NativeDocument>;
+  derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
 };
 type Memory = ReturnType<typeof process.memoryUsage>;
 type Locator = { kind: "agreement" | "pdf"; index: number; id: string; bytes: number };

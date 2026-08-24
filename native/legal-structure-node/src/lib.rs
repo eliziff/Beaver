@@ -353,6 +353,7 @@ mod legalpdf_exports {
     }
 
     pub struct DerivePdfDocumentTask {
+        bytes: Buffer,
         request: serde_json::Value,
     }
 
@@ -371,7 +372,7 @@ mod legalpdf_exports {
                 .get("pairing_audit")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
-            legalpdf::derive_pdf_document(&self.request, pairing_audit)
+            legalpdf::derive_pdf_document(&self.bytes, &self.request, pairing_audit)
                 .map(|document| NativeDocument {
                     product: NativeProduct::Pdf(document),
                     query: DocumentQuery::new(),
@@ -386,32 +387,53 @@ mod legalpdf_exports {
 
     #[napi(js_name = "derivePdfDocument")]
     pub fn derive_pdf_document_node(
+        bytes: Buffer,
         request: serde_json::Value,
     ) -> AsyncTask<DerivePdfDocumentTask> {
-        AsyncTask::new(DerivePdfDocumentTask { request })
+        AsyncTask::new(DerivePdfDocumentTask { bytes, request })
     }
 
-    pub struct PdfPageCountTask {
-        bytes: Buffer,
+    pub struct RestorePdfDocumentTask {
+        request: serde_json::Value,
     }
 
-    impl Task for PdfPageCountTask {
-        type Output = u32;
-        type JsValue = u32;
+    impl Task for RestorePdfDocumentTask {
+        type Output = Option<NativeDocument>;
+        type JsValue = Option<ExternalRef<NativeDocument>>;
 
         fn compute(&mut self) -> napi::Result<Self::Output> {
-            legalpdf::pdf_page_count(&self.bytes)
+            if self.request.get("kind").and_then(serde_json::Value::as_str) != Some("pdf") {
+                return Err(Error::from_reason(
+                    "PDF document request has an invalid kind",
+                ));
+            }
+            let pairing_audit = self
+                .request
+                .get("pairing_audit")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            legalpdf::restore_pdf_document(&self.request, pairing_audit)
+                .map(|document| {
+                    document.map(|document| NativeDocument {
+                        product: NativeProduct::Pdf(document),
+                        query: DocumentQuery::new(),
+                    })
+                })
                 .map_err(|error| Error::from_reason(error.to_string()))
         }
 
-        fn resolve(&mut self, _env: Env, page_count: Self::Output) -> napi::Result<Self::JsValue> {
-            Ok(page_count)
+        fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
+            output
+                .map(|document| ExternalRef::new(&env, document))
+                .transpose()
         }
     }
 
-    #[napi(js_name = "pdfPageCount")]
-    pub fn pdf_page_count_node(bytes: Buffer) -> AsyncTask<PdfPageCountTask> {
-        AsyncTask::new(PdfPageCountTask { bytes })
+    #[napi(js_name = "restorePdfDocument")]
+    pub fn restore_pdf_document_node(
+        request: serde_json::Value,
+    ) -> AsyncTask<RestorePdfDocumentTask> {
+        AsyncTask::new(RestorePdfDocumentTask { request })
     }
 
     #[napi(js_name = "pdfDocumentSummary")]

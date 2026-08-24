@@ -37,6 +37,7 @@ export interface Document {
     status: "queued" | "parsing" | "ready" | "degraded" | "failed" | "cancelled";
     phase?: "inspecting" | "extracting" | "ocr";
     pages?: number[];
+    page_count?: number;
     error?: string;
   } | null;
   created_at: string | null;

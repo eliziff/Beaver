@@ -1,4 +1,5 @@
 import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
+import { availableParallelism, totalmem } from "node:os";
 import type { ChatToolContext } from "./lib/chat/turnEngine";
 import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope } from "./lib/chatStore";
@@ -25,6 +26,9 @@ function enabled(name: string, fallback: boolean) {
   throw new Error(`${name} must be true or false`);
 }
 const capabilities = { connectors: enabled("MCP_CONNECTORS_ENABLED", !local) };
+const preparationWorkers = Math.min(4,
+  Math.max(1, Math.floor(availableParallelism() / 8)),
+  Math.max(1, Math.floor(totalmem() / (8 * 1024 ** 3))));
 const connectors = lazy(async () => {
   if (!capabilities.connectors) throw new Error("MCP connectors are disabled.");
   const [{ createMcpApplication }, { relationalDatabase }] = await Promise.all([
@@ -83,10 +87,12 @@ const jobs = lazy(async () => {
     import("./lib/providerPdfLibraryBridge"),
     documents(),
   ]);
-  return startJobWorker({
+  const handlers = {
     ...pdfJobHandlers(documentStore),
     ...providerPdfJobHandlers(),
-  });
+  };
+  const workers = Array.from({ length: preparationWorkers }, () => startJobWorker(handlers));
+  return { stop: () => Promise.all(workers.map((worker) => worker.stop())) };
 });
 async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContext>[]> {
   if (!capabilities.connectors) return [];

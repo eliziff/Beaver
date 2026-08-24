@@ -20,7 +20,7 @@ const ALLOWED_DOCUMENT_TYPES = new Set(Object.keys(CONTENT_TYPES));
 const ALLOWED_DOCUMENT_TYPES_LABEL =
   "pdf, docx, doc, xlsx, xlsm, xls, pptx, ppt, jpg, jpeg, png, gif, webp, eml, txt, md";
 
-export function validateDocumentFile(filename: string, bytes: Buffer) {
+export function documentFileType(filename: string) {
   const fileType = filename.includes(".")
     ? filename.split(".").pop()!.toLowerCase()
     : "";
@@ -29,8 +29,16 @@ export function validateDocumentFile(filename: string, bytes: Buffer) {
       error: `Unsupported file type: ${fileType}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
     } as const;
   }
+  return { ok: true, fileType } as const;
+}
+
+export function validateDocumentFile(filename: string, bytes: Buffer,
+  sizeBytes = bytes.byteLength) {
+  const type = documentFileType(filename);
+  if (!type.ok) return type;
+  const { fileType } = type;
   const error = containerValidationError(fileType, bytes) ??
-    imageValidationError(filename, bytes);
+    imageValidationError(filename, bytes, sizeBytes);
   return error ? { ok: false, error } as const : { ok: true, fileType } as const;
 }
 

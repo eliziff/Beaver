@@ -434,10 +434,6 @@ def process_document(
     document_cache: Path | None = None
     try:
         if not receipt or receipt.get("outcome") != "materialized":
-            extraction_dir = output / "cache" / "parse-v1" / "extractions"
-            extractions_before = {
-                path.name for path in extraction_dir.glob("*.json.gz")
-            }
             inspection, inspection_seconds = run_contract(
                 arguments.binary.resolve(),
                 inspect_path,
@@ -458,16 +454,6 @@ def process_document(
             first_document_bytes = gunzip_bytes(document_cache)
             first_document_hash = hashlib.sha256(first_document_bytes).hexdigest()
             document = json.loads(first_document_bytes)
-            extractions_after = {
-                path.name for path in extraction_dir.glob("*.json.gz")
-            }
-            new_extractions = sorted(extractions_after - extractions_before)
-            if len(new_extractions) != 1:
-                raise RuntimeError(
-                    "first pass must create exactly one fresh extraction cache; "
-                    f"created {len(new_extractions)}"
-                )
-            extraction_cache = extraction_dir / new_extractions[0]
             pdf_metadata = document.get("metadata", {}).get("pdf", {})
             routed_pages = [int(page) + 1 for page in pdf_metadata.get("ocr_routed_pages", [])]
             ocr_output_pages = [
@@ -502,12 +488,6 @@ def process_document(
                 "ocr_provider": document.get("provenance", {}).get("ocr_provider"),
                 "ocr_provider_identity": document.get("provenance", {}).get("ocr_provider_identity"),
                 "timing_exact": True,
-                "extraction_cache": {
-                    "filename": extraction_cache.name,
-                    "bytes": extraction_cache.stat().st_size,
-                    "sha256": sha256(extraction_cache),
-                    "preexisting_cache_files": len(extractions_before),
-                },
             }
             atomic_json(receipt_path, receipt)
         else:

@@ -40,7 +40,7 @@ async function getAuthHeader(): Promise<Record<string, string>> {
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
-async function apiFetch(path: string, init: RequestInit = {}) {
+export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers({
     Accept: "application/json",
     ...(await getAuthHeader()),
@@ -313,10 +313,23 @@ export function directoryResource(scope: DirectoryScope) {
     : `/library/${scope.library}`;
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
+  const uploadDocument = (file: File) => multipartRequest<Document>(documents, file);
+  const uploadDocuments = async (files: File[]) => {
+    const uploaded = new Array<Document>(files.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
+      while (next < files.length) {
+        const index = next++;
+        uploaded[index] = await uploadDocument(files[index]);
+      }
+    }));
+    return uploaded;
+  };
   return {
     list: (options: PageQuery & { parent_id?: string | null } = {}, signal?: AbortSignal) =>
       apiRequest<Page<DirectoryEntry>>(pagePath(`${root}${"projectId" in scope ? "/directory" : ""}`, options), { signal }),
-    uploadDocument: (file: File) => multipartRequest<Document>(documents, file),
+    uploadDocument,
+    uploadDocuments,
     createFolder: (name: string, parentFolderId?: string | null) =>
       post<Folder | LibraryFolder>(folders, { name, parent_folder_id: parentFolderId ?? null }),
     renameFolder: (folderId: string, name: string) =>
@@ -583,6 +596,16 @@ export const deleteDocumentVersion = (
 }> => remove(`/single-documents/${segment(documentId)}/versions/${segment(versionId)}`);
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
+export const getDocument = (documentId: string) =>
+  apiRequest<Document>(`/single-documents/${segment(documentId)}`);
+export const getDocumentParseStates = async (documentIds: string[]) => {
+  const ids = [...new Set(documentIds)], states = [];
+  for (let index = 0; index < ids.length; index += 100) {
+    states.push(...await post<Array<Pick<Document, "id" | "parse_state" | "page_count">>>(
+      "/single-documents/parse-states", { document_ids: ids.slice(index, index + 100) }));
+  }
+  return states;
+};
 export const deleteDocument = (documentId: string) =>
   remove<void>(`/single-documents/${segment(documentId)}`);
 export const downloadDocument = (
