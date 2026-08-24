@@ -9,6 +9,7 @@
 - Reuse existing code and data before adding implementations, dependencies, or network fetches.
 - When implementing an existing package, repository, runtime, or library becomes troublesome, or a task appears to be a standard software-engineering challenge, check the official documentation and established online best practices instead of probing blindly.
 - Keep the modular monolith and respect boundaries in `subrepos.lock.json`.
+- Treat PDF Inspector as one automatically synchronized `pdf-inspector` branch in `legal-pdf-parser`: pin Beaver to a gated commit and never create or hand-maintain a second fork copy.
 - Route shared features through runtime/application operations and the existing
   persistence ports. Do not branch on local/cloud or import deployment adapters
   in feature code; `npm run check:source-boundaries` freezes that boundary.
