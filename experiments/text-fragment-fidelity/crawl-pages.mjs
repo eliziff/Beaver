@@ -14,8 +14,10 @@ const here = import.meta.dirname;
 const resultsDir = path.join(here, "results");
 const seedsPath = path.join(resultsDir, "seeds.jsonl");
 const cacheDir = path.join(resultsDir, "page-html");
+const browserTextDir = path.join(resultsDir, "browser-rendered-text");
 const manifestPath = path.join(resultsDir, "page-html-manifest.jsonl");
 fs.mkdirSync(cacheDir, { recursive: true });
+fs.mkdirSync(browserTextDir, { recursive: true });
 
 // The crawl must fetch the page the builder actually navigates to, not the raw
 // seed URL: the builder rewrites ontario.ca e-laws API -> HTML, laws-lois
@@ -50,16 +52,19 @@ function fetchUrlFor(rawUrl) {
   return rawUrl;
 }
 
-const seeds = fs.readFileSync(seedsPath, "utf8")
+const allSeeds = fs.readFileSync(seedsPath, "utf8")
   .split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+const retryResults = process.env.CRAWL_LABELS_JSONL;
+const retryLabels = retryResults
+  ? new Set(fs.readFileSync(retryResults, "utf8").split(/\r?\n/u).filter(Boolean)
+    .map(JSON.parse).filter((row) => row.verdict !== "range-exact").map((row) => row.label))
+  : null;
+const seeds = retryLabels ? allSeeds.filter(({ label }) => retryLabels.has(label)) : allSeeds;
 const urls = [...new Set(seeds.map((s) => s.url.split("#")[0]))];
 const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
   .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const containsQuoteCore = (text, quote) => {
-  const words = quote.split(" ").filter(Boolean);
-  const size = Math.min(5, words.length);
-  return !size || words.some((_, index) => index + size <= words.length &&
-    text.includes(words.slice(index, index + size).join(" ")));
+  return !quote || text.includes(quote);
 };
 const requiredByUrl = new Map();
 for (const seed of seeds) {
@@ -72,7 +77,10 @@ function cacheContainsQuotes(row) {
   if (row.file?.toLowerCase().endsWith(".pdf")) return true;
   const file = row.file && path.join(cacheDir, row.file);
   if (!file || !fs.existsSync(file)) return false;
-  const text = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
+  const rendered = path.join(browserTextDir, `${path.parse(row.file).name}.txt`);
+  const text = normalized(fs.existsSync(rendered)
+    ? fs.readFileSync(rendered, "utf8")
+    : decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
   return (requiredByUrl.get(row.url) ?? []).every((quote) => containsQuoteCore(text, quote));
 }
 const have = new Set();
@@ -95,7 +103,7 @@ if (fs.existsSync(manifestPath)) {
     } catch {}
   }
 }
-const pending = urls.filter((url) => !have.has(fetchUrlFor(url)));
+const pending = retryLabels ? urls : urls.filter((url) => !have.has(fetchUrlFor(url)));
 console.log(JSON.stringify({ unique: urls.length, cached: have.size, pending: pending.length }));
 
 const manifest = fs.createWriteStream(manifestPath, { flags: "a" });
@@ -215,8 +223,10 @@ async function crawl(page, url) {
     const required = requiredByUrl.get(fetchUrl) ?? [];
     const deadline = Date.now() + 30_000;
     let body = "";
+    let bodyText = "";
     while (Date.now() < deadline) {
-      body = normalized(await page.locator("body").innerText());
+      bodyText = await page.locator("body").innerText();
+      body = normalized(bodyText);
       if (required.every((quote) => containsQuoteCore(body, quote))) break;
       await page.waitForTimeout(100);
     }
@@ -227,6 +237,7 @@ async function crawl(page, url) {
     const key = crypto.createHash("sha1").update(fetchUrl).digest("hex");
     const file = `${key}.html`;
     fs.writeFileSync(path.join(cacheDir, file), html);
+    fs.writeFileSync(path.join(browserTextDir, `${key}.txt`), bodyText);
     manifest.write(`${JSON.stringify({ url: fetchUrl, file, bytes: html.length, contentType: "text/html", challenged })}\n`);
     return { ok: true, bytes: html.length, challenged };
   } catch (error) {

@@ -970,6 +970,7 @@ def run():
     parser.add_argument("--find-probe", action="store_true")
     parser.add_argument("--range-only", action="store_true")
     parser.add_argument("--range-cache-only", action="store_true")
+    parser.add_argument("--refresh-rendered-cache", action="store_true")
     parser.add_argument("--pdf-proof-only", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.shard_index < args.shard_count:
@@ -979,7 +980,10 @@ def run():
         if int(hashlib.sha256(seed.get("target", "").split("#")[0].encode()).hexdigest(), 16) % args.shard_count == args.shard_index
     ]
     if args.labels:
-        wanted = set(Path(args.labels).read_text(encoding="utf-8").splitlines())
+        labels_path = Path(args.labels)
+        wanted = ({row["label"] for row in read_jsonl(labels_path) if row.get("verdict") != "range-exact"}
+                  if labels_path.suffix == ".jsonl"
+                  else set(labels_path.read_text(encoding="utf-8").splitlines()))
         targets = [seed for seed in targets if seed["label"] in wanted]
     manifest = {}
     files = {}
@@ -1192,15 +1196,20 @@ def run():
                                 driver.execute_cdp_cmd("Page.setDocumentContent", {"frameId": frame_id, "html": html})
                                 BROWSER_TEXT_CACHE.mkdir(exist_ok=True)
                                 rendered_text_file = BROWSER_TEXT_CACHE / f"{Path(row['file']).stem}.txt"
-                                if not rendered_text_file.exists():
+                                if args.refresh_rendered_cache:
                                     rendered_text_file.write_text(driver.execute_script("return document.body.innerText"), encoding="utf-8")
                                 loaded_range_base = base
-                                loaded_range_probes = {
-                                    item["label"]: item for item in driver.execute_script(
-                                        RANGE_PAGE_BATCH_SCRIPT, range_page_inputs[base]
-                                    )
-                                }
+                                if not args.refresh_rendered_cache:
+                                    loaded_range_probes = {
+                                        item["label"]: item for item in driver.execute_script(
+                                            RANGE_PAGE_BATCH_SCRIPT, range_page_inputs[base]
+                                        )
+                                    }
                             add_timing(timings, "navigationMs", phase)
+                            if args.refresh_rendered_cache:
+                                result = {"label": seed["label"], "verdict": "rendered-cache-refreshed",
+                                          "target": target, "cacheFile": row["file"]}
+                                raise StopIteration
                             phase = time.perf_counter()
                             probe = loaded_range_probes[seed["label"]]
                             add_timing(timings, "rangeProbeMs", phase)

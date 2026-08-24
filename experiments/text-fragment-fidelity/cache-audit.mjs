@@ -7,6 +7,7 @@ import { decodeEntities, htmlToText } from "./gap-lib.mjs";
 const here = import.meta.dirname;
 const results = path.join(here, "results");
 const cacheDir = path.join(results, "page-html");
+const browserTextDir = path.join(results, "browser-rendered-text");
 const targetsPath = process.argv[2] ?? path.join(results, "targets.jsonl");
 const read = (file) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line));
 function key(raw) {
@@ -29,10 +30,8 @@ const textCache = new Map();
 const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
   .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const containsQuoteCore = (text, quote) => {
-  const words = normalized(quote).split(" ").filter(Boolean);
-  const size = Math.min(5, words.length);
-  return !size || words.some((_, index) => index + size <= words.length &&
-    text.includes(words.slice(index, index + size).join(" ")));
+  const wanted = normalized(quote);
+  return !wanted || text.includes(wanted);
 };
 for (const seed of read(targetsPath)) {
   if (!seed.target) {
@@ -57,7 +56,10 @@ for (const seed of read(targetsPath)) {
   if (!row.file.toLowerCase().endsWith(".pdf")) {
     let pageText = textCache.get(row.file);
     if (pageText === undefined) {
-      pageText = normalized(decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
+      const rendered = path.join(browserTextDir, `${path.parse(row.file).name}.txt`);
+      pageText = normalized(fs.existsSync(rendered)
+        ? fs.readFileSync(rendered, "utf8")
+        : decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
       textCache.set(row.file, pageText);
     }
     const absent = (seed.quotes ?? []).filter((quote) => !containsQuoteCore(pageText, quote));

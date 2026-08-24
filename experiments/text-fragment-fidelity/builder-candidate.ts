@@ -682,11 +682,7 @@ function exactDirectives(
 }
 
 function spellingsOf(text: string): string[] {
-  return [
-    ...citationClusterVariants(text),
-    punctuationDetachVariant(text),
-    curlyQuoteVariant(text),
-  ].filter((variant): variant is string => variant !== null);
+  return boundaryVariants(text);
 }
 
 /**
@@ -1101,7 +1097,7 @@ export function buildCoreRangePinpointUrl(
     const selected = chooseSourceSpan(block, quote);
     if (!selected) return baseUrl;
     const span = adjustSpanEdges(block, selected);
-    const target = normalizeWhitespace(block.text.slice(span.start, span.end));
+    const target = fragmentSpelling(block.text.slice(span.start, span.end));
     const desired = locateDocumentQuote(block, document, span);
     if (!desired) return baseUrl;
     const width = span.lastWord - span.firstWord + 1;
@@ -1121,10 +1117,10 @@ export function buildCoreRangePinpointUrl(
       const available = edge === "start" ? first : documentWords.length - last - 1;
       for (let size = 0; size <= available; size += 1) {
         const prefix = edge === "start" && size
-          ? normalizeWhitespace(document.text.slice(documentWords[first - size].start, documentWords[first].start))
+          ? fragmentSpelling(document.text.slice(documentWords[first - size].start, documentWords[first].start))
           : "";
         const suffix = edge === "end" && size
-          ? normalizeWhitespace(document.text.slice(documentWords[last].end, documentWords[last + size].end))
+          ? fragmentSpelling(document.text.slice(documentWords[last].end, documentWords[last + size].end))
           : "";
         if (directiveMatchCount(document, boundary.text, prefix, suffix) === 1) {
           return { prefix, suffix };
@@ -1141,6 +1137,7 @@ export function buildCoreRangePinpointUrl(
     for (let size = smallest; size < width; size += 1) {
       const head = edgePhrase(block, span, "start", size);
       if (head) {
+        head.text = fragmentSpelling(head.text);
         const key = `${head.first}:${head.last}:${head.text}`;
         if (!headKeys.has(key)) {
           headKeys.add(key);
@@ -1150,6 +1147,7 @@ export function buildCoreRangePinpointUrl(
       }
       const tail = edgePhrase(block, span, "end", size);
       if (tail) {
+        tail.text = fragmentSpelling(tail.text);
         const key = `${tail.first}:${tail.last}:${tail.text}`;
         if (!tailKeys.has(key)) {
           tailKeys.add(key);
@@ -1160,10 +1158,29 @@ export function buildCoreRangePinpointUrl(
     }
     const candidates = heads.flatMap((head) => tails
       .filter((tail) => head.last < tail.first)
-      .map((tail) => textRangeDirective(head.text, tail.text, head.prefix, tail.suffix)));
+      .map((tail) => ({
+        directive: textRangeDirective(head.text, tail.text, head.prefix, tail.suffix),
+        external: Boolean(head.prefix || tail.suffix),
+        head,
+        tail,
+      })));
     if (!candidates.length) return baseUrl;
-    candidates.sort((left, right) => left.length - right.length);
-    built.push({ directive: candidates[0], start: span.start });
+    candidates.sort((left, right) => Number(left.external) - Number(right.external) ||
+      left.directive.length - right.directive.length);
+    const selectedCandidate = candidates[0];
+    const directives = new Set([selectedCandidate.directive]);
+    if (!selectedCandidate.external) {
+      const headSpellings = [selectedCandidate.head.text, ...spellingsOf(selectedCandidate.head.text)];
+      const tailSpellings = [selectedCandidate.tail.text, ...spellingsOf(selectedCandidate.tail.text)];
+      for (let grade = 1; grade < Math.max(headSpellings.length, tailSpellings.length); grade += 1) {
+        const head = headSpellings[grade] ?? selectedCandidate.head.text;
+        const tail = tailSpellings[grade] ?? selectedCandidate.tail.text;
+        directives.add(textRangeDirective(head, selectedCandidate.tail.text));
+        directives.add(textRangeDirective(selectedCandidate.head.text, tail));
+        directives.add(textRangeDirective(head, tail));
+      }
+    }
+    for (const directive of directives) built.push({ directive, start: span.start });
   }
   return appendDirectives(
     baseUrl,
@@ -1331,6 +1348,7 @@ export function buildLineCorePinpointUrl(
 
 function fragmentSpelling(value: string) {
   return normalizeWhitespace(value)
+    .replace(/[*_`]/gu, "")
     .replace(/([\u2018\u201c])\s+/gu, "$1")
     .replace(/([\[(])\s+/gu, "$1")
     .replace(/\s+([\u2019\u201d\]\),.;:!?])/gu, "$1");
@@ -1359,10 +1377,8 @@ export function buildMaximalPinpointUrl(
   const document = verificationDoc(evidence, block);
   const words = tokens(document);
   const pdf = /\.pdf(?:$|[?#])|\/document\.do(?:$|[?#])/iu.test(baseUrl.split("#")[0]);
-  if (!pdf) {
-    const coreRange = buildCoreRangePinpointUrl(evidence, quotes);
-    if (coreRange.includes(":~:text=")) return coreRange;
-  }
+  if (!pdf) return buildCoreRangePinpointUrl(evidence, quotes);
+  const rangeFallback = baseUrl;
   const built: Array<{ directive: string; start: number }> = [];
   const seen = new Set<string>();
   const directiveFor = (piece: { start: number; end: number; firstWord: number; lastWord: number }, strictUnique = true) => {
@@ -1410,7 +1426,7 @@ export function buildMaximalPinpointUrl(
     const desired = selected && locateDocumentQuote(block, document, selected);
     if (!selected || !desired) return baseUrl;
     const pieces: Array<{ start: number; end: number; firstWord: number; lastWord: number }> = [];
-    let hasOpeningSeam = false;
+    let hasHardSeam = false;
     let pieceStart = desired.start;
     let pieceFirstWord = desired.firstWord;
     for (let seam = desired.firstWord; seam < desired.lastWord; seam += 1) {
@@ -1421,8 +1437,9 @@ export function buildMaximalPinpointUrl(
         ? gap.search(/[\u2018\u201c«]/u) : -1;
       const lineBreak = pdf && /[\r\n]/u.test(gap) &&
         seam - pieceFirstWord + 1 >= 4 && desired.lastWord - seam >= 4;
-      if (opening < 0 && !lineBreak) continue;
-      hasOpeningSeam ||= opening >= 0;
+      const markdown = !pdf && /[*_`]/u.test(gap);
+      if (opening < 0 && !lineBreak && !markdown) continue;
+      hasHardSeam ||= opening >= 0 || markdown;
       pieces.push({ start: pieceStart, end: opening >= 0 ? gapStart + opening : gapStart,
         firstWord: pieceFirstWord, lastWord: seam });
       pieceStart = opening >= 0 ? gapStart + opening : gapEnd;
@@ -1430,7 +1447,7 @@ export function buildMaximalPinpointUrl(
     }
     pieces.push({ start: pieceStart, end: desired.end,
       firstWord: pieceFirstWord, lastWord: desired.lastWord });
-    for (let index = pieces.length - 1; !hasOpeningSeam && index >= 0 && pieces.length > 1; index -= 1) {
+    for (let index = pieces.length - 1; !hasHardSeam && index >= 0 && pieces.length > 1; index -= 1) {
       const piece = pieces[index];
       const sourcePiece = document.text.slice(piece.start, piece.end);
       const leadingGap = document.text.slice(words[piece.firstWord - 1]?.end ?? piece.start, piece.start);
@@ -1452,7 +1469,7 @@ export function buildMaximalPinpointUrl(
         firstWord: desired.firstWord, lastWord: desired.lastWord };
       quoteBuilt = [{ directive: directiveFor(whole, false), start: whole.start }];
     }
-    if (!quoteBuilt[0]?.directive) return baseUrl;
+    if (!quoteBuilt[0]?.directive) return rangeFallback;
     built.push(...quoteBuilt);
   }
   return appendDirectives(baseUrl,
