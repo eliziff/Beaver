@@ -129,3 +129,53 @@ five-sample set was directly replayed after reducing two-sided context to the
 shortest unique one-sided context. This is promising evidence, not final
 acceptance: the combined no-oracle selection rule and all-seed Chrome paint
 location run still have to pass before the 100% mandate is met.
+
+## Production candidate and final headed gate - 2026-08-24
+
+The production candidate is the exact-only, full-document planner now exposed
+by `legal-structure` through the Node adapter. It builds from the full flattened
+A2AJ document without inspecting the live page, returns explicit source-word
+intervals and completeness metadata, permits multiple nearby exact directives,
+and uses only a narrowly proven publisher capability for BC Laws annotation
+seams. Production chooses an HTML or verified-PDF rendition by source coverage;
+it does not blindly extend old directive families or silently claim an omitted
+substantive word.
+
+The final gate used real headed Chrome against cached complete publisher pages.
+For every directive it checked isolated and combined navigation, initial
+viewport landing, source-identity resolution, exact paint geometry, and absence
+of stray paint. PDF acceptance additionally required PDFium source geometry and
+a control-render delta. All **2,370 gettable seeds** produced terminal evidence;
+the only excluded seed is the manually confirmed official 404
+`FCA_2026_FC_103_p20_short-exact` (item 521765). The cache contains all 1,216
+gettable pages; no gettable page is missing or an error-page placeholder.
+
+| class | exact | total | rate |
+|---|---:|---:|---:|
+| HTML | 1,886 | 2,149 | 87.8% |
+| PDF | 73 | 221 | 33.0% |
+| **All gettable seeds** | **1,959** | **2,370** | **82.7%** |
+
+This is the broadest and most consistently verified candidate tested, but it is
+**not 100%**. The 411 non-exact results are:
+
+- 217 initial-viewport misses and 24 initial-paint/source-range misses on HTML;
+- 6 cached-rendering/projection mismatches (the raw verifier name
+  `quote-not-rendered` does not mean the A2AJ quote is absent);
+- 3 other HTML paint-geometry failures (two incomplete range covers and one
+  extraneous paint);
+- 143 PDF browser failures: 60 combined directives with no paint, 36
+  extraneous directive matches, 16 directives not located, 13 wrong-page
+  landings, 10 natural-landing geometry mismatches, 4 ICU replay limitations,
+  3 other no-paint results, and 1 unstable control page; and
+- 18 source-coverage nonclaims: 4 builder-incomplete plans and 14 additional
+  omissions rejected by the verifier. Some rejected omissions are substantive,
+  so completeness metadata must remain authoritative; these are not successes
+  merely because the remaining words can paint.
+
+The important residual risk is therefore explicit: HTML reliability is good but
+still vulnerable to duplicate/landing behavior, while blind PDF construction is
+not broadly reliable without pagination and viewer behavior. The verifier's
+RGB control delta also assumes stable aligned PDF renders, and its OOPIF geometry
+currently assumes Chrome's PDF surface remains bottom/right aligned. These are
+documented limitations, not waived requirements for a future 100% claim.
