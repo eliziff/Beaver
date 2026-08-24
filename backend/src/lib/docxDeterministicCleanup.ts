@@ -1,8 +1,5 @@
 import type { DocumentStore } from "./documentStore";
-import {
-  fixDocxSupraCrossReferencesNative,
-  hasDocxSupraReferencesNative,
-} from "./structureNative";
+import { structureNative } from "./structureNative";
 
 export async function fixDocumentSupras(
   documents: DocumentStore,
@@ -28,7 +25,7 @@ export async function fixDocumentSupras(
   if (file.fileType.toLowerCase() !== "docx") {
     throw new Error("Supra cleanup currently requires a DOCX document");
   }
-  const cleanup = await fixDocxSupraCrossReferencesNative(file.bytes);
+  const cleanup = await structureNative().fixDocxSupraCrossReferences(file.bytes);
   if (!cleanup.converted) {
     return {
       ok: true,
@@ -88,6 +85,6 @@ export async function inspectDocxAutomation(
     throw new Error("Document automation currently requires a DOCX document");
   }
   return {
-    supra_references: await hasDocxSupraReferencesNative(file.bytes),
+    supra_references: await structureNative().hasDocxSupraReferences(file.bytes),
   };
 }

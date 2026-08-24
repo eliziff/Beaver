@@ -24,9 +24,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import {
-  deriveDocumentNative,
-  documentAnchorsNative,
-  documentTextNative,
+  structureNative,
   type NativeDocument,
 } from "../../src/lib/structureNative";
 
@@ -85,9 +83,9 @@ export async function clauseChunkText(
   text: string,
   options?: ChunkOptions,
 ): Promise<ChunkSpan[]> {
-  const document = await deriveDocumentNative({
+  const document = await structureNative().deriveDocumentStructure({
     kind: "instrument", id: "passage", text,
-    reconstruct_lineation: true, source_doc: true,
+    reconstruct_lineation: true,
   });
   return structuralChunkText(document, options, "section");
 }
@@ -97,8 +95,8 @@ function structuralChunkText(
   options: ChunkOptions | undefined,
   kind: "paragraph" | "section",
 ): ChunkSpan[] {
-  const text = documentTextNative(doc);
-  const blocks = documentAnchorsNative(doc);
+  const text = structureNative().documentText(doc);
+  const blocks = structureNative().documentAnchors(doc);
   const target = Math.max(200, options?.target ?? chunkDefaults.target);
   const starts = [
     ...new Set([
@@ -426,8 +424,8 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
         }
         const sourceKind = row.doc_type === "laws" || row.doc_type === "cases"
           ? row.doc_type : options.docType ?? "cases";
-        const sourceDoc = await deriveDocumentNative({
-          kind: "a2aj", source_doc: true,
+        const sourceDoc = await structureNative().deriveDocumentStructure({
+          kind: "a2aj",
           input: { citation, source_kind: sourceKind, text, name },
         });
         const spans =
@@ -471,8 +469,8 @@ export async function ensurePassageIndex(options: PassageIndexOptions): Promise<
 
 /** Context comes from the same compiled structure that owns chunk joints. */
 function headingPath(doc: NativeDocument, start: number): string {
-  const text = documentTextNative(doc);
-  return documentAnchorsNative(doc)
+  const text = structureNative().documentText(doc);
+  return structureNative().documentAnchors(doc)
     .filter(
       (block) =>
         block.start <= start &&

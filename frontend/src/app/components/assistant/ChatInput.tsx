@@ -12,7 +12,7 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 import type { Document, Message, Workflow as WorkflowDefinition } from "../shared/types";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { cn } from "@/app/lib/utils";
-import { uploadStandaloneDocument } from "@/app/lib/beaverApi";
+import { uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
 import { useAssistantPreferences } from "./assistantPreferences";
@@ -195,7 +195,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         setUploadWarning(formatUnsupportedDocumentWarning(unsupported));
         if (supported.length === 0) return;
         setUploadingFilenames(supported.map((file) => file.name));
-        const results = await Promise.allSettled(supported.map(uploadStandaloneDocument));
+        const results = await uploadDocumentsSettled(supported, uploadStandaloneDocument);
         const uploaded = results.flatMap((result) =>
             result.status === "fulfilled" ? [result.value] : [],
         );

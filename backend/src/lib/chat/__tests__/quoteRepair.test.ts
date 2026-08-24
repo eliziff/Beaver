@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  groundedProseErrorsNative,
-  quoteRepairSuggestionNative,
-} from "../../structureNative";
+import { structureNative } from "../../structureNative";
+
+const { groundedProseErrors, quoteRepairSuggestion } = structureNative();
 
 const passage =
   "If rent is unpaid when due, the landlord may deliver a written notice " +
@@ -16,20 +15,20 @@ const source = (evidenceId: string, text: string, labels?: string[]) =>
 describe("quote verification", () => {
   it("accepts exact inline and block quotations", () => {
     const text = "🦫 The court wrote “exact words” here.\r> A CR block.\r\n> A CRLF block.\u2028> A line-separator block.\u2029> A paragraph-separator block.";
-    expect(groundedProseErrorsNative(text, ["e"], [source("e",
+    expect(groundedProseErrors(text, ["e"], [source("e",
       "The reasons contain exact words. A CR block. A CRLF block. A line-separator block. A paragraph-separator block.")]))
       .toEqual([]);
   });
 
   it("returns only a sufficiently strong verbatim repair", () => {
-    const repaired = quoteRepairSuggestionNative(
+    const repaired = quoteRepairSuggestion(
       "the landlord may deliver a written notice to terminate the lease within seven calendar days",
       [passage],
     );
     expect(repaired).toContain(
       "the landlord may deliver a written notice to terminate the lease",
     );
-    expect(quoteRepairSuggestionNative(
+    expect(quoteRepairSuggestion(
       "Municipal recall elections are governed by a comprehensive scheme.",
       [passage],
     )).toBeNull();
@@ -38,7 +37,7 @@ describe("quote verification", () => {
   it("accepts only representation changes or visibly marked monotonic edits", () => {
     const available =
       "The busybody must decide 12 motions, promptly, before the hearing continues.";
-    const errors = (quote: string, text = available) => groundedProseErrorsNative(
+    const errors = (quote: string, text = available) => groundedProseErrors(
       `“${quote}”`, ["e"], [source("e", text)],
     );
     expect(errors(
@@ -65,13 +64,13 @@ describe("quote verification", () => {
     const copied =
       "Courts should not decide constitutional issues in a factual vacuum without evidence.";
     const sources = [source("e_cited", passage), source("e_visible", copied)];
-    expect(groundedProseErrorsNative(copied, ["e_cited"], sources)[0])
+    expect(groundedProseErrors(copied, ["e_cited"], sources)[0])
       .toContain("visible evidence e_visible");
-    expect(groundedProseErrorsNative(`The court said “${copied}”`, ["e_visible"], sources))
+    expect(groundedProseErrors(`The court said “${copied}”`, ["e_visible"], sources))
       .toEqual([]);
-    expect(groundedProseErrorsNative(`> ${copied}`, ["e_visible"], sources))
+    expect(groundedProseErrors(`> ${copied}`, ["e_visible"], sources))
       .toEqual([]);
-    expect(groundedProseErrorsNative(
+    expect(groundedProseErrors(
       "Courts should not decide constitutional issues automatically.",
       ["e_cited"], sources,
     )).toEqual([]);
@@ -79,10 +78,10 @@ describe("quote verification", () => {
       "Constitutional adjudication requires evidentiary foundations before intervention.",
       "Courts must decide facts using law and evidence.",
       "that the and which there from these with their there which that the and",
-    ]) expect(groundedProseErrorsNative(insignificant, ["e"], [source("e", insignificant)]))
+    ]) expect(groundedProseErrors(insignificant, ["e"], [source("e", insignificant)]))
       .toEqual([]);
     const title = "A Treatise About Constitutional Standing and Legal Remedies";
-    expect(groundedProseErrorsNative(title, ["e"], [source("e",
+    expect(groundedProseErrors(title, ["e"], [source("e",
       `${title}. Further discussion follows.`, [title])])).toEqual([]);
   });
 });

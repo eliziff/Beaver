@@ -43,9 +43,6 @@ const seeds = new Map(readLines(seedsPath).map(parse).filter(Boolean).map((s) =>
 function normalizeKey(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    if (/(^|\.)bclaws\.gov\.bc\.ca$/iu.test(url.hostname) && url.pathname.endsWith("/xml")) {
-      url.pathname = url.pathname.slice(0, -4);
-    }
     const params = [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b));
     return `${url.origin}${url.pathname}?${params.map(([k, v]) => `${k}=${v}`).join("&")}`;
   } catch {

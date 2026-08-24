@@ -14,7 +14,6 @@ import * as XLSX from "xlsx";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zipDocumentBytes } from "./support/documentBytes";
 import { resourceReference } from "../resourceReferences";
-import { extractDocument } from "../chat/assistantTools";
 import { globPattern } from "../chat/resourceTools";
 
 vi.mock("../remoteUrlSafety", async (importOriginal) => ({
@@ -518,13 +517,8 @@ describe("local assistant tools", () => {
         },
       },
     ]);
-    const extracted = await extractDocument(
-      (await import("./support/localDocumentFixtures")).localDocuments,
-      { userId: "local-user" },
-      document.id,
-    );
     const carried = grep.evidenceSegments?.map((segment) =>
-      extracted!.text.slice(segment.start, segment.end),
+      text.slice(segment.start, segment.end),
     );
 
     const resource =
@@ -557,22 +551,6 @@ describe("local assistant tools", () => {
       bytes,
     });
     const tools = await import("./support/localAssistantTools");
-    const extracted = await extractDocument(
-      (await import("./support/localDocumentFixtures")).localDocuments,
-      { userId: "local-user" },
-      document.id,
-    );
-    expect(extracted?.tableCells).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          tableName: "Ledger",
-          address: "B2",
-          row: 2,
-          column: 2,
-        }),
-      ]),
-    );
-
     const [read] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "read-xlsx-cell",
@@ -668,17 +646,18 @@ describe("local assistant tools", () => {
     });
     expect((await store.listLocalVersions("local-user", document.id))?.versions)
       .toHaveLength(1);
-    expect(JSON.parse((await editAll("Term", "Clause")).content)).toMatchObject({
+    const revised = JSON.parse((await editAll("Term", "Clause")).content);
+    expect(revised).toMatchObject({
       ok: true,
       action: "revised",
       change_count: 1,
     });
-    expect((await extractDocument(
-      (await import("./support/localDocumentFixtures")).localDocuments,
-      { userId: "local-user" },
-      document.id,
-    ))?.text)
-      .toContain("Clause term TERM.");
+    const [read] = await tools.runLocalAssistantTools("local-user", [{
+      id: "read-revised",
+      name: "Read",
+      input: { file_path: revised.resource },
+    }]);
+    expect(read.content).toContain("Clause term TERM.");
   });
 
   it("lists duplicate filenames and edits by canonical resource", async () => {
@@ -752,12 +731,13 @@ describe("local assistant tools", () => {
       .toHaveLength(2);
     expect((await store.listLocalVersions("local-user", other.id))?.versions)
       .toHaveLength(1);
-    expect((await extractDocument(
-      (await import("./support/localDocumentFixtures")).localDocuments,
-      { userId: "local-user" },
-      intended.id,
-    ))?.text)
-      .toContain("Gamma Delta.");
+    const revised = JSON.parse(edits.at(-1)!.content);
+    const [read] = await tools.runLocalAssistantTools("local-user", [{
+      id: "read-edited-duplicate",
+      name: "Read",
+      input: { file_path: revised.resource },
+    }]);
+    expect(read.content).toContain("Gamma Delta.");
   }, 45_000);
 
   it("discovers root Library files when the chat has no focused documents", async () => {

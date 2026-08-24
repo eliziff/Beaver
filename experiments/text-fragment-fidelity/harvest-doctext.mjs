@@ -16,7 +16,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const { a2ajLegalSourceProvider } = await import(
   new URL("../../backend/src/lib/legalSources/a2aj.ts", import.meta.url).href
 );
-const { documentTextNative } = await import(
+const { structureNative } = await import(
   new URL("../../backend/src/lib/structureNative.ts", import.meta.url).href
 );
 
@@ -44,7 +44,7 @@ for (const row of pending) {
     const document = await a2ajLegalSourceProvider.document({
       citation: row.citation, docType, language: "en", dataset: row.dataset,
     });
-    const text = document?.native ? documentTextNative(document.native) : "";
+    const text = document?.native ? structureNative().documentText(document.native) : "";
     if (text) {
       const key = String(row.citation).replace(/[^\w.-]+/gu, "_");
       stream.write(`${JSON.stringify({ citation: row.citation, dataset: row.dataset, key, text })}\n`);

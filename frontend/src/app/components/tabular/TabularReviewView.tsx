@@ -5,7 +5,7 @@ import {
     BeaverApiError, clearTabularCells, deleteTabularReview, getProject, getTabularReview,
     getTabularReviewPeople, regenerateTabularCell,
     directoryResource, exportTabularReview, streamTabularGeneration, updateTabularReview,
-    uploadStandaloneDocument,
+    uploadDocuments, uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { readSseData } from "@/app/lib/sse";
@@ -148,9 +148,10 @@ export function TRView({ reviewId, projectId }: Props) {
         if (!files.length) return;
         setUi({ uploading: files.map(({ name }) => name) });
         try {
-            const uploaded = await Promise.all(files.map((file) => projectId
-                ? directoryResource({ projectId }).uploadDocument(file)
-                : uploadStandaloneDocument(file)));
+            const upload = projectId
+                ? directoryResource({ projectId }).uploadDocument
+                : uploadStandaloneDocument;
+            const uploaded = await uploadDocuments(files, upload);
             await addDocuments(uploaded);
         } catch (error) {
             console.error("Tabular review document drop upload failed", error);

@@ -1,4 +1,5 @@
 import type * as XLSX from "xlsx";
+import { assertBoundedZip, loadZip } from "./zip";
 
 /**
  * A native spreadsheet cell projected onto the compact model-facing text.
@@ -27,6 +28,11 @@ export interface SpreadsheetLlmStructure {
 type XlsxModule = typeof import("xlsx");
 let xlsxModule: Promise<XlsxModule> | null = null;
 const MAX_SHEETS = 256, MAX_CELLS = 500_000, MAX_MERGE_CHECKS = 10_000_000;
+const MAX_INPUT_BYTES = 100 * 1024 * 1024;
+const MAX_COMPRESSED_BYTES = 50 * 1024 * 1024;
+const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
+const MAX_PACKAGE_ENTRIES = 10_000;
+const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 function cellText(cell: XLSX.CellObject | undefined): string {
   if (!cell) return "";
@@ -45,6 +51,7 @@ function renderSheet(
   table: number,
   sheetName: string,
   ws: XLSX.WorkSheet,
+  includeCells: boolean,
 ): RenderedSheet | null {
   const mergeAnchors = new Map<
     string,
@@ -83,14 +90,15 @@ function renderSheet(
   ]);
   for (const address of addresses) {
     const { r: row, c: column } = utils.decode_cell(address);
-    const isCovered = [...mergeAnchors.entries()].some(
-      ([anchor, merge]) =>
-        anchor !== address &&
-        row >= merge.startRow &&
-        row <= merge.endRow &&
-        column >= merge.startColumn &&
-        column <= merge.endColumn,
-    );
+    let isCovered = false;
+    for (const [anchor, merge] of mergeAnchors) {
+      if (anchor !== address &&
+          row >= merge.startRow && row <= merge.endRow &&
+          column >= merge.startColumn && column <= merge.endColumn) {
+        isCovered = true;
+        break;
+      }
+    }
     if (isCovered) continue;
     const value = cellText(ws[address]);
     const merge = mergeAnchors.get(address);
@@ -130,25 +138,27 @@ function renderSheet(
       const column = columns[index];
       const cell = cells.get(column);
       if (cell) {
-        const start = cursor + line.length;
+        const start = includeCells ? cursor + line.length : 0;
         line += cell.text;
-        const merge = mergeAnchors.get(cell.address);
-        tableCells.push({
-          table,
-          tableName: sheetName,
-          row: rowNumber,
-          column: column + 1,
-          address: cell.address,
-          displayValue: cell.value,
-          ...(merge?.columnSpan && merge.columnSpan > 1
-            ? { columnSpan: merge.columnSpan }
-            : {}),
-          ...(merge?.rowSpan && merge.rowSpan > 1
-            ? { rowSpan: merge.rowSpan }
-            : {}),
-          start,
-          end: cursor + line.length,
-        });
+        if (includeCells) {
+          const merge = mergeAnchors.get(cell.address);
+          tableCells.push({
+            table,
+            tableName: sheetName,
+            row: rowNumber,
+            column: column + 1,
+            address: cell.address,
+            displayValue: cell.value,
+            ...(merge?.columnSpan && merge.columnSpan > 1
+              ? { columnSpan: merge.columnSpan }
+              : {}),
+            ...(merge?.rowSpan && merge.rowSpan > 1
+              ? { rowSpan: merge.rowSpan }
+              : {}),
+            start,
+            end: cursor + line.length,
+          });
+        }
       }
       line += index === columns.length - 1 ? " |" : " | ";
     }
@@ -158,9 +168,21 @@ function renderSheet(
   return { text: lines.join("\n"), tableCells };
 }
 
-export async function spreadsheetToLLMStructure(
+async function spreadsheetProjection(
   buffer: Buffer,
+  fileType: string,
+  includeCells: boolean,
 ): Promise<SpreadsheetLlmStructure> {
+  fileType = fileType.trim().toLowerCase();
+  if (!buffer.length || buffer.length > MAX_INPUT_BYTES)
+    throw new Error("Spreadsheet input exceeds the read limit");
+  if (["xlsx", "xlsm"].includes(fileType)) {
+    if (buffer.length > MAX_COMPRESSED_BYTES)
+      throw new Error("Compressed document exceeds the read limit");
+    assertBoundedZip(await loadZip(buffer), "Spreadsheet", {
+      maxEntries: MAX_PACKAGE_ENTRIES, maxExpandedBytes: MAX_EXPANDED_BYTES,
+    });
+  }
   const xlsx = await (xlsxModule ??= import("xlsx"));
   const workbook = xlsx.read(buffer, { type: "buffer" });
   if (workbook.SheetNames.length > MAX_SHEETS)
@@ -179,7 +201,8 @@ export async function spreadsheetToLLMStructure(
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     if (!worksheet) continue;
-    const rendered = renderSheet(xlsx, sheets.length + 1, sheetName, worksheet);
+    const rendered = renderSheet(
+      xlsx, sheets.length + 1, sheetName, worksheet, includeCells);
     if (rendered) sheets.push(rendered);
   }
 
@@ -197,5 +220,13 @@ export async function spreadsheetToLLMStructure(
       })),
     );
   }
+  if (Buffer.byteLength(text) > MAX_OUTPUT_BYTES)
+    throw new Error("Spreadsheet projection output exceeds the read limit");
   return { text: text.trim(), tableCells };
 }
+
+export const spreadsheetToLLMStructure = (buffer: Buffer, fileType = "xlsx") =>
+  spreadsheetProjection(buffer, fileType, true);
+
+export const spreadsheetToLLMText = async (buffer: Buffer, fileType = "xlsx") =>
+  (await spreadsheetProjection(buffer, fileType, false)).text;

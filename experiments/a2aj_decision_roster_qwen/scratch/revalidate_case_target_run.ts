@@ -4,12 +4,11 @@ import { mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
-import { fetchLocalA2AJDocumentById } from "../../../backend/src/lib/a2ajLocalBulk";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc";
 import {
   candidatesFromPairFile,
   CASE_TARGET_MVP_COMPILER_VERSION,
   CASE_TARGET_MVP_VALIDATOR_VERSION,
+  loadCase,
   validateCaseTargetSubmission,
 } from "../runner";
 
@@ -420,12 +419,9 @@ async function main() {
     let completed = 0;
     const settled = await Promise.allSettled(retained.map(async (candidate) => {
       const answer = rawByDocument.get(candidate.documentId);
-      const document = fetchLocalA2AJDocumentById({
-        id: candidate.documentId,
-        language: "en",
-        maxChars: Number.MAX_SAFE_INTEGER,
-      });
-      if (!document || !answer) throw new Error(`missing case or frozen input for ${candidate.documentId}`);
+      const liveRecord = await loadCase(candidate);
+      if (!liveRecord || !answer) throw new Error(`missing case or frozen input for ${candidate.documentId}`);
+      const document = liveRecord.document;
       if (!answer.occurrenceContract) throw new Error(`missing frozen occurrence contract for ${candidate.documentId}`);
       if (!answer.deterministicContract) throw new Error(`missing frozen deterministic contract for ${candidate.documentId}`);
       const sourceSha256 = sha256(document.text);
@@ -434,8 +430,8 @@ async function main() {
       }
       const targetOccurrences = validateFrozenOccurrences(document.text, sourceSha256, answer.occurrenceContract);
       const historicalRecord = {
+        ...liveRecord,
         candidate,
-        source: createTextSourceDoc(document.text),
         // Paragraph projection is deliberately deferred. The semantic graph is
         // grounded to exact character offsets; rebuilding corpus structure is
         // not part of recompiling a retained model answer.

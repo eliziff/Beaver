@@ -1,6 +1,5 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { sha256 } from "./hash";
 import { searchTokens, sqliteText as string } from "./sqliteSearch";
 import {
   legalProviderDatabase,
@@ -11,14 +10,12 @@ import type {
   LegalSourceProvider,
   LegalSourceReference,
 } from "./legalSources";
+import { structureNative } from "./structureNative";
 
 /**
  * Local A2AJ Hansard store (huggingface.co/datasets/a2aj/hansard, imported by
- * scripts/import_a2aj_hansard.py). One row per intervention - a single speech
- * or procedural entry in the Ontario Legislative Assembly - so unlike the
- * cases/laws plane there is no citation or section structure to compile;
- * interventions are searchable, fetchable text sources pinned by their
- * upstream ID and source_url.
+ * scripts/import_a2aj_hansard.py). Each intervention is one searchable speech
+ * or procedural entry pinned by its upstream ID and source_url.
  */
 
 type Row = Record<string, unknown>;
@@ -196,10 +193,7 @@ function hansardReference(intervention: HansardIntervention) {
   } satisfies LegalSourceReference;
 }
 
-export const hansardLegalSourceProvider: LegalSourceProvider<
-  string,
-  HansardIntervention
-> = {
+export const hansardLegalSourceProvider: LegalSourceProvider<HansardIntervention> = {
   id: "hansard",
   canSearch: (request) => request.kinds.includes("hansard"),
   async search(request) {
@@ -246,17 +240,18 @@ export const hansardLegalSourceProvider: LegalSourceProvider<
     if (request.locator) return [];
     const intervention = fetchLocalHansardIntervention({ id: request.source.id });
     if (!intervention) return [];
-    const digest = sha256(intervention.text);
+    const document = await structureNative().deriveDocumentStructure({
+      kind: "native_markup",
+      input: { provider: "hansard", id: intervention.id,
+        url: intervention.sourceUrl, text: intervention.text },
+    });
+    const text = structureNative().documentText(document);
     return [{
       source: hansardReference(intervention),
       locator: { requested: null, label: intervention.id },
-      role: "document",
-      text: intervention.text,
-      textSha256: digest,
-      documentSha256: digest,
-      revision: digest,
-      blockArtifact: intervention.text,
-      documentArtifact: intervention.text,
+      role: "selected",
+      text,
+      documentArtifact: document,
       native: intervention,
     }];
   },

@@ -14,9 +14,7 @@ vi.mock("../remoteUrlSafety", () => ({ guardedRemoteFetch }));
 import {
   a2ajLegalSourceProvider,
 } from "../legalSources/a2aj";
-import {
-  documentTextNative,
-} from "../structureNative";
+import { structureNative } from "../structureNative";
 
 beforeEach(() => {
   guardedRemoteFetch.mockClear();
@@ -210,8 +208,7 @@ describe("A2AJ client", () => {
       ["par4", "selected"],
       ["par5", "context"],
     ]);
-    const native = a2ajLegalSourceProvider.source(document!);
-    expect(native && documentTextNative(native)).toBe(text);
+    expect(structureNative().documentText(document!.native)).toBe(text);
   });
 
   it("uses A2AJ's raw section map for nested provision lookup", async () => {
@@ -258,8 +255,7 @@ describe("A2AJ client", () => {
     expect(document).toMatchObject({
       docType: "laws",
     });
-    const source = a2ajLegalSourceProvider.source(document!);
-    expect(source && documentTextNative(source)).toBe(mappedText);
+    expect(structureNative().documentText(document!.native)).toBe(mappedText);
     expect(passages).toHaveLength(1);
     expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
     expect(passages[0]?.text).toContain(
@@ -273,21 +269,23 @@ describe("A2AJ client", () => {
       (_, index) =>
         `[${index + 1}] Decision paragraph ${index + 1} contains enough *substantive* judicial language to establish a reliable sequence.`,
     ).join("\n");
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      if (!String(input).startsWith("https://api.a2aj.ca/")) return new Response(
+        '<li class="documents"><a href="/fc-cf/decisions/en/530291/1/document.do">PDF</a></li>',
+        { status: 200, headers: { "content-type": "text/html" } },
+      );
+      return new Response(JSON.stringify({
         results: [
           {
             dataset: "SCC",
             citation_en: "2099 SCC 2",
             name_en: "Cache v. Repeat Open",
             source_url_en:
-              "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2099/index.do",
+              "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do",
             unofficial_text_en: text,
           },
         ],
-      }),
+      }), { status: 200, headers: { "content-type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -308,25 +306,43 @@ describe("A2AJ client", () => {
         citation: "2099 SCC 2",
         dataset: "SCC",
       },
-      structureSource: "flat_text",
       metadata: {
-        url: "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2099/index.do",
+        url: "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do",
         pdfUrl:
-          "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2099/1/document.do",
+          "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/530291/1/document.do",
       },
     });
-    expect(
-      first?.payload.presentation.segments
-        .flatMap((segment) => segment.blocks)
-        .flatMap((block) => block.inline)
-        .some((token) => token.kind === "em" && token.text === "substantive"),
-    ).toBe(true);
-    expect(
-      first?.payload.presentation.segments
-        .flatMap((segment) => segment.blocks)
-        .some((block) => block.text.includes("*")),
-    ).toBe(false);
-    expect(first?.payload.anchors.filter(({ kind }) => kind === "paragraph"))
+    expect(first?.payload.slices.flatMap(({ anchors, primary }) =>
+      [...anchors, ...(primary ? [primary] : [])],
+    ).filter(({ kind }) => kind === "paragraph"))
       .toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(a2ajLegalSourceProvider.document({
+      citation: "2099 SCC 2",
+      dataset: "SCC",
+    })).resolves.toMatchObject({
+      verifiedPdf: {
+        url: "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/530291/1/document.do",
+        pdfOnly: false,
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the HTML representation when Decisia index retrieval fails", async () => {
+    const index =
+      "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/40084/index.do";
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      if (!String(input).startsWith("https://api.a2aj.ca/")) {
+        throw new Error("publisher unavailable");
+      }
+      return new Response(JSON.stringify({ results: [{
+        dataset: "FC", citation_en: "2099 FC 3", source_url_en: index,
+        unofficial_text_en: "A complete source document remains available.",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+
+    await expect(a2ajLegalSourceProvider.document({ citation: "2099 FC 3" }))
+      .resolves.toMatchObject({ url: index, verifiedPdf: null });
   });
 });

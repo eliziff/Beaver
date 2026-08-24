@@ -105,41 +105,6 @@ describe("provider PDF consumers", () => {
         before: [],
         after: [],
       },
-      linkEvidence: {
-        handle,
-        documentId: "provider-pdf-example",
-        versionId: "2".repeat(32),
-        href: "/single-documents/provider/evidence#page=3",
-        label: "[page 3]",
-        blockText:
-          "Unique first context. The exact governing rule applies here. " +
-          "Unique first conclusion.",
-        documentText:
-          "Unique first context. The exact governing rule applies here. " +
-          "Unique first conclusion.\n" +
-          "Different context. The exact governing rule applies here. " +
-          "Different conclusion.",
-        pageScoped: true,
-        pageNumbers: [3],
-        sources: [
-          {
-            key: "page:page-3",
-            label: "[page 3]",
-            href: "/single-documents/provider/evidence#page=3",
-            blockText:
-              "Unique first context. The exact governing rule applies here. " +
-              "Unique first conclusion.",
-            documentText:
-              "Unique first context. The exact governing rule applies here. " +
-              "Unique first conclusion.\n" +
-              "Different context. The exact governing rule applies here. " +
-              "Different conclusion.",
-            pageScoped: true,
-            pageNumbers: [3],
-          },
-        ],
-        pages: [],
-      },
     };
     lookupProviderPdfReference
       .mockResolvedValueOnce({

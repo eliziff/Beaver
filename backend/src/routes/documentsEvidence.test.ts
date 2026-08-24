@@ -6,8 +6,8 @@ import type { LibraryStore } from "../lib/libraryStore";
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
-  rehydratePdfLinkEvidence: vi.fn(),
-  verifyPdfLinkEvidence: vi.fn(),
+  rehydratePdfEvidence: vi.fn(),
+  verifyPdfEvidence: vi.fn(),
 }));
 
 vi.mock("../lib/localMode", () => ({ isLocalRuntime: () => true }));
@@ -16,8 +16,8 @@ vi.mock("../lib/documentProjectionService", async (importOriginal) => ({
   documentProjectionService: {
     ...(await importOriginal<typeof import("../lib/documentProjectionService")>())
       .documentProjectionService,
-    rehydratePdfLink: mocks.rehydratePdfLinkEvidence,
-    verifyPdfEvidence: mocks.verifyPdfLinkEvidence,
+    rehydratePdfEvidence: mocks.rehydratePdfEvidence,
+    verifyPdfEvidence: mocks.verifyPdfEvidence,
   },
 }));
 import { createDocumentsRouter } from "./documentRoutes";
@@ -56,21 +56,12 @@ const file = {
   hasPdfRendition: true,
 };
 const linkedEvidence = {
-  handle,
-  documentId: "document-1",
-  versionId: "version-1",
-  pageNumbers: [7],
+  status: "found",
+  link: { page_numbers: [7] },
   pages: [
     {
-      pageNumber: 7,
-      label: "[page 7]",
-      blockText: 'First <script>alert("x")</script> & quoted text.',
-      evidence: {
-        url: "/unused",
-        blockText: "unused",
-        documentText: "unused",
-        pageScoped: true as const,
-      },
+      page_number: 7,
+      text: 'First <script>alert("x")</script> & quoted text.',
     },
   ],
 };
@@ -78,11 +69,11 @@ const linkedEvidence = {
 beforeEach(() => {
   vi.stubEnv("AUTH_MODE", "local");
   mocks.read.mockReset();
-  mocks.rehydratePdfLinkEvidence.mockReset();
-  mocks.verifyPdfLinkEvidence.mockReset();
+  mocks.rehydratePdfEvidence.mockReset();
+  mocks.verifyPdfEvidence.mockReset();
   mocks.read.mockResolvedValue(file);
-  mocks.rehydratePdfLinkEvidence.mockResolvedValue(linkedEvidence);
-  mocks.verifyPdfLinkEvidence.mockResolvedValue({
+  mocks.rehydratePdfEvidence.mockResolvedValue(linkedEvidence);
+  mocks.verifyPdfEvidence.mockResolvedValue({
     documentId: "document-1",
     versionId: "version-1",
   });
@@ -118,9 +109,13 @@ describe("local PDF evidence viewer", () => {
     expect(response.text).toContain(
       `href="/api/single-documents/document-1/file?version_id=version-1&amp;evidence=${encodeURIComponent(handle)}&amp;rendition=pdf#page=7"`,
     );
-    expect(mocks.rehydratePdfLinkEvidence).toHaveBeenCalledWith(
-      file.bytes,
+    expect(mocks.rehydratePdfEvidence).toHaveBeenCalledWith(
       handle,
+      {
+        documentId: "document-1",
+        versionId: "version-1",
+        sourceSha256: file.version.source_sha256,
+      },
     );
   });
 
@@ -137,21 +132,7 @@ describe("local PDF evidence viewer", () => {
       }),
       "other-document", "other-version", false,
     );
-    expect(mocks.rehydratePdfLinkEvidence).not.toHaveBeenCalled();
-
-    mocks.rehydratePdfLinkEvidence.mockResolvedValueOnce({
-      ...linkedEvidence,
-      documentId: "different-document",
-      versionId: "different-version",
-    });
-    const mismatch = await request(api)
-      .get("/single-documents/document-1/evidence-view")
-      .query({ version_id: "version-1", evidence: handle });
-
-    expect(mismatch.status).toBe(410);
-    expect(mismatch.body).toEqual({
-      detail: "Evidence is no longer available",
-    });
+    expect(mocks.rehydratePdfEvidence).not.toHaveBeenCalled();
   });
 
   it("validates raw PDF evidence without constructing link evidence", async () => {
@@ -160,11 +141,11 @@ describe("local PDF evidence viewer", () => {
       .query({ version_id: "version-1", evidence: handle, rendition: "pdf" });
 
     expect(response.status).toBe(200);
-    expect(mocks.verifyPdfLinkEvidence).toHaveBeenCalledWith(
+    expect(mocks.verifyPdfEvidence).toHaveBeenCalledWith(
       file.bytes,
       handle,
     );
-    expect(mocks.rehydratePdfLinkEvidence).not.toHaveBeenCalled();
+    expect(mocks.rehydratePdfEvidence).not.toHaveBeenCalled();
     expect(mocks.read).toHaveBeenCalled();
   });
 
@@ -187,15 +168,15 @@ describe("local PDF evidence viewer", () => {
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ detail: "Invalid evidence handle" });
     }
-    expect(mocks.verifyPdfLinkEvidence).not.toHaveBeenCalled();
+    expect(mocks.verifyPdfEvidence).not.toHaveBeenCalled();
     expect(mocks.read).not.toHaveBeenCalled();
   });
 
   it("fails closed without leaking drift details or serving stale PDF bytes", async () => {
-    mocks.rehydratePdfLinkEvidence.mockRejectedValue(
+    mocks.rehydratePdfEvidence.mockRejectedValue(
       new Error("ENOENT C:\\private\\replacement.pdf"),
     );
-    mocks.verifyPdfLinkEvidence.mockRejectedValue(
+    mocks.verifyPdfEvidence.mockRejectedValue(
       new Error("ENOENT C:\\private\\replacement.pdf"),
     );
 

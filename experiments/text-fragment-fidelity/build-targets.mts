@@ -12,9 +12,10 @@ if (!["production", "candidate"].includes(builder)) throw new Error("builder mus
 const { buildLegalSourcePinpointUrl } = await import(builder === "production"
   ? pathToFileURL(path.join(here, "../../backend/src/lib/legalSourceLinks.ts")).href
   : "./builder-candidate.ts");
-const { deriveDocumentNative } = builder === "production"
-  ? await import(pathToFileURL(path.join(here, "../../backend/src/lib/structureNative.ts")).href)
-  : { deriveDocumentNative: null };
+const structure = builder === "production"
+  ? (await import(pathToFileURL(path.join(here, "../../backend/src/lib/structureNative.ts")).href))
+      .structureNative()
+  : null;
 const results = path.join(here, "results");
 const readLines = (file: string) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean);
 const seeds = readLines(path.join(results, "seeds.jsonl")).map((line) => JSON.parse(line));
@@ -34,7 +35,7 @@ const groups = Map.groupBy(seeds.map((seed, index) => ({ seed, index })),
 for (const [documentKey, members] of groups) {
   const source = doctext.get(documentKey ?? "")!;
   const documentText = builder === "production"
-    ? await deriveDocumentNative!({ kind: "a2aj", input: {
+    ? await structure!.deriveDocumentStructure({ kind: "a2aj", input: {
         citation: source.citation,
         source_kind: /^(?:LEGISLATION|REGULATIONS)-/u.test(source.dataset) ? "laws" : "cases",
         text: source.text,

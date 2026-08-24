@@ -11,8 +11,8 @@ import { gzipSync } from "node:zlib";
 import {
   fetchLocalA2AJDocumentsByIds,
 } from "../../src/lib/a2ajLocalBulk";
+import type { NativeDocument } from "../../src/lib/structureNative";
 
-type NativeDocument = object;
 type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   documentText(document: NativeDocument): string;
@@ -291,6 +291,7 @@ async function coordinate() {
     for (const key of ["attempted", "pass", "failure", "source_bytes", "canonical_bytes"] as const)
       counts[key] += value[key];
     for (const name of ["native", "hybrid", "flat"] as const) counts.modes[name] += value.modes[name];
+    counts.details.elapsed_ms = (counts.details.elapsed_ms ?? 0) + (value.details.elapsed_ms ?? 0);
   }
   counts.details.cold_wall_ms = Math.round(performance.now() - started);
   const artifactBytes = children.reduce((sum, { summary }) =>

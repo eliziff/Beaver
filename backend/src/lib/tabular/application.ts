@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { documentProjectionService } from "../documentProjectionService";
-import { documentTextNative } from "../structureNative";
 import { runChatTurn } from "../chat/turnEngine";
 import type { DocumentStore } from "../documentStore";
 import type { ProjectStore } from "../projectStore";
@@ -97,7 +96,6 @@ type Emit = (event: { type: "cell_update"; document_id: string;
 type Dependencies = {
   runTurn?: typeof runChatTurn;
   settings?: (userId: string) => Promise<Settings>;
-  project?: typeof documentProjectionService.read;
 };
 
 const value = <T>(result: WriteResult<T>, noun: string) => {
@@ -155,7 +153,6 @@ export function createTabularApplication(
 ) {
   const turn = dependencies.runTurn ?? runChatTurn;
   const settings = dependencies.settings ?? getUserModelSettings;
-  const project = dependencies.project ?? documentProjectionService.read;
   const placement = async (scope: TabularScope, ids: string[], projectId: string | null) => {
     if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
     const unique = [...new Set(ids)], values = await Promise.all(
@@ -194,27 +191,23 @@ export function createTabularApplication(
 
   async function document(scope: TabularScope, documentId: string, signal?: AbortSignal) {
     throwIfAborted(signal);
-    const listing = await documents.versions(scope, documentId);
-    const version = listing?.versions.find(({ id }) => id === listing.current_version_id);
-    if (!version) return fail(404, "Document not found");
-    const projection = await project({
+    const content = await documents.read(scope, documentId, null, false);
+    if (!content) return fail(404, "Document not found");
+    if (content.bytes.byteLength > MAX_FILE_BYTES)
+      return fail(413, "Document exceeds the 25 MB tabular extraction limit");
+    const source = {
       documentId,
-      versionId: version.id,
-      filename: version.filename,
-      fileType: version.file_type,
-      sourceSha256: version.source_sha256,
-      readBytes: async () => {
-        const content = await documents.read(scope, documentId, version.id, false);
-        if (!content) return fail(404, "Document not found");
-        if (content.bytes.byteLength > MAX_FILE_BYTES)
-          return fail(413, "Document exceeds the 25 MB tabular extraction limit");
-        return content.bytes;
-      },
-    }, { signal });
-    const markdown = documentTextNative(projection.document, MAX_DOCUMENT_CHARS);
+      versionId: content.version.id,
+      fileType: content.fileType,
+      sourceSha256: content.version.source_sha256,
+      pdfProfile: content.pdfProfile,
+      readBytes: () => content.bytes,
+    };
+    const markdown = await documentProjectionService.text(source, {
+      limit: MAX_DOCUMENT_CHARS, signal,
+    });
     throwIfAborted(signal);
-    return { id: documentId, filename: version.filename.slice(0, 500),
-      markdown: markdown.slice(0, MAX_DOCUMENT_CHARS) };
+    return { id: documentId, filename: content.filename.slice(0, 500), markdown };
   }
 
   const cellWrite = async (scope: TabularScope, cell: TabularCell,

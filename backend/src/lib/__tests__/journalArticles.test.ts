@@ -18,7 +18,7 @@ import { runLocalAssistantTools } from "./support/localAssistantTools";
 import { buildLegalSourcePinpointUrl } from "../legalSourceLinks";
 import { readLegalSourcePassage } from "../legalSourceRegistry";
 import { resourceReference } from "../resourceReferences";
-import { documentTextNative } from "../structureNative";
+import { structureNative } from "../structureNative";
 
 let directory = "";
 let previousDatabase: string | undefined;
@@ -286,7 +286,7 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(documentTextNative(article.analysis.native)).toBe(canonical.text);
+    expect(structureNative().documentText(article.analysis.native)).toBe(canonical.text);
     expect(journal.lookup(article, "page", "101")).toMatchObject({
       status: "found",
       anchor: "page=2",

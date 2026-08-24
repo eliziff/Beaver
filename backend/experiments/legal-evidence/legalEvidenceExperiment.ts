@@ -7,14 +7,10 @@ import {
 import {
   buildA2AJDocumentPinpointUrl,
   buildA2AJParagraphRangeUrl,
-  buildLegalSourcePinpointUrl,
   hasCanadianDecisionLink,
-  type QuoteSource,
 } from "../../src/lib/legalSourceLinks";
 import {
-  documentTextNative,
-  hasCitationInTextNative as hasCitationInText,
-  quoteRepairSuggestionNative,
+  structureNative,
   type NativeDocument,
 } from "../../src/lib/structureNative";
 import {
@@ -60,31 +56,6 @@ function formatLegalLocator(kind: string, label: string) {
   if (kind === "page") return `${range ? "pp." : "p."} ${value}`;
   if (kind === "footnote") return `${range ? "nn." : "n."} ${value}`;
   return label;
-}
-
-function buildLegalSourceMultiPassageUrl(
-  url: string,
-  passages: Array<{
-    blockText: QuoteSource;
-    documentText?: QuoteSource;
-    quotes: string[];
-  }>,
-) {
-  const directives: string[] = [];
-  let base = url;
-  for (const passage of passages) {
-    if (!passage.quotes.length) continue;
-    const target = buildLegalSourcePinpointUrl({
-      url,
-      blockText: passage.blockText,
-      documentText: passage.documentText,
-    }, passage.quotes);
-    const marker = target?.indexOf(":~:") ?? -1;
-    if (!target || marker < 0) return null;
-    base = target.slice(0, marker);
-    directives.push(target.slice(marker + 3));
-  }
-  return directives.length ? `${base}:~:${directives.join("&")}` : url;
 }
 
 /**
@@ -338,7 +309,7 @@ export function createA2AJDocumentEvidence(
   sourceClass: LegalSourceClass = "case",
 ): LegalEvidenceReceipt {
   const source = a2ajLegalSourceProvider.source(document);
-  const sourceText = source ? documentTextNative(source) : document.text;
+  const sourceText = source ? structureNative().documentText(source) : document.text;
   return withEvidenceId({
     provider: "a2aj",
     jurisdiction: "CA",
@@ -1098,7 +1069,7 @@ export function submitLegalEvidenceAnswer(
     // the span's own closest contiguous excerpt — deterministic, and
     // verbatim by construction, so requoting it always clears the tier.
     const repairHint = (claim: GroundedLegalClaim): string | null =>
-      quoteRepairSuggestionNative(
+      structureNative().quoteRepairSuggestion(
         stripCitationTails(claim.text).replace(/^["'“‘]+|["'”’]+$/gu, ""),
         claim.evidence_ids.flatMap((id) => {
           const span = state.evidence.get(id)?.receipt.span_text;
@@ -1919,7 +1890,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
   if (
     !state.mode &&
     !state.answer &&
-    (hasCitationInText(args.draft) ||
+    (structureNative().hasCitationInText(args.draft) ||
       hasCanadianDecisionLink(args.draft) ||
       [...state.evidence.values()].some(
         ({ receipt }) => receipt.provider !== "library",
@@ -1931,7 +1902,7 @@ async function finalizeLegalEvidenceExperimentUnsafe(args: {
     return { passed: true, modelCalls, usage, diagnostic: null };
   if (
     !state.answer &&
-    !hasCitationInText(args.draft) &&
+    !structureNative().hasCitationInText(args.draft) &&
     !hasCanadianDecisionLink(args.draft)
   )
     return { passed: true, modelCalls, usage, diagnostic: null };
@@ -2144,21 +2115,7 @@ export function renderLegalEvidenceAnswer(
               [],
               source,
             )
-          : citatorAttribution &&
-              receipt.external_url &&
-              receipt.span_text &&
-              receipt.dataset !== "journal-commentary"
-            ? // A citing court's characterization deep-links to the exact
-              // prose within the citing case (text-fragment), like any other
-              // pinpoint. Journal commentary is excluded: the article URL is
-              // a PDF galley, where text-fragments cannot resolve.
-              buildLegalSourceMultiPassageUrl(receipt.external_url, [
-                {
-                  blockText: receipt.span_text,
-                  quotes: [receipt.span_text],
-                },
-              ]) ?? receipt.external_url
-            : receipt.external_url;
+          : receipt.external_url;
     const locator = paragraphRange
       ? `paras. ${Number(paragraphRange[1])}\u2013${Number(paragraphRange[2])}`
       : citatorAttribution

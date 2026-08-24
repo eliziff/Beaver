@@ -25,7 +25,7 @@ import {
   readProviderPdfAttachmentState,
   type ProviderPdfAttachment,
 } from "../lib/providerPdfLibraryBridge";
-import { documentHasOriginNative, type NativeDocument } from "../lib/structureNative";
+import { structureNative, type NativeDocument } from "../lib/structureNative";
 
 function text(value: unknown, name: string, maximum = 500) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -89,7 +89,7 @@ function a2ajPdfRenditionRequest(
   native: NativeDocument,
 ): ProviderPdfAttachment | null {
   if (
-    documentHasOriginNative(native, "native") ||
+    structureNative().documentHasOrigin(native, "native") ||
     !payload.metadata.pdfUrl ||
     !payload.metadata.url
   ) {

@@ -1,10 +1,6 @@
-import { sha256 } from "../hash";
 import {
-  documentRevisionNative,
-  documentTextNative,
-  readDocumentRangeNative,
+  structureNative,
   type NativeDocument,
-  type NativeDocumentBlock,
 } from "../structureNative";
 import type { LegalSourcePassage, LegalSourcePassageRequest, LegalSourceReference } from ".";
 
@@ -13,22 +9,18 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
   reference: LegalSourceReference;
   document: NativeDocument;
   native?: Native;
-  revision?: string;
-}): LegalSourcePassage<NativeDocument | NativeDocumentBlock, Native>[] {
+}): LegalSourcePassage<Native>[] {
   const { document, native, reference, request } = options;
-  const documentRevision = documentRevisionNative(document);
-  const revision = options.revision ?? documentRevision;
   if (!request.locator) {
-    const text = documentTextNative(document);
+    const text = structureNative().documentText(document);
     return [{ source: reference, locator: { requested: null, label: "document" },
-      role: "document", text, textSha256: documentRevision,
-      documentSha256: documentRevision, revision,
-      blockArtifact: document, documentArtifact: document,
+      role: "document", text,
+      documentArtifact: document,
       ...(native ? { native } : {}) }];
   }
   const { locator } = request;
   const context = request.contextBlocks ?? 0;
-  const range = readDocumentRangeNative(
+  const range = structureNative().readDocumentRange(
     document, locator.kind, locator.value, locator.endValue ?? locator.value, context,
   );
   if (!range) return [];
@@ -46,9 +38,6 @@ export function nativeDocumentPassages<Native extends object = never>(options: {
             anchor: unit.anchor ?? null, pageScoped: unit.kind === "page" },
           role,
           text: unit.text,
-          textSha256: sha256(unit.text),
-          documentSha256: documentRevision,
-          revision,
           blockArtifact: unit,
           documentArtifact: document,
           ...(native ? { native } : {}),

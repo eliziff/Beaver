@@ -7,16 +7,15 @@ import {
   contentTypeForDocumentType,
   isSpreadsheetDocumentType,
 } from "../lib/documentTypes";
-import type {
-  DocumentContent,
-  DocumentStore,
-} from "../lib/documentStore";
+import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { documentProjectionService } from "../lib/documentProjectionService";
+import { sha256 } from "../lib/hash";
+import { spreadsheetToLLMStructure } from "../lib/spreadsheet";
 
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 
@@ -32,16 +31,17 @@ const html = (value: unknown) => String(value).replace(/[&<>"']/gu, (character) 
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character]!);
 
-async function evidence<T extends { documentId: string; versionId: string }>(
-  documentId: string, file: DocumentContent, load: () => Promise<T>,
-) {
+async function evidence<T>(load: () => Promise<T>) {
   try {
-    const receipt = await load();
-    if (receipt.documentId !== documentId || receipt.versionId !== file.version.id)
-      throw new Error("Evidence source mismatch");
-    return receipt;
+    return await load();
   } catch { return reject(410, "Evidence is no longer available"); }
 }
+
+const projectionReference = (documentId: string, versionId: string, sourceSha256: string) => ({
+  documentId,
+  versionId,
+  sourceSha256,
+});
 
 const filename = (req: Request, original: string) =>
   typeof req.body?.filename === "string" && req.body.filename.trim()
@@ -124,22 +124,14 @@ export function createDocumentsRouter(
     if (!isSpreadsheetDocumentType(file.fileType)) {
       return reject(400, "Document is not a spreadsheet");
     }
-    const projection = await documentProjectionService.read({
-      documentId: req.params.documentId,
-      versionId: file.version.id,
-      filename: file.filename,
-      fileType: file.fileType,
-      sourceSha256: file.version.source_sha256,
-      readBytes: () => file.bytes,
-    });
-    if (projection.kind !== "spreadsheet-grid") {
-      return reject(422, "Spreadsheet could not be displayed");
-    }
+    if (sha256(file.bytes) !== file.version.source_sha256)
+      throw new Error("Document source bytes no longer match their version");
+    const grid = await spreadsheetToLLMStructure(file.bytes, file.fileType);
     const sheets = new Map<string, Array<{
       address: string; value: string; row: number; column: number;
       rowSpan?: number; columnSpan?: number;
     }>>();
-    for (const cell of projection.tableCells) {
+    for (const cell of grid.tableCells) {
       const values = sheets.get(cell.tableName) ?? [];
       values.push({
         address: cell.address,
@@ -197,20 +189,27 @@ export function createDocumentsRouter(
   router.get("/:documentId/evidence-view", asyncRoute(async (req, res) => {
     const handle = evidenceHandle(req) ?? reject(400, "version_id and evidence are required");
     const requested = versionId(req) ?? reject(400, "version_id and evidence are required");
-    const file = await documents.read(scope(res), req.params.documentId, requested, false)
-      ?? reject(404, "Document not found");
-    if (file.fileType.toLowerCase() !== "pdf") reject(404, "Document not found");
-    const receipt = await evidence(req.params.documentId, file, () =>
-      documentProjectionService.rehydratePdfLink(file.bytes, handle));
-    const query = new URLSearchParams({ version_id: file.version.id,
+    const [source, metadata] = await Promise.all([
+      documents.projectionSource(scope(res), req.params.documentId, requested),
+      documents.metadata(scope(res), req.params.documentId),
+    ]);
+    if (!source || source.fileType.toLowerCase() !== "pdf") {
+      reject(404, "Document not found");
+      return;
+    }
+    const receipt = await evidence(() => documentProjectionService.rehydratePdfEvidence(
+      handle,
+      projectionReference(req.params.documentId, source.versionId, source.sourceSha256),
+    ));
+    const query = new URLSearchParams({ version_id: source.versionId,
       evidence: handle, rendition: "pdf" });
-    const page = receipt.pageNumbers[0];
+    const page = receipt.link.page_numbers[0];
     const original = `/api/single-documents/${encodeURIComponent(req.params.documentId)}/file?${query}` +
       (page ? `#page=${page}` : "");
     const pages = receipt.pages.map((item) =>
-      `<article id="page=${item.pageNumber}"><h2>Page ${item.pageNumber}</h2><p>${html(item.blockText)}</p></article>`,
+      `<article id="page=${item.page_number}"><h2>Page ${item.page_number}</h2><p>${html(item.text)}</p></article>`,
     ).join("");
-    const name = html(file.filename);
+    const name = html(metadata?.filename || "document.pdf");
     res.set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff", "Content-Security-Policy":
       "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" });
@@ -228,8 +227,22 @@ export function createDocumentsRouter(
       const file = await documents.read(
         scope(res), req.params.documentId, versionId(req), rendition === "pdf",
       ) ?? reject(404, "Document not found");
-      await evidence(req.params.documentId, file, () =>
-        documentProjectionService.verifyPdfEvidence(file.bytes, handle));
+      await evidence(() => documentProjectionService.verifyPdfEvidence(
+        file.bytes,
+        handle,
+        projectionReference(
+          req.params.documentId,
+          file.version.id,
+          file.version.source_sha256,
+        ),
+      ));
+      res.setHeader("Cache-Control", "private, no-store");
+      res.set(downloadHeaders(
+        contentTypeForDocumentType(file.fileType),
+        file.filename,
+        rendition === "pdf" ? "inline" : "attachment",
+      ));
+      return void res.send(file.bytes);
     }
     await sendDownload(
       documents, req, res, rendition === "pdf",

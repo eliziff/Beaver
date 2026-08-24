@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { NativeDocument } from "../structureNative";
 import {
   createLegalSourceRegistry,
   type LegalSourceProvider,
@@ -68,9 +69,7 @@ describe("legal source registry", () => {
       },
       role: "selected" as const,
       text: "Exact passage",
-      textSha256: "text-hash",
-      documentSha256: "document-hash",
-      revision: "revision",
+      documentArtifact: {} as NativeDocument,
     };
     const readPassage = vi.fn(async () => [passage]);
     const registry = createLegalSourceRegistry([

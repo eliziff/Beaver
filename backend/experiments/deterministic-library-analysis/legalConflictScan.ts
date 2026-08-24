@@ -15,7 +15,7 @@
 // scan cannot pair is reported as an abstention, not guessed at; findings
 // carry the arithmetic so a reader can judge materiality.
 import { extractAnchors } from "./legalTextAnchors";
-import { deriveDocumentNative, documentAnchorsNative, type NativeDocumentBlock } from "../../src/lib/structureNative";
+import { structureNative, type NativeDocumentBlock } from "../../src/lib/structureNative";
 
 export interface ConflictDocument {
   name: string;
@@ -163,10 +163,10 @@ type SectionAt = (at: number) => Promise<string | null>;
 function sectionResolver(text: string): SectionAt {
   let blocks: Promise<Array<Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end">>> | null = null;
   return async (at) => {
-    blocks ??= deriveDocumentNative({
+    blocks ??= structureNative().deriveDocumentStructure({
       kind: "instrument", id: "conflict-scan", text,
-      reconstruct_lineation: true, source_doc: true,
-    }).then(documentAnchorsNative);
+      reconstruct_lineation: true,
+    }).then((document) => structureNative().documentAnchors(document));
     let best: Pick<NativeDocumentBlock, "kind" | "label" | "start" | "end"> | null = null;
     for (const block of await blocks) {
       if (block.kind !== "section" || block.start > at || at >= block.end) continue;

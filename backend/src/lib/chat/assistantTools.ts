@@ -15,11 +15,6 @@ import {
 } from "../legalSourceRegistry";
 import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
 import { fixDocumentSupras } from "../docxDeterministicCleanup";
-import {
-  deleteProvisionAndRenumberSiblings,
-  type DeleteAndRenumberReceipt,
-} from "../structureNative";
-import { docxDraftingMarkdown } from "../docxDraftingMarkdown";
 import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { resolveDraftingOptions } from "../draftingStyle";
 import { getDraftingStyleSettings } from "../draftingStyleStore";
@@ -29,7 +24,6 @@ import {
   finalizeTrackedEdits,
   insertTrackedBlocks,
   type EditMode,
-  type EditInput,
 } from "../docxTrackedChanges";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
@@ -38,6 +32,7 @@ import type {
   StoredAssistantEdit,
   DocumentContent,
   DocumentProvenance,
+  DocumentProjectionSource,
   DocumentScope,
   DocumentStore,
 } from "../documentStore";
@@ -46,21 +41,9 @@ import {
   type PdfLocatorKind,
 } from "../documentProjectionService";
 import {
-  deriveDocumentNative,
-  docxStructureLintNative,
-  documentPageMapNative,
-  documentRevisionNative,
-  documentTextBytesNative,
-  documentTextNative,
-  graphScopeNative,
-  lookupStructureBlockNative,
-  parseDocumentAddressNative,
-  resolveDocumentPageNative,
-  smallestContainingDocumentBlockNative,
+  structureNative,
   type NativeDocument,
   type NativeDocumentBlock,
-  type NativePageMap,
-  quoteRepairSuggestionNative,
 } from "../structureNative";
 import { pdfLifecyclePhase } from "../pdfLifecycleDiagnostics";
 import {
@@ -163,7 +146,7 @@ const objectSchema = (
 const DOCUMENT_OPERATION_TOOL: Tool = {
   name: "document_operation",
   description:
-    "Specialist operation on one version-pinned Library document. Actions: metadata saves user-requested classification or notes; fix_supras creates native Word supra cross-references; lint_structure reports structural defects without editing; delete_and_renumber atomically deletes one provision and closes its sibling numbering gap as tracked changes; table_of_authorities starts deterministic authorities detection for DOCX or PDF. Do not pre-compute filesystem paths.",
+    "Specialist operation on one version-pinned Library document. Actions: metadata saves user-requested classification or notes; fix_supras creates native Word supra cross-references; lint_structure reports structural defects without editing; table_of_authorities starts deterministic authorities detection for DOCX or PDF. Do not pre-compute filesystem paths.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: {
@@ -171,7 +154,6 @@ const DOCUMENT_OPERATION_TOOL: Tool = {
       enum: [
         "metadata",
         "fix_supras",
-        "delete_and_renumber",
         "table_of_authorities",
       ],
     },
@@ -184,10 +166,6 @@ const DOCUMENT_OPERATION_TOOL: Tool = {
       description: { type: "string" },
     }),
     notes: { type: "string" },
-    target: {
-      type: "string",
-      description: "Exact provision handle from Grep for delete_and_renumber.",
-    },
     split_fallback: { type: "string", enum: ["off", "auto"] },
   }, ["action", "document_id"]),
 };
@@ -208,7 +186,8 @@ function oneHopLegalScope(
   const follow = direction === "inbound"
     ? "in"
     : direction === "outbound" ? "out" : "both";
-  return graphScopeNative(document, block.label, follow, 1, true, includeUnits);
+  return structureNative().graphScope(
+    document, block.label, follow, 1, true, includeUnits);
 }
 
 
@@ -383,17 +362,14 @@ async function saveDocxEdits(params: {
   });
   if (!committed) return fail("The active document version changed.");
   const { version, trackedEdits } = committed;
-  const lintProjection = await documentProjectionService.read({
+  const lintDocument = await documentProjectionService.read({
     documentId: params.documentId,
     versionId: version.id,
-    filename: version.filename,
     fileType: "docx",
     sourceSha256: version.source_sha256,
     readBytes: () => params.bytes,
   }).catch(() => null);
-  const lint = lintProjection?.kind === "docx"
-    ? docxStructureLintNative(lintProjection.document)
-    : null;
+  const lint = lintDocument ? structureNative().docxStructureLint(lintDocument) : null;
   return documentResult({
     ok: true,
     action: "revised",
@@ -425,7 +401,9 @@ const GREP_LINE_CAP = 2_000;
 
 type CodingOutputLine = {
   rendered: string;
+  lineNumber?: number;
   span?: [number, number];
+  evidenceText?: string;
   handoffCandidate?: boolean;
   source?: {
     documentId: string;
@@ -434,13 +412,12 @@ type CodingOutputLine = {
     locator?: string;
     locatorKind?: "paragraph" | "page" | "section" | "footnote";
     sourceText?: string;
+    sourceSha256?: string;
   };
 };
 
 const sourceLineStarts = (text: string) =>
   [0, ...Array.from(text.matchAll(/\n/gu), ({ index }) => index + 1)];
-const sourceLineAt = (starts: readonly number[], offset: number) =>
-  Math.max(0, starts.findIndex((_, index) => (starts[index + 1] ?? Infinity) > offset));
 
 function takeCodingOutputLines(
   lines: CodingOutputLine[],
@@ -488,102 +465,6 @@ function uncoveredRanges(range: TextRange, covered: readonly TextRange[]) {
   if (cursor < range.end) open.push({ start: cursor, end: range.end });
   return open;
 }
-
-function codingRangeLines(
-  text: string,
-  starts: readonly number[],
-  range: TextRange,
-  header?: string,
-  source?: CodingOutputLine["source"],
-): CodingOutputLine[] {
-  const rows: CodingOutputLine[] = header ? [{ rendered: header }] : [];
-  const lineIndex = sourceLineAt(starts, range.start);
-  for (let index = lineIndex; index < starts.length; index += 1) {
-    const lineStart = starts[index];
-    const nextStart = starts[index + 1] ?? text.length;
-    if (lineStart >= range.end) break;
-    const start = Math.max(lineStart, range.start);
-    let end = Math.min(nextStart, range.end);
-    while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) {
-      end -= 1;
-    }
-    if (end <= start) continue;
-    const full = text.slice(start, end);
-    const shown = full.slice(0, Math.max(GREP_LINE_CAP, MAX_MODEL_TOOL_RESULT_CHARS - 2_000));
-    rows.push({
-      rendered:
-        `${String(index + 1).padStart(6, " ")}\t${start > lineStart ? "…" : ""}${shown}` +
-        (shown.length < full.length || end < nextStart ? "…" : ""),
-      span: [start, start + shown.length],
-      ...(source ? { source } : {}),
-    });
-  }
-  return rows;
-}
-function trackedEditsForRenumberPlan(
-  sourceText: string,
-  receipts: readonly DeleteAndRenumberReceipt[],
-): EditInput[] | string {
-  const edits: EditInput[] = [];
-  const add = (
-    start: number,
-    end: number,
-    replace: string,
-    reason: string,
-  ) => {
-    const find = sourceText.slice(start, end);
-    if (!find || find.includes("\n") || replace.includes("\n")) {
-      return false;
-    }
-    edits.push({
-      find,
-      replace,
-      context_before: "",
-      context_after: "",
-      reason,
-      exact_start: start,
-      exact_end: end,
-    });
-    return true;
-  };
-
-  for (const receipt of receipts) {
-    if (sourceText.slice(receipt.start, receipt.end) !== receipt.removed) {
-      return `Pinned text no longer matches ${receipt.kind} at ${receipt.start}-${receipt.end}`;
-    }
-    const reason =
-      receipt.kind === "delete_provision"
-        ? `Delete ${receipt.from} and close its numbering gap`
-        : receipt.kind === "renumber_heading"
-          ? `Renumber ${receipt.from} to ${receipt.to}`
-          : `Update pointer from ${receipt.from} to ${receipt.to}`;
-    if (receipt.kind !== "delete_provision") {
-      if (!add(receipt.start, receipt.end, receipt.inserted, reason)) {
-        return `${receipt.kind} crossed a paragraph boundary`;
-      }
-      continue;
-    }
-
-    let cursor = receipt.start;
-    while (cursor < receipt.end) {
-      const newline = sourceText.indexOf("\n", cursor);
-      const end =
-        newline < 0 || newline > receipt.end ? receipt.end : newline;
-      if (end > cursor && !add(cursor, end, "", reason)) {
-        return `Deletion of ${receipt.from} could not be split safely`;
-      }
-      cursor = end + 1;
-    }
-  }
-  return edits.length ? edits : "Renumber plan contained no trackable text";
-}
-
-const comparableAcceptedText = (value: string) =>
-  value
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0)
-    .join("\n");
 
 async function activeDocument(
   documents: DocumentStore,
@@ -714,27 +595,13 @@ type EvidenceSpan = {
   locator?: LegalEvidenceReceipt["locator"];
 };
 
-function nativeDocumentArtifact(value: unknown): NativeDocument | undefined {
-  return typeof value === "object" && value !== null
-    ? value as NativeDocument
-    : undefined;
-}
-
 function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
-  const source = nativeDocumentArtifact(passage.documentArtifact);
-  if (passage.source.provider !== "a2aj") return source ? { source } : {};
+  const source = passage.documentArtifact;
+  if (passage.source.provider !== "a2aj") return { source };
   const native = objectRecord(passage.native);
-  return typeof native?.citation === "string" && source
+  return typeof native?.citation === "string"
     ? { document: native as unknown as A2AJCompiledDocument }
-    : source ? { source } : {};
-}
-
-function smallestContainingBlock(
-  source: NativeDocument,
-  start: number,
-  end: number,
-): NativeDocumentBlock | undefined {
-  return smallestContainingDocumentBlockNative(source, start, end) ?? undefined;
+    : { source };
 }
 
 function cleanSearchEvidenceSpan(
@@ -742,10 +609,10 @@ function cleanSearchEvidenceSpan(
   hit: { at: number; excerpt: string },
 ): EvidenceSpan {
   const matchEnd = hit.at + hit.excerpt.length;
-  const source = nativeDocumentArtifact(passage.documentArtifact);
-  if (passage.role === "document" && source &&
-      passage.blockArtifact === passage.documentArtifact) {
-    const block = smallestContainingBlock(source, hit.at, matchEnd);
+  const source = passage.documentArtifact;
+  if (passage.role === "document" || !passage.blockArtifact) {
+    const block = structureNative()
+      .smallestContainingDocumentBlock(source, hit.at, matchEnd);
     if (block) return {
       text: block.text,
       start: block.start,
@@ -775,12 +642,9 @@ function legalSourceEvidence(
     if (typeof native?.citation === "string" &&
         typeof native.dataset === "string" &&
         (native.language === "en" || native.language === "fr")) {
-      const source = nativeDocumentArtifact(passage.documentArtifact);
-      if (!source) return undefined;
-      const block = objectRecord(passage.blockArtifact);
-      const selected = span ?? (typeof block?.text === "string" &&
-          typeof block.start === "number" && typeof block.end === "number" &&
-          typeof block.kind === "string" && typeof block.label === "string"
+      const source = passage.documentArtifact;
+      const block = passage.blockArtifact;
+      const selected = span ?? (block
         ? {
             text: block.text,
             start: block.start,
@@ -797,7 +661,7 @@ function legalSourceEvidence(
         name: typeof native.name === "string" ? native.name : null,
         dataset: native.dataset,
         language: native.language,
-        sourceSha256: documentRevisionNative(source),
+        sourceSha256: structureNative().documentRevision(source),
         spanText: selected.text,
         start: selected.start,
         end: selected.end,
@@ -808,16 +672,18 @@ function legalSourceEvidence(
       }) : undefined;
     }
   }
-  if (!span && passage.role === "document" && passage.source.provider !== "hansard") {
+  if (!span && passage.role === "document") {
     return undefined;
   }
   if (passage.source.provider === "journal") {
+    const source = passage.documentArtifact;
     return createPublicJournalPassageEvidence({
       citation: passage.source.citation ?? passage.source.id,
       name: passage.source.title ?? null,
       date: passage.source.date ?? null,
       url: passage.source.url ?? null,
       text: span?.text ?? passage.text,
+      sourceSha256: structureNative().documentRevision(source),
       articleId: passage.source.id,
       language: passage.source.language,
       locatorKind: span?.locator?.kind ?? passage.locator.requested?.kind ?? "document",
@@ -836,7 +702,6 @@ function legalSourceEvidence(
         passage.source.provider === "govuk-et"
       ? "UK"
       : "CA-ON";
-  const artifact = objectRecord(passage.documentArtifact);
   const createEvidence = {
     courtlistener: createCourtlistenerEvidence,
     tna: createTnaEvidence,
@@ -845,6 +710,7 @@ function legalSourceEvidence(
     hansard: createHansardEvidence,
   }[passage.source.provider];
   if (!createEvidence) return undefined;
+  const source = passage.documentArtifact;
   return createEvidence({
     jurisdiction,
     sourceClass,
@@ -852,9 +718,8 @@ function legalSourceEvidence(
       passage.source.id,
       passage.source.part ?? "",
     ].join(":"),
-    sourceText: typeof passage.documentArtifact === "string"
-      ? passage.documentArtifact
-      : typeof artifact?.text === "string" ? artifact.text : passage.text,
+    sourceReference: passage.source,
+    sourceSha256: structureNative().documentRevision(source),
     spanText: span?.text ?? passage.text,
     citation: passage.source.citation ?? passage.source.id,
     name: passage.source.title,
@@ -1080,27 +945,23 @@ async function readLegalSourceResource(
     const relatedEvidence: LegalEvidenceReceipt[] = [];
     if (references !== "none") {
       const selected = registered.find(({ passage }) =>
-        passage.role === "selected" && objectRecord(passage.blockArtifact));
-      const artifact = selected && nativeDocumentArtifact(
-        selected.passage.documentArtifact,
-      );
-      const block = selected && objectRecord(selected.passage.blockArtifact);
+        passage.role === "selected" && passage.blockArtifact);
+      const artifact = selected?.passage.documentArtifact;
+      const block = selected?.passage.blockArtifact;
       const metadata = selected && objectRecord(selected.passage.native);
-      if (artifact && block && typeof block.label === "string" &&
-          typeof block.start === "number" && typeof block.end === "number" &&
-          metadata && typeof metadata.citation === "string" &&
+      if (artifact && block && metadata && typeof metadata.citation === "string" &&
           typeof metadata.dataset === "string" &&
           (metadata.language === "en" || metadata.language === "fr")) {
         const scope = oneHopLegalScope(
           artifact,
-          block as unknown as NativeDocumentBlock,
+          block,
           references as Exclude<A2AJReferenceDirection, "none">,
           true,
         );
         const candidates = scope?.nodes ?? [];
         const sections: Array<{ label: string; text: string; evidence_ids: string[] }> = [];
         const omitted: string[] = [];
-        const sourceSha256 = documentRevisionNative(artifact);
+        const sourceSha256 = structureNative().documentRevision(artifact);
         let chars = 0;
         for (const [index, related] of candidates.entries()) {
           if (sections.length === 50 || chars + related.text.length > 32_000) {
@@ -1160,7 +1021,7 @@ async function readLegalSourceResource(
         kind: passage.locator.requested?.kind ?? "document",
         locator: passage.locator.label,
         text: passage.text,
-        text_sha256: passage.textSha256,
+        text_sha256: sha256(passage.text),
         ...(receipt ? { evidence_id: receipt.evidence_id } : {}),
         ...(passage.source.provider === "courtlistener" && passage.source.part
           ? {
@@ -1238,65 +1099,107 @@ async function runCodingShapeCall(
   servedDraftingCache ??= new Map();
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
-  const files = await scopedDocuments(
-    scope, library, projects, 200, matterId,
-  );
-  files.forEach(({ id, filename }) => documentNames.set(id, filename));
+  let listedFiles: AssistantDocument[] | undefined;
+  const files = async () => {
+    if (!listedFiles) {
+      listedFiles = await scopedDocuments(scope, library, projects, 200, matterId);
+      listedFiles.forEach(({ id, filename }) => documentNames.set(id, filename));
+    }
+    return listedFiles;
+  };
   const codingPath = (document: AssistantDocument, versionId = document.current_version_id) =>
     resourceReference.document(document.id, versionId);
-  const resolvePath = (raw: string) => {
+  const resolvePath = async (raw: string) => {
     const reference = parseResourceReference(raw.trim());
-    return reference?.kind === "document"
-      ? files.find(({ id }) => id === reference.documentId) ?? null : null;
+    if (reference?.kind !== "document") return null;
+    const listed = listedFiles?.find(({ id }) => id === reference.documentId);
+    if (listed) return listed;
+    const record = await documents.metadata(scope, reference.documentId, !matterId);
+    if (!record || (matterId
+      ? record.project_id !== matterId
+      : record.project_id !== null || record.library_kind !== "file") ||
+      typeof record.filename !== "string" ||
+      typeof record.current_version_id !== "string" ||
+      typeof record.file_type !== "string") return null;
+    const document: AssistantDocument = {
+      ...record,
+      id: record.id,
+      filename: record.filename,
+      current_version_id: record.current_version_id,
+      file_type: record.file_type,
+    };
+    documentNames.set(document.id, document.filename);
+    return document;
   };
   const referencedVersion = (raw: string) => {
     const reference = parseResourceReference(raw.trim());
     return reference?.kind === "document" ? reference.versionId : undefined;
   };
-  const codingDocument = async (
+  const redlineText = async (documentId: string, versionId?: string) => {
+    const file = await documents.read(scope, documentId, versionId ?? null, false);
+    if (!file || file.fileType.toLowerCase() !== "docx") return null;
+    return { versionId: file.version.id, text: (await projectDocxRedline(file.bytes)).text };
+  };
+  const codingText = async (
     documentId: string,
     versionId?: string,
     mode?: "text" | "drafting" | "redline",
   ) => {
-    let raw: { versionId: string; text: string } | null = null;
-    if (mode === "redline") {
-      const file = await documents.read(scope, documentId, versionId ?? null, false);
-      if (!file || file.fileType.toLowerCase() !== "docx") return null;
-      const redline = await projectDocxRedline(file.bytes);
-      raw = {
-        versionId: file.version.id,
-        text: redline.text,
-      };
-    } else if (mode !== "text") {
-      const drafting = await servedDraftingText(
-        documents, scope, documentId, servedDraftingCache, versionId,
-      );
-      if (drafting) {
-        raw = {
-          versionId: drafting.versionId,
-          text: drafting.served,
-        };
-      }
+    if (mode === "redline") return redlineText(documentId, versionId);
+    const source = await documents.projectionSource(scope, documentId, versionId ?? null);
+    if (!source) return null;
+    const cacheKey = `${documentId}:${source.versionId}`;
+    const cached = mode !== "text" && servedDraftingCache.get(cacheKey);
+    if (cached) return {
+      versionId: cached.versionId,
+      text: structureNative().documentText(cached.document),
+    };
+    const text = await pdfLifecyclePhase("open.text", documentId, () =>
+      documentProjectionService.text({ ...source, readBytes: () =>
+        pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }, {
+        drafting: mode !== "text", signal,
+      }));
+    return { versionId: source.versionId, text };
+  };
+  const codingDocument = async (
+    documentId: string,
+    versionId?: string,
+    mode?: "text" | "drafting" | "redline",
+    materializeText = true,
+  ) => {
+    const raw = mode === "redline" ? await redlineText(documentId, versionId) : null;
+    const source = raw
+      ? null
+      : await documents.projectionSource(scope, documentId, versionId ?? null);
+    if (!raw && !source) return null;
+    if (source && mode !== "redline" && mode !== "text" &&
+        source.fileType.toLowerCase() === "docx") {
+      const drafting = await servedDraftingDocument(source, servedDraftingCache);
+      if (drafting) return materializeText
+        ? { ...drafting, text: structureNative().documentText(drafting.document) }
+        : drafting;
     }
     if (raw) {
-      const document = await deriveDocumentNative({
+      const document = await structureNative().deriveDocumentStructure({
         kind: "instrument",
         id: documentId,
         text: raw.text,
         reconstruct_lineation: true,
       });
-      return {
-        ...raw,
-        pages: { pages: [], source: "unindexed" as const },
-        tableCells: [],
-        document,
-      };
+      return materializeText ? { ...raw, document } : { versionId: raw.versionId, document };
     }
-    return extractDocument(documents, scope, documentId, versionId);
+    const projected = await loadNativeDocument(
+      documents, scope, documentId, versionId, source ?? undefined,
+    );
+    if (!projected || !materializeText) return projected;
+    return {
+      ...projected,
+      text: structureNative().documentText(projected.document),
+    };
   };
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
-    const fileRows = files
+    const fileRows = (await files())
       .filter((document) => re.test(document.filename))
       .map((document) => `${codingPath(document)}\tfilename=${document.filename}`);
     const workflowRows = [...workflows].flatMap(([id, workflow]) => {
@@ -1321,35 +1224,26 @@ async function runCodingShapeCall(
       if (!handle && (!locatorKind || !locator)) {
         return fail("locator_kind and locator are required together.");
       }
-      const meta = resolvePath(requested);
+      const meta = await resolvePath(requested);
       if (!meta) {
         return fail(`Document resource does not exist: ${requested}`);
       }
       const versionId = referencedVersion(requested);
-      const file = await documents.read(
-        scope, meta.id, versionId ?? null, false,
-      );
-      if (!file) return fail("PDF resource/version not found.");
-      if (file.fileType.toLowerCase() !== "pdf") {
+      const source = await documents.projectionSource(scope, meta.id, versionId ?? null);
+      if (!source) return fail("PDF resource/version not found.");
+      if (source.fileType.toLowerCase() !== "pdf") {
         return fail("Exact structural Read requires a PDF resource.");
       }
-      let physicalPageCount = Number.isSafeInteger(meta.page_count)
+      let physicalPageCount = source.versionId === meta.current_version_id &&
+        Number.isSafeInteger(meta.page_count)
         ? Number(meta.page_count)
         : null;
       if (locatorKind === "page" && !trimmed(args.end_locator) && /^[1-9]\d*$/u.test(locator)) {
         if (physicalPageCount === null) {
           try {
-            const projection = await documentProjectionService.read({
-              documentId: meta.id,
-              versionId: file.version.id,
-              filename: file.filename,
-              fileType: file.fileType,
-              sourceSha256: file.version.source_sha256,
-              readBytes: () => file.bytes,
-            }, { signal });
-            physicalPageCount = projection.kind === "pdf"
-              ? projection.pageCount
-              : null;
+            const document = await documentProjectionService.read(source, { signal });
+            physicalPageCount = structureNative()
+              .pdfDocumentSummary(document).projectionPageCount;
           } catch {
             return fail(
               `${meta.filename} is not a valid readable PDF. Retrying will not help.`,
@@ -1369,16 +1263,13 @@ async function runCodingShapeCall(
       try {
         let lookup: PdfLookupResult;
         if (handle) {
-          const receipt = await documentProjectionService.readPdfEvidence(handle);
-          if (
-            receipt.source.document_id !== meta.id ||
-            receipt.source.version_id !== file.version.id
-          ) {
-            return fail("PDF evidence does not belong to this resource.");
-          }
           lookup = await documentProjectionService.rehydratePdfEvidence(
-            file.bytes,
             handle,
+            {
+              documentId: meta.id,
+              versionId: source.versionId,
+              sourceSha256: source.sourceSha256,
+            },
           );
         } else {
           const locatorInput = pdfLocatorParams(args);
@@ -1398,53 +1289,59 @@ async function runCodingShapeCall(
               (_, index) => Math.max(1, exactPage - contextBlocks) + index,
             );
           }
-          lookup = await documentProjectionService.lookupPdf(file.bytes, locatorInput, {
+          lookup = await documentProjectionService.lookupPdf(source.readBytes, locatorInput, {
             documentId: meta.id,
-            versionId: file.version.id,
-            sourceSha256: file.version.source_sha256,
+            versionId: source.versionId,
+            sourceSha256: source.sourceSha256,
+            pdfProfile: source.pdfProfile,
             pages: selectedPages,
             signal,
-            progress: ({ phase }) => progress?.(
-              phase === "ocr"
-                ? `Running OCR on ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`
-                : phase === "inspecting"
-                  ? `Inspecting ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`
-                  : `Reading ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`,
+            progress: () => progress?.(
+              `Reading ${exactPage ? `page ${exactPage} of ` : ""}${meta.filename}`,
             ),
           });
         }
         const evidence = pdfLegalEvidence(
           meta.id,
-          file.version.id,
-          file.filename,
+          source.versionId,
+          meta.filename,
           lookup,
         );
         return {
           ...result({
-            ...compactPdfLookup(file.filename, lookup),
+            ...compactPdfLookup(meta.filename, lookup),
             passages: evidence.map(modelEvidencePassage),
             evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-            resource: codingPath(meta, file.version.id),
+            resource: codingPath(meta, source.versionId),
           }),
           evidence,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
+        if (message === "PDF evidence source mismatch")
+          return fail("PDF evidence does not belong to this resource.");
         return fail(SAFE_PDF_EVIDENCE_ERRORS.has(message)
           ? message : "PDF evidence is unavailable");
       }
     }
-    const meta = resolvePath(requested);
+    const meta = await resolvePath(requested);
     if (!meta) {
       return fail(`Document resource does not exist: ${requested}`);
     }
     const mode = args.mode as "text" | "drafting" | "redline" | undefined;
-    let document;
+    const sectionArg = trimmed(args.section);
+    const references = (args.references ?? "none") as
+      "none" | "inbound" | "outbound" | "both";
+    if (references !== "none" && !sectionArg) {
+      return fail("references requires an exact section handle.");
+    }
+    let document: Awaited<ReturnType<typeof codingDocument>>;
     try {
       document = await codingDocument(
         meta.id,
         referencedVersion(requested),
         mode,
+        false,
       );
     } catch {
       return fail(
@@ -1452,13 +1349,10 @@ async function runCodingShapeCall(
       );
     }
     if (!document) return fail(`File could not be read: ${requested}`);
-    const lines = document.text.split(/\r?\n/u);
-    const starts = sourceLineStarts(document.text);
+    const nativeDocument = document.document;
     const limit = (args.limit as number | undefined) ?? 2_000;
     const startChar = (args.start_char as number | undefined) ?? 0;
-    const sectionArg = trimmed(args.section);
-    const references = (args.references ?? "none") as
-      "none" | "inbound" | "outbound" | "both";
+    const sourceSha256 = structureNative().documentRevision(nativeDocument);
     const source = (
       locator?: string,
       locatorKind?: NonNullable<CodingOutputLine["source"]>["locatorKind"],
@@ -1466,9 +1360,52 @@ async function runCodingShapeCall(
       documentId: meta.id,
       versionId: document.versionId,
       filename: meta.filename,
-      sourceText: document.text,
+      sourceSha256,
       ...(locator && locatorKind ? { locator, locatorKind } : {}),
     });
+    const windowLines = (
+      rows: ReturnType<ReturnType<typeof structureNative>["readDocumentTextWindow"]>["rows"],
+      rowSource: CodingOutputLine["source"],
+    ): CodingOutputLine[] => rows.map((row) => ({
+      rendered: `${String(row.lineNumber).padStart(6, " ")}\t` +
+        `${row.truncatedStart ? "…" : ""}${row.text}${row.truncatedEnd ? "…" : ""}`,
+      lineNumber: row.lineNumber,
+      evidenceText: row.text,
+      span: row.span,
+      source: rowSource,
+    }));
+    if (!sectionArg) {
+      const offset = (args.offset as number | undefined) ?? 1;
+      const window = structureNative().readDocumentTextWindow(
+        nativeDocument,
+        offset,
+        startChar,
+        limit,
+      );
+      if (window.status === "invalid_line") return fail(
+        offset > (window.totalLines ?? 0)
+          ? `(offset ${offset} is past the end of the file; total lines: ${window.totalLines})`
+          : "(empty file)",
+      );
+      if (window.status === "invalid_character") return fail(
+        `(start_char ${startChar} is past the end of line ${offset}; ` +
+          `line chars: ${window.lineLength ?? 0})`,
+      );
+      if (window.status === "split_character") return fail(
+        `(start_char ${startChar} splits a Unicode character on line ${offset})`,
+      );
+      const lines = windowLines(window.rows, source());
+      const continuation = window.nextOffset === null
+        ? ""
+        : `\n\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(requested)}, ` +
+          `offset=${window.nextOffset}, limit=${limit}, ` +
+          `start_char=${window.nextStartChar ?? 0}).]`;
+      return codingTextResult(
+        call,
+        lines.map(({ rendered }) => rendered).join("\n") + continuation,
+        lines,
+      );
+    }
     const finish = (
       candidates: CodingOutputLine[],
       suffix?: (kept: CodingOutputLine[], truncated: boolean) => string,
@@ -1481,11 +1418,9 @@ async function runCodingShapeCall(
         kept,
       );
     };
-    if (references !== "none" && !sectionArg) {
-      return fail("references requires an exact section handle.");
-    }
     if (sectionArg) {
-      const lookup = lookupStructureBlockNative(document.document, sectionArg);
+      const lookup = structureNative().lookupStructureBlock(
+        nativeDocument, sectionArg, 0);
       if (lookup.status !== "found" || !lookup.block) {
         return fail(
           `Section '${sectionArg}' not found (${lookup.status}` +
@@ -1498,7 +1433,7 @@ async function runCodingShapeCall(
       const block = lookup.block;
       if (references !== "none") {
         const scope = oneHopLegalScope(
-          document.document,
+          nativeDocument,
           block,
           references,
         );
@@ -1513,17 +1448,16 @@ async function runCodingShapeCall(
             covered,
           );
           for (const range of open) {
-            candidates.push(
-              ...codingRangeLines(
-                document.text,
-                starts,
-                range,
-                `=== ${meta.filename} :: Read section="${node.label}" :: ${
-                  index === 0 ? "target" : "direct reference"
-                } ===`,
-                source(node.label, "section"),
-              ),
-            );
+            const window = structureNative().readDocumentTextRange(
+              nativeDocument, range.start, range.end, undefined, 0xffff_ffff);
+            if (window.status !== "ready") {
+              return fail(`Section '${node.label}' has an invalid text range.`);
+            }
+            candidates.push({
+              rendered: `=== ${meta.filename} :: Read section="${node.label}" :: ${
+                index === 0 ? "target" : "direct reference"
+              } ===`,
+            }, ...windowLines(window.rows, source(node.label, "section")));
           }
           addCoveredRange(covered, { start: node.start, end: node.end });
         }
@@ -1534,74 +1468,38 @@ async function runCodingShapeCall(
             : "",
         );
       }
-      const startLine = sourceLineAt(starts, block.start) + 1;
-      const endLine = sourceLineAt(starts, Math.max(block.start, block.end - 1)) + 1;
-      const offset = (args.offset as number | undefined) ?? startLine;
-      if (offset < startLine || offset > endLine) {
+      const offset = args.offset as number | undefined;
+      const window = structureNative().readDocumentTextRange(
+        nativeDocument, block.start, block.end, offset, limit);
+      const startLine = window.rangeStartLine ?? 0;
+      const endLine = window.rangeEndLine ?? 0;
+      if (window.status === "invalid_line") {
         return fail(
-          `(offset ${offset} is outside section ${block.label}; the section spans lines ${startLine}-${endLine})`,
+          `(offset ${offset} is outside section ${block.label}; ` +
+            `the section spans lines ${startLine}-${endLine})`,
         );
       }
-      const candidates = codingRangeLines(
-        document.text,
-        starts,
-        { start: Math.max(block.start, starts[offset - 1]), end: block.end },
-        undefined,
-        source(block.label, "section"),
-      ).slice(0, limit);
+      if (window.status !== "ready") {
+        return fail(`Section '${block.label}' has an invalid text range.`);
+      }
+      const candidates = windowLines(window.rows, source(block.label, "section"));
       return finish(
         candidates,
         (kept, truncated) => {
-          const lastShown = offset + kept.length - 1;
-          return lastShown < endLine
-            ? `\n\n[TRUNCATED: returned section lines ${offset}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${lastShown + 1}).${truncated ? " Tool-result limit reached." : ""}]`
+          const firstShown = candidates[0]?.lineNumber ?? startLine;
+          const lastShown = kept.at(-1)?.lineNumber ?? firstShown;
+          const nextOffset = truncated ? lastShown + 1 : window.nextOffset;
+          return nextOffset !== null
+            ? `\n\n[TRUNCATED: returned section lines ${firstShown}-${lastShown} of ${startLine}-${endLine}; continue with Read(file_path="${requested}", section="${block.label}", offset=${nextOffset}).${truncated ? " Tool-result limit reached." : ""}]`
             : "";
         },
       );
     }
-    const offset = (args.offset as number | undefined) ?? 1;
-    const firstLine = lines[offset - 1];
-    if (firstLine === undefined) return fail(
-      offset > lines.length
-        ? `(offset ${offset} is past the end of the file; total lines: ${lines.length})`
-        : "(empty file)",
-    );
-    if (startChar > firstLine.length) return fail(
-      `(start_char ${startChar} is past the end of line ${offset}; line chars: ${firstLine.length})`,
-    );
-    let candidates = codingRangeLines(
-      document.text,
-      starts,
-      { start: starts[offset - 1] + startChar, end: document.text.length },
-      undefined,
-      source(),
-    );
-    const first = candidates[0]?.span;
-    if (first && first[1] < starts[offset - 1] + firstLine.length)
-      candidates = candidates.slice(0, 1);
-    const selected = candidates.slice(0, limit);
-    return finish(
-      selected,
-      (kept, truncated) => {
-        let next = kept.at(-1)?.span?.[1] ?? document.text.length;
-        let nextLine = sourceLineAt(starts, next);
-        let nextChar = next - starts[nextLine];
-        if (nextChar >= lines[nextLine].length && nextLine + 1 < lines.length) {
-          nextLine += 1;
-          nextChar = 0;
-          next = starts[nextLine];
-        }
-        return next < document.text.length &&
-            (truncated || selected.length < candidates.length)
-          ? `\n\n[TRUNCATED: continue with Read(file_path=${JSON.stringify(requested)}, offset=${nextLine + 1}, limit=${limit}, start_char=${nextChar}).]`
-          : "";
-      },
-    );
   }
 
   if (call.name === "Edit" || call.name === "edit_docx_advanced") {
     const requested = trimmed(args.file_path);
-    const meta = resolvePath(requested);
+    const meta = await resolvePath(requested);
     if (!meta) {
       return fail(`Document resource does not exist: ${requested}`);
     }
@@ -1687,7 +1585,7 @@ async function runCodingShapeCall(
         error: "No revision was saved",
         edit_errors: applied.errors.map(({ index, reason }) =>
           `edit ${index + 1}: ${reason}`),
-        nearest_match: quoteRepairSuggestionNative(
+        nearest_match: structureNative().quoteRepairSuggestion(
           oldString.replace(/^["'“‘]+|["'”’]+$/gu, ""), spans),
       });
     }
@@ -1715,17 +1613,20 @@ async function runCodingShapeCall(
     return fail(`regex parse error: ${safeErrorMessage(error, "invalid pattern")}`);
   }
   const pathArg = trimmed(args.path);
-  let targets = files;
+  let targets: AssistantDocument[];
   let targetVersionId: string | undefined;
   if (pathArg) {
-    const match = resolvePath(pathArg);
+    const match = await resolvePath(pathArg);
     if (!match)
       return fail(`Document resource does not exist: ${pathArg}`);
     targets = [match];
     targetVersionId = referencedVersion(pathArg);
-  } else if (trimmed(args.glob)) {
+  } else {
+    targets = await files();
+  }
+  if (!pathArg && trimmed(args.glob)) {
     const globRe = globRegExp(trimmed(args.glob));
-    targets = files.filter(({ filename }) => globRe.test(filename));
+    targets = targets.filter(({ filename }) => globRe.test(filename));
   }
   const grepSection = trimmed(args.section);
   if (grepSection && !pathArg)
@@ -1742,14 +1643,29 @@ async function runCodingShapeCall(
   const fileBuckets: CodingOutputLine[][] = [];
   let truncated = false;
   for (const meta of targets) {
-    const document = await codingDocument(meta.id, targetVersionId);
+    let document;
+    let nativeDocument: NativeDocument | undefined;
+    if (grepSection) {
+      const structured = await codingDocument(
+        meta.id, targetVersionId, undefined, false,
+      );
+      document = structured && {
+        versionId: structured.versionId,
+        text: structureNative().documentText(structured.document),
+      };
+      nativeDocument = structured?.document;
+    } else {
+      document = await codingText(meta.id, targetVersionId);
+    }
     if (!document) continue;
     const resource = codingPath(meta, document.versionId);
     const lines = document.text.split(/\r?\n/u);
     const starts = sourceLineStarts(document.text);
     let scopeSpan: TextRange | null = null;
     if (grepSection) {
-      const lookup = lookupStructureBlockNative(document.document, grepSection);
+      if (!nativeDocument) continue;
+      const lookup = structureNative().lookupStructureBlock(
+        nativeDocument, grepSection, 0);
       if (lookup.status !== "found" || !lookup.block) {
         const candidates = lookup.matches.length
           ? `; candidates: ${lookup.matches.join(", ")}` : "";
@@ -1847,45 +1763,20 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-export async function extractDocument(
+async function loadNativeDocument(
   documents: DocumentStore,
   scope: DocumentScope,
   documentId: string,
   versionId?: string,
+  projectionSource?: DocumentProjectionSource,
 ) {
-  const listing = await documents.versions(scope, documentId);
-  const selectedId = versionId ?? listing?.current_version_id;
-  const version = listing?.versions.find(({ id }) => id === selectedId);
-  if (!version) return null;
-  const fileType = version.file_type.toLowerCase();
-  const projection = await pdfLifecyclePhase("open.projection", documentId, () =>
-    documentProjectionService.read({
-      documentId,
-      versionId: version.id,
-      filename: version.filename,
-      fileType,
-      sourceSha256: version.source_sha256,
-      readBytes: async () => {
-        const file = await pdfLifecyclePhase("open.source_read", documentId, () =>
-          documents.read(scope, documentId, version.id, false));
-        if (!file) throw new Error("Document source is unavailable");
-        return file.bytes;
-      },
-    }));
-  const { document } = projection;
-  const text = pdfLifecyclePhase("open.text", documentId, () =>
-    documentTextNative(document));
-  let pages: NativePageMap = pdfLifecyclePhase("open.page_map", documentId, () =>
-    documentPageMapNative(document));
-  if (!pages.pages.length && fileType === "pdf")
-    pages = { pages: [], source: "unindexed" };
-  return {
-    versionId: version.id,
-    text,
-    pages,
-    tableCells: projection.kind === "spreadsheet-grid" ? projection.tableCells : [],
-    document,
-  };
+  const source = projectionSource ??
+    await documents.projectionSource(scope, documentId, versionId ?? null);
+  if (!source) return null;
+  const document = await pdfLifecyclePhase("open.projection", documentId, () =>
+    documentProjectionService.read({ ...source, readBytes: () =>
+      pdfLifecyclePhase("open.source_read", documentId, source.readBytes) }));
+  return { versionId: source.versionId, document };
 }
 
 const result = (content: unknown): BeaverOutcome => ({ result: toolText(content, objectRecord(content)?.ok === false) });
@@ -1946,15 +1837,17 @@ function codingTextResult(
   const receipts = new Map<string, LegalEvidenceReceipt>();
   const segments = sourceLines.flatMap((line) => {
     if (!line.span || !line.source) return [];
-    const { sourceText, ...source } = line.source;
-    if (call.name === "Read" && sourceText) {
-      const [start, end] = line.span;
+    const { sourceText, sourceSha256, ...source } = line.source;
+    const [start, end] = line.span;
+    const spanText = line.evidenceText ?? sourceText?.slice(start, end);
+    if (call.name === "Read" && spanText && (sourceText || sourceSha256)) {
       const receipt = createLibraryEvidence({
         documentId: source.documentId,
         versionId: source.versionId,
         filename: source.filename ?? source.documentId,
         sourceText,
-        spanText: sourceText.slice(start, end),
+        sourceSha256,
+        spanText,
         start,
         end,
         locator: source.locator && source.locatorKind
@@ -2087,8 +1980,7 @@ function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup) {
       source_reference: resolved.state.source_reference,
     };
   }
-  const pageNumbers =
-    resolved.linkEvidence?.pageNumbers ?? resolved.lookup.link.page_numbers;
+  const pageNumbers = resolved.lookup.link.page_numbers;
   const sourceUrl = new URL(resolved.params.url);
   if (pageNumbers[0]) sourceUrl.hash = `page=${pageNumbers[0]}`;
   return {
@@ -2150,37 +2042,52 @@ function providerPdfLegalEvidence(
 ): LegalEvidenceReceipt[] {
   if (
     resolved.lookup.status !== "found" ||
-    !resolved.linkEvidence ||
-    !resolved.state.source_reference
+    !resolved.state.source_reference ||
+    !resolved.state.source_sha256
   ) return [];
   const provider = resolved.state.provider;
   const jurisdiction = provider === "govinfo" ? "US" : "UK";
   const sourceClass = provider === "govinfo" ? "legislation" : "case";
   const title = resolved.params.title || resolved.params.filename || resolved.params.identity;
-  return resolved.linkEvidence.sources.map((source) => {
-    const page = source.pageNumbers[0];
-    const url = new URL(resolved.params.url);
-    if (page) url.hash = `page=${page}`;
-    const createEvidence = provider === "tna"
-      ? createTnaEvidence
-      : provider === "govuk-et"
-        ? createGovUkEmploymentTribunalEvidence
-        : createGovInfoEvidence;
-    return createEvidence({
-      jurisdiction,
-      sourceClass,
-      stableSourceId: `${resolved.state.source_reference}:${source.key}`,
-      sourceText: source.documentText,
-      spanText: source.blockText,
-      citation: title,
-      name: title,
-      dataset: provider,
-      version: resolved.params.version,
-      externalUrl: url.toString(),
-      locatorKind: page ? "page" : "section",
-      locatorLabel: page ? `page=${page}` : source.label,
+  const seen = new Set<string>();
+  return [...resolved.lookup.before, ...resolved.lookup.units, ...resolved.lookup.after]
+    .flatMap((unit) => {
+      const key = `${unit.kind}:${unit.id}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      const parts = [unit.text, unit.proposition?.sentence ?? "",
+        unit.proposition?.passage_since_prior_note ?? ""];
+      const normalized = new Set<string>();
+      const spanText = parts.map((text) => text.trim()).filter((text) => {
+        const identity = text.replace(/\s+/gu, " ").toLowerCase();
+        if (!identity || normalized.has(identity)) return false;
+        normalized.add(identity);
+        return true;
+      }).join("\n\n");
+      if (!spanText) return [];
+      const page = [...new Set(unit.page_numbers)].sort((a, b) => a - b)[0];
+      const url = new URL(resolved.params.url);
+      if (page) url.hash = `page=${page}`;
+      const createEvidence = provider === "tna"
+        ? createTnaEvidence
+        : provider === "govuk-et"
+          ? createGovUkEmploymentTribunalEvidence
+          : createGovInfoEvidence;
+      return [createEvidence({
+        jurisdiction,
+        sourceClass,
+        stableSourceId: `${resolved.state.source_reference}:${key}`,
+        sourceSha256: resolved.state.source_sha256 ?? undefined,
+        spanText,
+        citation: title,
+        name: title,
+        dataset: provider,
+        version: resolved.params.version ?? undefined,
+        externalUrl: url.toString(),
+        locatorKind: page ? "page" : "section",
+        locatorLabel: page ? `page=${page}` : unit.locator,
+      })];
     });
-  });
 }
 
 function pdfLegalEvidence(
@@ -2234,16 +2141,15 @@ async function runAdvancedDocxEdit(params: {
     let resolvedRequests = requests;
     if (requests.some(({ scope }) =>
       (scope as unknown as { kind: string }).kind === "at")) {
-      const projection = await documentProjectionService.read({
+      const document = await documentProjectionService.read({
         documentId: params.documentId,
         versionId: file.version.id,
-        filename: file.filename,
         fileType: file.fileType,
         sourceSha256: file.version.source_sha256,
+        pdfProfile: file.pdfProfile,
         readBytes: () => file.bytes,
       });
-      const document = projection.document;
-      if (projection.kind !== "docx" || !documentTextBytesNative(document)) {
+      if (!structureNative().documentTextBytes(document)) {
         return fail("DOCX body text could not be extracted, so an `at` scope cannot be resolved.");
       }
       resolvedRequests = requests.map((request, index) => {
@@ -2254,34 +2160,21 @@ async function runAdvancedDocxEdit(params: {
           depth?: number;
         };
         if (scope.kind !== "at") return request;
-        const address = parseDocumentAddressNative(scope.at ?? "");
-        if (!address || address.kind === "offset") throw new Error(
+        const resolved = structureNative().resolveDocumentAddressSpans(
+          document,
+          scope.at ?? "",
+          scope.follow ?? "none",
+          scope.depth ?? 1,
+        );
+        if (resolved.status === "invalid") throw new Error(
           `ops[${index}].scope.at is not a provision or page address`);
-        let spans: { start: number; end: number }[];
-        if (address.kind === "page") {
-          const lookup = resolveDocumentPageNative(document, address.spec);
-          if (lookup.status !== "found") throw new Error(
-            `ops[${index}].scope.at did not resolve (${lookup.status})`);
-          spans = [{ start: lookup.page.start, end: lookup.page.end }];
-        } else {
-          const seed = lookupStructureBlockNative(document, address.locator);
-          if (seed.status !== "found" || !seed.block) throw new Error(
-            `ops[${index}].scope.at did not resolve (${seed.status})`);
-          const follow = scope.follow ?? "none";
-          spans = [{ start: seed.block.start, end: seed.block.end }];
-          if (follow !== "none") {
-            const walked = graphScopeNative(
-              document,
-              seed.block.label,
-              follow,
-              scope.depth ?? 1,
-            );
-            if (!walked) throw new Error(
-              `ops[${index}].scope.at is not an addressable block`);
-            spans.push(...walked.nodes.map(({ start, end }) => ({ start, end })));
-          }
+        if (resolved.status === "not_addressable") throw new Error(
+          `ops[${index}].scope.at is not an addressable block`);
+        if (resolved.status !== "found") {
+          throw new Error(
+            `ops[${index}].scope.at did not resolve (${resolved.status})`);
         }
-        return { ...request, scope: { kind: "spans" as const, spans } };
+        return { ...request, scope: { kind: "spans" as const, spans: resolved.spans } };
       });
     }
     const applied = blockInsert
@@ -2384,47 +2277,38 @@ async function runDocxWorkflow(
     },
   );
   const file = await activeDocx(documents, scope, documentId, versionId);
-  const projection = await documentProjectionService.read({
+  const document = await documentProjectionService.read({
     documentId,
     versionId: file.version.id,
-    filename: file.filename,
     fileType: file.fileType,
     sourceSha256: file.version.source_sha256,
+    pdfProfile: file.pdfProfile,
     readBytes: () => file.bytes,
   });
-  if (projection.kind !== "docx") {
-    throw new Error("DOCX structure projection is unavailable");
-  }
   return {
     ok: true,
     document_id: documentId,
     version_id: file.version.id,
     filename: file.filename,
-    ...docxStructureLintNative(projection.document),
+    ...structureNative().docxStructureLint(document),
   };
 }
 
-type ServedDrafting = { served: string; versionId: string } | null;
+type ServedDrafting = {
+  versionId: string;
+  document: NativeDocument;
+} | null;
 
-async function servedDraftingText(
-  documents: DocumentStore,
-  scope: DocumentScope,
-  documentId: string,
+async function servedDraftingDocument(
+  source: DocumentProjectionSource,
   cache?: Map<string, ServedDrafting>,
-  versionId?: string,
 ): Promise<ServedDrafting> {
-
-  const file = await documents.read(
-    scope, documentId, versionId ?? null, false,
-  );
-  if (!file || file.fileType.toLowerCase() !== "docx") return null;
-  const cacheKey = `${documentId}:${file.version.id}`;
+  const cacheKey = `${source.documentId}:${source.versionId}`;
   if (cache?.has(cacheKey)) return cache.get(cacheKey)!;
-  const markdown = await docxDraftingMarkdown(file.bytes).catch(() => null);
-  const result = markdown ? {
-    served: markdown,
-    versionId: file.version.id,
-  } : null;
+  const document = await structureNative()
+    .deriveDocxDocument(await source.readBytes(), source.documentId, true)
+    .catch(() => null);
+  const result = document ? { versionId: source.versionId, document } : null;
   cache?.set(cacheKey, result);
   return result;
 }
@@ -2637,87 +2521,6 @@ export function assistantTools<Context extends {
     }
   };
 
-  const deleteAndRenumber = documentTool(
-    async (_call, args, documentId) => {
-      let versionId = trimmed(args.version_id);
-      const target = trimmed(args.target);
-      const turnVersion = turnEditState?.get(documentId);
-      if (turnVersion) {
-        if (
-          versionId &&
-          versionId !== turnVersion.versionId &&
-          versionId !== turnVersion.parentVersionId
-        ) {
-          return fail("version_id is not the active turn version");
-        }
-        versionId = turnVersion.versionId;
-      }
-      try {
-        const file = await activeDocx(
-          documents, scope, documentId, versionId || undefined,
-        );
-        const bytes = file.bytes;
-        const projection = await documentProjectionService.read({
-          documentId,
-          versionId: file.version.id,
-          filename: file.filename,
-          fileType: file.fileType,
-          sourceSha256: file.version.source_sha256,
-          readBytes: () => bytes,
-        });
-        const text = documentTextNative(projection.document);
-        if (projection.kind !== "docx" || !text) {
-          return fail("DOCX body text could not be extracted");
-        }
-        const plan = await deleteProvisionAndRenumberSiblings(
-          projection.document,
-          target,
-        );
-        if (plan.failures.length) {
-          return result({
-            ok: false,
-            error: "Delete-and-renumber refused; the document is unchanged",
-            document_id: documentId,
-            version_id: file.version.id,
-            source_sha256: file.version.source_sha256,
-            target,
-            mapping: plan.mapping,
-            failures: plan.failures,
-          });
-        }
-        const edits = trackedEditsForRenumberPlan(text, plan.applied);
-        if (typeof edits === "string") return fail(edits);
-        const edited = await applyTrackedEdits(bytes, edits, {
-          author: "Beaver",
-        });
-        if (edited.errors.length || !edited.changes.length) {
-          return result({
-            ok: false,
-            error: "Delete-and-renumber could not be represented as tracked changes; the document is unchanged",
-            edit_errors: edited.errors,
-          });
-        }
-        if (comparableAcceptedText(await extractDocxBodyText(edited.bytes)) !==
-            comparableAcceptedText(plan.text)) {
-          return fail("Tracked-change verification disagreed with the renumber plan; the document is unchanged");
-        }
-        return saveDocxEdits({
-          documents,
-          scope,
-          documentId,
-          source: file,
-          bytes: edited.bytes,
-          edits: assistantEdits(edited.changes),
-          turnEditState,
-          editMode,
-          extra: { target, mapping: plan.mapping, verification: plan.verification },
-        });
-      } catch (error) {
-        return fail(safeErrorMessage(error, "Delete-and-renumber failed"));
-      }
-    },
-  );
-
   const updateMetadata = documentTool(
     async (_call, args, documentId) => {
       const kind = args.kind as "file" | "template";
@@ -2863,10 +2666,6 @@ export function assistantTools<Context extends {
         return updateMetadata(call, input, signal);
       case "fix_supras":
         return runWorkflow(call, input, signal);
-      case "delete_and_renumber":
-        if (!trimmed(input.target))
-          return Promise.resolve(fail("delete_and_renumber requires target"));
-        return deleteAndRenumber(call, input, signal);
       case "table_of_authorities":
         return createAuthorities(call, input, signal);
       default:
@@ -2980,7 +2779,6 @@ export function assistantTools<Context extends {
       activity: (input) => ({
         metadata: "Updating Library metadata",
         fix_supras: "Fixing supra references",
-        delete_and_renumber: "Deleting and renumbering provisions",
         table_of_authorities: "Creating a table of authorities",
       } as Record<string, string>)[String(input.action)] ?? "Updating document",
     }),

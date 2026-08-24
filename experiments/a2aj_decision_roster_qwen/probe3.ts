@@ -31,7 +31,7 @@ import {
 } from "../../backend/src/lib/a2ajLocalBulk";
 import { a2ajLegalSourceProvider } from "../../backend/src/lib/legalSources/a2aj";
 import { withReadonlySqlite } from "../../backend/src/lib/legalDataPath";
-import { documentAnchorsNative, type NativeDocumentBlock } from "../../backend/src/lib/structureNative";
+import { structureNative, type NativeDocumentBlock } from "../../backend/src/lib/structureNative";
 
 const HERE = __dirname;
 const RUN_DIR = path.join(HERE, "runs");
@@ -457,7 +457,7 @@ async function stageAnalyze(args: Args, seed: number, size: number) {
             record = skippedRecord(candidate, "skipped_non_english");
           } else {
             const native = a2ajLegalSourceProvider.source(document);
-            const paragraphs = (native ? documentAnchorsNative(native) : [])
+            const paragraphs = (native ? structureNative().documentAnchors(native) : [])
               .filter((block) => block.kind === "paragraph");
             if (!paragraphs.length) {
               noSpine += 1;

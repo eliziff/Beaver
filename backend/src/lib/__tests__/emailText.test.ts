@@ -204,8 +204,7 @@ describe("email documents in the library", () => {
     process.env.OPEN_LEGAL_DATA_HOME = home;
     vi.resetModules();
     const store = await import("./support/localDocumentFixtures");
-    const { extractDocument } = await import("../chat/assistantTools");
-    const { localDocuments } = await import("./support/localDocumentFixtures");
+    const tools = await import("./support/localAssistantTools");
 
     const document = await store.createLocalDocument({
       userId: "00000000-0000-0000-0000-000000000001",
@@ -226,14 +225,15 @@ describe("email documents in the library", () => {
       ),
     });
 
-    const extracted = await extractDocument(
-      localDocuments,
-      { userId: "00000000-0000-0000-0000-000000000001" },
-      document.id,
+    const [read] = await tools.runLocalAssistantTools(
+      "00000000-0000-0000-0000-000000000001",
+      [{ id: "read-email", name: "Read", input: {
+        file_path: `document://${document.id}/version/${document.current_version_id}`,
+      } }],
     );
-    expect(extracted?.text).toContain("$85,000");
-    expect(extracted?.text).not.toContain("$85,0=");
-    expect(extracted?.text).toContain("Subject: Down payment");
+    expect(read.content).toContain("$85,000");
+    expect(read.content).not.toContain("$85,0=");
+    expect(read.content).toContain("Subject: Down payment");
     await (await import("../relationalDatabase")).closeRelationalDatabase();
   });
 });

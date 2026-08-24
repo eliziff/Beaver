@@ -9,10 +9,11 @@ import {
   type CaseTargetOccurrence,
 } from "../../../backend/experiments/a2aj-decision-roster/caseTargetMvp.ts";
 import { a2ajLocalBulkPath, fetchLocalA2AJDocumentsByIds } from "../../../backend/src/lib/a2ajLocalBulk";
-import { citationLookupKeyNative as citationLookupKey } from "../../../backend/src/lib/structureNative";
+import { structureNative } from "../../../backend/src/lib/structureNative";
 import { withReadonlySqlite } from "../../../backend/src/lib/legalDataPath";
 import type { A2AJDocument } from "../../../backend/src/lib/legalSources/a2aj";
-import { createTextSourceDoc } from "../../../backend/src/lib/sourceDoc.ts";
+
+const { citationLookupKey } = structureNative();
 
 type Category = "multi_opinion_or_partial_join" | "attribution_trap" | "ordinary_control";
 type HardFeature = "multi_opinion" | "attribution_cue" | "collective_tribunal" | "direct_history_cue" | "explicit_treatment_cue" | "short_decision" | "long_decision";
@@ -383,7 +384,7 @@ async function main() {
     const document = documents.get(item.parent.document_id);
     assert(document, `${item.parent.selection_receipt.source_dataset}/${item.parent.document_id}: source disappeared`);
     assert(document.dataset === item.parent.selection_receipt.source_dataset, `${item.parent.document_id}: source dataset changed`);
-    const occurrences = detectCaseTargetOccurrences(createTextSourceDoc(document.text), {
+    const occurrences = detectCaseTargetOccurrences(document.text, {
       citation: item.parent.target.citation,
       citationAliases: item.parent.target.citation_aliases,
       name: item.parent.target.name,

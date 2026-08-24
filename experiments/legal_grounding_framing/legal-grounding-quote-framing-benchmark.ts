@@ -40,11 +40,10 @@ import {
   getLocalCourtlistenerCase,
 } from "../../backend/src/lib/courtlistenerLocalBulk";
 import { verifyCourtlistenerCitations } from "../../backend/src/lib/legalSources/courtlistener";
-import {
-  citationLookupKeyNative as citationLookupKey,
-  citationsInTextNative as citationsInText,
-  classifyCitatorExcerptNative as classifyCitatorExcerpt,
-} from "../../backend/src/lib/structureNative";
+import { structureNative } from "../../backend/src/lib/structureNative";
+
+const { citationLookupKey, providerCitationsInText: citationsInText,
+  classifyCitatorExcerpt } = structureNative();
 import {
   contentWordCount,
   corpusAlienness,

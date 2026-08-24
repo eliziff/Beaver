@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { instrumentCorpusFiles, readAgreement, readPdf, ROOT } from "./corpus";
+import type { NativeDocument } from "../../backend/src/lib/structureNative";
 
 const DIR = path.join(ROOT, ".tmp/instrument-structure-benchmark");
 const RECEIPT = path.join(DIR, "receipt.json");
@@ -17,7 +18,6 @@ const RECONSTRUCT_LINEATION = !process.argv.includes("--no-reconstruct-lineation
 const GC_CADENCE = 25;
 
 type Document = { id: string; text: string; pages?: number; lines?: number };
-type NativeDocument = object;
 type Addon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;

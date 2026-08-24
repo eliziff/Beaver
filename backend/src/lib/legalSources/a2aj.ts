@@ -2,17 +2,15 @@ import crypto from "node:crypto";
 import { cachedContent } from "../contentCache";
 import { fetchLocalA2AJDocument, searchLocalA2AJ } from "../a2ajLocalBulk";
 import { citationAuthorityMetricsBatch } from "../caselawCitator";
-import { classifyLegalMarkdown, deriveOriginalPdfCandidates } from "../legalSourcePresentation";
+import {
+  decisiaIndexUrl,
+  verifiedDecisiaPdf,
+  type VerifiedPdfEvidence,
+} from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import {
-  providerCitationsInTextNative,
-  deriveDocumentNative,
-  documentAnchorsNative,
-  documentRevisionNative,
-  documentTextNative,
-  normalizeDocumentLocatorNative,
+  structureNative,
   type NativeDocument,
-  type NativeDocumentBlock,
 } from "../structureNative";
 import { objectValue as object, type JsonObject } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
@@ -27,6 +25,7 @@ export type A2AJDocument = {
   docType?: DocType; dataset: string;
   citation: string; alternateCitation: string | null;
   name: string | null; date: string | null; url: string | null;
+  verifiedPdf: VerifiedPdfEvidence | null;
   text: string; language: Language; upstreamLicense: string | null;
   sectionMap?: Record<string, string>;
 };
@@ -56,7 +55,7 @@ async function deriveA2AJDocument(
   },
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
-  const result = await deriveDocumentNative({
+  const result = await structureNative().deriveDocumentStructure({
     kind: "a2aj",
     input: {
       citation: input.citation,
@@ -101,6 +100,44 @@ function apiError(status: number, body: unknown) {
     ? detail.map((item) => string(object(item)?.msg)).filter(Boolean).join("; ")
     : "");
   return new Error(message || `A2AJ API error (${status})`);
+}
+
+async function decisiaPdf(rawUrl: string | null, signal?: AbortSignal) {
+  const index = rawUrl && decisiaIndexUrl(rawUrl);
+  if (!index) return null;
+  try {
+    return await cachedContent<VerifiedPdfEvidence | null>({
+      scope: "shared",
+      kind: "legal-source-decisia-index",
+      key: index.toString(),
+      version: 2,
+      ttlMs: 24 * 60 * 60_000,
+      produce: async () => {
+        const response = await guardedRemoteFetch(index.toString(), {
+          headers: { Accept: "text/html,application/xhtml+xml" }, signal,
+        }, {
+          label: "Decisia index request",
+          allowedHosts: [index.hostname],
+          defaultPortOnly: true,
+          allowIpLiterals: false,
+          timeoutMs: 15_000,
+          response: {
+            label: "Decisia index response",
+            maxBytes: 2_000_000,
+            contentTypes: ["text/html", "application/xhtml+xml"],
+          },
+        });
+        if (!response.ok) {
+          await response.body?.cancel().catch(() => undefined);
+          return null;
+        }
+        return verifiedDecisiaPdf(await response.text(), index);
+      },
+    });
+  } catch {
+    signal?.throwIfAborted();
+    return null;
+  }
 }
 
 async function request(
@@ -176,6 +213,7 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
     name: languageText(record, "name", actualLanguage),
     date: languageText(record, "document_date", actualLanguage),
     url: sourceUrl(record, actualLanguage),
+    verifiedPdf: null,
     text,
     language: actualLanguage,
     upstreamLicense: string(record.upstream_license),
@@ -198,17 +236,12 @@ async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocu
   return compiledDocument(document, native);
 }
 
-function locator(value: string) {
-  return normalizeDocumentLocatorNative("section", value).replace(/^sec/iu, "");
-}
-
 async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
-  const label = locator(requested);
-  if (!label || !text.trim()) return null;
+  if (!requested.trim() || !text.trim()) return null;
   const compiled = await deriveA2AJDocument({
     citation: document.citation, docType: "laws", text, id: document.citation,
     url: document.url, alternateCitation: document.alternateCitation,
-    dataset: document.dataset, name: document.name, sectionMap: { [label]: text },
+    dataset: document.dataset, name: document.name, sectionMap: { [requested]: text },
   }, { kind: "excerpt", excerptOf: document.citation });
   return compiledDocument(document, compiled);
 }
@@ -250,6 +283,7 @@ async function document(args: {
         item.dataset.toLowerCase() === args.dataset.trim().toLowerCase())) ?? null;
   }
   if (!source) return null;
+  source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };
   const result = args.section?.trim()
     ? await scopedDocument(source, args.section, source.text)
     : await compileDocument(source);
@@ -342,26 +376,6 @@ async function coverage(docType: DocType) {
 
 export type A2AJCoverageResult = Awaited<ReturnType<typeof coverage>>[number];
 
-function readerSegments(text: string, anchors: Array<{ kind: string; start: number }>,
-  docType: DocType) {
-  const kind = docType === "laws" ? "section" : "paragraph";
-  const starts = [...new Set([0, ...anchors.filter((anchor) =>
-    anchor.start >= 0 && anchor.start < text.length &&
-    (anchor.kind === kind || anchor.kind === "page")).map((anchor) => anchor.start), text.length])]
-    .sort((left, right) => left - right);
-  return starts.slice(0, -1).flatMap((start, index) => {
-    const end = starts[index + 1];
-    let value = text.slice(start, end).trim();
-    if (docType === "cases" && start === 0) {
-      const marker = value.match(/\bDecision Content\b\s*/iu);
-      if (marker?.index !== undefined) value = value.slice(marker.index + marker[0].length)
-        .split(/\n/gu).map((line) => line.trim()).filter(Boolean).join("\n\n");
-    }
-    const blocks = classifyLegalMarkdown(value);
-    return blocks.length ? [{ start, end, blocks }] : [];
-  });
-}
-
 async function viewer(args: {
   citation: string; docType?: DocType | "auto"; language?: Language;
   dataset?: string; maxChars?: number;
@@ -372,9 +386,11 @@ async function viewer(args: {
     const found = await document({ ...args, docType });
     if (!found) continue;
     const compiled = found.native;
-    const fullText = documentTextNative(compiled, max + 1);
-    const text = fullText.slice(0, max);
-    const anchors = documentAnchorsNative(compiled, text.length);
+    const viewer = structureNative().legalSourceViewer(
+      compiled,
+      docType === "laws" ? "section" : "paragraph",
+      max,
+    );
     const payload = {
       schemaVersion: "mike.legal-source.v1" as const, provider: "a2aj" as const,
       reference: { docType, citation: found.citation, language: found.language,
@@ -382,16 +398,14 @@ async function viewer(args: {
       metadata: {
         title: found.name || found.citation, citation: found.citation,
         alternateCitation: found.alternateCitation, date: found.date, dataset: found.dataset,
-        url: found.url, pdfUrl: found.url ? deriveOriginalPdfCandidates({ canonicalUrl: found.url })[0]?.url ?? null : null,
+        url: found.url, pdfUrl: found.verifiedPdf?.url ?? null,
         language: found.language, upstreamLicense: found.upstreamLicense,
       },
-      text,
-      anchors,
-      presentation: { source: "a2aj_markdown" as const, segments: readerSegments(text, anchors, docType) },
-      truncated: fullText.length > max,
+      slices: viewer.slices,
+      truncated: viewer.truncated,
     };
     const digest = crypto.createHash("sha256").update(JSON.stringify([
-      documentRevisionNative(compiled), payload.reference, payload.metadata, max,
+      viewer.documentRevision, payload.reference, payload.metadata, max,
     ])).digest("base64url");
     return { payload, etag: `"${digest}"`, native: compiled };
   }
@@ -432,11 +446,10 @@ function rankCases(rows: LegalSourceSearchHit[], mode: "relevance" | "most_cited
     } } : {}) }));
 }
 
-const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
-  A2AJCompiledDocument> = {
+const provider: LegalSourceProvider<A2AJCompiledDocument> = {
   id: "a2aj",
   canResolve: (request: LegalSourceResolveRequest) => request.kind === "legislation" ||
-    (request.kind === "case" && providerCitationsInTextNative(request.text)
+    (request.kind === "case" && structureNative().providerCitationsInText(request.text)
       .some(({ jurisdiction }) => jurisdiction === "ca")),
   async resolve(request) {
     const kind = request.kind === "legislation" ? "legislation" : "case";
@@ -462,7 +475,7 @@ const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
     const passages = await load();
     if (passages.length || docType !== "laws" ||
         request.locator?.kind !== "section") return passages;
-    const label = locator(request.locator.value);
+    const label = request.locator.value.trim();
     return label ? load(label) : [];
   },
   canSearch(request) {
@@ -492,13 +505,9 @@ const provider: LegalSourceProvider<NativeDocument | NativeDocumentBlock,
   },
 };
 
-const artifact = (value: A2AJCompiledDocument) => value.native;
-
 export const a2ajLegalSourceProvider = Object.assign(provider, {
   jurisdictions: JURISDICTIONS,
   document,
-  source: artifact,
   viewer,
   coverage,
-  clearCache() { documents.clear(); },
 });

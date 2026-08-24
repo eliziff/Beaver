@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, Upload, X } from "lucide-react";
 import {
   addDocumentToProject,
   directoryResource,
+  uploadDocumentsSettled,
   uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
 import {
@@ -124,11 +125,10 @@ export function AddDocumentsModal({
     setWarning(unsupportedMessage);
     if (!supported.length) return;
     setPendingNames(supported.map(({ name }) => name));
-    const results = await Promise.allSettled(supported.map((file) =>
-      projectId
-        ? directoryResource({ projectId }).uploadDocument(file)
-        : uploadStandaloneDocument(file),
-    ));
+    const uploadDocument = projectId
+      ? directoryResource({ projectId }).uploadDocument
+      : uploadStandaloneDocument;
+    const results = await uploadDocumentsSettled(supported, uploadDocument);
     const added = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
     const failed = supported.filter((_, index) => results[index].status === "rejected");
     setUploaded((current) => merge(added, current));

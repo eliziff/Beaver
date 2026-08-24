@@ -12,9 +12,6 @@ const targetsPath = process.argv[2] ?? path.join(results, "targets.jsonl");
 const read = (file) => fs.readFileSync(file, "utf8").split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line));
 function key(raw) {
   const url = new URL(raw);
-  if (/(^|\.)bclaws\.gov\.bc\.ca$/iu.test(url.hostname) && url.pathname.endsWith("/xml")) {
-    url.pathname = url.pathname.slice(0, -4);
-  }
   const params = [...url.searchParams.entries()].sort(([a], [b]) => a.localeCompare(b));
   return `${url.origin}${url.pathname}?${params.map(([name, value]) => `${name}=${value}`).join("&")}`.toLowerCase();
 }
@@ -27,12 +24,7 @@ const missing = [];
 const invalid = [];
 const used = new Map();
 const textCache = new Map();
-const normalized = (value) => value.normalize("NFKD").toLocaleLowerCase()
-  .replace(/[\p{M}]+/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-const containsQuoteCore = (text, quote) => {
-  const wanted = normalized(quote);
-  return !wanted || text.includes(wanted);
-};
+const errorPage = /(?:^|\n)\s*(?:this page isn.t working|\S+ is currently unable to handle this request|http error [45]\d\d|error\s+[45]\d\d|[45]\d\d(?:\s+[-:]|\s+error)|bad gateway|service unavailable|internal server error|access denied|validation|just a moment)/iu;
 for (const seed of read(targetsPath)) {
   if (!seed.target) {
     missing.push({ label: seed.label, reason: "no-target" });
@@ -53,18 +45,21 @@ for (const seed of read(targetsPath)) {
     invalid.push({ label: seed.label, url: base, file: row.file, reason: "challenge-page" });
     continue;
   }
+  if (row.httpStatus != null && (row.httpStatus < 200 || row.httpStatus >= 400)) {
+    invalid.push({ label: seed.label, url: base, file: row.file, reason: `http-${row.httpStatus}` });
+    continue;
+  }
   if (!row.file.toLowerCase().endsWith(".pdf")) {
     let pageText = textCache.get(row.file);
     if (pageText === undefined) {
       const rendered = path.join(browserTextDir, `${path.parse(row.file).name}.txt`);
-      pageText = normalized(fs.existsSync(rendered)
+      pageText = decodeEntities(fs.existsSync(rendered)
         ? fs.readFileSync(rendered, "utf8")
-        : decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true)));
+        : htmlToText(fs.readFileSync(file, "utf8"), true)).trim();
       textCache.set(row.file, pageText);
     }
-    const absent = (seed.quotes ?? []).filter((quote) => !containsQuoteCore(pageText, quote));
-    if (absent.length) {
-      invalid.push({ label: seed.label, url: base, file: row.file, reason: "quote-not-cached" });
+    if (pageText.length < 100 || errorPage.test(pageText.slice(0, 2_000))) {
+      invalid.push({ label: seed.label, url: base, file: row.file, reason: "empty-or-error-page" });
       continue;
     }
   }

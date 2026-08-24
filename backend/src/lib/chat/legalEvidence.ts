@@ -5,14 +5,16 @@ import {
   type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
 import {
-  documentRevisionNative,
+  structureNative,
   type NativeDocument,
-  groundedProseErrorsNative,
-  hasCitationInTextNative,
 } from "../structureNative";
 import {
   hasCanadianDecisionLink,
 } from "../legalSourceLinks";
+import {
+  readLegalSourcePassage,
+  type LegalSourceReference,
+} from "../legalSourceRegistry";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
@@ -47,6 +49,7 @@ export type LegalEvidenceReceipt = {
   jurisdiction: string;
   source_class: LegalSourceClass;
   stable_source_id: string;
+  source_reference?: Pick<LegalSourceReference, "id" | "part">;
   source_sha256: string;
   scope: "document" | "passage";
   block_id: string;
@@ -216,7 +219,9 @@ type DirectSourceEvidenceArgs = {
   jurisdiction: string;
   sourceClass: LegalSourceClass;
   stableSourceId: string;
-  sourceText: string;
+  sourceReference?: Pick<LegalSourceReference, "id" | "part">;
+  sourceText?: string;
+  sourceSha256?: string;
   spanText: string;
   citation: string;
   name?: string | null;
@@ -237,7 +242,16 @@ function createDirectSourceEvidence(
     jurisdiction: args.jurisdiction,
     source_class: args.sourceClass,
     stable_source_id: args.stableSourceId,
+    ...(args.sourceReference
+      ? {
+          source_reference: {
+            id: args.sourceReference.id,
+            ...(args.sourceReference.part ? { part: args.sourceReference.part } : {}),
+          },
+        }
+      : {}),
     sourceText: args.sourceText,
+    sourceSha256: args.sourceSha256,
     block_id: `${args.locatorKind ?? "section"}:${args.locatorLabel}`,
     spanText: args.spanText,
     citation: args.citation,
@@ -266,7 +280,8 @@ export function createLibraryEvidence(args: {
   documentId: string;
   versionId: string;
   filename: string;
-  sourceText: string;
+  sourceText?: string;
+  sourceSha256?: string;
   spanText: string;
   start: number;
   end: number;
@@ -282,6 +297,7 @@ export function createLibraryEvidence(args: {
     source_class: "commentary",
     stable_source_id: args.documentId,
     sourceText: args.sourceText,
+    sourceSha256: args.sourceSha256,
     block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
     spanText: args.spanText,
     citation: args.filename,
@@ -415,6 +431,7 @@ function createJournalEvidence(args: {
   date: string | null;
   url: string | null;
   text: string;
+  sourceSha256?: string;
   articleId: string;
   language?: "en" | "fr";
   locatorKind: LegalEvidenceReceipt["locator"]["kind"];
@@ -425,7 +442,9 @@ function createJournalEvidence(args: {
     jurisdiction: "CA",
     source_class: "commentary",
     stable_source_id: `journal:${args.articleId}`,
+    source_reference: { id: args.articleId },
     sourceText: args.text,
+    sourceSha256: args.sourceSha256,
     block_id: `article:${args.articleId}:${args.locatorKind}:${args.locatorLabel}`,
     citation: args.citation,
     name: args.name,
@@ -464,6 +483,7 @@ export function registerDocumentLegalEvidence(
 function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
   const row = object(value);
   const locator = object(row?.locator);
+  const sourceReference = object(row?.source_reference);
   return row &&
     typeof row.evidence_id === "string" && row.evidence_id.startsWith("e_") &&
     typeof row.stable_source_id === "string" && typeof row.source_sha256 === "string" &&
@@ -471,6 +491,10 @@ function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
     (row.span_text === null || typeof row.span_text === "string") &&
     typeof row.citation === "string" && typeof row.dataset === "string" &&
     typeof row.jurisdiction === "string" && locator &&
+    (row.source_reference === undefined || Boolean(
+      sourceReference && typeof sourceReference.id === "string" &&
+      (sourceReference.part === undefined || typeof sourceReference.part === "string"),
+    )) &&
     typeof locator.kind === "string" && typeof locator.label === "string"
     ? row as LegalEvidenceReceipt
     : null;
@@ -510,38 +534,80 @@ export async function restorePriorLegalEvidence(
   receipts: readonly LegalEvidenceReceipt[],
   signal?: AbortSignal,
 ): Promise<RegisteredEvidence[]> {
-  const sources = new Map<string, Promise<{
-    document: A2AJCompiledDocument;
-  } | null>>();
-  const a2ajSource = (receipt: LegalEvidenceReceipt) => {
-    let pending = sources.get(receipt.stable_source_id);
+  const sources = new Map<
+    string,
+    Promise<Omit<RegisteredEvidence, "receipt"> | null>
+  >();
+  const restoreSource = (receipt: LegalEvidenceReceipt) => {
+    const reference = receipt.source_reference;
+    const kind = receipt.source_class === "commentary"
+      ? receipt.provider === "journal" ? "journal" : null
+      : receipt.source_class;
+    const providerSource: LegalSourceReference | null = reference && kind
+      ? {
+          provider: receipt.provider,
+          id: reference.id,
+          ...(reference.part ? { part: reference.part } : {}),
+          kind,
+          title: receipt.name,
+          citation: receipt.citation,
+          date: receipt.version,
+          collection: receipt.dataset,
+          language: receipt.language,
+          url: receipt.external_url,
+        }
+      : null;
+    if (receipt.provider !== "a2aj" && !providerSource) {
+      return Promise.resolve(null);
+    }
+    const key = providerSource
+      ? JSON.stringify([
+          receipt.provider,
+          providerSource.id,
+          providerSource.part ?? "",
+          receipt.source_sha256,
+        ])
+      : `${receipt.stable_source_id}:${receipt.source_sha256}`;
+    let pending = sources.get(key);
     if (!pending) {
       pending = (async () => {
         try {
-          const document = await a2ajLegalSourceProvider.document({
-            citation: receipt.citation,
-            docType: receipt.source_class === "legislation" ? "laws" : "cases",
-            language: receipt.language,
-            dataset: receipt.dataset,
+          if (receipt.provider === "a2aj") {
+            const document = await a2ajLegalSourceProvider.document({
+              citation: receipt.citation,
+              docType: receipt.source_class === "legislation" ? "laws" : "cases",
+              language: receipt.language,
+              dataset: receipt.dataset,
+              signal,
+            });
+            return document &&
+                structureNative().documentRevision(document.native) === receipt.source_sha256
+              ? { document }
+              : null;
+          }
+          if (!providerSource) return null;
+          const read = await readLegalSourcePassage({
+            source: providerSource,
             signal,
           });
-          if (!document) return null;
-          const source = a2ajLegalSourceProvider.source(document);
-          return source && documentRevisionNative(source) === receipt.source_sha256
-            ? { document }
+          if (read.status !== "found") return null;
+          const source = read.values.find(
+            (passage) => passage.documentArtifact,
+          )?.documentArtifact;
+          return source && structureNative().documentRevision(source) === receipt.source_sha256
+            ? { source }
             : null;
         } catch (error) {
           if (signal?.aborted) throw error;
           return null;
         }
       })();
-      sources.set(receipt.stable_source_id, pending);
+      sources.set(key, pending);
     }
     return pending;
   };
   return Promise.all(receipts.map(async (receipt) => {
-    if (receipt.provider !== "a2aj") return { receipt };
-    const restored = await a2ajSource(receipt);
+    const restored = await restoreSource(receipt);
     return { receipt, ...(restored ?? {}) };
   }));
 }
@@ -627,7 +693,7 @@ export function legalEvidenceProseIntegrityErrors(
         labels: [receipt.name, receipt.citation].filter(
           (value): value is string => Boolean(value)) }]
     : []);
-  return groundedProseErrorsNative(text, citedEvidenceIds, visible);
+  return structureNative().groundedProseErrors(text, citedEvidenceIds, visible);
 }
 
 export function submitLegalEvidenceAnswer(
@@ -691,7 +757,8 @@ export function finalizeLegalEvidence(
   state: LegalEvidenceTurnState,
   draft: string,
 ) {
-  const citesAuthority = hasCitationInTextNative(draft) || hasCanadianDecisionLink(draft);
+  const citesAuthority = structureNative().hasCitationInText(draft) ||
+    hasCanadianDecisionLink(draft);
   if (!state.mode && !state.answer && citesAuthority)
     state.mode = "citation_structure";
   if (!state.mode) return true;

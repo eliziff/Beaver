@@ -1,4 +1,5 @@
 import { safeErrorLog } from "../safeError";
+import type { NativeDocument, NativeDocumentBlock } from "../structureNative";
 
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
 
@@ -73,7 +74,7 @@ export type LegalSourcePassageRequest = {
   signal?: AbortSignal;
 };
 
-export type LegalSourcePassage<Artifact = unknown, Native = unknown> = {
+export type LegalSourcePassage<Native = unknown> = {
   source: LegalSourceReference;
   locator: {
     requested: LegalSourceLocator | null;
@@ -83,11 +84,8 @@ export type LegalSourcePassage<Artifact = unknown, Native = unknown> = {
   };
   role: "selected" | "context" | "document";
   text: string;
-  textSha256: string;
-  documentSha256: string;
-  revision: string;
-  blockArtifact?: Artifact;
-  documentArtifact?: Artifact;
+  blockArtifact?: NativeDocumentBlock;
+  documentArtifact: NativeDocument;
   native?: Native;
 };
 
@@ -96,14 +94,14 @@ export type LegalSourceMatchResult<Value> =
   | { status: "ambiguous"; providers: string[] }
   | { status: "not_found" | "unsupported"; providers: string[] };
 
-export type LegalSourceReadResult<Artifact = unknown, Native = unknown> =
+export type LegalSourceReadResult<Native = unknown> =
   | {
       status: "found";
-      values: LegalSourcePassage<Artifact, Native>[];
+      values: LegalSourcePassage<Native>[];
     }
   | { status: "not_found" | "unsupported"; providers: string[] };
 
-export type LegalSourceProvider<Artifact = unknown, Native = unknown> = {
+export type LegalSourceProvider<Native = unknown> = {
   id: string;
   canResolve?: (request: LegalSourceResolveRequest) => boolean;
   resolve?: (
@@ -115,7 +113,7 @@ export type LegalSourceProvider<Artifact = unknown, Native = unknown> = {
   ) => Promise<readonly LegalSourceSearchHit[]>;
   readPassage?: (
     request: LegalSourcePassageRequest,
-  ) => Promise<readonly LegalSourcePassage<Artifact, Native>[]>;
+  ) => Promise<readonly LegalSourcePassage<Native>[]>;
 };
 
 function roundRobin(groups: readonly (readonly LegalSourceSearchHit[])[], limit: number) {
@@ -134,8 +132,8 @@ function roundRobin(groups: readonly (readonly LegalSourceSearchHit[])[], limit:
   return results;
 }
 
-export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
-  providers: readonly LegalSourceProvider<Artifact, Native>[],
+export function createLegalSourceRegistry<Native = unknown>(
+  providers: readonly LegalSourceProvider<Native>[],
 ) {
   const byId = new Map(providers.map((provider) => [provider.id, provider]));
   if (byId.size !== providers.length) {
@@ -219,7 +217,7 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
 
     async readPassage(
       request: LegalSourcePassageRequest,
-    ): Promise<LegalSourceReadResult<Artifact, Native>> {
+    ): Promise<LegalSourceReadResult<Native>> {
       request.signal?.throwIfAborted();
       const provider = byId.get(request.source.provider);
       if (!provider?.readPassage) {
@@ -235,6 +233,6 @@ export function createLegalSourceRegistry<Artifact = unknown, Native = unknown>(
   };
 }
 
-export type LegalSourceRegistry<Artifact = unknown, Native = unknown> = ReturnType<
-  typeof createLegalSourceRegistry<Artifact, Native>
+export type LegalSourceRegistry<Native = unknown> = ReturnType<
+  typeof createLegalSourceRegistry<Native>
 >;

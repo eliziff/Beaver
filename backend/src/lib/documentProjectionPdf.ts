@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { queryPdfNative, type NativeDocument } from "./structureNative";
+import {
+  structureNative,
+  type NativeDocument,
+  type PdfStructureLookup,
+} from "./structureNative";
 import {
   immutableReceiptPath,
   writeImmutableReceipt,
@@ -18,36 +22,11 @@ export type PdfLookupInput = {
   occurrence?: number;
 };
 
-type CanonicalKind = "page" | "paragraph" | "footnote" | "section";
-
-type PdfLookupUnit = {
-  id: string;
-  kind: CanonicalKind;
-  locator: string;
-  text: string;
-  page_numbers: number[];
-  confidence: number | null;
-  confidence_basis: string;
-  provenance: string;
-  proposition?: {
-    sentence: string;
-    passage_since_prior_note: string;
-  };
-  note?: {
-    label: string;
-    occurrence: number | null;
-    restart_sequence: number | null;
-    reference_page: number | null;
-    body_pages: number[];
-    warnings: string[];
-  };
-};
-
 const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
 const LEGAL_PDF_RESULT_SCHEMA = "legalpdf.document-result.v1";
 
-export type PdfEvidenceReceipt = {
+type PdfEvidenceReceipt = {
   schema_version: typeof EVIDENCE_SCHEMA;
   handle: string;
   source: {
@@ -59,34 +38,14 @@ export type PdfEvidenceReceipt = {
   };
   lookup: PdfLookupInput;
   evidence: {
-    artifact_ids: string[];
-    context_artifact_ids: string[];
-    text_sha256: string;
     payload_sha256: string;
     page_numbers: number[];
     page_text_sha256: string;
   };
 };
 
-type EvidenceHandleIdentity = {
-  document_id: string;
-  version_id: string;
-  source_sha256: string;
-  cache_key: string;
-  kind: CanonicalKind;
-  artifact_ids: string[];
-  text_sha256: string;
-  context_artifact_ids: string[];
-  payload_sha256: string;
-};
-
-function evidenceHandle(
-  identity: EvidenceHandleIdentity,
-  pageBinding: { page_numbers: number[]; page_text_sha256: string },
-) {
-  return `mike-evidence:v1:${sha256(
-    JSON.stringify({ ...identity, ...pageBinding }),
-  )}`;
+function evidenceHandle(receipt: Omit<PdfEvidenceReceipt, "handle">) {
+  return `mike-evidence:v1:${sha256(JSON.stringify(receipt))}`;
 }
 
 function evidencePath(handle: string) {
@@ -124,16 +83,11 @@ function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
     typeof source.version_id !== "string" ||
     typeof source.source_sha256 !== "string" ||
     typeof source.parser_version !== "string" ||
-    typeof source.cache_key !== "string" ||
+    typeof source.cache_key !== "string" || !/^[a-f0-9]{64}$/u.test(source.cache_key) ||
     !lookup ||
     !RESOURCE_LOCATOR_KINDS.includes(lookup.locatorKind) ||
     typeof lookup.locator !== "string" ||
     !evidence ||
-    !Array.isArray(evidence.artifact_ids) ||
-    !evidence.artifact_ids.every((id) => typeof id === "string") ||
-    !Array.isArray(evidence.context_artifact_ids) ||
-    !evidence.context_artifact_ids.every((id) => typeof id === "string") ||
-    typeof evidence.text_sha256 !== "string" ||
     typeof evidence.payload_sha256 !== "string" ||
     !Array.isArray(evidence.page_numbers) ||
     !evidence.page_numbers.every(
@@ -143,37 +97,12 @@ function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
   ) {
     throw new Error("Invalid PDF evidence receipt");
   }
-  return receipt as PdfEvidenceReceipt;
-}
-
-async function persistEvidenceReceipt(receipt: PdfEvidenceReceipt) {
-  const filename = evidencePath(receipt.handle);
-  const assertSameEvidence = async () => {
-    const existing = evidenceReceipt(
-      JSON.parse(await readFile(filename, "utf8")),
-    );
-    if (
-      existing.handle !== receipt.handle ||
-      JSON.stringify(existing.source) !== JSON.stringify(receipt.source) ||
-      JSON.stringify(existing.evidence) !== JSON.stringify(receipt.evidence)
-    ) {
-      throw new Error("Conflicting PDF evidence receipt");
-    }
-  };
-  try {
-    await assertSameEvidence();
-    return;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  const parsed = receipt as PdfEvidenceReceipt;
+  const { handle, ...identity } = parsed;
+  if (handle !== evidenceHandle(identity)) {
+    throw new Error("Invalid PDF evidence receipt");
   }
-  try {
-    await writeImmutableReceipt(filename, receipt);
-  } catch (error) {
-    if (!/Conflicting immutable projection receipt/u.test(String(error))) {
-      throw error;
-    }
-  }
-  await assertSameEvidence();
+  return parsed;
 }
 
 export async function readPdfEvidenceReceipt(handle: string) {
@@ -186,64 +115,23 @@ export async function readPdfEvidenceReceipt(handle: string) {
   return receipt;
 }
 
-function sameValues<T>(left: T[], right: T[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
+function queryPdf(document: NativeDocument, input: PdfLookupInput) {
+  return structureNative().queryPdfDocument(
+    document,
+    input.locatorKind,
+    input.locator,
+    input.endLocator,
+    input.contextBlocks,
+    input.page,
+    input.occurrence,
   );
-}
-
-type NormalizedPage = { number: number; text: string };
-
-type PdfStructureLookup = {
-  schema_version: "legalpdf.structure-lookup.v1";
-  requested: {
-    locator_kind: PdfLocatorKind;
-    locator: string;
-    end_locator: string | null;
-    context_blocks: number;
-    page: number | null;
-    occurrence: number | null;
-  };
-  units: PdfLookupUnit[];
-  before: PdfLookupUnit[];
-  after: PdfLookupUnit[];
-  matches: string[];
-  pages: { page_number: number; text: string }[];
-  error?: string;
-} & ({ status: "found"; exact: true } | {
-  status: "not_found" | "ambiguous" | "invalid" | "unavailable";
-  exact: false;
-});
-
-function contractInput(input: PdfLookupInput) {
-  return {
-    locator_kind: input.locatorKind,
-    locator: input.locator,
-    end_locator: input.endLocator,
-    context_blocks: input.contextBlocks,
-    page: input.page,
-    occurrence: input.occurrence,
-  };
-}
-
-function checkedLookup(value: PdfStructureLookup) {
-  if (value.schema_version !== "legalpdf.structure-lookup.v1" ||
-      !["found", "not_found", "ambiguous", "invalid", "unavailable"].includes(value.status) ||
-      !Array.isArray(value.units) || !Array.isArray(value.before) ||
-      !Array.isArray(value.after) || !Array.isArray(value.matches) ||
-      !Array.isArray(value.pages)) {
-    throw new Error("Legal PDF engine returned an invalid structure lookup");
-  }
-  return value;
 }
 
 async function finishLookup(
   input: PdfLookupInput,
-  result: PdfStructureLookup,
+  lookup: PdfStructureLookup,
   options: {
     persistEvidence?: boolean;
-    capturePages?: (pages: NormalizedPage[]) => void;
     cacheKey: string;
     documentId: string;
     versionId: string;
@@ -251,104 +139,57 @@ async function finishLookup(
     parserVersion: string;
   },
 ) {
-  const lookup = checkedLookup(result);
   if (lookup.status !== "found") {
-    options?.capturePages?.(
-      lookup.pages.map(({ page_number: number, text }) => ({ number, text })),
-    );
     return lookup;
   }
-  const { pages: foundPages, ...foundLookup } = lookup;
-  const pages = foundPages.map(({ page_number: number, text }) => ({ number, text }));
-  options?.capturePages?.(pages);
-
-  const state = {
-    document_id: options.documentId,
-    version_id: options.versionId,
-    source_sha256: options.sourceSha256,
-    parser_version: options.parserVersion,
-    cache_key: options.cacheKey,
+  const { units, pages: boundPages } = lookup;
+  const boundPageNumbers = boundPages.map(({ page_number }) => page_number);
+  const receiptIdentity: Omit<PdfEvidenceReceipt, "handle"> = {
+    schema_version: EVIDENCE_SCHEMA,
+    source: {
+      document_id: options.documentId,
+      version_id: options.versionId,
+      source_sha256: options.sourceSha256,
+      parser_version: options.parserVersion,
+      cache_key: options.cacheKey,
+    },
+    lookup: { ...input },
+    evidence: {
+      payload_sha256: lookup.payload_sha256,
+      page_numbers: boundPageNumbers,
+      page_text_sha256: lookup.page_text_sha256,
+    },
   };
-  const { units, before, after } = lookup;
-  const textSha256 = sha256(units.map((unit) => unit.text).join("\u001e"));
-  const artifactIds = units.map((unit) => unit.id);
-  const contextArtifactIds = [...before, ...after].map((unit) => unit.id);
-  const payloadSha256 = sha256(JSON.stringify({ units, before, after }));
-  const relevantPageNumbers = new Set(
-    [...before, ...units, ...after].flatMap((unit) => unit.page_numbers));
-  const boundPages = pages.filter(({ number }) => relevantPageNumbers.has(number));
-  const boundPageNumbers = boundPages.map(({ number }) => number);
-  const boundPageTextSha256 = sha256(JSON.stringify(
-    boundPages.map(({ number, text }) => ({ page_number: number, text })),
-  ));
-  const handle = evidenceHandle({
-    document_id: state.document_id,
-    version_id: state.version_id,
-    source_sha256: state.source_sha256,
-    cache_key: state.cache_key,
-    kind: input.locatorKind === "page" || input.locatorKind === "paragraph" ||
-      input.locatorKind === "footnote" ? input.locatorKind : "section",
-    artifact_ids: artifactIds,
-    text_sha256: textSha256,
-    context_artifact_ids: contextArtifactIds,
-    payload_sha256: payloadSha256,
-  }, {
-    page_numbers: boundPageNumbers,
-    page_text_sha256: boundPageTextSha256,
-  });
+  const handle = evidenceHandle(receiptIdentity);
+  const receipt = { ...receiptIdentity, handle };
   const pageNumbers = [...new Set(units.flatMap((unit) => unit.page_numbers))]
     .sort((left, right) => left - right);
-  const viewPath = evidenceViewPath(state.document_id, state.version_id, handle);
+  const viewPath = evidenceViewPath(options.documentId, options.versionId, handle);
 
-  if (options?.persistEvidence !== false) {
-    await persistEvidenceReceipt({
-      schema_version: EVIDENCE_SCHEMA,
-      handle,
-      source: {
-        document_id: state.document_id,
-        version_id: state.version_id,
-        source_sha256: state.source_sha256,
-        parser_version: state.parser_version,
-        cache_key: state.cache_key,
-      },
-      lookup: { ...input },
-      evidence: {
-        artifact_ids: artifactIds,
-        context_artifact_ids: contextArtifactIds,
-        text_sha256: textSha256,
-        payload_sha256: payloadSha256,
-        page_numbers: boundPageNumbers,
-        page_text_sha256: boundPageTextSha256,
-      },
-    });
+  if (options.persistEvidence !== false) {
+    await writeImmutableReceipt(evidencePath(handle), receipt);
   }
 
   return {
-    ...foundLookup,
+    ...lookup,
     source: {
-      handle: `mike-source:sha256:${state.source_sha256}`,
-      document_id: state.document_id,
-      version_id: state.version_id,
-      source_sha256: state.source_sha256,
-      parser_version: state.parser_version,
-      cache_key: state.cache_key,
+      handle: `mike-source:sha256:${options.sourceSha256}`,
+      document_id: options.documentId,
+      version_id: options.versionId,
+      source_sha256: options.sourceSha256,
+      parser_version: options.parserVersion,
+      cache_key: options.cacheKey,
       schema_version: LEGAL_PDF_RESULT_SCHEMA,
     },
     evidence: {
       handle,
-      artifact_ids: artifactIds,
-      context_artifact_ids: contextArtifactIds,
-      text_sha256: textSha256,
-      payload_sha256: payloadSha256,
-      page_numbers: boundPageNumbers,
-      page_text_sha256: boundPageTextSha256,
+      ...receipt.evidence,
     },
     link: {
       type: "pdf-evidence",
       evidence_view_path: viewPath,
       href: pageNumbers[0] ? `${viewPath}#page=${pageNumbers[0]}` : viewPath,
       page_numbers: pageNumbers,
-      artifact_ids: artifactIds,
     },
   };
 }
@@ -358,7 +199,6 @@ export async function lookupPdfStructure(
   input: PdfLookupInput,
   options: {
     persistEvidence?: boolean;
-    capturePages?: (pages: NormalizedPage[]) => void;
     cacheKey: string;
     documentId: string;
     versionId: string;
@@ -366,26 +206,25 @@ export async function lookupPdfStructure(
     parserVersion: string;
   },
 ) {
-  const result = queryPdfNative<PdfStructureLookup>(document, contractInput(input));
-  return finishLookup(input, result, options);
+  return finishLookup(
+    input,
+    queryPdf(document, input),
+    options,
+  );
 }
 
 async function verifiedPdfEvidence(
   document: NativeDocument,
-  handle: string,
+  receipt: PdfEvidenceReceipt,
 ) {
-  const receipt = await readPdfEvidenceReceipt(handle);
-  let pageRows: NormalizedPage[] = [];
-  const lookup = await lookupPdfStructure(document, receipt.lookup, {
+  const result = queryPdf(document, receipt.lookup);
+  const lookup = await finishLookup(receipt.lookup, result, {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
     documentId: receipt.source.document_id,
     versionId: receipt.source.version_id,
     sourceSha256: receipt.source.source_sha256,
     parserVersion: receipt.source.parser_version,
-    capturePages: (rows) => {
-      pageRows = rows;
-    },
   });
   if (
     lookup.status !== "found" &&
@@ -399,143 +238,28 @@ async function verifiedPdfEvidence(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  const expectedHandle = lookup.evidence.handle;
-  if (
-    expectedHandle !== handle ||
-    lookup.source.document_id !== receipt.source.document_id ||
-    lookup.source.version_id !== receipt.source.version_id ||
-    lookup.source.source_sha256 !== receipt.source.source_sha256 ||
-    lookup.source.parser_version !== receipt.source.parser_version ||
-    lookup.source.cache_key !== receipt.source.cache_key ||
-    lookup.evidence.text_sha256 !== receipt.evidence.text_sha256 ||
-    lookup.evidence.payload_sha256 !== receipt.evidence.payload_sha256 ||
-    !sameValues(
-      lookup.evidence.artifact_ids,
-      receipt.evidence.artifact_ids,
-    ) ||
-    !sameValues(
-      lookup.evidence.context_artifact_ids,
-      receipt.evidence.context_artifact_ids,
-    ) ||
-    lookup.evidence.page_text_sha256 !==
-      receipt.evidence.page_text_sha256 ||
-    !sameValues(
-      lookup.evidence.page_numbers,
-      receipt.evidence.page_numbers,
-    )
-  ) {
+  if (lookup.evidence.handle !== receipt.handle) {
     throw new Error(
       "PDF evidence no longer matches the authoritative source artifacts",
     );
   }
-  return { lookup, pageRows, receipt };
+  return lookup;
 }
 
 export async function rehydratePdfEvidence(
   document: NativeDocument,
-  handle: string,
+  receipt: PdfEvidenceReceipt,
 ) {
-  return (await verifiedPdfEvidence(document, handle)).lookup;
+  return verifiedPdfEvidence(document, receipt);
 }
 
-export async function verifyPdfLinkEvidence(
+export async function verifyPdfEvidence(
   document: NativeDocument,
-  handle: string,
+  receipt: PdfEvidenceReceipt,
 ) {
-  const verified = await verifiedPdfEvidence(document, handle);
+  const verified = await verifiedPdfEvidence(document, receipt);
   return {
-    documentId: verified.lookup.source.document_id,
-    versionId: verified.lookup.source.version_id,
+    documentId: verified.source.document_id,
+    versionId: verified.source.version_id,
   };
 }
-
-function evidenceBlockText(units: PdfLookupUnit[]) {
-  const seenUnits = new Set<string>();
-  const seenText = new Set<string>();
-  return units
-    .filter((unit) => {
-      const key = `${unit.kind}:${unit.id}`;
-      if (seenUnits.has(key)) return false;
-      seenUnits.add(key);
-      return true;
-    })
-    .flatMap((unit) => [
-      unit.text.trim(),
-      unit.proposition?.sentence.trim() ?? "",
-      unit.proposition?.passage_since_prior_note.trim() ?? "",
-    ])
-    .filter((text) => {
-      const key = text.replace(/\s+/gu, " ").toLowerCase();
-      if (!key || seenText.has(key)) return false;
-      seenText.add(key);
-      return true;
-    })
-    .join("\n\n");
-}
-
-function evidenceSources(
-  units: PdfLookupUnit[],
-  documentText: string,
-) {
-  const seen = new Set<string>();
-  return units.flatMap((unit) => {
-    const key = `${unit.kind}:${unit.id}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    const pageNumbers = [...new Set(unit.page_numbers)].sort(
-      (left, right) => left - right,
-    );
-    return [{
-      key,
-      label: unit.locator,
-      blockText: evidenceBlockText([unit]),
-      documentText,
-      pageNumbers,
-    }];
-  });
-}
-
-function buildLinkEvidence(
-  handle: string,
-  verified: Awaited<ReturnType<typeof verifiedPdfEvidence>>,
-  rows: NormalizedPage[],
-) {
-  const { lookup, receipt } = verified;
-  const byNumber = new Map(rows.map((row) => [row.number, row]));
-  const boundPages = receipt.evidence.page_numbers
-    .map((number) => byNumber.get(number))
-    .filter((page): page is NormalizedPage => Boolean(page));
-  const documentText = boundPages.map(({ text }) => text).join("\n");
-  const pages = boundPages.map(({ number: pageNumber, text: blockText }) => ({
-    pageNumber,
-    blockText,
-  }));
-  if (!pages.length) {
-    throw new Error("PDF evidence has no exact page text for linking");
-  }
-  const selectedPageNumbers = [
-    ...new Set(lookup.link.page_numbers),
-  ].sort((left, right) => left - right);
-  const sources = evidenceSources(
-    [...lookup.before, ...lookup.units, ...lookup.after],
-    documentText,
-  );
-  return {
-    handle,
-    documentId: lookup.source.document_id,
-    versionId: lookup.source.version_id,
-    pageNumbers: selectedPageNumbers,
-    sources,
-    pages,
-  };
-}
-
-export async function rehydratePdfLinkEvidence(
-  document: NativeDocument,
-  handle: string,
-) {
-  const verified = await verifiedPdfEvidence(document, handle);
-  return buildLinkEvidence(handle, verified, verified.pageRows);
-}
-
-export type PdfLinkEvidence = Awaited<ReturnType<typeof rehydratePdfLinkEvidence>>;
