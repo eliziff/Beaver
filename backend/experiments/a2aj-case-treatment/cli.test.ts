@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { embedSchemaInPrompt, parseJson, runCheckpointedStage } from "./cli";
+import { applyJsonPatch, embedSchemaInPrompt, parseJson, runCheckpointedStage } from "./cli";
 
 describe("case-treatment model output parsing", () => {
   it("parses plain JSON directly", () => {
@@ -35,6 +35,41 @@ describe("stateless schema delivery", () => {
     expect(embedded).toContain("[OUTPUT JSON SCHEMA]");
     expect(embedded).toContain("\"answer\"");
     expect(embedded.indexOf("Do the task.")).toBe(0);
+  });
+});
+
+describe("JSON Patch corrections", () => {
+  it("accepts an RFC 6902 root-pointer replacement", () => {
+    const patched = applyJsonPatch({ answer: 41 }, [{ op: "replace", path: "", value: { answer: 42 } }]);
+    expect(patched.errors).toEqual([]);
+    expect(patched.value).toEqual({ answer: 42 });
+    const removed = applyJsonPatch({ answer: 41 }, [{ op: "remove", path: "" }]);
+    expect(removed.errors).toEqual(["correction: operation 1 cannot remove the root document"]);
+  });
+
+  it("resends the complete original prompt when a stateless response is unparseable", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-stateless-"));
+    const prompts: string[] = [];
+    try {
+      const result = await runCheckpointedStage({
+        prompt: "Analyze the complete decision and return JSON.",
+        schema: { type: "object" },
+        compile: (value) => ({ ok: true, errors: [], value: value as { answer: number }, grounding: [] }),
+        max_corrections: 1,
+        stateless_corrections: true,
+        model_call: async (prompt) => {
+          prompts.push(prompt);
+          return prompts.length === 1
+            ? { call_id: "empty", raw: "", parsed: null, error: null, continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "empty" }
+            : { call_id: "good", raw: "{\"answer\":42}", parsed: { answer: 42 }, error: null, continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "hash" };
+        },
+        checkpoint_file: path.join(directory, "stage.json"),
+      });
+      expect(result.value).toEqual({ answer: 42 });
+      expect(prompts[1]).toBe("Analyze the complete decision and return JSON.");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
 

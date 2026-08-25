@@ -266,6 +266,17 @@ describe("proposition-first case treatment contract", () => {
     )).toEqual({ supporters: 2, panel_size: 3, status: "majority" });
   });
 
+  it("grounds participants whose evidence uses courtroom short forms", () => {
+    const registryStyle = submission();
+    registryStyle.structure.participants[0].name = "Alpha, Adrian B., (Honourable Justice)";
+    expect(compileSubmission(registryStyle, material).ok).toBe(true);
+
+    const unidentified = submission();
+    unidentified.structure.participants[0].opinion_links[0].evidence = anchored("This appeal concerns");
+    const errors = compileSubmission(unidentified, material).errors;
+    expect(errors.some((error) => error.includes("evidence does not identify Alpha J."))).toBe(true);
+  });
+
   it("scores opinion structure mechanically without treating judicial title formatting as a different writer", () => {
     const expected = compileSubmission(submission(), material).structure;
     const candidate = compileSubmission(submission(), material).structure;
