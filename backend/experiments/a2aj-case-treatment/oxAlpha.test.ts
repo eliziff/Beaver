@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { modelContextWindow } from "../../src/lib/llm/contextWindow";
+import { providerForModel } from "../../src/lib/llm/models";
 import {
   OX_ALPHA_ROUTES,
   assignedOxAlphaRoute,
@@ -27,6 +29,13 @@ describe("Ox Alpha route contract", () => {
     expect(OX_ALPHA_ROUTES.kilo.model).toBe("stealth/ox-alpha");
     expect(OX_ALPHA_ROUTES.kilo.catalog_url).toBe("https://api.kilo.ai/api/gateway/models");
     expect(OX_ALPHA_ROUTES.kilo.maximum_requests_per_minute! * 60).toBe(200);
+  });
+
+  it("resolves every route model through the shared runtime router", () => {
+    for (const config of Object.values(OX_ALPHA_ROUTES)) {
+      expect(providerForModel(config.model)).toBe("ox-gateway");
+      expect(modelContextWindow(config.model)).toBe(1_000_000);
+    }
   });
 
   it("accepts the advertised zero-priced OpenRouter model", () => {
