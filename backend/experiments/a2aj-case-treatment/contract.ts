@@ -792,7 +792,9 @@ function evidenceNamesPerson(name: string, evidenceText: string) {
     .toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   const identifying = tokens(name).filter((token) => token.length > 1 && !ignored.has(token));
   const evidence = new Set(tokens(evidenceText));
-  return identifying.length > 0 && evidence.has(identifying.at(-1)!);
+  // Court reasons identify judges by surname alone ("Matthews J."), so any
+  // distinguishing name token in the evidence grounds the person.
+  return identifying.length > 0 && identifying.some((token) => evidence.has(token));
 }
 
 const BOUNDARY_HEADING = /^(?:introduction|background|analysis|reasons?(?: for (?:judgment|decision|order)| of (?:the )?court)?|order|conclusion|disposition)\s*:?[.]?$/iu;

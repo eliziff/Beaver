@@ -705,7 +705,8 @@ function relevantGrounding(errors: string[], grounding: Array<{ path: string; ex
 function correctionPrompt(errors: string[], grounding: Array<{ path: string; exact_text: string; start: number; end: number }>) {
   return [
     "Return only an RFC 6902 JSON Patch array that corrects your previous JSON.",
-    "Use only add, replace, or remove operations. Change only fields implicated by the validation errors; do not repeat unchanged content.",
+    "Every operation path is an RFC 6902 pointer into that previous JSON. Prefer targeted operations on the fields implicated by the validation errors; do not repeat unchanged content.",
+    "Use only add, replace, or remove operations.",
     "Validation errors:",
     ...errors.slice(0, 60).map((error) => `- ${error}`),
     "Exact source receipts for affected fields:",
@@ -742,12 +743,19 @@ function jsonPointerParts(pointer: string) {
 export function applyJsonPatch(document: unknown, rawPatch: unknown) {
   if (!Array.isArray(rawPatch)) return { value: document, errors: ["correction: expected a JSON Patch array"] };
   if (rawPatch.length > 60) return { value: document, errors: ["correction: patch exceeds 60 operations"] };
-  const value = structuredClone(document);
+  let value = structuredClone(document);
   try {
     for (const [index, raw] of rawPatch.entries()) {
       const operation = raw as Partial<JsonPatchOperation> | null;
       if (!operation || typeof operation !== "object" || !["add", "replace", "remove"].includes(String(operation.op)) || typeof operation.path !== "string") {
         throw new Error(`operation ${index + 1} is invalid`);
+      }
+      // RFC 6902: the empty pointer addresses the whole document.
+      if (operation.path === "") {
+        if (operation.op === "remove") throw new Error(`operation ${index + 1} cannot remove the root document`);
+        if (!Object.hasOwn(operation, "value")) throw new Error(`operation ${index + 1} requires value`);
+        value = structuredClone(operation.value);
+        continue;
       }
       const parts = jsonPointerParts(operation.path);
       let parent: unknown = value;
@@ -966,8 +974,11 @@ async function runStage<T, C extends { ok: boolean; errors: string[]; value: T |
       continuationId = undefined;
       if (correction) prompt = statelessCorrectionPrompt(originalPrompt, finalRaw, errors, compilation?.grounding ?? []);
     } else if (result.parsed === null && !correction) {
+      // Only a provider-owned session can resolve "the original task" from memory.
       continuationId = result.continuation_id ?? undefined;
-      prompt = "Return the complete JSON object requested in the original task. Your previous response was not parseable JSON.";
+      prompt = result.continuation_id
+        ? "Return the complete JSON object requested in the original task. Your previous response was not parseable JSON."
+        : originalPrompt;
     } else if (result.continuation_id) {
       continuationId = result.continuation_id;
       correction = true;
