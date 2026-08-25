@@ -247,12 +247,13 @@ function buildA2AJSourcePinpointUrl(
   }, quotes);
 }
 
-export function buildLegalSourcePinpointUrl(
+export function buildLegalSourcePinpoint(
   evidence: LegalSourceEvidence,
   quotes: string[],
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
-  if (!baseUrl || !evidence.blockText) return baseUrl;
+  if (!baseUrl) return null;
+  if (!evidence.blockText) return { target: baseUrl, plan: null };
   const plan = (url: string, pdf: boolean) => structureNative().textFragmentPlan(
     evidence.blockText,
     quotes,
@@ -280,7 +281,14 @@ export function buildLegalSourcePinpointUrl(
       }
     }
   }
-  return appendDirectives(targetUrl, selected.directives);
+  return { target: appendDirectives(targetUrl, selected.directives), plan: selected };
+}
+
+export function buildLegalSourcePinpointUrl(
+  evidence: LegalSourceEvidence,
+  quotes: string[],
+) {
+  return buildLegalSourcePinpoint(evidence, quotes)?.target ?? null;
 }
 
 function normalizedIdentity(value: string | null | undefined) {
