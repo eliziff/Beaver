@@ -19,6 +19,11 @@ describe("case-treatment model output parsing", () => {
     expect(parseJson("[{\"op\":\"replace\",\"path\":\"/answer\",\"value\":42}]")).toBeInstanceOf(Array);
   });
 
+  it("refuses nested fragments when the outermost value is malformed", () => {
+    const unescapedQuotes = "{\"spans\": [{\"quote\": \"\"Ball J.\"\"}], \"participants\": []}";
+    expect(parseJson(unescapedQuotes)).toBeNull();
+  });
+
   it("returns null for unparseable output instead of guessing", () => {
     expect(parseJson("")).toBeNull();
     expect(parseJson("no json here")).toBeNull();

@@ -621,35 +621,33 @@ export function parseJson(text: string) {
   const trimmed = text.trim();
   if (!trimmed) return null;
   // Deterministic salvage only: raw bytes stay verbatim in the raw ledger.
+  // Only the outermost value is eligible; a silently extracted nested
+  // fragment would corrupt the draft worse than an explicit parse failure.
   const unfenced = trimmed.replace(/^```(?:json)?\s*/u, "").replace(/```\s*$/u, "");
   try { return JSON.parse(unfenced) as unknown; }
   catch { /* Fall through to balanced-value extraction. */ }
-  for (let start = unfenced.search(/[{[]/u), tries = 0; start >= 0 && tries < 10; tries += 1) {
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    for (let index = start; index < unfenced.length; index += 1) {
-      const character = unfenced[index];
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (character === "\\") escaped = true;
-        else if (character === '"') inString = false;
-        continue;
-      }
-      if (character === '"') inString = true;
-      else if (character === "{" || character === "[") depth += 1;
-      else if (character === "}" || character === "]") {
-        depth -= 1;
-        if (depth === 0) {
-          try { return JSON.parse(unfenced.slice(start, index + 1)) as unknown; }
-          catch { break; }
-        }
+  const start = unfenced.search(/[{[]/u);
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < unfenced.length; index += 1) {
+    const character = unfenced[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') inString = true;
+    else if (character === "{" || character === "[") depth += 1;
+    else if (character === "}" || character === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        try { return JSON.parse(unfenced.slice(start, index + 1)) as unknown; }
+        catch { return null; }
       }
     }
-    const rest = unfenced.slice(start + 1);
-    const next = rest.search(/[{[]/u);
-    if (next < 0) break;
-    start += 1 + next;
   }
   return null;
 }

@@ -786,7 +786,8 @@ export function compileAuthorityInventory(raw: unknown, material: CaseMaterial):
 
 function evidenceNamesPerson(name: string, evidenceText: string) {
   const ignored = new Set([
-    "a", "c", "chief", "cj", "cjc", "cja", "honorable", "honourable", "j", "ja", "judge", "justice", "the",
+    "a", "c", "chief", "cj", "cjc", "cja", "dr", "honorable", "honourable", "j", "ja",
+    "judge", "justice", "madam", "mr", "mrs", "ms", "the",
   ]);
   const tokens = (value: string) => value.normalize("NFKD").replace(/\p{M}/gu, "")
     .toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
@@ -1373,7 +1374,7 @@ export const STRUCTURE_INSTRUCTIONS = `Read the complete decision and identify i
 
 An opinion is an independently reasoned body of judicial reasons. A panel list, headnote, signature, order, correction, disposition-only line, or bare statement such as "I agree" is not a separate opinion. Bound each opinion from its first substantive heading or sentence through its last substantive sentence. Do not include editorial material, counsel lists, signatures, or a bare joinder in an opinion boundary.
 
-List every participating decision-maker. Link a participant to an opinion as wrote, joined, or joined_in_part only when the decision establishes that relationship. For joined_in_part, state the expressly identified scope in plain language. Panel membership alone proves neither authorship nor joinder. Use collective_author only when the reasons identify an institutional writer such as "The Court"; otherwise leave it null when no writer is stated. List an expressly nonparticipating judge only in nonparticipants.
+List every participating decision-maker. Link a participant to an opinion as wrote, joined, or joined_in_part only when the decision establishes that relationship, and ground each link in a passage that names that participant. For joined_in_part, state the expressly identified scope in plain language. Panel membership alone proves neither authorship nor joinder. Use collective_author only when the reasons identify an institutional writer such as "The Court"; otherwise leave it null when no writer is stated. List an expressly nonparticipating judge only in nonparticipants.
 
 result_position describes whether an opinion or participant supports the decision's disposition, opposes it, reaches mixed results, or is genuinely unclear. Agreement by all judges is support for the disposition even if the word "majority" is absent. A judge agreeing only in the result has no opinion link unless the source also identifies reasons that judge adopts.
 
@@ -1394,7 +1395,9 @@ Record a passage when the decision reproduces words that it attributes to a refe
 TREATMENTS
 One treatment records one opinion's treatment of one proposition attributed to a cited decision. The cited proposition may contain several sentences or the connected components of a legal test when that is the meaningful unit. Create separate treatments when the same cited decision is used for materially different propositions or is treated differently by different opinions.
 
-cited_proposition states what the current opinion presents the cited decision as standing for. treatment_summary states, succinctly but completely, what the current opinion does with that proposition and the material factual or legal scope of that action. Both must be supported by the listed evidence spans. If either field uses quotation marks, the quoted words must appear exactly in those spans or in a linked attributed passage.
+cited_proposition states what the current opinion presents the cited decision as standing for. treatment_summary states, succinctly but completely, what the current opinion does with that proposition and the material factual or legal scope of that action. Both must be supported by the listed evidence spans. Write both fields in your own words; reproduce wording from the decision only inside quotation marks that match those spans or a linked attributed passage exactly.
+
+Every reference_ids list, including those in attributed_passages and procedural_history records, may contain only reference_id values defined in references.
 
 signals may contain more than one independently supported operation:
 - explained: interprets or clarifies the cited proposition;
