@@ -13,7 +13,8 @@ export type Provider =
   | "openrouter"
   | "meta"
   | "codex"
-  | "ollama";
+  | "ollama"
+  | "ox-gateway";
 
 export type ProviderContextCheckpoint =
   | { provider: "claude"; content: string; block: Record<string, unknown> }
