@@ -843,7 +843,7 @@ async function modelCall(args: {
     const params: StreamChatParams = {
       model: args.ox_route ? args.model : args.model.startsWith("codex:") ? args.model : `codex:${args.model}`,
       reasoningEffort: args.effort,
-      systemPrompt: "Use only the supplied decision. Return exactly the requested JSON object without commentary.",
+      systemPrompt: "Use only the supplied decision. Return exactly the requested JSON object without commentary. Encode copied text as valid JSON, escaping quotation marks inside it.",
       messages: [{
         role: "user",
         content: args.schema && args.ox_route
