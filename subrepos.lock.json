@@ -13,6 +13,11 @@
       "bundle": null,
       "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
     },
+    "legal-structure": {
+      "branch": "main",
+      "bundle": null,
+      "remote": "https://github.com/eliziff/legal-structure.git"
+    },
     "legal-pdf-parser": {
       "branch": "main",
       "bundle": null,

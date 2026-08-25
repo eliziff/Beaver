@@ -1,9 +1,9 @@
 # Local subrepositories
 
-Beaver pins three independent repositories as gitlinks. The public
-`legal-pdf-parser` and `AuthoritiesHelper` repositories are ordinary Git
-submodules. `OpenLegalData` has no public remote and remains recoverable from a
-committed Git bundle.
+Beaver pins five public repositories as ordinary Git submodules:
+`legal-structure`, `legal-pdf-parser`, `legal-browser-ocr`, `AuthoritiesHelper`,
+and `mike-workflows`. `OpenLegalData` has no public remote and remains
+recoverable from a committed Git bundle.
 
 ## Fresh clone
 
@@ -24,8 +24,8 @@ git clone .\subrepos\OpenLegalData.bundle .\OpenLegalData
 For an existing checkout:
 
 ```powershell
-git submodule sync -- legal-pdf-parser AuthoritiesHelper
-git submodule update --init --recursive -- legal-pdf-parser AuthoritiesHelper
+git submodule sync
+git submodule update --init --recursive
 if (-not (Test-Path .\OpenLegalData\.git)) {
   git clone .\subrepos\OpenLegalData.bundle .\OpenLegalData
 }
@@ -36,7 +36,10 @@ if (-not (Test-Path .\OpenLegalData\.git)) {
 ```powershell
 git -C .\OpenLegalData rev-parse HEAD
 git -C .\AuthoritiesHelper rev-parse HEAD
+git -C .\legal-browser-ocr rev-parse HEAD
 git -C .\legal-pdf-parser rev-parse HEAD
+git -C .\legal-structure rev-parse HEAD
+git -C .\mike-workflows rev-parse HEAD
 ```
 
 Public repositories are pinned by their Git gitlinks. `subrepos.lock.json`
