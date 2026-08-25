@@ -1651,8 +1651,28 @@ async function judge(flags: Flags) {
   const eligible = (await benchmarkCases(gold, runDir)).filter(({ document_id, candidate }) =>
     candidate?.ok === true && (!requested || requested.has(document_id)));
   const values = eligible.filter(({ semantic_exact }) => !semantic_exact);
-  const model = flag(flags, "model", "gpt-5.6-sol");
-  const effort = flag(flags, "effort", "low");
+  const provider = flag(flags, "provider", "codex");
+  if (!["codex", "ox-alpha"].includes(provider)) throw new Error("--provider must be codex or ox-alpha");
+  const oxRouteName = flag(flags, "ox-route");
+  if (provider === "ox-alpha" && !oxRouteName) throw new Error("Ox Alpha judging requires --ox-route");
+  if (provider !== "ox-alpha" && oxRouteName) throw new Error("--ox-route requires --provider ox-alpha");
+  const selectedOxRoute = provider === "ox-alpha" ? oxAlphaRoute(oxRouteName!) : null;
+  let oxRuntime: {
+    credentials: OxAlphaCredentials;
+    limiter: StartLimiter;
+    preflight: Awaited<ReturnType<typeof preflightOxAlpha>>;
+  } | null = null;
+  if (selectedOxRoute) {
+    oxRuntime = {
+      credentials: oxAlphaCredentials(selectedOxRoute),
+      limiter: new EvenStartLimiter(OX_ALPHA_ROUTES[selectedOxRoute].default_requests_per_minute),
+      preflight: await preflightOxAlpha(selectedOxRoute, oxAlphaCredentials(selectedOxRoute)),
+    };
+  }
+  const model = provider === "ox-alpha"
+    ? OX_ALPHA_ROUTES[selectedOxRoute!].model
+    : flag(flags, "model", "gpt-5.6-sol");
+  const effort = flag(flags, "effort", provider === "ox-alpha" ? "low" : "low");
   const workers = Math.floor(numberFlag(flags, "workers", 10, 1, 32));
   const timeoutSeconds = numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200);
   const judgeDir = path.resolve(flag(flags, "judge-dir", path.join(runDir, "judge")));
@@ -1677,6 +1697,9 @@ async function judge(flags: Flags) {
     const result = await modelCall({
       prompt, schema: SEMANTIC_JUDGE_SCHEMA, model, effort, max_output_tokens: 16_384,
       timeout_seconds: timeoutSeconds,
+      ox_route: selectedOxRoute ?? undefined,
+      ox_credentials: oxRuntime?.credentials,
+      start_limiter: oxRuntime?.limiter,
       raw, ledger, document_id: value.document_id, stage: "semantic_judge", attempt: 1,
     });
     const resultErrors = result.error ? [] : semanticJudgeResultErrors(value.expected, value.candidate!, result.parsed);
