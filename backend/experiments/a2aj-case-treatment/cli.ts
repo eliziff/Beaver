@@ -617,9 +617,46 @@ async function workerPool<T>(items: readonly T[], size: number, work: (item: T, 
   }));
 }
 
-function parseJson(text: string) {
-  try { return JSON.parse(text) as unknown; }
-  catch { return null; }
+export function parseJson(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  // Deterministic salvage only: raw bytes stay verbatim in the raw ledger.
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/u, "").replace(/```\s*$/u, "");
+  try { return JSON.parse(unfenced) as unknown; }
+  catch { /* Fall through to balanced-value extraction. */ }
+  for (let start = unfenced.search(/[{[]/u), tries = 0; start >= 0 && tries < 10; tries += 1) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < unfenced.length; index += 1) {
+      const character = unfenced[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') inString = false;
+        continue;
+      }
+      if (character === '"') inString = true;
+      else if (character === "{" || character === "[") depth += 1;
+      else if (character === "}" || character === "]") {
+        depth -= 1;
+        if (depth === 0) {
+          try { return JSON.parse(unfenced.slice(start, index + 1)) as unknown; }
+          catch { break; }
+        }
+      }
+    }
+    const rest = unfenced.slice(start + 1);
+    const next = rest.search(/[{[]/u);
+    if (next < 0) break;
+    start += 1 + next;
+  }
+  return null;
+}
+
+/** Stateless gateways ignore structured-output fields; hand them the schema in prose. */
+export function embedSchemaInPrompt(prompt: string, schema: Record<string, unknown>) {
+  return `${prompt}\n\n[OUTPUT JSON SCHEMA]\n${JSON.stringify(schema)}`;
 }
 
 function progressLine(label: string, total: number) {
@@ -801,7 +838,12 @@ async function modelCall(args: {
       model: args.ox_route ? args.model : args.model.startsWith("codex:") ? args.model : `codex:${args.model}`,
       reasoningEffort: args.effort,
       systemPrompt: "Use only the supplied decision. Return exactly the requested JSON object without commentary.",
-      messages: [{ role: "user", content: args.prompt }],
+      messages: [{
+        role: "user",
+        content: args.schema && args.ox_route
+          ? embedSchemaInPrompt(args.prompt, args.schema)
+          : args.prompt,
+      }],
       maxTokens: args.max_output_tokens,
       ...(args.schema ? { outputSchema: args.schema } : {}),
       abortSignal: controller.signal,
