@@ -14,7 +14,7 @@ diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
-legal-structure = { path = "../../legal-structure", features = ["a2aj", "citator", "journal", "native-markup", "quote-verification"] }
+legal-structure = { git = "https://github.com/eliziff/legal-structure.git", rev = "46e23615828d9cdd00578de2172f6dd2ff568ad7", features = ["a2aj", "citator", "journal", "native-markup", "quote-verification"] }
 legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
