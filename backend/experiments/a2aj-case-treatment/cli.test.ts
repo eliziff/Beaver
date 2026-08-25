@@ -4,7 +4,39 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { runCheckpointedStage } from "./cli";
+import { embedSchemaInPrompt, parseJson, runCheckpointedStage } from "./cli";
+
+describe("case-treatment model output parsing", () => {
+  it("parses plain JSON directly", () => {
+    expect(parseJson("{\"answer\":42}")).toEqual({ answer: 42 });
+  });
+
+  it("salvages fenced or prose-wrapped JSON without altering the raw ledger", () => {
+    const fenced = "```json\n{\"answer\":42}\n```";
+    expect(parseJson(fenced)).toEqual({ answer: 42 });
+    const wrapped = "Here is the result:\n{\"answer\":42,\"note\":\"braces } inside text\"}\nThanks!";
+    expect(parseJson(wrapped)).toEqual({ answer: 42, note: "braces } inside text" });
+    expect(parseJson("[{\"op\":\"replace\",\"path\":\"/answer\",\"value\":42}]")).toBeInstanceOf(Array);
+  });
+
+  it("returns null for unparseable output instead of guessing", () => {
+    expect(parseJson("")).toBeNull();
+    expect(parseJson("no json here")).toBeNull();
+    expect(parseJson("{\"answer\":")).toBeNull();
+  });
+});
+
+describe("stateless schema delivery", () => {
+  it("embeds the schema in the prompt for schema-blind gateways", () => {
+    const embedded = embedSchemaInPrompt("Do the task. Return only JSON matching the supplied schema.", {
+      type: "object",
+      properties: { answer: { type: "number" } },
+    });
+    expect(embedded).toContain("[OUTPUT JSON SCHEMA]");
+    expect(embedded).toContain("\"answer\"");
+    expect(embedded.indexOf("Do the task.")).toBe(0);
+  });
+});
 
 describe("case-treatment stage checkpoints", () => {
   it("reuses an accepted stage without another model call", async () => {
