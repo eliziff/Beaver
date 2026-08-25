@@ -205,6 +205,11 @@ export function streamOxAlpha(
     maxIterations: 1,
     maxProviderAttempts: 1,
   };
+  const finish = async (result: StreamChatResult): Promise<StreamChatResult> => {
+    // Gateways occasionally close a "successful" stream without content.
+    if (!result.fullText.trim()) throw new Error(`${route} returned an empty completion`);
+    return result;
+  };
   return runProviderLoop(routed, createCompatibleWireAdapter(routed, {
     apiKey: credentials.apiKey,
     baseURL: config.base_url,
@@ -216,5 +221,5 @@ export function streamOxAlpha(
       ? ({ Authorization: null } as unknown as Record<string, string>)
       : undefined,
     request,
-  }));
+  })).then(finish);
 }
