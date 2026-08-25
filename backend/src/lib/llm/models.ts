@@ -40,6 +40,15 @@ export const OPENAI_LOW_MODELS = ["gpt-5.4-lite"] as const;
 const CODEX_MODEL_PREFIX = "codex:";
 const CLAUDE_P_MODEL_PREFIX = "claude-p:";
 const OLLAMA_MODEL_PREFIX = "ollama:";
+/**
+ * Ox Alpha gateway transports (experiment routes). Each slug is fixed by its
+ * gateway route; the transport itself is plain OpenAI-compatible chat.
+ */
+export const OX_ALPHA_GATEWAY_MODELS = [
+    "stealth/ox-alpha",
+    "x-preview-f-free",
+    "ox-alpha-free",
+] as const;
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
@@ -73,6 +82,7 @@ export function providerForModel(model: string): Provider {
     // Meta Model API takes the bare id.
     if (model.startsWith("meta/")) return "openrouter";
     if (model.startsWith("muse-spark-")) return "meta";
+    if ((OX_ALPHA_GATEWAY_MODELS as readonly string[]).includes(model)) return "ox-gateway";
     throw new Error(`Unknown model id: ${model}`);
 }
 
