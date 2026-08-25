@@ -16,5 +16,5 @@
 	branch = main
 [submodule "legal-structure"]
 	path = legal-structure
-	url = https://github.com/eliziff/legal-structure.git
+	url = https://github.com/eliziff/legal-structure-parser.git
 	branch = main
