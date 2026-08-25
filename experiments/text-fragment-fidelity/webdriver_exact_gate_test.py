@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import io
 import inspect
 import json
 import os
@@ -47,13 +48,20 @@ assert gate.directive_matches(["same words", "same words"], "same%20words") == [
     (0, 0, len("same words")),
 ]
 assert gate.all_occurrences("concatenate cat category", "cat") == [(12, 15)]
+assert gate.sequence_starts(["a", "a", "a"], ["a", "a"]) == [0, 1]
+assert gate.sequence_starts(["a", "b"], []) == [0, 1, 2]
+source_index = gate.source_token_index([
+    {"word": word} for word in ["a", "a", "a", "b", "a", "b"]
+])
+for wanted in (["a", "a"], ["a", "b"], ["b", "a"], ["missing"], []):
+    assert gate.indexed_sequence_starts(source_index, list(wanted)) == \
+        gate.sequence_starts(source_index["values"], list(wanted))
 assert gate.directive_matches([
     "prefix start without terminator",
     "prefix start final end",
 ], "prefix-,start,end") == [(1, len("prefix "), len("prefix start final end"))]
 assert gate.search_normalized("Straße") != gate.search_normalized("STRASSE")
-assert not gate.pdf_case_replay_safe("Straße")
-assert gate.pdf_case_replay_safe("PRÉSENT présent")
+assert gate.SOURCE_LINE_LABEL.match("3 \u00e2\u20ac\u201c Invoice 079853")
 
 selected = [
     {"span": islands[0]},
@@ -77,8 +85,21 @@ assert gate.quote_islands(
     '(iii) the Sahtu Dene and Metis Agreement entered into force',
     'Sahtu Dene and Metis Agreement entered',
 )[0][0] == 1
+deduplicated = gate.quote_islands(
+    ["a a inserted b"], "a b", "a b",
+)
+assert deduplicated == [(0, 2, 3), (0, 13, 14)], deduplicated
+same_context = " ".join(["same"] * 32)
+context_page = gate.search_normalized(
+    f"othermarker {same_context} target tail sourcemarker {same_context} target tail"
+)
+context_islands = gate.quote_islands(
+    [context_page], f"sourcemarker {same_context} target tail", "target",
+    source_identity={"before": ["same"] * 32, "after": ["tail"]},
+)
+assert context_islands[0][1] == context_page.rindex("target"), context_islands
 tight_before_context = gate.quote_islands(
-    ["alpha beta", "before alpha inserted beta after"],
+    ["unrelated words", "before alpha inserted beta after"],
     "before alpha beta after", "alpha beta",
     source_identity={"before": ["before"], "after": ["after"]},
 )
@@ -86,6 +107,30 @@ assert tight_before_context == [
     (1, len("before "), len("before alpha")),
     (1, len("before alpha inserted "), len("before alpha inserted beta")),
 ], tight_before_context
+duplicate_index = gate.pages_word_index(duplicate_pages)
+assert gate.exact_word_sequence_starts(
+    duplicate_index, ["sahtu", "dene", "and", "metis", "agreement", "entered"],
+) == [4, 14]
+assert gate.quote_islands(
+    duplicate_pages,
+    '(iii) the Sahtu Dene and Metis Agreement entered into force',
+    'Sahtu Dene and Metis Agreement entered', document_index=duplicate_index,
+) == gate.quote_islands(
+    duplicate_pages,
+    '(iii) the Sahtu Dene and Metis Agreement entered into force',
+    'Sahtu Dene and Metis Agreement entered',
+)
+inserted_pages = ["before alpha publisher inserted beta after"]
+inserted_index = gate.pages_word_index(inserted_pages)
+assert gate.exact_word_sequence_starts(inserted_index, ["alpha", "beta"]) == []
+assert gate.quote_islands(
+    inserted_pages, "before alpha beta after", "alpha beta",
+    source_identity={"before": ["before"], "after": ["after"]},
+    document_index=inserted_index,
+) == gate.quote_islands(
+    inserted_pages, "before alpha beta after", "alpha beta",
+    source_identity={"before": ["before"], "after": ["after"]},
+)
 anchored_duplicate = gate.quote_islands(
     ["before alpha beta after", "before alpha beta after"],
     "before alpha beta after", "alpha beta", preferred_page=1,
@@ -110,6 +155,15 @@ assert gate.one_to_one_range_verdict(exact_quote_proofs, [
 assert gate.one_to_one_range_verdict(exact_quote_proofs, [
     {"status": "matched", "wordStart": 10, "wordEnd": 19},
 ]) == "range-source-interval-mismatch"
+assert gate.lexically_exact_edge_paint(
+    [{"status": "paint-extraneous", "insertedWords": 0, "wordStart": 4,
+      "wordEnd": 9, "wordIslands": [(4, 9)]}],
+)
+assert not gate.lexically_exact_edge_paint(
+    [{"status": "paint-extraneous", "insertedWords": 1, "wordStart": 4,
+      "wordEnd": 10, "wordIslands": [(4, 9)]}],
+)
+assert not gate.lexically_exact_edge_paint([])
 assert gate.html_real_paint_verdict([{
     "verdict": "exact-match", "rangeVerdict": "range-source-interval-mismatch",
 }]) == "exact-match"
@@ -278,6 +332,25 @@ assert combined[1]["directivesOnPage"] == 2
 assert len(combined[1]["lineBounds"]) == 2
 assert combined[2]["directivesOnPage"] == 1
 
+single_page_groups = [[(0, 0, 5), (0, 8, 12)], [(1, 0, 4)]]
+assert gate.pdf_single_page_intended_groups({
+    "intendedGroups": single_page_groups,
+}) == single_page_groups
+assert gate.pdf_single_page_intended_groups({
+    "intendedGroups": [[(0, 0, 5), (1, 0, 4)]],
+}) is None
+assert gate.pdf_directive_union_verdict(single_page_groups, [
+    {"status": "exact", "provedSpans": [(0, 0, 5), (0, 8, 12)]},
+    {"status": "exact", "provedSpans": [(1, 0, 4)]},
+]) == "exact-match"
+assert gate.pdf_directive_union_verdict(single_page_groups, [
+    {"status": "exact", "provedSpans": [(0, 0, 5), (0, 8, 12)]},
+    {"status": "exact", "provedSpans": [(1, 1, 4)]},
+]) == "pdf-directive-union-mismatch"
+assert gate.pdf_reuses_combined_navigation(1, "exact")
+assert not gate.pdf_reuses_combined_navigation(2, "exact")
+assert not gate.pdf_reuses_combined_navigation(1, "pdf-combined-fragment-lost")
+
 assert "allow_subset" not in inspect.signature(gate.pdf_paint_geometry_proof).parameters
 subset = gate.pdf_paint_geometry_proof(
     {"components": [{"pixels": 5, "bounds": [10, 10, 20, 20]}], "deltaPixels": 5},
@@ -307,6 +380,35 @@ rgb_geometry = gate.pdf_paint_geometry_proof(
     rgb_painted, expected_line, rgb_mask,
 )
 assert rgb_geometry["status"] == "pdf-paint-geometry-exact", rgb_geometry
+
+
+class NoisyPdfDriver:
+    def __init__(self, images):
+        self.images = iter(images)
+
+    def get_screenshot_as_png(self):
+        output = io.BytesIO()
+        next(self.images).save(output, format="PNG")
+        return output.getvalue()
+
+
+target_control = gate.Image.new("RGB", (100, 100), "white")
+noisy_frames = []
+for noise_bounds in ((50, 50, 55, 55), (70, 70, 75, 75)):
+    frame = target_control.copy()
+    draw = gate.ImageDraw.Draw(frame)
+    draw.rectangle((10, 20, 30, 30), fill=(230, 210, 250))
+    draw.rectangle(noise_bounds, fill="black")
+    noisy_frames.append(frame)
+target_delta, _, _, _ = gate.stable_highlight_delta(
+    NoisyPdfDriver(noisy_frames),
+    gate.target_mask(target_control, "pdf"),
+    target_control,
+    1,
+    {},
+)
+assert target_delta["status"] == "stable-delta", target_delta
+assert target_delta["deltaMethod"] == "target-color-delta", target_delta
 
 document = "[48] Alpha beta gamma"
 document_words = gate.source_words(document)
@@ -468,8 +570,8 @@ assert seam_contract["unacceptedOmissions"] == [{
 }]
 
 
-assert gate.PDF_PAINT_CONTRACT.endswith("-v10-source-identity")
-assert gate.HTML_PAINT_CONTRACT.endswith("-v9-source-identity")
+assert gate.PDF_PAINT_CONTRACT.endswith("-v13-source-identity")
+assert gate.HTML_PAINT_CONTRACT.endswith("-v15-source-identity")
 for viewer_script in (
     gate.PDF_VIEWER_STATUS_SCRIPT,
     gate.PDF_NATURAL_VIEWPORT_SCRIPT,
@@ -624,16 +726,24 @@ session_events = []
 
 
 class FakeSessionProcess:
+    returncode = None
+
     def poll(self):
-        return None
+        return self.returncode
 
 
 class FakeSessionService:
-    process = FakeSessionProcess()
+    def __init__(self):
+        self.process = FakeSessionProcess()
+
+    def stop(self):
+        session_events.append("service-stopped")
+        self.process.returncode = 0
 
 
 class FakeSessionDriver:
-    pass
+    def quit(self):
+        session_events.append("driver-quit")
 
 
 class FakeSessionBridge:
@@ -662,7 +772,38 @@ finally:
     gate.webdriver.Chrome = original_chrome
     gate.PdfOopifCdp = original_bridge
     gate.stop_process_tree = original_stop_tree
-assert session_events == ["bridge-closed", "tree-stopped"]
+assert session_events == ["bridge-closed", "driver-quit", "service-stopped"]
+
+session_events.clear()
+try:
+    fake_service = FakeSessionService()
+    fake_driver = FakeSessionDriver()
+    gate.Service = lambda _path: fake_service
+    gate.webdriver.Chrome = lambda **_options: fake_driver
+    gate.PdfOopifCdp = lambda _driver: FakeSessionBridge()
+    def failed_quit():
+        session_events.append("driver-quit")
+        raise RuntimeError("session already gone")
+    def failed_service_stop():
+        session_events.append("service-stopped")
+        raise RuntimeError("service already gone")
+    fake_driver.quit = failed_quit
+    fake_service.stop = failed_service_stop
+    def stop_exact_process(process):
+        assert process is fake_service.process
+        session_events.append("tree-stopped")
+        process.returncode = 0
+    gate.stop_process_tree = stop_exact_process
+    with gate.chrome_session(object()):
+        pass
+finally:
+    gate.Service = original_service
+    gate.webdriver.Chrome = original_chrome
+    gate.PdfOopifCdp = original_bridge
+    gate.stop_process_tree = original_stop_tree
+assert session_events == [
+    "bridge-closed", "driver-quit", "service-stopped", "tree-stopped",
+]
 
 
 natural_image = gate.Image.new("RGB", (100, 100), "white")
@@ -708,6 +849,116 @@ natural_geometry = gate.pdf_natural_landing_geometry_proof(
     natural_paint, captured_image, {1: expected_line}, natural_viewport, 1, expected_line,
 )
 assert natural_geometry["status"] == "pdf-natural-landing-geometry-exact", natural_geometry
+two_lines = {
+    **expected_line,
+    "lineBounds": [*expected_line["lineBounds"], [10, 50, 30, 60]],
+}
+missing_second_line = gate.pdf_natural_landing_geometry_proof(
+    natural_paint, captured_image, {1: two_lines}, natural_viewport, 1, two_lines,
+)
+assert missing_second_line["status"] == "pdf-natural-target-geometry-mismatch", missing_second_line
+extraneous_natural_image = natural_image.copy()
+gate.ImageDraw.Draw(extraneous_natural_image).rectangle(
+    (70, 70, 80, 80), fill=(230, 205, 250),
+)
+extraneous_natural = gate.pdf_natural_landing_geometry_proof(
+    natural_paint, extraneous_natural_image, {1: expected_line},
+    natural_viewport, 1, expected_line,
+)
+assert extraneous_natural["status"] == "pdf-natural-paint-geometry-extraneous", \
+    extraneous_natural
+assert gate.pdf_combined_verdict("exact", "pdf-location-exact") == "exact-match"
+assert gate.pdf_combined_verdict("exact", "pdf-directive-extraneous") == \
+    "pdf-directive-extraneous"
+
+island_seed = {
+    "blockText": "alpha beta gamma",
+    "paintQuotes": ["alpha beta gamma"],
+    "target": "https://example.test/#:~:text=alpha&text=beta%20gamma",
+}
+island_quotes, island_ranges = gate.cached_text_range_proof(
+    "alpha publisher inserted beta gamma", island_seed,
+)
+assert island_quotes[0]["wordIslands"] == [(0, 1), (3, 5)], island_quotes
+assert gate.range_probe_verdict(island_quotes, island_ranges) == "range-exact"
+stray_quotes, stray_ranges = gate.cached_text_range_proof(
+    "alpha publisher inserted beta gamma",
+    {**island_seed, "target": "https://example.test/#:~:text=alpha,gamma"},
+)
+assert gate.range_probe_verdict(stray_quotes, stray_ranges) == "range-stray"
+addition_seed = {
+    "blockText": "relief sought in addition appellant in this appeal",
+    "paintQuotes": ["addition appellant in"],
+    "target": "https://example.test/#:~:text=addition,appellant%20in",
+}
+addition_index = gate.rendered_document_index(
+    "The relief sought, in addition, appellant in this appeal was narrow.",
+)
+addition_quotes, addition_ranges = gate.cached_text_range_proof(
+    addition_index, addition_seed,
+)
+assert addition_quotes[0]["wordIslands"] == [(4, 7)], addition_quotes
+assert addition_ranges[0]["wordStart"] == 4, addition_ranges
+assert addition_ranges[0]["wordEnd"] == 7, addition_ranges
+assert gate.range_probe_verdict(addition_quotes, addition_ranges) == "range-exact"
+with tempfile.TemporaryDirectory() as directory:
+    directory = Path(directory)
+    source_dir = directory / "source-contracts"
+    contract_seed = {
+        "target": "https://example.test/#:~:text=alpha",
+        "paintQuotes": ["alpha"], "quotes": ["alpha beta"],
+        "sourceWordIntervals": [{"quoteIndex": 0, "start": 0, "end": 5,
+                                  "firstWord": 0, "lastWord": 0}],
+        "paintedWords": 1, "sourceSafeComplete": True, "dataset": "TEST",
+    }
+    identity = gate.source_contract_cache_identity(contract_seed, "alpha beta", False)
+    gate.write_source_contract_cache(identity, {"status": "proved", "accepted": True}, source_dir)
+    assert gate.read_source_contract_cache(identity, source_dir) == {
+        "status": "proved", "accepted": True,
+    }
+    changed = [
+        gate.source_contract_cache_identity(
+            {**contract_seed, "quotes": ["alpha gamma"]}, "alpha beta", False,
+        ),
+        gate.source_contract_cache_identity(
+            {**contract_seed, "target": "https://example.test/#:~:text=beta"},
+            "alpha beta", False,
+        ),
+        gate.source_contract_cache_identity({
+            **contract_seed,
+            "sourceWordIntervals": [{"quoteIndex": 0, "start": 6, "end": 10,
+                                      "firstWord": 1, "lastWord": 1}],
+        }, "alpha beta", False),
+        gate.source_contract_cache_identity(contract_seed, "alpha gamma", False),
+    ]
+    original_source_contract_version = gate.SOURCE_CONTRACT_CACHE_VERSION
+    gate.SOURCE_CONTRACT_CACHE_VERSION = original_source_contract_version + "-changed"
+    try:
+        changed.append(gate.source_contract_cache_identity(
+            contract_seed, "alpha beta", False,
+        ))
+    finally:
+        gate.SOURCE_CONTRACT_CACHE_VERSION = original_source_contract_version
+    assert all(item["fingerprint"] != identity["fingerprint"] for item in changed)
+    assert all(gate.read_source_contract_cache(item, source_dir) is None for item in changed)
+    source_cache_file = next(source_dir.iterdir())
+    source_cache_file.write_text("{broken", encoding="utf-8")
+    assert gate.read_source_contract_cache(identity, source_dir) is None
+    range_dir = directory / "range-proofs"
+    range_seed = {**addition_seed, "_sourceIdentities": [{"before": [], "after": []}]}
+    range_identity = gate.range_proof_cache_identity(range_seed, "a" * 64)
+    gate.write_range_proof_cache(
+        range_identity, addition_quotes, addition_ranges, range_dir,
+    )
+    assert gate.read_range_proof_cache(range_identity, range_dir) == json.loads(
+        json.dumps([addition_quotes, addition_ranges]),
+    )
+    assert gate.range_proof_cache_identity(
+        {**range_seed, "target": range_seed["target"] + "x"}, "a" * 64,
+    )["fingerprint"] != range_identity["fingerprint"]
+    assert gate.range_proof_cache_identity(
+        range_seed, "b" * 64,
+    )["fingerprint"] != range_identity["fingerprint"]
 offset_image = gate.Image.new("RGB", (130, 120), "white")
 gate.ImageDraw.Draw(offset_image).rectangle((40, 40, 60, 50), fill=(230, 205, 250))
 offset_viewport = {**natural_viewport, "size": {"width": 100, "height": 100}}
@@ -747,60 +998,54 @@ assert page_timings["pdfPageNavigationMs"] >= 0
 natural = gate.wait_pdf_page(FakePdfOopif(), 3, 0.01, {}, navigate=False)
 assert natural["status"] == "pdf-page-not-reached"
 
-assert inspect.signature(gate.stop_owned_chrome_processes).parameters[
-    "stable_empty_passes"
-].default == 2
-original_query = gate.owned_chrome_process_ids
-original_sleep = gate.time.sleep
-scans = []
+class AlreadyGoneProcess:
+    pid = 12345
+
+    def __init__(self):
+        self.returncode = None
+        self.waits = []
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout):
+        self.waits.append(timeout)
+        self.returncode = 1
+        return self.returncode
+
+    def terminate(self):
+        raise AssertionError("already-exited process was terminated")
+
+    def kill(self):
+        raise AssertionError("already-exited process was killed")
+
+
+original_run = gate.subprocess.run
+taskkill_commands = []
 try:
-    gate.owned_chrome_process_ids = lambda marker: scans.append(marker) or []
-    gate.time.sleep = lambda _seconds: None
-    gate.stop_owned_chrome_processes("owned-profile")
+    gate.subprocess.run = lambda command, **_options: (
+        taskkill_commands.append(command) or subprocess.CompletedProcess(command, 128)
+    )
+    already_gone = AlreadyGoneProcess()
+    gate.stop_process_tree(already_gone)
 finally:
-    gate.owned_chrome_process_ids = original_query
-    gate.time.sleep = original_sleep
-assert len(scans) == 2
+    gate.subprocess.run = original_run
+assert taskkill_commands == [["taskkill", "/PID", "12345", "/T", "/F"]]
+assert already_gone.waits == [1]
 
-original_root = gate.PROFILE_ROOT
-original_query = gate.owned_chrome_process_ids
-original_sleep = gate.time.sleep
-with tempfile.TemporaryDirectory() as directory:
-    gate.PROFILE_ROOT = Path(directory)
-    stale_profile = gate.PROFILE_ROOT / "browser-exact-profile-stale"
-    active_profile = gate.PROFILE_ROOT / "browser-exact-profile-active"
-    denied_profile = gate.PROFILE_ROOT / "browser-exact-profile-denied"
-    unrelated_profile = gate.PROFILE_ROOT / "browser-profile-unrelated"
-    for profile in (stale_profile, active_profile, denied_profile, unrelated_profile):
-        profile.mkdir()
-    queried = []
-
-    def profile_query(marker):
-        marker = str(marker)
-        queried.append(marker)
-        if marker.endswith("active"):
-            return [123]
-        if marker.endswith("denied"):
-            raise RuntimeError("query denied")
-        return []
-
-    try:
-        gate.owned_chrome_process_ids = profile_query
-        gate.time.sleep = lambda _seconds: None
-        sweep = gate.sweep_stale_exact_profiles(
-            min_age_seconds=0, stable_empty_passes=2,
-        )
-    finally:
-        gate.PROFILE_ROOT = original_root
-        gate.owned_chrome_process_ids = original_query
-        gate.time.sleep = original_sleep
-    assert not stale_profile.exists()
-    assert active_profile.exists() and denied_profile.exists() and unrelated_profile.exists()
-    assert sweep["removed"] == [str(stale_profile)]
-    assert sweep["active"] == [str(active_profile)]
-    assert len(sweep["errors"]) == 1
-    assert queried.count(str(stale_profile.resolve())) == 2
-    assert all("browser-profile-unrelated" not in marker for marker in queried)
+# Profile cleanup never enumerates global processes, so CIM access denial cannot
+# turn an already-owned Job/Popen cleanup into a worker failure.
+original_run = gate.subprocess.run
+original_remove = gate.remove_profile_dir
+try:
+    gate.subprocess.run = lambda *_args, **_options: (_ for _ in ()).throw(
+        PermissionError("Get-CimInstance Win32_Process: Access denied")
+    )
+    gate.remove_profile_dir = lambda _profile: None
+    assert gate.cleanup_owned_profile(Path("owned-profile")) == []
+finally:
+    gate.subprocess.run = original_run
+    gate.remove_profile_dir = original_remove
 
 with tempfile.TemporaryDirectory() as directory:
     journal = Path(directory) / "attempt.jsonl"
@@ -834,44 +1079,18 @@ assert gate.browser_session_failed(HealthyDriver(), RuntimeError("tab crashed"))
 assert gate.browser_session_failed(DeadDriver(), RuntimeError("seed failure"))
 assert not gate.browser_session_failed(HealthyDriver(), RuntimeError("seed failure"))
 
-original_stop = gate.stop_owned_chrome_processes
 original_remove = gate.remove_profile_dir
 cleanup_events = []
-original_owner = os.environ.pop(gate.PROFILE_OWNER_ENV, None)
 try:
-    def fail_stop(_profile):
-        cleanup_events.append("stop")
-        raise RuntimeError("query failed")
-    gate.stop_owned_chrome_processes = fail_stop
-    gate.remove_profile_dir = lambda _profile: cleanup_events.append("remove")
-    try:
-        gate.cleanup_owned_profile(Path("owned-profile"))
-    except ExceptionGroup:
-        pass
-    else:
-        raise AssertionError("cleanup error was swallowed")
-finally:
-    gate.stop_owned_chrome_processes = original_stop
-    gate.remove_profile_dir = original_remove
-    if original_owner is not None:
-        os.environ[gate.PROFILE_OWNER_ENV] = original_owner
-assert cleanup_events == ["stop", "remove"]
-
-cleanup_events.clear()
-try:
-    os.environ[gate.PROFILE_OWNER_ENV] = "outer-job"
-    gate.stop_owned_chrome_processes = fail_stop
-    gate.remove_profile_dir = lambda _profile: cleanup_events.append("remove")
+    def fail_remove(_profile):
+        cleanup_events.append("remove")
+        raise PermissionError("transient profile lock")
+    gate.remove_profile_dir = fail_remove
     warnings = gate.cleanup_owned_profile(Path("owned-profile"))
     assert len(warnings) == 1
 finally:
-    gate.stop_owned_chrome_processes = original_stop
     gate.remove_profile_dir = original_remove
-    if original_owner is None:
-        os.environ.pop(gate.PROFILE_OWNER_ENV, None)
-    else:
-        os.environ[gate.PROFILE_OWNER_ENV] = original_owner
-assert cleanup_events == ["stop", "remove"]
+assert cleanup_events == ["remove"]
 
 parallel_lifecycle = subprocess.run(
     [sys.executable, str(HERE / "webdriver-exact-parallel.py"), "--lifecycle-self-check"],

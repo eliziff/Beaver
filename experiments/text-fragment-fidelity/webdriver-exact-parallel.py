@@ -284,15 +284,15 @@ def supervise_crawler(owner_pid, profile_dir):
         api.CloseHandle(process_handle)
         warning = job.terminate_and_close() if job is not None else None
         if warning is not None:
-            errors.append(warning)
-        try:
-            lifecycle_gate.stop_owned_chrome_processes(profile, stable_empty_passes=2)
-        except Exception as exc:
-            errors.append(exc)
+            print(json.dumps({
+                "event": "crawler-job-termination-warning", "error": str(warning)[:200],
+            }), flush=True)
         try:
             lifecycle_gate.remove_profile_dir(profile)
         except Exception as exc:
-            errors.append(exc)
+            print(json.dumps({
+                "event": "crawler-profile-cleanup-warning", "error": str(exc)[:200],
+            }), flush=True)
     if errors:
         raise ExceptionGroup(f"crawler cleanup failed for {profile}", errors)
 
@@ -474,6 +474,7 @@ def lifecycle_self_check():
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--workers", type=int, default=2)
+parser.add_argument("--shards", type=int)
 parser.add_argument("--gate", choices=("exact", "marker"), default="exact")
 parser.add_argument("--only", choices=("all", "html", "pdf"), default="all")
 parser.add_argument("--targets", type=Path)
@@ -508,22 +509,22 @@ install_parent_signal_handlers()
 if args.lifecycle_self_check:
     lifecycle_self_check()
     raise SystemExit(0)
-if not 1 <= args.workers <= 2:
-    parser.error("--workers must be 1 or 2 for the polite headed-Chrome contract")
+worker_limit = 2 if args.live else 6 if args.headed else 8
+if not 1 <= args.workers <= worker_limit:
+    parser.error(
+        f"--workers must be between 1 and {worker_limit} for this browser contract"
+    )
+logical_shards = args.shards or (
+    args.workers * 8 if args.only == "pdf" and not args.live else args.workers
+)
+if logical_shards < args.workers:
+    parser.error("--shards must be at least --workers")
 if args.worker_timeout_seconds <= 0:
     parser.error("--worker-timeout-seconds must be positive")
 if args.refresh_cache and not args.live:
     parser.error("--refresh-cache requires --live")
 if args.refresh_cache and args.gate != "marker":
     parser.error("--refresh-cache requires --gate marker")
-if args.gate == "exact":
-    stale_profiles = lifecycle_gate.sweep_stale_exact_profiles()
-    if stale_profiles["removed"] or stale_profiles["errors"]:
-        print(json.dumps({
-            "event": "stale-exact-profile-sweep",
-            "removed": len(stale_profiles["removed"]),
-            "errors": [str(error)[:200] for error in stale_profiles["errors"]],
-        }), flush=True)
 corpus_targets = args.targets or lifecycle_gate.TARGETS
 corpus_seeds = rows(corpus_targets)
 excluded_404_seeds = [seed for seed in corpus_seeds if lifecycle_gate.is_proven_404_seed(seed)] \
@@ -538,7 +539,8 @@ gettable_corpus_seeds = [
     if not (args.exclude_proven_404 and lifecycle_gate.is_proven_404_seed(seed))
 ]
 name = args.tag or ("marker" if args.gate == "marker" else args.only)
-shards = [RESULTS / f"webdriver-exact-{name}-shard-{index}.jsonl" for index in range(args.workers)]
+shards = [RESULTS / f"webdriver-exact-{name}-shard-{index}.jsonl"
+          for index in range(logical_shards)]
 if args.fresh:
     for shard in shards:
         shard.unlink(missing_ok=True)
@@ -548,13 +550,13 @@ commands = {}
 drainers = []
 run_owner = f"{os.getpid()}-{time.time_ns():x}"
 attempts = []
-attempt_numbers = {index: 0 for index in range(args.workers)}
+attempt_numbers = {index: 0 for index in range(logical_shards)}
 pending = {}
 for index, shard in enumerate(shards):
     if args.gate == "marker":
         if not args.targets:
             parser.error("--targets is required with --gate marker")
-        command = [sys.executable, str(MARKER_GATE), str(args.targets.resolve()), "--shard-index", str(index), "--shard-count", str(args.workers), "--out", str(shard), "--only", args.only]
+        command = [sys.executable, str(MARKER_GATE), str(args.targets.resolve()), "--shard-index", str(index), "--shard-count", str(logical_shards), "--out", str(shard), "--only", args.only]
         if not args.fresh:
             command.append("--resume")
         if args.baseline:
@@ -568,7 +570,7 @@ for index, shard in enumerate(shards):
     else:
         command = [
             sys.executable, str(GATE), "--shard-index", str(index),
-            "--shard-count", str(args.workers), "--out", str(shard), "--only", args.only,
+            "--shard-count", str(logical_shards), "--out", str(shard), "--only", args.only,
             "--resume-terminal",
         ]
         if args.live:
@@ -627,12 +629,6 @@ def cleanup_worker_profiles(attempt):
         )
     for profile in attempt.owned_profiles:
         try:
-            lifecycle_gate.stop_owned_chrome_processes(
-                profile.resolve(), stable_empty_passes=2,
-            )
-        except Exception as exc:
-            errors.append(exc)
-        try:
             lifecycle_gate.remove_profile_dir(profile)
         except Exception as exc:
             errors.append(exc)
@@ -641,20 +637,24 @@ def cleanup_worker_profiles(attempt):
 
 def cleanup_attempt(attempt):
     residual = []
+    warnings = []
     for cleanup_pass in range(2):
-        errors, warnings = close_job_then_profiles(
+        errors, pass_warnings = close_job_then_profiles(
             attempt, lambda: cleanup_worker_profiles(attempt),
         )
-        residual = [*errors, *warnings]
-        if not residual:
+        residual = errors
+        warnings = pass_warnings
+        if not residual and not warnings:
             return
         if cleanup_pass == 0:
             time.sleep(0.1)
-    print(json.dumps({
-        "worker": attempt.index, "event": "cleanup-failed",
-        "errors": [str(error)[:200] for error in residual],
-    }), flush=True)
-    raise ExceptionGroup(f"worker {attempt.index} attempt cleanup failed", residual)
+    if warnings:
+        print(json.dumps({
+            "worker": attempt.index, "event": "profile-cleanup-warning",
+            "errors": [str(error)[:200] for error in warnings],
+        }), flush=True)
+    if residual:
+        raise ExceptionGroup(f"worker {attempt.index} process cleanup failed", residual)
 
 
 
@@ -663,11 +663,13 @@ stalled_failures = {}
 restart_counts = {}
 failure = None
 try:
-    for index in range(args.workers):
+    for index in range(logical_shards):
         last_progress[index] = len(rows(shards[index]))
         stalled_failures[index] = 0
         restart_counts[index] = 0
+    for index in range(args.workers):
         start_worker(index)
+    next_index = args.workers
     while pending and failure is None:
         for index, attempt in list(pending.items()):
             returncode = attempt.process.poll()
@@ -701,6 +703,9 @@ try:
                 else:
                     failure = (index, returncode)
                     break
+            elif next_index < logical_shards:
+                start_worker(next_index)
+                next_index += 1
         if pending and failure is None:
             time.sleep(0.05)
 except KeyboardInterrupt:
@@ -740,7 +745,8 @@ tally = {}
 for row in ordered:
     tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
 summary = {
-    "workers": args.workers, "rows": len(ordered), "seconds": round(time.time() - started, 1),
+    "workers": args.workers, "shards": logical_shards,
+    "rows": len(ordered), "seconds": round(time.time() - started, 1),
     "verdicts": tally, "workerRestarts": sum(restart_counts.values()),
 }
 if args.refresh_cache:

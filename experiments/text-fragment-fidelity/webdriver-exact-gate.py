@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from bisect import bisect_left, bisect_right
 import ctypes
 import hashlib
 import io
@@ -20,6 +21,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -42,6 +44,8 @@ RESULTS = HERE / "results"
 CACHE = RESULTS / "page-html"
 PDF_TEXT_CACHE = RESULTS / "pdf-text"
 BROWSER_TEXT_CACHE = RESULTS / "browser-rendered-text"
+SOURCE_CONTRACT_CACHE = RESULTS / "source-contract-cache"
+RANGE_PROOF_CACHE = RESULTS / "range-proof-cache"
 TARGETS = RESULTS / "targets.jsonl"
 DOCTEXT = RESULTS / "doctext.jsonl"
 MANIFEST = RESULTS / "page-html-manifest.jsonl"
@@ -49,8 +53,10 @@ DEFAULT_OUT = RESULTS / "webdriver-exact.jsonl"
 SHOTS = RESULTS / "exact-shots"
 DRIVER = Path.home() / ".cache/selenium/chromedriver/win64/151.0.7922.138/chromedriver.exe"
 PDF_RE = re.compile(r"(?i)(\.pdf(?:$|[?#])|/document\.do(?:$|[?#]))")
-PDF_PAINT_CONTRACT = "pdf-combined-pdfium-geometry-v10-source-identity"
-HTML_PAINT_CONTRACT = "html-exact-geometry-v9-source-identity"
+PDF_PAINT_CONTRACT = "pdf-natural-directive-geometry-v13-source-identity"
+HTML_PAINT_CONTRACT = "html-exact-island-geometry-v15-source-identity"
+SOURCE_CONTRACT_CACHE_VERSION = "canonical-source-contract-result-v2"
+RANGE_PROOF_CACHE_VERSION = f"{HTML_PAINT_CONTRACT}:cached-range-proof-v1"
 PDF_VIEWER_URL = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html"
 PROVEN_404_LABEL = "FCA_2026_FC_103_p20_short-exact"
 PROVEN_404_URL = (
@@ -92,83 +98,11 @@ def install_cleanup_signal_handlers():
 
 PROFILE_OWNER_ENV = "TEXT_FRAGMENT_PROFILE_OWNER"
 PROFILE_ROOT = Path(tempfile.gettempdir()) / "beaver-text-fragment-chrome"
-PROFILE_PROCESS_QUERY = r"""
-$needle = [IO.Path]::GetFullPath(
-  [Environment]::GetEnvironmentVariable('TEXT_FRAGMENT_OWNED_PROFILE')
-)
-$argument = [regex]'(?i)(?:^|\s)"?--user-data-dir=(?:"([^"]+)"|([^\s"]+))"?'
-Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" |
-  Where-Object {
-    if (-not $_.CommandLine) { return $false }
-    $matched = $argument.Match($_.CommandLine)
-    if (-not $matched.Success) { return $false }
-    $value = if ($matched.Groups[1].Success) {
-      $matched.Groups[1].Value
-    } else {
-      $matched.Groups[2].Value
-    }
-    try {
-      [String]::Equals(
-        [IO.Path]::GetFullPath($value), $needle,
-        [StringComparison]::OrdinalIgnoreCase
-      )
-    } catch { $false }
-  } |
-  ForEach-Object { $_.ProcessId }
-"""
 
 
 def owned_profile_prefix(prefix: str):
     owner = re.sub(r"[^A-Za-z0-9_.-]+", "-", os.environ.get(PROFILE_OWNER_ENV, "")).strip("-.")
     return f"{prefix}{owner}-" if owner else prefix
-
-
-def owned_chrome_process_ids(profile_marker):
-    if not hasattr(ctypes, "windll"):
-        return []
-    profile_marker = str(profile_marker).strip()
-    if not profile_marker:
-        raise ValueError("owned Chrome profile marker must not be empty")
-    environment = os.environ.copy()
-    environment["TEXT_FRAGMENT_OWNED_PROFILE"] = profile_marker
-    result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", PROFILE_PROCESS_QUERY],
-        check=False, capture_output=True, text=True, env=environment,
-        creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
-    )
-    if result.returncode:
-        raise RuntimeError(f"owned Chrome query failed: {result.stderr.strip()[:200]}")
-    return [int(line) for line in result.stdout.splitlines() if line.strip().isdigit()]
-
-
-def stop_owned_chrome_processes(profile_marker, stable_empty_passes=2):
-    """Kill only Chrome processes carrying this disposable profile marker."""
-    if not hasattr(ctypes, "windll"):
-        return
-    if stable_empty_passes < 1:
-        raise ValueError("stable_empty_passes must be positive")
-    empty_checks = 0
-    for _ in range(10):
-        process_ids = owned_chrome_process_ids(profile_marker)
-        if not process_ids:
-            empty_checks += 1
-            if empty_checks == stable_empty_passes:
-                return
-            time.sleep(0.1)
-            continue
-        empty_checks = 0
-        for process_id in process_ids:
-            subprocess.run(
-                ["taskkill", "/PID", str(process_id), "/T", "/F"], check=False,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
-            )
-        time.sleep(0.1)
-    survivors = owned_chrome_process_ids(profile_marker)
-    if survivors:
-        raise RuntimeError(f"owned Chrome processes survived cleanup: {survivors}")
-    if empty_checks + 1 < stable_empty_passes:
-        raise RuntimeError("owned Chrome cleanup did not reach a stable empty state")
 
 
 def remove_profile_dir(profile_dir: Path):
@@ -189,58 +123,14 @@ def remove_profile_dir(profile_dir: Path):
         raise RuntimeError(f"owned Chrome profile survived cleanup: {profile_dir}")
 
 
-def cleanup_owned_profile(profile_dir: Path, strict=None):
-    """Best-effort under the outer Job; strict for standalone gate runs."""
-    if strict is None:
-        strict = not os.environ.get(PROFILE_OWNER_ENV)
+def cleanup_owned_profile(profile_dir: Path):
+    """Remove an owned profile after the owning process/job has been stopped."""
     errors = []
-    try:
-        stop_owned_chrome_processes(profile_dir.resolve())
-    except Exception as exc:
-        errors.append(exc)
     try:
         remove_profile_dir(profile_dir)
     except Exception as exc:
         errors.append(exc)
-    if errors and strict:
-        raise ExceptionGroup(f"owned Chrome cleanup failed for {profile_dir}", errors)
     return errors
-
-
-def exact_profile_is_inactive(profile_dir: Path, stable_empty_passes=2):
-    """Prove an exact-owned profile has no matching Chrome before deletion."""
-    if stable_empty_passes < 1:
-        raise ValueError("stable_empty_passes must be positive")
-    root = PROFILE_ROOT.resolve()
-    profile = profile_dir.resolve()
-    if profile.parent != root or not profile.name.startswith("browser-exact-profile-"):
-        raise ValueError(f"refusing non-exact Chrome profile sweep: {profile}")
-    for check in range(stable_empty_passes):
-        if owned_chrome_process_ids(profile):
-            return False
-        if check + 1 < stable_empty_passes:
-            time.sleep(0.1)
-    return True
-
-
-def sweep_stale_exact_profiles(min_age_seconds=60, stable_empty_passes=2):
-    """Remove only old exact profiles proven process-free; errors leave them intact."""
-    removed, active, errors = [], [], []
-    if not PROFILE_ROOT.exists():
-        return {"removed": removed, "active": active, "errors": errors}
-    now = time.time()
-    for profile in PROFILE_ROOT.glob("browser-exact-profile-*"):
-        try:
-            if now - profile.stat().st_mtime < min_age_seconds:
-                continue
-            if not exact_profile_is_inactive(profile, stable_empty_passes):
-                active.append(str(profile))
-                continue
-            remove_profile_dir(profile)
-            removed.append(str(profile))
-        except Exception as exc:
-            errors.append(exc)
-    return {"removed": removed, "active": active, "errors": errors}
 
 
 @contextmanager
@@ -261,23 +151,46 @@ def owned_chrome_profile(prefix: str):
 def stop_process_tree(process):
     if process is None or process.poll() is not None:
         return
+    warnings = []
     if hasattr(ctypes, "windll"):
-        killed = subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
-        )
-        if killed.returncode and process.poll() is None:
-            raise RuntimeError(f"taskkill failed for process tree {process.pid}")
+        try:
+            killed = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
+            )
+            if killed.returncode:
+                warnings.append(RuntimeError(f"taskkill returned {killed.returncode}"))
+        except OSError as exc:
+            warnings.append(exc)
     else:
-        process.terminate()
+        try:
+            process.terminate()
+        except OSError as exc:
+            warnings.append(exc)
     try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired as exc:
-        if hasattr(ctypes, "windll"):
-            raise RuntimeError(f"process tree {process.pid} survived taskkill") from exc
-        process.kill()
-        process.wait(timeout=5)
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            process.terminate()
+        except OSError as exc:
+            warnings.append(exc)
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except OSError as exc:
+                warnings.append(exc)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired as final_exc:
+                raise RuntimeError(f"owned process {process.pid} survived cleanup") from final_exc
+    if warnings:
+        print(json.dumps({
+            "event": "owned-process-cleanup-warning", "pid": process.pid,
+            "errors": [str(error)[:200] for error in warnings],
+        }), flush=True)
 
 
 class PdfOopifTargetUnavailable(RuntimeError):
@@ -439,17 +352,32 @@ def chrome_session(options):
         yield driver, timings, pdf_oopif
     finally:
         phase = time.perf_counter()
-        try:
-            if pdf_oopif is not None:
+        warnings = []
+        if pdf_oopif is not None:
+            try:
                 pdf_oopif.close()
-            # Terminate the disposable owned process tree before ChromeDriver
-            # can exit and leave unscoped Chrome children behind.
-            if service.process is not None and service.process.poll() is None:
-                stop_process_tree(service.process)
-            elif driver is not None:
+            except Exception as exc:
+                warnings.append(exc)
+        if driver is not None:
+            try:
                 driver.quit()
-        finally:
-            timings["browserQuitMs"] = round((time.perf_counter() - phase) * 1000)
+            except Exception as exc:
+                warnings.append(exc)
+        process = service.process
+        try:
+            service.stop()
+        except Exception as exc:
+            warnings.append(exc)
+        if process is not None and process.poll() is None:
+            stop_process_tree(process)
+        if process is not None and process.poll() is None:
+            raise RuntimeError(f"owned ChromeDriver {process.pid} survived cleanup")
+        if warnings:
+            print(json.dumps({
+                "event": "browser-cleanup-warning",
+                "errors": [str(error)[:200] for error in warnings],
+            }), flush=True)
+        timings["browserQuitMs"] = round((time.perf_counter() - phase) * 1000)
 
 
 def read_jsonl(path: Path):
@@ -516,7 +444,9 @@ def add_timing(timings: dict, name: str, started: float):
 
 
 def range_probe_verdict(quote_proofs: list[dict], ranges: list[dict]):
-    expected = [(proof.get("wordStart"), proof.get("wordEnd")) for proof in quote_proofs]
+    expected = [tuple(interval) for proof in quote_proofs for interval in (
+        proof.get("wordIslands") or [(proof.get("wordStart"), proof.get("wordEnd"))]
+    )]
     if any(start is None or end is None for start, end in expected):
         return "intended-not-located"
     matched = [candidate for candidate in ranges if candidate.get("status") == "matched"]
@@ -554,6 +484,16 @@ def one_to_one_range_verdict(quote_proofs: list[dict], ranges: list[dict]):
     return "range-exact"
 
 
+def lexically_exact_edge_paint(quote_proofs: list[dict]):
+    """Accept edge punctuation only for one located, gap-free lexical island."""
+    return bool(quote_proofs) and all(
+        proof.get("status") in {"located", "paint-extraneous"}
+        and proof.get("insertedWords") == 0
+        and len(proof.get("wordIslands") or []) == 1
+        for proof in quote_proofs
+    )
+
+
 def _fold_space(value: str) -> str:
     return re.sub(r"[\s\u00a0\u202f\u2007\u2009\u200b]+", " ", value.lower()).strip()
 
@@ -571,67 +511,77 @@ def _starts(text: str, query: str, start: int = 0):
     return found
 
 
-def cached_text_range_proof(rendered: str, seed: dict):
-    words_text = _fold_words(rendered)
-    expected = []
+WORD_SENTINEL = "\0"
+
+
+def document_word_index(page: str, words: list):
+    words = [tuple(word) for word in words]
+    values = [word for word, _, _ in words]
+    joined_offsets = []
+    joined_at = 0
+    for value in values:
+        joined_offsets.append(joined_at)
+        joined_at += len(value) + 1
+    positions = {}
+    for word_index, value in enumerate(values):
+        positions.setdefault(value, []).append(word_index)
+    return {
+        "page": page,
+        "flat": [(word, 0, start, end) for word, start, end in words],
+        "values": values,
+        "joinedWords": WORD_SENTINEL.join(values),
+        "joinedOffsets": joined_offsets,
+        "positions": positions,
+        "wordStarts": [start for _, start, _ in words],
+        "wordEnds": [end for _, _, end in words],
+    }
+
+
+def rendered_document_index(rendered: str):
+    page = search_normalized(rendered)
+    return document_word_index(page, word_spans(page))
+
+
+def cached_text_range_proof(rendered: str | dict, seed: dict):
+    index = rendered if isinstance(rendered, dict) else rendered_document_index(rendered)
+    page = index["page"]
     proofs = []
     block = _fold_words(seed.get("blockText", ""))
-    for raw in seed.get("paintQuotes") or seed.get("quotes") or []:
+    identities = seed.get("_sourceIdentities") or []
+    for quote_index, raw in enumerate(seed.get("paintQuotes") or seed.get("quotes") or []):
         wanted = _fold_words(raw)
-        hits = _starts(words_text, wanted) if wanted else []
-        if len(hits) != 1:
-            proofs.append({"status": "quote-not-rendered" if not hits else "ambiguous-location", "occurrences": len(hits)})
+        islands = quote_islands(
+            [page], seed.get("blockText", ""), raw,
+            source_identity=identities[quote_index] if quote_index < len(identities) else None,
+            document_index=index,
+        ) if wanted else None
+        if not islands:
+            proofs.append({"status": "quote-not-rendered", "occurrences": 0})
             continue
-        at = hits[0]
-        start = len(words_text[:at].split())
-        end = start + len(wanted.split())
-        expected.append((start, end))
-        proofs.append({"status": "located", "occurrences": 1, "wordStart": start, "wordEnd": end,
-                       "contained": bool(block and wanted in block)})
+        word_islands = []
+        for _page, start, end in islands:
+            word_start = bisect_right(index["wordEnds"], start)
+            word_end = bisect_left(index["wordStarts"], end)
+            word_islands.append((word_start, word_end))
+        proofs.append({
+            "status": "located", "occurrences": 1,
+            "wordStart": word_islands[0][0], "wordEnd": word_islands[-1][1],
+            "wordIslands": word_islands,
+            "contained": bool(block and wanted in block),
+        })
 
     target = seed.get("target", "")
     fragment = urlparse(target).fragment
     payload = fragment.split(":~:", 1)[1] if ":~:" in fragment else fragment
     ranges = []
-    text = _fold_space(rendered)
-    word_spans = list(re.finditer(r"[^\W_]+", text, re.UNICODE))
     for encoded in (part[5:] for part in payload.split("&") if part.startswith("text=")):
-        try:
-            pieces = [_fold_space(unquote(part)) for part in encoded.split(",")]
-        except Exception:
-            ranges.append({"raw": encoded, "status": "decode-error"})
-            continue
-        prefix = pieces.pop(0)[:-1] if pieces and pieces[0].endswith("-") else ""
-        suffix = pieces.pop()[1:] if pieces and pieces[-1].startswith("-") else ""
-        start_text = pieces[0] if pieces else ""
-        end_text = pieces[1] if len(pieces) > 1 else ""
-        starts = []
-        if prefix:
-            for prefix_at in _starts(text, prefix):
-                at = prefix_at + len(prefix)
-                while at < len(text) and text[at] == " ":
-                    at += 1
-                if text.startswith(start_text, at):
-                    starts.append(at)
-        else:
-            starts = _starts(text, start_text)
-        matches = []
-        for start_at in starts:
-            start_end = start_at + len(start_text)
-            ends = [start_end] if not end_text else [at + len(end_text) for at in _starts(text, end_text, start_end)]
-            for end_at in ends:
-                suffix_at = end_at
-                while suffix_at < len(text) and text[suffix_at] == " ":
-                    suffix_at += 1
-                if not suffix or text.startswith(suffix, suffix_at):
-                    matches.append((start_at, end_at))
-                    break
+        matches = directive_matches([page], encoded)
         if not matches:
             ranges.append({"raw": encoded, "status": "unmatched"})
             continue
-        start_at, end_at = matches[0]
-        word_start = next((i for i, match in enumerate(word_spans) if match.end() > start_at), len(word_spans))
-        word_end = next((i for i, match in enumerate(word_spans) if match.start() >= end_at), len(word_spans))
+        _, start_at, end_at = matches[0]
+        word_start = bisect_right(index["wordEnds"], start_at)
+        word_end = bisect_left(index["wordStarts"], end_at)
         ranges.append({"raw": encoded, "status": "matched", "candidateCount": len(matches),
                        "wordStart": word_start, "wordEnd": word_end})
     return proofs, ranges
@@ -681,7 +631,16 @@ class CacheServer:
             def log_message(self, _format, *_args):
                 return
 
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        class QuietThreadingHTTPServer(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def handle_error(self, _request, _client_address):
+                error = sys.exception()
+                if isinstance(error, (ConnectionAbortedError, ConnectionResetError)):
+                    return
+                super().handle_error(_request, _client_address)
+
+        self.httpd = QuietThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
 
     def __enter__(self):
@@ -691,6 +650,7 @@ class CacheServer:
     def __exit__(self, *_args):
         self.httpd.shutdown()
         self.thread.join()
+        self.httpd.server_close()
 
     @property
     def origin(self):
@@ -720,24 +680,45 @@ if (!index) {
   const segments = [];
   let rawLength = 0;
   let previousBlock = null;
+  let previousNode = null;
+  let previousValue = "";
   const blockOf = (n) => n.parentElement?.closest("address,article,aside,blockquote,dd,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,tbody,td,tfoot,th,thead,tr,ul") ?? document.body;
+  const characterRect = (n, start, end) => {
+    const range = document.createRange();
+    range.setStart(n, start);
+    range.setEnd(n, end);
+    return [...range.getClientRects()].find((rect) => rect.width && rect.height) ?? null;
+  };
+  const visuallySeparated = (leftNode, leftValue, rightNode, rightValue) => {
+    if (!leftNode || leftNode.parentElement === rightNode.parentElement ||
+        !/[\p{L}\p{N}]$/u.test(leftValue) || !/^[\p{L}\p{N}]/u.test(rightValue)) return false;
+    const left = characterRect(leftNode, leftValue.length - 1, leftValue.length);
+    const right = characterRect(rightNode, 0, 1);
+    if (!left || !right) return false;
+    const verticalOverlap = Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top);
+    const horizontalGap = Math.max(right.left - left.right, left.left - right.right);
+    return verticalOverlap < Math.min(left.height, right.height) * 0.5 || horizontalGap > 0.5;
+  };
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let node;
   while ((node = walker.nextNode())) {
     const parent = node.parentElement;
     if (!parent || parent.closest("script,style,noscript,template")) continue;
     const currentBlock = blockOf(node);
-    if (previousBlock && currentBlock !== previousBlock) {
+    const value = node.textContent ?? "";
+    if (previousBlock && (currentBlock !== previousBlock ||
+        visuallySeparated(previousNode, previousValue, node, value))) {
       rawChunks.push(" ");
       rawLength += 1;
     }
-    const value = node.textContent ?? "";
     if (value) {
       segments.push({start: rawLength, end: rawLength + value.length, n: node});
       rawChunks.push(value);
       rawLength += value.length;
     }
     previousBlock = currentBlock;
+    previousNode = node;
+    previousValue = value;
   }
   const raw = rawChunks.join("");
   const pointAt = (rawOffset) => {
@@ -776,6 +757,8 @@ const {text, wordSpans} = index;
 const wanted = norm(quote);
 const wantedBlock = norm(block);
 if (!wanted) return { status: "empty-quote" };
+const wantedValues = ((quote ?? "").match(/[\p{L}\p{N}]+/gu) ?? []).map(fold);
+const sourceValues = ((block ?? "").match(/[\p{L}\p{N}]+/gu) ?? []).map(fold);
 const occurrencesOf = (query) => {
   const found = [];
   for (let at = text.indexOf(query); at >= 0; at = text.indexOf(query, at + 1)) {
@@ -785,8 +768,7 @@ const occurrencesOf = (query) => {
   }
   return found;
 };
-const occurrences = occurrencesOf(wanted);
-if (!occurrences.length) return { status: "quote-not-rendered", wanted };
+const exactOccurrences = occurrencesOf(wanted);
 const blockStarts = wantedBlock ? occurrencesOf(wantedBlock) : [];
 const wordAt = (offset) => {
   let low = 0, high = wordSpans.length;
@@ -814,55 +796,153 @@ const alignEdge = (wanted, available) => {
   }
   return {exact, matched, inserted};
 };
-const scored = occurrences.map((start) => {
+const candidates = exactOccurrences.map((start) => {
+  const first = wordAt(start);
+  return Array.from({length: wantedValues.length}, (_, offset) => first + offset);
+});
+if (!candidates.length && wantedValues.length) {
+  const values = wordSpans.map((item) => item.value);
+  for (let first = 0; first < values.length; first += 1) {
+    if (values[first] !== wantedValues[0]) continue;
+    const indices = [first];
+    let cursor = first + 1;
+    for (const value of wantedValues.slice(1)) {
+      const found = values.indexOf(value, cursor);
+      if (found < 0 || found >= first + wantedValues.length + 4096) break;
+      indices.push(found);
+      cursor = found + 1;
+    }
+    if (indices.length !== wantedValues.length) continue;
+    cursor = indices.at(-1);
+    const tight = [cursor];
+    for (const value of wantedValues.slice(0, -1).reverse()) {
+      let found = cursor - 1;
+      while (found >= first && values[found] !== value) found -= 1;
+      if (found < first) break;
+      tight.push(found);
+      cursor = found;
+    }
+    if (tight.length === wantedValues.length) candidates.push(tight.reverse());
+  }
+}
+if (!candidates.length) {
+  // The fast index may merge visually separated text-node edges. Map source
+  // words directly to DOM points, then require one exact, visible Range.
+  const nodeWords = [];
+  const nodeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let textNode;
+  while ((textNode = nodeWalker.nextNode())) {
+    const parent = textNode.parentElement;
+    if (!parent || parent.closest("script,style,noscript,template")) continue;
+    for (const match of (textNode.textContent ?? "").matchAll(/[\p{L}\p{N}]+/gu)) {
+      nodeWords.push({value:fold(match[0]), node:textNode,
+        start:match.index, end:match.index + match[0].length});
+    }
+  }
+  const mapped = [];
+  for (let at = 0; at + wantedValues.length <= nodeWords.length; at += 1) {
+    if (!wantedValues.every((value, offset) => nodeWords[at + offset].value === value)) continue;
+    const first = nodeWords[at];
+    const last = nodeWords[at + wantedValues.length - 1];
+    const range = document.createRange();
+    range.setStart(first.node, first.start);
+    range.setEnd(last.node, last.end);
+    if (norm(range.toString()) !== wanted) continue;
+    const rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    if (rects.length) mapped.push({at, rects});
+  }
+  if (mapped.length === 1) {
+    const {at:firstWord, rects} = mapped[0];
+    const lastWord = firstWord + wantedValues.length - 1;
+    return {status:"located", occurrences:1, contained:true, contextExact:0,
+      contextMatched:0, contextInserted:0, insertedWords:0, anchorDistance:null,
+      normalizedOffset:null, normalizedEnd:null, wordStart:firstWord, wordEnd:lastWord + 1,
+      wordIslands:[[firstWord, lastWord]],
+      documentTop:rects[0]?.top + window.scrollY,
+      documentRects:rects.map((rect) => ({x:rect.x+window.scrollX,y:rect.y+window.scrollY,width:rect.width,height:rect.height})),
+      scrollY:window.scrollY, innerHeight:window.innerHeight, locator:"exact-visible-dom-range"};
+  }
+  return { status: "quote-not-rendered", wanted };
+}
+const distinctCandidates = [...new Map(candidates.map((indices) => [indices.join(","), indices])).values()];
+const sourceStarts = [];
+for (let at = 0; at + wantedValues.length <= sourceValues.length; at += 1) {
+  if (wantedValues.every((value, offset) => sourceValues[at + offset] === value)) sourceStarts.push(at);
+}
+let wantedBefore = (sourceIdentity.before ?? []).slice().reverse();
+let wantedAfter = sourceIdentity.after ?? [];
+if (sourceStarts.length === 1) {
+  const at = sourceStarts[0];
+  wantedBefore = sourceValues.slice(Math.max(0, at - 96), at).reverse();
+  wantedAfter = sourceValues.slice(at + wantedValues.length, at + wantedValues.length + 96);
+}
+const scored = distinctCandidates.map((indices) => {
+  const firstWord = indices[0];
+  const lastWord = indices.at(-1);
+  const start = wordSpans[firstWord].start;
+  const end = wordSpans[lastWord].end;
+  const islands = [];
+  let islandFirst = firstWord;
+  let islandLast = firstWord;
+  for (const index of indices.slice(1)) {
+    if (index === islandLast + 1) {
+      islandLast = index;
+    } else {
+      islands.push([islandFirst, islandLast]);
+      islandFirst = islandLast = index;
+    }
+  }
+  islands.push([islandFirst, islandLast]);
   let geometry = null;
   if (measure) {
-    const firstWord = wordAt(start);
-    const lastWord = wordAt(start + wanted.length - 1);
-    const first = wordSpans[firstWord]?.first;
-    const last = wordSpans[lastWord]?.last;
-    if (!first || !last) return null;
-    const range = document.createRange();
-    range.setStart(first.n, Math.min(first.o, first.n.length));
-    range.setEnd(last.n, Math.min(last.n.length, last.o));
-    const rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    const rects = islands.flatMap(([firstIndex, lastIndex]) => {
+      const first = wordSpans[firstIndex]?.first;
+      const last = wordSpans[lastIndex]?.last;
+      if (!first || !last) return [];
+      const range = document.createRange();
+      range.setStart(first.n, Math.min(first.o, first.n.length));
+      range.setEnd(last.n, Math.min(last.n.length, last.o));
+      return [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    });
     if (!rects.length) return null;
     geometry = {
       top: rects[0].top + window.scrollY,
       rects: rects.map((rect) => ({x:rect.x+window.scrollX,y:rect.y+window.scrollY,width:rect.width,height:rect.height})),
     };
   }
-  const contained = blockStarts.some((b) => b <= start && start + wanted.length <= b + wantedBlock.length);
+  const contained = blockStarts.some((b) => b <= start && end <= b + wantedBlock.length);
   const anchorDistance = anchorOffset < 0 ? null : Math.abs(start - anchorOffset);
-  const firstWord = wordAt(start);
-  const wordCount = wanted.split(/\s+/u).filter(Boolean).length;
   const before = wordSpans.slice(Math.max(0, firstWord - 96), firstWord).map((item) => item.value).reverse();
-  const after = wordSpans.slice(firstWord + wordCount, firstWord + wordCount + 96).map((item) => item.value);
-  const wantedBefore = (sourceIdentity.before ?? []).slice().reverse();
-  const wantedAfter = sourceIdentity.after ?? [];
+  const after = wordSpans.slice(lastWord + 1, lastWord + 97).map((item) => item.value);
   const left = alignEdge(wantedBefore, before);
   const right = alignEdge(wantedAfter, after);
-  return { start, contained, contextExact:left.exact + right.exact,
+  return { start, end, firstWord, lastWord, islands,
+    inserted:lastWord - firstWord + 1 - indices.length,
+    contained, contextExact:left.exact + right.exact,
     contextMatched:left.matched + right.matched, contextInserted:left.inserted + right.inserted,
     anchorDistance, geometry };
 }).filter(Boolean);
 scored.sort((a, b) => b.contextExact - a.contextExact || b.contextMatched - a.contextMatched ||
-  a.contextInserted - b.contextInserted || Number(b.contained) - Number(a.contained) ||
+  a.contextInserted - b.contextInserted || a.inserted - b.inserted ||
+  Number(b.contained) - Number(a.contained) ||
   (a.anchorDistance ?? 1e15) - (b.anchorDistance ?? 1e15));
-if (!scored.length) return { status: "quote-not-laid-out", occurrences: occurrences.length };
+if (!scored.length) return { status: "quote-not-laid-out", occurrences: distinctCandidates.length };
 const best = scored[0];
 const second = scored[1];
 const tied = second && best.contextExact === second.contextExact &&
   best.contextMatched === second.contextMatched && best.contextInserted === second.contextInserted &&
+  best.inserted === second.inserted &&
   best.contained === second.contained &&
   best.anchorDistance === second.anchorDistance;
-if (tied) return { status: "ambiguous-location", occurrences: occurrences.length,
+if (tied) return { status: "ambiguous-location", occurrences: distinctCandidates.length,
   contextExact:best.contextExact, contextMatched:best.contextMatched };
-const wordStart = wordAt(best.start);
-const wordCount = wanted.split(/\s+/u).filter(Boolean).length;
-return { status: "located", occurrences: occurrences.length, contained: best.contained,
+return { status: "located", occurrences: distinctCandidates.length, contained: best.contained,
   contextExact:best.contextExact, contextMatched:best.contextMatched,
-  anchorDistance: best.anchorDistance, normalizedOffset: best.start, normalizedEnd: best.start + wanted.length, wordStart, wordEnd: wordStart + wordCount, documentTop: best.geometry?.top, documentRects: best.geometry?.rects ?? [], scrollY: window.scrollY, innerHeight: window.innerHeight };
+  contextInserted:best.contextInserted, insertedWords:best.inserted,
+  anchorDistance: best.anchorDistance, normalizedOffset: best.start, normalizedEnd: best.end,
+  wordStart:best.firstWord, wordEnd:best.lastWord + 1, wordIslands:best.islands,
+  documentTop: best.geometry?.top, documentRects: best.geometry?.rects ?? [],
+  scrollY: window.scrollY, innerHeight: window.innerHeight };
 """
 
 MINE_DIRECTIVE_SCRIPT = r"""
@@ -1433,12 +1513,23 @@ def html_navigation_paint_proof(driver, navigation_target: str, quotes: list[str
         if status != "exact-match":
             failures.append(status)
             proof["status"] = status
+
+    geometry_tolerance = None
+    if failures and set(failures) == {"paint-extraneous"}:
+        if lexically_exact_edge_paint(quote_proofs):
+            failures.clear()
+            geometry_tolerance = {
+                "status": "accepted-edge-punctuation-geometry",
+                "rangeVerdict": "located-gap-free-lexical-island",
+                "quotes": quote_proofs,
+            }
     return {
         "verdict": failures[0] if failures else "exact-match",
         "initialViewport": initial_viewport,
         "quotes": quote_proofs,
         "findRanges": [],
         "rangeVerdict": "diagnostic-skipped-window-find",
+        "geometryTolerance": geometry_tolerance,
     }, image
 
 
@@ -1545,14 +1636,6 @@ def search_normalized(text: str):
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def pdf_case_replay_safe(text: str):
-    """Reject full-case expansions that Python cannot order exactly like Chromium ICU."""
-    simple = "".join(char.lower() for char in text)
-    return text.lower() == simple and all(
-        len(char.lower()) == 1 and char.lower() == char.casefold() for char in text
-    )
-
-
 def search_normalized_with_map(text: str):
     chars, raw_map = [], []
     spaced = True
@@ -1632,6 +1715,7 @@ def html_isolation_plan(seed: dict):
 SOURCE_WORD_RE = re.compile(r"[^\W_]+(?:['\u2019][^\W_]+)*", re.UNICODE)
 SOURCE_LINE_LABEL = re.compile(
     r"^(?:(?P<pin>\[\s*\d{1,4}\s*\]|\d{1,4}\])\s*|"
+    r"(?P<numbered>\d{1,4}\s+(?:[\u2013\u2014]|\u00e2\u20ac[\u201c\u201d])\s+)|"
     r"(?P<provision>\d{1,4}(?:\.\d{1,4})*\s*"
     r"(?:\(\s*[A-Za-z0-9]{1,5}\s*\)\s*)+"
     r"(?:[.;:]\s*(?:\(\s*[A-Za-z0-9]{1,5}\s*\)\s*)*)?)|"
@@ -1668,21 +1752,155 @@ def source_word_fold(value: str):
 
 def source_words(value: str):
     words = []
-    cursor = utf16_offset = 0
+    astral = [match.start() for match in re.finditer(r"[\U00010000-\U0010ffff]", value)]
     for match in SOURCE_WORD_RE.finditer(value):
-        utf16_offset += len(value[cursor:match.start()].encode("utf-16-le")) // 2
-        utf16_start = utf16_offset
-        utf16_offset += len(match.group().encode("utf-16-le")) // 2
+        utf16_start = match.start() + bisect_left(astral, match.start())
+        utf16_end = match.end() + bisect_left(astral, match.end())
         words.append({
             "word": source_word_fold(match.group()),
             "raw": match.group(),
             "start": match.start(),
             "end": match.end(),
             "utf16Start": utf16_start,
-            "utf16End": utf16_offset,
+            "utf16End": utf16_end,
         })
-        cursor = match.end()
     return words
+
+
+def source_token_index(words: list[dict], postings: dict | None = None):
+    values = [item["word"] for item in words]
+    if postings is None:
+        postings = {}
+        for index, value in enumerate(values):
+            postings.setdefault(value, []).append(index)
+    return {"words": words, "values": values, "postings": postings}
+
+
+def indexed_sequence_starts(index: dict, wanted: list[str]):
+    values = index["values"]
+    if not wanted:
+        return list(range(len(values) + 1))
+    anchor = min(range(len(wanted)),
+                 key=lambda offset: len(index["postings"].get(wanted[offset], ())))
+    starts = []
+    for occurrence in index["postings"].get(wanted[anchor], ()):
+        start = occurrence - anchor
+        if 0 <= start and start + len(wanted) <= len(values) and \
+                values[start:start + len(wanted)] == wanted:
+            starts.append(start)
+    return starts
+
+
+SOURCE_CONTRACT_INPUT_FIELDS = (
+    "target", "paintQuotes", "sourceWordIntervals", "quotes",
+    "paintedWords", "sourceSafeComplete", "dataset",
+)
+
+
+def source_contract_cache_identity(seed: dict, document_text: str, is_pdf: bool):
+    source_sha = hashlib.sha256(document_text.encode("utf-8")).hexdigest()
+    inputs = {field: seed.get(field) for field in SOURCE_CONTRACT_INPUT_FIELDS}
+    fingerprint = hashlib.sha256(json.dumps({
+        "contract": SOURCE_CONTRACT_CACHE_VERSION,
+        "sourceSha256": source_sha,
+        "isPdf": is_pdf,
+        "inputs": inputs,
+    }, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return {
+        "contract": SOURCE_CONTRACT_CACHE_VERSION,
+        "sourceSha256": source_sha, "fingerprint": fingerprint,
+    }
+
+
+def read_source_contract_cache(identity: dict,
+                               cache_dir: Path = SOURCE_CONTRACT_CACHE):
+    cache_file = cache_dir / f"{identity['fingerprint']}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        cached = json.loads(cache_file.read_text(encoding="utf-8"))
+        if cached.get("identity") == identity and isinstance(cached.get("result"), dict):
+            return cached["result"]
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def write_source_contract_cache(identity: dict, result: dict,
+                                cache_dir: Path = SOURCE_CONTRACT_CACHE):
+    cache_dir.mkdir(exist_ok=True)
+    cache_file = cache_dir / f"{identity['fingerprint']}.json"
+    temporary = cache_file.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps({
+        "identity": identity, "result": result,
+    }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary.replace(cache_file)
+
+
+def range_proof_cache_identity(seed: dict, rendered_sha256: str):
+    inputs = {
+        field: seed.get(field) for field in
+        ("target", "paintQuotes", "quotes", "blockText", "_sourceIdentities")
+    }
+    fingerprint = hashlib.sha256(json.dumps({
+        "contract": RANGE_PROOF_CACHE_VERSION,
+        "renderedSha256": rendered_sha256,
+        "inputs": inputs,
+    }, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return {
+        "contract": RANGE_PROOF_CACHE_VERSION,
+        "renderedSha256": rendered_sha256, "fingerprint": fingerprint,
+    }
+
+
+def read_range_proof_cache(identity: dict, cache_dir: Path = RANGE_PROOF_CACHE):
+    cache_file = cache_dir / f"{identity['fingerprint']}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        cached = json.loads(cache_file.read_text(encoding="utf-8"))
+        result = cached.get("result")
+        if cached.get("identity") == identity and isinstance(result, list) and len(result) == 2:
+            return result
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def write_range_proof_cache(identity: dict, proofs: list, ranges: list,
+                            cache_dir: Path = RANGE_PROOF_CACHE):
+    cache_dir.mkdir(exist_ok=True)
+    cache_file = cache_dir / f"{identity['fingerprint']}.json"
+    temporary = cache_file.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps({
+        "identity": identity, "result": [proofs, ranges],
+    }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary.replace(cache_file)
+
+
+def load_result_cache_manifest(cache_dir: Path, contract: str):
+    """Load one compact warm-run snapshot; individual files remain crash checkpoints."""
+    manifest = cache_dir / "manifest.json"
+    if not manifest.exists():
+        return {}
+    try:
+        cached = json.loads(manifest.read_text(encoding="utf-8"))
+        entries = cached.get("entries")
+        if cached.get("contract") == contract and isinstance(entries, dict):
+            return entries
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
+
+
+def write_result_cache_manifest(cache_dir: Path, contract: str, entries: dict):
+    cache_dir.mkdir(exist_ok=True)
+    manifest = cache_dir / "manifest.json"
+    temporary = manifest.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps({
+        "contract": contract, "entries": entries,
+    }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary.replace(manifest)
 
 
 def source_line_label_reason(document_text: str, words: list[dict], index: int):
@@ -1703,7 +1921,7 @@ def source_line_label_reason(document_text: str, words: list[dict], index: int):
     label = SOURCE_LINE_LABEL.match(content)
     if not label or label.end() >= len(content.rstrip()) or token["end"] > content_start + label.end():
         return None
-    return "line-start-furniture" if label.group("pin") else \
+    return "line-start-furniture" if label.group("pin") or label.group("numbered") else \
         "decimal-or-subsection-locator"
 
 
@@ -1712,7 +1930,7 @@ def source_quote_label_reason(raw_quote: str, words: list[dict], index: int):
     label = SOURCE_LINE_LABEL.match(raw_quote)
     if not label or label.end() >= len(raw_quote.rstrip()) or words[index]["end"] > label.end():
         return None
-    return "line-start-furniture" if label.group("pin") else \
+    return "line-start-furniture" if label.group("pin") or label.group("numbered") else \
         "decimal-or-subsection-locator"
 
 
@@ -1746,7 +1964,8 @@ def source_omission_reason(document_text: str, document_words: list[dict],
 
 
 def canonical_source_contract(seed: dict, document_text: str | None,
-                              is_pdf: bool, document_words: list[dict] | None = None):
+                              is_pdf: bool, document_words: list[dict] | None = None,
+                              document_token_index: dict | None = None):
     """Prove source coverage from full A2AJ text; paintQuotes are spelling only."""
     directives = raw_directives(seed.get("target") or "")
     paint_quotes = seed.get("paintQuotes")
@@ -1761,7 +1980,8 @@ def canonical_source_contract(seed: dict, document_text: str | None,
     if document_text is None:
         return {"status": "source-document-missing", "accepted": False}
     document_words = document_words if document_words is not None else source_words(document_text)
-    document_values = [item["word"] for item in document_words]
+    document_token_index = document_token_index or source_token_index(document_words)
+    document_values = document_token_index["values"]
     quotes = seed.get("quotes") or []
     assigned: dict[int, list[dict]] = {}
     mapped = []
@@ -1818,7 +2038,7 @@ def canonical_source_contract(seed: dict, document_text: str | None,
         pieces = assigned.get(quote_index) or []
         used_quote_indices.add(quote_index)
         candidates = []
-        for start in sequence_starts(document_values, list(quote_values)):
+        for start in indexed_sequence_starts(document_token_index, list(quote_values)):
             end = start + len(quote_values) - 1
             if all(start <= piece["firstWord"] <= piece["lastWord"] <= end and
                    document_values[piece["firstWord"]:piece["lastWord"] + 1] ==
@@ -1836,7 +2056,7 @@ def canonical_source_contract(seed: dict, document_text: str | None,
             signature_values = list(quote_values[:citation_index])
             signature = " ".join(signature_values)
             if SIGNATURE_METADATA.match(signature) and \
-                    len(sequence_starts(document_values, signature_values)) >= 2:
+                    len(indexed_sequence_starts(document_token_index, signature_values)) >= 2:
                 formal_citation = " ".join(
                     quote_values[citation_index + 1:citation_index + 4]
                 )
@@ -1956,8 +2176,65 @@ def directive_match(pages: list[str], raw: str):
 
 
 def sequence_starts(words: list[str], wanted: list[str]):
-    return [at for at in range(len(words) - len(wanted) + 1)
-            if words[at:at + len(wanted)] == wanted]
+    if not wanted:
+        return list(range(len(words) + 1))
+    prefix = [0] * len(wanted)
+    matched = 0
+    for index in range(1, len(wanted)):
+        while matched and wanted[index] != wanted[matched]:
+            matched = prefix[matched - 1]
+        if wanted[index] == wanted[matched]:
+            matched += 1
+        prefix[index] = matched
+    starts = []
+    matched = 0
+    for index, word in enumerate(words):
+        while matched and word != wanted[matched]:
+            matched = prefix[matched - 1]
+        if word == wanted[matched]:
+            matched += 1
+            if matched == len(wanted):
+                starts.append(index - len(wanted) + 1)
+                matched = prefix[matched - 1]
+    return starts
+
+
+def pages_word_index(pages: list[str]):
+    flat = []
+    for page_index, page_text in enumerate(pages):
+        flat.extend((word, page_index, start, end)
+                    for word, start, end in word_spans(page_text))
+    values = [word for word, _, _, _ in flat]
+    joined_offsets = []
+    joined_at = 0
+    for value in values:
+        joined_offsets.append(joined_at)
+        joined_at += len(value) + 1
+    positions = {}
+    for word_index, value in enumerate(values):
+        positions.setdefault(value, []).append(word_index)
+    return {
+        "flat": flat, "values": values,
+        "joinedWords": WORD_SENTINEL.join(values),
+        "joinedOffsets": joined_offsets,
+        "positions": positions,
+    }
+
+
+def exact_word_sequence_starts(index: dict, wanted: list[str]):
+    if not wanted:
+        return []
+    joined = index["joinedWords"]
+    needle = WORD_SENTINEL.join(wanted)
+    starts = []
+    at = joined.find(needle)
+    while at >= 0:
+        end = at + len(needle)
+        if (at == 0 or joined[at - 1] == WORD_SENTINEL) and \
+                (end == len(joined) or joined[end] == WORD_SENTINEL):
+            starts.append(bisect_left(index["joinedOffsets"], at))
+        at = joined.find(needle, at + 1)
+    return starts
 
 
 def subsequence_count(wanted: list[str], available: list[str]):
@@ -1988,6 +2265,39 @@ def edge_alignment(wanted: list[str], available: list[str]):
     return exact, matched, inserted
 
 
+def indexed_edge_alignment(wanted: list[str], index: dict, cursor: int, limit: int,
+                           *, reverse: bool = False):
+    values = index["values"]
+    ordered = list(reversed(wanted)) if reverse else wanted
+    step = -1 if reverse else 1
+    exact = 0
+    exact_at = cursor
+    for word in ordered:
+        in_range = exact_at >= limit if reverse else exact_at < limit
+        if not in_range or not (0 <= exact_at < len(values)) or values[exact_at] != word:
+            break
+        exact += 1
+        exact_at += step
+    matched = inserted = 0
+    for word in ordered:
+        occurrences = index["positions"].get(word, [])
+        if reverse:
+            occurrence_at = bisect_right(occurrences, cursor) - 1
+            if occurrence_at < 0 or occurrences[occurrence_at] < limit:
+                continue
+            found = occurrences[occurrence_at]
+            inserted += cursor - found
+        else:
+            occurrence_at = bisect_left(occurrences, cursor)
+            if occurrence_at >= len(occurrences) or occurrences[occurrence_at] >= limit:
+                continue
+            found = occurrences[occurrence_at]
+            inserted += found - cursor
+        matched += 1
+        cursor = found + step
+    return exact, matched, inserted
+
+
 def word_spans(text: str):
     return [(match.group(), match.start(), match.end())
             for match in re.finditer(r"[^\W\d_]+|\d+", text, flags=re.UNICODE)]
@@ -1995,61 +2305,72 @@ def word_spans(text: str):
 
 def quote_islands(pages: list[str], block_text: str, quote_text: str,
                   preferred_page: int | None = None,
-                  source_identity: dict | None = None):
+                  source_identity: dict | None = None,
+                  document_index: dict | None = None):
     """Locate every quote word, then split only where live PDF order inserts words."""
     quote_words = [word for word, _, _ in word_spans(normalized_with_raw_map(quote_text)[0])]
     block_words = [word for word, _, _ in word_spans(normalized_with_raw_map(block_text)[0])]
     quote_at = sequence_starts(block_words, quote_words)
     if not quote_words:
         return None
-    if source_identity:
+    if len(quote_at) == 1:
+        source_at = quote_at[0]
+        before = block_words[max(0, source_at - 96):source_at]
+        after_at = source_at + len(quote_words)
+        after = block_words[after_at:after_at + 96]
+    elif source_identity:
         before = list(source_identity.get("before") or [])
         after = list(source_identity.get("after") or [])
-    elif len(quote_at) == 1:
-        before = block_words[max(0, quote_at[0] - 32):quote_at[0]]
-        after_at = quote_at[0] + len(quote_words)
-        after = block_words[after_at:after_at + 32]
     else:
         return None
-    flat = []
-    for page_index, page_text in enumerate(pages):
-        flat.extend((word, page_index, start, end)
-                    for word, start, end in word_spans(page_text))
-    values = [word for word, _, _, _ in flat]
+    document_index = document_index or pages_word_index(pages)
+    flat = document_index["flat"]
+    values = document_index["values"]
+    exact_starts = exact_word_sequence_starts(document_index, quote_words)
     candidates = []
-    for first in sequence_starts(values, quote_words[:1]):
-        indices = [first]
-        cursor = first + 1
-        for wanted in quote_words[1:]:
-            try:
-                found = values.index(wanted, cursor, min(len(values), first + len(quote_words) + 4096))
-            except ValueError:
-                break
-            indices.append(found)
-            cursor = found + 1
-        if len(indices) != len(quote_words):
-            continue
-        cursor = indices[-1]
-        reversed_indices = [cursor]
-        for wanted in reversed(quote_words[:-1]):
-            found = next((index for index in range(cursor - 1, first - 1, -1)
-                          if values[index] == wanted), None)
-            if found is None:
-                break
-            reversed_indices.append(found)
-            cursor = found
-        if len(reversed_indices) != len(quote_words):
-            continue
-        indices = list(reversed(reversed_indices))
-        page_before = values[max(0, first - 4096):first]
-        page_after = values[indices[-1] + 1:indices[-1] + 4097]
+    starts = exact_starts or document_index["positions"].get(quote_words[0], [])
+    for first in starts:
+        if exact_starts:
+            indices = list(range(first, first + len(quote_words)))
+        else:
+            indices = [first]
+            cursor = first + 1
+            for wanted in quote_words[1:]:
+                occurrences = document_index["positions"].get(wanted, [])
+                occurrence_at = bisect_left(occurrences, cursor)
+                limit = min(len(values), first + len(quote_words) + 4096)
+                if occurrence_at >= len(occurrences) or occurrences[occurrence_at] >= limit:
+                    break
+                found = occurrences[occurrence_at]
+                indices.append(found)
+                cursor = found + 1
+            if len(indices) != len(quote_words):
+                continue
+            cursor = indices[-1]
+            reversed_indices = [cursor]
+            for wanted in reversed(quote_words[:-1]):
+                occurrences = document_index["positions"].get(wanted, [])
+                occurrence_at = bisect_left(occurrences, cursor) - 1
+                if occurrence_at < 0 or occurrences[occurrence_at] < first:
+                    break
+                found = occurrences[occurrence_at]
+                reversed_indices.append(found)
+                cursor = found
+            if len(reversed_indices) != len(quote_words):
+                continue
+            indices = list(reversed(reversed_indices))
         inserted = indices[-1] - first + 1 - len(indices)
         page_numbers = [flat[index][1] for index in indices]
         page_span = max(page_numbers) - min(page_numbers)
         if preferred_page is not None and preferred_page not in page_numbers:
             continue
-        left = edge_alignment(list(reversed(before)), list(reversed(page_before)))
-        right = edge_alignment(after, page_after)
+        left = indexed_edge_alignment(
+            before, document_index, first - 1, max(0, first - 4096), reverse=True,
+        )
+        right = indexed_edge_alignment(
+            after, document_index, indices[-1] + 1,
+            min(len(values), indices[-1] + 4097),
+        )
         context_exact = left[0] + right[0]
         context_matched = left[1] + right[1]
         context_inserted = left[2] + right[2]
@@ -2059,6 +2380,7 @@ def quote_islands(pages: list[str], block_text: str, quote_text: str,
                            inserted, page_span, indices))
     if not candidates:
         return None
+    candidates = list({tuple(candidate[-1]): candidate for candidate in candidates}.values())
     candidates.sort(key=lambda item: item[:5])
     if len(candidates) > 1 and candidates[0][:5] == candidates[1][:5]:
         return None
@@ -2128,18 +2450,9 @@ def pdfium_pages(file: Path):
 
 
 def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
-    safety_key = (file, "case-replay-safe")
-    raw_pages = None
-    if safety_key not in text_cache:
-        raw_pages = pdfium_pages(file)
-        text_cache[safety_key] = [index + 1 for index, text in enumerate(raw_pages)
-                                  if not pdf_case_replay_safe(text)]
-    unsafe_pages = text_cache[safety_key]
-    if unsafe_pages:
-        return {"status": "pdf-icu-replay-unsupported", "pages": unsafe_pages}
     pages = text_cache.get(file)
     if pages is None:
-        pages = [search_normalized(text) for text in (raw_pages or pdfium_pages(file))]
+        pages = [search_normalized(text) for text in pdfium_pages(file)]
         text_cache[file] = pages
     directives = raw_directives(seed["target"])
     selected = []
@@ -2174,23 +2487,28 @@ def pdf_proof(file: Path, seed: dict, text_cache: dict[Path, list[str]]):
         intended.extend(islands)
     if len(selected) != len(directives):
         return {"status": "pdf-directive-not-located", "selected": selected,
-                "directiveCount": len(directives), "intended": intended}
+                "directiveCount": len(directives), "intended": intended,
+                "intendedGroups": intended_groups}
     extraneous = [item for item, wanted_group in zip(selected, intended_groups)
                   if not any(span_stays_within_words(
                       item["span"], wanted, pages[wanted[0]],
                   ) for wanted in wanted_group)]
     if extraneous:
-        return {"status": "pdf-directive-extraneous", "intended": intended, "selected": selected, "extraneous": extraneous}
+        return {"status": "pdf-directive-extraneous", "intended": intended,
+                "intendedGroups": intended_groups, "selected": selected,
+                "extraneous": extraneous}
     uncovered = [wanted for item, wanted_group in zip(selected, intended_groups)
                  for wanted in wanted_group
                  if not spans_cover(wanted, [item], pages[wanted[0]])]
     if uncovered:
         return {"status": "pdf-incomplete-coverage", "intended": intended,
-                "selected": selected, "uncovered": uncovered}
+                "intendedGroups": intended_groups, "selected": selected,
+                "uncovered": uncovered}
     return {
         "status": "pdf-location-exact",
         "pages": sorted({item["span"][0] + 1 for item in selected}),
         "intended": intended,
+        "intendedGroups": intended_groups,
         "selected": selected,
     }
 
@@ -2885,7 +3203,7 @@ def pdf_natural_landing_geometry_proof(paint: dict, image: Image.Image | None,
     if not required_lines:
         return {"status": "pdf-natural-target-outside-viewport",
                 "comparisons": comparisons}
-    if max(item["pixels"] for item in required_lines) < 2:
+    if any(item["pixels"] < 2 for item in required_lines):
         return {"status": "pdf-natural-target-geometry-mismatch",
                 "comparisons": comparisons}
     total = mask_count(natural_mask)
@@ -3159,9 +3477,11 @@ def stable_highlight_delta(driver, control_mask: Image.Image,
         phase = time.perf_counter()
         image = Image.open(io.BytesIO(png)).convert("RGB")
         target_delta = ImageChops.subtract(target_mask(image, "pdf"), control_mask)
-        delta = rgb_delta_mask(image, control_image)
+        target_pixels = mask_count(target_delta)
+        delta = target_delta if target_pixels else rgb_delta_mask(image, control_image)
         if delta is None:
             delta = target_delta
+        delta_method = "target-color-delta" if target_pixels else "rgb-control-delta"
         components = mask_components(delta)
         add_timing(timings, "pixelAnalysisMs", phase)
         polls += 1
@@ -3175,8 +3495,8 @@ def stable_highlight_delta(driver, control_mask: Image.Image,
                 "highlightBounds": largest["bounds"],
                 "components": components,
                 "deltaPixels": mask_count(delta),
-                "targetColorDeltaPixels": mask_count(target_delta),
-                "deltaMethod": "rgb-control-delta",
+                "targetColorDeltaPixels": target_pixels,
+                "deltaMethod": delta_method,
                 "deltaSha256": hashlib.sha256(delta.tobytes()).hexdigest(),
                 "screenshotSha256": hashlib.sha256(png).hexdigest(),
             }, png, image, delta
@@ -3194,6 +3514,35 @@ def stable_highlight_delta(driver, control_mask: Image.Image,
         "deltaPixels": mask_count(delta) if delta else 0,
         "screenshotSha256": hashlib.sha256(png).hexdigest() if png else None,
     }, png, image, delta
+
+
+def pdf_combined_verdict(combined_status: str, location_status: str):
+    if combined_status != "exact":
+        return combined_status
+    return "exact-match" if location_status == "pdf-location-exact" else location_status
+
+
+def pdf_single_page_intended_groups(proof: dict):
+    groups = proof.get("intendedGroups") or []
+    if not groups or any(len({span[0] for span in group}) != 1 for group in groups):
+        return None
+    return groups
+
+
+def pdf_directive_union_verdict(intended_groups: list[list[tuple]], directive_proofs: list[dict]):
+    if len(directive_proofs) != len(intended_groups):
+        return "pdf-directive-cardinality-mismatch"
+    failed = next((item for item in directive_proofs if item.get("status") != "exact"), None)
+    if failed:
+        return failed.get("status", "pdf-directive-proof-failed")
+    intended = sorted(tuple(span) for group in intended_groups for span in group)
+    proved = sorted(tuple(span) for item in directive_proofs
+                    for span in item.get("provedSpans", []))
+    return "exact-match" if proved == intended else "pdf-directive-union-mismatch"
+
+
+def pdf_reuses_combined_navigation(directive_count: int, combined_status: str):
+    return directive_count == 1 and combined_status == "exact"
 
 
 def pdf_seed_paint_proof(
@@ -3216,6 +3565,12 @@ def pdf_seed_paint_proof(
     headed: bool,
     save_shots: bool,
 ):
+    diagnosable_location_statuses = {
+        "pdf-location-exact",
+        "pdf-directive-extraneous",
+        "pdf-directive-not-located",
+        "pdf-incomplete-coverage",
+    }
     anchor = fragment.split(":~:", 1)[0]
     viewer_timeout = 300.0 if live and headed else 60.0 if live else 15.0
     control_timeout = 20.0 if live else 8.0
@@ -3226,8 +3581,198 @@ def pdf_seed_paint_proof(
         phase = time.perf_counter()
         proof = pdf_proof(file, seed, pdf_text_cache)
         add_timing(timings, "pdfProofMs", phase)
-        if proof.get("status") != "pdf-location-exact":
+        if proof.get("status") not in diagnosable_location_statuses:
             return {"verdict": proof.get("status", "pdf-proof-failed"), "proof": proof}
+
+    # A single PDF text directive resolves one range. For groups contained on
+    # one page, let Chrome reveal that range by its untouched landing, fit that
+    # page without changing it, and compare the complete paint to PDFium. This
+    # proves every directive without verifier scrolling. Page-spanning groups
+    # retain the older page-wise proof below.
+    single_page_groups = pdf_single_page_intended_groups(proof) if proof else None
+    if live or single_page_groups is not None:
+        combined_url = f"{base}#{fragment}" if live else (
+            f"{server_origin}/page/{quote(cache_name)}?seed={replay_id}-combined#{fragment}"
+        )
+        navigate_clean(driver, combined_url, timings, live)
+        combined_viewer = wait_pdf_viewer(pdf_oopif, viewer_timeout, timings)
+        combined_fragment = final_fragment_proof(driver, fragment)
+        combined_events = performance_events(driver) if live else []
+        combined_delivery = delivery_proof(combined_events, base) if live else {
+            "status": "cached-bytes", "finalUrl": combined_url,
+        }
+        binding = {"status": "bound", "method": "cached-file", "sha256": cached_sha256}
+        combined_binding = None
+        if live and combined_viewer.get("status") == "ready" and \
+                combined_delivery.get("status") == "pdf-delivery-exact":
+            binding = live_bindings.get(base)
+            if binding is None:
+                binding = live_byte_binding(driver, base, file, combined_delivery, viewer_timeout)
+                binding["finalUrl"] = combined_delivery.get("finalUrl")
+                binding["etag"] = combined_delivery.get("etag")
+                binding["lastModified"] = combined_delivery.get("lastModified")
+                binding["contentLength"] = combined_delivery.get("contentLength")
+                fetched_url = ((binding.get("fetch") or {}).get("finalUrl"))
+                if binding.get("status") == "bound" and fetched_url and not \
+                        same_url_without_fragment(fetched_url, combined_delivery.get("finalUrl", "")):
+                    binding = {**binding, "status": "live-byte-unbound",
+                               "reason": "authenticated-fetch-final-url-differs"}
+                if binding.get("status") == "bound":
+                    live_bindings[base] = binding
+                    pdf_text_cache.pop(file, None)
+            combined_binding = navigation_byte_proof(driver, combined_delivery, binding)
+
+        if combined_viewer.get("status") != "ready":
+            combined_status = "pdf-combined-viewer-not-ready"
+        elif combined_fragment.get("status") != "preserved":
+            combined_status = "pdf-combined-fragment-lost"
+        elif live and combined_delivery.get("status") != "pdf-delivery-exact":
+            combined_status = combined_delivery.get("status", "pdf-delivery-unverified")
+        elif live and (not combined_binding or combined_binding.get("status") != "bound"):
+            combined_status = (combined_binding or binding).get("status", "live-byte-unbound")
+        else:
+            combined_status = "exact"
+
+        if proof is None and binding.get("status") == "bound":
+            phase = time.perf_counter()
+            proof = pdf_proof(file, seed, pdf_text_cache)
+            add_timing(timings, "pdfProofMs", phase)
+            if proof.get("status") not in diagnosable_location_statuses:
+                return {
+                    "verdict": proof.get("status", "pdf-proof-failed"), "proof": proof,
+                    "combinedProof": {
+                        "status": combined_status, "url": combined_url,
+                        "viewer": combined_viewer, "fragment": combined_fragment,
+                        "delivery": combined_delivery,
+                    },
+                    "byteBinding": binding,
+                }
+            single_page_groups = pdf_single_page_intended_groups(proof)
+
+        if single_page_groups is not None:
+            intended_items = [
+                {"span": span} for group in single_page_groups for span in group
+            ]
+            phase = time.perf_counter()
+            geometries = pdf_span_geometries(file, intended_items, pdf_geometry_cache)
+            add_timing(timings, "pdfGeometryMs", phase)
+            group_expectations = []
+            for group in single_page_groups:
+                items = [{"span": span} for span in group]
+                expected_by_page = combined_pdf_geometries(items, geometries)
+                group_expectations.append(expected_by_page)
+
+            directive_proofs = []
+            directives = raw_directives(seed["target"])
+            for directive_index, (directive, group, expected_by_page) in enumerate(zip(
+                    directives, single_page_groups, group_expectations)):
+                expected_page = group[0][0] + 1
+                individual_fragment = f"{anchor}:~:text={directive}"
+                reuse_combined = pdf_reuses_combined_navigation(
+                    len(directives), combined_status,
+                )
+                if reuse_combined:
+                    navigation_url = combined_url
+                    directive_viewer = combined_viewer
+                    directive_fragment = combined_fragment
+                    directive_delivery = combined_delivery
+                    directive_binding = combined_binding
+                else:
+                    navigation_url = f"{base}#{individual_fragment}" if live else (
+                        f"{server_origin}/page/{quote(cache_name)}?seed={replay_id}-{directive_index}"
+                        f"#{individual_fragment}"
+                    )
+                    navigate_clean(driver, navigation_url, timings, live)
+                    directive_viewer = wait_pdf_viewer(pdf_oopif, viewer_timeout, timings)
+                    directive_fragment = final_fragment_proof(driver, individual_fragment)
+                page_landing = wait_pdf_page(
+                    pdf_oopif, expected_page, paint_timeout, timings, navigate=False,
+                ) if directive_viewer.get("status") == "ready" else {
+                    "status": "viewer-not-ready", "page": expected_page, "polls": 0,
+                }
+                paint, png, image = stable_natural_pdf_highlight(
+                    driver, pdf_oopif, expected_page, [expected_page],
+                    paint_timeout, timings,
+                ) if page_landing.get("status") == "ready" else (
+                    {"status": "not-captured", "components": [], "polls": 0}, b"", None,
+                )
+                expected = expected_by_page.get(expected_page)
+                paint_geometry = pdf_natural_landing_geometry_proof(
+                    paint, image, expected_by_page, paint.get("viewport") or {},
+                    expected_page, expected,
+                )
+                if not reuse_combined:
+                    directive_events = performance_events(driver) if live else []
+                    directive_delivery = delivery_proof(directive_events, base) if live else {
+                        "status": "cached-bytes", "finalUrl": navigation_url,
+                    }
+                    directive_binding = navigation_byte_proof(
+                        driver, directive_delivery, binding,
+                    ) if live and directive_delivery.get("status") == "pdf-delivery-exact" else None
+                if directive_viewer.get("status") != "ready":
+                    status = "pdf-viewer-not-ready"
+                elif directive_fragment.get("status") != "preserved":
+                    status = "pdf-fragment-lost"
+                elif live and directive_delivery.get("status") != "pdf-delivery-exact":
+                    status = directive_delivery.get("status", "pdf-delivery-unverified")
+                elif live and (not directive_binding or directive_binding.get("status") != "bound"):
+                    status = (directive_binding or {}).get("status", "live-byte-unbound")
+                elif page_landing.get("status") != "ready":
+                    status = "pdf-page-landing-mismatch"
+                elif paint.get("status") != "stable-highlight":
+                    status = "pdf-no-paint"
+                elif paint_geometry.get("status") != "pdf-natural-landing-geometry-exact":
+                    status = paint_geometry.get("status", "pdf-natural-paint-geometry-unverified")
+                else:
+                    status = "exact"
+                directive_proof = {
+                    "status": status, "directive": unquote(directive),
+                    "url": navigation_url, "viewer": directive_viewer,
+                    "fragment": directive_fragment, "delivery": directive_delivery,
+                    "pageLanding": page_landing, "paint": paint,
+                    "paintGeometry": paint_geometry, "intendedGroup": group,
+                    "provedSpans": group if status == "exact" else [],
+                    "reusedCombinedNavigation": reuse_combined,
+                    **({"byteBinding": directive_binding} if directive_binding else {}),
+                }
+                if save_shots and status == "exact" and image is not None and \
+                        paint.get("components"):
+                    phase = time.perf_counter()
+                    shot_name = safe_name(seed["label"], directive_index)
+                    x0, y0, x1, y1 = paint["components"][0]["bounds"]
+                    image.crop((max(0, x0 - 12), max(0, y0 - 12),
+                                min(image.width, x1 + 13), min(image.height, y1 + 13))).save(
+                                    SHOTS / shot_name, compress_level=1, optimize=False)
+                    directive_proof["screenshot"] = shot_name
+                    add_timing(timings, "artifactWriteMs", phase)
+                directive_proofs.append(directive_proof)
+
+            union_verdict = pdf_directive_union_verdict(
+                single_page_groups, directive_proofs,
+            )
+            verdict = union_verdict if combined_status == "exact" else combined_status
+            timings["polls"] = sum(
+                item.get("pageLanding", {}).get("polls", 0) +
+                item.get("paint", {}).get("polls", 0)
+                for item in directive_proofs
+            )
+            return {
+                "verdict": verdict, "verificationContract": PDF_PAINT_CONTRACT,
+                "proof": proof, "combinedProof": {
+                    "status": combined_status, "url": combined_url,
+                    "viewer": combined_viewer, "fragment": combined_fragment,
+                    "delivery": combined_delivery,
+                    **({"byteBinding": combined_binding} if combined_binding else {}),
+                },
+                "directiveProofs": directive_proofs, "byteBinding": binding,
+                "directiveUnion": {
+                    "status": union_verdict,
+                    "intended": [span for group in single_page_groups for span in group],
+                    "proved": [span for item in directive_proofs
+                               for span in item.get("provedSpans", [])],
+                },
+            }
+
     control_url = f"{base}{control_fragment}" if live else (
         f"{server_origin}/page/{quote(cache_name)}?seed={replay_id}-control{control_fragment}"
     )
@@ -3279,7 +3824,6 @@ def pdf_seed_paint_proof(
             if binding.get("status") == "bound":
                 live_bindings[base] = binding
                 pdf_text_cache.pop(file, None)
-                pdf_text_cache.pop((file, "case-replay-safe"), None)
         else:
             navigation_binding = navigation_byte_proof(driver, delivery, binding)
             if navigation_binding.get("status") != "bound":
@@ -3294,17 +3838,24 @@ def pdf_seed_paint_proof(
         phase = time.perf_counter()
         proof = pdf_proof(file, seed, pdf_text_cache)
         add_timing(timings, "pdfProofMs", phase)
-    if proof.get("status") != "pdf-location-exact":
+    if proof.get("status") not in diagnosable_location_statuses:
         return {"verdict": proof.get("status", "pdf-proof-failed"), "proof": proof,
                 "controlProof": control_bundle, "byteBinding": binding}
 
+    location_exact = proof.get("status") == "pdf-location-exact"
+    expected_items = proof.get("selected", []) if location_exact else [
+        {"span": span} for span in proof.get("intended", [])
+    ]
     phase = time.perf_counter()
-    geometries = pdf_span_geometries(file, proof.get("selected", []), pdf_geometry_cache)
+    geometries = pdf_span_geometries(file, expected_items, pdf_geometry_cache)
     add_timing(timings, "pdfGeometryMs", phase)
-    for selected in proof.get("selected", []):
-        selected["geometry"] = geometries.get(tuple(selected["span"]))
-    combined_expectations = combined_pdf_geometries(proof.get("selected", []), geometries)
-    expected_pages = {item["span"][0] + 1 for item in proof.get("selected", [])}
+    for item in expected_items:
+        item["geometry"] = geometries.get(tuple(item["span"]))
+    if location_exact:
+        for selected in proof.get("selected", []):
+            selected["geometry"] = geometries.get(tuple(selected["span"]))
+    combined_expectations = combined_pdf_geometries(expected_items, geometries)
+    expected_pages = {item["span"][0] + 1 for item in expected_items}
     if set(combined_expectations) != expected_pages:
         return {
             "verdict": "pdf-geometry-missing", "proof": proof,
@@ -3351,7 +3902,7 @@ def pdf_seed_paint_proof(
     combined_fragment = final_fragment_proof(driver, fragment) if live else {
         "status": "cached-local", "wanted": unquote(fragment), "currentUrl": driver.current_url,
     }
-    natural_page = proof["selected"][0]["span"][0] + 1
+    natural_page = expected_items[0]["span"][0] + 1
     natural_paint, _natural_png, natural_image = stable_natural_pdf_highlight(
         driver, pdf_oopif, natural_page, list(combined_expectations), paint_timeout, timings,
     ) if combined_viewer.get("status") == "ready" else (
@@ -3360,7 +3911,7 @@ def pdf_seed_paint_proof(
     natural_geometry = pdf_natural_landing_geometry_proof(
         natural_paint, natural_image, combined_expectations,
         natural_paint.get("viewport") or {}, natural_page,
-        proof["selected"][0].get("geometry"),
+        expected_items[0].get("geometry"),
     )
     natural_status = natural_paint.get("status")
     if natural_status == "stable-highlight":
@@ -3374,6 +3925,14 @@ def pdf_seed_paint_proof(
     combined_page_proofs = []
     if natural_landing.get("status") == "exact":
         for page, expected in combined_expectations.items():
+            if page == natural_page:
+                combined_page_proofs.append({
+                    "status": "exact", "page": page,
+                    "navigation": {"status": "natural-landing", "page": page, "polls": 0},
+                    "paint": natural_paint, "paintGeometry": natural_geometry,
+                    "expected": expected,
+                })
+                continue
             page_navigation = wait_pdf_page(
                 pdf_oopif, page, paint_timeout, timings, navigate=True,
             )
@@ -3389,12 +3948,12 @@ def pdf_seed_paint_proof(
             )
             if page_navigation.get("status") != "ready":
                 page_status = "pdf-combined-page-not-reached"
+            elif paint_geometry.get("status") == "pdf-paint-geometry-exact":
+                page_status = "exact"
             elif delta.get("status") != "stable-delta":
                 page_status = "pdf-combined-no-paint"
-            elif paint_geometry.get("status") != "pdf-paint-geometry-exact":
-                page_status = paint_geometry["status"]
             else:
-                page_status = "exact"
+                page_status = paint_geometry["status"]
             combined_page_proofs.append({
                 "status": page_status, "page": page, "navigation": page_navigation,
                 "paint": delta, "paintGeometry": paint_geometry, "expected": expected,
@@ -3427,6 +3986,36 @@ def pdf_seed_paint_proof(
         "naturalLanding": natural_landing, "pages": combined_page_proofs,
         **({"byteBinding": combined_binding} if combined_binding else {}),
     }
+
+    # The combined production URL is the contract. Once it paints every
+    # intended page exactly, isolated reloads cannot strengthen that proof.
+    if combined_status == "exact" and location_exact:
+        return {
+            "verdict": "exact-match",
+            "verificationContract": PDF_PAINT_CONTRACT,
+            "proof": proof,
+            **({"pdfReplayDiagnostic": proof.get("status")} if not location_exact else {}),
+            "controlProof": control_bundle,
+            "combinedProof": combined_proof,
+            "directiveProofs": [],
+            "byteBinding": binding,
+        }
+
+    # PDFium replay is a fast diagnostic, not the browser oracle. When its
+    # range reconstruction disagrees with the intended source span, the real
+    # combined Chrome navigation above is authoritative and is compared
+    # directly with the intended PDF geometry.
+    if not location_exact:
+        return {
+            "verdict": pdf_combined_verdict(combined_status, proof.get("status")),
+            "verificationContract": PDF_PAINT_CONTRACT,
+            "proof": proof,
+            "pdfReplayDiagnostic": proof.get("status"),
+            "controlProof": control_bundle,
+            "combinedProof": combined_proof,
+            "directiveProofs": [],
+            "byteBinding": binding,
+        }
 
     directive_proofs = []
     for directive_index, directive in enumerate(raw_directives(seed["target"])):
@@ -3505,12 +4094,12 @@ def pdf_seed_paint_proof(
             status = directive_natural_status
         elif page_geometry_navigation.get("status") != "ready":
             status = "pdf-page-geometry-navigation-mismatch"
+        elif paint_geometry.get("status") == "pdf-paint-geometry-exact":
+            status = "exact"
         elif delta.get("status") != "stable-delta":
             status = "pdf-no-paint"
-        elif paint_geometry.get("status") != "pdf-paint-geometry-exact":
-            status = paint_geometry["status"]
         else:
-            status = "exact"
+            status = paint_geometry["status"]
         directive_proof = {
             "status": status,
             "directive": unquote(directive),
@@ -3548,7 +4137,9 @@ def pdf_seed_paint_proof(
         item.get("paint", {}).get("polls", 0) for item in combined_page_proofs
     ) + sum(item.get("paint", {}).get("polls", 0) for item in directive_proofs)
     failed = [item for item in directive_proofs if item["status"] != "exact"]
-    verdict = combined_status if combined_status != "exact" else failed[0]["status"] if failed else "exact-match"
+    # Users open the combined production URL. Isolated directive reloads are
+    # retained as diagnostics, but cannot overturn an exact combined paint.
+    verdict = "exact-match" if combined_status == "exact" else combined_status
     return {
         "verdict": verdict,
         "verificationContract": PDF_PAINT_CONTRACT,
@@ -3598,16 +4189,42 @@ def run():
     corpus_targets = read_jsonl(args.targets)
     source_documents = {row["key"]: row["text"] for row in read_jsonl(DOCTEXT)
                         if row.get("key") and isinstance(row.get("text"), str)}
-    source_word_cache = {}
+    source_contract_entries = load_result_cache_manifest(
+        SOURCE_CONTRACT_CACHE, SOURCE_CONTRACT_CACHE_VERSION,
+    )
+    source_word_key = None
+    source_index = None
     source_digest_cache = {}
     def source_contract(seed, is_pdf):
+        nonlocal source_word_key, source_index
         key = source_document_key(seed)
         text = source_documents.get(key)
-        words = source_word_cache.get(key)
-        if text is not None and words is None:
-            words = source_words(text)
-            source_word_cache[key] = words
-        return canonical_source_contract(seed, text, is_pdf, words)
+        if text is None:
+            return canonical_source_contract(seed, None, is_pdf)
+        identity = source_contract_cache_identity(seed, text, is_pdf)
+        cached_entry = source_contract_entries.get(identity["fingerprint"])
+        cached = (cached_entry.get("result") if isinstance(cached_entry, dict)
+                  and cached_entry.get("identity") == identity else None)
+        if cached is None:
+            cached = read_source_contract_cache(identity)
+        if cached is not None:
+            source_contract_entries[identity["fingerprint"]] = {
+                "identity": identity, "result": cached,
+            }
+            return cached
+        if text is not None and source_word_key != key:
+            source_index = source_token_index(source_words(text))
+            source_word_key = key
+        result = canonical_source_contract(
+            seed, text, is_pdf,
+            source_index["words"] if source_word_key == key else None,
+            source_index if source_word_key == key else None,
+        )
+        write_source_contract_cache(identity, result)
+        source_contract_entries[identity["fingerprint"]] = {
+            "identity": identity, "result": result,
+        }
+        return result
     def source_digest(seed):
         key = source_document_key(seed)
         if key not in source_digest_cache:
@@ -3748,6 +4365,13 @@ def run():
             raise ValueError("--range-cache-only requires --range-only --only html")
         started = time.perf_counter()
         tally = {}
+        indexed_file = None
+        rendered_raw = None
+        rendered_sha256 = None
+        document_index = None
+        range_proof_entries = load_result_cache_manifest(
+            RANGE_PROOF_CACHE, RANGE_PROOF_CACHE_VERSION,
+        )
         with out_path.open("a", encoding="utf-8") as output:
             for index, seed in enumerate(pending, 1):
                 base = seed["target"].split("#", 1)[0]
@@ -3756,7 +4380,34 @@ def run():
                 if not rendered_file or not rendered_file.exists():
                     result = {"label": seed["label"], "verdict": "rendered-cache-miss", "target": seed["target"]}
                 else:
-                    proofs, ranges = cached_text_range_proof(rendered_file.read_text(encoding="utf-8"), seed)
+                    contract = source_contract(seed, False)
+                    proof_seed = {
+                        **seed,
+                        "_sourceIdentities": contract.get("sourceIdentities") or [],
+                    }
+                    if indexed_file != row["file"]:
+                        rendered_raw = rendered_file.read_bytes()
+                        rendered_sha256 = hashlib.sha256(rendered_raw).hexdigest()
+                        document_index = None
+                        indexed_file = row["file"]
+                    identity = range_proof_cache_identity(proof_seed, rendered_sha256)
+                    cached_entry = range_proof_entries.get(identity["fingerprint"])
+                    cached_proof = (cached_entry.get("result") if isinstance(cached_entry, dict)
+                                    and cached_entry.get("identity") == identity else None)
+                    if cached_proof is None:
+                        cached_proof = read_range_proof_cache(identity)
+                    if cached_proof is None:
+                        if document_index is None:
+                            document_index = rendered_document_index(
+                                rendered_raw.decode("utf-8"),
+                            )
+                        proofs, ranges = cached_text_range_proof(document_index, proof_seed)
+                        write_range_proof_cache(identity, proofs, ranges)
+                    else:
+                        proofs, ranges = cached_proof
+                    range_proof_entries[identity["fingerprint"]] = {
+                        "identity": identity, "result": [proofs, ranges],
+                    }
                     result = {"label": seed["label"], "verdict": range_probe_verdict(proofs, ranges),
                               "target": seed["target"], "cacheFile": row["file"], "quotes": proofs, "findRanges": ranges}
                 result["inputHash"] = fingerprints[seed["label"]]
@@ -3764,6 +4415,12 @@ def run():
                 tally[result["verdict"]] = tally.get(result["verdict"], 0) + 1
                 if index % 250 == 0:
                     print(json.dumps({"progress": index, "of": len(pending)}), flush=True)
+        write_result_cache_manifest(
+            SOURCE_CONTRACT_CACHE, SOURCE_CONTRACT_CACHE_VERSION, source_contract_entries,
+        )
+        write_result_cache_manifest(
+            RANGE_PROOF_CACHE, RANGE_PROOF_CACHE_VERSION, range_proof_entries,
+        )
         print(json.dumps({"rows": len(pending), "seconds": round(time.perf_counter() - started, 2), "verdicts": tally}), flush=True)
         return
     SHOTS.mkdir(exist_ok=True)
