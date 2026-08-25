@@ -16,7 +16,7 @@
     "legal-structure": {
       "branch": "main",
       "bundle": null,
-      "remote": "https://github.com/eliziff/legal-structure.git"
+      "remote": "https://github.com/eliziff/legal-structure-parser.git"
     },
     "legal-pdf-parser": {
       "branch": "main",
