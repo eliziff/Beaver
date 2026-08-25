@@ -19,9 +19,16 @@ describe("case-treatment model output parsing", () => {
     expect(parseJson("[{\"op\":\"replace\",\"path\":\"/answer\",\"value\":42}]")).toBeInstanceOf(Array);
   });
 
-  it("refuses nested fragments when the outermost value is malformed", () => {
-    const unescapedQuotes = "{\"spans\": [{\"quote\": \"\"Ball J.\"\"}], \"participants\": []}";
-    expect(parseJson(unescapedQuotes)).toBeNull();
+  it("repairs unescaped quotation marks copied from the decision", () => {
+    expect(parseJson('{"start_quote": ""Ball J.""}')).toEqual({ start_quote: '"Ball J."' });
+    const leading = parseJson('{"spans": [{"start_quote": "" . . . in the absence", "note": "x, y"}]}');
+    expect(leading).toEqual({ spans: [{ start_quote: '" . . . in the absence', note: "x, y" }] });
+  });
+
+  it("refuses structurally broken JSON instead of guessing", () => {
+    expect(parseJson('{"spans": [}, {"quote": "x"}]}')).toBeNull();
+    expect(parseJson("{\"answer\":")).toBeNull();
+    expect(parseJson("no json here")).toBeNull();
   });
 
   it("returns null for unparseable output instead of guessing", () => {

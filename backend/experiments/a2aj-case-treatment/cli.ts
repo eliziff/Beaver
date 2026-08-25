@@ -617,6 +617,45 @@ async function workerPool<T>(items: readonly T[], size: number, work: (item: T, 
   }));
 }
 
+/**
+ * Repairs one specific recurring defect: copied source text containing
+ * unescaped double quotation marks inside JSON string values (for example
+ * "start_quote": ""Ball J.""). A quote inside a string terminates it only
+ * when the next significant character is a JSON structure character;
+ * anything else must have been an escaped content quote.
+ */
+function repairUnescapedQuotes(text: string) {
+  let out = "";
+  let inString = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (!inString) {
+      if (character === '"') inString = true;
+      out += character;
+      continue;
+    }
+    if (character === "\\") {
+      out += character + (text[index + 1] ?? "");
+      index += 1;
+      continue;
+    }
+    if (character !== '"') {
+      out += character;
+      continue;
+    }
+    let lookahead = index + 1;
+    while (lookahead < text.length && /\s/u.test(text[lookahead])) lookahead += 1;
+    const next = text[lookahead];
+    if (next === undefined || /[,}\]:]/u.test(next)) {
+      inString = false;
+      out += character;
+    } else {
+      out += '\\"';
+    }
+  }
+  return out;
+}
+
 export function parseJson(text: string) {
   const trimmed = text.trim();
   if (!trimmed) return null;
@@ -625,6 +664,8 @@ export function parseJson(text: string) {
   // fragment would corrupt the draft worse than an explicit parse failure.
   const unfenced = trimmed.replace(/^```(?:json)?\s*/u, "").replace(/```\s*$/u, "");
   try { return JSON.parse(unfenced) as unknown; }
+  catch { /* Fall through to targeted repairs. */ }
+  try { return JSON.parse(repairUnescapedQuotes(unfenced)) as unknown; }
   catch { /* Fall through to balanced-value extraction. */ }
   const start = unfenced.search(/[{[]/u);
   if (start < 0) return null;
