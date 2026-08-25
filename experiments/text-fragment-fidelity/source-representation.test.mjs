@@ -31,6 +31,13 @@ assert.deepEqual(
   },
 );
 assert.deepEqual(
+  cachedDerivedPdfEvidence("https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/item/463717/index.do"),
+  {
+    url: "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/463717/1/document.do",
+    pdfOnly: true,
+  },
+);
+assert.deepEqual(
   cachedDerivedPdfEvidence("https://decisia.lexum.com/nsc/nssc/en/item/459053/index.do?iframe=true&site_preference=mobile"),
   {
     url: "https://decisia.lexum.com/nsc/nssc/en/459053/1/document.do",

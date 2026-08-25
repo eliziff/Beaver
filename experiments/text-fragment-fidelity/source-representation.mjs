@@ -58,7 +58,11 @@ export function cachedDerivedPdfEvidence(rawUrl) {
   if (!decisiaHosts.has(source.hostname) || !/\/item\/\d+\/index\.do$/iu.test(source.pathname)) {
     return null;
   }
-  const row = manifest.get(normalizeKey(rawUrl));
+  let row = manifest.get(normalizeKey(rawUrl));
+  if (!row) {
+    source.search = "?iframe=true&site_preference=mobile";
+    row = manifest.get(normalizeKey(source.toString()));
+  }
   if (!row?.file?.toLowerCase().endsWith(".html")) return undefined;
   const file = path.join(cacheDir, row.file);
   if (!fs.existsSync(file)) return undefined;

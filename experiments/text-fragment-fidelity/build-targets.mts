@@ -5,13 +5,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
+import { cachedDerivedPdfEvidence } from "./source-representation.mjs";
 
 const here = import.meta.dirname;
 const builder = process.argv[2] ?? "production";
 if (!["production", "candidate"].includes(builder)) throw new Error("builder must be production or candidate");
-const { buildLegalSourcePinpointUrl } = await import(builder === "production"
+const links = await import(builder === "production"
   ? pathToFileURL(path.join(here, "../../backend/src/lib/legalSourceLinks.ts")).href
   : "./builder-candidate.ts");
+const { buildLegalSourcePinpointUrl } = links;
 const structure = builder === "production"
   ? (await import(pathToFileURL(path.join(here, "../../backend/src/lib/structureNative.ts")).href))
       .structureNative()
@@ -32,7 +34,11 @@ if (missingDocuments.length) throw new Error(`missing ${missingDocuments.length}
 const rows = Array(seeds.length);
 const groups = Map.groupBy(seeds.map((seed, index) => ({ seed, index })),
   ({ seed }) => seedDocumentKey(seed));
-for (const [documentKey, members] of groups) {
+const documents = [...groups];
+let completedDocuments = 0;
+const started = performance.now();
+for (const group of documents) {
+  const [documentKey, members] = group;
   const source = doctext.get(documentKey ?? "")!;
   const documentText = builder === "production"
     ? await structure!.deriveDocumentStructure({ kind: "a2aj", input: {
@@ -44,13 +50,23 @@ for (const [documentKey, members] of groups) {
       } })
     : source.text;
   for (const { seed, index } of members) {
-    const target = buildLegalSourcePinpointUrl({
+    const evidence = {
       url: seed.url,
+      verifiedPdf: cachedDerivedPdfEvidence(seed.url),
       ...(seed.anchor ? { anchor: seed.anchor } : {}),
       blockText: seed.blockText ?? "",
       documentText,
-    }, seed.quotes ?? []);
-    rows[index] = { ...seed, target };
+    };
+    const built = builder === "production"
+      ? links.buildLegalSourcePinpoint(evidence, seed.quotes ?? [])
+      : null;
+    const target = built?.target ?? buildLegalSourcePinpointUrl(evidence, seed.quotes ?? []);
+    rows[index] = { ...seed, target, ...(built?.plan ?? {}) };
+  }
+  completedDocuments++;
+  if (completedDocuments % 100 === 0 || completedDocuments === documents.length) {
+    const seconds = ((performance.now() - started) / 1_000).toFixed(1);
+    console.error(`documents ${completedDocuments}/${documents.length} (${seconds}s)`);
   }
 }
 const fullDocuments = rows.length;
