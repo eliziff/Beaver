@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_citator_graph import case_occurrences  # noqa: E402
-from legal_structure import pair_journal_footnotes  # noqa: E402
+from legal_structure import pair_numbered_footnotes  # noqa: E402
 LOCAL_BASE = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
 SOURCE_DB = Path((os.environ.get("MIKE_PUBLIC_ENDPOINT_DB") or "").strip() or
                  LOCAL_BASE / "OpenLegalProducts" / "LegalData" / "providers" / "journals" / "public_endpoint.db")
@@ -62,7 +62,7 @@ def main() -> None:
         page_labels = [str(page[0] or "").strip() for page in source.execute(
             "SELECT page_label FROM article_pages WHERE article_id = ? ORDER BY page_order",
             (row["article_id"],))]
-        result = pair_journal_footnotes(row["text"], page_labels)
+        result = pair_numbered_footnotes(row["text"], page_labels)
         stats["articles"] += 1
         stats["symbol_labels_dropped"] += int(result["symbol_labels_dropped"])
         if not result["labels_selected"]:
