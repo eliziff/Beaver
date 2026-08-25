@@ -62,7 +62,7 @@ def main() -> None:
         page_labels = [str(page[0] or "").strip() for page in source.execute(
             "SELECT page_label FROM article_pages WHERE article_id = ? ORDER BY page_order",
             (row["article_id"],))]
-        result = pair_numbered_footnotes(row["text"], page_labels)
+        result = pair_numbered_footnotes(row["text"], page_labels, include_context=True)
         stats["articles"] += 1
         stats["symbol_labels_dropped"] += int(result["symbol_labels_dropped"])
         if not result["labels_selected"]:
