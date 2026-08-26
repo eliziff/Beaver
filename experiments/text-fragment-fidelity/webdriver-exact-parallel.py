@@ -496,6 +496,18 @@ parser.add_argument("--crawler-owner-pid", type=int, help=argparse.SUPPRESS)
 parser.add_argument("--crawler-profile", type=Path, help=argparse.SUPPRESS)
 parser.add_argument("--worker-timeout-seconds", type=float, default=900)
 args = parser.parse_args()
+
+
+def resolve_input(path):
+    if path is None or path.is_absolute():
+        return path
+    direct = path.resolve()
+    return direct if direct.exists() else (RESULTS / path).resolve()
+
+
+args.targets = resolve_input(args.targets)
+args.labels = resolve_input(args.labels)
+args.baseline = resolve_input(args.baseline)
 if bool(args.crawler_owner_pid) != bool(args.crawler_profile):
     parser.error("--crawler-owner-pid and --crawler-profile are required together")
 if args.crawler_owner_pid:
@@ -526,7 +538,11 @@ if args.refresh_cache and not args.live:
 if args.refresh_cache and args.gate != "marker":
     parser.error("--refresh-cache requires --gate marker")
 corpus_targets = args.targets or lifecycle_gate.TARGETS
+if not corpus_targets.is_file():
+    parser.error(f"target corpus does not exist: {corpus_targets}")
 corpus_seeds = rows(corpus_targets)
+if not corpus_seeds:
+    parser.error(f"target corpus is empty: {corpus_targets}")
 excluded_404_seeds = [seed for seed in corpus_seeds if lifecycle_gate.is_proven_404_seed(seed)] \
     if args.exclude_proven_404 else []
 if args.exclude_proven_404 and len(excluded_404_seeds) != 1:
