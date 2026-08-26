@@ -9,12 +9,12 @@ const results = path.join(here, "results");
 const read = (name) => fs.readFileSync(path.join(results, name), "utf8")
   .split(/\r?\n/u).filter(Boolean).map(JSON.parse);
 const { shouldUseA2AJWebFallback } = await import(pathToFileURL(path.join(
-  results,
-  "worktrees/root-seam/backend/src/lib/legalSourceLinks.ts",
+  here,
+  "../../backend/src/lib/legalSourceLinks.ts",
 )).href);
 
 const documents = new Map(read("doctext.jsonl").map((row) => [row.key, row]));
-const expected = new Set(read("a2aj-document-routed-targets-v22.jsonl")
+const expected = new Set(read(process.argv[2] ?? "a2aj-document-routed-targets-v23.jsonl")
   .map((row) => row.label));
 const actual = new Set();
 
