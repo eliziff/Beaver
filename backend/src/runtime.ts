@@ -12,6 +12,7 @@ import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
 import { publicOrigin } from "./lib/publicOrigin";
 import { safeErrorLog } from "./lib/safeError";
+import { structureNative } from "./lib/structureNative";
 
 const lazy = <T>(load: () => Promise<T>) => {
   let value: Promise<T> | undefined;
@@ -147,6 +148,8 @@ const shutdown = lazy(async () => {
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
   initialize: async () => {
+    // Force lazy native citation grammars before the server accepts requests.
+    structureNative().hasCitationInText("");
     if (!local) encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
     if (capabilities.connectors) {
       encryptionSecret("MCP_CONNECTORS_ENCRYPTION_SECRET");

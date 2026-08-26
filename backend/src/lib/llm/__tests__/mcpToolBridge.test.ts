@@ -97,6 +97,28 @@ describe("MCP tool bridge", () => {
     await transport.close();
   });
 
+  it("lets a long-running tool refresh the provider inactivity watchdog", async () => {
+    const activity = vi.fn();
+    const bridge = await startMcpToolBridge({
+      tools: [tool("delegate_read")],
+      onActivity: activity,
+      runTools: async (calls, onActivity) => {
+        onActivity?.();
+        return calls.map((call) => ({
+          tool_use_id: call.id,
+          status: "ok" as const,
+          content: "done",
+        }));
+      },
+    });
+    bridges.push(bridge);
+    const { client, transport } = await clientFor(bridge);
+
+    await client.callTool({ name: "delegate_read", arguments: {} });
+    expect(activity).toHaveBeenCalledOnce();
+    await transport.close();
+  });
+
   it("redacts provider credentials from tool failures", async () => {
     const bridge = await startMcpToolBridge({
       tools: [tool("inspect")],

@@ -33,6 +33,8 @@ async function streamProvider(
       return (await import("./ollamaApi")).streamOllama(params);
     case "gemini":
       return (await import("./gemini")).streamGemini(params);
+    case "ox-gateway":
+      throw new Error("Ox Alpha gateway models are experiment-only.");
   }
 }
 

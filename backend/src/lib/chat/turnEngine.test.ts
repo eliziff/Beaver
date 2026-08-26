@@ -78,6 +78,35 @@ it("preserves one tool activity through running and completed states", async () 
   expect(events).toContainEqual({ type: "content_final", text: "", citations: [] });
 });
 
+it("forwards nested tool progress to the provider inactivity watchdog", async () => {
+  const heartbeat = vi.fn();
+  const tool: BeaverTool<ChatToolContext> = {
+    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    async execute(_input, context) {
+      context.onActivity?.();
+      return { result: toolText({ ok: true }) };
+    },
+  };
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    await runTools([{
+      id: "read-1",
+      name: tool.name,
+      input: { file_path: "document://x/version/v1" },
+    }], heartbeat);
+    return { fullText: "Done." };
+  });
+
+  await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Read x." }],
+    createTools: () => [tool],
+    emit: () => undefined,
+  });
+
+  expect(heartbeat).toHaveBeenCalledOnce();
+});
+
 it("persists private tool receipts without emitting them", async () => {
   const emitted: unknown[] = [];
   const receipt = {

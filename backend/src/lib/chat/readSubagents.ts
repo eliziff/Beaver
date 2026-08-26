@@ -44,6 +44,7 @@ export type ReadSubagentCheckpoint = {
   effort: string;
   assignment: ReadSubagentAssignment;
   evidence: LegalEvidenceReceipt[];
+  activities?: ToolActivity[];
 };
 export type ReadSubagentEvent = {
   type: "subagent_run";
@@ -117,7 +118,7 @@ export const READ_SUBAGENT_TOOL: Tool = {
 
 export const RESUME_SUBAGENT_TOOL: Tool = {
   name: RESUME_SUBAGENT_TOOL_NAME,
-  description: "Resume interrupted readers in their existing sessions by run ID.",
+  description: "Resume unfinished readers in their existing sessions by run ID.",
   inputSchema: {
     type: "object",
     properties: {
@@ -160,6 +161,9 @@ function checkpoint(value: unknown): ReadSubagentCheckpoint | null {
     },
     evidence: Array.isArray(row.evidence)
       ? row.evidence as LegalEvidenceReceipt[] : [],
+    ...(Array.isArray(row.activities)
+      ? { activities: row.activities as ToolActivity[] }
+      : {}),
   };
 }
 
@@ -173,9 +177,14 @@ export function resumableReadSubagents(events: readonly unknown[]) {
   }
   const resumable = new Map<string, ReadSubagentCheckpoint>();
   for (const [id, event] of latest) {
-    if (event.status !== "interrupted") continue;
+    if (event.status !== "interrupted" && event.status !== "running") continue;
     const parsed = checkpoint(event.resume);
-    if (parsed && parsed.id === id) resumable.set(id, parsed);
+    if (parsed && parsed.id === id) resumable.set(id, {
+      ...parsed,
+      ...(Array.isArray(event.activities)
+        ? { activities: event.activities as ToolActivity[] }
+        : {}),
+    });
   }
   return resumable;
 }
@@ -185,7 +194,7 @@ export function readSubagentResumePrompt(
 ) {
   if (!checkpoints.size) return "";
   return [
-    "INTERRUPTED READERS AVAILABLE:",
+    "UNFINISHED READERS AVAILABLE:",
     "Call resume_read with their existing run IDs; do not replace the assignments.",
     ...[...checkpoints.values()].map(({ id, assignment }) =>
       `- ${id}: ${assignment.scope}: ${assignment.task}`),

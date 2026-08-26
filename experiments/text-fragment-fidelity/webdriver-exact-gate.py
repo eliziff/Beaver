@@ -1194,9 +1194,10 @@ def mask_count(mask):
     return mask.histogram()[255]
 
 
-def highlight_pixels(png: bytes, rects: list[dict], endpoint_rects: list[dict] | None = None):
+def highlight_pixels(png: bytes, rects: list[dict], endpoint_rects: list[dict] | None = None,
+                     kind="html"):
     image = Image.open(io.BytesIO(png)).convert("RGB")
-    mask = target_mask(image, "html")
+    mask = target_mask(image, kind)
     def count_in(selected, padding):
         region = Image.new("L", image.size, 0)
         draw = ImageDraw.Draw(region)
@@ -1213,6 +1214,7 @@ def highlight_pixels(png: bytes, rects: list[dict], endpoint_rects: list[dict] |
 # DOMContentLoaded. This still spans several layout/paint frames without
 # turning every genuine miss into six seconds of idle wall time.
 HTML_PAINT_RETRY_DELAYS = (0.03, 0.06, 0.12, 0.24, 0.48)
+LIVE_PAINT_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6, 3.2)
 
 
 def html_initial_viewport_proof(quote_proof: dict, viewport: dict | None = None):
@@ -1239,7 +1241,7 @@ def html_real_paint_verdict(proofs: list[dict]):
                  if proof.get("verdict") != "exact-match"), "exact-match")
 
 
-def screenshot_html_viewport(driver, timings: dict):
+def screenshot_html_viewport(driver, timings: dict, paint_kind="html"):
     phase = time.perf_counter()
     png = driver.get_screenshot_as_png()
     add_timing(timings, "screenshotMs", phase)
@@ -1249,18 +1251,18 @@ def screenshot_html_viewport(driver, timings: dict):
     )
     add_timing(timings, "viewportProbeMs", phase)
     image = Image.open(io.BytesIO(png)).convert("RGB")
-    return png, viewport, mask_count(target_mask(image, "html"))
+    return png, viewport, mask_count(target_mask(image, paint_kind))
 
 
 def initial_html_target_proof(driver, quotes: list[str], seed: dict, timings: dict,
-                              retry_delays=HTML_PAINT_RETRY_DELAYS):
+                              retry_delays=HTML_PAINT_RETRY_DELAYS, paint_kind="html"):
     """Yield to async matching and prove landing before any manual scroll."""
     captures = []
     waited = 0.0
     delay_index = 0
 
     def capture():
-        png, viewport, total = screenshot_html_viewport(driver, timings)
+        png, viewport, total = screenshot_html_viewport(driver, timings, paint_kind)
         captures.append((png, viewport, total, len(captures) + 1, round(waited * 1000)))
 
     capture()
@@ -1284,7 +1286,9 @@ def initial_html_target_proof(driver, quotes: list[str], seed: dict, timings: di
         landing = html_initial_viewport_proof(first, viewport)
         rects = [{**rect, "y": rect["y"] - viewport.get("scrollY", 0)}
                  for rect in first.get("documentRects", [])]
-        inside, total, endpoints, image = highlight_pixels(png, rects, rects)
+        inside, total, endpoints, image = highlight_pixels(
+            png, rects, rects, paint_kind,
+        )
         landing.update({
             "attempts": attempts, "waitMs": wait_ms,
             "insideHighlightPixels": inside,
@@ -1319,7 +1323,8 @@ def initial_html_target_proof(driver, quotes: list[str], seed: dict, timings: di
 
 
 def capture_html_highlight(driver, union_rects: list[dict], endpoint_rects: list[dict],
-                           timings: dict, retry_delays=HTML_PAINT_RETRY_DELAYS):
+                           timings: dict, retry_delays=HTML_PAINT_RETRY_DELAYS,
+                           paint_kind="html"):
     waited = 0.0
     last = None
     for attempt in range(len(retry_delays) + 1):
@@ -1331,7 +1336,9 @@ def capture_html_highlight(driver, union_rects: list[dict], endpoint_rects: list
         png = driver.get_screenshot_as_png()
         add_timing(timings, "screenshotMs", phase)
         phase = time.perf_counter()
-        inside, total, endpoints, image = highlight_pixels(png, union_rects, endpoint_rects)
+        inside, total, endpoints, image = highlight_pixels(
+            png, union_rects, endpoint_rects, paint_kind,
+        )
         add_timing(timings, "pixelAnalysisMs", phase)
         last = (png, image, inside, total, endpoints, attempt + 1)
         outside = max(0, total - inside)
@@ -1388,7 +1395,14 @@ def html_navigation_paint_proof(driver, navigation_target: str, quotes: list[str
     phase = time.perf_counter()
     load_fresh_document(driver, navigation_target, shot_tag)
     add_timing(timings, "navigationMs", phase)
-    probe, initial_viewport, image = initial_html_target_proof(driver, quotes, seed, timings)
+    paint_kind = "html" if urlparse(navigation_target).hostname in {
+        "127.0.0.1", "localhost", "::1",
+    } else "native"
+    retry_delays = HTML_PAINT_RETRY_DELAYS if paint_kind == "html" else LIVE_PAINT_RETRY_DELAYS
+    probe, initial_viewport, image = initial_html_target_proof(
+        driver, quotes, seed, timings, retry_delays=retry_delays,
+        paint_kind=paint_kind,
+    )
 
     quote_proofs = probe["quotes"]
     failures = []
@@ -1421,6 +1435,7 @@ def html_navigation_paint_proof(driver, navigation_target: str, quotes: list[str
                 [rects[0] if endpoint == "start" else rects[-1]]
             png, image, metrics = capture_html_highlight(
                 driver, union_rects, endpoint_rects, timings,
+                retry_delays=retry_delays, paint_kind=paint_kind,
             )
             status = html_geometry_status(metrics)
             capture_proof = {
@@ -1533,7 +1548,8 @@ def html_navigation_paint_proof(driver, navigation_target: str, quotes: list[str
     }, image
 
 
-def html_paint_proof(driver, local: str, seed: dict, cache_file: str, save_shots=False, mine_oracle=False):
+def html_paint_proof(driver, local: str, seed: dict, cache_file: str | None,
+                     save_shots=False, mine_oracle=False, live=False):
     """Acceptance proof against the complete cached document and real target paint."""
     timings = {}
     target = seed.get("target", "")
@@ -1595,6 +1611,13 @@ def html_paint_proof(driver, local: str, seed: dict, cache_file: str, save_shots
         "quotes": combined["quotes"], "findRanges": combined["findRanges"],
         "rangeVerdict": combined["rangeVerdict"],
     }
+    if live:
+        rendered = driver.execute_script("return document.documentElement.outerHTML")
+        result["liveIdentity"] = {
+            "url": driver.current_url,
+            "bytes": len(rendered.encode("utf-8")),
+            "sha256": hashlib.sha256(rendered.encode("utf-8")).hexdigest(),
+        }
     if save_shots and verdict != "exact-match" and image is not None:
         full_name = safe_name(seed["label"] + "-full", 0)
         image.save(SHOTS / full_name, compress_level=1, optimize=False)
@@ -4175,17 +4198,15 @@ def run():
     parser.add_argument("--refresh-rendered-cache", action="store_true")
     parser.add_argument("--pdf-proof-only", action="store_true")
     parser.add_argument("--live", action="store_true",
-                        help="navigate publisher PDF URLs and bind their delivered bytes")
+                        help="navigate live target URLs instead of cached pages")
     parser.add_argument("--headed", action="store_true",
                         help="show Chrome so challenges can be completed interactively")
     parser.add_argument("--exclude-proven-404", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.shard_index < args.shard_count:
         raise ValueError("shard-index must be in [0, shard-count)")
-    if args.live and args.only != "pdf":
-        raise ValueError("--live requires --only pdf")
     if args.live and (args.range_only or args.range_cache_only or args.pdf_proof_only):
-        raise ValueError("--live is the final PDF paint tier")
+        raise ValueError("--live is a final paint tier")
     corpus_targets = read_jsonl(args.targets)
     source_documents = {row["key"]: row["text"] for row in read_jsonl(DOCTEXT)
                         if row.get("key") and isinstance(row.get("text"), str)}
@@ -4296,7 +4317,8 @@ def run():
             cache_identity = [cached["file"], stat.st_size, stat.st_mtime_ns, cached_digest(file)]
         is_pdf = bool(PDF_RE.search(base) or file and file.suffix.lower() == ".pdf")
         mode = "pdfium-proof-v5-source-identity" if args.pdf_proof_only else "range-v2" if args.range_only \
-            else "pdf-paint-v10-source-identity-live" if args.live \
+            else "pdf-paint-v10-source-identity-live" if args.live and is_pdf \
+            else "html-paint-v9-source-identity-live" if args.live \
             else "pdf-paint-v10-source-identity-cache" if is_pdf \
             else "paint-v9-source-identity"
         payload = {"seed": seed, "cache": cache_identity, "mode": mode,
@@ -4488,17 +4510,19 @@ def run():
                 replay_id = hashlib.sha1(seed["label"].encode()).hexdigest()[:12]
                 row = manifest.get(url_key(base))
                 is_pdf = bool(row and (PDF_RE.search(base) or row["file"].lower().endswith(".pdf")))
-                contract = source_contract(seed, is_pdf) if row and not args.range_only else None
+                contract = source_contract(seed, is_pdf) if (row or args.live) and not args.range_only else None
                 proof_seed = {
                     **seed,
                     "_sourceIdentities": (contract or {}).get("sourceIdentities") or [],
                 }
-                if not row:
+                if not row and not args.live:
                     result = {"label": seed["label"], "verdict": "cache-miss", "target": target}
                 elif contract is not None and not contract["accepted"]:
                     result = {"label": seed["label"], "verdict": contract["status"],
                               "target": target, "cacheFile": row["file"]}
                 elif is_pdf:
+                    if not row:
+                        raise ValueError("live PDF verification requires a cached byte identity")
                     file = CACHE / row["file"]
                     try:
                         pdf_result = pdf_seed_paint_proof(
@@ -4514,8 +4538,10 @@ def run():
                             raise
                         result = {"label": seed["label"], "verdict": "error", "target": target, "cacheFile": row["file"], "error": str(exc)[:300]}
                 else:
-                    local_base = f"{server.origin}/page/{quote(row['file'])}"
-                    local = f"{local_base}?seed={replay_id}" + (f"#{fragment}" if fragment else "")
+                    local_base = target.partition("#")[0] if args.live else \
+                        f"{server.origin}/page/{quote(row['file'])}"
+                    local = target if args.live else \
+                        f"{local_base}?seed={replay_id}" + (f"#{fragment}" if fragment else "")
                     try:
                         if args.range_only:
                             phase = time.perf_counter()
@@ -4553,7 +4579,8 @@ def run():
                             }
                             raise StopIteration
                         result, paint_timings = html_paint_proof(
-                            driver, local, proof_seed, row["file"], args.save_shots, args.mine_oracle,
+                            driver, local, proof_seed, row["file"] if row else None,
+                            args.save_shots, args.mine_oracle, args.live,
                         )
                         for name, value in paint_timings.items():
                             timings[name] = round(timings.get(name, 0) + value, 1)

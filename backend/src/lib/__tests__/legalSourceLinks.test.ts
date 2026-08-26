@@ -6,6 +6,7 @@ import {
   buildLegalSourcePinpointUrl,
 } from "../legalSourceLinks";
 import { structureNative } from "../structureNative";
+import { buildA2AJWebPinpointUrl } from "../a2ajWebLinks";
 
 async function nativeDocument(
   text: string,
@@ -23,12 +24,14 @@ async function nativeDocument(
     dataset,
     citation,
     alternateCitation: null,
-    name: "Example v. Example",
+    name: docType === "laws" ? "Example Act" : "Example v. Example",
     date: null,
     url,
     verifiedPdf: null,
     language: "en",
     upstreamLicense: null,
+    searchText: text,
+    searchNative: native,
     native,
   };
 }
@@ -319,6 +322,34 @@ describe("verified legal-source links", () => {
     ]);
   });
 
+  it("builds an actual A2AJ document-view fallback with native directives", () => {
+    const source = {
+      docType: "cases",
+      citation: "1980 BCCA 1",
+    } as const;
+    const plan = {
+      directives: ["text=amount,Act", "text=amount,payable"],
+      sourceWordIntervals: [{
+        quoteIndex: 0, start: 4, end: 61, firstWord: 1, lastWord: 11,
+      }],
+      sourceSafeComplete: true,
+      paintedWords: 10,
+      paintQuotes: [
+        "amount was $200,000.00 under the Act",
+        "amount was $200,000.00 under the Act and remains payable",
+      ],
+    };
+    const target = buildA2AJWebPinpointUrl(source, plan)!;
+    expect(target).toBe(
+      "https://law.a2aj.ca/document?citation=1980+BCCA+1&doc_type=cases" +
+      "#:~:text=amount,Act&text=amount,payable",
+    );
+    expect(buildA2AJWebPinpointUrl(source, {
+      ...plan,
+      sourceSafeComplete: false,
+    })).toBeNull();
+  });
+
   it("links a quote carrying an editorial alteration", async () => {
     // A court quoting mid-sentence writes "[T]he ...". The words match the
     // source, but the raw quote never equals the rendered text, so when the
@@ -389,9 +420,6 @@ describe("verified legal-source links", () => {
       ["motiveless act"],
     )!;
 
-    // site_preference=mobile is load-bearing: without it the desktop
-    // rendering locks the viewport on the text-fragment match and the page
-    // cannot be scrolled.
     expect(result).toContain("foo=bar&iframe=true&site_preference=mobile");
     expect(result).toContain("/item/21212/index.do");
     expect(result).not.toContain("/21212/1/document.do");
@@ -455,6 +483,12 @@ describe("verified legal-source links", () => {
       text,
       [],
     )).toBeNull();
+    expect(buildA2AJDocumentPinpointUrl(
+      { ...document, url: null },
+      { kind: "paragraph", label: "par81" },
+      text,
+      ["counter-speech remains a central consideration"],
+    )).toContain("https://law.a2aj.ca/document?citation=2023+SCC+14&doc_type=cases#:~:text=");
     const official = await nativeDocument(
       "[12] The Alberta court states the governing rule.",
       "https://example.test/official-decision",

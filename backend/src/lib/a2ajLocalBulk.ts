@@ -215,6 +215,7 @@ export function fetchLocalA2AJDocument(args: {
   docType?: DocType;
   language?: Language;
   dataset?: string;
+  sourceUrl?: string;
   maxChars?: number;
 }): A2AJDocument | null {
   const citation = args.citation.trim();
@@ -225,6 +226,10 @@ export function fetchLocalA2AJDocument(args: {
     const filters = ["lookup.citation_key = ?", "document.doc_type = ?"];
     const values: Array<string | number> = [key, args.docType ?? "cases"];
     addDatasetFilter(filters, values, args.dataset);
+    if (args.sourceUrl?.trim()) {
+      filters.push("(document.url_en = ? OR document.url_fr = ?)");
+      values.push(args.sourceUrl.trim(), args.sourceUrl.trim());
+    }
     const row = database
       .prepare(
         `SELECT document.*

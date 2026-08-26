@@ -86,7 +86,7 @@ describe("reader boundary", () => {
     expect(JSON.parse(combined.content).readers).toHaveLength(2);
   });
 
-  it("resumes only the exact interrupted IDs and their stored assignments", async () => {
+  it("resumes exact unfinished IDs with their stored assignments and activity history", async () => {
     const saved: ReadSubagentCheckpoint = {
       id: "reader-1",
       continuation_id: "session-1",
@@ -97,10 +97,19 @@ describe("reader boundary", () => {
       },
       evidence: [],
     };
-    const events = [{
-      type: "subagent_run", id: saved.id, status: "interrupted", resume: saved,
+    const activities = [{
+      id: "lookup-1",
+      tool: "search",
+      label: "Searching SCC authorities",
+      status: "completed" as const,
     }];
-    expect(resumableReadSubagents(events).get(saved.id)).toEqual(saved);
+    const events = [{
+      type: "subagent_run", id: saved.id, status: "running", activities, resume: saved,
+    }];
+    expect(resumableReadSubagents(events).get(saved.id)).toEqual({
+      ...saved,
+      activities,
+    });
     const resumed: string[] = [];
     const output = await runReadSubagentRound({
       call: { id: "resume", name: RESUME_SUBAGENT_TOOL_NAME, input: { ids: [saved.id] } },

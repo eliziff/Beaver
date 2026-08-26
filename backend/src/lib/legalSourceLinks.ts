@@ -8,6 +8,7 @@ import {
 } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
 import { A2AJ_CANLII_COURT_ROUTES } from "./canliiUrls";
+import { buildA2AJWebPinpointUrl } from "./a2ajWebLinks";
 
 /**
  * Deterministic pinpoint URLs: a provider anchor where one exists, plus text
@@ -229,22 +230,32 @@ function publisherMayAnnotateLegalReference(rawUrl: string) {
 function buildA2AJSourcePinpointUrl(
   source: Pick<
     A2AJCompiledDocument,
-    "dataset" | "citation" | "alternateCitation" | "language" | "url" |
-      "verifiedPdf"
+    "docType" | "dataset" | "citation" | "alternateCitation" | "name" |
+      "date" | "language" | "url" | "verifiedPdf" | "searchText"
   >,
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: string,
   quotes: string[],
   document: NativeDocument,
 ) {
-  if (!source.url) return null;
-  return buildLegalSourcePinpointUrl({
-    url: source.url,
-    verifiedPdf: source.verifiedPdf,
-    anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
+  const pinpoint = source.url
+    ? buildLegalSourcePinpoint({
+        url: source.url,
+        verifiedPdf: source.verifiedPdf,
+        anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
+        blockText,
+        documentText: document,
+      }, quotes)
+    : null;
+  if (pinpoint) return pinpoint.target;
+  const plan = structureNative().textFragmentPlan(
     blockText,
-    documentText: document,
-  }, quotes);
+    quotes,
+    false,
+    false,
+    document,
+  );
+  return buildA2AJWebPinpointUrl(source, plan);
 }
 
 export function buildLegalSourcePinpoint(
@@ -341,14 +352,14 @@ export function buildA2AJDocumentPinpointUrl(
   locator: { kind: A2AJLocatorKind; label: string },
   blockText: string,
   quotes: string[],
-  source: NativeDocument | null = null,
+  _source: NativeDocument | null = null,
 ) {
   return buildA2AJSourcePinpointUrl(
     document,
     locator,
     blockText,
     quotes,
-    source ?? document.native,
+    document.searchNative,
   );
 }
 
