@@ -4,8 +4,9 @@ import {
   buildA2AJDocumentPinpointUrl,
   buildLegalSourcePinpoint,
   buildLegalSourcePinpointUrl,
+  shouldUseA2AJWebFallback,
 } from "../legalSourceLinks";
-import { structureNative } from "../structureNative";
+import { structureNative, type NativeTextFragmentPlan } from "../structureNative";
 import { buildA2AJWebPinpointUrl } from "../a2ajWebLinks";
 
 async function nativeDocument(
@@ -110,6 +111,7 @@ describe("verified legal-source links", () => {
     const plan = structureNative().textFragmentPlan(
       text,
       [text],
+      false,
       false,
       false,
       await nativeSource(text),
@@ -430,7 +432,7 @@ describe("verified legal-source links", () => {
     expect(result.match(/iframe=/gu)).toHaveLength(1);
   });
 
-  it("keeps Decisia HTML when the publisher offers an alternate PDF", async () => {
+  it("uses Law Web for repeated Decisia passages instead of the alternate PDF", async () => {
     const text = [
       "Unique lead",
       "Alpha one",
@@ -455,8 +457,8 @@ describe("verified legal-source links", () => {
       ["Alpha one\nBeta two"],
     )!;
 
-    expect(result).toMatch(
-      /^https:\/\/decisions\.scc-csc\.ca\/scc-csc\/scc-csc\/en\/item\/21213\/index\.do\?iframe=true&site_preference=mobile#par1:~:text=/u,
+    expect(result).toContain(
+      "https://law.a2aj.ca/document?citation=2099+SCC+1&doc_type=cases#:~:text=",
     );
   });
 
@@ -515,6 +517,113 @@ describe("verified legal-source links", () => {
     );
   });
 
+  it("routes a production-derivable repeated case passage through Law Web", async () => {
+    const passage = "the repeated proposition governs this unusual legal dispute";
+    const text = [
+      `First context says ${passage} before its distinct ending.`,
+      `Second context says ${passage} before another distinct ending.`,
+    ].join("\n");
+    const document = await nativeDocument(
+      text,
+      "https://www.bccourts.ca/Jdb-txt/CA/99/01/2099BCCA0001.htm",
+      "2099 BCCA 1",
+      "BCCA",
+    );
+
+    const result = buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par1" },
+      text.split("\n")[0]!,
+      [passage],
+    )!;
+
+    expect(result).toContain(
+      "https://law.a2aj.ca/document?citation=2099+BCCA+1&doc_type=cases#:~:text=",
+    );
+  });
+
+  it("routes only the proved unique legal-reference family through Law Web", async () => {
+    const legalPassage =
+      "section 12 of the Example Act controls this distinct application today";
+    const ordinaryPassage =
+      "this distinct proposition controls the unusual application before us today";
+    const text = `${legalPassage}. ${ordinaryPassage}.`;
+    const document = await nativeDocument(
+      text,
+      "https://www.bccourts.ca/Jdb-txt/CA/99/02/2099BCCA0002.htm",
+      "2099 BCCA 2",
+      "BCCA",
+    );
+
+    expect(buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par1" },
+      text,
+      [legalPassage],
+    )).toContain("https://law.a2aj.ca/document?");
+    expect(buildA2AJDocumentPinpointUrl(
+      document,
+      { kind: "paragraph", label: "par1" },
+      text,
+      [ordinaryPassage],
+    )).toContain("https://www.bccourts.ca/");
+  });
+
+  it("keeps the proved legislation router boundaries blind and deterministic", () => {
+    const plan = (overrides: Partial<NativeTextFragmentPlan> = {}): NativeTextFragmentPlan => ({
+      directives: ["text=Example%20Act"],
+      sourceWordIntervals: [{
+        quoteIndex: 0, start: 100, end: 120, firstWord: 0, lastWord: 1,
+      }],
+      paintQuotes: ["Example Act"],
+      sourceSafeComplete: true,
+      paintedWords: 2,
+      ...overrides,
+    });
+
+    expect(shouldUseA2AJWebFallback(
+      "laws",
+      "https://www.ontario.ca/laws/statute/example",
+      plan(),
+      "The unique Example Act controls.",
+    )).toBe(true);
+    expect(shouldUseA2AJWebFallback(
+      "laws",
+      "https://publications.saskatchewan.ca/example.pdf",
+      plan({ sourceWordIntervals: [{
+        quoteIndex: 0, start: 200_010, end: 200_030, firstWord: 0, lastWord: 1,
+      }] }),
+      "Example Act. Example Act.",
+    )).toBe(false);
+    expect(shouldUseA2AJWebFallback(
+      "laws",
+      "https://www.justice.gov.nt.ca/en/files/legislation/example.pdf",
+      plan({
+        directives: ["text=alpha", "text=beta", "text=gamma"],
+        sourceWordIntervals: [
+          { quoteIndex: 0, start: 1, end: 2, firstWord: 0, lastWord: 0 },
+          { quoteIndex: 0, start: 3, end: 4, firstWord: 1, lastWord: 1 },
+          { quoteIndex: 0, start: 5, end: 6, firstWord: 2, lastWord: 2 },
+        ],
+        paintQuotes: ["alpha", "beta", "gamma"],
+      }),
+      "alpha beta gamma alpha beta gamma",
+    )).toBe(false);
+    expect(shouldUseA2AJWebFallback(
+      "laws",
+      "https://www.justice.gov.nt.ca/en/files/legislation/example.pdf",
+      plan({
+        directives: ["text=opening", "text=definition"],
+        sourceWordIntervals: [
+          { quoteIndex: 0, start: 0, end: 2, firstWord: 0, lastWord: 0 },
+          { quoteIndex: 0, start: 3, end: 6, firstWord: 1, lastWord: 1 },
+        ],
+        paintQuotes: ["opening", "definition punctuation mismatch"],
+      }),
+      "opening definition",
+    )).toBe(false);
+  });
+
   it("keeps CanLII PDF page links on the PDF", async () => {
     const text = "The PDF page contains a distinctive reporter proposition.";
     const document = await nativeDocument(
@@ -531,7 +640,7 @@ describe("verified legal-source links", () => {
     expect(result).toContain(".pdf#page=19:~:text=");
   });
 
-  it("uses native paragraph anchors on every Decisia deployment", async () => {
+  it("keeps Decisia anchors except for the proved short Lexum fallback family", async () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
     for (const [url, dataset, citation] of [
@@ -558,11 +667,15 @@ describe("verified legal-source links", () => {
         text,
         ["distinctive controlling principle"],
       )!;
-      expect(result).toContain("iframe=true");
-      expect(result).toContain("site_preference=mobile");
-      expect(result).toContain("#par42:~:text=");
-      expect(result).toContain(new URL(url).hostname);
-      expect(result).not.toContain("canlii.org");
+      if (new URL(url).hostname === "decisia.lexum.com") {
+        expect(result).toContain("https://law.a2aj.ca/document?");
+      } else {
+        expect(result).toContain("iframe=true");
+        expect(result).toContain("site_preference=mobile");
+        expect(result).toContain("#par42:~:text=");
+        expect(result).toContain(new URL(url).hostname);
+        expect(result).not.toContain("canlii.org");
+      }
     }
   });
 

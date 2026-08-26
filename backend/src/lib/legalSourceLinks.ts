@@ -5,6 +5,7 @@ import {
 import {
   structureNative,
   type NativeDocument,
+  type NativeTextFragmentPlan,
 } from "./structureNative";
 import type { VerifiedPdfEvidence } from "./legalSourcePresentation";
 import { A2AJ_CANLII_COURT_ROUTES } from "./canliiUrls";
@@ -227,6 +228,85 @@ function publisherMayAnnotateLegalReference(rawUrl: string) {
   }
 }
 
+function normalizedFragmentText(value: string) {
+  return value.normalize("NFKC").toLocaleLowerCase("en")
+    .replace(/\s+/gu, " ").trim();
+}
+
+function textOccurrences(haystack: string, needle: string) {
+  if (!needle) return 0;
+  let count = 0;
+  for (let at = haystack.indexOf(needle); at >= 0;
+    at = haystack.indexOf(needle, at + 1)) count += 1;
+  return count;
+}
+
+const LAW_WEB_LEGISLATION_HOSTS = {
+  missing: new Set([
+    "www.justice.gov.nt.ca", "www.bclaws.gov.bc.ca", "laws-lois.justice.gc.ca",
+    "laws.yukon.ca", "www.legisquebec.gouv.qc.ca",
+  ]),
+  repeated: new Set([
+    "www.princeedwardisland.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
+    "kings-printer.alberta.ca", "www.legisquebec.gouv.qc.ca",
+    "publications.saskatchewan.ca",
+  ]),
+  unique: new Set([
+    "web2.gov.mb.ca", "www.princeedwardisland.ca", "www.ontario.ca",
+    "www.bclaws.gov.bc.ca", "laws.gnb.ca", "www.legisquebec.gouv.qc.ca",
+    "kings-printer.alberta.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
+  ]),
+} as const;
+
+export function shouldUseA2AJWebFallback(
+  docType: A2AJCompiledDocument["docType"],
+  publisherUrl: string,
+  publisherPlan: NativeTextFragmentPlan | null,
+  documentText: string,
+) {
+  if (!publisherPlan?.directives.length) return false;
+  const targetEnd = Math.max(0,
+    ...publisherPlan.sourceWordIntervals.map(({ end }) => end));
+  if (targetEnd > 200_001) return false;
+  const fullText = normalizedFragmentText(documentText);
+  const counts = publisherPlan.paintQuotes.map((quote) =>
+    textOccurrences(fullText, normalizedFragmentText(quote)));
+  const occurrenceClass = counts.some((count) => count === 0) ? "missing"
+    : counts.some((count) => count > 1) ? "repeated" : "unique";
+  let host: string;
+  try {
+    host = new URL(publisherUrl).hostname.toLocaleLowerCase("en");
+  } catch {
+    return false;
+  }
+  if (docType === "laws") {
+    const ambiguousPublisherIslands = host === "www.justice.gov.nt.ca" &&
+      publisherPlan.directives.length >= 3 &&
+      publisherPlan.directives.length === publisherPlan.sourceWordIntervals.length &&
+      counts.every((count) => count > 1);
+    const openingFurnitureRisk = host === "www.justice.gov.nt.ca" &&
+      occurrenceClass === "missing" && targetEnd <= 100 &&
+      publisherPlan.directives.length >= 2 &&
+      publisherPlan.directives.length === publisherPlan.sourceWordIntervals.length;
+    return !ambiguousPublisherIslands && !openingFurnitureRisk &&
+      LAW_WEB_LEGISLATION_HOSTS[occurrenceClass].has(host);
+  }
+  if (occurrenceClass === "repeated") return true;
+  if (occurrenceClass !== "unique") return false;
+  const words = publisherPlan.paintedWords;
+  if (words <= 10) return host === "decisia.lexum.com";
+  if (words > 32) {
+    return new Set([
+      "decisia.lexum.com", "decisions.sst-tss.gc.ca", "decision.tcc-cci.gc.ca",
+    ]).has(host);
+  }
+  return /\b(?:act|code|rules?|irpa|section|subsection)\b|\bs\.\s*\d/iu
+    .test(publisherPlan.paintQuotes.join(" ")) && new Set([
+      "www.bccourts.ca", "decisia.lexum.com", "www.oic-ci.gc.ca", "refugeelab.ca",
+      "decisions.scc-csc.ca",
+    ]).has(host);
+}
+
 function buildA2AJSourcePinpointUrl(
   source: Pick<
     A2AJCompiledDocument,
@@ -238,7 +318,7 @@ function buildA2AJSourcePinpointUrl(
   quotes: string[],
   document: NativeDocument,
 ) {
-  const pinpoint = source.url
+  const publisher = source.url
     ? buildLegalSourcePinpoint({
         url: source.url,
         verifiedPdf: source.verifiedPdf,
@@ -247,15 +327,21 @@ function buildA2AJSourcePinpointUrl(
         documentText: document,
       }, quotes)
     : null;
-  if (pinpoint) return pinpoint.target;
+  if (publisher && !shouldUseA2AJWebFallback(
+    source.docType,
+    publisher.target,
+    publisher.plan,
+    source.searchText,
+  )) return publisher.target;
   const plan = structureNative().textFragmentPlan(
     blockText,
     quotes,
     false,
     false,
+    true,
     document,
   );
-  return buildA2AJWebPinpointUrl(source, plan);
+  return buildA2AJWebPinpointUrl(source, plan) ?? publisher?.target ?? null;
 }
 
 export function buildLegalSourcePinpoint(
@@ -270,6 +356,7 @@ export function buildLegalSourcePinpoint(
     quotes,
     pdf,
     publisherMayAnnotateLegalReference(url),
+    false,
     evidence.documentText,
   );
   let targetUrl = baseUrl;

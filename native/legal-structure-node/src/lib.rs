@@ -746,6 +746,7 @@ pub fn text_fragment_plan_node(
     quotes: Vec<String>,
     pdf: bool,
     publisher_may_annotate_legal_reference: bool,
+    split_html_source_blocks: bool,
     document: &External<NativeDocument>,
 ) -> napi::Result<Unknown<'static>> {
     let structure = document.structure();
@@ -755,6 +756,7 @@ pub fn text_fragment_plan_node(
         &quotes,
         pdf,
         publisher_may_annotate_legal_reference,
+        split_html_source_blocks,
     );
     js_value(env, &plan)
 }
