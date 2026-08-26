@@ -42,6 +42,7 @@ import websocket
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results"
 CACHE = RESULTS / "page-html"
+LIVE_RENDERED_CACHE = RESULTS / "live-rendered-html"
 PDF_TEXT_CACHE = RESULTS / "pdf-text"
 BROWSER_TEXT_CACHE = RESULTS / "browser-rendered-text"
 SOURCE_CONTRACT_CACHE = RESULTS / "source-contract-cache"
@@ -55,7 +56,7 @@ DRIVER = Path.home() / ".cache/selenium/chromedriver/win64/151.0.7922.138/chrome
 PDF_RE = re.compile(r"(?i)(\.pdf(?:$|[?#])|/document\.do(?:$|[?#]))")
 PDF_PAINT_CONTRACT = "pdf-natural-directive-geometry-v13-source-identity"
 HTML_PAINT_CONTRACT = "html-exact-island-geometry-v15-source-identity"
-SOURCE_CONTRACT_CACHE_VERSION = "canonical-source-contract-result-v2"
+SOURCE_CONTRACT_CACHE_VERSION = "canonical-source-contract-result-v4"
 RANGE_PROOF_CACHE_VERSION = f"{HTML_PAINT_CONTRACT}:cached-range-proof-v1"
 PDF_VIEWER_URL = "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html"
 PROVEN_404_LABEL = "FCA_2026_FC_103_p20_short-exact"
@@ -1606,17 +1607,23 @@ def html_paint_proof(driver, local: str, seed: dict, cache_file: str | None,
     result = {
         "label": seed["label"], "verdict": verdict, "target": target, "cacheFile": cache_file,
         "verificationContract": HTML_PAINT_CONTRACT,
-        "paintColor": "rgb(0,255,0)", "isolatedProofs": isolated_proofs,
+        "paintColor": "native-target-text" if live else "rgb(0,255,0)",
+        "isolatedProofs": isolated_proofs,
         "combinedInitialViewport": combined["initialViewport"],
         "quotes": combined["quotes"], "findRanges": combined["findRanges"],
         "rangeVerdict": combined["rangeVerdict"],
     }
     if live:
         rendered = driver.execute_script("return document.documentElement.outerHTML")
+        rendered_bytes = rendered.encode("utf-8")
+        rendered_name = hashlib.sha1(target.partition("#")[0].encode()).hexdigest() + ".html"
+        LIVE_RENDERED_CACHE.mkdir(exist_ok=True)
+        (LIVE_RENDERED_CACHE / rendered_name).write_bytes(rendered_bytes)
         result["liveIdentity"] = {
             "url": driver.current_url,
-            "bytes": len(rendered.encode("utf-8")),
-            "sha256": hashlib.sha256(rendered.encode("utf-8")).hexdigest(),
+            "file": rendered_name,
+            "bytes": len(rendered_bytes),
+            "sha256": hashlib.sha256(rendered_bytes).hexdigest(),
         }
     if save_shots and verdict != "exact-match" and image is not None:
         full_name = safe_name(seed["label"] + "-full", 0)
@@ -1737,7 +1744,9 @@ def html_isolation_plan(seed: dict):
 
 SOURCE_WORD_RE = re.compile(r"[^\W_]+(?:['\u2019][^\W_]+)*", re.UNICODE)
 SOURCE_LINE_LABEL = re.compile(
-    r"^(?:(?P<pin>\[\s*\d{1,4}\s*\]|\d{1,4}\])\s*|"
+    r"^(?:(?P<markdown>(?:\*{1,3}|_{1,3})\s*\d{1,4}(?:\.\d{1,4})*\s*"
+    r"(?:\*{1,3}|_{1,3})\s*)|"
+    r"(?P<pin>\[\s*\d{1,4}\s*\]|\d{1,4}\])\s*|"
     r"(?P<numbered>\d{1,4}\s+(?:[\u2013\u2014]|\u00e2\u20ac[\u201c\u201d])\s+)|"
     r"(?P<provision>\d{1,4}(?:\.\d{1,4})*\s*"
     r"(?:\(\s*[A-Za-z0-9]{1,5}\s*\)\s*)+"
@@ -1747,10 +1756,16 @@ SOURCE_LINE_LABEL = re.compile(
 TRAILING_BILINGUAL_TRANSLATION = re.compile(
     r"\s*\(\s*(?:\u00ab|\u00c2\u00ab|\u00c3\u201a\u00c2\u00ab)\s*[^)]*$", re.IGNORECASE,
 )
+LEADING_BILINGUAL_TRANSLATION = re.compile(
+    r"^\s*\(\s*(?:\u00ab|\u00c2\u00ab|\u00c3\u201a\u00c2\u00ab)\s*[^)]*"
+    r"(?:\u00bb|\u00c2\u00bb|\u00c3\u201a\u00c2\u00bb)\s*\)\s*",
+    re.IGNORECASE,
+)
 ACCEPTED_OMISSION_REASONS = {
     "line-start-furniture",
     "decimal-or-subsection-locator",
     "appended-bilingual-translation",
+    "bilingual-translation-furniture",
     "duplicate-signature-metadata",
 }
 
@@ -1968,6 +1983,9 @@ def source_omission_reason(document_text: str, document_words: list[dict],
     if quote_reason:
         return quote_reason
     token = quote_words[quote_index]
+    leading_bilingual = LEADING_BILINGUAL_TRANSLATION.match(raw_quote) if allow_bilingual else None
+    if leading_bilingual and token["end"] <= leading_bilingual.end():
+        return "bilingual-translation-furniture"
     bilingual = TRAILING_BILINGUAL_TRANSLATION.search(raw_quote) if allow_bilingual else None
     if bilingual and bilingual.start() and bilingual.start() <= token["start"]:
         return "appended-bilingual-translation"
@@ -4279,6 +4297,18 @@ def run():
         if file.exists() and file.stat().st_size >= 500:
             manifest[url_key(row["url"])] = row
             files[row["file"]] = file
+    for seed in gettable_targets:
+        base = seed.get("target", "").split("#", 1)[0]
+        name = hashlib.sha1(base.encode()).hexdigest() + ".html"
+        file = LIVE_RENDERED_CACHE / name
+        if file.is_file():
+            row = {"url": base, "file": name, "liveRendered": True}
+            manifest[url_key(base)] = row
+            files[name] = file
+
+    def cached_file(row):
+        root = LIVE_RENDERED_CACHE if row.get("liveRendered") else CACHE
+        return root / row["file"]
     if args.only != "all":
         want_pdf = args.only == "pdf"
         def cached_as_pdf(seed):
@@ -4310,7 +4340,7 @@ def run():
     def input_hash(seed):
         base = seed.get("target", "").split("#")[0]
         cached = manifest.get(url_key(base))
-        file = CACHE / cached["file"] if cached else None
+        file = cached_file(cached) if cached else None
         cache_identity = None
         if file and file.exists():
             stat = file.stat()
@@ -4336,6 +4366,16 @@ def run():
         expected_contract = PDF_PAINT_CONTRACT if str(row.get("cacheFile", "")).lower().endswith(".pdf") \
             else HTML_PAINT_CONTRACT
         contract = row.get("verificationContract")
+        if args.live and not row.get("cacheFile"):
+            identity = row.get("liveIdentity") or {}
+            if row.get("verdict") == "error" and args.resume_terminal and not identity:
+                return row.get("sourceMode") == "live" and row.get("headed") is args.headed
+            file = LIVE_RENDERED_CACHE / str(identity.get("file", ""))
+            return contract == expected_contract and row.get("sourceMode") == "live" and \
+                row.get("headed") is args.headed and file.is_file() and \
+                file.stat().st_size == identity.get("bytes") and \
+                len(identity.get("sha256", "")) == 64 and \
+                cached_digest(file) == identity["sha256"]
         return (contract is None and args.resume_terminal or contract == expected_contract) and \
             row.get("sourceMode") == ("live" if args.live else "cache") and \
             row.get("headed") is args.headed and \
@@ -4523,7 +4563,7 @@ def run():
                 elif is_pdf:
                     if not row:
                         raise ValueError("live PDF verification requires a cached byte identity")
-                    file = CACHE / row["file"]
+                    file = cached_file(row)
                     try:
                         pdf_result = pdf_seed_paint_proof(
                             driver, pdf_oopif, server.origin, file, row["file"], proof_seed, base, fragment,
@@ -4546,7 +4586,7 @@ def run():
                         if args.range_only:
                             phase = time.perf_counter()
                             if loaded_range_base != base:
-                                html = (CACHE / row["file"]).read_text(encoding="utf-8")
+                                html = cached_file(row).read_text(encoding="utf-8")
                                 csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'
                                 html, replacements = re.subn(r"(?i)(<head\b[^>]*>)", r"\1" + csp, html, count=1)
                                 if not replacements:
@@ -4588,6 +4628,16 @@ def run():
                         pass
                     except Exception as exc:  # retain partial corpus evidence
                         if browser_session_failed(driver, exc):
+                            result = {
+                                "label": seed["label"], "verdict": "error", "target": target,
+                                "error": str(exc)[:300], "elapsedMs": round((time.time() - started) * 1000),
+                                "timings": timings, "sourceMode": "live" if args.live else "cache",
+                                "headed": args.headed, "inputHash": fingerprints[seed["label"]],
+                            }
+                            if contract is not None:
+                                result["sourceContract"] = contract
+                            output.write(json.dumps(result, ensure_ascii=False) + "\n")
+                            output.flush()
                             raise
                         result = {"label": seed["label"], "verdict": "error", "target": target, "error": str(exc)[:300]}
                 result["elapsedMs"] = round((time.time() - started) * 1000)
@@ -4597,9 +4647,9 @@ def run():
                 result["sourceMode"] = "live" if args.live else "cache"
                 result["headed"] = args.headed
                 if row:
-                    cached_file = CACHE / row["file"]
-                    if cached_file.exists():
-                        result["cacheIdentity"] = cache_identity(cached_file)
+                    identity_file = cached_file(row)
+                    if identity_file.exists():
+                        result["cacheIdentity"] = cache_identity(identity_file)
                 if args.live and row:
                     fingerprints[seed["label"]] = input_hash(seed)
                 result["inputHash"] = fingerprints[seed["label"]]
