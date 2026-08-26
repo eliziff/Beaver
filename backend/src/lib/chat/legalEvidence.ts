@@ -578,6 +578,7 @@ export async function restorePriorLegalEvidence(
               docType: receipt.source_class === "legislation" ? "laws" : "cases",
               language: receipt.language,
               dataset: receipt.dataset,
+              sourceUrl: receipt.external_url,
               signal,
             });
             return document &&

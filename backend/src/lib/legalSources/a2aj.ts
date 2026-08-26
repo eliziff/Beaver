@@ -31,6 +31,11 @@ export type A2AJDocument = {
 };
 
 export type A2AJCompiledDocument = Omit<A2AJDocument, "text" | "sectionMap"> & {
+  /** Original A2AJ text, retained because Law Web searches its markdown tokens. */
+  searchText: string;
+  /** Full-text coordinates used exclusively for URL fragment planning. */
+  searchNative: NativeDocument;
+  /** Provider section-map coordinates used for structured reads. */
   native: NativeDocument;
 };
 
@@ -233,30 +238,52 @@ async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocu
     name: document.name,
     sectionMap: document.sectionMap,
   });
-  return compiledDocument(document, native);
-}
-
-async function scopedDocument(document: A2AJDocument, requested: string, text: string) {
-  if (!requested.trim() || !text.trim()) return null;
-  const compiled = await deriveA2AJDocument({
-    citation: document.citation, docType: "laws", text, id: document.citation,
-    url: document.url, alternateCitation: document.alternateCitation,
-    dataset: document.dataset, name: document.name, sectionMap: { [requested]: text },
-  }, { kind: "excerpt", excerptOf: document.citation });
-  return compiledDocument(document, compiled);
+  const searchNative = document.sectionMap
+    ? await deriveA2AJDocument({
+        citation: document.citation,
+        docType: document.docType ?? "cases",
+        text: document.text,
+        url: document.url,
+        alternateCitation: document.alternateCitation,
+        dataset: document.dataset,
+        name: document.name,
+      })
+    : native;
+  return compiledDocument(document, native, searchNative);
 }
 
 function compiledDocument(
   document: A2AJDocument,
   native: NativeDocument,
+  searchNative: NativeDocument,
 ): A2AJCompiledDocument {
   const { text: _text, sectionMap: _sectionMap, ...metadata } = document;
-  return { ...metadata, native };
+  return { ...metadata, searchText: document.text, searchNative, native };
+}
+
+async function scopedDocument(
+  document: A2AJCompiledDocument,
+  requested: string,
+  text: string,
+) {
+  if (!requested.trim() || !text.trim()) return document;
+  const native = await deriveA2AJDocument({
+    citation: document.citation,
+    docType: "laws",
+    text,
+    id: document.citation,
+    url: document.url,
+    alternateCitation: document.alternateCitation,
+    dataset: document.dataset,
+    name: document.name,
+    sectionMap: { [requested]: text },
+  }, { kind: "excerpt", excerptOf: document.citation });
+  return { ...document, native };
 }
 
 async function document(args: {
   citation: string; docType?: DocType; language?: Language; dataset?: string;
-  section?: string; signal?: AbortSignal;
+  section?: string; sourceUrl?: string | null; signal?: AbortSignal;
 }) {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
@@ -265,28 +292,48 @@ async function document(args: {
   const language = args.language === "fr" ? "fr" : "en";
   const key = JSON.stringify([
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
-    citation.toLowerCase(), args.section?.trim().toLowerCase() ?? "",
+    citation.toLowerCase(), args.sourceUrl?.trim() ?? "", args.section?.trim() ?? "",
   ]);
   const cached = documents.get(key);
   if (cached && cached.expires > Date.now()) return cached.value;
   if (cached) documents.delete(key);
-  let source = args.section?.trim() ? null : fetchLocalA2AJDocument({
-    citation, docType, language, dataset: args.dataset, maxChars: Number.MAX_SAFE_INTEGER,
+  const section = args.section?.trim();
+  if (section) {
+    const full = await document({ ...args, section: undefined });
+    if (!full) return null;
+    const payload = await request("/fetch", {
+      citation, doc_type: docType, output_language: language, section,
+    }, args.signal);
+    const candidates = (Array.isArray(payload.results) ? payload.results : [])
+      .map((item) => mapDocument(item, language, docType))
+      .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
+        item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
+    const scoped = args.sourceUrl?.trim()
+      ? candidates.find((item) => item.url === args.sourceUrl!.trim())
+      : candidates[0];
+    const result = await scopedDocument(full, section, scoped?.text ?? "");
+    documents.set(key, { expires: Date.now() + 60 * 60_000, value: result });
+    return result;
+  }
+  let source = fetchLocalA2AJDocument({
+    citation, docType, language, dataset: args.dataset,
+    sourceUrl: args.sourceUrl ?? undefined, maxChars: Number.MAX_SAFE_INTEGER,
   });
   if (!source) {
     const payload = await request("/fetch", {
-      citation, doc_type: docType, output_language: language, section: args.section?.trim(),
+      citation, doc_type: docType, output_language: language,
     }, args.signal);
-    source = (Array.isArray(payload.results) ? payload.results : [])
+    const candidates = (Array.isArray(payload.results) ? payload.results : [])
       .map((item) => mapDocument(item, language, docType))
-      .find((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
-        item.dataset.toLowerCase() === args.dataset.trim().toLowerCase())) ?? null;
+      .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
+        item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
+    source = args.sourceUrl?.trim()
+      ? candidates.find((item) => item.url === args.sourceUrl!.trim()) ?? null
+      : candidates[0] ?? null;
   }
   if (!source) return null;
   source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };
-  const result = args.section?.trim()
-    ? await scopedDocument(source, args.section, source.text)
-    : await compileDocument(source);
+  const result = await compileDocument(source);
   if (!result) return null;
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),
@@ -466,6 +513,7 @@ const provider: LegalSourceProvider<A2AJCompiledDocument> = {
       const found = await document({ citation, docType,
         language: request.source.language,
         dataset: request.source.collection ?? undefined, section,
+        sourceUrl: request.source.url,
         signal: request.signal });
       if (!found) return [];
       return nativeDocumentPassages({ request,
@@ -510,4 +558,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
+  clearCache: () => documents.clear(),
 });

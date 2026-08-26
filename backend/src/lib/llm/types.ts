@@ -114,6 +114,8 @@ export type ProviderSubagentUpdate = {
 };
 
 export type StreamCallbacks = {
+  /** Provider or nested-tool progress used by inactivity watchdogs. */
+  onActivity?: () => void;
   onReasoningDelta?: (text: string) => void;
   onReasoningBlockEnd?: () => void;
   onContentDelta?: (text: string) => void;
@@ -175,7 +177,10 @@ export type StreamChatParams = {
   /** Retry count for one provider round. Defaults to 3; set to 1 for quota-counted calls. */
   maxProviderAttempts?: number;
   callbacks?: StreamCallbacks;
-  runTools?: (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
+  runTools?: (
+    calls: NormalizedToolCall[],
+    onActivity?: () => void,
+  ) => Promise<NormalizedToolResult[]>;
   /** Drain user steering at the next completed provider step. */
   takeSteering?: () => SteeringMessage[];
   apiKeys?: UserApiKeys;

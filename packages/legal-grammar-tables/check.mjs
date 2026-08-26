@@ -64,6 +64,7 @@ const validatePortablePattern = (source, id) => {
 
 const corpusBytes = readFileSync(corpusPath);
 if (corpusBytes.length > 512 * 1024) fail("grammar-corpus.json exceeds 512 KiB");
+if (corpusBytes.includes(0x0d)) fail("grammar-corpus.json must use LF line endings");
 const eyeciteReceipt = object(
   JSON.parse(readFileSync(eyeciteReceiptPath)),
   "eyecite-us-receipt",
@@ -72,6 +73,7 @@ if (eyeciteReceipt.format !== "beaver.eyecite-us-grammar-candidate.v1") fail("un
 if (eyeciteReceipt.eyecite?.version !== "2.7.8" || eyeciteReceipt.eyecite?.commit !== "09165c2d90b4295b4967b1b01b83963c37ab2a98") fail("eyecite source pin drifted");
 if (eyeciteReceipt.reporters_db?.version !== "3.2.66" || eyeciteReceipt.reporters_db?.commit !== "fad63b383b92f9446c223ddc12bf0b6fd1a6b44c") fail("reporters-db source pin drifted");
 if (eyeciteReceipt.license !== "BSD-2-Clause") fail("unexpected eyecite grammar source license");
+if (eyeciteReceipt.candidate_bytes !== corpusBytes.length) fail("eyecite receipt byte count does not describe grammar-corpus.json");
 if (eyeciteReceipt.candidate_sha256 !== sha256(corpusBytes)) fail("eyecite receipt does not describe grammar-corpus.json");
 const corpus = object(JSON.parse(corpusBytes), "corpus");
 if (corpus.format !== "legal-grammar-corpus:v1") fail(`unexpected corpus format ${corpus.format}`);

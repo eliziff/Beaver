@@ -68,7 +68,11 @@ describe("Codex app-server adapter", () => {
     const start = transport.request.mock.calls.find(([method]) => method === "thread/start")?.[1];
     expect(start).toMatchObject({
       developerInstructions: "Be concise.",
-      config: { features: { shell_tool: false }, web_search: "disabled" },
+      config: {
+        code_mode: { direct_only_tool_namespaces: ["mcp__mike_runtime"] },
+        features: { shell_tool: false },
+        web_search: "disabled",
+      },
     });
     const turn = transport.request.mock.calls.find(([method]) => method === "turn/start")?.[1];
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
@@ -247,5 +251,29 @@ describe("Codex app-server adapter", () => {
     abort.abort();
     await expect(running).rejects.toMatchObject({ name: "AbortError" });
     expect(transport.request).toHaveBeenCalledWith("turn/interrupt", { threadId, turnId });
+  });
+
+  it("does not misreport an unsolicited provider interruption as user cancellation", async () => {
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") {
+        setTimeout(() =>
+          transport.emit("turn/completed", {
+            threadId,
+            turn: { id: turnId, status: "interrupted" },
+          }),
+        0);
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+
+    await expect(streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "",
+      messages: [{ role: "user", content: "Wait." }],
+    })).rejects.toThrow(
+      "Codex app-server interrupted the turn without a Beaver cancellation request.",
+    );
   });
 });

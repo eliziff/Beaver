@@ -136,6 +136,7 @@ export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
   addEvent: (event: AssistantEvent) => void;
   updateActivity?(id: string, label: string): void;
+  onActivity?: () => void;
 };
 
 export type ChatTurnResult = {
@@ -189,6 +190,7 @@ export async function runChatTurn(options: {
     onCompaction: (status: "running" | "completed" | "failed") => void,
   ) => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
+  onActivity?: () => void;
 }) {
   const {
     emit,
@@ -342,7 +344,9 @@ export async function runChatTurn(options: {
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
     let continuationId = resume?.continuation_id;
     const id = resume?.id ?? call.id;
-    const activities = new Map<string, ToolActivity>();
+    const activities = new Map(
+      (resume?.activities ?? []).map((activity) => [activity.id, activity]),
+    );
     const base = {
       type: "subagent_run" as const,
       id,
@@ -359,9 +363,11 @@ export async function runChatTurn(options: {
           effort: capability.effort,
           assignment,
           evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
+          ...(activities.size ? { activities: [...activities.values()] } : {}),
         }
       : undefined;
     const publish = (event: ReadSubagentEvent) => {
+      context.onActivity?.();
       emit(publicAssistantEvent(event));
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
@@ -419,6 +425,7 @@ export async function runChatTurn(options: {
           continuationId = id;
           running();
         },
+        onActivity: () => context.onActivity?.(),
       });
       const grounding = legalEvidenceReceiptEvent(child.evidence);
       if (!grounding || grounding.status !== "passed") {
@@ -503,15 +510,22 @@ export async function runChatTurn(options: {
   const systemPrompt = [options.systemPrompt, registry.specialistPrompt()]
     .filter(Boolean).join("\n\n");
   const resolveTools = () => registry.visible();
-  const runTools = async (calls: NormalizedToolCall[]) => {
+  const runTools = async (
+    calls: NormalizedToolCall[],
+    onActivity?: () => void,
+  ) => {
     throwIfAborted(signal);
-    const batch = await registry.run(calls, context, providerSignal).catch((error) => {
-      settleToolActivities(
-        providerSignal.aborted ? "interrupted" : "error",
-        calls.map((call) => call.id),
-      );
-      throw error;
-    });
+    const previousActivity = context.onActivity;
+    context.onActivity = onActivity;
+    const batch = await registry.run(calls, context, providerSignal)
+      .catch((error) => {
+        settleToolActivities(
+          providerSignal.aborted ? "interrupted" : "error",
+          calls.map((call) => call.id),
+        );
+        throw error;
+      })
+      .finally(() => { context.onActivity = previousActivity; });
     batch.evidence.forEach((receipt) => registerLegalEvidence(evidence, receipt));
     for (const event of batch.events) {
       addEvent(event);
@@ -543,6 +557,10 @@ export async function runChatTurn(options: {
     return batch.results;
   };
   const callbacks = {
+    onActivity() {
+      providerActivity = true;
+      options.onActivity?.();
+    },
     onContentDelta(delta: string) {
       if (delta) providerActivity = true;
       append(delta);

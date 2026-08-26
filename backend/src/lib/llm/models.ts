@@ -44,7 +44,7 @@ const OLLAMA_MODEL_PREFIX = "ollama:";
  * Ox Alpha gateway transports (experiment routes). Each slug is fixed by its
  * gateway route; the transport itself is plain OpenAI-compatible chat.
  */
-export const OX_ALPHA_GATEWAY_MODELS = [
+const OX_ALPHA_GATEWAY_MODELS = [
     "stealth/ox-alpha",
     "x-preview-f-free",
     "ox-alpha-free",

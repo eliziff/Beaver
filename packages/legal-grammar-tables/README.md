@@ -19,6 +19,10 @@ counts, licence, and the resulting corpus hash are pinned in
 `eyecite-us-receipt.json`; `check.mjs` refuses receipt or corpus drift. Neither
 upstream package is a shipping dependency.
 
+Corpus and bundle JSON use LF bytes on every platform. The receipt and
+manifest hash those exact bytes; the generator and `.gitattributes` preserve
+that invariant on Windows.
+
 ```console
 npm run sync
 npm run check
