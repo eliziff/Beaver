@@ -125,10 +125,6 @@ function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
     agents: { enabled: params.nativeSubagents === true },
     apps: { _default: { enabled: false } },
     web_search: "disabled",
-    // GPT-5.6 can force MCP tools through a yielding JavaScript cell even when
-    // code mode is locally disabled. Beaver tools must remain direct so a
-    // healthy long-running delegate_read cannot be ended by that wrapper.
-    code_mode: { direct_only_tool_namespaces: ["mcp__mike_runtime"] },
     features: {
       shell_tool: false,
       unified_exec: false,
