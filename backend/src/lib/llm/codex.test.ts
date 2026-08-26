@@ -69,11 +69,11 @@ describe("Codex app-server adapter", () => {
     expect(start).toMatchObject({
       developerInstructions: "Be concise.",
       config: {
-        code_mode: { direct_only_tool_namespaces: ["mcp__mike_runtime"] },
         features: { shell_tool: false },
         web_search: "disabled",
       },
     });
+    expect(start?.config).not.toHaveProperty("code_mode");
     const turn = transport.request.mock.calls.find(([method]) => method === "turn/start")?.[1];
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
   });

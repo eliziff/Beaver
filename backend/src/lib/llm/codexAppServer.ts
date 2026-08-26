@@ -57,7 +57,13 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
   const bridgeToken = randomBytes(32).toString("hex");
   const child = spawn(
     process.env.CODEX_COMMAND?.trim() || (process.platform === "win32" ? "codex.cmd" : "codex"),
-    ["app-server", "--stdio", "--strict-config"], {
+    [
+      "-c",
+      'code_mode.direct_only_tool_namespaces=["mcp__mike_runtime"]',
+      "app-server",
+      "--stdio",
+      "--strict-config",
+    ], {
     cwd: os.tmpdir(),
     env: {
       ...isolatedProcessEnv([
