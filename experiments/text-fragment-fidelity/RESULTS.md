@@ -62,45 +62,59 @@ therefore keeps this row on its best publisher result.
 
 ## Blind router candidate
 
-The current router analysis uses NFKC/lowercase/whitespace-normalized occurrence
-counts in the full A2AJ document, document type, publisher host, the corpus's
-semantic `shape` fixture, and `max(sourceWordIntervals.end) <= 200001`. It selects every one of
-the 171 recoverable publisher residuals and excludes the Saskatchewan
-beyond-chunk row. The current compact rule selects 1,151 Law Web rows in all:
-171 publisher residuals and 980 publisher-exact switchovers. It avoids 1,214
-unnecessary switchovers compared with routing every within-chunk row.
+The v22 router is fully production-derivable. It uses only normalized occurrence
+counts in the complete A2AJ document, document type, publisher host, painted
+word count, legal-reference words already present in the planned paint, the
+publisher plan's directive/source-interval shape, and
+`max(sourceWordIntervals.end) <= 200001`. It does not use labels, fixture
+`shape`, publisher verifier results, Chrome output, or live-page structure.
 
-The `shape` fixture is verifier-corpus metadata, not a production input. It must
-be replaced by equivalent properties derived from quotes/source/plans before
-the router can enter the production patch. Treating it as available at runtime
-would violate the no-oracle contract.
+The router selects all 171 recoverable publisher residuals and excludes the
+Saskatchewan beyond-chunk row. It selects 1,203 Law Web rows in all: the 171
+residuals plus 1,032 publisher-exact switchovers. A general source/plan predicate
+also excludes the repeated multi-island Northwest Territories class whose
+cached Law Web page did not activate its otherwise valid range. No seed label is
+special-cased.
 
 Routed target artifact:
-`results/a2aj-document-routed-targets-v19.jsonl`, SHA-256
-`91d6c12ff22407d7d8a46540a8a7c9c143e00863b7240870f7fa8177fa688675`.
+`results/a2aj-document-routed-targets-v22.jsonl`, SHA-256
+`2228ac94b730031f849418addb6182f4046ac7aa5070d178c4f86babb35a465c`.
 
-The local cache audit proved 257/1,151 routed rows exact. It found 893 seed
-cache misses representing 538 unique Law Web document pages, plus one cached
-publisher-success switchover that needs router/builder diagnosis. The audit
-artifact is
-`results/webdriver-exact-final-routed-lawweb-v19-cache.jsonl`, SHA-256
-`7bca5e174b211e72afd9beb872ffe1475228b2018d43e1b064e831b956d138a`.
+The isolated production router was replayed over all 2,370 gettable seeds and
+selected exactly the same 1,203 labels as v22: no missing or extra routes. Its
+focused production test has 34/34 passing outcomes. The rebuilt Law Web target
+artifact is byte-identical to v22 (the same SHA-256 above), proving parity of
+all directives, intervals, paint quotes, targets, and routing metadata.
 
-The attempted live proof was rejected because it would send 1,151
-fragment-bearing URLs, including 980 publisher-success passages, to an external
-service. The safer remaining operation is to fetch the 538 missing citation-only
+The publisher-preserving mode was also replayed through the candidate native
+planner for all 2,371 original rows over 1,217 documents. All 2,371 plans are
+byte-identical to the stored publisher corpus. This gate initially exposed four
+Quebec section-label changes; label recognition was then isolated to Law Web
+mode and the complete publisher gate passed with zero mismatches.
+
+The final no-network headed-Chrome cache audit proved 254/1,203 routed rows
+strict exact. The other 949 rows are cache misses representing 587 unique Law
+Web citation-only pages. There are zero non-cache failures. The audit artifact
+is `results/webdriver-exact-final-routed-lawweb-v22-cache.jsonl`, SHA-256
+`71755dcb562b8d9ed9e638cf92c567147255f4469d0af57c9e07ddbedb3b3a0b`.
+
+The attempted live proof was rejected because it would send fragment-bearing
+URLs, including publisher-success passages, to an external service. The safer
+remaining operation is to fetch the 587 missing citation-only
 Law Web base pages in headed Chrome, cache their rendered HTML, and run the
 complete fragment proof offline. That external cache expansion requires explicit
-authorization. Until it is done, the 1,151-row router is a candidate rather than
+authorization. Until it is done, the 1,203-row router is a candidate rather than
 a production-proven rule.
 
 ## Prepared production worktree
 
-The unapplied native candidate lives only under
+The unapplied production candidate lives only under
 `results/worktrees/root-seam`. It updates `legal-structure`, the Node adapter,
-and the backend call boundary so publisher plans retain publisher mode while
-Law Web plans use block mode. Focused contracts cover three-block multi-directive
-paint and bilingual-furniture omission. The validated reversible diffs are
-stored in `CANDIDATE-production-patches.zip`. The final router and production patch
-will not be frozen or applied until the missing routed pages are cached and the
-full routed proof is clean.
+and the backend call boundary so publisher plans retain publisher mode while Law
+Web plans use block mode. It also contains the v22 blind router. Focused contracts
+cover three-block multi-directive paint, bilingual-furniture omission, repeated
+case routing, and unique legal-reference routing. The reversible candidate patch
+bundle is `CANDIDATE-production-patches.zip`, SHA-256
+`36e081847696158928faa2c74bbeedb1eea91202b04144b9c8aab40a704cca05`.
+Both patches pass `git apply --check` against their production repositories.
+The bundle will remain unapplied until the user authorizes production changes.
