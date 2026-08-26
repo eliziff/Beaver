@@ -729,6 +729,19 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
     if (event.options?.askInputsResponse) {
       next = applyProtocol(next, { type: "ask_inputs_response", event: event.options.askInputsResponse });
     } else {
+      const retryAssistantIndex = event.options?.turnId
+        ? next.messages.findLastIndex((message) =>
+            message.role === "assistant" && message.turnId === event.options?.turnId)
+        : -1;
+      if (retryAssistantIndex >= 0) {
+        next = {
+          ...next,
+          messages: next.messages.map((message, index) => index === retryAssistantIndex
+            ? { ...message, turnStatus: undefined, error: undefined }
+            : message),
+        };
+        return next;
+      }
       const last = next.messages.at(-1);
       const user = userMessage(event.message, `user:${event.runId}`);
       const messages = last?.role === "user" && last.content === user.content ? next.messages : [...next.messages, user];

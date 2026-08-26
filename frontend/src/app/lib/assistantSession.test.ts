@@ -132,6 +132,60 @@ describe("assistantSessionReducer", () => {
     expect(assistant(state).activities).toEqual([expect.objectContaining({ id: "stable", status: "interrupted" })]);
   });
 
+  it("reopens the same assistant and readers for an exact turn retry", () => {
+    const turnId = "turn-1";
+    let state = assistantSessionReducer(createAssistantSessionState({ chatId: "chat-1" }), {
+      type: "run_started",
+      runId: "run-1",
+      chatId: "chat-1",
+      message: { ...user, turnId },
+      options: { turnId },
+    });
+    state = applyRaw(state, {
+      type: "subagent_run",
+      id: "reader-1",
+      task: "Read the record",
+      status: "running",
+      activities: [{ id: "read-1", tool: "read", label: "Reading", status: "running" }],
+      sources: [],
+    });
+    state = assistantSessionReducer(state, {
+      type: "run_interrupted",
+      runId: "run-1",
+      status: "interrupted",
+    });
+
+    const before = state.messages;
+    state = assistantSessionReducer(state, {
+      type: "run_started",
+      runId: "run-2",
+      chatId: "chat-1",
+      message: { ...user, turnId },
+      options: { turnId },
+    });
+
+    expect(state.messages).toHaveLength(before.length);
+    expect(state.messages.filter((message) => message.role === "user")).toHaveLength(1);
+    expect(state.messages.filter((message) => message.role === "assistant")).toHaveLength(1);
+    expect(assistant(state)).toMatchObject({
+      turnId,
+      turnStatus: undefined,
+      activities: [expect.objectContaining({
+        id: "reader:reader-1",
+        status: "interrupted",
+      })],
+    });
+    expect(state.readers).toEqual([expect.objectContaining({
+      id: "reader-1",
+      status: "interrupted",
+      activities: [expect.objectContaining({
+        id: "read-1",
+        status: "interrupted",
+      })],
+    })]);
+    expect(state.run).toMatchObject({ id: "run-2", status: "running" });
+  });
+
   it("keeps reasoning and tool activity in order and settles activity on failure", () => {
     let state = running();
     state = applyRaw(state, { type: "reasoning_delta", text: "Reviewing evidence ID generation" });

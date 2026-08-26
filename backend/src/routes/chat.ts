@@ -203,7 +203,7 @@ export function createChatRouter(
     if (!parsed.success) return void res.status(400).json({
       detail: parsed.error.issues[0]?.message ?? "Invalid chat turn",
     });
-    const controller = requestAbortController(req, res);
+    const controller = new AbortController();
     let claimedChatId: string | null = null;
     let started = false;
     const sink: EventSink = {

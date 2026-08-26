@@ -1,5 +1,6 @@
 import path from "node:path";
 import os from "node:os";
+import type { AddressInfo } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import express from "express";
 import request from "supertest";
@@ -484,43 +485,50 @@ describe("chat PDF evidence durability", () => {
       }));
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const activeRequest = request(loaded.app)
-      .post("/chat")
-      .send({
+    const listener = loaded.app.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => listener.once("listening", resolve));
+    const port = (listener.address() as AddressInfo).port;
+    const controller = new AbortController();
+    const clientResult = fetch(`http://127.0.0.1:${port}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         chat_id: created.body.id,
         expected_version: 0,
         current_turn: { kind: "message", content: "Keep working" },
-      });
-    const clientResult = activeRequest.then(
-      () => undefined,
-      () => undefined,
-    );
+      }),
+      signal: controller.signal,
+    }).then((response) => response.text()).catch(() => undefined);
 
-    await vi.waitFor(() => {
-      expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
-    });
-    activeRequest.abort();
-    expect(providerSignal?.aborted).toBe(false);
-    finishProvider();
-    await vi.waitFor(async () => {
-      expect(providerSignal?.aborted).toBe(false);
-      expect(
-        await storedChat(loaded.store, created.body.id),
-      ).toMatchObject({
-        transcript_version: 2,
-        messages: [
-          { role: "user", content: "Keep working" },
-          {
-            role: "assistant",
-            content: expect.arrayContaining([{
-              type: "content",
-              text: "Finished after the client disconnected.",
-            }]),
-          },
-        ],
+    try {
+      await vi.waitFor(() => {
+        expect(mocks.streamChatWithTools).toHaveBeenCalledOnce();
       });
-    });
-    await clientResult;
+      controller.abort();
+      await clientResult;
+      expect(providerSignal?.aborted).toBe(false);
+      finishProvider();
+      await vi.waitFor(async () => {
+        expect(providerSignal?.aborted).toBe(false);
+        expect(
+          await storedChat(loaded.store, created.body.id),
+        ).toMatchObject({
+          transcript_version: 2,
+          messages: [
+            { role: "user", content: "Keep working" },
+            {
+              role: "assistant",
+              content: expect.arrayContaining([{
+                type: "content",
+                text: "Finished after the client disconnected.",
+              }]),
+            },
+          ],
+        });
+      });
+    } finally {
+      listener.close();
+    }
   });
 
   it("aborts an active turn only through the explicit stop endpoint", async () => {
