@@ -59,7 +59,7 @@ export function legalSourceKindLabel(docType?: LegalDocumentType) {
   return "Decision";
 }
 
-export function legalSourceAnchorId(label: string) {
+function legalSourceAnchorId(label: string) {
   return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
 }
 

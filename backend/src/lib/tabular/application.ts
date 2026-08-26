@@ -105,9 +105,13 @@ const value = <T>(result: WriteResult<T>, noun: string) => {
 };
 const providerLabel = (provider: Provider) => ({ claude: "Anthropic", openai: "OpenAI",
   deepseek: "DeepSeek", openrouter: "OpenRouter", meta: "Meta", codex: "Codex",
-  "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini" })[provider];
+  "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini",
+  "ox-gateway": "Ox Alpha gateway" })[provider];
 const modelKey = (model: string, apiKeys: UserApiKeys) => {
   const provider = providerForModel(model);
+  if (provider === "ox-gateway") {
+    throw new ApplicationError(422, "Ox Alpha gateway models are experiment-only.");
+  }
   if (provider === "codex" || provider === "claude-p" || provider === "ollama") return;
   if (apiKeys[provider]?.trim()) return;
   throw new ApplicationError(422,

@@ -13,7 +13,10 @@ import type { NormalizedToolCall, NormalizedToolResult, StreamCallbacks } from "
 
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 
-type ToolDispatcher = (calls: NormalizedToolCall[]) => Promise<NormalizedToolResult[]>;
+type ToolDispatcher = (
+  calls: NormalizedToolCall[],
+  onActivity?: () => void,
+) => Promise<NormalizedToolResult[]>;
 
 type BridgeState = {
   toolCallCount: number;
@@ -28,6 +31,7 @@ export type McpToolBridgeParams = {
   tools: Tool[];
   resolveTools?: () => Tool[];
   runTools: ToolDispatcher;
+  onActivity?: () => void;
   callbacks?: StreamCallbacks;
   abortSignal?: AbortSignal;
   maxToolCalls?: number;
@@ -111,7 +115,7 @@ function bridgeServer(params: McpToolBridgeParams, state: BridgeState) {
           throw new Error("Beaver tool dispatch was cancelled.");
         }
         params.callbacks?.onToolCallStart?.(call);
-        return params.runTools([call]);
+        return params.runTools([call], params.onActivity);
       };
       const dispatch = state.dispatchTail.then(run);
       state.dispatchTail = dispatch.then(

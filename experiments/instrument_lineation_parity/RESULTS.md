@@ -126,31 +126,44 @@ under `.tmp/`.
 .\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\structure_gate.ts
 ```
 
-Supplying `--oracle-root=...` and `--oracle-addon=...` makes the same gate run
-historical TypeScript and Rust for every document, after one warm-up each. The
-partial report records exact JSON paths plus paired median and total time;
-native derivation and projection are timed separately.
+The structure gate derives and hashes each complete result inside Rust, with
+four bounded native jobs by default. It transfers only compact component hashes
+on success. A mismatch reruns the production N-API operation and writes the
+snapshot, rendered text hash, and anchors beneath
+`.tmp/instrument-structure-mismatches/`. Use `--match=...` for one known input,
+`--jobs=N` to tune parity throughput, and `--limit=N` only for a smoke run.
+Baseline replacement is atomic and refuses every partial selection.
 
 ## Current Rust benchmark
 
-`benchmark.ts` measures only the current native engine. Each corpus-load,
-derive, and median/largest memory probe runs in a fresh child process. Fixture
-read/decompression, native derivation, and optional lazy SourceDoc projection are
-reported separately; cold first-call time is excluded from warm median/p95.
-The receipt includes throughput, peak RSS and Node heap/external memory, addon
-SHA-256, and both repository commits. Partial worker receipts survive under
-`.tmp/instrument-structure-benchmark/`. Engine workers stream one fixture at a
-time and force GC every 25 documents outside measured sections. The
-median/largest probes read only their selected fixture and trigger native
-SourceDoc projection with the scalar `sourceDocTextBytes` query, so JSON
-serialization is never hidden inside projection time.
+`benchmark.ts` measures the production N-API derivation boundary sequentially
+in one fresh child process. Fixture reads, decompression, forced GC, memory
+sampling, and parity are excluded from its per-document latency. The receipt
+includes median and p95 latency, throughput, input and addon hashes, both
+repository commits, and partial progress under
+`.tmp/instrument-structure-benchmark/`.
 
 ```powershell
-.\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\benchmark.ts --project-source-doc
+.\backend\node_modules\.bin\tsx.cmd experiments\instrument_lineation_parity\benchmark.ts
 ```
+
+Add `--memory` for a separate sampled corpus pass plus fresh-process median and
+largest-document probes. Memory deltas use a baseline from the same process;
+they are never subtracted across unrelated workers.
 
 Add `--parity` to invoke the existing `structure_gate.ts` baseline gate in a
 separate process. Its wall time is verification overhead and must never be
 reported as engine speed. `--limit=N` is only a smoke/iteration aid; a durable
 performance receipt requires all locked 872 documents and 66,836,213 input
 bytes.
+
+For function-level attribution, capture the same optimized N-API derive worker
+with Windows Performance Recorder and inspect the resulting ETL in Windows
+Performance Analyzer:
+
+```powershell
+powershell -NoProfile -File .\experiments\instrument_lineation_parity\capture_hotpath.ps1 -Limit 100
+```
+
+This uses a symbol-bearing release-equivalent profile; it does not substitute a
+Rust-only microbenchmark for the production language boundary.

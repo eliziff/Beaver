@@ -31,7 +31,9 @@ const BEAVER_BASE_INSTRUCTIONS = [
 ].join("\n");
 
 const CODEX_IDLE_TIMEOUT_MS = 600_000;
-const CODEX_TOOL_TIMEOUT_SECONDS = 1_800;
+// Direct MCP calls are governed operationally by the activity watchdog. Keep
+// only a remote-transport deadlock backstop; never use it as a turn budget.
+const CODEX_TOOL_TIMEOUT_SECONDS = 86_400;
 const INTERRUPT_GRACE_MS = 5_000;
 export const CODEX_THREAD_ID =
   /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
@@ -123,6 +125,10 @@ function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
     agents: { enabled: params.nativeSubagents === true },
     apps: { _default: { enabled: false } },
     web_search: "disabled",
+    // GPT-5.6 can force MCP tools through a yielding JavaScript cell even when
+    // code mode is locally disabled. Beaver tools must remain direct so a
+    // healthy long-running delegate_read cannot be ended by that wrapper.
+    code_mode: { direct_only_tool_namespaces: ["mcp__mike_runtime"] },
     features: {
       shell_tool: false,
       unified_exec: false,
@@ -201,12 +207,14 @@ async function runCodexTurn(
 
   const server = await acquireCodexAppServer(params.apiKeys?.codex?.trim() || "");
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
+  let noteToolActivity: () => void = () => undefined;
   let bridge: McpToolBridge | null = null;
   if (params.tools?.length && params.runTools) {
     bridge = await startMcpToolBridge({
       tools: params.staticTools ?? params.tools,
       runTools: params.runTools,
       callbacks,
+      onActivity: () => noteToolActivity(),
       abortSignal: params.abortSignal,
       maxToolCalls:
         params.maxIterations === undefined
@@ -225,6 +233,7 @@ async function runCodexTurn(
   let settled = false;
   let idleTimer: NodeJS.Timeout | undefined;
   let interruptTimer: NodeJS.Timeout | undefined;
+  let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
   const nativeAgents = new Map<string, ProviderSubagentUpdate>();
   let markTurnReady!: () => void;
@@ -243,6 +252,7 @@ async function runCodexTurn(
 
   const interrupt = async () => {
     if (!threadId || !turnId || settled) return;
+    interruptRequested = true;
     await server.request("turn/interrupt", { threadId, turnId });
   };
   const resetIdle = () => {
@@ -252,6 +262,7 @@ async function runCodexTurn(
       complete(new Error("Codex app-server turn became idle."));
     }, CODEX_IDLE_TIMEOUT_MS);
   };
+  noteToolActivity = resetIdle;
   const onAbort = () => {
     void interrupt().catch(() => undefined);
     interruptTimer ??= setTimeout(
@@ -330,6 +341,7 @@ async function runCodexTurn(
     }
     if (event.params.threadId !== threadId) return;
     resetIdle();
+    params.callbacks?.onActivity?.();
     switch (event.method) {
       case "turn/started": {
         const startedTurn = record(event.params.turn);
@@ -414,7 +426,13 @@ async function runCodexTurn(
           );
         }
         if (turn?.status === "completed") complete();
-        else if (turn?.status === "interrupted") complete(abortError());
+        else if (turn?.status === "interrupted") {
+          complete(params.abortSignal?.aborted || interruptRequested
+            ? abortError()
+            : new Error(
+              failure || "Codex app-server interrupted the turn without a Beaver cancellation request.",
+            ));
+        }
         else {
           const error = record(turn?.error);
           complete(

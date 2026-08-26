@@ -609,7 +609,8 @@ export function createChatApplication(deps: Dependencies) {
           assistantContent = Array.isArray(assistant?.content)
             ? assistant.content.filter((event) => {
                 const row = asRecord(event);
-                return row?.type === "subagent_run" && row.status === "interrupted" &&
+                return row?.type === "subagent_run" &&
+                  (row.status === "interrupted" || row.status === "running") &&
                   !!asRecord(row.resume);
               }) : [];
           assistantCitations = [];

@@ -75,10 +75,12 @@ describe("legal evidence citation presentation", () => {
     expect(presented.passageUrl).not.toContain(
       "application,that%20order",
     );
-    expect(decodeURIComponent(presented.passageUrl!.split("text=")[1])).toBe(span);
+    const directive = decodeURIComponent(presented.passageUrl!.split("text=")[1]);
+    expect(directive).toContain("The court may, on application, vary");
+    expect(directive).toContain("retroactively.");
   });
 
-  it("routes A2AJ quote links through the official Decisia source", async () => {
+  it("routes an A2AJ quote link through the official Decisia source", async () => {
     const text =
       "[42] The appellate court stated the distinctive controlling principle.";
     const url =
@@ -103,9 +105,10 @@ describe("legal evidence citation presentation", () => {
       date: null,
       url,
       verifiedPdf: null,
-      text,
       language: "en" as const,
       upstreamLicense: null,
+      searchText: text,
+      searchNative: source,
       native: source,
     };
     const receipt = createA2AJPassageEvidence({

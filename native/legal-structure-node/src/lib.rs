@@ -655,9 +655,9 @@ pub fn caselaw_citation_lookup_key_node(text: String) -> napi::Result<String> {
     caselaw_citation_lookup_key(&text).map_err(Error::from_reason)
 }
 
-#[napi(js_name = "hasCitationInText")]
-pub fn has_citation_in_text_node(text: String) -> bool {
-    has_citation_in_text(&text)
+#[napi(catch_unwind, js_name = "hasCitationInText")]
+pub fn has_citation_in_text_node(text: String) -> napi::Result<bool> {
+    has_citation_in_text(&text).map_err(Error::from_reason)
 }
 
 #[napi(js_name = "classifyCitatorExcerpt")]

@@ -256,10 +256,65 @@ describe("A2AJ client", () => {
       docType: "laws",
     });
     expect(structureNative().documentText(document!.native)).toBe(mappedText);
+    expect(document!.searchText).toBe(
+      "Stale flattened text that the provider section map supersedes.",
+    );
+    expect(structureNative().documentText(document!.searchNative)).toBe(document!.searchText);
     expect(passages).toHaveLength(1);
     expect(passages[0]?.locator.label).toBe("sec34(1)(a)");
     expect(passages[0]?.text).toContain(
       "requested nested statutory paragraph",
+    );
+  });
+
+  it("uses the supplied source URL to disambiguate duplicate citation records", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      results: [
+        { dataset: "SCC", citation_en: "2099 SCC 9",
+          source_url_en: "https://example.test/first", unofficial_text_en: "Wrong record." },
+        { dataset: "SCC", citation_en: "2099 SCC 9",
+          source_url_en: "https://example.test/second", unofficial_text_en: "Correct record." },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+
+    await expect(a2ajLegalSourceProvider.document({
+      citation: "2099 SCC 9",
+      dataset: "SCC",
+      sourceUrl: "https://example.test/second",
+    })).resolves.toMatchObject({
+      url: "https://example.test/second",
+      searchText: "Correct record.",
+    });
+  });
+
+  it("keeps full search coordinates when the scoped law endpoint supplies a missing locator", async () => {
+    const sourceUrl = "https://example.test/statute";
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = new URL(String(input));
+      const scoped = url.searchParams.get("section") === "99";
+      return new Response(JSON.stringify({ results: [{
+        dataset: "LEGISLATION-XY",
+        citation_en: "Example Act",
+        source_url_en: sourceUrl,
+        unofficial_text_en: scoped
+          ? "The scoped endpoint supplies the requested provision."
+          : "The complete flattened statute remains the URL-planning source.",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+
+    const document = await a2ajLegalSourceProvider.document({
+      citation: "Example Act",
+      docType: "laws",
+      dataset: "LEGISLATION-XY",
+      sourceUrl,
+      section: "99",
+    });
+
+    expect(document?.searchText).toBe(
+      "The complete flattened statute remains the URL-planning source.",
+    );
+    expect(structureNative().documentText(document!.native)).toContain(
+      "scoped endpoint supplies the requested provision",
     );
   });
 

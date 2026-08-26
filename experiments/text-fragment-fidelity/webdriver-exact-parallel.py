@@ -795,7 +795,10 @@ def contract_failure(row):
         return f"headed:{row.get('headed')}"
     if args.gate == "marker" and row.get("refreshCache") is not args.refresh_cache:
         return f"refresh-cache:{row.get('refreshCache')}"
-    if not valid_cache_identity(row):
+    live_identity = row.get("liveIdentity") or {}
+    valid_live_identity = args.live and len(live_identity.get("sha256", "")) == 64 \
+        and live_identity.get("bytes", 0) > 0
+    if not valid_cache_identity(row) and not valid_live_identity:
         return "cache-identity-unverified"
     return None
 
