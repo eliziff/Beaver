@@ -176,20 +176,45 @@ for (const seed of seeds) {
 }
 const normalizedText = (value) => String(value).normalize("NFKC")
   .toLocaleLowerCase("en").replace(/\s+/gu, " ").trim();
+const normalizedWords = (value) => normalizedText(value).replace(/[’‘]/gu, "'")
+  .match(/[\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*/gu)?.join(" ") ?? "";
+function containsRequiredWords(body, required, maxInsertedWords = 8) {
+  const haystack = body.split(" ");
+  const needle = required.split(" ");
+  if (!needle.length) return true;
+  for (let start = haystack.indexOf(needle[0]); start >= 0;
+    start = haystack.indexOf(needle[0], start + 1)) {
+    let at = start;
+    let matched = true;
+    for (const word of needle.slice(1)) {
+      const next = haystack.indexOf(word, at + 1);
+      if (next < 0 || next - at - 1 > maxInsertedWords) {
+        matched = false;
+        break;
+      }
+      at = next;
+    }
+    if (matched) return true;
+  }
+  return false;
+}
+const errorShell = /^(?:this page isn.t working|\S+ is currently unable to handle this request|http error [45]\d\d|error\s+[45]\d\d\b|[45]\d\d(?:\s+[-:]|\s+error)|bad gateway|service unavailable|internal server error|access denied|validation|just a moment|robot check)/iu;
+const isErrorPage = (title, body) => errorShell.test(title.trim()) ||
+  body.length < 5_000 && errorShell.test(body.trim().slice(0, 500));
 function cacheIsUsable(row) {
   if (row.httpStatus != null && (row.httpStatus < 200 || row.httpStatus >= 400)) return false;
-  if (row.file?.toLowerCase().endsWith(".pdf")) return true;
   const file = row.file && path.join(cacheDir, row.file);
   if (!file || !fs.existsSync(file)) return false;
+  if (row.file.toLowerCase().endsWith(".pdf")) return true;
   const rendered = path.join(browserTextDir, `${path.parse(row.file).name}.txt`);
   const text = (fs.existsSync(rendered)
     ? fs.readFileSync(rendered, "utf8")
     : decodeEntities(htmlToText(fs.readFileSync(file, "utf8"), true))).trim();
-  // Cache collection must not redefine a legitimate publisher seam as an
-  // absent quote. Native Chrome verification decides whether the built link
-  // paints; the crawler only certifies that it captured a nonempty page.
-  const error = /(?:^|\n)\s*(?:this page isn.t working|\S+ is currently unable to handle this request|http error [45]\d\d|error\s+[45]\d\d\b|[45]\d\d(?:\s+[-:]|\s+error)|bad gateway|service unavailable|internal server error|access denied|validation|just a moment)/iu;
-  return text.length >= 100 && !error.test(text.slice(0, 2_000));
+  const required = [...new Set(requiredTextByTarget.get(row.url) ?? [])]
+    .map(normalizedWords).filter(Boolean);
+  const body = normalizedWords(text);
+  return text.length >= 100 && !isErrorPage("", text) &&
+    required.every((quote) => containsRequiredWords(body, quote));
 }
 const have = new Set();
 if (fs.existsSync(manifestPath)) {
@@ -480,7 +505,7 @@ async function crawl(page, url) {
     let challenged = /<title>\s*(?:Validation|Just a moment(?:\.\.\.)?)\s*<\/title>/iu.test(html);
     const deadline = Date.now() + 30_000;
     const requiredText = [...new Set(requiredTextByTarget.get(url) ?? [])]
-      .map(normalizedText).filter(Boolean);
+      .map(normalizedWords).filter(Boolean);
     let bodyText = "";
     let previous = "";
     let stable = 0;
@@ -489,8 +514,9 @@ async function crawl(page, url) {
       const title = await page.title();
       challenged = /^(?:Validation|Just a moment(?:\.\.\.)?|Robot Check)$/iu.test(title.trim());
       const body = bodyText.trim();
-      const normalizedBody = normalizedText(body);
-      const requiredRendered = requiredText.every((text) => normalizedBody.includes(text));
+      const normalizedBody = normalizedWords(body);
+      const requiredRendered = requiredText.every((text) =>
+        containsRequiredWords(normalizedBody, text));
       stable = !challenged && requiredRendered && body.length >= 100 && body === previous
         ? stable + 1 : 0;
       if (stable >= 2) break;
@@ -498,9 +524,24 @@ async function crawl(page, url) {
       await page.waitForTimeout(100);
     }
     const title = (await page.title()).trim();
-    const normalizedBody = normalizedText(bodyText);
-    const missingRequired = requiredText.filter((text) => !normalizedBody.includes(text));
-    const errorPage = /(?:this page isn.t working|currently unable to handle this request|http error [45]\d\d|error\s+[45]\d\d\b|[45]\d\d(?:\s+[-:]|\s+error)|bad gateway|service unavailable|internal server error)/iu.test(`${title}\n${bodyText.trim().slice(0, 2_000)}`);
+    const normalizedBody = normalizedWords(bodyText);
+    const missingRequired = requiredText.filter((text) =>
+      !containsRequiredWords(normalizedBody, text));
+    const body = bodyText.trim();
+    const errorPage = isErrorPage(title, body);
+    if (missingRequired.length) {
+      const diagnosticDir = path.join(resultsDir, "crawl-diagnostics");
+      fs.mkdirSync(diagnosticDir, { recursive: true });
+      const key = crypto.createHash("sha1").update(fetchUrl).digest("hex");
+      fs.writeFileSync(path.join(diagnosticDir, `${key}.txt`), bodyText);
+      fs.writeFileSync(path.join(diagnosticDir, `${key}.json`), JSON.stringify({
+        url: fetchUrl,
+        requiredText,
+        missingRequired,
+        title,
+        bodyCharacters: bodyText.length,
+      }));
+    }
     if (challenged || errorPage || bodyText.trim().length < 100 || missingRequired.length) {
       throw new Error(challenged ? "publisher challenge did not clear" :
         errorPage ? `publisher error page (${title || "untitled"})` :
@@ -552,6 +593,8 @@ const HOST_MIN_INTERVAL_MS = Number(process.env.CRAWL_HOST_INTERVAL_MS ?? 600);
   const queue = [...pending];
   let started = 0;
   let completed = 0;
+  let succeeded = 0;
+  let failed = 0;
   while (queue.length && !stopping) {
     const workerIndex = busy.findIndex((b) => !b);
     if (workerIndex < 0) { await sleep(30); continue; }
@@ -579,6 +622,8 @@ const HOST_MIN_INTERVAL_MS = Number(process.env.CRAWL_HOST_INTERVAL_MS ?? 600);
     task = crawl(workerPages[workerIndex], url).then((result) => {
       busy[workerIndex] = false;
       completed += 1;
+      if (result.ok) succeeded += 1;
+      else failed += 1;
       if (completed % 25 === 0 || !result.ok || result.challenged) {
         console.log(JSON.stringify({ event: "progress", completed, of: started, url: url.slice(0, 80), ...result }));
       }
@@ -586,7 +631,10 @@ const HOST_MIN_INTERVAL_MS = Number(process.env.CRAWL_HOST_INTERVAL_MS ?? 600);
     inflight.add(task);
   }
   while (completed < started && !stopping) await sleep(100);
-  if (!stopping) console.log(JSON.stringify({ event: "crawl-done", cached: completed }));
+  if (!stopping) {
+    console.log(JSON.stringify({ event: "crawl-done", cached: succeeded, failed }));
+    if (failed) process.exitCode = 1;
+  }
 } catch (error) {
   if (!signalExitCode) throw error;
 } finally {

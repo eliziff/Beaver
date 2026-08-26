@@ -9,16 +9,18 @@ const proofPath = path.join(
   results,
   "webdriver-exact-final-routed-lawweb-v22-cache.jsonl",
 );
-const targetsPath = path.join(results, "a2aj-document-routed-targets-v22.jsonl");
+const targetsPath = path.join(results, "a2aj-document-routed-targets-v23.jsonl");
 const outputPath = path.join(results, "lawweb-citation-cache-manifest.jsonl");
 const targets = new Map(fs.readFileSync(targetsPath, "utf8").split(/\r?\n/u)
   .filter(Boolean).map(JSON.parse).map((row) => [row.label, row]));
 const rows = fs.readFileSync(proofPath, "utf8").split(/\r?\n/u)
-  .filter(Boolean).map(JSON.parse).filter(({ verdict }) => verdict === "cache-miss");
+  .filter(Boolean).map(JSON.parse).filter(({ verdict, label }) =>
+    verdict === "cache-miss" && targets.has(label));
 const pages = new Map();
 
 for (const row of rows) {
-  const url = new URL(row.target);
+  const seed = targets.get(row.label);
+  const url = new URL(seed.target);
   url.hash = "";
   if (url.protocol !== "https:" || url.hostname !== "law.a2aj.ca" ||
       url.pathname !== "/document") {
@@ -30,8 +32,6 @@ for (const row of rows) {
     throw new Error(`unsafe Law Web query: ${row.label}`);
   }
   const target = url.toString();
-  const seed = targets.get(row.label);
-  if (!seed) throw new Error(`missing routed target: ${row.label}`);
   const page = pages.get(target) ?? { target, labels: [], requiredPaintQuotes: new Set() };
   page.labels.push(row.label);
   for (const quote of seed.paintQuotes) page.requiredPaintQuotes.add(quote);

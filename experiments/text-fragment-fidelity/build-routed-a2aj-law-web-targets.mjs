@@ -84,8 +84,14 @@ for (const row of targets) {
     && row.directives.length >= 3
     && row.directives.length === row.sourceWordIntervals.length
     && counts.every((count) => count > 1);
+  const openingFurnitureRisk = host === "www.justice.gov.nt.ca"
+    && occurrenceClass === "missing"
+    && targetEnd <= 100
+    && row.directives.length >= 2
+    && row.directives.length === row.sourceWordIntervals.length;
   const routeLegislation = legislationHosts[occurrenceClass].has(host)
-    && !ambiguousPublisherIslands;
+    && !ambiguousPublisherIslands
+    && !openingFurnitureRisk;
   const route = targetEnd <= 200_001 && (legislation && routeLegislation
     || row.providerClass === "a2aj-case" && occurrenceClass === "repeated"
     || row.providerClass === "a2aj-case" && occurrenceClass === "unique"

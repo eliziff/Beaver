@@ -147,6 +147,7 @@ type StructureAddon = {
   documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
+    splitHtmlSourceBlocks: boolean,
     document: NativeDocument): NativeTextFragmentPlan;
   documentParagraphRangeDirective(document: NativeDocument, start: string,
     end: string): string | null;

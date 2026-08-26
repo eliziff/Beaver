@@ -9,8 +9,8 @@ const results = path.join(here, "results");
 const read = (name) => fs.readFileSync(path.join(results, name), "utf8")
   .split(/\r?\n/u).filter(Boolean).map(JSON.parse);
 const { structureNative } = await import(pathToFileURL(path.join(
-  results,
-  "worktrees/root-seam/backend/src/lib/structureNative.ts",
+  here,
+  "../../backend/src/lib/structureNative.ts",
 )).href);
 const structure = structureNative();
 const documents = new Map(read("doctext.jsonl").map((row) => [row.key, row]));
