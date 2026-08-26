@@ -69,11 +69,11 @@ describe("Codex app-server adapter", () => {
     expect(start).toMatchObject({
       developerInstructions: "Be concise.",
       config: {
-        features: { shell_tool: false },
+        "features.shell_tool": false,
+        "features.code_mode.direct_only_tool_namespaces": ["mcp__mike_runtime"],
         web_search: "disabled",
       },
     });
-    expect(start?.config).not.toHaveProperty("code_mode");
     const turn = transport.request.mock.calls.find(([method]) => method === "turn/start")?.[1];
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
   });
@@ -114,6 +114,14 @@ describe("Codex app-server adapter", () => {
       messages: [{ role: "user", content: "Continue." }],
       providerSession: { persist: true, continuationId: threadId },
     });
+    expect(transport.request).toHaveBeenCalledWith(
+      "thread/resume",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          "features.code_mode.direct_only_tool_namespaces": ["mcp__mike_runtime"],
+        }),
+      }),
+    );
     expect(transport.request).toHaveBeenCalledWith(
       "thread/resume",
       expect.not.objectContaining({ excludeTurns: expect.anything() }),

@@ -58,10 +58,6 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
   const child = spawn(
     process.env.CODEX_COMMAND?.trim() || (process.platform === "win32" ? "codex.cmd" : "codex"),
     [
-      "-c",
-      // Keep this TOML compact and single-quoted: codex.cmd is launched through
-      // cmd.exe on Windows, which otherwise splits the inline table.
-      "features.code_mode={enabled=true,direct_only_tool_namespaces=['mcp__mike_runtime']}",
       "app-server",
       "--stdio",
       "--strict-config",
