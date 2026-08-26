@@ -31,20 +31,44 @@ const occurrences = (haystack, needle) => {
   for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + 1)) count += 1;
   return count;
 };
-const uniqueCaseFamily = (row, host) =>
-  row.shape === "long-range" && new Set([
+const uniqueCaseFamily = (row, host) => {
+  const legalReference = /\b(?:act|code|rules?|irpa|section|subsection)\b|\bs\.\s*\d/iu
+    .test(row.paintQuotes.join(" "));
+  return row.paintedWords <= 10 && host === "decisia.lexum.com"
+  || row.paintedWords > 32 && new Set([
     "decisia.lexum.com", "decisions.sst-tss.gc.ca", "decision.tcc-cci.gc.ca",
   ]).has(host)
-  || new Set(["hard-act-name", "hard-section-word"]).has(row.shape)
-    && new Set(["decisia.lexum.com", "refugeelab.ca"]).has(host)
-  || row.shape === "hard-section-word" && host === "www.oic-ci.gc.ca"
-  || row.shape === "hard-statute-ref"
-    && new Set(["www.bccourts.ca", "decisions.scc-csc.ca"]).has(host)
-  || row.shape === "hard-act-name" && host === "decisions.scc-csc.ca"
-  || row.shape === "short-exact" && host === "decisia.lexum.com";
+  || row.paintedWords >= 11 && row.paintedWords <= 31 && legalReference
+    && new Set([
+      "www.bccourts.ca", "decisia.lexum.com", "www.oic-ci.gc.ca", "refugeelab.ca",
+      "decisions.scc-csc.ca",
+    ]).has(host);
+};
+const legislationHosts = {
+  missing: new Set([
+    "www.justice.gov.nt.ca", "www.bclaws.gov.bc.ca", "laws-lois.justice.gc.ca",
+    "laws.yukon.ca", "www.legisquebec.gouv.qc.ca",
+  ]),
+  repeated: new Set([
+    "www.princeedwardisland.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
+    "kings-printer.alberta.ca", "www.legisquebec.gouv.qc.ca",
+    "publications.saskatchewan.ca",
+  ]),
+  unique: new Set([
+    "web2.gov.mb.ca", "www.princeedwardisland.ca", "www.ontario.ca",
+    "www.bclaws.gov.bc.ca", "laws.gnb.ca", "www.legisquebec.gouv.qc.ca",
+    "kings-printer.alberta.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
+  ]),
+};
 
 const rows = [];
-for (const row of read("targets.jsonl")) {
+const targets = read("targets.jsonl");
+let processed = 0;
+for (const row of targets) {
+  processed += 1;
+  if (processed % 100 === 0) {
+    console.error(JSON.stringify({ progress: processed, of: targets.length, selected: rows.length }));
+  }
   if (row.label === "FCA_2026_FC_103_p20_short-exact") continue;
   const documentKey = seedDocumentKey(row);
   const document = documents.get(documentKey);
@@ -56,7 +80,13 @@ for (const row of read("targets.jsonl")) {
     : counts.some((count) => count > 1) ? "repeated" : "unique";
   const legislation = row.providerClass === "a2aj-legislation";
   const host = new URL(row.target ?? row.url).hostname.toLowerCase();
-  const route = targetEnd <= 200_001 && (legislation
+  const ambiguousPublisherIslands = host === "www.justice.gov.nt.ca"
+    && row.directives.length >= 3
+    && row.directives.length === row.sourceWordIntervals.length
+    && counts.every((count) => count > 1);
+  const routeLegislation = legislationHosts[occurrenceClass].has(host)
+    && !ambiguousPublisherIslands;
+  const route = targetEnd <= 200_001 && (legislation && routeLegislation
     || row.providerClass === "a2aj-case" && occurrenceClass === "repeated"
     || row.providerClass === "a2aj-case" && occurrenceClass === "unique"
       && uniqueCaseFamily(row, host));
