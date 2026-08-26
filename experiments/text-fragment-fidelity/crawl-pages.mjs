@@ -166,10 +166,16 @@ const retryLabels = retryResults
 const seeds = retryLabels ? allSeeds.filter(({ label }) => retryLabels.has(label)) : allSeeds;
 const urls = [...new Set(seeds.map((s) => (s.target ?? s.url).split("#")[0]))];
 const sourcePageByTarget = new Map();
+const requiredTextByTarget = new Map();
 for (const seed of seeds) {
   const target = (seed.target ?? seed.url).split("#")[0];
   if (!sourcePageByTarget.has(target)) sourcePageByTarget.set(target, seed.url.split("#")[0]);
+  const required = requiredTextByTarget.get(target) ?? [];
+  required.push(...(seed.requiredPaintQuotes ?? []));
+  requiredTextByTarget.set(target, required);
 }
+const normalizedText = (value) => String(value).normalize("NFKC")
+  .toLocaleLowerCase("en").replace(/\s+/gu, " ").trim();
 function cacheIsUsable(row) {
   if (row.httpStatus != null && (row.httpStatus < 200 || row.httpStatus >= 400)) return false;
   if (row.file?.toLowerCase().endsWith(".pdf")) return true;
@@ -208,6 +214,16 @@ if (fs.existsSync(manifestPath)) {
 const pending = retryLabels ? urls : urls.filter((url) => !have.has(fetchUrlFor(url)));
 console.log(JSON.stringify({ unique: urls.length, cached: have.size, pending: pending.length }));
 if (!pending.length) process.exit(0);
+if (process.env.CRAWL_DRY_RUN === "1") {
+  const fetchUrls = pending.map(fetchUrlFor);
+  console.log(JSON.stringify({
+    dryRun: true,
+    pending: fetchUrls.length,
+    hosts: [...new Set(fetchUrls.map((url) => new URL(url).hostname))].sort(),
+    fragmentBearingUrls: fetchUrls.filter((url) => new URL(url).hash).length,
+  }));
+  process.exit(0);
+}
 
 const manifest = fs.createWriteStream(manifestPath, { flags: "a" });
 // Stealth launch, ported from the Digital Commons downloader
@@ -463,6 +479,8 @@ async function crawl(page, url) {
     if (httpStatus < 200 || httpStatus >= 400) throw new Error(`publisher HTTP ${httpStatus}`);
     let challenged = /<title>\s*(?:Validation|Just a moment(?:\.\.\.)?)\s*<\/title>/iu.test(html);
     const deadline = Date.now() + 30_000;
+    const requiredText = [...new Set(requiredTextByTarget.get(url) ?? [])]
+      .map(normalizedText).filter(Boolean);
     let bodyText = "";
     let previous = "";
     let stable = 0;
@@ -471,16 +489,24 @@ async function crawl(page, url) {
       const title = await page.title();
       challenged = /^(?:Validation|Just a moment(?:\.\.\.)?|Robot Check)$/iu.test(title.trim());
       const body = bodyText.trim();
-      stable = !challenged && body.length >= 100 && body === previous ? stable + 1 : 0;
+      const normalizedBody = normalizedText(body);
+      const requiredRendered = requiredText.every((text) => normalizedBody.includes(text));
+      stable = !challenged && requiredRendered && body.length >= 100 && body === previous
+        ? stable + 1 : 0;
       if (stable >= 2) break;
       previous = body;
       await page.waitForTimeout(100);
     }
     const title = (await page.title()).trim();
+    const normalizedBody = normalizedText(bodyText);
+    const missingRequired = requiredText.filter((text) => !normalizedBody.includes(text));
     const errorPage = /(?:this page isn.t working|currently unable to handle this request|http error [45]\d\d|error\s+[45]\d\d\b|[45]\d\d(?:\s+[-:]|\s+error)|bad gateway|service unavailable|internal server error)/iu.test(`${title}\n${bodyText.trim().slice(0, 2_000)}`);
-    if (challenged || errorPage || bodyText.trim().length < 100) {
+    if (challenged || errorPage || bodyText.trim().length < 100 || missingRequired.length) {
       throw new Error(challenged ? "publisher challenge did not clear" :
-        errorPage ? `publisher error page (${title || "untitled"})` : "page body stayed empty");
+        errorPage ? `publisher error page (${title || "untitled"})` :
+        missingRequired.length ?
+          `required passage did not render (${missingRequired.length}/${requiredText.length})` :
+          "page body stayed empty");
     }
     const frozen = await page.evaluate(() => {
       const properties = ["display", "visibility", "content-visibility", "white-space"];

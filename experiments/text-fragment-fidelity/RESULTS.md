@@ -106,6 +106,16 @@ complete fragment proof offline. That external cache expansion requires explicit
 authorization. Until it is done, the 1,203-row router is a candidate rather than
 a production-proven rule.
 
+The authorization-gated crawl has a generated citation-only manifest covering
+all 949 misses as 587 unique pages. Every URL is HTTPS on `law.a2aj.ca/document`,
+contains only `citation` and `doc_type`, and has no fragment. Its SHA-256 is
+`61bee28f29d72aa0c94e9656de0835eecd69fe74ecfcda61c154dec89732f81d`.
+The crawler dry run independently reports 587 pending URLs, one allowed host,
+and zero fragment-bearing requests. Before writing a page to cache, the headed
+crawler now requires every routed paint quote assigned to that citation to be
+present in stable rendered `innerText`; an early-loading document shell cannot
+be accepted as a complete page.
+
 ## Prepared production worktree
 
 The unapplied production candidate lives only under
