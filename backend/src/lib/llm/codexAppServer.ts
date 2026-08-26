@@ -59,7 +59,7 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
     process.env.CODEX_COMMAND?.trim() || (process.platform === "win32" ? "codex.cmd" : "codex"),
     [
       "-c",
-      'code_mode.direct_only_tool_namespaces=["mcp__mike_runtime"]',
+      "features.code_mode=false",
       "app-server",
       "--stdio",
       "--strict-config",
