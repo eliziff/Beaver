@@ -17,7 +17,7 @@ import type { McpToolEvent } from "../mcp/types";
 import type { LocalAutomationEvent } from "./localAutomationEvent";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
-import type { AskInputsEvent, EditAnnotation } from "./types";
+import type { AskInputsEvent, EditAnnotation, ToolActivity } from "./types";
 import {
   TurnToolRegistry,
   toolText,
@@ -65,7 +65,6 @@ import {
   type ReadSubagentAssignment,
   type ReadSubagentCheckpoint,
   type ReadSubagentEvent,
-  type ToolActivity,
 } from "./readSubagents";
 import {
   SOURCE_SEARCH_SYSTEM_PROMPT,
@@ -400,16 +399,9 @@ export async function runChatTurn(options: {
         priorEvidence: resume?.evidence,
         emit(event) {
           if (!event || typeof event !== "object" || Array.isArray(event)) return;
-          const activity = event as Partial<ToolActivity> & { type?: string };
-          if (activity.type === "tool_activity" && activity.id && activity.tool &&
-              activity.label && activity.status) {
-            activities.set(activity.id, {
-              id: activity.id,
-              tool: activity.tool,
-              label: activity.label,
-              status: activity.status,
-              ...(activity.source && { source: activity.source }),
-            });
+          const { type, ...activity } = event as ToolActivity & { type?: string };
+          if (type === "tool_activity") {
+            activities.set(activity.id, activity);
             running();
           }
         },
@@ -547,12 +539,15 @@ export async function runChatTurn(options: {
       text = grounded;
       boundary = false;
     }
-    for (const result of batch.results) {
+    for (const [resultIndex, result] of batch.results.entries()) {
       const activity = toolActivities.get(result.tool_use_id);
       if (activity?.status === "running") {
+        const sources = batch.outcomes[resultIndex].evidence?.flatMap((receipt, index) =>
+          receipt.span_text ? [receiptSource(receipt, index + 1)] : []) ?? [];
         emitToolActivity({
           ...activity,
           status: result.status === "error" ? "error" : "completed",
+          ...(sources.length && { sources }),
         });
       }
     }

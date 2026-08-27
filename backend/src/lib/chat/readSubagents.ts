@@ -5,6 +5,7 @@ import type {
   LegalEvidenceReceiptEvent,
 } from "./legalEvidence";
 import { jsonRecord as record } from "../value";
+import type { ToolActivity, ToolActivitySource } from "./types";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
 export const RESUME_SUBAGENT_TOOL_NAME = "resume_read";
@@ -19,24 +20,6 @@ export type ReadSubagentAssignment = {
   jurisdiction: ReadSubagentRegion;
   collections?: string[];
   source_types?: string[];
-};
-export type ReadSubagentSource = {
-  ref: number;
-  provider: string;
-  jurisdiction: string;
-  citation: string;
-  name: string | null;
-  dataset: string;
-  url: string | null;
-  locator?: string;
-  quote?: string;
-};
-export type ToolActivity = {
-  id: string;
-  tool: string;
-  label: string;
-  status: "running" | "completed" | "error" | "interrupted";
-  source?: ReadSubagentSource;
 };
 export type ReadSubagentCheckpoint = {
   id: string;
@@ -58,7 +41,7 @@ export type ReadSubagentEvent = {
   output?: string;
   error?: string;
   activities?: ToolActivity[];
-  sources?: ReadSubagentSource[];
+  sources?: ToolActivitySource[];
   grounding?: LegalEvidenceReceiptEvent;
   resume?: ReadSubagentCheckpoint;
 };
@@ -414,7 +397,7 @@ export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
 export function receiptSource(
   receipt: LegalEvidenceReceipt,
   ref: number,
-): ReadSubagentSource {
+): ToolActivitySource {
   const prefix = receipt.locator.kind === "paragraph" ? "par"
     : receipt.locator.kind === "section" ? "sec"
       : receipt.locator.kind === "page" ? "page"

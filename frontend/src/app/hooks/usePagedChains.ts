@@ -34,14 +34,17 @@ export function usePagedChains<T>(
         [key]: { ...(current[key] ?? { items: [], nextCursor: null }),
           loading: false, error },
       }));
+    } finally {
+      if (requests.current.get(key) === controller) requests.current.delete(key);
     }
   }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    for (const request of requests.current.values()) request.abort();
+    const activeRequests = requests.current;
+    for (const request of activeRequests.values()) request.abort();
     setChains({});
     if (enabled) void fetchPage(initialKey, null, false);
-    return () => requests.current.forEach((request) => request.abort());
+    return () => activeRequests.forEach((request) => request.abort());
   }, [enabled, fetchPage, initialKey]);
 
   return { chains, setChains, fetchPage };

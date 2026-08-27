@@ -36,6 +36,24 @@ export type ChatMessage = {
   contextCheckpoint?: LlmMessage["contextCheckpoint"];
 };
 
+export type ToolActivitySource = {
+  ref: number;
+  provider: string;
+  jurisdiction: string;
+  citation: string;
+  name: string | null;
+  dataset: string;
+  url: string | null;
+  locator?: string;
+  quote?: string;
+};
+export type ToolActivity = {
+  id: string;
+  tool: string;
+  label: string;
+  status: "running" | "completed" | "error" | "interrupted";
+  sources?: ToolActivitySource[];
+};
 
 export type AskInputOption = {
   value: string;
