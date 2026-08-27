@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
+const [
+  routedName = "a2aj-document-routed-targets-v25.jsonl",
+  fallbackProofName = "webdriver-exact-final-routed-lawweb-v25-full.jsonl",
+  outputName = "final-composite-proof-v25.jsonl",
+] = process.argv.slice(2);
 const read = (name) => fs.readFileSync(path.join(results, name), "utf8")
   .split(/\r?\n/u).filter(Boolean).map(JSON.parse);
 const byLabel = (rows, name) => {
@@ -20,9 +28,9 @@ const bestEffortLimit = "LEGISLATION-SK_SS_2015_c_I-9.11_sec4-3_hard-act-name";
 const targets = read("publisher-plan-candidates.jsonl")
   .filter(({ label }) => label !== excluded404);
 const targetLabels = byLabel(targets, "target");
-const routed = byLabel(read("a2aj-document-routed-targets-v24.jsonl"), "route");
+const routed = byLabel(read(routedName), "route");
 const fallbackProof = byLabel(
-  read("webdriver-exact-final-routed-lawweb-v24-full.jsonl"), "Law Web proof");
+  read(fallbackProofName), "Law Web proof");
 const publisherProof = byLabel(
   read("webdriver-exact-corrected-provider-v24-bound.jsonl"), "publisher proof");
 if (targetLabels.size !== targets.length || routed.size !== fallbackProof.size ||
@@ -65,7 +73,7 @@ for (const target of targets) {
 }
 
 const body = `${output.map(JSON.stringify).join("\n")}\n`;
-fs.writeFileSync(path.join(results, "final-composite-proof-v24.jsonl"), body);
+fs.writeFileSync(path.join(results, outputName), body);
 const summary = {
   gettable: targets.length,
   exact: output.filter(({ verdict }) => verdict === "exact-match").length,

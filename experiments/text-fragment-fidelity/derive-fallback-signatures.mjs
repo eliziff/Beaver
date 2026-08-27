@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { seedDocumentKey } from "./seed-document-key.mjs";
+
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
@@ -124,6 +127,9 @@ function signature(row, documentText) {
     row.paintQuotes.map((quote) => occurrenceClass(documentText, quote)).join("/"),
     directiveParts.map((parts) => parts.filter(Boolean)
       .map((part) => occurrenceClass(documentText, decode(part))).join("")).join("/"),
+    row.paintedWords,
+    row.paintQuotes.map((quote) => fold(quote).split(" ").filter(Boolean).length).join("/"),
+    fold(row.blockText ?? "").split(" ").filter(Boolean).length,
   ].join("|");
 }
 
@@ -220,6 +226,7 @@ const receipt = {
     "sourcePositionClass",
     "paintQuoteOccurrenceClasses",
     "directivePartOccurrenceClasses",
+    "paintedWords", "paintQuoteWordTopology", "blockWordCount",
   ],
   rows: rows.length,
   publisherExact: rows.filter((row) => row.publisherExact).length,
