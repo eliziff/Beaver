@@ -466,6 +466,19 @@ function upsertById<T extends { id: string }>(items: T[], item: T, limit: number
   const next = items.slice(); next[index] = item; return next;
 }
 
+function upsertArtifact(items: AssistantArtifact[], item: AssistantArtifact) {
+  const current = items.find((candidate) => candidate.id === item.id);
+  if (!current || current.versionId !== item.versionId) {
+    return upsertById(items, item, ASSISTANT_LIMITS.artifacts);
+  }
+  const annotations = new Map([...current.annotations, ...item.annotations].map((annotation) =>
+    [annotation.edit_id, annotation] as const));
+  return upsertById(items, {
+    ...item,
+    annotations: [...annotations.values()],
+  }, ASSISTANT_LIMITS.artifacts);
+}
+
 function messageContent(blocks: AssistantDialogueBlock[]) {
   return blocks.filter((block) => block.role === "assistant").map((block) => block.text).join("\n\n");
 }
@@ -585,7 +598,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
   }
   if (event.type === "artifact") return updateAssistant(state, (message) => ({
     ...message,
-    artifacts: upsertById(message.artifacts, event.artifact, ASSISTANT_LIMITS.artifacts),
+    artifacts: upsertArtifact(message.artifacts, event.artifact),
   }));
   if (event.type === "automation") return updateAssistant(state, (message) => ({ ...message, contentOpen: false, automations: upsertById(message.automations, event.run, ASSISTANT_LIMITS.activities) }));
   if (event.type === "reader") {
