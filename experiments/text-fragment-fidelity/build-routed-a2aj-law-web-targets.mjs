@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
 
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+
 const here = import.meta.dirname;
 const results = path.join(here, "results");
 const outputName = process.argv[2] ?? "a2aj-document-routed-targets.jsonl";
-const targetsName = process.argv[3] ?? "targets.jsonl";
+const targetsName = process.argv[3] ?? "publisher-plan-candidates.jsonl";
 const proofName = process.argv[4] ?? "webdriver-exact-final-publisher-current.jsonl";
 const read = (name) => fs.readFileSync(path.join(results, name), "utf8")
   .split(/\r?\n/u).filter(Boolean).map(JSON.parse);
@@ -40,6 +43,7 @@ for (const row of targets) {
   const legislation = row.providerClass === "a2aj-legislation";
   if (!shouldUseA2AJWebFallback(
     legislation ? "laws" : "cases", row.target, row, document.text,
+    row.blockText ?? "",
   )) continue;
   let native = nativeDocuments.get(documentKey);
   if (!native) {

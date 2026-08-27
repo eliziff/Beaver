@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
+
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
@@ -18,7 +21,7 @@ const expected = new Set(read(process.argv[2] ?? "a2aj-document-routed-targets-v
   .map((row) => row.label));
 const actual = new Set();
 
-for (const row of read("targets.jsonl")) {
+for (const row of read("publisher-plan-candidates.jsonl")) {
   if (row.label === "FCA_2026_FC_103_p20_short-exact") continue;
   const document = documents.get(seedDocumentKey(row));
   if (!document) throw new Error(`missing document: ${row.label}`);
@@ -33,6 +36,7 @@ for (const row of read("targets.jsonl")) {
       paintQuotes: row.paintQuotes,
     },
     document.text,
+    row.blockText ?? "",
   );
   if (route) actual.add(row.label);
 }

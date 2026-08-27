@@ -1,6 +1,6 @@
 # Text-fragment fidelity results
 
-Status: v24 is proved over the complete gettable corpus and promoted to the
+Status: v25 is proved over the complete gettable corpus and promoted to the
 production link builder. The running Beaver service was not stopped or
 restarted.
 
@@ -18,9 +18,39 @@ runtime inputs. Multiple nearby text directives are supported. Every safely
 paintable substantive word is preserved; only source furniture that cannot be
 painted with certainty may be omitted.
 
+## v25 publisher preference refinement
+
+The v25 router refines, but never broadens, the v24 failure classes with three
+facts already available to production: total painted words, the word count of
+each painted island, and the complete source-block word count. No URL identity,
+citation, seed label, expected verdict, or browser result is a runtime input.
+
+Across the 2,365 publisher rows eligible for exact fallback, the refined
+classifier selects exactly the 166 headed-Chrome-proved publisher failures and
+zero publisher successes. The final product routes are:
+
+| route | rows | share |
+|---|---:|---:|
+| original publisher | 2,204 | 93.0% |
+| A2AJ Law Web | 166 | 7.0% |
+
+This removes all 446 unnecessary v24 Law Web switchovers, a 72.9% reduction in
+fallback traffic. The routed target SHA-256 is
+`5f0615ab6f59cfba45ef446e2f4e869eeabee1ddc22ed3d2a557e64ae249c2cb`.
+
+A fresh full gate used six BelowNormal headed-Chrome workers over 24 isolated
+shards. It completed in 112.4 seconds with zero restarts and proved 166/166
+strict exact paints. Its SHA-256 is
+`95b9b9eb2ae7bb113e8ee21c7ea8a11a8385642acd84beb96bd05448e7523325`.
+
+The final 2,370-row composite remains 2,369 strict exact results plus the one
+documented Saskatchewan PDF geometry limit, with all 2,370 proofs bound to
+cached page bytes and no failures. Its SHA-256 is
+`8995098b2b3d16c996bfe2a823921facc215d1b1eb632a13fda37db7812a6e34`.
+
 ## No-oracle system
 
-Publisher planning retains the established PDF and case behavior. Legislation
+The v24 baseline retained the established PDF and case behavior. Legislation
 HTML may replace one cross-block range with independently unique block
 directives only when the split is source-complete, paints the same number of
 words, and every resulting quote occurs exactly once in the full flattened A2AJ
@@ -83,7 +113,8 @@ processes and temporary profiles are owned and closed per shard.
 ## Production integration
 
 Production selects the legislation-only independent-block plan at the existing
-legal-source boundary and applies the v24 no-oracle fallback classifier there.
+legal-source boundary and applies the v25 no-oracle fallback classifier there.
 The classifier receipt reports 100% coverage of all 166 required residuals,
-zero unproved selected rows, and promotion-ready status. The focused backend
+zero publisher-exact switchovers, zero unproved selected rows, and
+promotion-ready status. The focused backend
 contract passes 35/35 tests.
