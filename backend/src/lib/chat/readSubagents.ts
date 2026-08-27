@@ -21,6 +21,7 @@ export type ReadSubagentAssignment = {
   source_types?: string[];
 };
 export type ReadSubagentSource = {
+  ref: number;
   provider: string;
   jurisdiction: string;
   citation: string;
@@ -410,13 +411,17 @@ export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
     ? `Source-type boundary: ${assignment.source_types.join(", ")}.` : "",
 ].filter(Boolean).join("\n\n");
 
-export function receiptSource(receipt: LegalEvidenceReceipt): ReadSubagentSource {
+export function receiptSource(
+  receipt: LegalEvidenceReceipt,
+  ref: number,
+): ReadSubagentSource {
   const prefix = receipt.locator.kind === "paragraph" ? "par"
     : receipt.locator.kind === "section" ? "sec"
       : receipt.locator.kind === "page" ? "page"
         : receipt.locator.kind === "footnote" ? "fn" : "";
   const label = receipt.locator.label;
   return {
+    ref,
     provider: receipt.provider,
     jurisdiction: receipt.jurisdiction,
     citation: receipt.citation,

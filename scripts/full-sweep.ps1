@@ -7,7 +7,10 @@ $Repo = Split-Path -Parent $PSScriptRoot
 $Mike = Join-Path $PSScriptRoot 'mike.ps1'
 $ReceiptDirectory = Join-Path $Repo '.tmp\full-sweep'
 $ReceiptFile = Join-Path $ReceiptDirectory 'latest.json'
+$ReceiptTemporary = "$ReceiptFile.new"
 $script:StepLog = $null
+$script:SurfaceStarted = $false
+$script:Failed = $false
 $script:Receipt = [ordered]@{
     started_at = [DateTime]::UtcNow.ToString('o')
     status = 'running'
@@ -15,22 +18,31 @@ $script:Receipt = [ordered]@{
 }
 
 New-Item -ItemType Directory -Force -Path $ReceiptDirectory | Out-Null
+$Mutex = [Threading.Mutex]::new($false, 'Local\BeaverFullSweep')
+if (-not $Mutex.WaitOne(0)) {
+    $Mutex.Dispose()
+    throw 'Another FullSweep is already running.'
+}
 
 function Save-Receipt {
-    $script:Receipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ReceiptFile
+    $script:Receipt | ConvertTo-Json -Depth 5 |
+        Set-Content -LiteralPath $ReceiptTemporary -Encoding UTF8
+    Move-Item -LiteralPath $ReceiptTemporary -Destination $ReceiptFile -Force
 }
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     $preference = $ErrorActionPreference
+    $exitCode = -1
     try {
         $ErrorActionPreference = 'Continue'
-        & $Command @Arguments 2>&1 | Tee-Object -FilePath $script:StepLog -Append
+        & $Command @Arguments 2>&1 | Tee-Object -FilePath $script:StepLog
         $exitCode = $LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $preference
     }
     if ($exitCode -ne 0) {
+        Get-Content -LiteralPath $script:StepLog -Tail 80 | Write-Host
         throw "$Command exited with code $exitCode."
     }
 }
@@ -70,6 +82,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
 }
 
 try {
+    Save-Receipt
     Invoke-Step 'Stop launcher-owned surface' {
         & $Mike stop
         if (-not $?) { throw 'Could not stop the local surface.' }
@@ -94,6 +107,7 @@ try {
     Invoke-Step 'Production browser smoke' {
         & $Mike start -WithTableOfAuthorities -NoBrowser
         if (-not $?) { throw 'Could not start the production surface.' }
+        $script:SurfaceStarted = $true
         & $Mike smoke -Full -WithTableOfAuthorities
         if (-not $?) { throw 'Production browser smoke failed.' }
     }
@@ -125,6 +139,20 @@ try {
     Write-Host "`nFullSweep passed. Receipt: $ReceiptFile"
 }
 catch {
-    Write-Error "FullSweep failed: $($_.Exception.Message) Receipt: $ReceiptFile"
-    exit 1
+    $script:Failed = $true
+    Write-Host "FullSweep failed: $($_.Exception.Message) Receipt: $ReceiptFile" -ForegroundColor Red
 }
+finally {
+    try {
+        if (-not $script:SurfaceStarted) {
+            & $Mike start -WithTableOfAuthorities -NoBrowser
+            if (-not $?) { Write-Warning 'FullSweep could not restore the production surface.' }
+        }
+    }
+    finally {
+        $Mutex.ReleaseMutex()
+        $Mutex.Dispose()
+    }
+}
+
+if ($script:Failed) { exit 1 }

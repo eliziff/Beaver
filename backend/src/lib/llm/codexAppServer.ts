@@ -171,10 +171,7 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
       const id = nextId++;
       const timer = setTimeout(() => {
         if (!pending.delete(id)) return;
-        const error = new Error(`Codex app-server ${method} request timed out.`);
-        reject(error);
-        close(`${method} request timed out`);
-        terminate(child);
+        reject(new Error(`Codex app-server ${method} request timed out.`));
       }, REQUEST_TIMEOUT_MS);
       pending.set(id, {
         resolve: resolve as (value: unknown) => void,
