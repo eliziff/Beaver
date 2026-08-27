@@ -18,6 +18,7 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 
 const LIVE = process.env.LIVE_E2E === "1";
 const MODEL = process.env.LIVE_MODEL?.trim() || "codex:gpt-5.6-luna";
+const REASONING_EFFORT = process.env.LIVE_REASONING_EFFORT?.trim() || "low";
 const TURN_TIMEOUT = 240_000;
 
 vi.mock("../../lib/localMode", () => ({
@@ -120,6 +121,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         .post("/chat")
         .send({
           model: MODEL,
+          reasoning_effort: REASONING_EFFORT,
           expected_version: 0,
           current_turn: {
             kind: "message",
@@ -164,6 +166,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         .post("/chat")
         .send({
           model: MODEL,
+          reasoning_effort: REASONING_EFFORT,
           expected_version: 0,
           current_turn: {
             kind: "message",

@@ -5,6 +5,7 @@ import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
 import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
 import { MAX_OBJECT_SIZE_BYTES } from "../lib/storage";
+import { sha256 } from "../lib/hash";
 import { createDocumentsRouter } from "./documentRoutes";
 
 const version = {
@@ -14,6 +15,7 @@ const version = {
   created_at: "2026-01-01T00:00:00Z",
   filename: "draft.docx",
   file_type: "docx",
+  source_sha256: sha256(Buffer.from("document")),
 };
 
 function fixture() {
@@ -140,9 +142,11 @@ describe("canonical document routes", () => {
     const sheet = XLSX.utils.aoa_to_sheet([["Merged heading", ""], ["A", "B"]]);
     sheet["!merges"] = [XLSX.utils.decode_range("A1:B1")];
     XLSX.utils.book_append_sheet(workbook, sheet, "Review");
+    const bytes = Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
     vi.mocked(documents.read).mockResolvedValueOnce({
-      bytes: Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })),
-      version: { ...version, file_type: "xlsx", filename: "review.xlsx" },
+      bytes,
+      version: { ...version, file_type: "xlsx", filename: "review.xlsx",
+        source_sha256: sha256(bytes) },
       filename: "review.xlsx",
       fileType: "xlsx",
       hasPdfRendition: false,

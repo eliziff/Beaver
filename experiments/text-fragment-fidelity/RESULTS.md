@@ -1,7 +1,8 @@
 # Text-fragment fidelity results
 
-Status: v23 is proved over the complete gettable corpus and promoted to
-production. The running Beaver service was not stopped or restarted.
+Status: v24 is proved over the complete gettable corpus and promoted to the
+production link builder. The running Beaver service was not stopped or
+restarted.
 
 ## Contract and corpus
 
@@ -12,43 +13,44 @@ product corpus.
 
 The builder and router receive only complete flattened A2AJ text, requested
 quotes, citation/source metadata, and the publisher URL. Chrome results,
-expected labels, live-page structure, and verifier verdicts are never inputs.
-The planner may emit multiple nearby directives. It preserves every safely
-paintable substantive word and omits only source furniture that cannot be
-painted with certainty.
+expected labels, citations as row identities, and live-page structure are never
+runtime inputs. Multiple nearby text directives are supported. Every safely
+paintable substantive word is preserved; only source furniture that cannot be
+painted with certainty may be omitted.
 
 ## No-oracle system
 
-Publisher planning remains unchanged. Law Web planning enables a source-block
-mode which preserves A2AJ punctuation spacing, treats newlines as possible HTML
-block seams, and can emit multiple directives when one browser range cannot
-safely cover all required words.
+Publisher planning retains the established PDF and case behavior. Legislation
+HTML may replace one cross-block range with independently unique block
+directives only when the split is source-complete, paints the same number of
+words, and every resulting quote occurs exactly once in the full flattened A2AJ
+document.
 
-The blind router uses only normalized paint-quote occurrence counts in the full
-A2AJ document, document type, publisher host, painted-word count, legal-reference
-words already in the plan, source interval positions, and directive/interval
-shape. It keeps the Saskatchewan target beyond Law Web's initial render on the
-publisher PDF. It also keeps two short Northwest Territories opening ranges on
-the publisher because Law Web inserts a live-only `Definitions` heading inside
-their paint. No seed, citation, expected result, or verifier classification is
-special-cased.
+The fallback router uses categorical production-visible facts only: document
+type, publisher host and static URL family, directive topology, source interval
+topology, source completeness, opening/early/body source position, and
+full-document occurrence classes for paint quotes and directive parts. The
+position class captures the real opening-furniture risk without a citation,
+seed, expected verdict, or live-page oracle.
 
-The routed v23 target contains 1,201 Law Web rows and keeps 1,169 publisher
-rows. It retains all 171 recoverable publisher residuals and makes 1,030
-publisher-exact switchovers. Its SHA-256 is
-`9065fbbf25cfe5a6e9f39234080db3baf97e8bb7d6bcb577cbe27e43b4245ac0`.
+The routed v24 target contains 612 Law Web rows and keeps 1,758 publisher rows:
+25.8% Law Web and 74.2% original provider. It covers all 166 publisher
+residuals that require fallback and makes 446 publisher-exact switchovers that
+share those blind equivalence classes. Its SHA-256 is
+`67589dbde983b05ad868280d66a7e3240037d6f1d577e04a55b96ed004745591`.
 
 ## Real Chrome proof
 
-The final Law Web gate used six BelowNormal headed-Chrome workers over 24
-shards and cached rendered pages. It tested the actual fragment URLs against
-full pages, including duplicate text outside each target. It completed in
-155.7 seconds with zero worker restarts and proved 1,201/1,201 strict exact
-paints. The proof SHA-256 is
-`860992593bc6320c20a02d12bff56b41aa60153108c0121d3dbf9e85fe532da3`.
+All newly required citation-only Law Web pages were fetched in headed
+ChromeDriver sessions and cache-bound. The final Law Web gate used six
+BelowNormal headed-Chrome workers over 24 isolated shards. It tested the actual
+fragment URLs against complete cached pages, including duplicate text outside
+each target. It completed in 136.8 seconds with zero worker restarts and proved
+612/612 strict exact paints. The proof SHA-256 is
+`b1f240673127feac8c5bd156dbef33b05932db9ea92ef206d94db29b599803d7`.
 
-The final composite receipt binds every row to its exact cached page bytes and
-combines the Law Web proof with the publisher proof:
+The final composite receipt binds every row to its exact target and cached page
+bytes:
 
 | result | rows |
 |---|---:|
@@ -56,33 +58,32 @@ combines the Law Web proof with the publisher proof:
 | documented best-effort PDF limit | 1 |
 | missing proof or cache identity | 0 |
 
-`LEGISLATION-SK_SS_2015_c_I-9.11_sec4-3_hard-act-name` is the sole limit. Its
-Law Web passage starts beyond the approximately 200,000-character initial
-render, so the blind router keeps the publisher PDF. Chrome paints all 16
-substantive words there with no omission, but the PDF viewer adds natural paint
-geometry. The composite receipt is
-`results/final-composite-proof-v23.jsonl`, SHA-256
-`d8dee3e05df353785390bee1540a14904c2423cca6305083af0645eb2b177a35`.
+`LEGISLATION-SK_SS_2015_c_I-9.11_sec4-3_hard-act-name` is the sole limit.
+Its Law Web passage starts beyond the initial render, so the blind router keeps
+the publisher PDF. Chrome paints all 16 substantive words there with no
+omission, but the PDF viewer adds natural paint geometry.
+
+The composite receipt is `results/final-composite-proof-v24.jsonl`, SHA-256
+`2ee7bd7d33ecd287f3ae50e2143895a491fcf37c5c1167535d89456f52929207`.
 
 ## Harness hardening
 
-The authorization crawl fetched citation-only Law Web URLs: HTTPS
-`/document` requests containing only `citation` and `doc_type`, never fragments.
-All required pages are cached. The crawler now rejects page-level failures with
-a nonzero exit, recognizes only actual short browser/error shells as error
-pages, and accepts bounded lexical subsequences so a live heading inserted
-inside a valid range cannot masquerade as an incomplete page. Missing-page
-diagnostics are preserved under the ignored results directory.
+Candidate generation now calls the production builder instead of duplicating
+its planner. Fallback derivation refuses promotion unless every selected
+runtime signature has an identical headed exact Law Web proof. Publisher proof
+binding accepts only target-identical controlled reruns for explicit browser
+errors or an isolated PDF check.
+
+The headed cache path was repaired to match the shared Chrome lifecycle and
+current PDF geometry fixture. Missing live sources no longer masquerade as
+verifier outcomes. Authorization crawls use citation-only Law Web URLs with
+`citation` and `doc_type`; no fragments are fetched during caching. Chrome
+processes and temporary profiles are owned and closed per shard.
 
 ## Production integration
 
-Production now passes the block-mode flag through the legal-structure Node
-adapter and applies the v23 no-oracle router at the existing legal-source link
-boundary. Publisher-plan replay matches all 2,371 original rows with zero
-mismatches; production router replay matches all 1,201 v23 routes with no
-missing or extra labels. The focused backend contract passes 34/34 tests, the
-Rust text-fragment contract passes 25/25 tests, source boundaries pass, the
-warm Node adapter checks, and the backend TypeScript build passes.
-
-The proved changes are committed directly in legal-structure and Beaver; the
-temporary candidate patch bundle was removed after promotion.
+Production selects the legislation-only independent-block plan at the existing
+legal-source boundary and applies the v24 no-oracle fallback classifier there.
+The classifier receipt reports 100% coverage of all 166 required residuals,
+zero unproved selected rows, and promotion-ready status. The focused backend
+contract passes 35/35 tests.

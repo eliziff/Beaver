@@ -5,12 +5,12 @@ import path from "node:path";
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
-const proofPath = path.join(
-  results,
-  "webdriver-exact-final-routed-lawweb-v22-cache.jsonl",
-);
-const targetsPath = path.join(results, "a2aj-document-routed-targets-v23.jsonl");
-const outputPath = path.join(results, "lawweb-citation-cache-manifest.jsonl");
+const [proofName = "webdriver-exact-final-routed-lawweb-v22-cache.jsonl",
+  targetsName = "a2aj-document-routed-targets-v23.jsonl",
+  outputName = "lawweb-citation-cache-manifest.jsonl"] = process.argv.slice(2);
+const proofPath = path.join(results, proofName);
+const targetsPath = path.join(results, targetsName);
+const outputPath = path.join(results, outputName);
 const targets = new Map(fs.readFileSync(targetsPath, "utf8").split(/\r?\n/u)
   .filter(Boolean).map(JSON.parse).map((row) => [row.label, row]));
 const rows = fs.readFileSync(proofPath, "utf8").split(/\r?\n/u)

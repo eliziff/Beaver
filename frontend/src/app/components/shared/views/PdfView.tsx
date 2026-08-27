@@ -375,7 +375,7 @@ export function PdfView({
             const lib = await getPdfJs();
             if (cancelled) return;
             const pdf = await lib.getDocument({
-                data: new Uint8Array(result.buffer),
+                data: new Uint8Array(result.buffer).slice(),
                 isEvalSupported: false,
                 maxImageSize: MAX_PDF_IMAGE_PIXELS,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,

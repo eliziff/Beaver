@@ -344,9 +344,8 @@ function exportRoute(
     const data = await build(db, id.userId, id.userEmail);
     res.set(downloadHeaders("application/json; charset=utf-8",
       dataExport.userExportFilename(kind, id.userId))).json(data);
-    void runtime.audit().then((audit) => audit.record({ userId: id.userId,
-      userEmail: id.userEmail, action, surface: "account" }))
-      .catch((error) => console.error("[audit] unavailable", safeErrorLog(error)));
+    runtime.background(runtime.audit().then((audit) => audit.record({ userId: id.userId,
+      userEmail: id.userEmail, action, surface: "account" })), "[audit] unavailable");
   });
 }
 for (const [path, kind, action, build] of [

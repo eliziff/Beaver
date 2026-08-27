@@ -12,21 +12,14 @@ const { structureNative } = await import(pathToFileURL(path.join(
   here,
   "../../backend/src/lib/structureNative.ts",
 )).href);
+const { buildLegalSourcePinpoint } = await import(pathToFileURL(path.join(
+  here,
+  "../../backend/src/lib/legalSourceLinks.ts",
+)).href);
 const structure = structureNative();
 const documents = new Map(read("doctext.jsonl").map((row) => [row.key, row]));
 const nativeDocuments = new Map();
 
-const pdfTarget = (raw) => {
-  const url = new URL(raw);
-  const pathName = url.pathname.toLocaleLowerCase("en");
-  const href = url.href.toLocaleLowerCase("en");
-  return pathName.endsWith(".pdf") || pathName.endsWith("/document.do") ||
-    url.searchParams.get("rendition")?.toLocaleLowerCase("en") === "pdf" ||
-    href.includes("laws.yukon.ca/cms/images/legislation/") ||
-    href.includes("justice.gov.nt.ca/en/files/legislation/") ||
-    href.includes("princeedwardisland.ca/sites/default/files/legislation/") ||
-    /publications\.saskatchewan\.ca\/api\/v1\/products\/[^/]+\/formats\//u.test(href);
-};
 const comparable = (plan) => ({
   directives: plan.directives,
   sourceWordIntervals: plan.sourceWordIntervals,
@@ -37,6 +30,7 @@ const comparable = (plan) => ({
 
 const targets = read("targets.jsonl");
 const mismatches = [];
+const candidates = [];
 let processed = 0;
 for (const row of targets) {
   const key = seedDocumentKey(row);
@@ -53,15 +47,20 @@ for (const row of targets) {
     } });
     nativeDocuments.set(key, native);
   }
-  const actual = comparable(structure.textFragmentPlan(
-    row.blockText ?? "",
-    row.quotes ?? [],
-    pdfTarget(row.target),
-    new URL(row.target).hostname === "www.bclaws.gov.bc.ca",
-    false,
-    native,
-  ));
+  const base = row.target.split(":~:", 1)[0];
+  const built = buildLegalSourcePinpoint({
+    url: base,
+    blockText: row.blockText ?? "",
+    documentText: native,
+  }, row.quotes ?? [], row.providerClass === "a2aj-legislation");
+  if (!built?.plan) throw new Error(`unbuildable target: ${row.label}`);
+  const actual = comparable(built.plan);
   const expected = comparable(row);
+  candidates.push({
+    ...row,
+    ...actual,
+    target: built.target,
+  });
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     mismatches.push({ label: row.label, expected, actual });
   }
@@ -71,6 +70,9 @@ for (const row of targets) {
       mismatches: mismatches.length }));
   }
 }
+
+fs.writeFileSync(path.join(results, "publisher-plan-candidates.jsonl"),
+  `${candidates.map(JSON.stringify).join("\n")}\n`);
 
 const receipt = {
   rows: targets.length,

@@ -41,11 +41,11 @@ describe("RecyclingBinModal", () => {
         expect(screen.getByText(/Project chat/)).toBeVisible();
         fireEvent.click(screen.getByRole("button", { name: "Restore" }));
 
-        await waitFor(() =>
-            expect(mocks.restoreChat).toHaveBeenCalledWith("chat-1"),
-        );
-        expect(onRestored).toHaveBeenCalledOnce();
-        expect(screen.queryByText("Lease review")).toBeNull();
+        await waitFor(() => {
+            expect(mocks.restoreChat).toHaveBeenCalledWith("chat-1");
+            expect(onRestored).toHaveBeenCalledOnce();
+            expect(screen.queryByText("Lease review")).toBeNull();
+        });
     });
 
     it("requires a second warning before permanent deletion", async () => {

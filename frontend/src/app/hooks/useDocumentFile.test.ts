@@ -29,4 +29,11 @@ describe("document file loading", () => {
 
     expect(apiFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("reuses PDF bytes when the dock is reopened", async () => {
+    await preloadDocumentFile("docked-pdf", "v1");
+    await preloadDocumentFile("docked-pdf", "v1");
+
+    expect(apiFetch).toHaveBeenCalledOnce();
+  });
 });

@@ -481,7 +481,7 @@ def self_check():
     )
     assert landing["status"] == "landing-exact" and landing["mappedPaintComponents"]
     geometry = gate.pdf_paint_geometry_proof(
-        {"components": [{"bounds": [10, 20, 20, 30], "pixels": 100}], "deltaPixels": 100},
+        {"components": [{"bounds": [10, 90, 20, 99], "pixels": 110}], "deltaPixels": 110},
         gate.Image.new("RGB", (100, 100), "white"),
         {"pageSize": [100, 100], "lineBounds": [[10, 0, 20, 10]], "page": 1},
     )
@@ -978,7 +978,7 @@ def main():
         try:
             profile_dir = lifecycle.enter_context(gate.owned_chrome_profile("browser-profile-"))
             phase = time.perf_counter()
-            driver, _browser_timings = lifecycle.enter_context(
+            driver, _browser_timings, _pdf_oopif = lifecycle.enter_context(
                 gate.chrome_session(options(profile_dir, args.headed))
             )
             driver.set_page_load_timeout(15)

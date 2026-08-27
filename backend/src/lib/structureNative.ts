@@ -149,6 +149,9 @@ type StructureAddon = {
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,
     document: NativeDocument): NativeTextFragmentPlan;
+  textFragmentPlanStandalone(blockText: string, quotes: string[], pdf: boolean,
+    publisherMayAnnotateLegalReference: boolean,
+    splitHtmlSourceBlocks: boolean): NativeTextFragmentPlan;
   documentParagraphRangeDirective(document: NativeDocument, start: string,
     end: string): string | null;
   lookupStructureBlock(document: NativeDocument, locator: string,

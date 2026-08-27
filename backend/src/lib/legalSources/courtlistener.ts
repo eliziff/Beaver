@@ -690,18 +690,26 @@ async function searchCases(args: {
 async function caseOpinions(args: {
   clusterId: number;
   opinionId?: number;
+  maxChars?: number;
   apiToken?: string | null;
   signal?: AbortSignal;
 }) {
-  const bulk = await getBulkCourtlistenerCaseOpinions(args.clusterId, args.opinionId);
-  if (bulk) return bulk;
-
-  return fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint({
+  const result = await getBulkCourtlistenerCaseOpinions(args.clusterId, args.opinionId) ??
+    await fetchCaseOpinionsFromCourtlistenerOpinionsEndpoint({
     clusterId: args.clusterId,
     opinionId: args.opinionId,
     apiToken: args.apiToken,
     signal: args.signal,
   });
+  if (!args.maxChars) return result;
+  const limit = Math.max(1_000, Math.min(50_000, args.maxChars));
+  return { ...result, opinions: result.opinions.map((opinion) => {
+    const document = opinionDocument(opinion);
+    return {
+      ...opinion,
+      text: document ? structureNative().documentText(document, limit) : null,
+    };
+  }) };
 }
 
 function uniqueCitationCluster(value: unknown) {
@@ -860,5 +868,6 @@ function provider(
 
 export const courtlistenerLegalSourceProvider = Object.assign(provider(), {
   configured: provider,
+  caseOpinions,
   hasNativeOpinionStructure,
 });

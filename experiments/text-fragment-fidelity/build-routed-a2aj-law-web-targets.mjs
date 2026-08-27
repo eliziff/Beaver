@@ -7,13 +7,12 @@ import { seedDocumentKey } from "./seed-document-key.mjs";
 const here = import.meta.dirname;
 const results = path.join(here, "results");
 const outputName = process.argv[2] ?? "a2aj-document-routed-targets.jsonl";
+const targetsName = process.argv[3] ?? "targets.jsonl";
+const proofName = process.argv[4] ?? "webdriver-exact-final-publisher-current.jsonl";
 const read = (name) => fs.readFileSync(path.join(results, name), "utf8")
   .split(/\r?\n/u).filter(Boolean).map(JSON.parse);
-const publisherProof = new Map(read("webdriver-exact-final-publisher-current.jsonl")
+const publisherProof = new Map(read(proofName)
   .map((row) => [row.label, row.verdict]));
-for (const row of read("webdriver-exact-final-publisher-current-errors.jsonl")) {
-  publisherProof.set(row.label, row.verdict);
-}
 const documents = new Map(read("doctext.jsonl").map((row) => [row.key, row]));
 const { buildA2AJWebPinpointUrl } = await import(pathToFileURL(
   path.join(here, "../../backend/src/lib/a2ajWebLinks.ts"),
@@ -21,48 +20,13 @@ const { buildA2AJWebPinpointUrl } = await import(pathToFileURL(
 const { structureNative } = await import(pathToFileURL(
   path.join(here, "../../backend/src/lib/structureNative.ts"),
 ).href);
+const { shouldUseA2AJWebFallback } = await import(pathToFileURL(
+  path.join(here, "../../backend/src/lib/legalSourceLinks.ts"),
+).href);
 const structure = structureNative();
 const nativeDocuments = new Map();
-const normalize = (value) => String(value).normalize("NFKC").toLocaleLowerCase("en")
-  .replace(/\s+/gu, " ").trim();
-const occurrences = (haystack, needle) => {
-  if (!needle) return 0;
-  let count = 0;
-  for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + 1)) count += 1;
-  return count;
-};
-const uniqueCaseFamily = (row, host) => {
-  const legalReference = /\b(?:act|code|rules?|irpa|section|subsection)\b|\bs\.\s*\d/iu
-    .test(row.paintQuotes.join(" "));
-  return row.paintedWords <= 10 && host === "decisia.lexum.com"
-  || row.paintedWords > 32 && new Set([
-    "decisia.lexum.com", "decisions.sst-tss.gc.ca", "decision.tcc-cci.gc.ca",
-  ]).has(host)
-  || row.paintedWords >= 11 && row.paintedWords <= 31 && legalReference
-    && new Set([
-      "www.bccourts.ca", "decisia.lexum.com", "www.oic-ci.gc.ca", "refugeelab.ca",
-      "decisions.scc-csc.ca",
-    ]).has(host);
-};
-const legislationHosts = {
-  missing: new Set([
-    "www.justice.gov.nt.ca", "www.bclaws.gov.bc.ca", "laws-lois.justice.gc.ca",
-    "laws.yukon.ca", "www.legisquebec.gouv.qc.ca",
-  ]),
-  repeated: new Set([
-    "www.princeedwardisland.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
-    "kings-printer.alberta.ca", "www.legisquebec.gouv.qc.ca",
-    "publications.saskatchewan.ca",
-  ]),
-  unique: new Set([
-    "web2.gov.mb.ca", "www.princeedwardisland.ca", "www.ontario.ca",
-    "www.bclaws.gov.bc.ca", "laws.gnb.ca", "www.legisquebec.gouv.qc.ca",
-    "kings-printer.alberta.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
-  ]),
-};
-
 const rows = [];
-const targets = read("targets.jsonl");
+const targets = read(targetsName);
 let processed = 0;
 for (const row of targets) {
   processed += 1;
@@ -73,30 +37,10 @@ for (const row of targets) {
   const documentKey = seedDocumentKey(row);
   const document = documents.get(documentKey);
   if (!document?.citation) throw new Error(`missing document: ${row.label}`);
-  const targetEnd = Math.max(0, ...row.sourceWordIntervals.map((span) => span.end));
-  const normalizedDocument = normalize(document.text);
-  const counts = row.paintQuotes.map((quote) => occurrences(normalizedDocument, normalize(quote)));
-  const occurrenceClass = counts.some((count) => count === 0) ? "missing"
-    : counts.some((count) => count > 1) ? "repeated" : "unique";
   const legislation = row.providerClass === "a2aj-legislation";
-  const host = new URL(row.target ?? row.url).hostname.toLowerCase();
-  const ambiguousPublisherIslands = host === "www.justice.gov.nt.ca"
-    && row.directives.length >= 3
-    && row.directives.length === row.sourceWordIntervals.length
-    && counts.every((count) => count > 1);
-  const openingFurnitureRisk = host === "www.justice.gov.nt.ca"
-    && occurrenceClass === "missing"
-    && targetEnd <= 100
-    && row.directives.length >= 2
-    && row.directives.length === row.sourceWordIntervals.length;
-  const routeLegislation = legislationHosts[occurrenceClass].has(host)
-    && !ambiguousPublisherIslands
-    && !openingFurnitureRisk;
-  const route = targetEnd <= 200_001 && (legislation && routeLegislation
-    || row.providerClass === "a2aj-case" && occurrenceClass === "repeated"
-    || row.providerClass === "a2aj-case" && occurrenceClass === "unique"
-      && uniqueCaseFamily(row, host));
-  if (!route) continue;
+  if (!shouldUseA2AJWebFallback(
+    legislation ? "laws" : "cases", row.target, row, document.text,
+  )) continue;
   let native = nativeDocuments.get(documentKey);
   if (!native) {
     const docType = legislation ? "laws" : "cases";
@@ -126,9 +70,7 @@ for (const row of targets) {
     publisherVerdict: publisherProof.get(row.label),
     target,
     fallback: "a2aj-document",
-    targetEnd,
-    occurrenceClass,
-    publisherHost: host,
+    publisherHost: new URL(row.target ?? row.url).hostname.toLowerCase(),
   });
 }
 

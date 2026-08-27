@@ -104,7 +104,7 @@ describe("remote legal-source providers through the registry", () => {
     expect(payload.next_required_action).toContain("native locator");
   });
 
-  it("keeps the native document and lookup needed for a canonical pinpoint", async () => {
+  it("keeps the native document and selected block needed for a canonical pinpoint", async () => {
     vi.stubGlobal("fetch", providerFetch());
     const read = await readLegalSourcePassage({
       source: { provider: "tna", id: "[2024] UKSC 1", kind: "case" },
@@ -114,9 +114,7 @@ describe("remote legal-source providers through the registry", () => {
     if (read.status !== "found") return;
     expect(read.values).toHaveLength(1);
     const passage = read.values[0];
-    expect(passage.native).toMatchObject({
-      document: { provider: "tna", identity: "[2024] UKSC 1" },
-      lookup: { status: "found", block: { label: "par24" } },
-    });
+    expect(passage.documentArtifact).toBeDefined();
+    expect(passage.blockArtifact).toMatchObject({ label: "par24" });
   });
 });

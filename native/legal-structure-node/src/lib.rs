@@ -3,7 +3,8 @@ use legal_structure::{
     caselaw_citation_lookup_key, citation_lookup_key, classify_citator_excerpt,
     document_fingerprint, docx_structure_lint, grounded_prose_errors, has_citation_in_text,
     journal_document_structure, journal_text_document_structure, marked_quote_spans,
-    provider_citations_in_text, quote_repair_suggestion, utf16_prefix_ceil, A2ajInput,
+    provider_citations_in_text, quote_repair_suggestion, text_fragment_plan,
+    utf16_prefix_ceil, A2ajInput,
     AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery,
     DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, VisibleEvidenceText,
 };
@@ -681,12 +682,12 @@ pub fn classify_citator_excerpts_node(
 
 #[napi(js_name = "groundedProseErrors")]
 pub fn grounded_prose_errors_node(
-    env: Env,
     text: String,
     cited_evidence_ids: Vec<String>,
-    visible_evidence: Unknown<'_>,
+    visible_evidence: serde_json::Value,
 ) -> napi::Result<Vec<String>> {
-    let visible: Vec<VisibleEvidenceText> = env.from_js_value(visible_evidence)?;
+    let visible: Vec<VisibleEvidenceText> = serde_json::from_value(visible_evidence)
+        .map_err(|error| Error::from_reason(error.to_string()))?;
     Ok(grounded_prose_errors(&text, &cited_evidence_ids, &visible))
 }
 
@@ -749,9 +750,8 @@ pub fn text_fragment_plan_node(
     split_html_source_blocks: bool,
     document: &External<NativeDocument>,
 ) -> napi::Result<Unknown<'static>> {
-    let structure = document.structure();
     let plan = document.query.text_fragment_plan(
-        structure,
+        document.structure(),
         &block_text,
         &quotes,
         pdf,
@@ -759,6 +759,28 @@ pub fn text_fragment_plan_node(
         split_html_source_blocks,
     );
     js_value(env, &plan)
+}
+
+#[napi(js_name = "textFragmentPlanStandalone")]
+pub fn text_fragment_plan_standalone_node(
+    env: Env,
+    block_text: String,
+    quotes: Vec<String>,
+    pdf: bool,
+    publisher_may_annotate_legal_reference: bool,
+    split_html_source_blocks: bool,
+) -> napi::Result<Unknown<'static>> {
+    js_value(
+        env,
+        &text_fragment_plan(
+            &block_text,
+            None,
+            &quotes,
+            pdf,
+            publisher_may_annotate_legal_reference,
+            split_html_source_blocks,
+        ),
+    )
 }
 
 #[napi(js_name = "documentParagraphRangeDirective")]
