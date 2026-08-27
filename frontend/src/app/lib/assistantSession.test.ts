@@ -146,7 +146,11 @@ describe("assistantSessionReducer", () => {
       id: "reader-1",
       task: "Read the record",
       status: "running",
-      activities: [{ id: "read-1", tool: "read", label: "Reading", status: "running" }],
+      activities: [{
+        id: "read-1", tool: "read", label: "Reading", status: "running",
+        sources: [{ ref: 1, provider: "a2aj", jurisdiction: "CA",
+          citation: "2020 BCSC 1", name: null, dataset: "BCSC", url: null }],
+      }],
       sources: [],
     });
     state = assistantSessionReducer(state, {
@@ -181,6 +185,7 @@ describe("assistantSessionReducer", () => {
       activities: [expect.objectContaining({
         id: "read-1",
         status: "interrupted",
+        sources: [expect.objectContaining({ ref: 1, citation: "2020 BCSC 1" })],
       })],
     })]);
     expect(state.run).toMatchObject({ id: "run-2", status: "running" });

@@ -3,11 +3,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, CircleStop, LoaderCircle, X } from "lucide-react";
 import type { AssistantActivity, AssistantReaderRun } from "@/app/lib/assistantSession";
-import { ActivityRow } from "./message/EventBlocks";
+import { ActivityDisclosure, ActivityRow } from "./message/EventBlocks";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
 
 export type ReadSubagentPanel = AssistantReaderRun;
-export type ReadSubagentSource = NonNullable<AssistantActivity["source"]>;
+export type ReadSubagentSource = NonNullable<AssistantActivity["sources"]>[number];
 
 export function ReadSubagentDock({
     panels,
@@ -83,18 +83,15 @@ export function ReadSubagentDock({
                                 {round > 1 && <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-gray-500"><span>Round {round}</span><span className="h-px flex-1 bg-gray-200" aria-hidden="true" /></div>}
                                 <div className="me-5 rounded-xl rounded-tl-sm bg-gray-900 px-3 py-2.5 text-xs leading-5 text-white">{panel.task}</div>
                                 {panel.activities.length ? (
-                                    <details className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-                                        <summary className="cursor-pointer text-xs font-medium text-gray-600">
-                                            <span className="inline-flex items-center gap-1.5">
-                                                {panel.activities.length} tool {panel.activities.length === 1 ? "call" : "calls"}
-                                                {panel.status === "running" && <LoaderCircle className="size-3 motion-safe:animate-spin" aria-label="Working" />}
-                                            </span>
-                                        </summary>
-                                        <div role="list" aria-label="Reading activity" className="mt-2 space-y-1.5">
+                                    <div className="mt-2">
+                                        <ActivityDisclosure
+                                            isStreaming={panel.status === "running"}
+                                            label={`${panel.activities.length} tool ${panel.activities.length === 1 ? "call" : "calls"}`}
+                                        >
                                             {panel.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} onSourceClick={onSourceClick} />)}
                                             {panel.status === "running" && !panel.activities.some(({ status }) => status === "running") && <div role="status" className="flex items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Thinking</div>}
-                                        </div>
-                                    </details>
+                                        </ActivityDisclosure>
+                                    </div>
                                 ) : panel.status === "running" ? (
                                     <div role="status" className="mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />Starting…</div>
                                 ) : panel.status === "interrupted" ? (
