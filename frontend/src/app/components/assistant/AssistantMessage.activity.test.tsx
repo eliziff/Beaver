@@ -44,6 +44,7 @@ function AssistantMessage({
 
 const editEvent = (
     edit_mode: "manual" | "auto",
+    editId = "edit-1",
 ): Record<string, unknown> => ({
     type: "document_artifact",
     action: "edited",
@@ -54,7 +55,7 @@ const editEvent = (
     download_url: "/draft.docx",
     edit_mode,
     annotations: [{
-        edit_id: "edit-1",
+        edit_id: editId,
         document_id: "doc-1",
         version_id: "version-2",
         deleted_text: "five",
@@ -70,6 +71,20 @@ const editEvent = (
 });
 
 describe("AssistantMessage activity", () => {
+    it("keeps every tracked change emitted for one document version", () => {
+        render(
+            <AssistantMessage
+                events={[
+                    editEvent("manual"),
+                    editEvent("manual", "edit-2"),
+                ]}
+            />,
+        );
+
+        expect(screen.getByText("2 tracked changes")).toBeVisible();
+        expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(2);
+    });
+
     it("shows a completed Manual Mode edit while the turn continues", () => {
         render(
             <AssistantMessage
