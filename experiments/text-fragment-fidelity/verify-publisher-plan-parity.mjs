@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { seedDocumentKey } from "./seed-document-key.mjs";
+
+try { os.setPriority(0, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
 
 const here = import.meta.dirname;
 const results = path.join(here, "results");
@@ -50,6 +53,7 @@ for (const row of targets) {
   const base = row.target.split(":~:", 1)[0];
   const built = buildLegalSourcePinpoint({
     url: base,
+    docType: row.providerClass === "a2aj-legislation" ? "laws" : "cases",
     blockText: row.blockText ?? "",
     documentText: native,
   }, row.quotes ?? [], row.providerClass === "a2aj-legislation");
