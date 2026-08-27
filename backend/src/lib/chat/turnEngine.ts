@@ -34,6 +34,7 @@ import {
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
+  legalEvidenceCitationEntries,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
@@ -442,7 +443,8 @@ export async function runChatTurn(options: {
         status: "completed",
         output: child.fullText,
         activities: [...activities.values()],
-        sources: grounding.evidence.map(receiptSource),
+        sources: legalEvidenceCitationEntries(child.evidence)
+          .map(({ receipt, ref }) => receiptSource(receipt, ref)),
         grounding,
       });
       return {

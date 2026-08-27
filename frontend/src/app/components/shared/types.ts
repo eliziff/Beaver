@@ -116,6 +116,7 @@ export type AutomationRunEvent = {
   version_number?: number | null;
 };
 export type ToolActivitySource = {
+  ref?: number;
   provider: string;
   jurisdiction: string;
   citation: string;

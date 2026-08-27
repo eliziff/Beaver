@@ -252,12 +252,10 @@ async function stateFor(request: SafeRequest, expected: string | null, userId: s
   if (expected && digest !== expected) return state(request, null);
   const content = await verifiedContent(digest ?? undefined);
   if (!content) {
+    if (record?.status === "queued") return state(request, record);
     const queued = await queueProviderPdfAttachment(request, userId);
     record = await readRecord(request.requestKey);
     return queued ?? state(request, record);
-  }
-  if (!record?.pdf_profile || !record.parse_status || record.parse_status === "parsing") {
-    await enqueueProviderJob(request, userId);
   }
   return state(request, record);
 }

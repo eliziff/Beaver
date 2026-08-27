@@ -143,6 +143,7 @@ describe("AssistantMessage activity", () => {
                             "Finding [R. v. Example, 2020 BCSC 1](https://example.test/case).",
                         sources: [
                             {
+                                ref: 1,
                                 provider: "a2aj",
                                 jurisdiction: "CA",
                                 citation: "2020 BCSC 1",

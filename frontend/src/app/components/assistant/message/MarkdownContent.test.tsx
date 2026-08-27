@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { CitationPillMarkdown, GfmMarkdown, MarkdownContent } from "./MarkdownContent";
 import type { Citation } from "../../shared/types";
 import { preprocessCitations } from "./citationUtils";
@@ -26,6 +27,25 @@ describe("MarkdownContent links", () => {
             "/projects/1",
         );
         expect(screen.queryByRole("link", { name: "Injected" })).toBeNull();
+    });
+
+    it("turns grounded subagent markers into source chips", async () => {
+        const source = {
+            ref: 1, provider: "a2aj", jurisdiction: "CA", citation: "2020 BCSC 1",
+            name: "Example v. Example", dataset: "BCSC", url: null,
+            locator: "par12", quote: "Exact passage",
+        };
+        const otherSource = { ...source, ref: 2, citation: "2021 BCSC 2" };
+        const onSourceClick = vi.fn();
+        render(<CitationPillMarkdown
+            text="The proposition is established. [1]"
+            sources={[otherSource, source]}
+            onSourceClick={onSourceClick} />);
+
+        const chip = screen.getByRole("button", { name: "2020 BCSC 1, par12" });
+        expect(chip).toHaveClass("bg-red-800");
+        await userEvent.click(chip);
+        expect(onSourceClick).toHaveBeenCalledWith(source);
     });
 
     it("rejects credential-bearing links in shared Markdown", () => {

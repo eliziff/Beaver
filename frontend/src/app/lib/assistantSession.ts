@@ -208,6 +208,7 @@ export function safeAssistantUrl(
 const safeUrl = z.string().max(FIELD_TEXT_LIMIT).transform((value) => safeAssistantUrl(value));
 const validUrl = safeUrl.pipe(z.string());
 const sourceSchema = z.strictObject({
+  ref: safeInteger.optional(),
   provider: shortText.default(""), jurisdiction: shortText.default(""), citation: idText,
   name: shortText.nullish().transform((value) => value || null),
   dataset: shortText.default(""), url: safeUrl.nullish().transform((value) => value ?? null),
@@ -326,7 +327,8 @@ const readerSchema = z.strictObject({
   task: longText, status: statusSchema,
   activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
   output: longText.optional(),
-  sources: z.array(sourceSchema).max(ASSISTANT_LIMITS.citations).default([]),
+  sources: z.array(sourceSchema.extend({ ref: safeInteger.positive() }))
+    .max(ASSISTANT_LIMITS.citations).default([]),
 }).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 
 const marker = (type: string) => z.strictObject({ type: z.literal(type) });
