@@ -1,5 +1,6 @@
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "../../resourceReferences";
+import { collapseProvisionLabels } from "../../provisionLabels";
 import type { LegalEvidenceReceipt } from "../legalEvidence";
 
 export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
@@ -9,6 +10,24 @@ function activityText(value: unknown, maximum: number) {
   return !text ? undefined : text.length <= maximum
     ? text
     : `${text.slice(0, maximum - 1).trimEnd()}…`;
+}
+
+function activityLocatorLabel(label: string, kind?: string) {
+  const value = label
+    .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
+    .replace(/^[a-z]+=/iu, "").trim();
+  const prefix = kind === "paragraph" ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
+    : kind === "section" ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu : null;
+  return prefix
+    ? value.replace(prefix, "")
+      .replace(new RegExp(`([–—-])${prefix.source.slice(1)}`, "giu"), "$1")
+    : value;
+}
+
+function activityLocatorNoun(kind: string, plural: boolean) {
+  if (kind === "paragraph") return plural ? "paras" : "para";
+  if (kind === "section") return plural ? "ss" : "s";
+  return plural ? `${kind}s` : kind;
 }
 
 export function assistantToolActivityLabel(
@@ -65,10 +84,10 @@ export function assistantToolActivityLabel(
     const locator = activityText(args.locator, 80);
     const end = activityText(args.end_locator, 80);
     if (kind && locator) {
-      const first = activityText(locator, 80)!;
-      const last = end ? activityText(end, 80) : undefined;
+      const first = activityLocatorLabel(locator, kind);
+      const last = end ? activityLocatorLabel(end, kind) : undefined;
       const plural = Boolean(last && last !== first);
-      return `Reading ${kind} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
+      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
@@ -151,7 +170,8 @@ export function assistantReadEvidenceActivityLabel(
   const last = passages.at(-1);
   if (!first || !last) return null;
   const title = sourceName ?? first.name ?? first.citation;
-  const labels = [...new Set(passages.map(({ locator }) => locator.label.trim()))];
+  const labels = [...new Set(passages.map(({ locator }) =>
+    activityLocatorLabel(locator.label, locator.kind)))];
   const firstLabel = activityText(labels[0], 80);
   const lastLabel = activityText(labels.at(-1), 80);
   const contextBlocks = Number.isInteger(args.context_blocks) && Number(args.context_blocks) > 0
@@ -161,8 +181,10 @@ export function assistantReadEvidenceActivityLabel(
     : "";
   if (!firstLabel || !lastLabel) return `Reading ${title}${context}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `Reading ${firstLabel} through ${lastLabel} of ${title}${context}`;
+    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}${context}`;
   }
-  const scope = labels.length === 1 ? firstLabel : labels.join(", ");
-  return `Reading ${scope} of ${title}${context}`;
+  const groups = collapseProvisionLabels(labels, first.locator.kind);
+  const scope = groups ?? labels;
+  const plural = scope.length > 1 || /[–—-]/u.test(scope[0]);
+  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}${context}`;
 }

@@ -64,3 +64,6 @@ npm run build --prefix backend
 npm run build --prefix frontend
 .\scripts\mike.ps1 smoke -WithTableOfAuthorities
 ```
+
+AI agents must run `.\scripts\full-sweep.ps1` only when the user includes the exact token `[FullSweep]`; never infer or run it from an ordinary request.
+That battery runs the release checks, launcher-owned production browser smoke, and isolated live `codex:gpt-5.6-luna` low-effort tool-loop tests.

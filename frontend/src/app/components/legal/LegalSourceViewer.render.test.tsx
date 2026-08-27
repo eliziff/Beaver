@@ -126,7 +126,7 @@ describe("legal source reader", () => {
         expect(container.querySelectorAll("ol")).toHaveLength(1);
         expect(container.querySelectorAll("ol > li")).toHaveLength(2);
         expect(container.querySelectorAll("ul > li")).toHaveLength(1);
-        expect(container.querySelector("blockquote")?.textContent).toBe(
+        expect(container.querySelector("blockquote")).toHaveTextContent(
             "Quoted holding.",
         );
         expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
@@ -255,15 +255,22 @@ describe("legal source reader", () => {
         const base = viewerPayload();
         api.direct.mockResolvedValue({
             ...base,
-            text,
-            anchors: paragraphs.map((paragraph, index) => {
-                    const start = text.indexOf(paragraph);
-                    return {
-                        kind: "paragraph" as const,
-                        label: `par${index + 61}`,
-                        start,
-                        end: start + paragraph.length,
-                    };
+            slices: paragraphs.map((paragraph, index) => {
+                const start = text.indexOf(paragraph);
+                const anchor = {
+                    kind: "paragraph" as const,
+                    label: `par${index + 61}`,
+                    start,
+                    end: start + paragraph.length,
+                };
+                return {
+                    start: anchor.start,
+                    end: anchor.end,
+                    text: paragraph,
+                    depth: 0,
+                    anchors: [],
+                    primary: anchor,
+                };
             }),
         });
         const { container } = render(

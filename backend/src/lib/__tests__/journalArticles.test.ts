@@ -286,7 +286,7 @@ describe("local journal articles", () => {
     journal.closeDatabases();
 
     const article = (await journal.document("7"))!;
-    expect(structureNative().documentText(article.analysis.native)).toBe(canonical.text);
+    expect(structureNative().documentText(article.native)).toBe(canonical.text);
     expect(journal.lookup(article, "page", "101")).toMatchObject({
       status: "found",
       anchor: "page=2",
@@ -355,7 +355,7 @@ describe("local journal articles", () => {
         url: article.url,
         anchor: page.anchor ?? undefined,
         blockText: page.block!.text,
-        documentText: article.analysis.native,
+        documentText: article.native,
         pageScoped: true,
       },
       ["first quoted phrase", "second quoted phrase"],

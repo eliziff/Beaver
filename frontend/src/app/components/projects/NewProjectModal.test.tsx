@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
     uploadDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => ({
+vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
+    ...await importOriginal(),
     ...mocks,
     directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
 }));

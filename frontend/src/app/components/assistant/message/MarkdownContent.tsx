@@ -82,7 +82,7 @@ export function CitationPillMarkdown({
                     const link = source
                         ? safeAssistantUrl(source.url, { relative: false })
                         : safeAssistantUrl(href);
-                    if (!link) return <>{children}</>;
+                    if (!link || (!source && !link.startsWith("/"))) return <>{children}</>;
                     const internal = link.startsWith("/");
                     return (
                         <a
@@ -218,14 +218,11 @@ export function MarkdownContent({
                         const { href, children, ...anchorProps } =
                             withoutMarkdownNode(props);
                         const link = safeAssistantUrl(href);
-                        if (!link) return <>{children}</>;
-                        const internal = link.startsWith("/");
+                        if (!link?.startsWith("/")) return <>{children}</>;
                         return (
                             <a
                                 href={link}
                                 className={PLAIN_LINK}
-                                target={internal ? undefined : "_blank"}
-                                rel={internal ? undefined : "noopener noreferrer"}
                                 {...anchorProps}
                             >
                                 {children}

@@ -1,5 +1,5 @@
 import {
-  legalEvidenceCitationEntries,
+  legalEvidenceCitationGroups,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
@@ -44,14 +44,16 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
 export function createLegalEvidenceCitations(
   state: LegalEvidenceTurnState,
 ): Record<string, unknown>[] {
-  return legalEvidenceCitationEntries(state).flatMap<Record<string, unknown>>(
-    (entry) => {
+  return legalEvidenceCitationGroups(state).flatMap<Record<string, unknown>>(
+    (group) => {
+      const entry = group.members[0];
       const { receipt } = entry;
       const quote = receipt.span_text;
       if (!quote) return [];
       // Quotes are verified source passages, never model prose. Fragments,
       // highlights, and DOCX links all derive from the same receipt span.
-      const quotes = [{ quote }];
+      const quotes = group.members.flatMap(({ receipt }) =>
+        receipt.span_text ? [{ quote: receipt.span_text }] : []);
       const presentation = presentLegalEvidence(entry);
       const locator = receiptLocator(entry, presentation);
       const display = {
@@ -64,7 +66,7 @@ export function createLegalEvidenceCitations(
       if (receipt.tabular) {
         return [{
           kind: "tabular" as const,
-          ref: entry.ref,
+          ref: group.ref,
           ...receipt.tabular,
           quotes,
           ...display,
@@ -73,7 +75,7 @@ export function createLegalEvidenceCitations(
       if (receipt.provider === "library") {
         return [{
           kind: "document" as const,
-          ref: entry.ref,
+          ref: group.ref,
           document_id: receipt.stable_source_id,
           version_id: receipt.version,
           filename: receipt.name ?? receipt.citation,
@@ -88,7 +90,7 @@ export function createLegalEvidenceCitations(
           : receipt.stable_source_id;
         return [{
           kind: "public_legal" as const,
-          ref: entry.ref,
+          ref: group.ref,
           provider: "journal" as const,
           identifier,
           title: receipt.name,
@@ -106,7 +108,7 @@ export function createLegalEvidenceCitations(
       )) {
         return [{
           kind: "public_legal" as const,
-          ref: entry.ref,
+          ref: group.ref,
           provider: receipt.provider,
           identifier: receipt.stable_source_id,
           title: receipt.name,
@@ -120,9 +122,28 @@ export function createLegalEvidenceCitations(
         }];
       }
       if (receipt.provider !== "a2aj" && receipt.provider !== "citator") return [];
+      if (group.members.length > 1 && group.collapsedLabel) {
+        const prefix = receipt.locator.label.match(/^[A-Za-z]+/u)?.[0] ?? "";
+        return [{
+          kind: "a2aj" as const,
+          ref: group.ref,
+          citation: receipt.citation,
+          name: receipt.name,
+          dataset: receipt.dataset,
+          url: presentation.passageUrl,
+          external_url: presentation.sourceUrl,
+          source_class: receipt.source_class,
+          quotes,
+          ...display,
+          locator_kind: receipt.locator.kind,
+          locator: `${prefix}${group.collapsedLabel}`,
+          locator_separator: ", ",
+          pinpoint: `s ${group.collapsedLabel}`,
+        }];
+      }
       return [{
         kind: "a2aj" as const,
-        ref: entry.ref,
+        ref: group.ref,
         citation: receipt.citation,
         name: receipt.name,
         dataset: receipt.dataset,

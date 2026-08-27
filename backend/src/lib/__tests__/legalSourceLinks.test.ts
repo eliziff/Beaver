@@ -407,9 +407,9 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("rewrites Decisia shell URLs to the inline document view", async () => {
-    const text =
-      "The court described the motiveless act as unusual in all the circumstances.";
+  it("routes a proved unique SCC plan through Law Web", async () => {
+    const text = `${"Background context. ".repeat(70)
+      }The court described the motiveless act as unusual in all the circumstances.`;
     const document = await nativeDocument(
       text,
         "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/21212/index.do" +
@@ -422,17 +422,13 @@ describe("verified legal-source links", () => {
       ["motiveless act"],
     )!;
 
-    expect(result).toContain("foo=bar&iframe=true&site_preference=mobile");
-    expect(result).toContain("/item/21212/index.do");
-    expect(result).not.toContain("/21212/1/document.do");
-    expect(result).toContain("#par191:~:text=");
-    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless", "act"]);
-    expect(result).not.toContain("iframe=false");
-    expect(result).not.toContain("site_preference=desktop");
-    expect(result.match(/iframe=/gu)).toHaveLength(1);
+    expect(result).toContain(
+      "https://law.a2aj.ca/document?citation=2099+SCC+1&doc_type=cases#:~:text=",
+    );
+    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless act"]);
   });
 
-  it("uses Law Web for repeated Decisia passages instead of the alternate PDF", async () => {
+  it("keeps a context-resolved repeated SCC passage on the publisher", async () => {
     const text = [
       "Unique lead",
       "Alpha one",
@@ -457,14 +453,13 @@ describe("verified legal-source links", () => {
       ["Alpha one\nBeta two"],
     )!;
 
-    expect(result).toContain(
-      "https://law.a2aj.ca/document?citation=2099+SCC+1&doc_type=cases#:~:text=",
-    );
+    expect(result).toContain("https://decisions.scc-csc.ca/");
+    expect(result).toContain("iframe=true&site_preference=mobile");
   });
 
-  it("builds A2AJ fragments only on the retrieved provider URL", async () => {
-    const text =
-      "[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.";
+  it("uses the proved SCC fallback only when a fragment is requested", async () => {
+    const text = `${"Background context. ".repeat(70)
+      }[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.`;
     const document = await nativeDocument(
       text,
       "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do",
@@ -512,12 +507,10 @@ describe("verified legal-source links", () => {
         text,
         ["counter-speech remains a central consideration"],
       ),
-    ).toContain(
-      "decisions.scc-csc.ca/scc-csc/scc-csc/en/item/19911/index.do?iframe=true&site_preference=mobile#par81:~:text=",
-    );
+    ).toContain("https://law.a2aj.ca/document?citation=2023+SCC+14&doc_type=cases#:~:text=");
   });
 
-  it("routes a production-derivable repeated case passage through Law Web", async () => {
+  it("keeps an unproved repeated BC passage on the publisher", async () => {
     const passage = "the repeated proposition governs this unusual legal dispute";
     const text = [
       `First context says ${passage} before its distinct ending.`,
@@ -537,12 +530,10 @@ describe("verified legal-source links", () => {
       [passage],
     )!;
 
-    expect(result).toContain(
-      "https://law.a2aj.ca/document?citation=2099+BCCA+1&doc_type=cases#:~:text=",
-    );
+    expect(result).toContain("https://www.bccourts.ca/");
   });
 
-  it("routes only the proved unique legal-reference family through Law Web", async () => {
+  it("does not route BC passages from legal vocabulary alone", async () => {
     const legalPassage =
       "section 12 of the Example Act controls this distinct application today";
     const ordinaryPassage =
@@ -560,7 +551,7 @@ describe("verified legal-source links", () => {
       { kind: "paragraph", label: "par1" },
       text,
       [legalPassage],
-    )).toContain("https://law.a2aj.ca/document?");
+    )).toContain("https://www.bccourts.ca/");
     expect(buildA2AJDocumentPinpointUrl(
       document,
       { kind: "paragraph", label: "par1" },
@@ -569,11 +560,11 @@ describe("verified legal-source links", () => {
     )).toContain("https://www.bccourts.ca/");
   });
 
-  it("keeps the proved legislation router boundaries blind and deterministic", () => {
+  it("routes only proved no-oracle provider-plan signatures", () => {
     const plan = (overrides: Partial<NativeTextFragmentPlan> = {}): NativeTextFragmentPlan => ({
       directives: ["text=Example%20Act"],
       sourceWordIntervals: [{
-        quoteIndex: 0, start: 100, end: 120, firstWord: 0, lastWord: 1,
+        quoteIndex: 0, start: 10, end: 30, firstWord: 0, lastWord: 1,
       }],
       paintQuotes: ["Example Act"],
       sourceSafeComplete: true,
@@ -585,8 +576,14 @@ describe("verified legal-source links", () => {
       "laws",
       "https://www.ontario.ca/laws/statute/example",
       plan(),
-      "The unique Example Act controls.",
+      "The unique Example—Act controls.",
     )).toBe(true);
+    expect(shouldUseA2AJWebFallback(
+      "laws",
+      "https://www.ontario.ca/laws/statute/example",
+      plan(),
+      "Example Act appears here. Example Act appears again.",
+    )).toBe(false);
     expect(shouldUseA2AJWebFallback(
       "laws",
       "https://publications.saskatchewan.ca/example.pdf",
@@ -597,31 +594,27 @@ describe("verified legal-source links", () => {
     )).toBe(false);
     expect(shouldUseA2AJWebFallback(
       "laws",
-      "https://www.justice.gov.nt.ca/en/files/legislation/example.pdf",
-      plan({
-        directives: ["text=alpha", "text=beta", "text=gamma"],
-        sourceWordIntervals: [
-          { quoteIndex: 0, start: 1, end: 2, firstWord: 0, lastWord: 0 },
-          { quoteIndex: 0, start: 3, end: 4, firstWord: 1, lastWord: 1 },
-          { quoteIndex: 0, start: 5, end: 6, firstWord: 2, lastWord: 2 },
-        ],
-        paintQuotes: ["alpha", "beta", "gamma"],
-      }),
-      "alpha beta gamma alpha beta gamma",
-    )).toBe(false);
+      "https://www.justice.gov.nt.ca/en/files/legislation/example/example.a.pdf",
+      plan({ sourceWordIntervals: [{
+        quoteIndex: 0, start: 1_010, end: 1_030, firstWord: 0, lastWord: 1,
+      }] }),
+      "The unique Example Act controls.",
+    )).toBe(true);
     expect(shouldUseA2AJWebFallback(
       "laws",
-      "https://www.justice.gov.nt.ca/en/files/legislation/example.pdf",
+      "https://www.justice.gov.nt.ca/en/files/legislation/example/example.r1.pdf",
       plan({
-        directives: ["text=opening", "text=definition"],
+        directives: ["text=alpha", "text=beta", "text=gamma", "text=delta"],
         sourceWordIntervals: [
-          { quoteIndex: 0, start: 0, end: 2, firstWord: 0, lastWord: 0 },
-          { quoteIndex: 0, start: 3, end: 6, firstWord: 1, lastWord: 1 },
+          { quoteIndex: 0, start: 1_001, end: 1_002, firstWord: 0, lastWord: 0 },
+          { quoteIndex: 0, start: 1_003, end: 1_004, firstWord: 1, lastWord: 1 },
+          { quoteIndex: 0, start: 1_005, end: 1_006, firstWord: 2, lastWord: 2 },
+          { quoteIndex: 0, start: 1_007, end: 1_008, firstWord: 3, lastWord: 3 },
         ],
-        paintQuotes: ["opening", "definition punctuation mismatch"],
+        paintQuotes: ["alpha", "beta", "gamma", "delta"],
       }),
-      "opening definition",
-    )).toBe(false);
+      "alpha beta gamma delta",
+    )).toBe(true);
   });
 
   it("keeps CanLII PDF page links on the PDF", async () => {
@@ -641,8 +634,8 @@ describe("verified legal-source links", () => {
   });
 
   it("keeps Decisia anchors except for the proved short Lexum fallback family", async () => {
-    const text =
-      "[42] The appellate court stated the distinctive controlling principle.";
+    const text = `${"Background context. ".repeat(70)
+      }[42] The appellate court stated the distinctive controlling principle.`;
     for (const [url, dataset, citation] of [
       [
         "https://coadecisions.ontariocourts.ca/coa/coa/en/item/22684/index.do?foo=bar",
@@ -801,7 +794,7 @@ describe("verified legal-source links", () => {
     expect(section).not.toContain("text=51");
   });
 
-  it("covers source-line seams with one compact range", async () => {
+  it("covers source-line seams with one compact range by default", async () => {
     const para =
       "[130] A second way courts can affect the quantum of retroactive awards is by altering the time period that the award captures while keeping fairness in view.";
     const blockText = `${para}\n5.5 Summary`;
@@ -822,6 +815,19 @@ describe("verified legal-source links", () => {
       "Summary",
     ]);
     expect(directives.join("&")).not.toMatch(/%0A/iu);
+  });
+
+  it("uses independently unique source blocks only for opted-in legislation", async () => {
+    const text = "The following definitions apply in this Act.\nchild means the named person";
+    const result = buildLegalSourcePinpoint({
+      url: "https://web2.gov.mb.ca/laws/statutes/example.php",
+      blockText: text,
+      documentText: await nativeSource(text),
+    }, [text], true)!;
+
+    expect(textDirectives(result.target)).toHaveLength(2);
+    expect(result.plan?.paintedWords).toBe(12);
+    expect(result.plan?.sourceSafeComplete).toBe(true);
   });
 
   it("falls back to the anchor when a cross-line passage cannot be verified", async () => {

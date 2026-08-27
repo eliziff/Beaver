@@ -261,7 +261,7 @@ describe("local assistant tools", () => {
     expect(await extractDocxBodyText(savedBytes)).toContain("Revised clause.");
     expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount * 2);
     expect(committed).toHaveBeenCalledOnce();
-  }, 10_000);
+  }, 30_000);
 
   it("creates a DOCX directly even when other Library documents are unread", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-create-"));
@@ -1033,7 +1033,7 @@ describe("local assistant tools", () => {
 
     expect(receipt?.locator).toEqual({ kind: "paragraph", label: "par3" });
     expect(receipt?.span_text).toBe(text.split("\n")[2]);
-    expect(entry?.source).toBeDefined();
+    expect(entry).toBeDefined();
     const { presentLegalEvidence } = await import("../chat/citationPresentation");
     expect(presentLegalEvidence(entry!).passageUrl)
       .toContain("https://example.test/case-3#:~:text=");

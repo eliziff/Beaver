@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Find small TypeScript surface-area and duplication cleanup candidates. */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,17 +25,14 @@ const roots = [
   "experiments",
 ];
 
-function sources(directory) {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sources(filename);
-    return /\.(?:ts|tsx)$/u.test(entry.name) && statSync(filename).isFile()
-      ? [filename]
-      : [];
-  });
-}
-
-const files = roots.flatMap((root) => sources(path.join(repo, root)));
+const files = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard", "--", ...roots],
+  { cwd: repo, encoding: "utf8", maxBuffer: 32 << 20 },
+).split(/\r?\n/u)
+  .filter((file) => /\.(?:ts|tsx)$/u.test(file))
+  .map((file) => path.join(repo, file))
+  .filter(existsSync);
 const contents = new Map(files.map((file) => [file, readFileSync(file, "utf8")]));
 const syntaxTrees = new Map([...contents].map(([file, source]) => [
   file,

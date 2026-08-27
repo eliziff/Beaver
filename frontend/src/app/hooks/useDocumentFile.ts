@@ -61,7 +61,7 @@ async function load(
       type: fileType(response.headers.get("content-type") ?? ""),
       buffer: await response.arrayBuffer(),
     };
-    if (result.type !== "pdf") cache.set(key, result);
+    cache.set(key, result);
     const oldest = cache.keys().next().value;
     if (cache.size > 8 && oldest) cache.delete(oldest);
     return result;

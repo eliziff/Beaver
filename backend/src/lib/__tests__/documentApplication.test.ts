@@ -13,6 +13,7 @@ import { createFilesystemObjectStorage, type ObjectStorage } from "../storage";
 
 const docx = (text: string) => new JSZip().file("word/document.xml", text, {
   date: new Date("2000-01-01T00:00:00Z"),
+  createFolders: false,
 })
   .generateAsync({ type: "nodebuffer" });
 
@@ -127,12 +128,15 @@ function modes() {
 }
 
 describe("shared document application", () => {
-  it("rejects oversized Office packages before storing them", async () => {
+  it("rejects invalid and oversized Office packages before storing them", async () => {
     const archive = new JSZip();
     for (let index = 0; index <= 4_096; index += 1) archive.file(`word/${index}.xml`, "x");
     const bytes = await archive.generateAsync({ type: "nodebuffer" });
     const objects = createFilesystemObjectStorage(root);
     const documents = createDocumentApplication(memoryRepository().repository, objects);
+    await expect(documents.create({ userId: "owner" }, {
+      filename: "corrupt.docx", fileType: "docx", bytes: Buffer.from("PK\x03\x04not-a-zip"),
+    })).rejects.toMatchObject({ status: 400, message: expect.stringContaining("extraction limits") });
     await expect(documents.create({ userId: "owner" }, {
       filename: "bomb.docx", fileType: "docx", bytes,
     })).rejects.toMatchObject({ status: 400, message: expect.stringContaining("extraction limits") });

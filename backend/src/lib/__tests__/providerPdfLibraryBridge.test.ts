@@ -48,7 +48,10 @@ async function waitForDownloaded(
 ) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const state = await bridge.readProviderPdfAttachmentState(input, "local-user");
-    if (state?.download_status === "downloaded" && state.parse_status) return state;
+    if (
+      state?.download_status === "downloaded"
+      && ["ready", "degraded", "failed"].includes(String(state.parse_status))
+    ) return state;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("provider PDF did not finish downloading");
@@ -59,7 +62,15 @@ beforeEach(async () => {
   process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
   process.env.AUTH_MODE = "local";
   mocks.dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
-  mocks.preparePdf.mockResolvedValue({ status: "ready", pageCount: 1 });
+  mocks.preparePdf.mockImplementation(async ({ bytes }: { bytes: Buffer }) => ({
+    status: "ready",
+    sourceSha256: digest(bytes),
+    parserVersion: "test",
+    cacheKey: "a".repeat(64),
+    pageCount: 1,
+    projectionPageCount: 1,
+    profile: {},
+  }));
   vi.resetModules();
 });
 
@@ -170,13 +181,17 @@ describe("provider PDF projection bridge", () => {
       lookup: { status: "found", evidence: { handle } },
     });
     expect(mocks.lookupPdf).toHaveBeenCalledWith(
-      bytes,
+      expect.any(Function),
       { locatorKind: "page", locator: "1" },
       {
         documentId: `provider-pdf-${digest(bytes).slice(0, 32)}`,
         versionId: digest(bytes).slice(0, 32),
         sourceSha256: digest(bytes),
+        pdfProfile: {
+          cacheKey: "a".repeat(64), profile: {}, status: "ready",
+        },
       },
     );
+    expect(await mocks.lookupPdf.mock.calls[0]![0]()).toEqual(bytes);
   });
 });

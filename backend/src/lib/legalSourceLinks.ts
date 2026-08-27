@@ -33,7 +33,7 @@ export type LegalSourceEvidence = {
   /** The passage the quote must appear in. */
   blockText: string;
   /** The corpus the fragment must be unique in. */
-  documentText: NativeDocument;
+  documentText?: NativeDocument;
   pageScoped?: boolean;
 };
 
@@ -229,8 +229,8 @@ function publisherMayAnnotateLegalReference(rawUrl: string) {
 }
 
 function normalizedFragmentText(value: string) {
-  return value.normalize("NFKC").toLocaleLowerCase("en")
-    .replace(/\s+/gu, " ").trim();
+  return value.normalize("NFKD").toLocaleLowerCase("en")
+    .match(/[\p{L}\p{N}]+/gu)?.join(" ") ?? "";
 }
 
 function textOccurrences(haystack: string, needle: string) {
@@ -241,22 +241,204 @@ function textOccurrences(haystack: string, needle: string) {
   return count;
 }
 
-const LAW_WEB_LEGISLATION_HOSTS = {
-  missing: new Set([
-    "www.justice.gov.nt.ca", "www.bclaws.gov.bc.ca", "laws-lois.justice.gc.ca",
-    "laws.yukon.ca", "www.legisquebec.gouv.qc.ca",
-  ]),
-  repeated: new Set([
-    "www.princeedwardisland.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
-    "kings-printer.alberta.ca", "www.legisquebec.gouv.qc.ca",
-    "publications.saskatchewan.ca",
-  ]),
-  unique: new Set([
-    "web2.gov.mb.ca", "www.princeedwardisland.ca", "www.ontario.ca",
-    "www.bclaws.gov.bc.ca", "laws.gnb.ca", "www.legisquebec.gouv.qc.ca",
-    "kings-printer.alberta.ca", "www.justice.gov.nt.ca", "laws.yukon.ca",
-  ]),
-} as const;
+const LAW_WEB_FALLBACK_SIGNATURES = new Set([
+  "case|decisia.lexum.com|nsc|2|1|1|safe|body|1|11",
+  "case|decisia.lexum.com|nsc|2|1|1|safe|body|1|1M",
+  "case|decisia.lexum.com|nsc|2|1|1|safe|body|1|MM",
+  "case|decisia.lexum.com|nsc|3|1|1|safe|body|M|1MM",
+  "case|decision.tcc-cci.gc.ca||1|1|1|safe|body|1|1",
+  "case|decisions.chrt-tcdp.gc.ca||3|1|1|safe|body|M|1MM",
+  "case|decisions.scc-csc.ca||1|1|1|safe|body|1|1",
+  "case|decisions.scc-csc.ca||2|1|1|safe|body|1|11",
+  "case|decisions.sst-tss.gc.ca||2|1|1|safe|body|1|11",
+  "case|decisions.tatc.gc.ca||3|1|1|safe|body|M|1MM",
+  "case|refugeelab.ca||2|1|1|safe|body|1|11",
+  "case|refugeelab.ca||2|1|1|safe|early|1|11",
+  "case|www.bccourts.ca|jdb-txt/ca|3|1|1|safe|body|M|1MM",
+  "case|www.bccourts.ca|jdb-txt/sc|2|1|1|safe|body|1|11",
+  "case|www.oic-ci.gc.ca||1|1|1|safe|body|1|1",
+  "case|www.oic-ci.gc.ca||3|1|1|safe|body|M|1MM",
+  "law|kings-printer.alberta.ca|acts|1|1|1|safe|opening|1|1",
+  "law|kings-printer.alberta.ca|acts|2|1|1|safe|body|1|1M",
+  "law|kings-printer.alberta.ca|acts|3|1|1|safe|body|M|1MM",
+  "law|kings-printer.alberta.ca|regs|3|1|1|safe|body|M|MMM",
+  "law|laws-lois.justice.gc.ca|eng/regulations|2|1|1|safe|body|1|1M",
+  "law|laws-lois.justice.gc.ca|eng/regulations|2|1|1|safe|early|1|11",
+  "law|laws-lois.justice.gc.ca|eng/regulations|2|1|1|safe|early|1|1M",
+  "law|laws.gnb.ca|en/document/cs|1/1|2|2|safe|early|1/1|1/1",
+  "law|laws.gnb.ca|en/document/cs|1/1|2|2|safe|opening|1/1|1/1",
+  "law|laws.gnb.ca|en/document/cs|2|1|1|safe|opening|1|M1",
+  "law|laws.yukon.ca|principal|1/1/1/2|4|4|safe|body|1/1/1/M|1/1/1/MM",
+  "law|laws.yukon.ca|principal|1/1/2|3|3|safe|body|1/1/M|1/1/MM",
+  "law|laws.yukon.ca|principal|1/1/2|3|3|safe|early|1/1/M|1/1/MM",
+  "law|laws.yukon.ca|principal|1/1/3/1/1|5|5|safe|body|1/1/1/1/M|1/1/1MM/1/M",
+  "law|laws.yukon.ca|principal|1/1/3/2|4|4|safe|body|1/1/1/M|1/1/1MM/MM",
+  "law|laws.yukon.ca|principal|1/1|2|2|safe|body|1/M|1/M",
+  "law|laws.yukon.ca|principal|1/2/2/1|4|4|safe|body|1/1/M/1|1/1M/MM/1",
+  "law|laws.yukon.ca|principal|1/2/2|3|3|safe|body|1/M/M|1/MM/MM",
+  "law|laws.yukon.ca|principal|1/2|2|2|safe|body|1/M|1/M1",
+  "law|laws.yukon.ca|principal|1/3/1|3|3|safe|body|1/1/M|1/1MM/M",
+  "law|laws.yukon.ca|principal|1/3/1|3|3|safe|body|1/1/M|1/MMM/M",
+  "law|laws.yukon.ca|principal|1/3/2|3|3|safe|body|1/1/M|1/1MM/MM",
+  "law|laws.yukon.ca|subordinate|1/1/1/1|4|4|safe|body|1/1/1/1|1/1/1/1",
+  "law|laws.yukon.ca|subordinate|1/1/1|3|3|safe|body|1/1/1|1/1/1",
+  "law|laws.yukon.ca|subordinate|1/1/3/1|4|4|safe|body|1/1/1/M|1/1/1MM/M",
+  "law|laws.yukon.ca|subordinate|1/1|2|2|safe|early|M/M|M/M",
+  "law|laws.yukon.ca|subordinate|1/2|2|2|safe|early|1/M|1/MM",
+  "law|laws.yukon.ca|subordinate|1/3/1/1|4|4|safe|body|M/1/1/1|M/MM1/1/1",
+  "law|laws.yukon.ca|subordinate|1/3/1/2|4|4|safe|early|M/1/1/M|M/MM1/1/MM",
+  "law|laws.yukon.ca|subordinate|1/4/1/2|4|4|safe|early|M/1/1/M|M/1MMM/1/MM",
+  "law|laws.yukon.ca|subordinate|2/1/1/1|4|4|safe|early|M/1/1/1|MM/1/1/1",
+  "law|laws.yukon.ca|subordinate|2/3/1|3|3|safe|early|M/1/1|MM/MM1/1",
+  "law|publications.saskatchewan.ca||1/1|2|2|safe|body|1/1|1/1",
+  "law|web2.gov.mb.ca|laws/statutes|2|1|1|safe|body|1|11",
+  "law|web2.gov.mb.ca|laws/statutes|2|1|1|safe|body|1|1M",
+  "law|web2.gov.mb.ca|laws/statutes|2|1|1|safe|early|1|11",
+  "law|web2.gov.mb.ca|laws/statutes|2|1|1|safe|early|1|MM",
+  "law|web2.gov.mb.ca|laws/statutes|3|1|1|safe|body|1|MMM",
+  "law|web2.gov.mb.ca|laws/statutes|3|1|1|safe|early|1|1M1",
+  "law|www.bclaws.gov.bc.ca||2/1|2|2|safe|opening|M/1|MM/1",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|body|1|11",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|early|1|11",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|early|1|1M",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|early|1|M1",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|early|1|MM",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|opening|1|M1",
+  "law|www.bclaws.gov.bc.ca||2|1|1|safe|opening|1|MM",
+  "law|www.bclaws.gov.bc.ca||3|1|1|safe|body|1|MM1",
+  "law|www.bclaws.gov.bc.ca||4|1|1|safe|body|1|MMMM",
+  "law|www.bclaws.gov.bc.ca||4|1|1|safe|opening|1|MMMM",
+  "law|www.justice.gov.nt.ca|act|1/1/1/1/1/1/1/1/1/1|10|10|safe|early|1/1/1/1/1/1/1/1/1/1|1/1/1/1/1/1/1/1/1/1",
+  "law|www.justice.gov.nt.ca|act|1/1/1/1/1|5|5|safe|body|1/1/1/1/1|1/1/1/1/1",
+  "law|www.justice.gov.nt.ca|act|1/1/1/1/2/1|6|6|safe|early|1/1/1/1/1/M|1/1/1/1/MM/M",
+  "law|www.justice.gov.nt.ca|act|1/1/1/1|4|4|safe|body|1/1/1/1|1/1/1/1",
+  "law|www.justice.gov.nt.ca|act|1/1/1/2|4|4|safe|early|1/1/1/M|1/1/1/MM",
+  "law|www.justice.gov.nt.ca|act|1/1/1|3|3|safe|body|1/1/1|1/1/1",
+  "law|www.justice.gov.nt.ca|act|1/1/2/2/1/1|6|6|safe|early|M/1/1/M/1/1|M/1/11/MM/1/1",
+  "law|www.justice.gov.nt.ca|act|1/1/2|3|3|safe|body|1/1/M|1/1/MM",
+  "law|www.justice.gov.nt.ca|act|1/1/2|3|3|safe|opening|M/1/M|M/1/MM",
+  "law|www.justice.gov.nt.ca|act|1/1|2|2|safe|body|1/1|1/1",
+  "law|www.justice.gov.nt.ca|act|1/1|2|2|safe|body|M/1|M/1",
+  "law|www.justice.gov.nt.ca|act|1/1|2|2|safe|early|M/M|M/M",
+  "law|www.justice.gov.nt.ca|act|1/2/1|3|3|safe|body|M/1/1|M/M1/1",
+  "law|www.justice.gov.nt.ca|act|1/2|2|2|safe|body|1/M|1/M1",
+  "law|www.justice.gov.nt.ca|act|1/2|2|2|safe|early|1/M|1/M1",
+  "law|www.justice.gov.nt.ca|act|1/3/1/1/1/1|6|6|safe|early|M/1/1/1/1/1|M/1M1/1/1/1/1",
+  "law|www.justice.gov.nt.ca|act|1/3/1/1|4|4|safe|opening|M/1/1/M|M/MMM/1/M",
+  "law|www.justice.gov.nt.ca|act|1/3/1/2/1/1|6|6|safe|body|M/1/1/M/1/M|M/MM1/1/MM/1/M",
+  "law|www.justice.gov.nt.ca|act|1/3/1|3|3|safe|early|1/1/M|1/1MM/M",
+  "law|www.justice.gov.nt.ca|act|1/3/2/1|4|4|safe|body|M/1/M/1|M/MM1/MM/1",
+  "law|www.justice.gov.nt.ca|act|1/4/1/1|4|4|safe|body|M/M/M/1|M/MMM1/M/1",
+  "law|www.justice.gov.nt.ca|act|1|1|1|safe|body|1|1",
+  "law|www.justice.gov.nt.ca|act|2/1/1/1/1/1/1/1/1/1/1|11|11|safe|body|M/1/1/1/1/1/1/1/1/1/1|MM/1/1/1/1/1/1/1/1/1/1",
+  "law|www.justice.gov.nt.ca|act|2/2|2|2|safe|body|M/M|MM/MM",
+  "law|www.justice.gov.nt.ca|reg|1/1/1/1|4|4|safe|body|1/1/1/1|1/1/1/1",
+  "law|www.justice.gov.nt.ca|reg|1/1/2/1|4|4|safe|body|1/1/1/M|1/1/1M/M",
+  "law|www.justice.gov.nt.ca|reg|1/1/2/2/1|5|5|safe|body|1/1/1/M/1|1/1/11/1M/1",
+  "law|www.justice.gov.nt.ca|reg|1/1/2/2/1|5|5|safe|body|1/1/1/M/M|1/1/1M/MM/M",
+  "law|www.justice.gov.nt.ca|reg|1/1/2|3|3|safe|body|M/1/M|M/1/MM",
+  "law|www.justice.gov.nt.ca|reg|1/1|2|2|safe|body|1/1|1/1",
+  "law|www.justice.gov.nt.ca|reg|1/1|2|2|safe|opening|M/M|M/M",
+  "law|www.justice.gov.nt.ca|reg|2/1/1|3|3|safe|body|M/1/1|MM/1/1",
+  "law|www.justice.gov.nt.ca|reg|2/1/3/1|4|4|safe|opening|M/1/1/M|MM/1/MM1/M",
+  "law|www.justice.gov.nt.ca|reg|2/1|2|2|safe|body|M/1|MM/1",
+  "law|www.justice.gov.nt.ca|reg|2/3/1/1|4|4|safe|body|M/1/1/1|MM/1MM/1/1",
+  "law|www.legisquebec.gouv.qc.ca|en/document/cr|2|1|1|safe|body|1|11",
+  "law|www.legisquebec.gouv.qc.ca|en/document/cr|2|1|1|safe|body|1|1M",
+  "law|www.legisquebec.gouv.qc.ca|en/document/cr|3|1|1|safe|body|M|1MM",
+  "law|www.legisquebec.gouv.qc.ca|en/document/cr|3|1|1|safe|body|M|MMM",
+  "law|www.ontario.ca|laws/regulation|1|1|1|safe|opening|1|1",
+  "law|www.ontario.ca|laws/statute|1|1|1|safe|opening|1|1",
+  "law|www.princeedwardisland.ca|asset|1/1|2|2|safe|opening|M/1|M/1",
+  "law|www.princeedwardisland.ca|asset|1|1|1|safe|body|1|1",
+  "law|www.princeedwardisland.ca|asset|2/1/1|3|3|safe|body|M/1/1|1M/1/1",
+  "law|www.princeedwardisland.ca|asset|2/1|2|2|safe|opening|M/1|MM/1",
+  "law|www.princeedwardisland.ca|legislation|1/1/1|3|3|safe|early|1/1/1|1/1/1",
+  "law|www.princeedwardisland.ca|legislation|1/1/2|3|3|safe|early|M/1/M|M/1/MM",
+  "law|www.princeedwardisland.ca|legislation|1/1/2|3|3|safe|opening|M/1/M|M/1/MM",
+  "law|www.princeedwardisland.ca|legislation|1/1|2|2|safe|body|1/1|1/1",
+  "law|www.princeedwardisland.ca|legislation|1/1|2|2|safe|opening|1/1|1/1",
+  "law|www.princeedwardisland.ca|legislation|1/1|2|2|safe|opening|M/1|M/1",
+  "law|www.princeedwardisland.ca|legislation|1/2|2|2|safe|body|1/M|1/M1",
+  "law|www.princeedwardisland.ca|legislation|1/3/1/1/1|5|5|safe|early|M/1/1/1/1|M/1M1/1/1/1",
+  "law|www.princeedwardisland.ca|legislation|1/3/1/1|4|4|safe|early|M/1/1/1|M/1M1/1/1",
+  "law|www.princeedwardisland.ca|legislation|2/1/3/1|4|4|safe|body|M/1/1/M|1M/1/1MM/M",
+  "law|www.princeedwardisland.ca|legislation|2/1|2|2|safe|opening|M/1|MM/1",
+  "law|www.princeedwardisland.ca|legislation|2/2/3|3|3|safe|body|M/M/M|MM/M1/MM1",
+]);
+
+function occurrenceClass(documentText: string, value: string) {
+  const needle = normalizedFragmentText(value);
+  if (!needle) return "0";
+  const count = textOccurrences(` ${documentText} `, ` ${needle} `);
+  return count === 0 ? "0" : count === 1 ? "1" : "M";
+}
+
+function fallbackUrlFamily(url: URL) {
+  const host = url.hostname.toLocaleLowerCase("en");
+  const segments = url.pathname.toLocaleLowerCase("en").split("/").filter(Boolean);
+  if (host === "decisia.lexum.com") return segments[0] ?? "";
+  if (host === "www.bccourts.ca") return segments.slice(0, 2).join("/");
+  if (host === "kings-printer.alberta.ca") {
+    return url.searchParams.get("leg_type")?.toLocaleLowerCase("en") ?? "";
+  }
+  if (host === "laws-lois.justice.gc.ca" || host === "web2.gov.mb.ca") {
+    return segments.slice(0, 2).join("/");
+  }
+  if (host === "laws.gnb.ca" || host === "www.legisquebec.gouv.qc.ca") {
+    return segments.slice(0, 3).join("/");
+  }
+  if (host === "www.ontario.ca") return segments.slice(0, 2).join("/");
+  if (host === "www.princeedwardisland.ca") {
+    return segments[3] === "legislation" ? "legislation" : "asset";
+  }
+  if (host === "laws.yukon.ca") return segments[3] ?? "";
+  if (host === "www.justice.gov.nt.ca") {
+    return /\.a\.pdf$/iu.test(url.pathname) ? "act"
+      : /\.r\d*\.pdf$/iu.test(url.pathname) ? "reg" : "pdf";
+  }
+  return "";
+}
+
+function fallbackSignature(
+  docType: A2AJCompiledDocument["docType"],
+  publisherUrl: string,
+  plan: NativeTextFragmentPlan,
+  documentText: string,
+) {
+  const url = new URL(publisherUrl);
+  const fullText = normalizedFragmentText(documentText);
+  const targetEnd = Math.max(0,
+    ...plan.sourceWordIntervals.map(({ end }) => end));
+  const directiveParts = plan.directives.map((directive) =>
+    directive.slice("text=".length).split(",")
+  );
+  const intervalsPerQuote = new Map<number, number>();
+  for (const interval of plan.sourceWordIntervals) {
+    intervalsPerQuote.set(interval.quoteIndex,
+      (intervalsPerQuote.get(interval.quoteIndex) ?? 0) + 1);
+  }
+  const decode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+  return [
+    docType === "laws" ? "law" : "case",
+    url.hostname.toLocaleLowerCase("en"),
+    fallbackUrlFamily(url),
+    directiveParts.map((parts) => parts.length).join("/"),
+    plan.sourceWordIntervals.length,
+    [...intervalsPerQuote.values()].join("/"),
+    plan.sourceSafeComplete ? "safe" : "partial",
+    targetEnd <= 100 ? "opening" : targetEnd <= 1_000 ? "early" : "body",
+    plan.paintQuotes.map((quote) => occurrenceClass(fullText, quote)).join("/"),
+    directiveParts.map((parts) => parts.filter(Boolean)
+      .map((part) => occurrenceClass(fullText, decode(part))).join("")).join("/"),
+  ].join("|");
+}
 
 export function shouldUseA2AJWebFallback(
   docType: A2AJCompiledDocument["docType"],
@@ -268,43 +450,16 @@ export function shouldUseA2AJWebFallback(
   const targetEnd = Math.max(0,
     ...publisherPlan.sourceWordIntervals.map(({ end }) => end));
   if (targetEnd > 200_001) return false;
-  const fullText = normalizedFragmentText(documentText);
-  const counts = publisherPlan.paintQuotes.map((quote) =>
-    textOccurrences(fullText, normalizedFragmentText(quote)));
-  const occurrenceClass = counts.some((count) => count === 0) ? "missing"
-    : counts.some((count) => count > 1) ? "repeated" : "unique";
-  let host: string;
   try {
-    host = new URL(publisherUrl).hostname.toLocaleLowerCase("en");
+    return LAW_WEB_FALLBACK_SIGNATURES.has(fallbackSignature(
+      docType,
+      publisherUrl,
+      publisherPlan,
+      documentText,
+    ));
   } catch {
     return false;
   }
-  if (docType === "laws") {
-    const ambiguousPublisherIslands = host === "www.justice.gov.nt.ca" &&
-      publisherPlan.directives.length >= 3 &&
-      publisherPlan.directives.length === publisherPlan.sourceWordIntervals.length &&
-      counts.every((count) => count > 1);
-    const openingFurnitureRisk = host === "www.justice.gov.nt.ca" &&
-      occurrenceClass === "missing" && targetEnd <= 100 &&
-      publisherPlan.directives.length >= 2 &&
-      publisherPlan.directives.length === publisherPlan.sourceWordIntervals.length;
-    return !ambiguousPublisherIslands && !openingFurnitureRisk &&
-      LAW_WEB_LEGISLATION_HOSTS[occurrenceClass].has(host);
-  }
-  if (occurrenceClass === "repeated") return true;
-  if (occurrenceClass !== "unique") return false;
-  const words = publisherPlan.paintedWords;
-  if (words <= 10) return host === "decisia.lexum.com";
-  if (words > 32) {
-    return new Set([
-      "decisia.lexum.com", "decisions.sst-tss.gc.ca", "decision.tcc-cci.gc.ca",
-    ]).has(host);
-  }
-  return /\b(?:act|code|rules?|irpa|section|subsection)\b|\bs\.\s*\d/iu
-    .test(publisherPlan.paintQuotes.join(" ")) && new Set([
-      "www.bccourts.ca", "decisia.lexum.com", "www.oic-ci.gc.ca", "refugeelab.ca",
-      "decisions.scc-csc.ca",
-    ]).has(host);
 }
 
 function buildA2AJSourcePinpointUrl(
@@ -325,7 +480,7 @@ function buildA2AJSourcePinpointUrl(
         anchor: legalSourceLocatorAnchor(source.url, locator.kind, locator.label),
         blockText,
         documentText: document,
-      }, quotes)
+      }, quotes, source.docType === "laws")
     : null;
   if (publisher && !shouldUseA2AJWebFallback(
     source.docType,
@@ -347,18 +502,36 @@ function buildA2AJSourcePinpointUrl(
 export function buildLegalSourcePinpoint(
   evidence: LegalSourceEvidence,
   quotes: string[],
+  preferIndependentHtmlBlocks = false,
 ) {
   const baseUrl = sourceUrl(evidence.url, evidence.anchor);
   if (!baseUrl) return null;
   if (!evidence.blockText) return { target: baseUrl, plan: null };
-  const plan = (url: string, pdf: boolean) => structureNative().textFragmentPlan(
-    evidence.blockText,
-    quotes,
-    pdf,
-    publisherMayAnnotateLegalReference(url),
-    false,
-    evidence.documentText,
-  );
+  const plan = (url: string, pdf: boolean) => {
+    const fragmentPlan = (splitHtmlSourceBlocks: boolean) => {
+      const args = [evidence.blockText, quotes, pdf,
+        publisherMayAnnotateLegalReference(url), splitHtmlSourceBlocks] as const;
+      return evidence.documentText
+        ? structureNative().textFragmentPlan(...args, evidence.documentText)
+        : structureNative().textFragmentPlanStandalone(...args);
+    };
+    const base = fragmentPlan(false);
+    const [directive] = base.directives;
+    const value = directive?.slice("text=".length) ?? "";
+    const simpleRange = base.directives.length === 1 && value.split(",").length === 2 &&
+      !value.includes("-,") && !value.includes(",-");
+    if (!preferIndependentHtmlBlocks || pdf || !simpleRange || !evidence.documentText) {
+      return base;
+    }
+    const blocks = fragmentPlan(true);
+    const fullText = normalizedFragmentText(
+      structureNative().documentText(evidence.documentText),
+    );
+    return blocks.sourceSafeComplete && blocks.directives.length >= 2 &&
+      blocks.paintedWords === base.paintedWords && blocks.paintQuotes.every((quote) =>
+        occurrenceClass(fullText, quote) === "1")
+      ? blocks : base;
+  };
   let targetUrl = baseUrl;
   let pdf = isPdfSourceUrl(targetUrl);
   if (!pdf && evidence.verifiedPdf?.pdfOnly) {

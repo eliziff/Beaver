@@ -14,10 +14,19 @@ import { publicOrigin } from "./lib/publicOrigin";
 import { safeErrorLog } from "./lib/safeError";
 import { structureNative } from "./lib/structureNative";
 
-const lazy = <T>(load: () => Promise<T>) => {
+type Lazy<T> = (() => Promise<T>) & { loaded: () => Promise<T> | undefined };
+const lazy = <T>(load: () => Promise<T>): Lazy<T> => {
   let value: Promise<T> | undefined;
-  return () => value ??= load();
+  const get = (() => value ??= load()) as Lazy<T>;
+  get.loaded = () => value;
+  return get;
 };
+const backgroundTasks = new Set<Promise<unknown>>();
+function background(task: Promise<unknown>, message: string) {
+  const handled = task.catch((error) => console.error(message, safeErrorLog(error)));
+  backgroundTasks.add(handled);
+  void handled.then(() => backgroundTasks.delete(handled));
+}
 const local = isLocalRuntime();
 if (local) setPriority(constants.priority.PRIORITY_BELOW_NORMAL);
 function enabled(name: string, fallback: boolean) {
@@ -113,11 +122,11 @@ const chat = lazy(async () => {
   return createChatApplication({ chats: chatStore, documents: documentStore,
     library: libraryStore, projects: projectStore, tabular: tabularStore,
     features: { ...ports.features, audit(auth, input) {
-      void audit().then((store) => store.recordChatTurn({ userId: auth.userId,
+      background(audit().then((store) => store.recordChatTurn({ userId: auth.userId,
         userEmail: auth.userEmail, chatId: input.chatId, projectId: input.projectId,
         title: input.title, model: input.model,
-        ...(input.status ? { status: input.status } : {}) }, input.events))
-        .catch((error) => console.error("[audit] unavailable", safeErrorLog(error)));
+        ...(input.status ? { status: input.status } : {}) }, input.events)),
+      "[audit] unavailable");
     }, async load(auth) {
       const loadedFeatures: ReturnType<ChatApplicationFeatures["load"]> =
         ports.features.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
@@ -136,15 +145,17 @@ const chat = lazy(async () => {
 });
 const shutdown = lazy(async () => {
   const tasks: Promise<unknown>[] = [
-    jobs().then((worker) => worker.stop()),
     import("./lib/llm/codexAppServer")
       .then(({ shutdownCodexAppServers }) => shutdownCodexAppServers()),
     import("./lib/tableOfAuthorities")
       .then(({ shutdownTableOfAuthorities }) => shutdownTableOfAuthorities()),
   ];
-  tasks.push(import("./lib/relationalDatabase")
-    .then(({ closeRelationalDatabase }) => closeRelationalDatabase()));
+  const worker = jobs.loaded();
+  if (worker) tasks.push(worker.then((value) => value.stop()));
   await Promise.all(tasks);
+  while (backgroundTasks.size) await Promise.all([...backgroundTasks]);
+  await import("./lib/relationalDatabase")
+    .then(({ closeRelationalDatabase }) => closeRelationalDatabase());
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
   initialize: async () => {
@@ -158,4 +169,4 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
     await (await documents()).resumeCleanup();
     await jobs();
   }, chat, chats, documents,
-  audit, connectors, legalSources, library, projects, tabular, workflows, shutdown };
+  audit, background, connectors, legalSources, library, projects, tabular, workflows, shutdown };

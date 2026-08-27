@@ -107,7 +107,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from legal_structure import Document
+from legal_structure_client import paragraph_blocks
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
@@ -666,13 +666,9 @@ def build(args: argparse.Namespace) -> None:
             occurrences, kind_counts = case_occurrences(text)
             for kind, count in kind_counts.items():
                 kind_totals[kind] = kind_totals.get(kind, 0) + count
-            paragraphs = Document(
-                "cases",
-                case["citation"] or "",
-                text,
-                alternate_citation=case["citation2"] or None,
-                dataset=case["court"] or None,
-            ).blocks("paragraph") if occurrences else []
+            paragraphs = paragraph_blocks(
+                case["citation"] or "", text, case["court"] or None
+            ) if occurrences else []
             case_id = counters["cases_indexed"] + 1
             case_edges = 0
             mined_keys: set[str] = set()

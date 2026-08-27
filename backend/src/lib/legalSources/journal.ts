@@ -67,6 +67,14 @@ const finalContractDatabases = new Map<
 const documents = new Map<string, JournalArticleDocument>();
 const MAX_DOCUMENT_CACHE = 16;
 
+function closeDatabases() {
+  for (const cache of [databases, searchDatabases, finalContractDatabases]) {
+    for (const { connection } of cache.values()) connection.close();
+    cache.clear();
+  }
+  documents.clear();
+}
+
 function string(row: Row, name: string) {
   const value = row[name];
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -688,5 +696,17 @@ const provider: LegalSourceProvider<{
 };
 
 export const journalLegalSourceProvider = Object.assign(provider, {
+  closeDatabases,
+  find: findArticles,
+  document,
+  lookup(article: JournalArticleDocument, kind: "page" | "paragraph" | "section" | "footnote", value: string) {
+    const block = structureNative()
+      .readDocumentRange(article.native, kind, value, value, 0)
+      ?.selected[0];
+    return block
+      ? { status: "found" as const, hitId: `journal:${article.articleId}:${kind}:${block.label}`,
+          block, anchor: block.anchor ?? null }
+      : { status: "unavailable" as const, block: null, anchor: null };
+  },
   viewer,
 });

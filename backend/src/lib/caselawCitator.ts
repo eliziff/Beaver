@@ -114,6 +114,9 @@ function withDatabase<T>(operation: (database: DatabaseSync) => T): T | null {
   return withReadonlySqlite(citatorDatabasePath(), operation);
 }
 
+export const citationLookupKey = (value: string) =>
+  structureNative().caselawCitationLookupKey(value);
+
 /**
  * The set of keys to search for one queried key: the key itself, plus - only
  * when the corpus resolution evidence maps the key to exactly one decision -

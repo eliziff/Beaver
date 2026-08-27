@@ -18,6 +18,7 @@ import {
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
+import { provisionRoot, renderSectionSpan } from "../provisionLabels";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
@@ -758,9 +759,10 @@ export function finalizeLegalEvidence(
   state: LegalEvidenceTurnState,
   draft: string,
 ) {
+  const namesAuthority = hasCaseNameInText(draft);
   const citesAuthority = structureNative().hasCitationInText(draft) ||
     hasCanadianDecisionLink(draft);
-  if (!state.mode && !state.answer && citesAuthority)
+  if (!state.mode && !state.answer && (namesAuthority || citesAuthority))
     state.mode = "citation_structure";
   if (!state.mode) return true;
   state.attempted = true;
@@ -777,17 +779,56 @@ export function finalizeLegalEvidence(
   return true;
 }
 
+const CASE_NAME = /(?:^|[^\p{L}])(?:R\.|[A-Z][\p{L}\p{M}'\u2019.&-]*(?:\s+(?:of|the|and|&|[A-Z][\p{L}\p{M}'\u2019.&-]*)){0,6})\s+v(?:\.|ersus)?\s+[A-Z][\p{L}\p{M}'\u2019.&-]*/mu;
+
+export const hasCaseNameInText = (text: string) => CASE_NAME.test(text);
+
 export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string | null {
   if (state.failure) return null;
   if (!state.answer) return null;
   const refs = new Map<string, number>();
-  for (const entry of legalEvidenceCitationEntries(state))
-    refs.set(entry.receipt.evidence_id, entry.ref);
+  for (const group of legalEvidenceCitationGroups(state))
+    for (const entry of group.members)
+      refs.set(entry.receipt.evidence_id, group.ref);
   return state.answer.map((claim) => {
     const markers = [...new Set(claim.evidence_ids.flatMap((id) =>
       refs.has(id) ? [`[${refs.get(id)}]`] : []))];
     return `${claim.text}${markers.length ? ` ${markers.join("")}` : ""}`;
   }).join("\n\n");
+}
+
+type CitationEntry = RegisteredEvidence & { ref: number };
+export type LegalEvidenceCitationGroup = {
+  ref: number;
+  members: CitationEntry[];
+  collapsedLabel?: string;
+};
+
+export function legalEvidenceCitationGroups(
+  state: LegalEvidenceTurnState,
+): LegalEvidenceCitationGroup[] {
+  const groups: LegalEvidenceCitationGroup[] = [];
+  for (const entry of legalEvidenceCitationEntries(state)) {
+    const previous = groups.at(-1);
+    const joined = previous && entry.receipt.provider === "a2aj" &&
+        previous.members[0].receipt.provider === "a2aj" &&
+        entry.receipt.citation === previous.members[0].receipt.citation &&
+        entry.receipt.dataset === previous.members[0].receipt.dataset &&
+        entry.receipt.locator.kind === "section" &&
+        previous.members[0].receipt.locator.kind === "section" &&
+        provisionRoot(entry.receipt.locator.label) ===
+          provisionRoot(previous.members[0].receipt.locator.label)
+      ? renderSectionSpan([...previous.members.map(({ receipt }) => receipt.locator.label),
+          entry.receipt.locator.label])
+      : null;
+    if (previous && joined) {
+      previous.members.push(entry);
+      previous.collapsedLabel = joined;
+    } else {
+      groups.push({ ref: groups.length + 1, members: [entry] });
+    }
+  }
+  return groups;
 }
 
 export function legalEvidenceCitationEntries(

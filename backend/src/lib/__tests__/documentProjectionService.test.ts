@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
+import { sha256 } from "../hash";
 
 let localData: string | null = null;
 
@@ -28,6 +29,7 @@ describe("DocumentProjectionService", () => {
     const bytes = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
     await expect((await service()).read({
       documentId: "document-a", versionId: "version-1", fileType: "pptx",
+      sourceSha256: sha256(bytes),
       readBytes: () => bytes,
     })).rejects.toThrow("oversized slide XML");
   });
@@ -38,6 +40,7 @@ describe("DocumentProjectionService", () => {
       documentId: "document-a",
       versionId: "version-1",
       fileType: "txt",
+      sourceSha256: sha256(Buffer.from("source")),
       readBytes: () => Buffer.from("source"),
     } as const;
 

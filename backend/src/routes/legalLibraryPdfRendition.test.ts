@@ -78,10 +78,8 @@ describe("legal Library provider PDF rendition", () => {
     });
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
+      vi.fn(async (input: URL | RequestInfo) => String(input).includes("api.a2aj.ca")
+        ? new Response(JSON.stringify({
           results: [
             {
               dataset: "SCC",
@@ -93,8 +91,11 @@ describe("legal Library provider PDF rendition", () => {
                 "[1] First paragraph with enough legal text.\n[2] Second paragraph with enough legal text.",
             },
           ],
-        }),
-      }),
+        }), { status: 200, headers: { "Content-Type": "application/json" } })
+        : new Response(
+          '<li class="documents"><a href="/scc-csc/scc-csc/en/99997/1/document.do">PDF</a></li>',
+          { status: 200, headers: { "Content-Type": "text/html" } },
+        )),
     );
     const { app, store } = await sourceApp();
 
