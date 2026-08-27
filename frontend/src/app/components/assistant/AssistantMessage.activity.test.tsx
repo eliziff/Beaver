@@ -204,6 +204,22 @@ describe("AssistantMessage activity", () => {
         expect(screen.getByText("Editing document...")).toBeVisible();
     });
 
+    it("renders verified tool evidence with the shared citation chip", async () => {
+        const onSubagentSourceClick = vi.fn();
+        render(<AssistantMessage events={[{
+            type: "tool_activity", id: "read-1", tool: "Read",
+            status: "completed", label: "Read Example v. Example",
+            sources: [{
+                ref: 1, provider: "a2aj", jurisdiction: "CA",
+                citation: "2020 BCSC 1", name: "Example v. Example",
+                dataset: "BCSC", url: null, locator: "par12",
+            }],
+        }]} onSubagentSourceClick={onSubagentSourceClick} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "2020 BCSC 1, par12" }));
+        expect(onSubagentSourceClick).toHaveBeenCalledOnce();
+    });
+
     it("shows a single compact thinking row before the first event", () => {
         render(<AssistantMessage events={[]} isStreaming />);
 

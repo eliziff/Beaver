@@ -44,7 +44,17 @@ it("preserves one tool activity through running and completed states", async () 
     await runTools([call]);
     return { fullText: "Done." };
   });
-  const read = ASSISTANT_TOOLS.find(({ name }) => name === "Read")!;
+  const evidence = createTnaEvidence({
+    jurisdiction: "CA", sourceClass: "case", stableSourceId: "case-1",
+    sourceText: "The appeal is allowed.", spanText: "The appeal is allowed.",
+    citation: "2024 SCC 1", name: "Example v Example", dataset: "test",
+    externalUrl: "https://example.test/case",
+    locatorKind: "paragraph", locatorLabel: "12",
+  });
+  const read: BeaverTool<ChatToolContext> = {
+    ...ASSISTANT_TOOLS.find(({ name }) => name === "Read")!,
+    async execute() { return { result: toolText({ ok: true }), evidence: [evidence] }; },
+  };
 
   const result = await runChatTurn({
     model: "gemini-3-flash-preview",
@@ -61,20 +71,22 @@ it("preserves one tool activity through running and completed states", async () 
     tool: "Read",
     label: "Reading v1 from your Library",
     status: "running",
-  }, {
+  }, expect.objectContaining({
     type: "tool_activity",
     id: "read-1",
     tool: "Read",
     label: "Reading v1 from your Library",
     status: "completed",
-  }]));
-  expect(result.events).toContainEqual({
+    sources: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1", locator: "par12" })],
+  })]));
+  expect(result.events).toContainEqual(expect.objectContaining({
     type: "tool_activity",
     id: "read-1",
     tool: "Read",
     label: "Reading v1 from your Library",
     status: "completed",
-  });
+    sources: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1" })],
+  }));
   expect(events).toContainEqual({ type: "content_final", text: "", citations: [] });
 });
 

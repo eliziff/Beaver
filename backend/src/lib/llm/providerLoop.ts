@@ -214,9 +214,12 @@ export async function runProviderLoop(
         } catch (error) {
           closeReasoning();
           closeContent();
-          if (params.abortSignal?.aborted) throw abortError();
-          if (visible || attempt === maxProviderAttempts || !retryable(error)) throw error;
+          if (params.abortSignal?.aborted) {
+            void iterator?.return?.().catch(() => undefined);
+            throw abortError();
+          }
           await iterator?.return?.().catch(() => undefined);
+          if (visible || attempt === maxProviderAttempts || !retryable(error)) throw error;
           await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
         }
       }

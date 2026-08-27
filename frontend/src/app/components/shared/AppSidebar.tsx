@@ -72,12 +72,13 @@ export function AppSidebar({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
+    const sidebar = sidebarRef.current;
     const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
     return () => {
       cancelAnimationFrame(frame);
       if (
         opener?.isConnected &&
-        sidebarRef.current?.contains(document.activeElement)
+        sidebar?.contains(document.activeElement)
       ) {
         opener.focus();
       }

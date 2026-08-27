@@ -52,9 +52,14 @@ describe("provider loop", () => {
   });
 
   it("rejects oversized provider output and tool arguments", async () => {
-    await expect(runProviderLoop(params(), adapter(() => [
-      { type: "text_delta", text: "x".repeat(MAX_PROVIDER_STREAM_BYTES + 1) }, done,
-    ]))).rejects.toThrow("output limit");
+    const finalized = vi.fn();
+    const oversized: ProviderAdapter = { provider: "fake", async *events() {
+      try {
+        yield { type: "text_delta", text: "x".repeat(MAX_PROVIDER_STREAM_BYTES + 1) };
+      } finally { finalized(); }
+    } };
+    await expect(runProviderLoop(params(), oversized)).rejects.toThrow("output limit");
+    expect(finalized).toHaveBeenCalledOnce();
     await expect(runProviderLoop(params(), adapter(() => [
       { type: "tool_call", call: {
         id: "1", name: "oversized", input: { value: "x".repeat(MAX_PROVIDER_TOOL_ARGUMENT_BYTES) },

@@ -47,7 +47,6 @@ export type AssistantActivity = {
   detail?: string;
   markdown?: string;
   items?: { label: string; detail?: string; url?: string | null; error?: boolean }[];
-  source?: ToolActivitySource;
   sources?: ToolActivitySource[];
   action?: { type: "reader"; readerId: string };
 };
@@ -214,9 +213,10 @@ const sourceSchema = z.strictObject({
   dataset: shortText.default(""), url: safeUrl.nullish().transform((value) => value ?? null),
   locator: shortText.optional(), quote: fieldText.optional(),
 });
+const citedSourceSchema = sourceSchema.extend({ ref: safeInteger.positive() });
 const activityFields = {
   id: idText, tool: idText, label: idText, status: statusSchema,
-  source: sourceSchema.optional(),
+  sources: z.array(citedSourceSchema).max(ASSISTANT_LIMITS.citations).optional(),
 };
 const activitySchema = z.strictObject(activityFields);
 const editAnnotationSchema = z.strictObject({
@@ -327,7 +327,7 @@ const readerSchema = z.strictObject({
   task: longText, status: statusSchema,
   activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
   output: longText.optional(),
-  sources: z.array(sourceSchema.extend({ ref: safeInteger.positive() }))
+  sources: z.array(citedSourceSchema)
     .max(ASSISTANT_LIMITS.citations).default([]),
 }).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 

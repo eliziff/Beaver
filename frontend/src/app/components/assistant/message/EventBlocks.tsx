@@ -117,14 +117,13 @@ export function ActivityRow({
 }) {
     const busy = activity.status === "running";
     const failed = activity.status === "error";
+    const sourceMarkers = activity.sources?.map(({ ref }) => `[${ref}]`).join(" ");
+    const markdown = activity.markdown || sourceMarkers;
     const label = `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
-    const labelNode = onClick || (activity.source && onSourceClick) ? (
+    const labelNode = onClick ? (
         <button
             type="button"
-            onClick={() => {
-                if (activity.source) onSourceClick?.(activity.source);
-                else onClick?.();
-            }}
+            onClick={onClick}
             className="text-left font-medium hover:text-gray-800"
         >
             {label}
@@ -149,13 +148,13 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                {activity.markdown ? (
+                {markdown ? (
                     <>
-                        {activity.action?.type === "reader" && <div className="mb-1">{labelNode}</div>}
+                        <div className="mb-1">{labelNode}</div>
                         <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
                             {activity.sources ? (
                                 <CitationPillMarkdown
-                                    text={activity.markdown}
+                                    text={markdown}
                                     sources={activity.sources}
                                     onSourceClick={onSourceClick}
                                 />
@@ -170,7 +169,7 @@ export function ActivityRow({
                                         ),
                                     }}
                                 >
-                                    {activity.markdown}
+                                    {markdown}
                                 </GfmMarkdown>
                             )}
                         </div>
