@@ -407,7 +407,7 @@ describe("verified legal-source links", () => {
     }
   });
 
-  it("routes a proved unique SCC plan through Law Web", async () => {
+  it("keeps an unproved synthetic SCC plan on the publisher", async () => {
     const text = `${"Background context. ".repeat(70)
       }The court described the motiveless act as unusual in all the circumstances.`;
     const document = await nativeDocument(
@@ -422,10 +422,9 @@ describe("verified legal-source links", () => {
       ["motiveless act"],
     )!;
 
-    expect(result).toContain(
-      "https://law.a2aj.ca/document?citation=2099+SCC+1&doc_type=cases#:~:text=",
-    );
-    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless act"]);
+    expect(result).toContain("https://decisions.scc-csc.ca/");
+    expect(result).toContain("iframe=true&site_preference=mobile");
+    expect(paintedTerms(textDirectives(result)[0]!)).toEqual(["motiveless", "act"]);
   });
 
   it("keeps a context-resolved repeated SCC passage on the publisher", async () => {
@@ -457,7 +456,7 @@ describe("verified legal-source links", () => {
     expect(result).toContain("iframe=true&site_preference=mobile");
   });
 
-  it("uses the proved SCC fallback only when a fragment is requested", async () => {
+  it("uses Law Web without a publisher and preserves unproved publisher plans", async () => {
     const text = `${"Background context. ".repeat(70)
       }[81] In section 2(b) jurisprudence, counter-speech remains a central consideration.`;
     const document = await nativeDocument(
@@ -507,7 +506,7 @@ describe("verified legal-source links", () => {
         text,
         ["counter-speech remains a central consideration"],
       ),
-    ).toContain("https://law.a2aj.ca/document?citation=2023+SCC+14&doc_type=cases#:~:text=");
+    ).toContain("https://decisions.scc-csc.ca/");
   });
 
   it("keeps an unproved repeated BC passage on the publisher", async () => {
@@ -562,27 +561,34 @@ describe("verified legal-source links", () => {
 
   it("routes only proved no-oracle provider-plan signatures", () => {
     const plan = (overrides: Partial<NativeTextFragmentPlan> = {}): NativeTextFragmentPlan => ({
-      directives: ["text=Example%20Act"],
+      directives: ["text=one%20two%20three%20four%20five%20six%20seven%20eight%20nine"],
       sourceWordIntervals: [{
-        quoteIndex: 0, start: 10, end: 30, firstWord: 0, lastWord: 1,
+        quoteIndex: 0, start: 10, end: 30, firstWord: 0, lastWord: 8,
       }],
-      paintQuotes: ["Example Act"],
+      paintQuotes: ["one two three four five six seven eight nine"],
       sourceSafeComplete: true,
-      paintedWords: 2,
+      paintedWords: 9,
       ...overrides,
     });
+    const phrase = "one two three four five six seven eight nine";
+    const block = (count: number) => [
+      phrase,
+      ...Array.from({ length: count - 9 }, (_, index) => `padding${index}`),
+    ].join(" ");
 
     expect(shouldUseA2AJWebFallback(
       "laws",
       "https://www.ontario.ca/laws/statute/example",
       plan(),
-      "The unique Example—Act controls.",
+      phrase,
+      block(200),
     )).toBe(true);
     expect(shouldUseA2AJWebFallback(
       "laws",
       "https://www.ontario.ca/laws/statute/example",
       plan(),
-      "Example Act appears here. Example Act appears again.",
+      `${phrase}. ${phrase}.`,
+      block(200),
     )).toBe(false);
     expect(shouldUseA2AJWebFallback(
       "laws",
@@ -590,7 +596,8 @@ describe("verified legal-source links", () => {
       plan({ sourceWordIntervals: [{
         quoteIndex: 0, start: 200_010, end: 200_030, firstWord: 0, lastWord: 1,
       }] }),
-      "Example Act. Example Act.",
+      phrase,
+      block(200),
     )).toBe(false);
     expect(shouldUseA2AJWebFallback(
       "laws",
@@ -598,22 +605,35 @@ describe("verified legal-source links", () => {
       plan({ sourceWordIntervals: [{
         quoteIndex: 0, start: 1_010, end: 1_030, firstWord: 0, lastWord: 1,
       }] }),
-      "The unique Example Act controls.",
+      phrase,
+      block(63),
     )).toBe(true);
+    const islands = [
+      "alpha bravo charlie delta echo foxtrot",
+      "golf hotel india juliet kilo lima",
+      "mike november",
+      "oscar papa quebec romeo sierra tango",
+    ];
+    const islandBlock = [
+      ...islands,
+      ...Array.from({ length: 85 }, (_, index) => `remainder${index}`),
+    ].join(" ");
     expect(shouldUseA2AJWebFallback(
       "laws",
       "https://www.justice.gov.nt.ca/en/files/legislation/example/example.r1.pdf",
       plan({
-        directives: ["text=alpha", "text=beta", "text=gamma", "text=delta"],
+        directives: islands.map((island) => `text=${encodeURIComponent(island)}`),
         sourceWordIntervals: [
           { quoteIndex: 0, start: 1_001, end: 1_002, firstWord: 0, lastWord: 0 },
           { quoteIndex: 0, start: 1_003, end: 1_004, firstWord: 1, lastWord: 1 },
           { quoteIndex: 0, start: 1_005, end: 1_006, firstWord: 2, lastWord: 2 },
           { quoteIndex: 0, start: 1_007, end: 1_008, firstWord: 3, lastWord: 3 },
         ],
-        paintQuotes: ["alpha", "beta", "gamma", "delta"],
+        paintQuotes: islands,
+        paintedWords: 20,
       }),
-      "alpha beta gamma delta",
+      islands.join(" "),
+      islandBlock,
     )).toBe(true);
   });
 
@@ -633,7 +653,7 @@ describe("verified legal-source links", () => {
     expect(result).toContain(".pdf#page=19:~:text=");
   });
 
-  it("keeps Decisia anchors except for the proved short Lexum fallback family", async () => {
+  it("keeps unproved synthetic Decisia plans on their publishers", async () => {
     const text = `${"Background context. ".repeat(70)
       }[42] The appellate court stated the distinctive controlling principle.`;
     for (const [url, dataset, citation] of [
@@ -660,15 +680,11 @@ describe("verified legal-source links", () => {
         text,
         ["distinctive controlling principle"],
       )!;
-      if (new URL(url).hostname === "decisia.lexum.com") {
-        expect(result).toContain("https://law.a2aj.ca/document?");
-      } else {
-        expect(result).toContain("iframe=true");
-        expect(result).toContain("site_preference=mobile");
-        expect(result).toContain("#par42:~:text=");
-        expect(result).toContain(new URL(url).hostname);
-        expect(result).not.toContain("canlii.org");
-      }
+      expect(result).toContain("iframe=true");
+      expect(result).toContain("site_preference=mobile");
+      expect(result).toContain("#par42:~:text=");
+      expect(result).toContain(new URL(url).hostname);
+      expect(result).not.toContain("canlii.org");
     }
   });
 
