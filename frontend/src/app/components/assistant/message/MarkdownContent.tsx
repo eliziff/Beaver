@@ -44,6 +44,18 @@ function nodeText(value: ReactNode): string {
         .join("");
 }
 
+const SUBAGENT_SOURCE = "/__beaver_source/";
+function subagentCitations(text: string, sources: ToolActivitySource[]) {
+    return text.replace(/(?<!\\)\[(\d+)\](?!\()/gu, (marker, raw: string) => {
+        const ref = Number(raw);
+        const source = sources.find((candidate) => candidate.ref === ref);
+        if (!source) return marker;
+        const label = [source.citation, source.locator].filter(Boolean).join(", ")
+            .replace(/([\\\[\]])/gu, "\\$1");
+        return `[${label}](${SUBAGENT_SOURCE}${ref})`;
+    });
+}
+
 export function CitationPillMarkdown({
     text,
     sources = [],
@@ -60,7 +72,10 @@ export function CitationPillMarkdown({
                     const { href, children, ...anchorProps } =
                         withoutMarkdownNode(props);
                     const label = nodeText(children);
-                    const source = sources.find(
+                    const sourceRef = href?.startsWith(SUBAGENT_SOURCE)
+                        ? Number(href.slice(SUBAGENT_SOURCE.length))
+                        : -1;
+                    const source = sources.find(({ ref }) => ref === sourceRef) ?? sources.find(
                         (candidate) => !!href && candidate.url === href,
                     ) ?? sources.find((candidate) =>
                         label.toLocaleLowerCase().includes(
@@ -82,6 +97,9 @@ export function CitationPillMarkdown({
                     const link = source
                         ? safeAssistantUrl(source.url, { relative: false })
                         : safeAssistantUrl(href);
+                    if (source && !link) return (
+                        <span className={className}>{children}</span>
+                    );
                     if (!link || (!source && !link.startsWith("/"))) return <>{children}</>;
                     const internal = link.startsWith("/");
                     return (
@@ -98,7 +116,7 @@ export function CitationPillMarkdown({
                 },
             }}
         >
-            {text}
+            {subagentCitations(text, sources)}
         </GfmMarkdown>
     );
 }

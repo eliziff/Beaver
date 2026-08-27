@@ -99,16 +99,35 @@ async function startProviderWorker(
 describe("provider PDF projection bridge", () => {
   it("queues once and durably addresses verified bytes by SHA-256", async () => {
     const bytes = Buffer.from("%PDF-1.4 provider source");
-    const fetchMock = vi.fn(async () => pdfResponse(bytes));
+    let fetchStarted!: () => void, releaseFetch!: () => void;
+    const started = new Promise<void>((resolve) => { fetchStarted = resolve; });
+    const held = new Promise<void>((resolve) => { releaseFetch = resolve; });
+    const fetchMock = vi.fn(async () => {
+      fetchStarted();
+      await held;
+      return pdfResponse(bytes);
+    });
     vi.stubGlobal("fetch", fetchMock);
     const bridge = await import("../providerPdfLibraryBridge");
-    await startProviderWorker(bridge);
 
     const [first, second] = await Promise.all([
       bridge.queueProviderPdfAttachment(attachment, "local-user"),
       bridge.queueProviderPdfAttachment(attachment, "local-user"),
     ]);
     expect(first?.request_reference).toBe(second?.request_reference);
+    await startProviderWorker(bridge);
+    await started;
+
+    let watchdogReleased = false;
+    const watchdog = setTimeout(() => {
+      watchdogReleased = true;
+      releaseFetch();
+    }, 500);
+    const queued = await bridge.readProviderPdfAttachmentState(attachment, "local-user");
+    clearTimeout(watchdog);
+    releaseFetch();
+    expect(watchdogReleased).toBe(false);
+    expect(queued.download_status).toBe("queued");
 
     const downloaded = await waitForDownloaded(bridge);
     expect(fetchMock).toHaveBeenCalledOnce();
