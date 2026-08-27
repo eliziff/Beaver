@@ -1,6 +1,6 @@
 # Text-fragment fidelity results
 
-Status: v25 is proved over the complete gettable corpus and promoted to the
+Status: v26 is proved over the complete gettable corpus and promoted to the
 production link builder. The running Beaver service was not stopped or
 restarted.
 
@@ -17,6 +17,38 @@ expected labels, citations as row identities, and live-page structure are never
 runtime inputs. Multiple nearby text directives are supported. Every safely
 paintable substantive word is preserved; only source furniture that cannot be
 painted with certainty may be omitted.
+
+## v26 publisher preference refinement
+
+Five bounded publisher-side methods were checked against the 166 v25 fallback
+rows. Direct combined-URL PDF geometry restored 54 rows, longest-first PDF
+directive ordering restored 10, and full-document-rarity-first ordering
+restored 4. Removing HTML anchors restored 0/74, while removing Decisia's
+`site_preference=mobile` flag restored 0/17 and failed to render the quotes.
+
+The PDF verifier now measures the actual combined production URL when all
+intended islands occupy its naturally landed page. Isolated single-directive
+reloads remain diagnostic and cannot reject an exact combined paint. The two
+ordering methods are selected only by the same no-oracle structural signatures
+used by production; the target replay matches all 14 rewritten URLs exactly.
+
+The final routes are:
+
+| route | rows | share |
+|---|---:|---:|
+| original publisher | 2,272 | 95.9% |
+| A2AJ Law Web | 98 | 4.1% |
+
+This removes 68 of the 166 v25 fallbacks and 514 of the 612 v24 fallbacks. The
+98-row routed target SHA-256 is
+`728e0a10a8f7c934bfd240775b07c43449ff82b10192af46b0233192f601436b`.
+The 68 new headed-Chrome exact publisher proofs have SHA-256
+`32932570d471da842dfad0e81495698d772877eba60f7bd4f2970cd57ddc8757`.
+
+The final 2,370-row composite remains 2,369 strict exact results plus the one
+documented Saskatchewan PDF geometry limit. Every proof is bound to cached
+page bytes and there are no failures. Its SHA-256 is
+`802de1f3aaf985894727ad1b9f4fed7f934c6eef2c0b79bc3388e2f92877c33f`.
 
 ## v25 publisher preference refinement
 
@@ -113,8 +145,8 @@ processes and temporary profiles are owned and closed per shard.
 ## Production integration
 
 Production selects the legislation-only independent-block plan at the existing
-legal-source boundary and applies the v25 no-oracle fallback classifier there.
-The classifier receipt reports 100% coverage of all 166 required residuals,
-zero publisher-exact switchovers, zero unproved selected rows, and
+legal-source boundary and applies the v26 no-oracle publisher-method and
+fallback classifiers there. The classifier receipt reports 68 exact publisher
+recoveries, 98 exact Law Web fallbacks, zero unproved selected rows, and
 promotion-ready status. The focused backend
-contract passes 35/35 tests.
+contract passes 36/36 tests; the full backend suite passes 678/678 executed tests.

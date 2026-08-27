@@ -4,6 +4,7 @@ import {
   buildA2AJDocumentPinpointUrl,
   buildLegalSourcePinpoint,
   buildLegalSourcePinpointUrl,
+  preferredPublisherPdfTarget,
   shouldUseA2AJWebFallback,
 } from "../legalSourceLinks";
 import { structureNative, type NativeTextFragmentPlan } from "../structureNative";
@@ -607,7 +608,7 @@ describe("verified legal-source links", () => {
       }] }),
       phrase,
       block(63),
-    )).toBe(true);
+    )).toBe(false);
     const islands = [
       "alpha bravo charlie delta echo foxtrot",
       "golf hotel india juliet kilo lima",
@@ -634,7 +635,35 @@ describe("verified legal-source links", () => {
       }),
       islands.join(" "),
       islandBlock,
-    )).toBe(true);
+    )).toBe(false);
+  });
+
+  it("puts the proved longest PDF island first", () => {
+    const short = "alpha bravo charlie delta echo foxtrot golf";
+    const long = "hotel india juliet kilo lima mike november oscar papa";
+    const block = [short, long,
+      ...Array.from({ length: 74 }, (_, index) => `padding${index}`)].join(" ");
+    const plan: NativeTextFragmentPlan = {
+      directives: [short, long].map((quote) => `text=${encodeURIComponent(quote)}`),
+      sourceWordIntervals: [
+        { quoteIndex: 0, start: 1_001, end: 1_010, firstWord: 0, lastWord: 6 },
+        { quoteIndex: 0, start: 1_011, end: 1_020, firstWord: 7, lastWord: 15 },
+      ],
+      paintQuotes: [short, long],
+      sourceSafeComplete: true,
+      paintedWords: 16,
+    };
+    const target = preferredPublisherPdfTarget(
+      "laws",
+      `https://www.princeedwardisland.ca/sites/default/files/legislation/example.pdf` +
+        `#:~:${plan.directives.join("&")}`,
+      plan,
+      `${short} ${long}`,
+      block,
+    )!;
+
+    expect(target.indexOf(encodeURIComponent(long)))
+      .toBeLessThan(target.indexOf(encodeURIComponent(short)));
   });
 
   it("keeps CanLII PDF page links on the PDF", async () => {

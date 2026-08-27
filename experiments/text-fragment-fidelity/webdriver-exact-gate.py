@@ -3703,6 +3703,47 @@ def pdf_seed_paint_proof(
                 expected_by_page = combined_pdf_geometries(items, geometries)
                 group_expectations.append(expected_by_page)
 
+            # The product opens the combined URL, so prove that URL directly
+            # when every intended island is on its naturally landed page.
+            combined_expected = combined_pdf_geometries(intended_items, geometries)
+            if len(combined_expected) == 1:
+                combined_page, combined_geometry = next(iter(combined_expected.items()))
+                combined_landing = wait_pdf_page(
+                    pdf_oopif, combined_page, paint_timeout, timings, navigate=False,
+                ) if combined_viewer.get("status") == "ready" else {
+                    "status": "viewer-not-ready", "page": combined_page, "polls": 0,
+                }
+                combined_paint, _png, combined_image = stable_natural_pdf_highlight(
+                    driver, pdf_oopif, combined_page, [combined_page],
+                    paint_timeout, timings,
+                ) if combined_landing.get("status") == "ready" else (
+                    {"status": "not-captured", "components": [], "polls": 0}, b"", None,
+                )
+                combined_paint_geometry = pdf_natural_landing_geometry_proof(
+                    combined_paint, combined_image, combined_expected,
+                    combined_paint.get("viewport") or {}, combined_page,
+                    combined_geometry,
+                )
+                if combined_status == "exact" and \
+                        combined_paint.get("status") == "stable-highlight" and \
+                        combined_paint_geometry.get("status") == \
+                        "pdf-natural-landing-geometry-exact":
+                    return {
+                        "verdict": "exact-match",
+                        "verificationContract": PDF_PAINT_CONTRACT,
+                        "proof": proof,
+                        "combinedProof": {
+                            "status": "exact", "url": combined_url,
+                            "viewer": combined_viewer, "fragment": combined_fragment,
+                            "delivery": combined_delivery,
+                            "pageLanding": combined_landing, "paint": combined_paint,
+                            "paintGeometry": combined_paint_geometry,
+                            **({"byteBinding": combined_binding}
+                               if combined_binding else {}),
+                        },
+                        "directiveProofs": [], "byteBinding": binding,
+                    }
+
             directive_proofs = []
             directives = raw_directives(seed["target"])
             for directive_index, (directive, group, expected_by_page) in enumerate(zip(
