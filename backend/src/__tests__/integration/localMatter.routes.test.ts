@@ -76,7 +76,7 @@ async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
   closeLocalStores = async () => {
-    await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
+    await (await import("../../runtime")).runtime.shutdown();
   };
   return api;
 }

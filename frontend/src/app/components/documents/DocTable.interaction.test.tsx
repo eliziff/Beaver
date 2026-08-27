@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler, useState } from "react";
+import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import {
@@ -77,21 +77,20 @@ function Harness({
     ) => Promise<Document>;
     search?: string;
 }) {
-    const [documents, setDocuments] = useState(initialDocuments);
-    const [folders, setFolders] = useState<DocTableFolder[]>(initialFolders);
-
     return (
         <DocTable
             scopeKey="library"
-            documents={documents}
-            setDocuments={setDocuments}
-            folders={folders}
-            setFolders={setFolders}
+            documents={initialDocuments}
+            folders={initialFolders}
             loading={false}
             search={search}
             operations={{
                 uploadDocument,
+                uploadDocuments: (files) => Promise.all(
+                    files.map((file) => uploadDocument(file)),
+                ),
                 refreshCollection: vi.fn(),
+                refreshDocumentParseStates: vi.fn(),
                 createFolder: vi.fn(),
                 renameFolder: vi.fn(),
                 deleteFolder: vi.fn(),
@@ -523,28 +522,24 @@ describe("structural parse state", () => {
     function ParseHarness({
         state,
         retryPdfParse,
-        refreshCollection = vi.fn(),
+        refreshDocumentParseStates = vi.fn(),
     }: {
         state: Document["parse_state"];
         retryPdfParse?: (documentId: string) => Promise<unknown>;
-        refreshCollection?: () => Promise<unknown> | unknown;
+        refreshDocumentParseStates?: () => Promise<unknown> | unknown;
     }) {
-        const [documents, setDocuments] = useState([
-            { ...document, parse_state: state },
-        ]);
-        const [folders, setFolders] = useState<DocTableFolder[]>([]);
         return (
             <DocTable
                 scopeKey="library"
-                documents={documents}
-                setDocuments={setDocuments}
-                folders={folders}
-                setFolders={setFolders}
+                documents={[{ ...document, parse_state: state }]}
+                folders={[]}
                 loading={false}
                 search=""
                 operations={{
                     uploadDocument: async () => document,
-                    refreshCollection,
+                    uploadDocuments: async () => [document],
+                    refreshCollection: vi.fn(),
+                    refreshDocumentParseStates,
                     createFolder: vi.fn(),
                     renameFolder: vi.fn(),
                     deleteFolder: vi.fn(),
@@ -607,14 +602,16 @@ describe("structural parse state", () => {
 
     it("refreshes a visible collection while preparation is active", async () => {
         vi.useFakeTimers();
-        const refreshCollection = vi.fn();
+        const refreshDocumentParseStates = vi.fn();
         const view = render(
             <ParseHarness state={parseState("queued")}
-                refreshCollection={refreshCollection} />,
+                refreshDocumentParseStates={refreshDocumentParseStates} />,
         );
-        await vi.advanceTimersByTimeAsync(1_500);
-        expect(refreshCollection).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(refreshDocumentParseStates).toHaveBeenCalledTimes(1);
         view.unmount();
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(refreshDocumentParseStates).toHaveBeenCalledTimes(1);
         vi.useRealTimers();
     });
 });

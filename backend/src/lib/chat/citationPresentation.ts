@@ -81,7 +81,7 @@ export function presentLegalEvidence(
         )
       : null
     : null;
-  const passageUrl = fragmentSourceUrl && receipt.span_text && source
+  const passageUrl = fragmentSourceUrl && receipt.span_text
     ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
           {
             url: fragmentSourceUrl,
@@ -93,7 +93,7 @@ export function presentLegalEvidence(
                 )
               : undefined,
             blockText: receipt.span_text,
-            documentText: source,
+            ...(source && { documentText: source }),
           },
           quotes,
         )

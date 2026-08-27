@@ -128,6 +128,7 @@ vi.mock("../../lib/draftingStyleStore", () => ({
 
 vi.mock("../../runtime", () => ({
     runtime: {
+        background: (task: Promise<unknown>) => { void task; },
         audit: vi.fn(async () => ({ record: vi.fn(async () => undefined) })),
         documents: vi.fn(async () => ({})),
         chats: vi.fn(async () => ({ deleteAll: deleteChats })),

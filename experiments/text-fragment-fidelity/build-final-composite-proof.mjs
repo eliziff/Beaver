@@ -17,16 +17,14 @@ const byLabel = (rows, name) => {
 };
 const excluded404 = "FCA_2026_FC_103_p20_short-exact";
 const bestEffortLimit = "LEGISLATION-SK_SS_2015_c_I-9.11_sec4-3_hard-act-name";
-const targets = read("targets.jsonl").filter(({ label }) => label !== excluded404);
+const targets = read("publisher-plan-candidates.jsonl")
+  .filter(({ label }) => label !== excluded404);
 const targetLabels = byLabel(targets, "target");
-const routed = byLabel(read("a2aj-document-routed-targets-v23.jsonl"), "route");
+const routed = byLabel(read("a2aj-document-routed-targets-v24.jsonl"), "route");
 const fallbackProof = byLabel(
-  read("webdriver-exact-final-routed-lawweb-v23-full.jsonl"), "Law Web proof");
-const publisherCurrent = byLabel(
-  read("webdriver-exact-final-publisher-current.jsonl"), "publisher proof");
-const publisherErrors = byLabel(
-  read("webdriver-exact-final-publisher-current-errors.jsonl"), "publisher recovery proof");
-const publisherProof = new Map([...publisherCurrent, ...publisherErrors]);
+  read("webdriver-exact-final-routed-lawweb-v24-full.jsonl"), "Law Web proof");
+const publisherProof = byLabel(
+  read("webdriver-exact-corrected-provider-v24-bound.jsonl"), "publisher proof");
 if (targetLabels.size !== targets.length || routed.size !== fallbackProof.size ||
     [...routed.keys()].some((label) => !fallbackProof.has(label))) {
   throw new Error("target, route, or Law Web proof label set mismatch");
@@ -67,7 +65,7 @@ for (const target of targets) {
 }
 
 const body = `${output.map(JSON.stringify).join("\n")}\n`;
-fs.writeFileSync(path.join(results, "final-composite-proof-v23.jsonl"), body);
+fs.writeFileSync(path.join(results, "final-composite-proof-v24.jsonl"), body);
 const summary = {
   gettable: targets.length,
   exact: output.filter(({ verdict }) => verdict === "exact-match").length,

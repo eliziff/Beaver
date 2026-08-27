@@ -3,9 +3,12 @@ import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
+import { sha256 } from "../lib/hash";
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
+  projectionSource: vi.fn(),
+  metadata: vi.fn(),
   rehydratePdfEvidence: vi.fn(),
   verifyPdfEvidence: vi.fn(),
 }));
@@ -24,6 +27,8 @@ import { createDocumentsRouter } from "./documentRoutes";
 
 const localDocuments = {
   read: mocks.read,
+  projectionSource: mocks.projectionSource,
+  metadata: mocks.metadata,
   download: vi.fn(async () => ({
     kind: "bytes",
     content: {
@@ -45,12 +50,14 @@ api.use(
 );
 
 const handle = `mike-evidence:v1:${"a".repeat(64)}`;
+const pdfBytes = Buffer.from("%PDF");
 const file = {
   version: {
     id: "version-1",
     filename: 'hearing <notes & "orders">.pdf',
+    source_sha256: sha256(pdfBytes),
   },
-  bytes: Buffer.from("%PDF"),
+  bytes: pdfBytes,
   filename: 'hearing <notes & "orders">.pdf',
   fileType: "pdf",
   hasPdfRendition: true,
@@ -69,9 +76,19 @@ const linkedEvidence = {
 beforeEach(() => {
   vi.stubEnv("AUTH_MODE", "local");
   mocks.read.mockReset();
+  mocks.projectionSource.mockReset();
+  mocks.metadata.mockReset();
   mocks.rehydratePdfEvidence.mockReset();
   mocks.verifyPdfEvidence.mockReset();
   mocks.read.mockResolvedValue(file);
+  mocks.projectionSource.mockResolvedValue({
+    documentId: "document-1",
+    versionId: "version-1",
+    fileType: "pdf",
+    sourceSha256: file.version.source_sha256,
+    readBytes: () => file.bytes,
+  });
+  mocks.metadata.mockResolvedValue({ filename: file.filename });
   mocks.rehydratePdfEvidence.mockResolvedValue(linkedEvidence);
   mocks.verifyPdfEvidence.mockResolvedValue({
     documentId: "document-1",
@@ -120,17 +137,17 @@ describe("local PDF evidence viewer", () => {
   });
 
   it("binds the receipt to the owned route document and exact version", async () => {
-    mocks.read.mockResolvedValueOnce(null);
+    mocks.projectionSource.mockResolvedValueOnce(null);
     const missing = await request(api)
       .get("/single-documents/other-document/evidence-view")
       .query({ version_id: "other-version", evidence: handle });
 
     expect(missing.status).toBe(404);
-    expect(mocks.read).toHaveBeenCalledWith(
+    expect(mocks.projectionSource).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "00000000-0000-0000-0000-000000000001",
       }),
-      "other-document", "other-version", false,
+      "other-document", "other-version",
     );
     expect(mocks.rehydratePdfEvidence).not.toHaveBeenCalled();
   });
@@ -144,6 +161,11 @@ describe("local PDF evidence viewer", () => {
     expect(mocks.verifyPdfEvidence).toHaveBeenCalledWith(
       file.bytes,
       handle,
+      {
+        documentId: "document-1",
+        versionId: "version-1",
+        sourceSha256: file.version.source_sha256,
+      },
     );
     expect(mocks.rehydratePdfEvidence).not.toHaveBeenCalled();
     expect(mocks.read).toHaveBeenCalled();
@@ -194,6 +216,5 @@ describe("local PDF evidence viewer", () => {
       });
       expect(JSON.stringify(response.body)).not.toContain("C:\\private");
     }
-    expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 });

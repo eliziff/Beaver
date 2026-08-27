@@ -11,7 +11,8 @@ const api = vi.hoisted(() => ({
     uploadStandaloneDocument: vi.fn(),
 }));
 
-vi.mock("@/app/lib/beaverApi", () => ({
+vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
+    ...await importOriginal(),
     ...api,
     directoryResource: () => ({
         list: api.listDirectory,
