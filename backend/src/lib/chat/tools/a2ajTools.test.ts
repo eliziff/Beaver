@@ -55,14 +55,14 @@ describe("legal-source assistant activity", () => {
       file_path: source,
       pattern: "reasonable foreseeability",
       context_chars: 240,
-    })).toBe('Searching 2012 SCC 45 for “reasonable foreseeability” with up to 240 characters of adjacent context');
+    })).toBe('Searching 2012 SCC 45 for “reasonable foreseeability”');
     expect(assistantToolActivityLabel("Read", {
       file_path: source,
       locator_kind: "paragraph",
       locator: "42",
       end_locator: "44",
       context_blocks: 1,
-    })).toBe("Reading paras 42–44 of 2012 SCC 45 with 1 adjacent context block");
+    })).toBe("Reading paras 42–44 of 2012 SCC 45");
     expect(assistantToolActivityLabel("Read", {
       file_path: source,
       locator_kind: "section",

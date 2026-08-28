@@ -125,7 +125,7 @@ describe("AssistantMessage activity", () => {
 
     it("shows running readers and keeps completed findings in a panel pill", async () => {
         const onSubagentClick = vi.fn();
-        const onSubagentSourceClick = vi.fn();
+        const onCitationClick = vi.fn();
         const running = ["one", "two", "three"].map((id) => ({
             type: "subagent_run" as const,
             id,
@@ -139,24 +139,24 @@ describe("AssistantMessage activity", () => {
                     {
                         ...running[0],
                         status: "completed",
-                        output:
-                            "Finding [R. v. Example, 2020 BCSC 1](https://example.test/case).",
-                        sources: [
+                        output: "Finding [1].",
+                        citations: [
                             {
+                                kind: "a2aj",
+                                source_class: "case",
                                 ref: 1,
-                                provider: "a2aj",
-                                jurisdiction: "CA",
                                 citation: "2020 BCSC 1",
                                 name: "R. v. Example",
                                 dataset: "BCSC",
                                 url: "https://example.test/case",
+                                quotes: [{ quote: "Exact passage" }],
                             },
                         ],
                     },
                 ]}
                 isStreaming
                 onSubagentClick={onSubagentClick}
-                onSubagentSourceClick={onSubagentSourceClick}
+                onCitationClick={onCitationClick}
             />,
         );
 
@@ -171,7 +171,7 @@ describe("AssistantMessage activity", () => {
             name: "R. v. Example, 2020 BCSC 1",
         });
         await userEvent.click(citationPill);
-        expect(onSubagentSourceClick).toHaveBeenCalledOnce();
+        expect(onCitationClick).toHaveBeenCalledOnce();
 
         await userEvent.click(
             screen.getByRole("button", {
@@ -205,19 +205,56 @@ describe("AssistantMessage activity", () => {
     });
 
     it("renders verified tool evidence with the shared citation chip", async () => {
-        const onSubagentSourceClick = vi.fn();
+        const onCitationClick = vi.fn();
         render(<AssistantMessage events={[{
             type: "tool_activity", id: "read-1", tool: "Read",
             status: "completed", label: "Read Example v. Example",
-            sources: [{
-                ref: 1, provider: "a2aj", jurisdiction: "CA",
+            citations: [{
+                kind: "a2aj", source_class: "case", ref: 1,
                 citation: "2020 BCSC 1", name: "Example v. Example",
-                dataset: "BCSC", url: null, locator: "par12",
+                dataset: "BCSC", url: null, locator_kind: "paragraph",
+                locator: "12", pinpoint: "para 12",
+                quotes: [{ quote: "Exact passage" }],
             }],
-        }]} onSubagentSourceClick={onSubagentSourceClick} />);
+        }]} onCitationClick={onCitationClick} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "2020 BCSC 1, par12" }));
-        expect(onSubagentSourceClick).toHaveBeenCalledOnce();
+        await userEvent.click(screen.getByRole("button", {
+            name: "Example v. Example, 2020 BCSC 1 at para 12",
+        }));
+        expect(onCitationClick).toHaveBeenCalledOnce();
+    });
+
+    it("shows searched case names and one journal page range as canonical chips", () => {
+        render(<AssistantMessage events={[
+            {
+                type: "tool_activity", id: "search-1", tool: "search_sources",
+                status: "completed", label: "Searching case law for “Example”",
+                citations: [{
+                    kind: "a2aj", source_class: "case", ref: 1,
+                    citation: "2020 BCSC 1", name: "Example v. Example",
+                    dataset: "BCSC", url: null, quotes: [],
+                }],
+            },
+            {
+                type: "tool_activity", id: "read-2", tool: "Read",
+                status: "completed", label: "Reading pages 60–63 of the article",
+                citations: [{
+                    kind: "public_legal", provider: "journal", ref: 1,
+                    identifier: "article-1", source_class: "commentary",
+                    authority: "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36",
+                    locator_kind: "page", locator: "60–63",
+                    locator_separator: " at ", pinpoint: "60–63", quotes: [],
+                }],
+            },
+        ]} />);
+
+        const caseChip = screen.getByText("Example v. Example").closest("span, button, a");
+        expect(caseChip?.querySelector("em") ?? screen.getByText("Example v. Example").closest("em"))
+            .not.toBeNull();
+        expect(screen.getByText(/Gordon F\. Henderson/u)).toHaveTextContent(
+            "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36 at 60–63",
+        );
+        expect(screen.getAllByText(/Gordon F\. Henderson/u)).toHaveLength(1);
     });
 
     it("shows a single compact thinking row before the first event", () => {
@@ -261,9 +298,7 @@ describe("AssistantMessage activity", () => {
         );
 
         expect(
-            screen.getByRole("button", {
-                name: /Assigning authority identification tasks$/u,
-            }),
+            screen.getByText(/Assigning authority identification tasks\.\.\.$/u),
         ).toBeVisible();
     });
 

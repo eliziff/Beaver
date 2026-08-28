@@ -2,7 +2,8 @@
 
 import { CircleStop, LoaderCircle, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { ReadSubagentDock, type ReadSubagentPanel, type ReadSubagentSource } from "./ReadSubagentDock";
+import type { Citation } from "../shared/types";
+import { ReadSubagentDock, type ReadSubagentPanel } from "./ReadSubagentDock";
 
 export type ReadSubagentGroup = { id: string; label: string; panels: ReadSubagentPanel[] };
 
@@ -23,13 +24,13 @@ export function ReadSubagentTabs({
     activeId,
     onActivate,
     onClose,
-    onSourceClick,
+    onCitationClick,
 }: {
     groups: ReadSubagentGroup[];
     activeId: string | null;
     onActivate: (id: string) => void;
     onClose: (id: string) => void;
-    onSourceClick: (source: ReadSubagentSource) => void;
+    onCitationClick: (citation: Citation) => void;
 }) {
     const active = groups.find(({ id }) => id === activeId) ?? groups[0];
     if (!active) return <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Reading-agent runs will appear here.</div>;
@@ -78,7 +79,7 @@ export function ReadSubagentTabs({
                         aria-hidden={group.id !== active.id}
                         className={cn("absolute inset-0 overflow-hidden", group.id !== active.id && "invisible pointer-events-none")}
                     >
-                        <ReadSubagentDock idPrefix={`reading-agent-${group.id}`} panels={group.panels} onClose={() => onClose(group.id)} onSourceClick={onSourceClick} embedded />
+                        <ReadSubagentDock idPrefix={`reading-agent-${group.id}`} panels={group.panels} onClose={() => onClose(group.id)} onCitationClick={onCitationClick} embedded />
                     </div>
                 ))}
             </div>

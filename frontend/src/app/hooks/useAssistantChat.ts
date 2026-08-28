@@ -111,19 +111,15 @@ export function useAssistantChat({
   const pollForCompletedTurn = useCallback((
     targetChatId: string,
     baselineVersion: number,
-    runId = crypto.randomUUID(),
-    preserveFinal = false,
   ) => {
     const generation = ++pollGenerationRef.current;
-    dispatch({ type: "run_resumed", runId, chatId: targetChatId });
     void (async () => {
       let seenVersion = baselineVersion;
       while (generation === pollGenerationRef.current) {
         try {
           const latest = await getChat(targetChatId);
           const version = latest.chat.transcript_version ?? seenVersion;
-          if ((!preserveFinal || latest.chat.turn_in_progress === false) &&
-              (version > seenVersion || latest.chat.turn_in_progress === false)) {
+          if (version > seenVersion || latest.chat.turn_in_progress === false) {
             seenVersion = version;
             dispatch({
               type: "transcript_loaded",
@@ -303,7 +299,7 @@ export function useAssistantChat({
                   : "This conversation changed in another window. Review the latest messages; your draft has been restored.",
             },
           });
-          if (inProgress) pollForCompletedTurn(current.chatId, version, runId);
+          if (inProgress) pollForCompletedTurn(current.chatId, version);
           return null;
         }
         throw new Error("request failed");
@@ -357,25 +353,19 @@ export function useAssistantChat({
       const targetChatId = streamedChatId ?? current.chatId;
       if (controller.signal.aborted) {
         dispatch({ type: "run_interrupted", runId, status: "cancelled" });
-        if (targetChatId) {
-          pollForCompletedTurn(targetChatId, stateRef.current.transcriptVersion);
-        }
+        if (targetChatId) pollForCompletedTurn(
+          targetChatId,
+          stateRef.current.transcriptVersion,
+        );
         return null;
       }
       if (targetChatId) {
         try {
           const latest = await getChat(targetChatId);
           const version = latest.chat.transcript_version ?? stateRef.current.transcriptVersion;
-          const finalAssistant = stateRef.current.messages.findLast(
-            (candidate) => candidate.role === "assistant",
-          );
-          const preserveFinal = finalAssistant?.role === "assistant" &&
-            finalAssistant.contentFinal;
-          if (!latest.chat.turn_in_progress || !preserveFinal) {
-            dispatch({ type: "transcript_loaded", chatId: targetChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
-          }
+          dispatch({ type: "transcript_loaded", chatId: targetChatId, messages: latest.messages, transcriptVersion: version, active: latest.chat.turn_in_progress === true });
           if (latest.chat.turn_in_progress) {
-            pollForCompletedTurn(targetChatId, version, runId, preserveFinal);
+            pollForCompletedTurn(targetChatId, version);
             return null;
           }
           return null;

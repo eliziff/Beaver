@@ -6,7 +6,6 @@ import type {
   Citation,
   EditAnnotation,
   Message,
-  ToolActivitySource,
 } from "@/app/components/shared/types";
 import { z } from "zod";
 
@@ -47,7 +46,7 @@ export type AssistantActivity = {
   detail?: string;
   markdown?: string;
   items?: { label: string; detail?: string; url?: string | null; error?: boolean }[];
-  sources?: ToolActivitySource[];
+  citations?: Citation[];
   action?: { type: "reader"; readerId: string };
 };
 
@@ -57,7 +56,7 @@ export type AssistantReaderRun = {
   status: AssistantActivityStatus;
   activities: AssistantActivity[];
   output?: string;
-  sources: ToolActivitySource[];
+  citations: Citation[];
 };
 
 export type AssistantArtifact = {
@@ -154,7 +153,6 @@ export type ProtocolEvent =
 export type AssistantSessionEvent =
   | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
   | { type: "run_started"; runId: string; chatId?: string; message: Message; options?: AssistantTurnOptions }
-  | { type: "run_resumed"; runId: string; chatId: string }
   | { type: "protocol"; runId: string; chatId?: string; event: ProtocolEvent }
   | { type: "run_finished"; runId: string }
   | { type: "run_interrupted"; runId: string; status: "cancelled" | "interrupted" }
@@ -206,19 +204,6 @@ export function safeAssistantUrl(
 }
 const safeUrl = z.string().max(FIELD_TEXT_LIMIT).transform((value) => safeAssistantUrl(value));
 const validUrl = safeUrl.pipe(z.string());
-const sourceSchema = z.strictObject({
-  ref: safeInteger.optional(),
-  provider: shortText.default(""), jurisdiction: shortText.default(""), citation: idText,
-  name: shortText.nullish().transform((value) => value || null),
-  dataset: shortText.default(""), url: safeUrl.nullish().transform((value) => value ?? null),
-  locator: shortText.optional(), quote: fieldText.optional(),
-});
-const citedSourceSchema = sourceSchema.extend({ ref: safeInteger.positive() });
-const activityFields = {
-  id: idText, tool: idText, label: idText, status: statusSchema,
-  sources: z.array(citedSourceSchema).max(ASSISTANT_LIMITS.citations).optional(),
-};
-const activitySchema = z.strictObject(activityFields);
 const editAnnotationSchema = z.strictObject({
   edit_id: idText, document_id: idText, version_id: idText,
   version_number: safeInteger.nullish(),
@@ -280,6 +265,11 @@ export function parseAssistantCitations(value: unknown): Citation[] {
   const parsed = citationListSchema.safeParse(value);
   return parsed.success ? parsed.data : [];
 }
+const activityFields = {
+  id: idText, tool: idText, label: idText, status: statusSchema,
+  citations: citationListSchema.optional(),
+};
+const activitySchema = z.strictObject(activityFields);
 
 const askItemSchema = z.union([
   z.strictObject({
@@ -327,8 +317,7 @@ const readerSchema = z.strictObject({
   task: longText, status: statusSchema,
   activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
   output: longText.optional(),
-  sources: z.array(citedSourceSchema)
-    .max(ASSISTANT_LIMITS.citations).default([]),
+  citations: citationListSchema.default([]),
 }).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 
 const marker = (type: string) => z.strictObject({ type: z.literal(type) });
@@ -609,8 +598,8 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
       id: `reader:${event.reader.id}`, tool: "subagent_run",
       label: event.reader.status === "running" ? `Waiting for reading agent: ${task}` : event.reader.status === "error" ? "Reading agent failed" : event.reader.status === "interrupted" ? `Reading agent interrupted: ${task}` : `Reading agent completed: ${task}`,
       status: event.reader.status,
-      ...(event.reader.output && { markdown: event.reader.output, sources: event.reader.sources }),
-      ...(event.reader.sources.length && { detail: `${event.reader.sources.length} verified passage${event.reader.sources.length === 1 ? "" : "s"}` }),
+      ...(event.reader.output && { markdown: event.reader.output, citations: event.reader.citations }),
+      ...(event.reader.citations.length && { detail: `${event.reader.citations.length} verified source${event.reader.citations.length === 1 ? "" : "s"}` }),
       action: { type: "reader", readerId: event.reader.id },
     };
     const next = updateAssistant(state, (message) => ({ ...message, contentOpen: false, activities: upsertById(message.activities, activity, ASSISTANT_LIMITS.activities) }));
@@ -717,6 +706,19 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
       };
     }
   });
+  if (event.active) {
+    const chatId = event.chatId ?? state.chatId;
+    const last = next.messages.at(-1);
+    if (last?.role === "user") next = {
+      ...next,
+      messages: [...next.messages, emptyAssistant(`assistant:active:${chatId}`, last.turnId)],
+    };
+    next = { ...next, run: state.run ?? {
+      id: `durable:${chatId}`,
+      status: "running",
+      ...(chatId && { chatId }),
+    } };
+  }
   if (!event.active) {
     const last = next.messages.at(-1);
     const open = last?.role === "assistant" && (last.activities.some((activity) => activity.status === "running") || next.readers.some((reader) => reader.status === "running") || last.turnComplete === false);
@@ -763,12 +765,6 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
       next = { ...next, messages: [...messages, emptyAssistant(`assistant:${event.runId}`, event.options?.turnId)] };
     }
     return next;
-  }
-  if (event.type === "run_resumed") {
-    const messages = state.messages.at(-1)?.role === "assistant"
-      ? state.messages
-      : [...state.messages, emptyAssistant(`assistant:${event.runId}`)];
-    return { ...state, messages, run: { id: event.runId, status: "running", chatId: event.chatId } };
   }
   if (event.type === "protocol") {
     if (state.run?.id !== event.runId) return state;

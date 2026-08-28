@@ -23,16 +23,19 @@ export type BeaverOutcome = {
   events?: AssistantEvent[];
   evidence?: LegalEvidenceReceipt[];
   evidenceSources?: Map<string, Omit<RegisteredEvidence, "receipt">>;
+  activityCitations?: Record<string, unknown>[];
   pause?: AskInputsEvent;
   mutated?: boolean;
   terminal?: boolean;
 };
-export type BeaverTool<Context> = Tool & {
+export type BeaverToolPolicy = {
   specialist?: boolean;
   research?: boolean;
   reader?: readonly ReadSubagentRegion[];
   sequential?: boolean | ((input: Record<string, unknown>) => boolean);
   activity?: (input: Record<string, unknown>) => string | null;
+};
+export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
   execute(
     input: Record<string, unknown>,
     context: Context,

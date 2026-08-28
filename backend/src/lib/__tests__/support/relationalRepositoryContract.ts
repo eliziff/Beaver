@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
-import { chatRepository, documentRepository, projectRepository, tabularRepository }
-  from "../../relationalRepositories";
+import { chatRepository } from "../../relationalChatRepository";
+import { documentRepository } from "../../relationalDocumentRepository";
+import { projectRepository } from "../../relationalProjectRepository";
+import { tabularRepository } from "../../relationalTabularRepository";
 import { relationalDatabase, sql } from "../../relationalDatabase";
 
 const scope = (role: string) => ({ userId: randomUUID(),

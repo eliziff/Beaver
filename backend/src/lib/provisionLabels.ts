@@ -1,7 +1,7 @@
 type Provision = { root: string; tokens: string[] };
 
 const PROVISION = /^([A-Za-z]?\d+(?:\.\d+)*)((?:\([^()[\]]{1,12}\))*)$/u;
-const PREFIX = /^(?:sections?|secs?|ss?|s|paragraphs?|paras?|par)\.?\s*/iu;
+const PREFIX = /^(?:sections?|secs?|ss?|s|paragraphs?|paras?|par|pages?|pp?|footnotes?|notes?|nn?|fn)\.?[\s._=-]*/iu;
 
 function parse(label: string): Provision | null {
   const match = label.replace(PREFIX, "").match(PROVISION);
@@ -18,7 +18,14 @@ const contains = (parent: Provision, child: Provision) =>
   parent.tokens.every((token, index) => child.tokens[index] === token);
 
 function sections(labels: readonly string[]) {
-  const parsed = labels.flatMap((label) => label.split(/[–—-]/u).map(parse));
+  const unique = [...new Set(labels)];
+  if (unique.length === 1 && /[–—-]/u.test(unique[0])) {
+    const endpoints = unique[0].split(/[–—-]/u).map(parse);
+    return endpoints.some((value) => !value)
+      ? null
+      : [(endpoints as Provision[]).map(text).join("–")];
+  }
+  const parsed = unique.flatMap((label) => label.split(/[–—-]/u).map(parse));
   if (parsed.some((value) => !value)) return null;
   const values = parsed as Provision[];
   const minimal = values.filter((value) =>
@@ -31,11 +38,13 @@ function sections(labels: readonly string[]) {
   }
   return [...groups.values()].map((group) => group.length === 1
     ? text(group[0])
-    : `${text(group[0])}–${text(group.at(-1)!)}`);
+    : group.length === 2 && renderSectionSpan(group.map(text)) ||
+      `${text(group[0])}–${text(group.at(-1)!)}`);
 }
 
-function paragraphs(labels: readonly string[]) {
-  const values = labels.map((label) => /^\d{1,6}$/u.test(label) ? Number(label) : null);
+function numericRanges(labels: readonly string[]) {
+  const values = [...new Set(labels.map((label) => label.replace(PREFIX, "").trim()))]
+    .map((label) => /^\d{1,6}$/u.test(label) ? Number(label) : null);
   if (values.some((value) => value === null)) return null;
   const groups: string[] = [];
   for (let index = 0; index < values.length; index += 1) {
@@ -49,13 +58,11 @@ function paragraphs(labels: readonly string[]) {
 
 export function collapseProvisionLabels(labels: readonly string[], kind: string) {
   if (!labels.length) return null;
-  return kind === "paragraph" ? paragraphs(labels)
+  return ["paragraph", "page", "footnote"].includes(kind) ? numericRanges(labels)
     : kind === "section" ? sections(labels) : null;
 }
 
-export const provisionRoot = (label: string) => parse(label)?.root ?? null;
-
-export function renderSectionSpan(labels: readonly string[]) {
+function renderSectionSpan(labels: readonly string[]) {
   const parsed = labels.map(parse);
   if (parsed.some((value) => !value)) return null;
   const unique = [...new Map((parsed as Provision[]).map((value) =>

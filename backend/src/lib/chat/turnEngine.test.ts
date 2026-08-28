@@ -77,7 +77,7 @@ it("preserves one tool activity through running and completed states", async () 
     tool: "Read",
     label: "Reading v1 from your Library",
     status: "completed",
-    sources: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1", locator: "par12" })],
+    citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1", locator: "12" })],
   })]));
   expect(result.events).toContainEqual(expect.objectContaining({
     type: "tool_activity",
@@ -85,7 +85,7 @@ it("preserves one tool activity through running and completed states", async () 
     tool: "Read",
     label: "Reading v1 from your Library",
     status: "completed",
-    sources: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1" })],
+    citations: [expect.objectContaining({ ref: 1, citation: "2024 SCC 1" })],
   }));
   expect(events).toContainEqual({ type: "content_final", text: "", citations: [] });
 });

@@ -4,11 +4,15 @@ import {
 import type { Tool } from "../../llm";
 import { resourceReference } from "../../resourceReferences";
 import { trimmedText as text } from "../../value";
+import { hasCaseNameInText } from "../legalEvidence";
+import type { BeaverToolPolicy } from "../toolRegistry";
 
 const SEARCH_SOURCES_TOOL_NAME = "search_sources";
 
-export const SEARCH_SOURCES_TOOL: Tool = {
+export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   name: SEARCH_SOURCES_TOOL_NAME,
+  research: true,
+  reader: ["CA", "US"],
   annotations: { readOnlyHint: true },
   description:
     "Default discovery tool for requests about cases, legislation, journal commentary, Hansard, or legal authorities. Searches one or two installed legal-source corpora, not the user's uploaded Library. Apply filters here, start near 10 hits, then fetch plausible sources; refine instead of paging broadly. Exact known citations should be fetched directly. Results use SQLite FTS5/BM25 and are not evidence.",
@@ -38,6 +42,12 @@ export const SEARCH_SOURCES_TOOL: Tool = {
           type: "string",
           enum: ["terms", "boolean"],
           description: "terms is the default; boolean uses native FTS5 syntax.",
+        },
+        search_type: {
+          type: "string",
+          enum: ["full_text", "name"],
+          description:
+            "Use name only for a case style of cause; omit it for legal concepts, quotations, legislation, or commentary.",
         },
         jurisdiction: {
           type: "string",
@@ -139,6 +149,10 @@ export async function searchSources(
   }
   const types = sourceTypes(args.source_types);
   const syntax = args.syntax === "boolean" ? "fts5" : "terms";
+  const searchType = args.search_type === "name" ||
+      (types.size === 1 && types.has("case") && hasCaseNameInText(query))
+    ? "name" as const
+    : "full_text" as const;
   const startDate = date(args.date_from, "date_from");
   const endDate = date(args.date_to, "date_to");
   const limit = Math.max(1, Math.min(20, Math.trunc(Number(args.limit) || 10)));
@@ -153,6 +167,7 @@ export async function searchSources(
     query,
     [...types].sort(),
     syntax,
+    searchType,
     jurisdiction,
     text(args.collection),
     text(args.court),
@@ -172,6 +187,7 @@ export async function searchSources(
     text: query,
     kinds: [...types] as Array<"case" | "legislation" | "journal" | "hansard">,
     syntax,
+    searchType,
     jurisdiction,
     collection: text(args.collection) || undefined,
     court: text(args.court) || undefined,
@@ -212,6 +228,7 @@ export async function searchSources(
         snippet: row.snippet,
         passage_start: row.passageStart,
         passage_end: row.passageEnd,
+        url: row.url,
         resource,
         ...(row.authority
           ? {
@@ -231,6 +248,7 @@ export async function searchSources(
       requestedSort === "relevance"
         ? "provider BM25/relevance with a 15% citator RRF signal where available"
         : requestedSort,
+    search_type: searchType,
     results,
     ...(unavailable.length ? { unavailable } : {}),
   };

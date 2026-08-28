@@ -20,7 +20,7 @@ export function publicAssistantEvent(value: unknown): unknown | null {
     type: "subagent_run", id: event.id, task: event.task, status: event.status,
     ...(Array.isArray(event.activities) && { activities: event.activities }),
     ...(typeof event.output === "string" && { output: event.output }),
-    ...(Array.isArray(event.sources) && { sources: event.sources }),
+    ...(Array.isArray(event.citations) && { citations: event.citations }),
   };
 }
 

@@ -14,18 +14,22 @@ const completedPanel = {
             tool: "Read",
             label: "Reading Example v. Example, 2020 BCSC 1",
             status: "completed" as const,
-            sources: [{
+            citations: [{
+                kind: "a2aj" as const,
+                source_class: "case" as const,
                 ref: 1,
-                provider: "a2aj",
-                jurisdiction: "CA",
                 citation: "2020 BCSC 1",
                 name: "Example v. Example",
                 dataset: "BCSC",
                 url: null,
-                locator: "par12",
+                locator_kind: "paragraph" as const,
+                locator: "12",
+                pinpoint: "para 12",
+                quotes: [{ quote: "Exact passage" }],
             }],
         },
     ],
+    citations: [],
 };
 
 const runningPanel = {
@@ -38,20 +42,23 @@ const runningPanel = {
 };
 
 it("opens the exact source metadata attached by the backend", async () => {
-    const onSourceClick = vi.fn();
+    const onCitationClick = vi.fn();
     render(
         <ReadSubagentDock
             panels={[completedPanel]}
             onClose={vi.fn()}
-            onSourceClick={onSourceClick}
+            onCitationClick={onCitationClick}
             embedded
         />,
     );
 
-    expect(screen.getByRole("button", { name: "Activity — 1 tool call" })).toBeVisible();
-    expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "2020 BCSC 1, par12" }));
-    expect(onSourceClick).toHaveBeenCalledWith(
+    expect(screen.getByRole("button", {
+        name: "Activity — Reading Example v. Example, 2020 BCSC 1",
+    })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", {
+        name: "Example v. Example, 2020 BCSC 1 at para 12",
+    }));
+    expect(onCitationClick).toHaveBeenCalledWith(
         expect.objectContaining({ citation: "2020 BCSC 1" }),
     );
 });
@@ -61,11 +68,13 @@ it("shows live reading activity", async () => {
         <ReadSubagentDock
             panels={[runningPanel]}
             onClose={vi.fn()}
-            onSourceClick={vi.fn()}
+            onCitationClick={vi.fn()}
             embedded
         />,
     );
 
-    expect(screen.getByRole("button", { name: "Activity — 1 tool call" })).toBeVisible();
+    expect(screen.getByRole("button", {
+        name: "Activity — Reading Example v. Example, 2020 BCSC 1",
+    })).toBeVisible();
     expect(screen.getByText("Reading Example v. Example, 2020 BCSC 1...")).toBeVisible();
 });

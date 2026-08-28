@@ -80,5 +80,5 @@ export function citationPillParts(annotation: Citation): {
 export function citationTooltip(annotation: Citation): string {
     const locator = citationPillLabel(annotation) || formatCitationPage(annotation);
     const quote = displayCitationQuote(annotation);
-    return locator ? `${locator}: "${quote}"` : `"${quote}"`;
+    return quote ? locator ? `${locator}: "${quote}"` : `"${quote}"` : locator;
 }
