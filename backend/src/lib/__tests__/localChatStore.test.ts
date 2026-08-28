@@ -15,7 +15,7 @@ async function closeDatabase() {
 
 async function loadStore() {
   const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
-    import("../chatStore"), import("../relationalRepositories"), import("../chatTitle"),
+    import("../chatStore"), import("../relationalChatRepository"), import("../chatTitle"),
   ]);
   return createChatStore(chatRepository, generateChatTitle, {
     project: async () => false, review: async () => false,

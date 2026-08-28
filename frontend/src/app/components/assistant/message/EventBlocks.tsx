@@ -19,6 +19,7 @@ import { apiBlobRequest } from "@/app/lib/beaverApi";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import {
+    CitationPill,
     CitationPillMarkdown,
     GfmMarkdown,
 } from "./MarkdownContent";
@@ -49,6 +50,7 @@ export function ActivityDisclosure({
     isStreaming: boolean;
     label: string;
 }) {
+    const [open, setOpen] = useState(true);
     const summary = `Activity — ${label}`;
     const status = (
         <span
@@ -67,8 +69,9 @@ export function ActivityDisclosure({
             {status}
             <span className="min-w-0 truncate">
                 <span className="text-gray-500">Activity</span>
-                <span aria-hidden="true"> — </span>
-                <span className="text-gray-700">{label}</span>
+                {(children === undefined || !open) && (
+                    <><span aria-hidden="true"> — </span><span className="text-gray-700">{label}</span></>
+                )}
             </span>
         </>
     );
@@ -84,7 +87,11 @@ export function ActivityDisclosure({
         );
     }
     return (
-        <details className="group min-w-0" open>
+        <details
+            className="group min-w-0"
+            open={open}
+            onToggle={(event) => setOpen(event.currentTarget.open)}
+        >
             <summary
                 role="button"
                 aria-label={summary}
@@ -109,22 +116,32 @@ export function ActivityDisclosure({
 export function ActivityRow({
     activity,
     onClick,
-    onSourceClick,
+    onCitationClick,
 }: {
     activity: AssistantActivity;
     onClick?: () => void;
-    onSourceClick?: (source: NonNullable<AssistantActivity["sources"]>[number]) => void;
+    onCitationClick?: (citation: NonNullable<AssistantActivity["citations"]>[number]) => void;
 }) {
     const busy = activity.status === "running";
     const failed = activity.status === "error";
-    const sourceMarkers = activity.sources?.map(({ ref }) => `[${ref}]`).join(" ");
-    const markdown = activity.markdown || sourceMarkers;
+    const normalize = (value: string) => value.replace(/^\s{0,3}#{1,6}\s+/u, "")
+        .replace(/[*_`]/gu, "").replace(/[\s:;.…]+$/gu, "")
+        .replace(/\s+/gu, " ").trim().toLocaleLowerCase();
+    const inlineMarkdown = onClick && activity.action?.type === "reader"
+        ? undefined
+        : activity.markdown;
+    const lines = inlineMarkdown?.trim().split(/\r?\n/u) ?? [];
+    const markdown = lines.length && normalize(lines[0]) === normalize(activity.label)
+        ? lines.slice(1).join("\n").trim()
+        : inlineMarkdown;
+    const citations = activity.citations ?? [];
+    const hasContent = Boolean(markdown || citations.length);
     const label = `${activity.label}${busy && !activity.markdown ? "..." : ""}`;
     const labelNode = onClick ? (
         <button
             type="button"
             onClick={onClick}
-            className="text-left font-medium hover:text-gray-800"
+            className="rounded-sm text-left font-medium hover:text-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
         >
             {label}
         </button>
@@ -148,15 +165,15 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                {markdown ? (
+                {hasContent ? (
                     <>
                         <div className="mb-1">{labelNode}</div>
-                        <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
-                            {activity.sources ? (
+                        {markdown && <div className="prose prose-sm max-w-none [&>*]:my-1 [&>*]:text-sm [&>*]:text-gray-600 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
+                            {citations.length ? (
                                 <CitationPillMarkdown
                                     text={markdown}
-                                    sources={activity.sources}
-                                    onSourceClick={onSourceClick}
+                                    citations={citations}
+                                    onCitationClick={onCitationClick}
                                 />
                             ) : (
                                 <GfmMarkdown
@@ -172,7 +189,18 @@ export function ActivityRow({
                                     {markdown}
                                 </GfmMarkdown>
                             )}
-                        </div>
+                        </div>}
+                        {!markdown && citations.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5" aria-label="Sources">
+                                {citations.map((citation) => (
+                                    <CitationPill
+                                        key={`${citation.kind}:${citation.ref}`}
+                                        citation={citation}
+                                        onClick={onCitationClick}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </>
                 ) : (
                     labelNode

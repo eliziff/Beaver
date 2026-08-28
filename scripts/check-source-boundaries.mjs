@@ -21,7 +21,7 @@ const modeFiles = allow(
 );
 const adapterFiles = allow(
   ["backend/src", "runtime middleware/auth routes/user"],
-  ["backend/src/lib", "access audit draftingStyleStore filesystemObjectStorage jobQueue pdfJobs postgresChatFeatures providerSessionStore relationalDatabase relationalRepositories storage supabase userApiKeys userDataCleanup userDataExport userLookup userSettings"],
+  ["backend/src/lib", "access audit draftingStyleStore filesystemObjectStorage jobQueue pdfJobs postgresChatFeatures providerSessionStore relationalChatRepository relationalDatabase relationalDocumentRepository relationalLibraryRepository relationalProjectRepository relationalRepositorySupport relationalTabularRepository relationalWorkflowRepository storage supabase userApiKeys userDataCleanup userDataExport userLookup userSettings"],
   ["backend/src/lib/mcp", "oauth servers types"],
   ["frontend/src/app", "(pages)/account/security/page components/account/AuthPage components/popups/MfaVerificationPopup contexts/AuthContext", "tsx"],
   ["frontend/src/app/lib", "beaverApi supabase"],
@@ -31,8 +31,8 @@ function deploymentAdapter(specifier) {
   const normalized = specifier.replaceAll("\\", "/");
   const leaf = normalized.split("/").at(-1)?.replace(/\.[cm]?[jt]sx?$/u, "");
   return ["authMode", "filesystemObjectStorage", "localMode", "relationalDatabase",
-    "relationalRepositories", "runtimeConfig", "supabase"]
-    .includes(leaf ?? "") || normalized === "postgres" ||
+    "runtimeConfig", "supabase"].includes(leaf ?? "") ||
+    /^relational[A-Z].*Repository(?:Support)?$/u.test(leaf ?? "") || normalized === "postgres" ||
     normalized === "@supabase/supabase-js" || normalized.startsWith("@aws-sdk/");
 }
 

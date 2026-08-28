@@ -5,7 +5,7 @@ import type {
   LegalEvidenceReceiptEvent,
 } from "./legalEvidence";
 import { jsonRecord as record } from "../value";
-import type { ToolActivity, ToolActivitySource } from "./types";
+import type { ToolActivity } from "./types";
 
 export const READ_SUBAGENT_TOOL_NAME = "delegate_read";
 export const RESUME_SUBAGENT_TOOL_NAME = "resume_read";
@@ -41,7 +41,7 @@ export type ReadSubagentEvent = {
   output?: string;
   error?: string;
   activities?: ToolActivity[];
-  sources?: ToolActivitySource[];
+  citations?: Record<string, unknown>[];
   grounding?: LegalEvidenceReceiptEvent;
   resume?: ReadSubagentCheckpoint;
 };
@@ -380,8 +380,14 @@ export async function getReadSubagentCapability(
 }
 
 export function readSubagentActivityLabel(input: Record<string, unknown>) {
-  const count = Array.isArray(input.assignments) ? input.assignments.length : 0;
-  return count >= 2 ? `Coordinating ${count} reading agents` : "Coordinating reading agents";
+  const assignments = Array.isArray(input.assignments) ? input.assignments : [];
+  const first = assignments.length === 1 ? record(assignments[0]) : null;
+  const task = typeof first?.task === "string"
+    ? first.task.replace(/\s+/gu, " ").trim().slice(0, 100)
+    : "";
+  return task ? `Assigning reading: ${task}`
+    : assignments.length >= 2 ? `Coordinating ${assignments.length} reading agents`
+      : "Coordinating a reading agent";
 }
 
 export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
@@ -393,26 +399,3 @@ export const readSubagentInstruction = (assignment: ReadSubagentAssignment) => [
   assignment.source_types?.length
     ? `Source-type boundary: ${assignment.source_types.join(", ")}.` : "",
 ].filter(Boolean).join("\n\n");
-
-export function receiptSource(
-  receipt: LegalEvidenceReceipt,
-  ref: number,
-): ToolActivitySource {
-  const prefix = receipt.locator.kind === "paragraph" ? "par"
-    : receipt.locator.kind === "section" ? "sec"
-      : receipt.locator.kind === "page" ? "page"
-        : receipt.locator.kind === "footnote" ? "fn" : "";
-  const label = receipt.locator.label;
-  return {
-    ref,
-    provider: receipt.provider,
-    jurisdiction: receipt.jurisdiction,
-    citation: receipt.citation,
-    name: receipt.name,
-    dataset: receipt.dataset,
-    url: receipt.external_url,
-    ...(label && { locator: prefix && !label.toLowerCase().startsWith(prefix)
-      ? `${prefix}${label}` : label }),
-    ...(receipt.span_text && { quote: receipt.span_text }),
-  };
-}

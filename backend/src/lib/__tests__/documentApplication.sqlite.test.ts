@@ -7,10 +7,11 @@ import { zipDocumentBytes } from "./support/documentBytes";
 let root: string | null = null;
 
 async function localStores() {
-  const [{ createDocumentApplication }, { documentRepository, libraryRepository }, objects,
+  const [{ createDocumentApplication }, { documentRepository }, { libraryRepository }, objects,
     { createLibraryStore }] =
     await Promise.all([
-      import("../documentApplication"), import("../relationalRepositories"),
+      import("../documentApplication"), import("../relationalDocumentRepository"),
+      import("../relationalLibraryRepository"),
       import("../filesystemObjectStorage"), import("../libraryStore"),
     ]);
   const documents = createDocumentApplication(

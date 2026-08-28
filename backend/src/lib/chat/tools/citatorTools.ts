@@ -7,6 +7,7 @@ import {
 } from "../../caselawCitator";
 import type { Tool } from "../../llm";
 import { safeErrorLog } from "../../safeError";
+import type { BeaverToolPolicy } from "../toolRegistry";
 import {
   attestedPassageReceipt,
   citatorNoteUpReceipt,
@@ -18,8 +19,10 @@ const NOTE_UP_TOOL_NAME = "note_up";
 const NOTE_UP_DESCRIPTION =
   "Trace how a Canadian decision is cited and discussed. Returns citing decisions, explanatory passages from later decisions, and relevant law-journal analysis with source citations and locators. Supports cited-paragraph and court filters. Does not assign treatment labels.";
 
-export const CITATOR_TOOLS: Tool[] = [{
+export const CITATOR_TOOL: Tool & BeaverToolPolicy = {
   name: NOTE_UP_TOOL_NAME,
+  research: true,
+  reader: ["CA"],
   annotations: { readOnlyHint: true },
   description: NOTE_UP_DESCRIPTION,
   inputSchema: {
@@ -62,7 +65,7 @@ export const CITATOR_TOOLS: Tool[] = [{
       required: ["citation"],
       additionalProperties: false,
   },
-}];
+};
 
 export type CitatorToolExecution = {
   payload: Record<string, unknown>;

@@ -48,8 +48,12 @@ const connectors = lazy(async () => {
   return createMcpApplication(await relationalDatabase());
 });
 const persistence = lazy(async () => {
-  const [repositories, shared] = await Promise.all([
-    import("./lib/relationalRepositories"), import("./lib/providerSessionFeatures"),
+  const [documentPorts, libraryPorts, projectPorts, tabularPorts, chatPorts,
+    workflowPorts, shared] = await Promise.all([
+    import("./lib/relationalDocumentRepository"), import("./lib/relationalLibraryRepository"),
+    import("./lib/relationalProjectRepository"), import("./lib/relationalTabularRepository"),
+    import("./lib/relationalChatRepository"), import("./lib/relationalWorkflowRepository"),
+    import("./lib/providerSessionFeatures"),
   ]);
   const features = { ...shared.providerSessionFeatures, ...(local ? {}
     : (await import("./lib/postgresChatFeatures")).postgresChatFeatures) };
@@ -57,12 +61,12 @@ const persistence = lazy(async () => {
     ? (await import("./lib/filesystemObjectStorage")).filesystemDocumentObjects()
     : await import("./lib/storage").then((storage) => storage.scopeObjectStorage(
       storage.createS3ObjectStorage(storage.readS3Configuration()), "documents"));
-  return { documents: repositories.documentRepository,
+  return { documents: documentPorts.documentRepository,
     features,
-    library: repositories.libraryRepository, projects: repositories.projectRepository,
-    tabular: repositories.tabularRepository, chats: repositories.chatRepository,
-    workflows: repositories.workflowRepository,
-    workflowCollaboration: repositories.workflowCollaboration,
+    library: libraryPorts.libraryRepository, projects: projectPorts.projectRepository,
+    tabular: tabularPorts.tabularRepository, chats: chatPorts.chatRepository,
+    workflows: workflowPorts.workflowRepository,
+    workflowCollaboration: workflowPorts.workflowCollaboration,
     objects };
 });
 const documents = lazy(async () => {

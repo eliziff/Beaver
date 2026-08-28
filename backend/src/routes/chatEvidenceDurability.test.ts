@@ -116,9 +116,9 @@ async function loadApp() {
     { localDocuments, localLibraryStore, localProjects },
   ] = await Promise.all([
     import("./chat"),
-    import("../lib/relationalRepositories"),
+    import("../lib/relationalTabularRepository"),
     import("../lib/chatStore"),
-    import("../lib/relationalRepositories"),
+    import("../lib/relationalChatRepository"),
     import("../lib/chatTitle"),
     import("../lib/chat/chatApplication"),
     import("../lib/providerSessionFeatures"),

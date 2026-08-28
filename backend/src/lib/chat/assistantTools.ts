@@ -79,15 +79,16 @@ import {
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
-import { CITATOR_TOOLS, executeCitatorTool } from "./tools/citatorTools";
+import { CITATOR_TOOL, executeCitatorTool } from "./tools/citatorTools";
 import {
-  COMPARE_VERSIONS_TOOLS,
+  COMPARE_VERSIONS_TOOL,
   compareDocumentVersions,
 } from "./tools/compareVersionsTool";
 import {
   SEARCH_SOURCES_TOOL,
   searchSources,
 } from "./tools/sourceSearchTools";
+import { createLegalSourceSearchCitations } from "./citations";
 import { queueProviderPdfRenditions } from "../providerPdfLibraryBridge";
 import {
   applyTextOpsToDocx,
@@ -105,7 +106,6 @@ import {
 import { projectDocxRedline } from "../docx/redline";
 import {
   ADVANCED_DOCX_EDIT_TOOL,
-  TABULAR_TOOLS,
   WRITE_TOOL,
 } from "./tools/toolSchemas";
 import {
@@ -120,12 +120,13 @@ import {
 import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   toolText,
+  type BeaverToolPolicy,
   type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
-import { readTabularCells } from "./tabularCells";
+import { tabularTool } from "./tabularCells";
 import type { TabularCellStore, WorkflowStore } from "./types";
-import type { ReadSubagentAssignment, ReadSubagentRegion } from "./readSubagents";
+import type { ReadSubagentAssignment } from "./readSubagents";
 import type { AssistantEvent } from "./turnEngine";
 import { safeErrorMessage } from "../safeError";
 
@@ -143,8 +144,15 @@ const objectSchema = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
-const DOCUMENT_OPERATION_TOOL: Tool = {
+const DOCUMENT_OPERATION_TOOL: Tool & BeaverToolPolicy = {
   name: "document_operation",
+  specialist: true,
+  sequential: true,
+  activity: (input) => ({
+    metadata: "Updating Library metadata",
+    fix_supras: "Fixing supra references",
+    table_of_authorities: "Creating a table of authorities",
+  } as Record<string, string>)[String(input.action)] ?? "Updating document",
   description:
     "Specialist operation on one version-pinned Library document. Actions: metadata saves user-requested classification or notes; fix_supras creates native Word supra cross-references; lint_structure reports structural defects without editing; table_of_authorities starts deterministic authorities detection for DOCX or PDF. Do not pre-compute filesystem paths.",
   annotations: { readOnlyHint: false },
@@ -169,8 +177,11 @@ const DOCUMENT_OPERATION_TOOL: Tool = {
     split_fallback: { type: "string", enum: ["off", "auto"] },
   }, ["action", "document_id"]),
 };
-const LINT_DOCUMENT_TOOL: Tool = {
+const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   name: "lint_document",
+  specialist: true,
+  reader: ["CA", "US", "UK"],
+  activity: () => "Checking document structure",
   description:
     "Read-only structural lint for one version-pinned Library DOCX: broken internal references, missing schedules or exhibits, numbering defects, and duplicate or unused defined terms.",
   annotations: { readOnlyHint: true },
@@ -2654,9 +2665,13 @@ export function assistantTools<Context extends {
           value.toLowerCase() === collection.toLowerCase())) {
       return fail("This search requests a collection outside the reader assignment.");
     }
-    return result(await searchSources(readerAssignment
+    const searched = await searchSources(readerAssignment
       ? { ...input, jurisdiction: readerAssignment.jurisdiction }
-      : input, signal));
+      : input, signal);
+    return {
+      ...result(searched),
+      activityCitations: createLegalSourceSearchCitations(searched.results),
+    };
   };
   const documentOperation: AssistantToolRun = (call, input, signal) => {
     switch (input.action) {
@@ -2710,27 +2725,18 @@ export function assistantTools<Context extends {
     };
   };
   const definition = (
-    schema: Tool,
+    schema: Tool & BeaverToolPolicy,
     run: AssistantToolRun,
-    policy: {
-      specialist?: boolean;
-      research?: boolean;
-      reader?: readonly ReadSubagentRegion[];
-      sequential?: boolean | ((input: Record<string, unknown>) => boolean);
-      activity?: (input: Record<string, unknown>) => string | null;
-    } = {},
+    policy: BeaverToolPolicy = {},
   ): BeaverTool<Context> => ({
     ...schema,
-    ...(policy.specialist ? { specialist: true } : {}),
-    ...(policy.research ? { research: true } : {}),
-    ...(policy.reader ? { reader: policy.reader } : {}),
-    ...(policy.sequential ? { sequential: policy.sequential } : {}),
-    activity: policy.activity ?? ((input) =>
+    ...policy,
+    activity: policy.activity ?? schema.activity ?? ((input) =>
       assistantToolActivityLabel(schema.name, input) ?? null),
     async execute(input, context, signal, call) {
       const output = await run(call, input, signal, (label) =>
         context.updateActivity?.(call.id, label));
-      if (schema.name === "Read" && !input.pattern && output.evidence?.length) {
+      if (schema.name === "Read" && output.evidence?.length) {
         const label = assistantReadEvidenceActivityLabel(
           output.evidence,
           documentName(input.file_path),
@@ -2753,8 +2759,6 @@ export function assistantTools<Context extends {
   });
 
   const [glob, grep, read, edit] = RESOURCE_TOOLS;
-  const compareVersions = COMPARE_VERSIONS_TOOLS[0];
-  const noteUp = CITATOR_TOOLS[0];
 
   const tools: BeaverTool<Context>[] = [
     definition(glob, codingWithArtifacts, { reader: ["CA", "US", "UK"], activity: () => null }),
@@ -2770,48 +2774,18 @@ export function assistantTools<Context extends {
       sequential: true,
       activity: documentActivity("Editing", "Edit", "file_path"),
     }),
-    definition(WRITE_TOOL, write, { sequential: true }),
-    definition(SEARCH_SOURCES_TOOL, sourceSearch, { research: true, reader: ["CA", "US"] }),
-    definition(noteUp, runCitator, { research: true, reader: ["CA"] }),
-    definition(DOCUMENT_OPERATION_TOOL, documentOperation, {
-      specialist: true,
-      sequential: true,
-      activity: (input) => ({
-        metadata: "Updating Library metadata",
-        fix_supras: "Fixing supra references",
-        table_of_authorities: "Creating a table of authorities",
-      } as Record<string, string>)[String(input.action)] ?? "Updating document",
-    }),
+    definition(WRITE_TOOL, write),
+    definition(SEARCH_SOURCES_TOOL, sourceSearch),
+    definition(CITATOR_TOOL, runCitator),
+    definition(DOCUMENT_OPERATION_TOOL, documentOperation),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
-      runWorkflow(call, { ...input, action: "lint_structure" }, signal), {
-      specialist: true,
-      reader: ["CA", "US", "UK"],
-      activity: () => "Checking document structure",
-    }),
-    definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts, { specialist: true, sequential: true }),
-    definition(compareVersions, compare, {
-      specialist: true,
-      sequential: (input) => input.save_redline === true,
-    }),
+      runWorkflow(call, { ...input, action: "lint_structure" }, signal)),
+    definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts),
+    definition(COMPARE_VERSIONS_TOOL, compare),
   ];
 
   if (tabular && legalEvidenceState) {
-    const evidence = legalEvidenceState;
-    const tabularSchema = TABULAR_TOOLS[0];
-    tools.splice(5, 0, {
-      ...tabularSchema,
-      reader: ["CA", "US", "UK"],
-      activity: () => "Reading table cells",
-      async execute(input) {
-        const read = readTabularCells(
-          tabular,
-          evidence,
-          input.col_indices as number[] | undefined,
-          input.row_indices as number[] | undefined,
-        );
-        return { result: toolText(read.content) };
-      },
-    });
+    tools.splice(5, 0, tabularTool(tabular, legalEvidenceState));
   }
   return tools;
 }

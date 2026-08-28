@@ -233,7 +233,7 @@ describe("account-free matter routes", () => {
 
     const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
       import("../../lib/chatStore"),
-      import("../../lib/relationalRepositories"),
+      import("../../lib/relationalChatRepository"),
       import("../../lib/chatTitle"),
     ]);
     const chatStore = createChatStore(

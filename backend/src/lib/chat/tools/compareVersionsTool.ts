@@ -2,9 +2,12 @@ import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
 import { DOCUMENT_RESOURCE_PATTERN } from "../../resourceReferences";
+import type { BeaverToolPolicy } from "../toolRegistry";
 
-export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
+export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
   name: "compare_versions",
+  specialist: true,
+  sequential: (input) => input.save_redline === true,
   description:
     "Compare two Library DOCX versions in memory (default: current against the prior version). Returns bounded changes and typed abstentions. Set save_redline only when the user asked for a durable Word redline.",
   inputSchema: {
@@ -29,7 +32,7 @@ export const COMPARE_VERSIONS_TOOLS: Tool[] = [{
     required: ["document_id"],
     additionalProperties: false,
   },
-}];
+};
 
 const MAX_REPORTED_ABSTENTIONS = 20;
 const MAX_REPORTED_CHANGES = 12;

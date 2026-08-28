@@ -23,7 +23,7 @@ describe("SQLite relational repository contract", () => {
   relationalRepositoryContract();
 
   it("commits a PDF version and its preparation job in one transaction", async () => {
-    const { documentRepository } = await import("../relationalRepositories");
+    const { documentRepository } = await import("../relationalDocumentRepository");
     const { relationalDatabase, sql } = await import("../relationalDatabase");
     const [{ createDocumentApplication }, { filesystemDocumentObjects }] = await Promise.all([
       import("../documentApplication"), import("../filesystemObjectStorage"),

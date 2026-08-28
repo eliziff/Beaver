@@ -1,5 +1,6 @@
 import {
   legalEvidenceCitationGroups,
+  legalEvidenceCitationGroupsFromEntries,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
@@ -8,14 +9,11 @@ import {
   type CitationPresentation,
 } from "./citationPresentation";
 
-function receiptLocator(
-  entry: RegisteredEvidence,
-  presentation: CitationPresentation,
-) {
-  const { kind, label } = entry.receipt.locator;
+function receiptLocator(entry: RegisteredEvidence, presentation: CitationPresentation) {
+  const { kind } = entry.receipt.locator;
   return !presentation.locator ? {} : {
     locator_kind: kind,
-    locator: label,
+    locator: presentation.locator.label,
     pinpoint: presentation.locator.text,
   };
 }
@@ -41,10 +39,10 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
  * Project the existing strict evidence-id submission into the same citation
  * events used by document and legal-source provider JSON.
  */
-export function createLegalEvidenceCitations(
-  state: LegalEvidenceTurnState,
-): Record<string, unknown>[] {
-  return legalEvidenceCitationGroups(state).flatMap<Record<string, unknown>>(
+function citationsFromGroups(
+  groups: ReturnType<typeof legalEvidenceCitationGroupsFromEntries>,
+) {
+  return groups.flatMap<Record<string, unknown>>(
     (group) => {
       const entry = group.members[0];
       const { receipt } = entry;
@@ -54,7 +52,11 @@ export function createLegalEvidenceCitations(
       // highlights, and DOCX links all derive from the same receipt span.
       const quotes = group.members.flatMap(({ receipt }) =>
         receipt.span_text ? [{ quote: receipt.span_text }] : []);
-      const presentation = presentLegalEvidence(entry);
+      const presentation = presentLegalEvidence(
+        entry,
+        quotes.map(({ quote }) => quote),
+        group.locatorLabels,
+      );
       const locator = receiptLocator(entry, presentation);
       const display = {
         authority: presentation.authority,
@@ -122,25 +124,6 @@ export function createLegalEvidenceCitations(
         }];
       }
       if (receipt.provider !== "a2aj" && receipt.provider !== "citator") return [];
-      if (group.members.length > 1 && group.collapsedLabel) {
-        const prefix = receipt.locator.label.match(/^[A-Za-z]+/u)?.[0] ?? "";
-        return [{
-          kind: "a2aj" as const,
-          ref: group.ref,
-          citation: receipt.citation,
-          name: receipt.name,
-          dataset: receipt.dataset,
-          url: presentation.passageUrl,
-          external_url: presentation.sourceUrl,
-          source_class: receipt.source_class,
-          quotes,
-          ...display,
-          locator_kind: receipt.locator.kind,
-          locator: `${prefix}${group.collapsedLabel}`,
-          locator_separator: ", ",
-          pinpoint: `s ${group.collapsedLabel}`,
-        }];
-      }
       return [{
         kind: "a2aj" as const,
         ref: group.ref,
@@ -156,4 +139,75 @@ export function createLegalEvidenceCitations(
       }];
     },
   );
+}
+
+export function createLegalEvidenceCitationsFromEntries(
+  entries: readonly RegisteredEvidence[],
+): Record<string, unknown>[] {
+  return citationsFromGroups(legalEvidenceCitationGroupsFromEntries(entries));
+}
+
+/**
+ * Project the existing strict evidence-id submission into the same citation
+ * events used by document and legal-source provider JSON.
+ */
+export function createLegalEvidenceCitations(
+  state: LegalEvidenceTurnState,
+): Record<string, unknown>[] {
+  return citationsFromGroups(legalEvidenceCitationGroups(state));
+}
+
+type SearchCitationCandidate = {
+  provider: unknown;
+  source_type: unknown;
+  identifier: unknown;
+  title: unknown;
+  citation: unknown;
+  collection: unknown;
+  url?: unknown;
+};
+
+export function createLegalSourceSearchCitations(
+  value: unknown,
+): Record<string, unknown>[] {
+  const candidates = Array.isArray(value)
+    ? value.filter((candidate): candidate is SearchCitationCandidate =>
+        Boolean(candidate) && typeof candidate === "object")
+    : [];
+  return candidates.flatMap<Record<string, unknown>>((candidate, index) => {
+    const provider = typeof candidate.provider === "string" ? candidate.provider : "";
+    const identifier = typeof candidate.identifier === "string" ? candidate.identifier : "";
+    if (!identifier) return [];
+    const title = typeof candidate.title === "string" ? candidate.title : null;
+    const citation = typeof candidate.citation === "string" ? candidate.citation : null;
+    const collection = typeof candidate.collection === "string" ? candidate.collection : null;
+    const url = typeof candidate.url === "string" ? candidate.url : null;
+    const sourceClass = candidate.source_type === "case" ? "case"
+      : candidate.source_type === "legislation" ? "legislation"
+        : "commentary";
+    const common = {
+      ref: index + 1,
+      source_class: sourceClass,
+      quotes: [],
+      ...(url && { url, external_url: url }),
+    };
+    if (provider === "a2aj") return [{
+      kind: "a2aj" as const,
+      name: title,
+      citation,
+      dataset: collection,
+      ...common,
+    }];
+    if (!["courtlistener", "tna", "govuk-et", "govinfo", "hansard", "journal"]
+      .includes(provider)) return [];
+    return [{
+      kind: "public_legal" as const,
+      provider,
+      identifier,
+      title,
+      citation,
+      ...(provider === "journal" && citation && { authority: citation }),
+      ...common,
+    }];
+  });
 }

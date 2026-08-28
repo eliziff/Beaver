@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createTnaEvidence,
   createLibraryEvidence,
+  createPublicJournalPassageEvidence,
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
   GROUNDED_QUOTATION_POLICY,
@@ -20,7 +21,10 @@ import {
   selectGroundedQuotationPolicy,
   submitLegalEvidenceAnswer,
 } from "../legalEvidence";
-import { createLegalEvidenceCitations } from "../citations";
+import {
+  createLegalEvidenceCitations,
+  createLegalSourceSearchCitations,
+} from "../citations";
 import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { structureNative } from "../../structureNative";
@@ -369,11 +373,62 @@ describe("production legal evidence", () => {
     }] }, state);
 
     const rendered = renderLegalEvidenceAnswer(state)!;
-    expect(rendered).toBe("The court allowed the appeal. [1][2]");
+    expect(rendered).toBe("The court allowed the appeal. [1]");
     expect(rendered).not.toContain("http");
-    expect(rendered.match(/\[\d+\]/gu)).toHaveLength(
-      createLegalEvidenceCitations(state).length,
-    );
+    expect(createLegalEvidenceCitations(state)).toEqual([
+      expect.objectContaining({
+        pinpoint: "paras 12–13",
+        quotes: [{ quote: "The appeal is allowed." }, { quote: "The appeal is allowed." }],
+      }),
+    ]);
+  });
+
+  it("collapses journal page receipts into one canonical citation range", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const citation = "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36";
+    const evidence = [60, 61, 62, 63].map((page) =>
+      createPublicJournalPassageEvidence({
+        citation,
+        name: "Problems Involved in the Assignment of Patents and Patent Rights",
+        date: "1966",
+        url: "https://example.test/article",
+        text: `Passage on page ${page}.`,
+        articleId: "ottawa-lr-1966-1-1-36",
+        locatorKind: "page",
+        locatorLabel: `page${page}`,
+      }));
+    evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "The article discusses assignments.",
+      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+    }] }, state);
+
+    expect(createLegalEvidenceCitations(state)).toEqual([
+      expect.objectContaining({
+        authority: citation,
+        locator: "60–63",
+        pinpoint: "60–63",
+        quotes: expect.arrayContaining(evidence.map(({ span_text }) => ({ quote: span_text }))),
+      }),
+    ]);
+  });
+
+  it("projects searched case names through the ordinary citation model", () => {
+    expect(createLegalSourceSearchCitations([{
+      provider: "a2aj",
+      source_type: "case",
+      identifier: "2020 BCSC 1",
+      title: "Example v Example",
+      citation: "2020 BCSC 1",
+      collection: "BCSC",
+      url: "https://example.test/case",
+    }])).toEqual([expect.objectContaining({
+      kind: "a2aj",
+      source_class: "case",
+      name: "Example v Example",
+      citation: "2020 BCSC 1",
+      quotes: [],
+    })]);
   });
 
   it("rejects an unstructured legal draft", () => {

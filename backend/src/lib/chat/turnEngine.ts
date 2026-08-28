@@ -25,7 +25,10 @@ import {
   type BeaverTool,
 } from "./toolRegistry";
 import { normalizeAskInputsEvent } from "./askInputs";
-import { createLegalEvidenceCitations } from "./citations";
+import {
+  createLegalEvidenceCitations,
+  createLegalEvidenceCitationsFromEntries,
+} from "./citations";
 import {
   GROUNDED_LEGAL_REPAIR_INSTRUCTION,
   UNVERIFIED_LEGAL_ANSWER,
@@ -60,7 +63,6 @@ import {
   readSubagentAssignment,
   readSubagentInstruction,
   readSubagentResumePrompt,
-  receiptSource,
   runReadSubagentRound,
   type ReadSubagentAssignment,
   type ReadSubagentCheckpoint,
@@ -435,8 +437,9 @@ export async function runChatTurn(options: {
         status: "completed",
         output: child.fullText,
         activities: [...activities.values()],
-        sources: legalEvidenceCitationEntries(child.evidence)
-          .map(({ receipt, ref }) => receiptSource(receipt, ref)),
+        citations: createLegalEvidenceCitationsFromEntries(
+          legalEvidenceCitationEntries(child.evidence),
+        ),
         grounding,
       });
       return {
@@ -542,12 +545,19 @@ export async function runChatTurn(options: {
     for (const [resultIndex, result] of batch.results.entries()) {
       const activity = toolActivities.get(result.tool_use_id);
       if (activity?.status === "running") {
-        const sources = batch.outcomes[resultIndex].evidence?.flatMap((receipt, index) =>
-          receipt.span_text ? [receiptSource(receipt, index + 1)] : []) ?? [];
+        const outcome = batch.outcomes[resultIndex];
+        const entries = outcome.evidence?.flatMap((receipt) => {
+          const registered = evidence.evidence.get(receipt.evidence_id);
+          return receipt.span_text ? [registered ?? { receipt }] : [];
+        }) ?? [];
+        const citations = [
+          ...createLegalEvidenceCitationsFromEntries(entries),
+          ...(outcome.activityCitations ?? []),
+        ].map((citation, index) => ({ ...citation, ref: index + 1 }));
         emitToolActivity({
           ...activity,
           status: result.status === "error" ? "error" : "completed",
-          ...(sources.length && { sources }),
+          ...(citations.length && { citations }),
         });
       }
     }
