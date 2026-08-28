@@ -53,7 +53,7 @@ function fixture() {
       status: "deleted",
       currentVersionId: "v1",
     }),
-    resolveEdit: vi.fn().mockResolvedValue({
+    resolveEdits: vi.fn().mockResolvedValue({
       status: "resolved",
       editStatus: "accepted",
       versionId: "v1",
@@ -195,15 +195,19 @@ describe("canonical document routes", () => {
 
   it("keeps tracked-edit conflicts and successes on one response contract", async () => {
     const { app, documents } = fixture();
-    expect((await request(app).post("/single-documents/d1/edits/e1/accept"))
+    expect((await request(app).post("/single-documents/d1/edits/accept")
+      .send({ edit_ids: ["e1", "e2"] }))
       .body).toMatchObject({ status: "accepted", version_id: "v1" });
-    vi.mocked(documents.resolveEdit).mockResolvedValueOnce({
+    expect(documents.resolveEdits).toHaveBeenCalledWith(
+      expect.anything(), "d1", ["e1", "e2"], "accept",
+    );
+    vi.mocked(documents.resolveEdits).mockResolvedValueOnce({
       status: "conflict",
       editStatus: "rejected",
     });
     const conflict = await request(app).post(
-      "/single-documents/d1/edits/e1/accept",
-    );
+      "/single-documents/d1/edits/accept",
+    ).send({ edit_ids: ["e1"] });
     expect(conflict.status).toBe(409);
     expect(conflict.body.detail).toBe("Tracked edit is already rejected");
   });

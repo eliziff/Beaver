@@ -104,7 +104,7 @@ describe("reader boundary", () => {
       status: "completed" as const,
     }];
     const events = [{
-      type: "subagent_run", id: saved.id, status: "running", activities, resume: saved,
+      type: "subagent_run", id: saved.id, status: "error", activities, resume: saved,
     }];
     expect(resumableReadSubagents(events).get(saved.id)).toEqual({
       ...saved,

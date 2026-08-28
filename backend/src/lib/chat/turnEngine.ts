@@ -455,32 +455,37 @@ export async function runChatTurn(options: {
     } catch (error) {
       const interrupted = Boolean(signal?.aborted) || isAbortError(error);
       const status = interrupted ? "interrupted" as const : "error" as const;
+      const saved = checkpoint();
+      const errorMessage = safeErrorMessage(error, "Reading agent failed");
+      if (saved) resumableReaders.set(id, saved);
       for (const [key, activity] of activities) {
         if (activity.status === "running") activities.set(key, { ...activity, status });
       }
       publish({
         ...base,
         status,
-        error: safeErrorMessage(error, "Reading agent failed"),
+        error: errorMessage,
+        publicError: /ground(?:ed|ing)/iu.test(errorMessage)
+          ? "Grounding verification failed; this reading agent can be resumed."
+          : "Reading agent failed; this reading agent can be resumed.",
         activities: [...activities.values()],
-        ...(checkpoint() ? { resume: checkpoint() } : {}),
+        ...(saved && { resume: saved }),
       });
       return {
         tool_use_id: call.id,
         status: "error",
         content: JSON.stringify({
           ok: false,
-          error: safeErrorMessage(error, "Reading agent failed"),
-          ...(interrupted && { interrupted: true, ...(continuationId && { resume_id: id }) }),
+          error: errorMessage,
+          ...(interrupted && { interrupted: true }),
+          ...(saved && { resume_id: id }),
         }),
       };
     }
   };
   const readerSchemas = [
     ...(subagentMode === "beaver" ? [READ_SUBAGENT_TOOL] : []),
-    ...(subagentMode === "beaver" && resumableReaders.size
-      ? [RESUME_SUBAGENT_TOOL]
-      : []),
+    ...(subagentMode === "beaver" ? [RESUME_SUBAGENT_TOOL] : []),
   ];
   const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
     ...schema,

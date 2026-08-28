@@ -184,6 +184,7 @@ describe("visibleChatMessages", () => {
           grounding: { type: "legal_evidence_receipt" },
           resume: { continuation_id: "private-continuation" },
           error: "private failure detail",
+          publicError: "Grounding verification failed; this reading agent can be resumed.",
         },
         { type: "local_turn_completed", schema_version: 1 },
       ], { turn_id: turnId }),
@@ -201,6 +202,7 @@ describe("visibleChatMessages", () => {
       {
         type: "subagent_run", id: "reader-1", task: "Read",
         status: "completed",
+        error: "Grounding verification failed; this reading agent can be resumed.",
       },
     ]);
   });

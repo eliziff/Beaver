@@ -21,7 +21,7 @@ const completedPanel = {
                 citation: "2020 BCSC 1",
                 name: "Example v. Example",
                 dataset: "BCSC",
-                url: null,
+                url: "https://www.canlii.org/example#par12",
                 locator_kind: "paragraph" as const,
                 locator: "12",
                 pinpoint: "para 12",
@@ -41,7 +41,7 @@ const runningPanel = {
     })),
 };
 
-it("opens the exact source metadata attached by the backend", async () => {
+it("opens agent citations externally in a new tab", async () => {
     const onCitationClick = vi.fn();
     render(
         <ReadSubagentDock
@@ -55,12 +55,12 @@ it("opens the exact source metadata attached by the backend", async () => {
     expect(screen.getByRole("button", {
         name: "Activity — Reading Example v. Example, 2020 BCSC 1",
     })).toBeVisible();
-    await userEvent.click(screen.getByRole("button", {
+    const citation = screen.getByRole("link", {
         name: "Example v. Example, 2020 BCSC 1 at para 12",
-    }));
-    expect(onCitationClick).toHaveBeenCalledWith(
-        expect.objectContaining({ citation: "2020 BCSC 1" }),
-    );
+    });
+    expect(citation).toHaveAttribute("href", "https://www.canlii.org/example#par12");
+    expect(citation).toHaveAttribute("target", "_blank");
+    expect(onCitationClick).not.toHaveBeenCalled();
 });
 
 it("shows live reading activity", async () => {

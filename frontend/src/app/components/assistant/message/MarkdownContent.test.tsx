@@ -113,6 +113,8 @@ describe("MarkdownContent links", () => {
         ]);
 
         const pill = document.querySelector('[data-citation-ref="1"]');
+        expect(pill).toHaveAttribute("href", "https://example.test/article.pdf#page=2");
+        expect(pill).toHaveAttribute("target", "_blank");
         expect(pill).toHaveTextContent(
             "Ada Example, “A Fixture Article” (2026) 1:2 Fixture LJ 100 at 101",
         );
