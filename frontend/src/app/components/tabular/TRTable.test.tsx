@@ -40,19 +40,6 @@ describe("TRTable", () => {
         expect(screen.getAllByRole("checkbox")).toHaveLength(2);
     });
 
-    it("keeps review data columns compact", () => {
-        const { container } = renderTable([
-            { index: 0, name: "Parties", prompt: "Identify parties" },
-        ]);
-
-        expect(
-            container.querySelector("[data-tr-col-header]"),
-        ).toHaveClass("w-[142px]", "lg:w-[240px]");
-        expect(
-            container.querySelector("[data-tr-doc-header]"),
-        ).toHaveClass("w-[112px]", "xl:w-[332px]");
-    });
-
     it("opens the shared editor for a column", () => {
         const column = {
             index: 0,

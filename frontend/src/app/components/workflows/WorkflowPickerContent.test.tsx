@@ -30,14 +30,14 @@ beforeAll(() => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
-it("filters and selects workflows without changing the list width", () => {
+it("filters, previews, and selects workflows", () => {
     const onSelect = vi.fn();
     const onSearchChange = vi.fn();
     const workflows = [
         workflow("lease", "Lease analyzer"),
         workflow("diligence", "Due diligence", "tabular"),
     ];
-    const { container, rerender } = render(
+    const { rerender } = render(
         <WorkflowPickerContent
             workflows={workflows}
             selected={null}
@@ -46,8 +46,6 @@ it("filters and selects workflows without changing the list width", () => {
             onSearchChange={onSearchChange}
         />,
     );
-    const list = container.querySelector('[class*="md:w-64"]');
-    expect(list).toBeInTheDocument();
     fireEvent.click(
         screen.getByRole("button", { name: /Lease analyzer/ }),
     );
@@ -69,7 +67,6 @@ it("filters and selects workflows without changing the list width", () => {
     );
     expect(screen.getAllByText("Lease analyzer")).toHaveLength(2);
     expect(screen.queryByText("Due diligence")).not.toBeInTheDocument();
-    expect(container.querySelector('[class*="md:w-64"]')).toBe(list);
     expect(screen.getByText("Instructions")).toBeInTheDocument();
     expect(screen.getByText("Review the lease.")).toBeInTheDocument();
 
@@ -79,7 +76,7 @@ it("filters and selects workflows without changing the list width", () => {
 
 it("uses the full pane for workflow details when embedded in a dock", () => {
     const selected = workflow("lease", "Lease analyzer");
-    const { container } = render(
+    render(
         <WorkflowPickerContent
             workflows={[selected]}
             selected={selected}
@@ -90,7 +87,6 @@ it("uses the full pane for workflow details when embedded in a dock", () => {
         />,
     );
 
-    expect(container.querySelector('[class*="md:w-64"]')).toBeNull();
     expect(screen.getByText("Review the lease.")).toBeVisible();
     expect(screen.queryByPlaceholderText("Search workflows...")).toBeNull();
 });

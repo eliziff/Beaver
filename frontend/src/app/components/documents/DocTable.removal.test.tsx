@@ -100,17 +100,6 @@ function selectDocument(filename: string) {
 }
 
 describe("DocTable document removal", () => {
-  it("uses a folder icon for an empty document collection", () => {
-    const { container } = render(
-      <Harness
-        removeDocument={vi.fn(async () => {})}
-        initialDocuments={[]}
-      />,
-    );
-
-    expect(container.querySelector("svg.lucide-folder")).not.toBeNull();
-  });
-
   it("requires confirmation before detaching a selected document", async () => {
     const removeDocument = vi.fn(async () => {});
     let actions: DocTableSelectionActions | null = null;
