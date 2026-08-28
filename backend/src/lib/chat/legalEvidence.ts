@@ -18,7 +18,7 @@ import {
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
 import { jsonRecord as object } from "../value";
-import { provisionRoot, renderSectionSpan } from "../provisionLabels";
+import { collapseProvisionLabels } from "../provisionLabels";
 
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
@@ -801,34 +801,48 @@ type CitationEntry = RegisteredEvidence & { ref: number };
 export type LegalEvidenceCitationGroup = {
   ref: number;
   members: CitationEntry[];
-  collapsedLabel?: string;
+  locatorLabels: string[];
 };
+
+function citationSourceKey({ receipt }: RegisteredEvidence) {
+  if (receipt.provider === "library") {
+    return [receipt.provider, receipt.stable_source_id, receipt.version].join("\u0000");
+  }
+  if (receipt.tabular) {
+    return ["tabular", receipt.tabular.review_id, receipt.tabular.col_index,
+      receipt.tabular.row_index].join("\u0000");
+  }
+  return [receipt.provider, receipt.citation, receipt.name, receipt.dataset,
+    receipt.source_class].join("\u0000");
+}
+
+export function legalEvidenceCitationGroupsFromEntries(
+  entries: readonly RegisteredEvidence[],
+): LegalEvidenceCitationGroup[] {
+  const groups: LegalEvidenceCitationGroup[] = [];
+  const grouped = new Map<string, LegalEvidenceCitationGroup>();
+  for (const raw of entries) {
+    const key = `${citationSourceKey(raw)}\u0000${raw.receipt.locator.kind}`;
+    let group = grouped.get(key);
+    if (!group) {
+      group = { ref: groups.length + 1, members: [], locatorLabels: [] };
+      grouped.set(key, group);
+      groups.push(group);
+    }
+    group.members.push({ ...raw, ref: group.ref });
+  }
+  for (const group of groups) {
+    const { kind } = group.members[0].receipt.locator;
+    const labels = group.members.map(({ receipt }) => receipt.locator.label);
+    group.locatorLabels = collapseProvisionLabels(labels, kind) ?? [...new Set(labels)];
+  }
+  return groups;
+}
 
 export function legalEvidenceCitationGroups(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceCitationGroup[] {
-  const groups: LegalEvidenceCitationGroup[] = [];
-  for (const entry of legalEvidenceCitationEntries(state)) {
-    const previous = groups.at(-1);
-    const joined = previous && entry.receipt.provider === "a2aj" &&
-        previous.members[0].receipt.provider === "a2aj" &&
-        entry.receipt.citation === previous.members[0].receipt.citation &&
-        entry.receipt.dataset === previous.members[0].receipt.dataset &&
-        entry.receipt.locator.kind === "section" &&
-        previous.members[0].receipt.locator.kind === "section" &&
-        provisionRoot(entry.receipt.locator.label) ===
-          provisionRoot(previous.members[0].receipt.locator.label)
-      ? renderSectionSpan([...previous.members.map(({ receipt }) => receipt.locator.label),
-          entry.receipt.locator.label])
-      : null;
-    if (previous && joined) {
-      previous.members.push(entry);
-      previous.collapsedLabel = joined;
-    } else {
-      groups.push({ ref: groups.length + 1, members: [entry] });
-    }
-  }
-  return groups;
+  return legalEvidenceCitationGroupsFromEntries(legalEvidenceCitationEntries(state));
 }
 
 export function legalEvidenceCitationEntries(

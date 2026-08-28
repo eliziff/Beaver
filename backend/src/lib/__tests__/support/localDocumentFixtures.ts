@@ -1,7 +1,8 @@
 import { createDocumentApplication } from "../../documentApplication";
 import type { DocumentProvenance } from "../../documentStore";
-import { documentRepository, libraryRepository,
-  projectRepository } from "../../relationalRepositories";
+import { documentRepository } from "../../relationalDocumentRepository";
+import { libraryRepository } from "../../relationalLibraryRepository";
+import { projectRepository } from "../../relationalProjectRepository";
 import { filesystemDocumentObjects } from "../../filesystemObjectStorage";
 import { createLibraryStore } from "../../libraryStore";
 import { createProjectStore } from "../../projectStore";

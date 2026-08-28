@@ -49,7 +49,6 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
     normalizeLegalSourceLocator,
-    LegalSourceViewer,
 } from "@/app/components/legal/LegalSourceViewer";
 import { LegalLibraryPage } from "@/app/components/legal/LegalLibrary";
 import {
@@ -59,7 +58,6 @@ import {
 import type { LibraryKind } from "@/app/lib/beaverApi";
 import {
     type ReadSubagentPanel,
-    type ReadSubagentSource,
 } from "./ReadSubagentDock";
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
@@ -216,10 +214,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     }, []);
     const [activeDockTab, setActiveDockTab] = useState("sources");
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
-    const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
-    const [agentInspectorTab, setAgentInspectorTab] = useState<
-        Extract<AssistantSidePanelTab, { kind: "legal" }> | null
-    >(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowInitialId, setWorkflowInitialId] = useState<string>();
     const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
@@ -554,44 +548,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             ],
         });
     };
-    const openReadSubagentSource = (source: ReadSubagentSource) => {
-        const initialLocator =
-            normalizeLegalSourceLocator(source.locator) ??
-            legalSourceLocatorFromUrl(source.url);
-        const openSourceTab = (
-            tab: Extract<AssistantSidePanelTab, { kind: "legal" }>,
-        ) => {
-            const inspectBesideAgent = activeDockTab === "agents";
-            if (inspectBesideAgent) {
-                setAgentInspectorTab(tab);
-                setAgentInspectorOpen(true);
-                setDockExpanded(true);
-                return;
-            }
-            upsertTab(tab);
-        };
-        if (
-            source.citation &&
-            (source.provider === "a2aj" ||
-                source.provider === "citator" ||
-                source.jurisdiction.toLocaleUpperCase().startsWith("CA"))
-        ) {
-            openSourceTab({
-                kind: "legal",
-                id: `legal:${source.dataset}:${source.citation}`,
-                citation: source.citation,
-                name: source.name,
-                dataset: source.dataset || null,
-                docType: "cases",
-                language: "en",
-                quotes: source.quote ? [{ quote: source.quote }] : undefined,
-                initialLocator,
-            });
-            return;
-        }
-        const href = safeAssistantUrl(source.url, { relative: false });
-        if (href) window.open(href, "_blank", "noopener,noreferrer");
-    };
     const readSubagentPanelIds =
         readSubagentPanelState.key === readSubagentPanelStorageKey
             ? readSubagentPanelState.ids
@@ -717,16 +673,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     ) : activeDockTab === "sources" ? (
         <LegalLibraryPage embedded />
     ) : null;
-    const agentInspectorContent = agentInspectorTab
-        ? <LegalSourceViewer {...agentInspectorTab} compact />
-        : null;
     const closeAgentGroup = (slot: string) => {
         for (const panel of groupedAgents.get(slot) ?? []) {
             closeReadSubagentPanel(panel.id);
         }
         const remaining = agentGroups.find((group) => group.id !== slot);
         setActiveAgentSlot(remaining?.id ?? null);
-        if (!remaining) setAgentInspectorOpen(false);
     };
     const dockTabs: AssistantDockTab[] = [
         {
@@ -786,7 +738,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     activeId={activeAgentSlot}
                     onActivate={setActiveAgentSlot}
                     onClose={closeAgentGroup}
-                    onSourceClick={openReadSubagentSource}
+                    onCitationClick={openCitation}
                 />
             ),
         },
@@ -871,9 +823,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                                           if (reader) openReadSubagentPanel(reader);
                                                       }
                                                     : undefined
-                                            }
-                                            onSubagentSourceClick={
-                                                openReadSubagentSource
                                             }
                                             minHeight={
                                                 msg.turnStatus
@@ -1003,20 +952,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 <AssistantDock
                     tabs={dockTabs}
                     activeTabId={resolvedDockTab}
-                    onActivateTab={(id) => {
-                        setActiveDockTab(id);
-                        if (id !== "agents") setAgentInspectorOpen(false);
-                    }}
+                    onActivateTab={setActiveDockTab}
                     expanded={dockOpen}
                     onExpandedChange={setDockExpanded}
-                    inspectorContent={agentInspectorContent}
-                    inspectorOpen={
-                        resolvedDockTab === "agents" && agentInspectorOpen
-                    }
-                    onCloseInspector={() => {
-                        setAgentInspectorOpen(false);
-                        setAgentInspectorTab(null);
-                    }}
                 />
             )}
             <WarningPopup

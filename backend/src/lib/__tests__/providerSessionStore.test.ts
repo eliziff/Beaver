@@ -17,7 +17,7 @@ async function closeDatabase() {
 async function loadStores() {
   const [sessions, { createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
     import("../providerSessionStore"),
-    import("../chatStore"), import("../relationalRepositories"), import("../chatTitle"),
+    import("../chatStore"), import("../relationalChatRepository"), import("../chatTitle"),
   ]);
   return [
     sessions,

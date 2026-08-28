@@ -115,17 +115,6 @@ export type AutomationRunEvent = {
   job_id?: string;
   version_number?: number | null;
 };
-export type ToolActivitySource = {
-  ref?: number;
-  provider: string;
-  jurisdiction: string;
-  citation: string;
-  name: string | null;
-  dataset: string;
-  url: string | null;
-  locator?: string;
-  quote?: string;
-};
 export type AskInputsEvent = {
   type: "ask_inputs";
   items: (

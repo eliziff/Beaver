@@ -17,7 +17,10 @@ function activityLocatorLabel(label: string, kind?: string) {
     .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
     .replace(/^[a-z]+=/iu, "").trim();
   const prefix = kind === "paragraph" ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
-    : kind === "section" ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu : null;
+    : kind === "section" ? /^(?:sections?|secs?|ss?|s)\.?\s*/iu
+      : kind === "page" ? /^(?:pages?|pp?)\.?[\s._=-]*/iu
+        : kind === "footnote" ? /^(?:footnotes?|notes?|nn?|fn)\.?[\s._=-]*/iu
+          : null;
   return prefix
     ? value.replace(prefix, "")
       .replace(new RegExp(`([–—-])${prefix.source.slice(1)}`, "giu"), "$1")
@@ -35,7 +38,12 @@ export function assistantToolActivityLabel(
   args: Record<string, unknown>,
   sourceName?: string,
 ): string | null | undefined {
-  if (name === "load_tools") return "Loading tools";
+  if (name === "load_tools") {
+    const names = Array.isArray(args.names)
+      ? args.names.filter((value): value is string => typeof value === "string").slice(0, 3)
+      : [];
+    return names.length ? `Loading ${names.join(", ")}` : "Loading requested tools";
+  }
   if (name === "Glob") return null;
   if (name === "Grep") {
     const query = activityText(args.pattern, 80);
@@ -71,15 +79,7 @@ export function assistantToolActivityLabel(
       title ??= file.replace(/^.*[\\/]/u, "");
     }
     const pattern = activityText(args.pattern, 80);
-    const contextChars = Number.isInteger(args.context_chars) && Number(args.context_chars) > 0
-      ? Number(args.context_chars) : 0;
-    if (pattern) return `Searching ${title} for “${pattern}”${contextChars
-      ? ` with up to ${contextChars} characters of adjacent context` : ""}`;
-    const contextBlocks = Number.isInteger(args.context_blocks) && Number(args.context_blocks) > 0
-      ? Number(args.context_blocks) : 0;
-    const context = contextBlocks
-      ? ` with ${contextBlocks} adjacent context block${contextBlocks === 1 ? "" : "s"}`
-      : "";
+    if (pattern) return `Searching ${title} for “${pattern}”`;
     const kind = activityText(args.locator_kind, 24);
     const locator = activityText(args.locator, 80);
     const end = activityText(args.end_locator, 80);
@@ -87,15 +87,15 @@ export function assistantToolActivityLabel(
       const first = activityLocatorLabel(locator, kind);
       const last = end ? activityLocatorLabel(end, kind) : undefined;
       const plural = Boolean(last && last !== first);
-      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}${context}`;
+      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
-    if (page) return `Reading page ${page} of ${title}${context}`;
+    if (page) return `Reading page ${page} of ${title}`;
     const section = activityText(args.section, 100);
-    if (section) return `Reading section ${section} of ${title}${context}`;
+    if (section) return `Reading section ${section} of ${title}`;
     const handle = activityText(args.handle, 80);
-    if (handle) return `Reading a saved passage of ${title}${context}`;
+    if (handle) return `Reading a saved passage of ${title}`;
     const offset = Number.isInteger(args.offset) && Number(args.offset) > 0
       ? Number(args.offset) : 0;
     const limit = Number.isInteger(args.limit) && Number(args.limit) > 0
@@ -156,7 +156,7 @@ export function assistantToolActivityLabel(
     return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
   }
   if (name === "Edit") return "Editing the selected document";
-  if (name === "submit_grounded_answer") return "Grounding findings";
+  if (name === "submit_grounded_answer") return "Verifying cited findings";
   return undefined;
 }
 
@@ -170,21 +170,18 @@ export function assistantReadEvidenceActivityLabel(
   const last = passages.at(-1);
   if (!first || !last) return null;
   const title = sourceName ?? first.name ?? first.citation;
+  const pattern = activityText(args.pattern, 80);
+  if (pattern) return `Searching ${title} for “${pattern}”`;
   const labels = [...new Set(passages.map(({ locator }) =>
     activityLocatorLabel(locator.label, locator.kind)))];
   const firstLabel = activityText(labels[0], 80);
   const lastLabel = activityText(labels.at(-1), 80);
-  const contextBlocks = Number.isInteger(args.context_blocks) && Number(args.context_blocks) > 0
-    ? Number(args.context_blocks) : 0;
-  const context = contextBlocks
-    ? ` with ${contextBlocks} adjacent context block${contextBlocks === 1 ? "" : "s"}`
-    : "";
-  if (!firstLabel || !lastLabel) return `Reading ${title}${context}`;
+  if (!firstLabel || !lastLabel) return `Reading ${title}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}${context}`;
+    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}`;
   }
   const groups = collapseProvisionLabels(labels, first.locator.kind);
   const scope = groups ?? labels;
   const plural = scope.length > 1 || /[–—-]/u.test(scope[0]);
-  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}${context}`;
+  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}`;
 }

@@ -6,7 +6,6 @@ import {
     type EditAnnotation,
     type EditResolveHandlers,
     type EditResolved,
-    type ToolActivitySource,
 } from "../shared/types";
 import type {
     AssistantArtifact,
@@ -31,7 +30,6 @@ interface Props {
     showCopyAction?: boolean;
     onAutomationClick?: (run: AutomationRunEvent) => void;
     onReaderClick?: (readerId: string) => void;
-    onSubagentSourceClick?: (source: ToolActivitySource) => void;
     minHeight?: string;
     onEditViewClick?: (ann: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: (args: {
@@ -56,7 +54,6 @@ export function AssistantMessage({
     showCopyAction = true,
     onAutomationClick,
     onReaderClick,
-    onSubagentSourceClick,
     minHeight = "0px",
     onEditViewClick,
     onOpenDocument,
@@ -265,7 +262,7 @@ export function AssistantMessage({
                                         key={activity.id}
                                         activity={activity}
                                         onClick={activityClick(activity)}
-                                        onSourceClick={onSubagentSourceClick}
+                                        onCitationClick={onCitationClick}
                                     />
                                 ))}
                             </ActivityDisclosure>

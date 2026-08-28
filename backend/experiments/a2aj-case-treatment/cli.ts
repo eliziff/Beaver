@@ -1337,7 +1337,7 @@ async function runInference(flags: Flags) {
       const material = loaded.material;
       releaseMaterial = loaded.release;
       const caseCheckpointDir = path.join(checkpointDir, String(documentId));
-      const call = (stage: string, schema: Record<string, unknown>) => (prompt: string, continuationId: string | undefined, attempt: number, responseSchema = schema) => {
+      const call = (stage: string) => (prompt: string, continuationId: string | undefined, attempt: number, responseSchema?: Record<string, unknown>) => {
         reserveCall(route);
         return modelCall({
           prompt, schema: responseSchema, model, effort, max_output_tokens: maxOutputTokens,
@@ -1358,7 +1358,7 @@ async function runInference(flags: Flags) {
           compile: (value) => compileSubmission(value, material),
           max_corrections: maxCorrections,
           stateless_corrections: Boolean(oxRoute),
-          model_call: call("one_stage", schema),
+          model_call: call("one_stage"),
           checkpoint_file: path.join(caseCheckpointDir, "one-stage.json"),
         });
         submission = result.value;
@@ -1373,7 +1373,7 @@ async function runInference(flags: Flags) {
           compile: (value) => compileStructure(value, material),
           max_corrections: maxCorrections,
           stateless_corrections: Boolean(oxRoute),
-          model_call: call("structure", structureSchema),
+          model_call: call("structure"),
           checkpoint_file: path.join(caseCheckpointDir, "structure.json"),
         });
         stageAttempts = { structure: structureResult.attempts };
@@ -1389,7 +1389,7 @@ async function runInference(flags: Flags) {
               compile: (value) => compileAuthorityInventory(value, material),
               max_corrections: maxCorrections,
               stateless_corrections: Boolean(oxRoute),
-              model_call: call("authority_inventory", inventorySchema),
+              model_call: call("authority_inventory"),
               checkpoint_file: path.join(caseCheckpointDir, "authorities.json"),
             });
             stageAttempts = { ...stageAttempts, authority_inventory: inventoryResult.attempts };
@@ -1404,7 +1404,7 @@ async function runInference(flags: Flags) {
               compile: (value) => compileAnalysis(value, structureResult.value!, structureResult.compilation!.compiled!, material),
               max_corrections: maxCorrections,
               stateless_corrections: Boolean(oxRoute),
-              model_call: call("analysis", analysisSchema),
+              model_call: call("analysis"),
               checkpoint_file: path.join(caseCheckpointDir, "analysis.json"),
             });
             stageAttempts = { ...stageAttempts, analysis: analysisResult.attempts };

@@ -1,5 +1,6 @@
 import type { Tool } from "../../llm";
 import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
+import type { BeaverToolPolicy } from "../toolRegistry";
 
 const object = (
   properties: Record<string, object>,
@@ -10,17 +11,6 @@ const object = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
-
-export const TABULAR_TOOLS: Tool[] = [{
-  name: "read_table_cells",
-  annotations: { readOnlyHint: true },
-  description:
-    "Read extracted cells from the tabular review. Pass zero-based column or row indices for a subset; omit either to read all.",
-  inputSchema: object({
-    col_indices: { type: "array", items: { type: "integer" } },
-    row_indices: { type: "array", items: { type: "integer" } },
-  }),
-}];
 
 export const ASK_INPUTS_TOOL: Tool = {
   name: "ask_inputs",
@@ -52,8 +42,9 @@ export const ASK_INPUTS_TOOL: Tool = {
   }, ["items"]),
 };
 
-export const WRITE_TOOL: Tool = {
+export const WRITE_TOOL: Tool & BeaverToolPolicy = {
   name: "Write",
+  sequential: true,
   annotations: { readOnlyHint: false, destructiveHint: false },
   description:
     "Create one durable .docx, .xlsx, or .pptx artifact from concise semantic markup. The filename extension selects the deterministic renderer; returns an artifact handle, not the document body.",
@@ -125,8 +116,10 @@ const ADVANCED_OPS = [
   "nonbreaking_section_refs", "remove_trailing_whitespace",
 ];
 
-export const ADVANCED_DOCX_EDIT_TOOL: Tool = {
+export const ADVANCED_DOCX_EDIT_TOOL: Tool & BeaverToolPolicy = {
   name: "edit_docx_advanced",
+  specialist: true,
+  sequential: true,
   annotations: { readOnlyHint: false, destructiveHint: false },
   description:
     "Apply deterministic structural or mechanical DOCX operations as tracked changes. Load only when ordinary exact-text Edit is insufficient.",

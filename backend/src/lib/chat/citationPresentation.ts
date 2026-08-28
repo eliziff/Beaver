@@ -1,9 +1,5 @@
-import {
-  buildA2AJDocumentPinpointUrl,
-  buildA2AJParagraphRangeUrl,
-  buildLegalSourcePinpointUrl,
-  legalSourceLocatorAnchor,
-} from "../legalSourceLinks";
+import { buildA2AJDocumentPinpointUrl, buildA2AJParagraphRangeUrl,
+  buildLegalSourcePinpointUrl, legalSourceLocatorAnchor } from "../legalSourceLinks";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { plainInlineText } from "../legalSourcePresentation";
 import type { RegisteredEvidence } from "./legalEvidence";
@@ -11,31 +7,42 @@ import type { RegisteredEvidence } from "./legalEvidence";
 export type CitationPresentation = {
   authority: string;
   shortAuthority: string;
-  locator: { separator: " at " | ", "; text: string } | null;
+  locator: { separator: " at " | ", "; text: string; label: string } | null;
   sourceUrl: string | null;
   passageUrl: string | null;
 };
 
-function receiptLocator(entry: RegisteredEvidence): CitationPresentation["locator"] {
-  const { kind, label } = entry.receipt.locator;
-  if (kind === "document") return null;
-  const value = label
+function locatorValue(label: string) {
+  return label
     .trim()
     .replace(/^(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/iu, "")
     .replace(/\s*[-\u2013\u2014]\s*/gu, "\u2013")
     .replace(/\u2013(?:paragraph|para|par|section|sec|s|page|p|footnote|note|fn)[\s._=-]*/giu, "\u2013");
-  const range = value.includes("\u2013");
+}
+
+function presentLegalEvidenceLocator(
+  kind: RegisteredEvidence["receipt"]["locator"]["kind"],
+  labels: readonly string[],
+): CitationPresentation["locator"] {
+  if (kind === "document") return null;
+  const values = [...new Set(labels.map(locatorValue).filter(Boolean))];
+  if (!values.length) return null;
+  const value = values.join(", ");
+  const plural = values.length > 1 || value.includes("\u2013");
+  const pluralProvision = plural && !(kind === "section" && /\u2013\(/u.test(value));
   return {
     separator: kind === "section" ? ", " : " at ",
+    label: value,
     text: kind === "page"
       ? value
-      : `${kind === "paragraph" ? range ? "paras" : "para" : kind === "section" ? range ? "ss" : "s" : range ? "nn" : "n"} ${value}`,
+      : `${kind === "paragraph" ? plural ? "paras" : "para" : kind === "section" ? pluralProvision ? "ss" : "s" : plural ? "nn" : "n"} ${value}`,
   };
 }
 
 export function presentLegalEvidence(
   entry: RegisteredEvidence,
   quotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
+  locatorLabels: readonly string[] = [entry.receipt.locator.label],
 ): CitationPresentation {
   const { receipt, document } = entry;
   const source = entry.source ?? document?.native ?? null;
@@ -108,7 +115,7 @@ export function presentLegalEvidence(
   return {
     authority: plainInlineText(authority),
     shortAuthority: plainInlineText(name || citation || "Source"),
-    locator: receiptLocator(entry),
+    locator: presentLegalEvidenceLocator(receipt.locator.kind, locatorLabels),
     sourceUrl: citationUrl,
     passageUrl,
   };

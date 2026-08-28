@@ -1,17 +1,14 @@
 import {
-    Children,
     createElement,
-    isValidElement,
     type ComponentProps,
     type ElementType,
-    type ReactNode,
     type RefObject,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
 import { safeAssistantUrl } from "@/app/lib/assistantSession";
-import type { Citation, ToolActivitySource } from "../../shared/types";
+import type { Citation } from "../../shared/types";
 import { withoutMarkdownNode } from "./messageStyles";
 import {
     citationPillParts,
@@ -32,38 +29,76 @@ const LEGAL_CITATION_PILL =
 const PLAIN_LINK =
     "text-red-300 underline decoration-red-500/70 underline-offset-2 hover:text-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
 
-function nodeText(value: ReactNode): string {
-    return Children.toArray(value)
-        .map((child) =>
-            typeof child === "string" || typeof child === "number"
-                ? String(child)
-                : isValidElement<{ children?: ReactNode }>(child)
-                  ? nodeText(child.props.children)
-                  : "",
-        )
-        .join("");
-}
-
 const ASSISTANT_SOURCE = "/__beaver_source/";
-function sourceCitations(text: string, sources: ToolActivitySource[]) {
+function sourceCitations(text: string, citations: Citation[]) {
     return text.replace(/(?<!\\)\[(\d+)\](?!\()/gu, (marker, raw: string) => {
         const ref = Number(raw);
-        const source = sources.find((candidate) => candidate.ref === ref);
-        if (!source) return marker;
-        const label = [source.citation, source.locator].filter(Boolean).join(", ")
-            .replace(/([\\[\]])/gu, "\\$1");
-        return `[${label}](${ASSISTANT_SOURCE}${ref})`;
+        return citations.some((candidate) => candidate.ref === ref)
+            ? `[source ${ref}](${ASSISTANT_SOURCE}${ref})`
+            : marker;
     });
+}
+
+export function CitationPill({
+    citation,
+    onClick,
+    className = "",
+    title,
+}: {
+    citation: Citation;
+    onClick?: (citation: Citation) => void;
+    className?: string;
+    title?: string;
+}) {
+    const label = citationPillParts(citation);
+    const content = label.styleOfCause ? (
+        <><em>{label.styleOfCause}</em>{label.rest}</>
+    ) : label.rest;
+    if (onClick) return (
+        <button
+            type="button"
+            onClick={() => onClick(citation)}
+            data-citation-ref={citation.ref}
+            className={`${LEGAL_CITATION_PILL} ${className} text-left`}
+            title={title ?? citationTooltip(citation)}
+        >
+            {content}
+        </button>
+    );
+    const href = safeAssistantUrl(
+        "external_url" in citation ? citation.external_url : null,
+        { relative: false },
+    );
+    return href ? (
+        <a
+            href={href}
+            data-citation-ref={citation.ref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${LEGAL_CITATION_PILL} ${className}`}
+            title={title ?? citationTooltip(citation)}
+        >
+            {content}
+        </a>
+    ) : (
+        <span
+            data-citation-ref={citation.ref}
+            className={`${LEGAL_CITATION_PILL} ${className}`}
+            title={title ?? citationTooltip(citation)}
+        >
+            {content}
+        </span>
+    );
 }
 
 export function CitationPillMarkdown({
     text,
-    sources = [],
-    onSourceClick,
+    citations = [],
+    onCitationClick,
 }: {
     text: string;
-    sources?: ToolActivitySource[];
-    onSourceClick?: (source: ToolActivitySource) => void;
+    citations?: Citation[];
+    onCitationClick?: (citation: Citation) => void;
 }) {
     return (
         <GfmMarkdown
@@ -71,41 +106,18 @@ export function CitationPillMarkdown({
                 a: (props) => {
                     const { href, children, ...anchorProps } =
                         withoutMarkdownNode(props);
-                    const label = nodeText(children);
                     const sourceRef = href?.startsWith(ASSISTANT_SOURCE)
                         ? Number(href.slice(ASSISTANT_SOURCE.length))
                         : -1;
-                    const source = sources.find(({ ref }) => ref === sourceRef) ?? sources.find(
-                        (candidate) => !!href && candidate.url === href,
-                    ) ?? sources.find((candidate) =>
-                        label.toLocaleLowerCase().includes(
-                            candidate.citation.toLocaleLowerCase(),
-                        ),
-                    );
-                    const className = source ? LEGAL_CITATION_PILL : PLAIN_LINK;
-                    if (source && onSourceClick) {
-                        return (
-                            <button
-                                type="button"
-                                onClick={() => onSourceClick(source)}
-                                className={`${className} text-left`}
-                            >
-                                {children}
-                            </button>
-                        );
-                    }
-                    const link = source
-                        ? safeAssistantUrl(source.url, { relative: false })
-                        : safeAssistantUrl(href);
-                    if (source && !link) return (
-                        <span className={className}>{children}</span>
-                    );
-                    if (!link || (!source && !link.startsWith("/"))) return <>{children}</>;
+                    const citation = citations.find(({ ref }) => ref === sourceRef);
+                    if (citation) return <CitationPill citation={citation} onClick={onCitationClick} />;
+                    const link = safeAssistantUrl(href);
+                    if (!link || !link.startsWith("/")) return <>{children}</>;
                     const internal = link.startsWith("/");
                     return (
                         <a
                             href={link}
-                            className={className}
+                            className={PLAIN_LINK}
                             target={internal ? undefined : "_blank"}
                             rel={internal ? undefined : "noopener noreferrer"}
                             {...anchorProps}
@@ -116,7 +128,7 @@ export function CitationPillMarkdown({
                 },
             }}
         >
-            {sourceCitations(text, sources)}
+            {sourceCitations(text, citations)}
         </GfmMarkdown>
     );
 }
@@ -196,29 +208,13 @@ export function MarkdownContent({
                             const idx = parseInt(citMatch[1]);
                             const annotation = inlineCitationTargets[idx];
                             if (annotation) {
-                                const label = citationPillParts(annotation);
-                                const tooltipText =
-                                    citationTitle?.(annotation) ??
-                                    citationTooltip(annotation);
                                 return (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            onCitationClick?.(annotation)
-                                        }
-                                        data-citation-ref={annotation.ref}
-                                        className={`${LEGAL_CITATION_PILL} mx-0.5 text-left`}
-                                        title={tooltipText}
-                                    >
-                                        {label.styleOfCause ? (
-                                            <>
-                                                <em>{label.styleOfCause}</em>
-                                                {label.rest}
-                                            </>
-                                        ) : (
-                                            label.rest
-                                        )}
-                                    </button>
+                                    <CitationPill
+                                        citation={annotation}
+                                        onClick={onCitationClick}
+                                        className="mx-0.5"
+                                        title={citationTitle?.(annotation)}
+                                    />
                                 );
                             }
                         }

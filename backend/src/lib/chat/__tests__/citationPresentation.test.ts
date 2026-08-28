@@ -30,7 +30,7 @@ describe("legal evidence citation presentation", () => {
     });
     const presented = presentLegalEvidence({ receipt, source });
     expect(presented.authority).toBe("Example v State, 2026 SCC 1");
-    expect(presented.locator).toEqual({ separator: " at ", text: "para 12" });
+    expect(presented.locator).toEqual({ separator: " at ", text: "para 12", label: "12" });
     expect(presented.sourceUrl).toBe("https://example.test/case");
     expect(presented.passageUrl).toContain("https://example.test/case#:~:text=");
     expect(presented.passageUrl).not.toContain("#par12");
@@ -164,6 +164,6 @@ describe("legal evidence citation presentation", () => {
     expect(presented.authority).toBe(
       "A Author, \u201cA Long Title\u201d (2025) 63:2 Alta L Rev 47",
     );
-    expect(presented.locator).toEqual({ separator: " at ", text: "47" });
+    expect(presented.locator).toEqual({ separator: " at ", text: "47", label: "47" });
   });
 });

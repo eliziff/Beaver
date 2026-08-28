@@ -59,7 +59,7 @@ const supportedEvents: [string, Record<string, unknown>][] = [
   ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "A" }] }],
   ["tool activity", { type: "tool_activity", id: "tool-1", tool: "search", label: "Searching", status: "running" }],
   ["automation", { type: "automation_run", id: "auto-1", tool: "create_table_of_authorities", status: "running", stage: "Scanning" }],
-  ["reader", { type: "subagent_run", id: "reader-1", task: "Read", status: "running", activities: [], sources: [] }],
+  ["reader", { type: "subagent_run", id: "reader-1", task: "Read", status: "running", activities: [], citations: [] }],
   ["context usage", { type: "context_usage", used_tokens: 10, window_tokens: 100 }],
   ["compaction", { type: "compaction", status: "completed" }],
   ["document artifact", { type: "document_artifact", action: "created", filename: "result.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "/documents/d1/download" }],
@@ -148,10 +148,11 @@ describe("assistantSessionReducer", () => {
       status: "running",
       activities: [{
         id: "read-1", tool: "read", label: "Reading", status: "running",
-        sources: [{ ref: 1, provider: "a2aj", jurisdiction: "CA",
-          citation: "2020 BCSC 1", name: null, dataset: "BCSC", url: null }],
+        citations: [{ kind: "a2aj", ref: 1, source_class: "case",
+          citation: "2020 BCSC 1", name: "Example v Example", dataset: "BCSC",
+          url: null, quotes: [] }],
       }],
-      sources: [],
+      citations: [],
     });
     state = assistantSessionReducer(state, {
       type: "run_interrupted",
@@ -185,7 +186,7 @@ describe("assistantSessionReducer", () => {
       activities: [expect.objectContaining({
         id: "read-1",
         status: "interrupted",
-        sources: [expect.objectContaining({ ref: 1, citation: "2020 BCSC 1" })],
+        citations: [expect.objectContaining({ ref: 1, citation: "2020 BCSC 1" })],
       })],
     })]);
     expect(state.run).toMatchObject({ id: "run-2", status: "running" });
@@ -269,7 +270,7 @@ describe("assistantSessionReducer", () => {
 
   it("isolates reader output from main response text while sharing activity status", () => {
     let state = running();
-    state = applyRaw(state, { type: "subagent_run", id: "reader-1", task: "Read the record", status: "completed", output: "reader-only result", activities: [{ id: "r-tool", tool: "read", label: "Read", status: "completed" }], sources: [] });
+    state = applyRaw(state, { type: "subagent_run", id: "reader-1", task: "Read the record", status: "completed", output: "reader-only result", activities: [{ id: "r-tool", tool: "read", label: "Read", status: "completed" }], citations: [] });
     expect(assistantText(state)).toBe("");
     expect(assistant(state).activities).toEqual([expect.objectContaining({ id: "reader:reader-1", status: "completed", markdown: "reader-only result" })]);
     expect(state.readers[0].activities).toEqual([expect.objectContaining({ id: "r-tool", status: "completed" })]);

@@ -1,9 +1,30 @@
 import type { TabularCellStore } from "./types";
-import {
-  createTabularEvidence,
-  registerLegalEvidence,
-  type LegalEvidenceTurnState,
-} from "./legalEvidence";
+import { createTabularEvidence, registerLegalEvidence, type LegalEvidenceTurnState } from "./legalEvidence";
+import { toolText, type BeaverTool } from "./toolRegistry";
+
+const object = (properties: Record<string, object>) => ({
+  type: "object" as const, properties, additionalProperties: false,
+});
+
+export const tabularTool = <Context>(
+  tabular: TabularCellStore, evidence: LegalEvidenceTurnState,
+): BeaverTool<Context> => ({
+  name: "read_table_cells",
+  annotations: { readOnlyHint: true },
+  description:
+    "Read extracted cells from the tabular review. Pass zero-based column or row indices for a subset; omit either to read all.",
+  inputSchema: object({ col_indices: { type: "array", items: { type: "integer" } },
+    row_indices: { type: "array", items: { type: "integer" } } }),
+  reader: ["CA", "US", "UK"],
+  activity: () => "Reading table cells",
+  async execute(input) {
+    const read = readTabularCells(tabular, evidence,
+      input.col_indices as number[] | undefined,
+      input.row_indices as number[] | undefined,
+    );
+    return { result: toolText(read.content) };
+  },
+});
 
 export function readTabularCells(
   tabularStore: TabularCellStore,

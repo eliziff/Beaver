@@ -30,22 +30,25 @@ describe("MarkdownContent links", () => {
     });
 
     it("turns grounded subagent markers into source chips", async () => {
-        const source = {
-            ref: 1, provider: "a2aj", jurisdiction: "CA", citation: "2020 BCSC 1",
-            name: "Example v. Example", dataset: "BCSC", url: null,
-            locator: "par12", quote: "Exact passage",
+        const source: Citation = {
+            kind: "a2aj", source_class: "case", ref: 1,
+            citation: "2020 BCSC 1", name: "Example v. Example",
+            dataset: "BCSC", url: null, locator_kind: "paragraph",
+            locator: "12", pinpoint: "para 12", quotes: [{ quote: "Exact passage" }],
         };
-        const otherSource = { ...source, ref: 2, citation: "2021 BCSC 2" };
-        const onSourceClick = vi.fn();
+        const otherSource: Citation = { ...source, ref: 2, citation: "2021 BCSC 2" };
+        const onCitationClick = vi.fn();
         render(<CitationPillMarkdown
             text="The proposition is established. [1]"
-            sources={[otherSource, source]}
-            onSourceClick={onSourceClick} />);
+            citations={[otherSource, source]}
+            onCitationClick={onCitationClick} />);
 
-        const chip = screen.getByRole("button", { name: "2020 BCSC 1, par12" });
+        const chip = screen.getByRole("button", {
+            name: "Example v. Example, 2020 BCSC 1 at para 12",
+        });
         expect(chip).toHaveClass("bg-red-800");
         await userEvent.click(chip);
-        expect(onSourceClick).toHaveBeenCalledWith(source);
+        expect(onCitationClick).toHaveBeenCalledWith(source);
     });
 
     it("rejects credential-bearing links in shared Markdown", () => {

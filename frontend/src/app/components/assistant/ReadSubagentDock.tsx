@@ -2,23 +2,22 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, CircleStop, LoaderCircle, X } from "lucide-react";
-import type { AssistantActivity, AssistantReaderRun } from "@/app/lib/assistantSession";
+import type { AssistantReaderRun } from "@/app/lib/assistantSession";
+import type { Citation } from "../shared/types";
 import { ActivityDisclosure, ActivityRow } from "./message/EventBlocks";
 import { CitationPillMarkdown } from "./message/MarkdownContent";
 
 export type ReadSubagentPanel = AssistantReaderRun;
-export type ReadSubagentSource = NonNullable<AssistantActivity["sources"]>[number];
-
 export function ReadSubagentDock({
     panels,
     onClose,
-    onSourceClick,
+    onCitationClick,
     idPrefix = "reading-agent",
     embedded = false,
 }: {
     panels: ReadSubagentPanel[];
     onClose: (id: string) => void;
-    onSourceClick?: (source: ReadSubagentSource) => void;
+    onCitationClick?: (citation: Citation) => void;
     idPrefix?: string;
     embedded?: boolean;
 }) {
@@ -86,9 +85,9 @@ export function ReadSubagentDock({
                                     <div className="mt-2">
                                         <ActivityDisclosure
                                             isStreaming={panel.status === "running"}
-                                            label={`${panel.activities.length} tool ${panel.activities.length === 1 ? "call" : "calls"}`}
+                                            label={panel.activities.at(-1)?.label ?? "Reading sources"}
                                         >
-                                            {panel.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} onSourceClick={onSourceClick} />)}
+                                            {panel.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} onCitationClick={onCitationClick} />)}
                                             {panel.status === "running" && !panel.activities.some(({ status }) => status === "running") && <div role="status" className="flex items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" />Thinking</div>}
                                         </ActivityDisclosure>
                                     </div>
@@ -99,9 +98,9 @@ export function ReadSubagentDock({
                                 ) : null}
                                 {panel.output ? (
                                     <details open className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs leading-5 text-gray-700">
-                                        <summary className="cursor-pointer font-medium text-gray-600">Final output{panel.sources.length ? ` · ${panel.sources.length} verified ${panel.sources.length === 1 ? "passage" : "passages"}` : ""}</summary>
+                                        <summary className="cursor-pointer font-medium text-gray-600">Final output{panel.citations.length ? ` · ${panel.citations.length} verified ${panel.citations.length === 1 ? "source" : "sources"}` : ""}</summary>
                                         <div aria-label="Agent final output" className="prose prose-sm mt-2 max-w-none break-words text-xs leading-5 text-gray-700 [overflow-wrap:anywhere] [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_h4]:text-xs [&_li]:text-xs [&_p]:text-xs">
-                                            <CitationPillMarkdown text={panel.output} sources={panel.sources} onSourceClick={onSourceClick} />
+                                            <CitationPillMarkdown text={panel.output} citations={panel.citations} onCitationClick={onCitationClick} />
                                         </div>
                                     </details>
                                 ) : panel.status === "error" ? <p className="ms-5 mt-2 rounded-xl rounded-br-sm bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">Reading agent failed.</p> : null}
