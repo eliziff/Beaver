@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { resolveDocumentEdit } from "@/app/lib/beaverApi";
+import { resolveDocumentEdits } from "@/app/lib/beaverApi";
 import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
 
@@ -79,52 +79,43 @@ function applyOptimisticResolution(
         );
 }
 
-export async function resolveEdit(
-    edit: EditAnnotation,
+export async function resolveEdits(
+    edits: EditAnnotation[],
     verb: EditVerb,
     { onResolveStart, onResolved, onError }: EditResolveHandlers,
 ) {
-    onResolveStart?.({
-        editId: edit.edit_id,
-        documentId: edit.document_id,
-        verb,
+    const documentId = edits[0]?.document_id;
+    if (!documentId || edits.some((edit) => edit.document_id !== documentId)) return null;
+    edits.forEach((edit) => onResolveStart?.({ editId: edit.edit_id, documentId, verb }));
+    const reverts = edits.map((edit) => {
+        try { return applyOptimisticResolution(edit, verb); }
+        catch (error) { console.error("Optimistic edit update failed", error); return () => {}; }
     });
-    let revert = () => {};
     try {
-        revert = applyOptimisticResolution(edit, verb);
-    } catch (error) {
-        console.error("Optimistic edit update failed", error);
-    }
-    try {
-        const result = await resolveDocumentEdit(
-            edit.document_id,
-            edit.edit_id,
-            verb,
-        );
+        const result = await resolveDocumentEdits(documentId, edits.map(({ edit_id }) => edit_id), verb);
         const status =
             result.status ?? (verb === "accept" ? "accepted" : "rejected");
-        onResolved?.({
-            editId: edit.edit_id,
-            documentId: edit.document_id,
+        edits.forEach((edit) => onResolved?.({
+            editId: edit.edit_id, documentId,
             status,
             versionId: result.version_id,
             downloadUrl: result.download_url,
-        });
+        }));
         return status;
     } catch (error) {
         console.error("Edit resolution failed", error);
-        try {
-            revert();
-        } catch { /* Preserve the original edit failure. */ }
-        onError?.({
-            editId: edit.edit_id,
-            documentId: edit.document_id,
+        reverts.forEach((revert) => { try { revert(); } catch {} });
+        edits.forEach((edit) => onError?.({
+            editId: edit.edit_id, documentId,
             versionId: edit.version_id ?? null,
             message: `Couldn't ${verb} this change. Please retry.`,
-        });
+        }));
         return null;
     }
 }
+
+export const resolveEdit = (edit: EditAnnotation, verb: EditVerb,
+    handlers: EditResolveHandlers) => resolveEdits([edit], verb, handlers);
 
 export function useEditResolution(
     edit: EditAnnotation,

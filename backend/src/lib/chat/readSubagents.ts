@@ -40,6 +40,7 @@ export type ReadSubagentEvent = {
   status: "running" | "completed" | "error" | "cancelled" | "interrupted";
   output?: string;
   error?: string;
+  publicError?: string;
   activities?: ToolActivity[];
   citations?: Record<string, unknown>[];
   grounding?: LegalEvidenceReceiptEvent;
@@ -102,7 +103,7 @@ export const READ_SUBAGENT_TOOL: Tool = {
 
 export const RESUME_SUBAGENT_TOOL: Tool = {
   name: RESUME_SUBAGENT_TOOL_NAME,
-  description: "Resume unfinished readers in their existing sessions by run ID.",
+  description: "Resume unfinished or failed readers in their existing sessions by run ID.",
   inputSchema: {
     type: "object",
     properties: {
@@ -117,7 +118,7 @@ export const RESUME_SUBAGENT_TOOL: Tool = {
 };
 
 export const READ_SUBAGENT_SYSTEM_PROMPT =
-  "Use direct research tools for ordinary work. Delegate only when two to four genuinely independent reading lanes will help. Keep every lane within the jurisdictions selected for this request, wait for all siblings, and skeptically compare their exact evidence against the question. Resume interrupted readers instead of replacing them. A reader miss is not proof of absence; refine concrete gaps, but never force a result. Reuse returned evidence IDs in the final grounded answer.";
+  "Use direct research tools for ordinary work. Delegate only when two to four genuinely independent reading lanes will help. Keep every lane within the jurisdictions selected for this request, wait for all siblings, and skeptically compare their exact evidence against the question. Resume interrupted or failed readers instead of replacing them. A reader miss is not proof of absence; refine concrete gaps, but never force a result. Reuse returned evidence IDs in the final grounded answer.";
 
 const strings = (value: unknown) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === "string") : [];
@@ -161,7 +162,7 @@ export function resumableReadSubagents(events: readonly unknown[]) {
   }
   const resumable = new Map<string, ReadSubagentCheckpoint>();
   for (const [id, event] of latest) {
-    if (event.status !== "interrupted" && event.status !== "running") continue;
+    if (!["error", "interrupted", "running"].includes(String(event.status))) continue;
     const parsed = checkpoint(event.resume);
     if (parsed && parsed.id === id) resumable.set(id, {
       ...parsed,
@@ -178,7 +179,7 @@ export function readSubagentResumePrompt(
 ) {
   if (!checkpoints.size) return "";
   return [
-    "UNFINISHED READERS AVAILABLE:",
+    "RESUMABLE READERS AVAILABLE:",
     "Call resume_read with their existing run IDs; do not replace the assignments.",
     ...[...checkpoints.values()].map(({ id, assignment }) =>
       `- ${id}: ${assignment.scope}: ${assignment.task}`),

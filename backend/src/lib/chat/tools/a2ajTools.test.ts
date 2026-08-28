@@ -41,6 +41,17 @@ describe("legal-source assistant activity", () => {
     );
   });
 
+  it("names the remaining tool activities", () => {
+    expect(assistantToolActivityLabel("Write", { filename: "memo.docx" }))
+      .toBe("Creating memo.docx");
+    expect(assistantToolActivityLabel("note_up", { citation: "2019 SCC 65" }))
+      .toBe("Noting up 2019 SCC 65");
+    expect(assistantToolActivityLabel("edit_docx_advanced", {}))
+      .toBe("Applying tracked document edits");
+    expect(assistantToolActivityLabel("compare_versions", {}))
+      .toBe("Comparing document versions");
+  });
+
   it("keeps range and statutory reference inputs on unified Read", () => {
     const read = RESOURCE_TOOLS.find((entry) => entry.name === "Read")!;
     expect(read.inputSchema.properties.references).toMatchObject({

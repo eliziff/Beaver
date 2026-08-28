@@ -167,11 +167,12 @@ describe("AssistantMessage activity", () => {
                 name: "Reading agent completed: Distinct Canadian lane one",
             }),
         ).toBeInTheDocument();
-        const citationPill = screen.getByRole("button", {
+        const citationPill = screen.getByRole("link", {
             name: "R. v. Example, 2020 BCSC 1",
         });
-        await userEvent.click(citationPill);
-        expect(onCitationClick).toHaveBeenCalledOnce();
+        expect(citationPill).toHaveAttribute("href", "https://example.test/case");
+        expect(citationPill).toHaveAttribute("target", "_blank");
+        expect(onCitationClick).not.toHaveBeenCalled();
 
         await userEvent.click(
             screen.getByRole("button", {

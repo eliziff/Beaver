@@ -42,7 +42,7 @@ export type DocumentRepository = {
     version: StoredDocumentVersion; edits?: StoredAssistantEdit[] }): Promise<"created" | Write>;
   updateVersion(scope: DocumentScope, id: string, input: { versionId: string;
     expectedBlobKey: string; update: UpdateVersionMetadata; edits?: StoredAssistantEdit[];
-    resolveEdit?: { id: string; status: StoredAssistantEdit["status"] } }):
+    resolveEdits?: { ids: string[]; status: StoredAssistantEdit["status"] } }):
     Promise<"updated" | Write>;
   recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
     sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;

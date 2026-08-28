@@ -131,6 +131,6 @@ export type DocumentStore = {
   replaceVersion(scope: DocumentScope, id: string, versionId: string,
     file: DocumentFile): Promise<ReplaceVersionResult>;
   deleteVersion(scope: DocumentScope, id: string, versionId: string): Promise<DeleteVersionResult>;
-  resolveEdit(scope: DocumentScope, id: string, editId: string,
+  resolveEdits(scope: DocumentScope, id: string, editIds: string[],
     mode: "accept" | "reject"): Promise<ResolveEditResult>;
 };

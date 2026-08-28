@@ -223,9 +223,9 @@ export const documentRepository: DocumentRepository = {
       if (!current) return "missing";
       const version = current.versions.find(({ id: versionId }) => versionId === input.versionId);
       if (!version) return "missing";
-      if (version.blobKey !== input.expectedBlobKey || input.resolveEdit &&
-        !current.edits.some((edit) => edit.id === input.resolveEdit!.id &&
-          edit.versionId === input.versionId)) return "conflict";
+      if (version.blobKey !== input.expectedBlobKey || input.resolveEdits &&
+        input.resolveEdits.ids.some((id) => !current.edits.some((edit) =>
+          edit.id === id && edit.versionId === input.versionId))) return "conflict";
       const update = { ...version, ...Object.fromEntries(Object.entries(input.update)
         .filter(([, value]) => value !== undefined)) };
       const pdfProfile = update.fileType === "pdf" &&
@@ -241,8 +241,8 @@ export const documentRepository: DocumentRepository = {
           AND storage_path=${input.expectedBlobKey}`, tx);
       if (!changed) return "conflict";
       await addEdits(tx, id, input.versionId, input.edits);
-      if (input.resolveEdit) await changes(sql`UPDATE document_edits SET
-        status=${input.resolveEdit.status},resolved_at=${now()} WHERE id=${input.resolveEdit.id}
+      if (input.resolveEdits) await changes(sql`UPDATE document_edits SET
+        status=${input.resolveEdits.status},resolved_at=${now()} WHERE id IN(${sql.join(input.resolveEdits.ids)})
         AND document_id=${id} AND version_id=${input.versionId}`, tx);
       await changes(sql`UPDATE documents SET updated_at=${now()},filename=${update.filename}
         WHERE id=${id}`, tx);

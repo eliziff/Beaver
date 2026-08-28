@@ -56,6 +56,7 @@ export type AssistantReaderRun = {
   status: AssistantActivityStatus;
   activities: AssistantActivity[];
   output?: string;
+  error?: string;
   citations: Citation[];
 };
 
@@ -317,6 +318,7 @@ const readerSchema = z.strictObject({
   task: longText, status: statusSchema,
   activities: z.array(activitySchema).max(ASSISTANT_LIMITS.activities).default([]),
   output: longText.optional(),
+  error: shortText.optional(),
   citations: citationListSchema.default([]),
 }).transform(({ type: _type, ...row }): AssistantReaderRun => row);
 

@@ -11,6 +11,11 @@ function activityText(value: unknown, maximum: number) {
     ? text
     : `${text.slice(0, maximum - 1).trimEnd()}…`;
 }
+const SOURCE_LABELS: Record<string, string> = {
+  a2aj: "A2AJ", courtlistener: "CourtListener", "courtlistener-opinion": "CourtListener",
+  journal: "the journal corpus", hansard: "Hansard", tna: "The National Archives",
+  "govuk-et": "GOV.UK", govinfo: "GovInfo", pdf: "the source PDF",
+};
 
 function activityLocatorLabel(label: string, kind?: string) {
   const value = label
@@ -57,24 +62,13 @@ export function assistantToolActivityLabel(
     const resource = parseResourceReference(file);
     let title = sourceName;
     if (resource?.kind === "source") {
-      const labels: Record<string, string> = {
-        a2aj: "A2AJ",
-        courtlistener: "CourtListener",
-        "courtlistener-opinion": "CourtListener",
-        journal: "the journal corpus",
-        hansard: "Hansard",
-        tna: "The National Archives",
-        "govuk-et": "GOV.UK",
-        govinfo: "GovInfo",
-        pdf: "the source PDF",
-      };
       if (!title && resource.provider === "a2aj") {
         try {
           const [citation] = JSON.parse(resource.sourceId) as unknown[];
           if (typeof citation === "string" && citation.trim()) title = citation;
         } catch {}
       }
-      title ??= labels[resource.provider] ?? resource.provider;
+      title ??= SOURCE_LABELS[resource.provider] ?? resource.provider;
     } else {
       title ??= file.replace(/^.*[\\/]/u, "");
     }
@@ -108,20 +102,9 @@ export function assistantToolActivityLabel(
       ? Number(args.start_char) : null;
     if (startChar !== null) return `Reading from character ${startChar} of ${title}`;
     if (resource?.kind === "source") {
-      const labels: Record<string, string> = {
-        a2aj: "A2AJ",
-        courtlistener: "CourtListener",
-        "courtlistener-opinion": "CourtListener",
-        journal: "the journal corpus",
-        hansard: "Hansard",
-        tna: "The National Archives",
-        "govuk-et": "GOV.UK",
-        govinfo: "GovInfo",
-        pdf: "the source PDF",
-      };
       return resource.provider === "a2aj" || sourceName
-        ? `Reading ${title} from ${labels[resource.provider] ?? resource.provider}`
-        : `Reading a source from ${labels[resource.provider] ?? resource.provider}`;
+        ? `Reading ${title} from ${SOURCE_LABELS[resource.provider] ?? resource.provider}`
+        : `Reading a source from ${SOURCE_LABELS[resource.provider] ?? resource.provider}`;
     }
     return sourceName ? `Reading ${title}` : `Reading ${title} from your Library`;
   }
@@ -156,6 +139,10 @@ export function assistantToolActivityLabel(
     return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
   }
   if (name === "Edit") return "Editing the selected document";
+  if (name === "Write") return `Creating ${activityText(args.filename, 80) ?? "a document"}`;
+  if (name === "note_up") return `Noting up ${activityText(args.citation, 80) ?? "a decision"}`;
+  if (name === "edit_docx_advanced") return "Applying tracked document edits";
+  if (name === "compare_versions") return "Comparing document versions";
   if (name === "submit_grounded_answer") return "Verifying cited findings";
   return undefined;
 }

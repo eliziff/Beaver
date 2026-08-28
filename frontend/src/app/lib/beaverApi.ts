@@ -622,10 +622,10 @@ type DocumentEditResolution = {
   version_id: string | null;
   download_url: string | null;
 };
-export const resolveDocumentEdit = (
-  documentId: string, editId: string, verb: "accept" | "reject",
+export const resolveDocumentEdits = (
+  documentId: string, editIds: string[], verb: "accept" | "reject",
 ) => post<DocumentEditResolution>(
-  `/single-documents/${segment(documentId)}/edits/${segment(editId)}/${verb}`,
+  `/single-documents/${segment(documentId)}/edits/${verb}`, { edit_ids: editIds },
 );
 export type SpreadsheetProjection = {
   version_id: string;

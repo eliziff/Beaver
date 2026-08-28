@@ -349,10 +349,14 @@ export function createDocumentsRouter(
     }),
   );
 
-  const resolveEdit = (mode: "accept" | "reject") => asyncRoute(
+  const resolveEdits = (mode: "accept" | "reject") => asyncRoute(
     async (req, res) => {
-      const result = await documents.resolveEdit(
-        scope(res), req.params.documentId, req.params.editId, mode,
+      const editIds = req.body?.edit_ids;
+      if (!Array.isArray(editIds) || !editIds.length || editIds.length > 1_000 ||
+          editIds.some((id) => typeof id !== "string" || !id.trim()))
+        reject(400, "edit_ids must contain 1 to 1000 tracked edit IDs");
+      const result = await documents.resolveEdits(
+        scope(res), req.params.documentId, [...new Set(editIds as string[])], mode,
       );
       if (result.status !== "resolved" && result.status !== "unchanged") {
         if (result.status === "missing") reject(404, "Tracked edit not found");
@@ -371,7 +375,7 @@ export function createDocumentsRouter(
     },
   );
 
-  router.post("/:documentId/edits/:editId/accept", resolveEdit("accept"));
-  router.post("/:documentId/edits/:editId/reject", resolveEdit("reject"));
+  router.post("/:documentId/edits/accept", resolveEdits("accept"));
+  router.post("/:documentId/edits/reject", resolveEdits("reject"));
   return router;
 }

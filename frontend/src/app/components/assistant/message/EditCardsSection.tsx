@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { PillButton } from "@/app/components/ui/pill-button";
 import type { EditAnnotation, EditResolveHandlers } from "../../shared/types";
-import { resolveEdit } from "../EditCard";
+import { resolveEdits } from "../EditCard";
 
 type PendingEdit = { annotation: EditAnnotation; filename: string };
 
@@ -17,19 +17,19 @@ function BulkEditActions({
     onViewClick?: (annotation: EditAnnotation, filename: string) => void;
 } & EditResolveHandlers) {
     const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
-    const [done, setDone] = useState(0);
-
     const resolveAll = async (verb: "accept" | "reject") => {
         if (busy || disabled) return;
         setBusy(verb);
         try {
-            for (const [index, { annotation }] of pending.entries()) {
-                await resolveEdit(annotation, verb, handlers);
-                setDone(index + 1);
-            }
+            const grouped = new Map<string, EditAnnotation[]>();
+            pending.forEach(({ annotation }) => {
+                const group = grouped.get(annotation.document_id);
+                group ? group.push(annotation) : grouped.set(annotation.document_id, [annotation]);
+            });
+            await Promise.all([...grouped.values()].map((edits) =>
+                resolveEdits(edits, verb, handlers)));
         } finally {
             setBusy(null);
-            setDone(0);
         }
     };
     const first = pending[0];
@@ -58,11 +58,6 @@ function BulkEditActions({
                 )}
                 Reject all
             </PillButton>
-            {busy && (
-                <span className="text-xs text-gray-500">
-                    {done}/{pending.length}
-                </span>
-            )}
             {onViewClick && (
                 <PillButton
                     tone="black"
