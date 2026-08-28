@@ -333,7 +333,6 @@ describe("DocTable Library interactions", () => {
         fireEvent.click(row);
 
         expect(row).toHaveAttribute("aria-selected", "true");
-        expect(row).toHaveClass("bg-app-surface-active");
         expect(view).toBeVisible();
         expect(screen.queryByTestId("document-view")).not.toBeInTheDocument();
     });

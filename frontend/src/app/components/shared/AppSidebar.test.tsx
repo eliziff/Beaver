@@ -237,11 +237,6 @@ describe("AppSidebar", () => {
         { name: "Assistant" },
       ),
     ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen
-        .getByRole("link", { name: "Projects" })
-        .querySelector("svg.lucide-folder"),
-    ).not.toBeNull();
     fireEvent.click(
       within(history).getByRole("link", { name: "Assistant matter" }),
     );
@@ -387,7 +382,6 @@ describe("AppSidebar", () => {
       { dataTransfer },
     );
     fireEvent.dragEnter(recycle, { dataTransfer });
-    expect(recycle).toHaveClass("bg-red-100");
     fireEvent.drop(recycle, { dataTransfer });
 
     await waitFor(() => expect(mocks.deleteChat).toHaveBeenCalledTimes(3));

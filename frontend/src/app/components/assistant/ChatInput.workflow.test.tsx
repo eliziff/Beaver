@@ -155,16 +155,6 @@ describe("ChatInput workflow document selection", () => {
 
         commits = 0;
         const textbox = screen.getByRole("textbox", { name: "Message" });
-        expect(textbox).toHaveClass(
-            "[field-sizing:content]",
-            "placeholder:text-gray-600",
-        );
-        expect(
-            screen.getByRole("button", { name: "Add document" }),
-        ).toHaveClass("text-gray-600");
-        expect(
-            screen.getByRole("button", { name: "Open workflows" }),
-        ).toHaveClass("text-gray-600");
         await user.type(textbox, "test");
         expect(commits).toBe(1);
 

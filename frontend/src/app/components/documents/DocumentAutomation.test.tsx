@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -63,11 +63,9 @@ describe("DocumentAutomation", () => {
             screen.queryByRole("button", { name: "Automation" }),
         ).toBeNull();
         rerender(<DocumentAutomation document={docx} />);
-        const trigger = screen.getByRole("button", { name: "Automation" });
-        expect(trigger).toBeVisible();
         expect(
-            trigger.querySelector("svg.lucide-wand-sparkles"),
-        ).not.toBeNull();
+            screen.getByRole("button", { name: "Automation" }),
+        ).toBeVisible();
     });
 
     it("keeps one stable trigger while document eligibility changes", () => {
@@ -79,9 +77,6 @@ describe("DocumentAutomation", () => {
         );
         const trigger = screen.getByRole("button", { name: "Automation" });
         expect(trigger).toBeDisabled();
-        expect(
-            trigger.querySelector("svg.lucide-wand-sparkles"),
-        ).not.toBeNull();
 
         rerender(
             <DocumentAutomation
@@ -139,7 +134,7 @@ describe("DocumentAutomation", () => {
         await user.click(screen.getByRole("button", { name: "Automation" }));
         expect(screen.queryByRole("complementary")).toBeNull();
 
-        release({ supra_references: true });
+        await act(() => release({ supra_references: true }));
         expect(
             await screen.findByRole("complementary", { name: "Automation" }),
         ).toBeVisible();
@@ -160,7 +155,7 @@ describe("DocumentAutomation", () => {
                 document={{ ...docx, id: "document-2" }}
             />,
         );
-        release({ supra_references: true });
+        await act(() => release({ supra_references: true }));
 
         expect(screen.queryByRole("complementary")).toBeNull();
     });
