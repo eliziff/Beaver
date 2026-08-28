@@ -54,6 +54,18 @@ export function CitationPill({
     const content = label.styleOfCause ? (
         <><em>{label.styleOfCause}</em>{label.rest}</>
     ) : label.rest;
+    const href = safeAssistantUrl(
+        ("url" in citation ? citation.url : null) ?? citation.external_url,
+        { relative: false },
+    );
+    if (href) return (
+        <a href={href} target="_blank" rel="noopener noreferrer"
+            data-citation-ref={citation.ref}
+            className={`${LEGAL_CITATION_PILL} ${className}`}
+            title={title ?? citationTooltip(citation)}>
+            {content}
+        </a>
+    );
     if (onClick) return (
         <button
             type="button"
@@ -65,22 +77,7 @@ export function CitationPill({
             {content}
         </button>
     );
-    const href = safeAssistantUrl(
-        "external_url" in citation ? citation.external_url : null,
-        { relative: false },
-    );
-    return href ? (
-        <a
-            href={href}
-            data-citation-ref={citation.ref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${LEGAL_CITATION_PILL} ${className}`}
-            title={title ?? citationTooltip(citation)}
-        >
-            {content}
-        </a>
-    ) : (
+    return (
         <span
             data-citation-ref={citation.ref}
             className={`${LEGAL_CITATION_PILL} ${className}`}

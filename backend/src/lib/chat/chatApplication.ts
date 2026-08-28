@@ -610,7 +610,7 @@ export function createChatApplication(deps: Dependencies) {
             ? assistant.content.filter((event) => {
                 const row = asRecord(event);
                 return row?.type === "subagent_run" &&
-                  (row.status === "interrupted" || row.status === "running") &&
+                  (row.status === "interrupted" || row.status === "running" || row.status === "error") &&
                   !!asRecord(row.resume);
               }) : [];
           assistantCitations = [];

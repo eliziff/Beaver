@@ -295,7 +295,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     current: StoredDocumentVersion, input: DocumentFile & {
       pageCount: number | null;
       provenance?: DocumentProvenance | null; createdAt?: string; edits?: StoredAssistantEdit[];
-      resolveEdit?: { id: string; status: StoredAssistantEdit["status"] };
+      resolveEdits?: { ids: string[]; status: StoredAssistantEdit["status"] };
     }) => {
     const { filename, fileType, sizeBytes, sourceSha256 } = await validateUpload(input);
     const key = versionStorageKey(scope.userId, documentId, current.id,
@@ -318,7 +318,7 @@ export function createDocumentApplication(repository: DocumentRepository,
           sourceSha256, blobKey: key, pdfBlobKey: next.pdfBlobKey,
           cleanupKeys: oldKeys, provenance: input.provenance,
           ...(input.createdAt ? { createdAt: input.createdAt } : {}) },
-        edits: input.edits, resolveEdit: input.resolveEdit,
+        edits: input.edits, resolveEdits: input.resolveEdits,
       });
     } catch (error) { await compensate(scope, key, error); }
     if (result !== "updated") await compensate(scope, key,
@@ -644,24 +644,24 @@ export function createDocumentApplication(repository: DocumentRepository,
         : { status: "missing" as const };
     },
 
-    async resolveEdit(scope, documentId, editId, mode) {
+    async resolveEdits(scope, documentId, editIds, mode) {
       const aggregate = await repository.get(scope, documentId);
       if (!aggregate) return { status: "missing" as const };
       const current = activeVersion(aggregate);
-      const edit = current && aggregate.edits.find((entry) =>
-        entry.id === editId && entry.versionId === current.id);
-      if (!current || !edit) return { status: "missing" as const };
+      const requested = new Set(editIds);
+      const edits = current ? aggregate.edits.filter((entry) =>
+        requested.has(entry.id) && entry.versionId === current.id) : [];
+      if (!current || !requested.size || edits.length !== requested.size)
+        return { status: "missing" as const };
       const desired = mode === "accept" ? "accepted" as const : "rejected" as const;
-      if (edit.status !== "pending") return edit.status === desired
-        ? {
-            status: "unchanged" as const,
-            editStatus: edit.status,
-            versionId: current.id,
-            versionNumber: current.versionNumber,
-            downloadUrl: `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
-          }
-        : { status: "conflict" as const, editStatus: edit.status };
-      const ids = [edit.delWId, edit.insWId].filter((id): id is string => !!id);
+      const conflict = edits.find(({ status }) => status !== "pending" && status !== desired);
+      if (conflict) return { status: "conflict" as const, editStatus: conflict.status };
+      const pending = edits.filter(({ status }) => status === "pending");
+      const ids = pending.flatMap(({ delWId, insWId }) =>
+        [delWId, insWId].filter((id): id is string => !!id));
+      const downloadUrl = `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`;
+      if (!pending.length) return { status: "unchanged" as const, editStatus: desired,
+        versionId: current.id, versionNumber: current.versionNumber, downloadUrl };
       if (!ids.length) return { status: "invalid" as const };
       const source = await objects.get(current.blobKey);
       if (!source) return { status: "invalid" as const };
@@ -672,11 +672,11 @@ export function createDocumentApplication(repository: DocumentRepository,
           fileType: current.fileType, bytes: resolved.bytes, pageCount: current.pageCount,
           provenance: current.provenance && { ...current.provenance,
             trackedEdits: current.provenance.trackedEdits?.map((stored) =>
-              stored.id === editId ? { ...stored, status: desired } : stored) },
-          resolveEdit: { id: editId, status: desired } });
+              requested.has(stored.id) ? { ...stored, status: desired } : stored) },
+          resolveEdits: { ids: pending.map(({ id }) => id), status: desired } });
       } catch (error) {
         if (error instanceof DocumentWriteConflict)
-          return { status: "conflict" as const, editStatus: edit.status };
+          return { status: "conflict" as const, editStatus: pending[0].status };
         throw error;
       }
       return {
@@ -684,7 +684,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         editStatus: desired,
         versionId: current.id,
         versionNumber: current.versionNumber,
-        downloadUrl: `/api/single-documents/${encodeURIComponent(documentId)}/file?version_id=${encodeURIComponent(current.id)}`,
+        downloadUrl,
       };
     },
   };

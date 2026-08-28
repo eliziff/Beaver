@@ -103,7 +103,7 @@ export function ReadSubagentDock({
                                             <CitationPillMarkdown text={panel.output} citations={panel.citations} onCitationClick={onCitationClick} />
                                         </div>
                                     </details>
-                                ) : panel.status === "error" ? <p className="ms-5 mt-2 rounded-xl rounded-br-sm bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">Reading agent failed.</p> : null}
+                                ) : panel.status === "error" ? <p className="ms-5 mt-2 rounded-xl rounded-br-sm bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-700">{panel.error ?? "Reading agent failed."}</p> : null}
                             </section>
                         );
                     })}

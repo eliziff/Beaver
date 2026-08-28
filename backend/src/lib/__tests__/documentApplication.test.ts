@@ -75,10 +75,10 @@ function memoryRepository() {
       if (update.provenance === null) delete version.provenance;
       else if (update.provenance !== undefined) version.provenance = update.provenance;
       value!.edits.push(...(input.edits ?? []).map((edit) => ({ ...edit, versionId: version.id })));
-      const edit = input.resolveEdit && value!.edits.find(({ id: editId }) =>
-        editId === input.resolveEdit!.id);
-      if (input.resolveEdit && !edit) return "conflict";
-      if (edit) edit.status = input.resolveEdit!.status;
+      const edits = input.resolveEdits?.ids.map((id) =>
+        value!.edits.find(({ id: editId }) => editId === id));
+      if (edits?.some((edit) => !edit)) return "conflict";
+      edits?.forEach((edit) => edit!.status = input.resolveEdits!.status);
       return "updated";
     },
     async renameVersion(scope, id, versionId, filename) {

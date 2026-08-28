@@ -5,6 +5,13 @@ vi.mock("../llm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../llm")>()),
   streamChatWithTools: stream,
 }));
+vi.mock("../codexCatalog", () => ({
+  getCodexModelCatalog: async () => ({
+    models: [{ slug: "gpt-5.6-luna", displayName: "Luna", supportedReasoningLevels: [
+      { effort: "high", description: "" },
+    ] }],
+  }),
+}));
 
 import { assistantTools } from "./assistantTools";
 import {
@@ -117,6 +124,67 @@ it("forwards nested tool progress to the provider inactivity watchdog", async ()
   });
 
   expect(heartbeat).toHaveBeenCalledOnce();
+});
+
+it("keeps failed reader checkpoints resumable in the same turn", async () => {
+  const privateEvents: Record<string, unknown>[] = [];
+  const publicEvents: Record<string, unknown>[] = [];
+  const resumed: string[] = [];
+  let session = 0;
+  stream.mockImplementation(async (params) => {
+    if (params.providerSession) {
+      if (params.providerSession.continuationId)
+        resumed.push(params.providerSession.continuationId);
+      params.providerSession.onContinuationId?.(`reader-session-${++session}`);
+      throw new Error("Grounding verification failed after correction attempts");
+    }
+    expect(params.staticTools.map(({ name }: { name: string }) => name))
+      .toEqual(expect.arrayContaining(["delegate_read", "resume_read"]));
+    await params.runTools([{
+      id: "load-readers", name: "load_tools",
+      input: { names: ["delegate_read", "resume_read"] },
+    }]);
+    const delegated = await params.runTools([{
+      id: "round", name: "delegate_read", input: { assignments: [
+        { task: "Read note A", scope: "note A", jurisdiction: "CA" },
+        { task: "Read note B", scope: "note B", jurisdiction: "CA" },
+      ] },
+    }]);
+    expect(JSON.parse(delegated[0].content).readers)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ resume_id: "round:1" }),
+        expect.objectContaining({ resume_id: "round:2" }),
+      ]));
+    const resume = await params.runTools([{
+      id: "resume", name: "resume_read",
+      input: { ids: ["round:1", "round:2"] },
+    }]);
+    expect(JSON.parse(resume[0].content).readers).toHaveLength(2);
+    return { fullText: "Done." };
+  });
+
+  await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Summarize two notes." }],
+    createTools: () => [],
+    emit: (event) => publicEvents.push(event as Record<string, unknown>),
+    onSubagentEvent: (event) => privateEvents.push(event),
+    subagentMode: "beaver",
+  });
+
+  expect(resumed.sort()).toEqual(["reader-session-1", "reader-session-2"]);
+  expect(privateEvents).toEqual(expect.arrayContaining([
+    expect.objectContaining({ status: "error", resume: expect.any(Object) }),
+  ]));
+  expect(publicEvents).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      status: "error",
+      error: "Grounding verification failed; this reading agent can be resumed.",
+    }),
+  ]));
+  expect(publicEvents.some((event) => "resume" in event || "publicError" in event))
+    .toBe(false);
 });
 
 it("persists private tool receipts without emitting them", async () => {
