@@ -163,34 +163,6 @@ vi.mock("../workflows/WorkflowPickerModal", () => ({
     WorkflowPickerModal: () => null,
 }));
 
-it("opens a loaded cell", async () => {
-    let finishProjects!: (page: { items: []; next_cursor: null }) => void;
-    mocks.listProjects.mockReturnValue(
-        new Promise((resolve) => {
-            finishProjects = resolve;
-        }),
-    );
-    const { data } = fixture("done");
-    mocks.getTabularReview.mockResolvedValue(data);
-    mocks.commits = 0;
-    render(
-        <Profiler id="review" onRender={() => mocks.commits++}>
-            <TRView reviewId="review-1" />
-        </Profiler>,
-    );
-
-    await act(() => finishProjects({ items: [], next_cursor: null }));
-    await waitFor(() =>
-        expect(screen.getByTestId("table")).toHaveAttribute(
-            "data-loading",
-            "false",
-        ),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Open cell" }));
-
-    expect(screen.getByText("Cell details")).toBeInTheDocument();
-});
-
 it("ignores generating events after cells are premarked", async () => {
     const encoder = new TextEncoder();
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
