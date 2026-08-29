@@ -74,9 +74,13 @@ function spreadsheetBytes(value: string) {
 
 async function loadApi() {
   vi.resetModules();
-  const { api } = await import("../../api");
+  const [{ api }, { runtime }] = await Promise.all([
+    import("../../api"), import("../../runtime"),
+  ]);
+  const workers = await runtime.startWorkers();
   closeLocalStores = async () => {
-    await (await import("../../runtime")).runtime.shutdown();
+    await workers.stop();
+    await runtime.shutdown();
   };
   return api;
 }
@@ -228,8 +232,10 @@ describe("account-free matter routes", () => {
           files: [{ document_id: randomUUID() }],
         },
       });
-    expect(missingFocus.status).toBe(400);
-    expect(missingFocus.body.detail).toMatch(/unavailable/u);
+    expect(missingFocus.status).toBe(200);
+    expect(missingFocus.text).toContain('"accepted":false');
+    expect((await request(api).get(`/chat/${createdChat.body.id}`))
+      .body.chat.transcript_version).toBe(2);
 
     const [{ createChatStore }, { chatRepository }, { generateChatTitle }] = await Promise.all([
       import("../../lib/chatStore"),
@@ -435,8 +441,8 @@ describe("account-free matter routes", () => {
           workflow: { id: "missing-workflow" },
         },
       });
-    expect(missingWorkflow.status).toBe(400);
-    expect(missingWorkflow.body.detail).toMatch(/workflow is unavailable/u);
+    expect(missingWorkflow.status).toBe(200);
+    expect(missingWorkflow.text).toContain('"accepted":false');
 
     const rejected = await request(api)
       .post("/chat")
@@ -454,8 +460,10 @@ describe("account-free matter routes", () => {
           ],
         },
       });
-    expect(rejected.status).toBe(400);
-    expect(rejected.body.detail).toMatch(/unavailable/u);
+    expect(rejected.status).toBe(200);
+    expect(rejected.text).toContain('"accepted":false');
+    expect((await request(api).get(`/chat/${chat.body.id}`))
+      .body.chat.transcript_version).toBe(4);
 
     await closeLocalStores?.();
     closeLocalStores = null;

@@ -65,6 +65,7 @@ export type ProjectStore = {
 export function createProjectStore(
   repository: ProjectRepository,
   documents: DocumentStore,
+  cancel?: (scope: ProjectScope, chatId: string) => Promise<unknown>,
 ): ProjectStore {
   const project = async (scope: ProjectScope, projectId: string, owner = false) =>
     await repository.project(scope, projectId, owner) ?? Promise.reject(missing("Project not found"));
@@ -82,6 +83,7 @@ export function createProjectStore(
     });
     const chatIds = await repository.remove(scope, projectId);
     chatIds?.forEach(abortChatTurnForDeletion);
+    if (chatIds && cancel) await Promise.all(chatIds.map((id) => cancel(scope, id)));
     return !!chatIds;
   };
 

@@ -7,6 +7,7 @@ import {
 } from "../../lib/chat/chatApplication";
 import type { ChatStore } from "../../lib/chatStore";
 import { createChatRouter } from "../../routes/chat";
+import { inlineChatTurnQueue } from "../../lib/__tests__/support/inlineChatTurnQueue";
 
 vi.mock("../../middleware/auth", () => ({
   requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
@@ -25,7 +26,6 @@ const application = {
   async turn(_auth, _input, sink) {
     if (!projectAllowed) throw new ChatApplicationError(404, "Project not found");
     if (!sink.claim(CHAT_ID)) throw new ChatApplicationError(409, "A response is running");
-    sink.start();
     sink.emit({ type: "chat_id", chatId: CHAT_ID, transcriptVersion: 1 });
     if (failStream) {
       sink.emit({ type: "error", message: "upstream LLM failure" });
@@ -40,6 +40,7 @@ app.use(express.json());
 app.use("/chat", createChatRouter(
   {} as ChatStore,
   application,
+  inlineChatTurnQueue(application),
 ));
 const VALID_BODY = {
   project_id: PROJECT_ID,
@@ -56,8 +57,8 @@ describe("POST /chat with a project capability", () => {
   it("reveals no project when application access is denied", async () => {
     projectAllowed = false;
     const res = await request(app).post("/chat").send(VALID_BODY);
-    expect(res.status).toBe(404);
-    expect(res.body.detail).toBe("Project not found");
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('"accepted":false');
   });
 
   it("streams SSE on the happy path", async () => {

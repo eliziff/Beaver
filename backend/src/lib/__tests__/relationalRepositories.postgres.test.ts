@@ -38,9 +38,15 @@ suite("PostgreSQL relational repository contract", () => {
         return {};
       },
     }));
-    queue.wakeJobWorker();
     try {
-      await Promise.all(jobs.map(({ id }) => queue.waitForJob(id, owner.userId)));
+      await Promise.all(jobs.map(async ({ id }) => {
+        for (;;) {
+          const job = await queue.getJob(id, owner.userId);
+          if (job?.status === "succeeded") return;
+          if (job?.status === "failed") throw new Error("Background job failed");
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+      }));
     } finally {
       await Promise.all(workers.map((worker) => worker.stop()));
     }

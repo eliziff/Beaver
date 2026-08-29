@@ -181,6 +181,11 @@ create table if not exists chat_messages (
   workflow jsonb, citations jsonb, created_at text not null,
   check(role in ('user','assistant'))
 );
+create table if not exists chat_message_events (
+  message_id text not null references chat_messages(id) on delete cascade,
+  ordinal integer not null, event jsonb not null, created_at text not null,
+  primary key(message_id,ordinal)
+);
 create table if not exists provider_sessions (
   chat_id text primary key references chats(id) on delete cascade,
   user_id text not null, project_id text, continuation_id text not null,
@@ -195,13 +200,25 @@ create table if not exists application_jobs (
   payload jsonb not null, priority integer not null default 0,
   status text not null, run_at text not null, attempts integer not null default 0,
   max_attempts integer not null default 3, locked_by text, locked_until text,
-  interrupt_requested_at text, progress jsonb, result jsonb, last_error text,
+  interrupt_requested_at text, cancel_requested_at text,
+  progress jsonb, result jsonb, last_error text,
   created_at text not null, updated_at text not null, completed_at text,
   unique(kind,user_id,dedupe_key),
   check(priority between -100 and 100),
   check(max_attempts between 1 and 10),
   check(attempts between 0 and max_attempts),
   check(status in ('queued','running','succeeded','failed','cancelled'))
+);
+
+create table if not exists application_job_events (
+  job_id text references application_jobs(id) on delete cascade,
+  sequence integer not null, event jsonb not null, created_at text not null,
+  primary key(job_id,sequence)
+);
+
+create table if not exists application_job_commands (
+  id text primary key, job_id text references application_jobs(id) on delete cascade,
+  kind text not null, payload jsonb not null, created_at text not null, handled_at text
 );
 
 create table if not exists workflows (
@@ -254,6 +271,8 @@ create index if not exists application_jobs_claim on
 create index if not exists application_jobs_group on application_jobs(group_key,status);
 create index if not exists application_jobs_document on
   application_jobs(document_version_id,updated_at desc,id desc);
+create index if not exists application_job_commands_pending on
+  application_job_commands(job_id,handled_at,created_at,id);
 create index if not exists workflows_page on workflows(user_id,created_at desc,id);
 create index if not exists workflow_shares_email on workflow_shares(shared_with_email,workflow_id);
 create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
@@ -291,7 +310,9 @@ revoke execute on function public.sync_shared_members() from public,anon,authent
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
+  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
+  provider_sessions,application_jobs,
+  application_job_events,application_job_commands,workflows,
   hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -299,7 +320,9 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
   from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
+  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
+  provider_sessions,application_jobs,
+  application_job_events,application_job_commands,workflows,
   hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -327,8 +350,11 @@ alter table tabular_review_members enable row level security;
 alter table tabular_cells enable row level security;
 alter table chats enable row level security;
 alter table chat_messages enable row level security;
+alter table chat_message_events enable row level security;
 alter table provider_sessions enable row level security;
 alter table application_jobs enable row level security;
+alter table application_job_events enable row level security;
+alter table application_job_commands enable row level security;
 alter table workflows enable row level security;
 alter table hidden_workflows enable row level security;
 alter table workflow_shares enable row level security;

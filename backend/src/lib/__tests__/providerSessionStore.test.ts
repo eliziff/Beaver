@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 describe("Codex provider sessions", () => {
-  it("survives reopen and is destructively claimed at one transcript version", async () => {
+  it("survives reopen and is read safely at one transcript version", async () => {
     let [store, chats] = await loadStores();
     const chat = await chats.create(scope, { projectId: null, tabularReviewId: null });
     await store.writeProviderSession({
@@ -55,14 +55,14 @@ describe("Codex provider sessions", () => {
     expect(await store.readProviderSession(USER_ID, chat.id)).toMatchObject({
       continuation_id: CONTINUATION_ID, transcript_version: 2,
     });
-    expect((await store.claimProviderSession({
+    expect((await store.matchingProviderSession({
       userId: USER_ID, chatId: chat.id, projectId: null,
       compatibilityKey: COMPATIBILITY_KEY, transcriptVersion: 2,
     }))?.continuation_id).toBe(CONTINUATION_ID);
-    expect(await store.readProviderSession(USER_ID, chat.id)).toBeNull();
+    expect(await store.readProviderSession(USER_ID, chat.id)).not.toBeNull();
   });
 
-  it("destructively rejects a stale or cross-owner claim", async () => {
+  it("rejects a stale or cross-owner session without destroying it", async () => {
     const [store, chats] = await loadStores();
     const chat = await chats.create(scope, { projectId: null, tabularReviewId: null });
     await store.writeProviderSession({
@@ -70,11 +70,11 @@ describe("Codex provider sessions", () => {
       continuationId: CONTINUATION_ID, compatibilityKey: COMPATIBILITY_KEY,
       transcriptVersion: 2,
     });
-    expect(await store.claimProviderSession({
+    expect(await store.matchingProviderSession({
       userId: OTHER_USER_ID, chatId: chat.id, projectId: null,
       compatibilityKey: COMPATIBILITY_KEY, transcriptVersion: 2,
     })).toBeNull();
-    expect(await store.readProviderSession(USER_ID, chat.id)).toBeNull();
+    expect(await store.readProviderSession(USER_ID, chat.id)).not.toBeNull();
   });
 
   it("retains a session in trash and deletes it with its chat", async () => {

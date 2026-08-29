@@ -65,7 +65,7 @@ import type {
   WorkflowStore,
 } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
-import { chatTurnWasDeleted, setChatTurnControl } from "../chatTurns";
+import { setChatTurnControl } from "../chatTurns";
 import { jsonRecord as asRecord } from "../value";
 
 const uuid = z.string().uuid();
@@ -146,7 +146,6 @@ type AskInputsSubmission = Extract<
 export type AuthContext = ChatScope;
 export type EventSink = {
   claim(chatId: string): boolean;
-  start(): void;
   emit(event: unknown): void;
   setControl(control: Parameters<typeof setChatTurnControl>[2]): void;
 };
@@ -200,6 +199,12 @@ export type ChatApplicationFeatures = {
     status?: "cancelled" | "failed";
     events: AssistantEvent[] | null;
   }): void;
+};
+
+export type ChatTurnExecution = {
+  continuationId?: string;
+  onContinuation?(continuationId: string): void | Promise<void>;
+  onAccepted?(chatId: string): void | Promise<void>;
 };
 
 type Dependencies = {
@@ -492,6 +497,7 @@ export function createChatApplication(deps: Dependencies) {
       input: ChatTurnInput,
       sink: EventSink,
       signal: AbortSignal,
+      execution?: ChatTurnExecution,
     ) {
       const selectedModel = requestedModel(input.model);
       const responseProvider = providerForModel(selectedModel);
@@ -697,6 +703,7 @@ export function createChatApplication(deps: Dependencies) {
         conflict("chat_version_conflict", claimed.currentVersion);
       }
       let version = claimed.currentVersion;
+      await execution?.onAccepted?.(chat.id);
       if (!assistant && commit.assistantMessage) assistant = {
         id: commit.assistantMessage.id,
         chat_id: chat.id,
@@ -734,7 +741,8 @@ export function createChatApplication(deps: Dependencies) {
         images: imageForMessage(message, images),
         contextCheckpoint: message.contextCheckpoint,
       }));
-      let persistence: Promise<void> | undefined, pendingContent: unknown[] | undefined, nextCheckpoint = 0;
+      let persistence: Promise<void> | undefined, pendingContent: unknown[] | undefined,
+        chatAvailable = true, nextCheckpoint = 0;
       const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: unknown[], citations: unknown[] = [], force = false) {
         for (const event of events) {
@@ -757,7 +765,7 @@ export function createChatApplication(deps: Dependencies) {
           while (pendingContent) {
             const content = pendingContent;
             pendingContent = undefined;
-            if (chatTurnWasDeleted(chat!.id)) continue;
+            if (!chatAvailable) continue;
             const result = await deps.chats.commitTurn(auth, chat!.id, {
               expectedVersion: version,
               assistantMessage: { id: assistantId, turnId, content,
@@ -765,6 +773,7 @@ export function createChatApplication(deps: Dependencies) {
             });
             if (result.status === "conflict")
               conflict("chat_version_conflict", result.currentVersion);
+            if (result.status === "missing") chatAvailable = false;
             if (result.status === "committed") version = result.currentVersion;
           }
         })().finally(() => { persistence = undefined; });
@@ -787,11 +796,10 @@ export function createChatApplication(deps: Dependencies) {
       } catch (error) {
         console.warn("[chat] provider continuation unavailable", safeErrorLog(error));
       }
-      let activeContinuationId = providerSession?.continuationId;
+      let activeContinuationId = execution?.continuationId ?? providerSession?.continuationId;
       const onSubagentEvent = (event: ReadSubagentEvent) =>
-        !chatTurnWasDeleted(chat!.id) && void queuePersist([event])?.catch(() => undefined);
+        void queuePersist([event])?.catch(() => undefined);
       try {
-        sink.start();
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
         const result = await runChatTurn({
           model: selectedModel,
@@ -846,7 +854,10 @@ export function createChatApplication(deps: Dependencies) {
             ? { persist: true, ...(activeContinuationId
                 ? { continuationId: activeContinuationId } : {}) }
             : undefined,
-          onProviderContinuation: (id) => { activeContinuationId = id; },
+          onProviderContinuation: async (id) => {
+            activeContinuationId = id;
+            await execution?.onContinuation?.(id);
+          },
           onProviderControl: sink.setControl,
           canRetryProviderSession: () => !localTools.mutationCommitted(),
           onSubagentEvent,
@@ -879,7 +890,7 @@ export function createChatApplication(deps: Dependencies) {
       } catch (error) {
         const message = safeErrorMessage(error, "Model request failed");
         console.error("[chat]", safeErrorLog(error));
-        if (!chatTurnWasDeleted(chat.id)) {
+        if (chatAvailable) {
           await persistence?.catch(() => undefined);
           await queuePersist([
             ...(error instanceof AssistantStreamError

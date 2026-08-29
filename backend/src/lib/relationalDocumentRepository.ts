@@ -1,7 +1,6 @@
 import type { ApplicationScope } from "./applicationError";
 import type { DocumentAggregate, DocumentRepository, StoredDocument, StoredDocumentVersion } from "./documentRepository";
 import { decodePdfProfileSelection, type DocumentParseState, type StoredAssistantEdit } from "./documentStore";
-import { wakeJobWorker } from "./jobQueue";
 import { pdfLifecycleMark } from "./pdfLifecycleDiagnostics";
 import { normalizeDocumentMetadata, normalizeDocumentNotes } from "./normalize";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
@@ -163,10 +162,7 @@ export const documentRepository: DocumentRepository = {
         ${document.createdAt},${document.updatedAt})`, tx);
       await addVersion(tx, version, scope.userId);
     });
-    if (input.version.fileType === "pdf") {
-      pdfLifecycleMark("queue.enqueued", input.document.id);
-      wakeJobWorker();
-    }
+    if (input.version.fileType === "pdf") pdfLifecycleMark("queue.enqueued", input.document.id);
   },
   async get(scope, id, owner = false) {
     return aggregate(await relationalDatabase(), scope, id, owner);
@@ -212,12 +208,10 @@ export const documentRepository: DocumentRepository = {
       await addEdits(tx, id, input.version.id, input.edits);
       return "created";
     });
-    if (result === "created" && input.version.fileType === "pdf") wakeJobWorker();
     return result;
   },
   async updateVersion(scope, id, input) {
     const db = await relationalDatabase();
-    let queuedPdf = false;
     const result = await db.transaction(async (tx) => {
       const current = await aggregate(tx, scope, id);
       if (!current) return "missing";
@@ -253,11 +247,9 @@ export const documentRepository: DocumentRepository = {
           versionId: update.id,
           sourceSha256: update.sourceSha256,
         }, tx);
-        queuedPdf = true;
       }
       return "updated";
     });
-    if (queuedPdf) wakeJobWorker();
     return result;
   },
   async recordPdfPreparation(scope, id, input) {

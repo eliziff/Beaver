@@ -96,7 +96,7 @@ function openLocalDatabase() {
     database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
     const version = Number((database.prepare("PRAGMA user_version").get() as
       { user_version: number }).user_version);
-    if (version !== 0 && version !== 1 && version !== 2) throw new Error(
+    if (version < 0 || version > 5) throw new Error(
       `Unsupported local database schema ${version}; use a fresh local data directory`,
     );
     const schema = readFileSync(path.resolve(__dirname, "../../schema.sql"), "utf8");
@@ -110,7 +110,14 @@ function openLocalDatabase() {
         database.exec("ALTER TABLE document_versions ADD COLUMN pdf_profile jsonb");
       }
     }
-    database.exec("PRAGMA user_version=2");
+    if (version < 3) {
+      const columns = database.prepare("PRAGMA table_info(application_jobs)").all() as
+        { name: string }[];
+      if (!columns.some(({ name }) => name === "cancel_requested_at")) {
+        database.exec("ALTER TABLE application_jobs ADD COLUMN cancel_requested_at text");
+      }
+    }
+    database.exec("PRAGMA user_version=5");
     return database;
   } catch (error) {
     database.close();

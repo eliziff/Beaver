@@ -15,10 +15,8 @@ export type CodexAppServerNotification = {
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-  timer: NodeJS.Timeout;
 };
 
-const REQUEST_TIMEOUT_MS = 20_000;
 export const CODEX_APP_SERVER_CLOSED = "$closed";
 
 export type CodexAppServer = {
@@ -88,7 +86,6 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
       `Codex app-server ${reason}${detail ? `: ${detail}` : ""}`,
     );
     for (const request of pending.values()) {
-      clearTimeout(request.timer);
       request.reject(error);
     }
     pending.clear();
@@ -101,6 +98,7 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
   child.stderr.on("data", (chunk: Buffer | string) => {
     stderr = `${stderr}${chunk}`.slice(-4_000);
   });
+  child.stdin.once("error", (error) => close(`stdin failed: ${error.message}`));
   child.once("error", (error) => close(`failed to start: ${error.message}`));
   child.once("close", (code) => close(`exited${code === null ? "" : ` (${code})`}`));
 
@@ -118,7 +116,6 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
       const request = pending.get(id);
       if (!request) return;
       pending.delete(id);
-      clearTimeout(request.timer);
       const failure = message.error as { message?: unknown } | undefined;
       if (failure) {
         request.reject(
@@ -163,14 +160,9 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
         return;
       }
       const id = nextId++;
-      const timer = setTimeout(() => {
-        if (!pending.delete(id)) return;
-        reject(new Error(`Codex app-server ${method} request timed out.`));
-      }, REQUEST_TIMEOUT_MS);
       pending.set(id, {
         resolve: resolve as (value: unknown) => void,
         reject,
-        timer,
       });
       write({ id, method, params: params ?? {} });
     });

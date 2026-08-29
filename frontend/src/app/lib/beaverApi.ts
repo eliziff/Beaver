@@ -686,6 +686,16 @@ export const permanentlyDeleteChat = (chatId: string) =>
   remove<void>(`/chat/${segment(chatId)}/permanent`);
 export const stopChat = (chatId: string) =>
   post<{ stopped: boolean }>(`/chat/${segment(chatId)}/stop`);
+export const stopChatJob = (jobId: string) =>
+  post<{ stopped: boolean }>(`/chat/jobs/${segment(jobId)}/stop`);
+export const streamActiveChat = (chatId: string, signal: AbortSignal) =>
+  apiFetch(`/chat/${segment(chatId)}/stream`, {
+    headers: { Accept: "text/event-stream" }, signal,
+  });
+export const streamChatJob = (jobId: string, signal: AbortSignal) =>
+  apiFetch(`/chat/jobs/${segment(jobId)}/stream`, {
+    headers: { Accept: "text/event-stream" }, signal,
+  });
 export const steerChat = (chatId: string, id: string, text: string) =>
   post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text });
 export const compactChat = (chatId: string, model: string) =>
