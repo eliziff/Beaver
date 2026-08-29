@@ -17,6 +17,7 @@ $Frontend = Join-Path $Repo 'frontend'
 $Toa = Join-Path $Repo 'AuthoritiesHelper'
 $StateRoot = Join-Path $env:LOCALAPPDATA 'OpenLegalProducts\MikeCanada'
 $StateFile = Join-Path $StateRoot 'lifecycle.json'
+$SupervisorStateFile = Join-Path $StateRoot 'supervisor.json'
 
 $Services = @(
     [pscustomobject]@{
@@ -26,7 +27,7 @@ $Services = @(
     }
 )
 $Builds = @(
-    [pscustomobject]@{ Name = 'backend'; Path = Join-Path $Backend 'dist\index.js'; Command = 'cd backend; npm run build' },
+    [pscustomobject]@{ Name = 'backend'; Path = Join-Path $Backend 'dist\supervisor.js'; Command = 'cd backend; npm run build' },
     [pscustomobject]@{ Name = 'frontend'; Path = Join-Path $Frontend 'dist\index.html'; Command = 'cd frontend; npm run build' }
 )
 
@@ -109,15 +110,25 @@ function Test-LauncherOwnedListener($State, [string]$Name, [int]$Port) {
         return $false
     }
     $records = @($State.processes | Where-Object {
-        $_.name -eq $Name -and
-        [int]$_.port -eq $Port -and
-        (Test-ProcessIdentity ([int]$_.listenerPid) ([string]$_.listenerStartedAt))
+        $_.name -eq $Name -and [int]$_.port -eq $Port
     })
-    if ($records.Count -ne 1) {
+    $owners = @(Get-PortOwners $Port)
+    if ($records.Count -ne 1 -or $owners.Count -ne 1) {
         return $false
     }
-    $owners = @(Get-PortOwners $Port)
-    return $owners.Count -eq 1 -and [int]$owners[0].Id -eq [int]$records[0].listenerPid
+    $record = $records[0]
+    if ((Test-ProcessIdentity ([int]$record.listenerPid) ([string]$record.listenerStartedAt)) -and
+        [int]$owners[0].Id -eq [int]$record.listenerPid) {
+        return $true
+    }
+    if (-not (Test-ProcessIdentity ([int]$record.rootPid) ([string]$record.rootStartedAt))) {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $SupervisorStateFile -PathType Leaf)) { return $false }
+    try { $supervisor = Get-Content -LiteralPath $SupervisorStateFile -Raw | ConvertFrom-Json }
+    catch { return $false }
+    return [int]$supervisor.rootPid -eq [int]$record.rootPid -and
+        [int]$supervisor.listenerPid -eq [int]$owners[0].Id
 }
 
 function Resolve-Application([string[]]$Names) {
@@ -369,12 +380,14 @@ function Stop-Stack([switch]$Quiet) {
         return
     }
     foreach ($record in @($state.processes) | Select-Object -Last 100 | Sort-Object { $_.name }) {
+        Stop-Identity ([int]$record.rootPid) ([string]$record.rootStartedAt) $record.name
         if ([int]$record.listenerPid -ne [int]$record.rootPid) {
+            Start-Sleep -Milliseconds 250
             Stop-Identity ([int]$record.listenerPid) ([string]$record.listenerStartedAt) "$($record.name) listener"
         }
-        Stop-Identity ([int]$record.rootPid) ([string]$record.rootStartedAt) $record.name
     }
     Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $SupervisorStateFile -Force -ErrorAction SilentlyContinue
 }
 
 function Show-Status {
@@ -525,17 +538,20 @@ function Start-Stack {
     $previousCodex = [Environment]::GetEnvironmentVariable('CODEX_COMMAND', 'Process')
     $previousLegalStructureNative = [Environment]::GetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', 'Process')
     $previousNodeEnvironment = [Environment]::GetEnvironmentVariable('NODE_ENV', 'Process')
+    $previousSupervisorState = [Environment]::GetEnvironmentVariable('MIKE_SUPERVISOR_STATE_FILE', 'Process')
     try {
         # Pin resolved executables for the Beaver child; PATH is untouched.
         if ($codex) {
             [Environment]::SetEnvironmentVariable('CODEX_COMMAND', $codex, 'Process')
         }
         [Environment]::SetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', $legalStructureNative, 'Process')
+        Remove-Item -LiteralPath $SupervisorStateFile -Force -ErrorAction SilentlyContinue
+        [Environment]::SetEnvironmentVariable('MIKE_SUPERVISOR_STATE_FILE', $SupervisorStateFile, 'Process')
 
         $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
         [Environment]::SetEnvironmentVariable('PORT', '3000', 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', 'production', 'Process')
-        $backendStart = Start-LoggedProcess 'beaver' $node @('dist/index.js') $Backend $state
+        $backendStart = Start-LoggedProcess 'beaver' $node @('dist/supervisor.js') $Backend $state
         $launched += [pscustomobject]@{
             Id = $backendStart.Process.Id
             StartedAt = Get-ProcessStamp $backendStart.Process.Id
@@ -561,6 +577,7 @@ function Start-Stack {
         [Environment]::SetEnvironmentVariable('LEGAL_STRUCTURE_NATIVE', $previousLegalStructureNative, 'Process')
         [Environment]::SetEnvironmentVariable('PORT', $previousPort, 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', $previousNodeEnvironment, 'Process')
+        [Environment]::SetEnvironmentVariable('MIKE_SUPERVISOR_STATE_FILE', $previousSupervisorState, 'Process')
     }
 
     if (-not $NoBrowser) {

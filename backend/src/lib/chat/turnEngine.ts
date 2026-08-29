@@ -183,7 +183,7 @@ export async function runChatTurn(options: {
   readerAssignment?: ReadSubagentAssignment;
   resumableSubagents?: ReadonlyMap<string, ReadSubagentCheckpoint>;
   providerSession?: { persist: true; continuationId?: string };
-  onProviderContinuation?: (continuationId: string) => void;
+  onProviderContinuation?: (continuationId: string) => void | Promise<void>;
   onProviderControl?: (control: ProviderTurnControl | null) => void;
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;

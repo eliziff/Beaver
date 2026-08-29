@@ -34,6 +34,21 @@ async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boole
   throw new Error("Condition was not reached");
 }
 
+async function waitForJob(
+  queue: typeof import("../jobQueue"), id: string, userId: string,
+  progress?: (value: import("../jobQueue").Json | null) => void,
+) {
+  let previous = "";
+  const current = await eventually(() => queue.getJob(id, userId), (job) => {
+    const value = JSON.stringify(job?.progress ?? null);
+    if (value !== previous) { previous = value; progress?.(job?.progress ?? null); }
+    return !!job && ["succeeded", "failed", "cancelled"].includes(job.status);
+  });
+  if (!current || current.status === "failed") throw new Error("Background job failed");
+  if (current.status === "cancelled") throw new DOMException("Aborted", "AbortError");
+  return current;
+}
+
 describe("application job queue", () => {
   it("deduplicates active work and claims higher priority first", async () => {
     const queue = await import("../jobQueue");
@@ -58,9 +73,9 @@ describe("application job queue", () => {
       return { ok: true };
     } });
     await Promise.all([
-      queue.waitForJob(low.id, "owner"),
-      queue.waitForJob(high.id, "owner"),
-      queue.waitForJob(otherUser.id, "other"),
+      waitForJob(queue, low.id, "owner"),
+      waitForJob(queue, high.id, "owner"),
+      waitForJob(queue, otherUser.id, "other"),
     ]);
     await worker.stop();
     expect(order).toEqual([high.id, low.id, otherUser.id]);
@@ -87,16 +102,14 @@ describe("application job queue", () => {
       kind: "low", dedupeKey: "full", groupKey: "pdf:source", userId: "owner",
       payload: {}, priority: 0,
     });
-    queue.wakeJobWorker();
     await started.promise;
     const high = await queue.enqueueJob({
       kind: "high", dedupeKey: "page", groupKey: "pdf:source", userId: "owner",
       payload: {}, priority: 100,
     });
     await queue.interruptJobs("pdf:source", 100);
-    queue.wakeJobWorker();
-    await queue.waitForJob(high.id, "owner");
-    await queue.waitForJob(low.id, "owner");
+    await waitForJob(queue, high.id, "owner");
+    await waitForJob(queue, low.id, "owner");
     await worker.stop();
     expect(lowAttempts).toBe(2);
   });
@@ -117,7 +130,6 @@ describe("application job queue", () => {
       kind: "low", dedupeKey: "other-full", groupKey: "pdf:other",
       userId: "owner", payload: {}, priority: 0,
     });
-    queue.wakeJobWorker();
     await started.promise;
     const high = await queue.enqueueJob({
       kind: "high", dedupeKey: "page", groupKey: "pdf:source",
@@ -127,7 +139,7 @@ describe("application job queue", () => {
     expect(aborted).toBe(false);
     finish.resolve();
     await Promise.all([
-      queue.waitForJob(low.id, "owner"), queue.waitForJob(high.id, "owner"),
+      waitForJob(queue, low.id, "owner"), waitForJob(queue, high.id, "owner"),
     ]);
     await worker.stop();
   });
@@ -144,17 +156,13 @@ describe("application job queue", () => {
     const queued = await queue.enqueueJob({
       kind: "test", dedupeKey: "retry", userId: "owner", payload: {}, maxAttempts: 2,
     });
-    queue.wakeJobWorker();
     const progress: unknown[] = [];
     await eventually(() => queue.getJob(queued.id, "owner"),
       (value) => value?.status === "queued" && value.attempts === 1);
     expect(progress).toEqual([]);
-    const waiting = queue.waitForJob(queued.id, "owner", {
-      progress: (value) => progress.push(value),
-    });
+    const waiting = waitForJob(queue, queued.id, "owner", (value) => progress.push(value));
     await (await relationalDatabase()).query(sql`UPDATE application_jobs
       SET run_at=${new Date(0).toISOString()} WHERE id=${queued.id}`);
-    queue.wakeJobWorker();
     await expect(waiting).rejects.toThrow("Background job failed");
     const failed = await queue.getJob(queued.id, "owner");
     expect(failed).toMatchObject({ status: "failed", attempts: 2, lastError: "Error" });
@@ -184,11 +192,10 @@ describe("application job queue", () => {
       handled.push(job.id);
       return { recovered: true };
     } });
-    queue.wakeJobWorker();
-    await expect(queue.waitForJob(recoverable.id, "owner")).resolves.toMatchObject({
+    await expect(waitForJob(queue, recoverable.id, "owner")).resolves.toMatchObject({
       status: "succeeded", attempts: 2,
     });
-    await expect(queue.waitForJob(exhausted.id, "owner"))
+    await expect(waitForJob(queue, exhausted.id, "owner"))
       .rejects.toThrow("Background job failed");
     await worker.stop();
     expect(handled).toEqual([recoverable.id]);
@@ -208,10 +215,32 @@ describe("application job queue", () => {
     const jobs = await Promise.all(Array.from({ length: 40 }, (_, index) => queue.enqueueJob({
       kind: "test", dedupeKey: `stress-${index}`, userId: "owner", payload: {},
     })));
-    queue.wakeJobWorker();
-    await Promise.all(jobs.map(({ id }) => queue.waitForJob(id, "owner")));
+    await Promise.all(jobs.map(({ id }) => waitForJob(queue, id, "owner")));
     await Promise.all(workers.map((worker) => worker.stop()));
     expect([...counts.values()]).toEqual(Array(40).fill(1));
+  });
+
+  it("does not report cancellation until the running handler has unwound", async () => {
+    const queue = await import("../jobQueue"), started = deferred(), release = deferred();
+    const worker = queue.startJobWorker({ test: async (_job, { signal }) => {
+      started.resolve();
+      await new Promise<void>((resolve) => signal.addEventListener("abort", resolve,
+        { once: true }));
+      await release.promise;
+      throw new DOMException("Aborted", "AbortError");
+    } });
+    const queued = await queue.enqueueJob({
+      kind: "test", dedupeKey: "cancel", userId: "owner", payload: {},
+    });
+    await started.promise;
+    await queue.requestJobCancellation(queued.id, "owner");
+    await expect(queue.getJob(queued.id, "owner")).resolves.toMatchObject({
+      status: "running", cancelRequested: true,
+    });
+    release.resolve();
+    await eventually(() => queue.getJob(queued.id, "owner"),
+      (job) => job?.status === "cancelled");
+    await worker.stop();
   });
 
   it("prunes only expired terminal jobs", async () => {

@@ -38,7 +38,7 @@ describe("local relational database", () => {
     legacy.close();
 
     const database = (await store()).localDatabaseSync();
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
+    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
     expect(database.prepare("SELECT id,pdf_profile FROM document_versions").all())
       .toEqual([{ id: "version", pdf_profile: null }]);
   });

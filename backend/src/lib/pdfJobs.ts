@@ -2,7 +2,6 @@ import type { DocumentStore } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
-  wakeJobWorker,
   type ApplicationJob,
   type JobHandler,
 } from "./jobQueue";
@@ -150,6 +149,5 @@ export async function enqueuePdfReprocess(input: {
     priority: 50,
   });
   await interruptJobs(group, 50);
-  wakeJobWorker();
   return queued;
 }

@@ -46,13 +46,13 @@ export async function writeProviderSession(input: { userId: string; chatId: stri
   return value(stored);
 }
 
-export async function claimProviderSession(input: { userId: string; chatId: string;
+export async function matchingProviderSession(input: { userId: string; chatId: string;
   projectId: string | null; compatibilityKey: string; transcriptVersion: number }) {
   if (!id.safeParse(input.userId).success || !id.safeParse(input.chatId).success ||
       !digest.safeParse(input.compatibilityKey).success) return null;
   const database = await relationalDatabase();
-  const session = value((await database.query<Session>(sql`DELETE FROM provider_sessions
-    WHERE chat_id=${input.chatId} RETURNING *`)).rows[0]);
+  const session = value((await database.query<Session>(sql`SELECT * FROM provider_sessions
+    WHERE chat_id=${input.chatId}`)).rows[0]);
   return session?.user_id === input.userId && session.project_id === input.projectId &&
     session.compatibility_key === input.compatibilityKey &&
     session.transcript_version === input.transcriptVersion ? session : null;

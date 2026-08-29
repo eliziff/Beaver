@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
     clearDraft: vi.fn(),
     getChat: vi.fn(),
     streamChat: vi.fn(),
+    streamChatJob: vi.fn(),
+    generateChatTitle: vi.fn(),
     loadChats: vi.fn(),
 }));
 
@@ -22,6 +24,9 @@ vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     getChat: mocks.getChat,
     streamChat: mocks.streamChat,
+    streamChatJob: mocks.streamChatJob,
+    streamActiveChat: vi.fn().mockRejectedValue(new Error("observer unavailable")),
+    generateChatTitle: mocks.generateChatTitle,
     listSystemWorkflows: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
@@ -112,6 +117,7 @@ describe("ChatView rejected normal turn", () => {
         vi.clearAllMocks();
         window.localStorage.clear();
         mocks.loadChats.mockResolvedValue(undefined);
+        mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
         mocks.getChat.mockRejectedValue(new Error("initial load unavailable"));
         vi.stubGlobal(
             "ResizeObserver",
@@ -126,19 +132,21 @@ describe("ChatView rejected normal turn", () => {
         });
     });
 
-    it("retries the original turn ID instead of submitting the restored draft as new", async () => {
+    it("retries a server-rejected turn ID instead of submitting a new turn", async () => {
         const user = userEvent.setup();
         mocks.streamChat
             .mockResolvedValueOnce(
                 streamResponse(
                     [
+                        { type: "turn_queued", jobId: crypto.randomUUID() },
                         {
-                            type: "chat_id",
-                            chatId: "chat-1",
-                            transcriptVersion: 1,
+                            type: "error",
+                            message: "Rejected before commit",
+                            retryable: true,
+                            accepted: false,
                         },
+                        { type: "transcript_version", transcriptVersion: 0 },
                     ],
-                    false,
                 ),
             )
             .mockResolvedValueOnce(

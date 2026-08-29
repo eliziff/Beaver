@@ -466,7 +466,7 @@ async function runCodexTurn(
     if (!CODEX_THREAD_ID.test(threadId)) {
       throw new Error("Codex app-server returned an invalid thread ID.");
     }
-    params.providerSession?.onContinuationId?.(threadId);
+    await params.providerSession?.onContinuationId?.(threadId);
     const model = codexModelSlug(params.model);
     const started = await server.request<TurnResponse>("turn/start", {
       threadId,

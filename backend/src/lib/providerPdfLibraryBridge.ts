@@ -22,7 +22,7 @@ import {
   decodePdfProfileSelection,
   type PdfProfileSelection,
 } from "./documentStore";
-import { enqueueJob, wakeJobWorker, type JobHandler } from "./jobQueue";
+import { enqueueJob, type JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
   provider: string;
@@ -223,7 +223,6 @@ async function enqueueProviderJob(request: SafeRequest, userId: string) {
     payload: { requestReference: request.requestReference },
     priority: 0,
   });
-  wakeJobWorker();
   return queued;
 }
 

@@ -9,12 +9,44 @@ const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
   title: typeof row.title === "string" ? row.title : null,
   transcript_version: Number(row.transcript_version ?? 0) });
-const chatMessage = (row: Row): ChatMessageRecord => ({ ...row, id: String(row.id),
+const chatMessage = (row: Row, content?: unknown[]): ChatMessageRecord => ({ ...row, id: String(row.id),
   chat_id: String(row.chat_id), ...(row.turn_id ? { turn_id: String(row.turn_id) } : {}),
-  role: row.role === "user" ? "user" : "assistant", content: decode(row.content, null),
+  role: row.role === "user" ? "user" : "assistant",
+  content: content ?? decode(row.content, null),
   ...(row.files !== null ? { files: decode(row.files, null) } : {}),
   ...(row.workflow !== null ? { workflow: decode(row.workflow, null) } : {}),
   ...(row.citations !== null ? { citations: decode(row.citations, null) } : {}) });
+
+type Sequenced = { message_id: string; sequence: number; value: unknown };
+function grouped(values: Sequenced[]) {
+  const result = new Map<string, unknown[]>();
+  for (const row of values) {
+    const items = result.get(row.message_id) ?? [];
+    items[Number(row.sequence)] = decode(row.value, null);
+    result.set(row.message_id, items);
+  }
+  return result;
+}
+
+async function syncMessageEvents(
+  tx: RelationalDatabase,
+  messageId: string,
+  values: unknown[],
+) {
+  const prior = new Map((await tx.query<{ sequence: number; value: unknown }>(sql`
+    SELECT ordinal AS sequence,event AS value FROM chat_message_events
+    WHERE message_id=${messageId}`)).rows.map((row) =>
+      [Number(row.sequence), encode(decode(row.value, null))] as const));
+  for (let sequence = 0; sequence < values.length; sequence += 1) {
+    const value = encode(values[sequence]);
+    if (prior.get(sequence) === value) continue;
+    await tx.query(sql`INSERT INTO chat_message_events(
+      message_id,ordinal,event,created_at) VALUES(${messageId},${sequence},${value},${now()})
+      ON CONFLICT(message_id,ordinal) DO UPDATE SET event=excluded.event`);
+  }
+  await tx.query(sql`DELETE FROM chat_message_events WHERE message_id=${messageId}
+    AND ordinal>=${values.length}`);
+}
 async function findChat(scope: ApplicationScope, id: string, deleted = false,
   owner = false, db?: RelationalDatabase) {
   const row = await one(sql`SELECT c.* FROM chats c WHERE c.id=${id}
@@ -66,9 +98,19 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
       WHERE id=${id} AND transcript_version=${current.transcript_version}`, tx))
       return { status: "conflict", currentVersion: current.transcript_version };
     if (mutation.kind === "append") {
-      const content = decode<unknown[]>(prior!.content, []);
-      await changes(sql`UPDATE chat_messages SET content=${encode([...content, mutation.event])}
-        WHERE id=${mutation.messageId} AND chat_id=${id}`, tx);
+      const existing = (await tx.query<{ ordinal: number }>(sql`SELECT ordinal
+        FROM chat_message_events WHERE message_id=${mutation.messageId}
+        ORDER BY ordinal DESC LIMIT 1`)).rows[0];
+      let sequence = existing ? Number(existing.ordinal) + 1 : 0;
+      if (!existing) {
+        const legacy = decode<unknown[]>(prior!.content, []);
+        await syncMessageEvents(tx, mutation.messageId, legacy);
+        sequence = legacy.length;
+      }
+      await tx.query(sql`INSERT INTO chat_message_events(message_id,ordinal,event,created_at)
+        VALUES(${mutation.messageId},${sequence},${encode(mutation.event)},${created})`);
+      await tx.query(sql`UPDATE chat_messages SET content=${encode([])}
+        WHERE id=${mutation.messageId} AND chat_id=${id}`);
     } else {
       const { userMessage, assistantMessage } = mutation.turn;
       if (userMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
@@ -76,12 +118,15 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         ${userMessage.turnId ?? null},'user',${encode(userMessage.content)},
         ${userMessage.files === undefined ? null : encode(userMessage.files)},
         ${userMessage.workflow === undefined ? null : encode(userMessage.workflow)},${null},${created})`, tx);
-      if (assistantMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
+      if (assistantMessage) {
+        await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
         content,files,workflow,citations,created_at) VALUES(${assistantMessage.id},${id},
-        ${assistantMessage.turnId ?? null},'assistant',${encode(assistantMessage.content)},${null},${null},
+        ${assistantMessage.turnId ?? null},'assistant',${encode([])},${null},${null},
         ${assistantMessage.citations === undefined ? null : encode(assistantMessage.citations)},${created})
         ON CONFLICT(id) DO UPDATE SET turn_id=COALESCE(excluded.turn_id,chat_messages.turn_id),
           content=excluded.content,citations=excluded.citations`, tx);
+        await syncMessageEvents(tx, assistantMessage.id, assistantMessage.content);
+      }
     }
     return { status: "committed", currentVersion: version };
   });
@@ -115,8 +160,16 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   async read(id, messages = false, deleted = false) {
     const chat = await findChat(scope, id, deleted);
     if (!chat) return null;
-    const values = messages ? (await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
-      ORDER BY created_at,id`)).map(chatMessage) : [];
+    let values: ChatMessageRecord[] = [];
+    if (messages) {
+      const raw = await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
+        ORDER BY created_at,id`);
+      const events = grouped(await rows<Sequenced>(sql`SELECT e.message_id,
+        e.ordinal AS sequence,e.event AS value FROM chat_message_events e
+        JOIN chat_messages m ON m.id=e.message_id WHERE m.chat_id=${id}
+        ORDER BY e.message_id,e.ordinal`));
+      values = raw.map((row) => chatMessage(row, events.get(String(row.id))));
+    }
     return { chat, messages: values };
   },
   async owns(id) { return !!await findChat(scope, id, false, true); },

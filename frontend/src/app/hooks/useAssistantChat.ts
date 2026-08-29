@@ -6,7 +6,10 @@ import {
   getChat,
   steerChat,
   stopChat,
+  stopChatJob,
+  streamActiveChat,
   streamChat,
+  streamChatJob,
 } from "@/app/lib/beaverApi";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import type { Chat, Message } from "@/app/components/shared/types";
@@ -101,10 +104,12 @@ export function useAssistantChat({
   stateRef.current = state;
   const loadGenerationRef = useRef(0);
   const pollGenerationRef = useRef(0);
+  const activeStreamRef = useRef<AbortController | null>(null);
   const transportRef = useRef<{ runId: string; controller: AbortController } | null>(null);
 
   useEffect(() => () => {
     pollGenerationRef.current += 1;
+    activeStreamRef.current?.abort();
     transportRef.current?.controller.abort();
   }, []);
 
@@ -115,6 +120,42 @@ export function useAssistantChat({
     const generation = ++pollGenerationRef.current;
     void (async () => {
       let seenVersion = baselineVersion;
+      const controller = new AbortController();
+      activeStreamRef.current?.abort();
+      activeStreamRef.current = controller;
+      try {
+        const response = await streamActiveChat(targetChatId, controller.signal);
+        if (response.ok && response.body && generation === pollGenerationRef.current) {
+          const runId = `durable:${targetChatId}`;
+          dispatch({ type: "live_replay_started", chatId: targetChatId, runId });
+          const streamed = await readAssistantEventStream({
+            body: response.body,
+            signal: controller.signal,
+            expectedChatId: targetChatId,
+            onEvent: (event, eventChatId) => dispatch({
+              type: "protocol", runId, chatId: eventChatId, event,
+            }),
+          });
+          if (streamed.sawDone && streamed.sawTranscriptVersion) {
+            const latest = await getChat(targetChatId);
+            const version = latest.chat.transcript_version ?? seenVersion;
+            dispatch({ type: "transcript_loaded", chatId: targetChatId,
+              messages: latest.messages, transcriptVersion: version,
+              active: latest.chat.turn_in_progress === true,
+              preserveRejected: true });
+            if (!latest.chat.turn_in_progress) {
+              setChatTurnInProgress?.(targetChatId, false);
+              if (!tabularReviewId) void loadChats();
+              return;
+            }
+            seenVersion = version;
+          }
+        }
+      } catch {
+        // Fall back to canonical transcript polling while the service reconnects.
+      } finally {
+        if (activeStreamRef.current === controller) activeStreamRef.current = null;
+      }
       while (generation === pollGenerationRef.current) {
         try {
           const latest = await getChat(targetChatId, seenVersion);
@@ -150,6 +191,7 @@ export function useAssistantChat({
     const current = stateRef.current;
     if (!initialChatId) {
       pollGenerationRef.current += 1;
+      activeStreamRef.current?.abort();
       transportRef.current?.controller.abort();
       if (current.chatId || current.messages.length) dispatch({ type: "new_chat" });
       setChatLoad({ status: "loaded", chat: null });
@@ -160,6 +202,7 @@ export function useAssistantChat({
       return;
     }
     pollGenerationRef.current += 1;
+    activeStreamRef.current?.abort();
     transportRef.current?.controller.abort();
     setChatLoad({ status: "loading", chatId: initialChatId });
     void getChat(initialChatId).then((latest) => {
@@ -179,7 +222,9 @@ export function useAssistantChat({
     const runId = current.run?.id;
     if (!runId) return;
     if (current.chatId) void stopChat(current.chatId).catch(() => undefined);
+    else if (current.run?.jobId) void stopChatJob(current.run.jobId).catch(() => undefined);
     pollGenerationRef.current += 1;
+    activeStreamRef.current?.abort();
     if (transportRef.current?.runId === runId) {
       transportRef.current.controller.abort();
     }
@@ -231,12 +276,63 @@ export function useAssistantChat({
     const shouldGenerateTitle = !options?.askInputsResponse && current.messages.length === 0;
     const runId = crypto.randomUUID();
     pollGenerationRef.current += 1;
+    activeStreamRef.current?.abort();
     dispatch({ type: "run_started", runId, chatId: current.chatId, message, options: turnOptions });
     if (current.chatId) setChatTurnInProgress?.(current.chatId, true);
     const controller = new AbortController();
     transportRef.current = { runId, controller };
     let streamedChatId: string | undefined;
-    let retryableProviderFailure = false;
+    let queuedJobId: string | undefined;
+    let durablyQueued = false;
+    let serverRejected = false;
+    let replaying = false;
+    const consume = async (response: Response) => {
+      if (!response.body) throw new Error("missing response");
+      return readAssistantEventStream({
+        body: response.body,
+        signal: controller.signal,
+        expectedChatId: current.chatId,
+        onEvent: (event, eventChatId) => {
+          if (event.type === "turn_queued") queuedJobId = event.jobId;
+          if (event.type === "chat_id" && event.chatId !== current.chatId) {
+            if (replaying) {
+              replaying = false;
+              dispatch({ type: "live_replay_started", chatId: event.chatId, runId });
+            }
+            streamedChatId = event.chatId;
+            onChatIdChange?.(event.chatId);
+            setChatTurnInProgress?.(event.chatId, true);
+          }
+          if (event.type === "error" && event.accepted === false) serverRejected = true;
+          dispatch({ type: "protocol", runId, chatId: eventChatId, event });
+        },
+      });
+    };
+    const complete = async (finalChatId?: string) => {
+      dispatch({ type: "run_finished", runId });
+      if (finalChatId) setChatTurnInProgress?.(finalChatId, false);
+      if (finalChatId && finalChatId !== current.chatId) {
+        if (current.chatId) replaceChatId(current.chatId, finalChatId,
+          message.content.trim().slice(0, 120) || "New Chat");
+        if (!tabularReviewId) {
+          const base = projectId ? `/projects/${projectId}/assistant/chat` : "/assistant/chat";
+          navigate(`${base}/${finalChatId}`, { replace: true });
+        }
+      }
+      if (!tabularReviewId) await loadChats();
+      if (finalChatId && shouldGenerateTitle) {
+        const titleParts = [message.content];
+        if (message.workflow) titleParts.push(`Workflow: ${message.workflow.title}`);
+        if (message.files?.length) titleParts.push(`Files: ${message.files.map((file) => file.filename).join(", ")}`);
+        void generateChatTitle(finalChatId, titleParts.join("\n"))
+          .then(({ title }) => {
+            onTitleChange?.(finalChatId, title);
+            return tabularReviewId ? undefined : renameChat(finalChatId, title);
+          })
+          .catch(() => undefined);
+      }
+      return streamedChatId ?? null;
+    };
     try {
       const model = message.model ?? readSelectedModel();
       const preferences = readAssistantPreferences();
@@ -306,51 +402,35 @@ export function useAssistantChat({
         }
         throw new Error("request failed");
       }
-      if (!response.body) throw new Error("missing response");
-      const result = await readAssistantEventStream({
-        body: response.body,
-        signal: controller.signal,
-        expectedChatId: current.chatId,
-        onEvent: (event, eventChatId) => {
-          if (event.type === "chat_id" && event.chatId !== current.chatId) {
-            streamedChatId = event.chatId;
-            onChatIdChange?.(event.chatId);
-            setChatTurnInProgress?.(event.chatId, true);
-          }
-          if (event.type === "error" && event.retryable) retryableProviderFailure = true;
-          dispatch({ type: "protocol", runId, chatId: eventChatId, event });
-        },
-      });
+      durablyQueued = true;
+      const result = await consume(response);
       streamedChatId = result.chatId;
       if (!result.sawDone || !result.sawTranscriptVersion) {
         throw new Error("truncated response");
       }
-      dispatch({ type: "run_finished", runId });
-      if (retryableProviderFailure) {
-        dispatch({ type: "turn_rejected", rejected: { message: userMessage(message), options: turnOptions } });
+      if (serverRejected) {
+        const rejectedChatId = result.chatId ?? current.chatId;
+        dispatch({
+          type: "run_failed",
+          runId,
+          removeOptimistic: true,
+          rejected: { message: userMessage(message), options: turnOptions },
+        });
+        if (rejectedChatId) {
+          const latest = await getChat(rejectedChatId).catch(() => null);
+          if (latest) dispatch({
+            type: "transcript_loaded",
+            chatId: rejectedChatId,
+            messages: latest.messages,
+            transcriptVersion: latest.chat.transcript_version ?? current.transcriptVersion,
+            active: latest.chat.turn_in_progress === true,
+            preserveRejected: true,
+          });
+        }
+        return null;
       }
       const finalChatId = result.chatId ?? current.chatId;
-      if (finalChatId) setChatTurnInProgress?.(finalChatId, false);
-      if (finalChatId && finalChatId !== current.chatId) {
-        if (current.chatId) replaceChatId(current.chatId, finalChatId, message.content.trim().slice(0, 120) || "New Chat");
-        if (!tabularReviewId) {
-          const base = projectId ? `/projects/${projectId}/assistant/chat` : "/assistant/chat";
-          navigate(`${base}/${finalChatId}`, { replace: true });
-        }
-      }
-      if (!tabularReviewId) await loadChats();
-      if (finalChatId && shouldGenerateTitle) {
-        const titleParts = [message.content];
-        if (message.workflow) titleParts.push(`Workflow: ${message.workflow.title}`);
-        if (message.files?.length) titleParts.push(`Files: ${message.files.map((file) => file.filename).join(", ")}`);
-        void generateChatTitle(finalChatId, titleParts.join("\n"))
-          .then(({ title }) => {
-            onTitleChange?.(finalChatId, title);
-            return tabularReviewId ? undefined : renameChat(finalChatId, title);
-          })
-          .catch(() => undefined);
-      }
-      return streamedChatId ?? null;
+      return complete(finalChatId);
     } catch (error) {
       const targetChatId = streamedChatId ?? current.chatId;
       if (controller.signal.aborted) {
@@ -361,6 +441,25 @@ export function useAssistantChat({
         );
         return null;
       }
+      if (durablyQueued && queuedJobId && !targetChatId) {
+        try {
+          replaying = true;
+          const response = await streamChatJob(queuedJobId, controller.signal);
+          if (response.ok) {
+            const result = await consume(response);
+            streamedChatId = result.chatId;
+            if (result.sawDone && result.sawTranscriptVersion) {
+              if (serverRejected) dispatch({ type: "run_failed", runId,
+                removeOptimistic: true,
+                rejected: { message: userMessage(message), options: turnOptions } });
+              else return complete(result.chatId);
+              return null;
+            }
+          }
+        } catch {
+          // The durable job remains available for an explicit retry.
+        }
+      }
       if (targetChatId) {
         try {
           const latest = await getChat(targetChatId);
@@ -370,7 +469,7 @@ export function useAssistantChat({
             pollForCompletedTurn(targetChatId, version);
             return null;
           }
-          return null;
+          if (durablyQueued) return null;
         } catch {
           // Fall through to the bounded transport failure.
         }
@@ -384,7 +483,10 @@ export function useAssistantChat({
         type: "run_failed",
         runId,
         message: failure,
-        rejected: { message: userMessage(message), options: turnOptions },
+        ...(durablyQueued ? {} : {
+          removeOptimistic: true,
+          rejected: { message: userMessage(message), options: turnOptions },
+        }),
       });
       if (targetChatId) setChatTurnInProgress?.(targetChatId, false);
       return null;

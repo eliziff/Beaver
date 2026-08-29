@@ -6,11 +6,6 @@ type ActiveTurn = {
 };
 
 const activeTurns = new Map<string, ActiveTurn>();
-const deletedTurns = new Set<string>();
-
-export function chatTurnInProgress(chatId: string) {
-  return activeTurns.has(chatId);
-}
 
 export function beginChatTurn(chatId: string, controller: AbortController) {
   if (activeTurns.has(chatId)) return false;
@@ -37,7 +32,7 @@ export async function steerChatTurn(
   return true;
 }
 
-export function abortChatTurn(chatId: string) {
+function abortChatTurn(chatId: string) {
   const turn = activeTurns.get(chatId);
   if (!turn) return false;
   turn.controller.abort();
@@ -45,13 +40,7 @@ export function abortChatTurn(chatId: string) {
 }
 
 export function abortChatTurnForDeletion(chatId: string) {
-  if (!activeTurns.has(chatId)) return false;
-  deletedTurns.add(chatId);
   return abortChatTurn(chatId);
-}
-
-export function chatTurnWasDeleted(chatId: string) {
-  return deletedTurns.has(chatId);
 }
 
 export function finishChatTurn(
@@ -60,5 +49,4 @@ export function finishChatTurn(
 ) {
   if (controller && activeTurns.get(chatId)?.controller !== controller) return;
   activeTurns.delete(chatId);
-  deletedTurns.delete(chatId);
 }

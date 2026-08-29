@@ -22,6 +22,43 @@ afterEach(async () => {
 describe("SQLite relational repository contract", () => {
   relationalRepositoryContract();
 
+  it("stores assistant history as ordered rows instead of rewriting one JSON blob", async () => {
+    const { chatRepository } = await import("../relationalChatRepository");
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    const repository = chatRepository(owner), assistantId = randomUUID();
+    const chat = await repository.create({ projectId: null, tabularReviewId: null });
+    await repository.commit(chat.id, { kind: "turn", turn: {
+      expectedVersion: 0,
+      assistantMessage: { id: assistantId, content: [
+        { type: "tool_activity", id: "read-1", status: "running" },
+      ], citations: [{ kind: "url", url: "https://example.test/one" }] },
+    } });
+    await repository.commit(chat.id, { kind: "turn", turn: {
+      expectedVersion: 1,
+      assistantMessage: { id: assistantId, content: [
+        { type: "tool_activity", id: "read-1", status: "completed" },
+        { type: "content_final", text: "Done" },
+      ], citations: [{ kind: "url", url: "https://example.test/one" }] },
+    } });
+    await repository.commit(chat.id, { kind: "append", messageId: assistantId,
+      event: { type: "compaction", status: "completed" } });
+
+    const database = await relationalDatabase();
+    await expect(database.query<{ content: unknown }>(sql`SELECT content FROM chat_messages
+      WHERE id=${assistantId}`)).resolves.toMatchObject({ rows: [{ content: "[]" }] });
+    await expect(database.query<{ count: number }>(sql`SELECT COUNT(*) count
+      FROM chat_message_events WHERE message_id=${assistantId}`)).resolves.toMatchObject({
+      rows: [{ count: 3 }],
+    });
+    await expect(repository.read(chat.id, true)).resolves.toMatchObject({
+      messages: [{ content: [
+        { type: "tool_activity", id: "read-1", status: "completed" },
+        { type: "content_final", text: "Done" },
+        { type: "compaction", status: "completed" },
+      ], citations: [{ kind: "url", url: "https://example.test/one" }] }],
+    });
+  });
+
   it("commits a PDF version and its preparation job in one transaction", async () => {
     const { documentRepository } = await import("../relationalDocumentRepository");
     const { relationalDatabase, sql } = await import("../relationalDatabase");

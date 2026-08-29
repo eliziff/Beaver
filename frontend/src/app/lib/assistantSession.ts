@@ -128,12 +128,13 @@ export type AssistantSessionState = {
   pendingInput: AssistantPendingInput | null;
   contextUsage?: { usedTokens: number; windowTokens: number };
   compaction?: "running" | "completed" | "failed";
-  run: { id: string; status: "running" | "paused"; chatId?: string } | null;
+  run: { id: string; status: "running" | "paused"; chatId?: string; jobId?: string } | null;
   rejectedTurn: RejectedAssistantTurn | null;
   transcriptVersion: number;
 };
 
 export type ProtocolEvent =
+  | { type: "turn_queued"; jobId: string }
   | { type: "chat_id"; chatId: string; transcriptVersion?: number }
   | { type: "transcript_version"; transcriptVersion: number }
   | { type: "content_block"; text: string }
@@ -149,15 +150,16 @@ export type ProtocolEvent =
   | { type: "context_usage"; usedTokens: number; windowTokens: number }
   | { type: "compaction"; status: "running" | "completed" | "failed" }
   | { type: "turn_status"; status: "cancelled" }
-  | { type: "error"; message: string; retryable: boolean };
+  | { type: "error"; message: string; retryable: boolean; accepted?: boolean };
 
 export type AssistantSessionEvent =
   | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
+  | { type: "live_replay_started"; chatId: string; runId: string }
   | { type: "run_started"; runId: string; chatId?: string; message: Message; options?: AssistantTurnOptions }
   | { type: "protocol"; runId: string; chatId?: string; event: ProtocolEvent }
   | { type: "run_finished"; runId: string }
   | { type: "run_interrupted"; runId: string; status: "cancelled" | "interrupted" }
-  | { type: "run_failed"; runId: string; message?: string; rejected?: RejectedAssistantTurn }
+  | { type: "run_failed"; runId: string; message?: string; rejected?: RejectedAssistantTurn; removeOptimistic?: boolean }
   | { type: "turn_rejected"; rejected: RejectedAssistantTurn | null }
   | { type: "steering_queued"; runId: string; id: string; text: string }
   | { type: "compaction_changed"; status: "running" | "completed" | "failed"; error?: string }
@@ -342,6 +344,8 @@ const documentArtifactSchema = z.strictObject({
   },
 }));
 const protocolSchemas = [
+  z.strictObject({ type: z.literal("turn_queued"), jobId: idText })
+    .transform((row): ProtocolEvent => row),
   z.strictObject({ type: z.literal("chat_id"), chatId: idText,
     transcriptVersion: safeInteger.optional() })
     .transform((row): ProtocolEvent => ({ type: "chat_id", chatId: row.chatId,
@@ -363,10 +367,13 @@ const protocolSchemas = [
     })),
   marker("reasoning_block_end").transform(() => ({ type: "reasoning" as const,
     text: "", append: false, done: true })),
-  z.strictObject({ type: z.literal("error"), message: fieldText, retryable: z.boolean().optional() })
+  z.strictObject({ type: z.literal("error"), message: fieldText,
+    retryable: z.boolean().optional(), accepted: z.boolean().optional() })
     .transform((row): ProtocolEvent => row.message.trim() === "Cancelled by user."
       ? { type: "turn_status", status: "cancelled" }
-      : { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: row.retryable !== false }),
+      : { type: "error", message: ASSISTANT_GENERIC_ERROR,
+          retryable: row.retryable !== false,
+          ...(row.accepted !== undefined ? { accepted: row.accepted } : {}) }),
   z.strictObject({ type: z.literal("turn_status"),
     status: z.literal("cancelled") }).transform((row): ProtocolEvent => row),
   z.strictObject({ type: z.literal("steering"), id: idText, text: fieldText })
@@ -525,6 +532,10 @@ function interrupt(state: AssistantSessionState, status: "cancelled" | "interrup
 }
 
 function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): AssistantSessionState {
+  if (event.type === "turn_queued") return {
+    ...state,
+    run: state.run ? { ...state.run, jobId: event.jobId } : null,
+  };
   if (event.type === "chat_id") return { ...state, chatId: event.chatId, transcriptVersion: event.transcriptVersion ?? state.transcriptVersion, run: state.run ? { ...state.run, chatId: event.chatId } : null };
   if (event.type === "transcript_version") return { ...state, transcriptVersion: event.transcriptVersion };
   if (event.type === "context_usage") return { ...state, contextUsage: { usedTokens: event.usedTokens, windowTokens: event.windowTokens } };
@@ -724,6 +735,16 @@ export function createAssistantSessionState(args: { chatId?: string; messages?: 
 
 export function assistantSessionReducer(state: AssistantSessionState, event: AssistantSessionEvent): AssistantSessionState {
   if (event.type === "transcript_loaded") return loadTranscript(state, event);
+  if (event.type === "live_replay_started") {
+    const index = state.messages.findLastIndex((message) => message.role === "assistant");
+    const messages = state.messages.slice();
+    if (index >= 0) {
+      const current = messages[index] as AssistantMessageState;
+      messages[index] = emptyAssistant(current.id, current.turnId);
+    }
+    return { ...state, chatId: event.chatId, messages, readers: [], pendingInput: null,
+      run: { id: event.runId, status: "running", chatId: event.chatId } };
+  }
   if (event.type === "run_started") {
     const run = { id: event.runId, status: "running" as const, ...(event.chatId && { chatId: event.chatId }) };
     let next: AssistantSessionState = { ...state, run, rejectedTurn: null };
@@ -760,6 +781,13 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
   if (event.type === "run_interrupted") return state.run?.id === event.runId ? interrupt(state, event.status) : state;
   if (event.type === "run_failed") {
     if (state.run?.id !== event.runId) return state;
+    if (event.removeOptimistic) return {
+      ...state,
+      messages: state.messages.filter(({ id }) =>
+        id !== `user:${event.runId}` && id !== `assistant:${event.runId}`),
+      run: null,
+      rejectedTurn: event.rejected ?? state.rejectedTurn,
+    };
     const failed = applyProtocol(state, {
       type: "error",
       message: event.message ?? ASSISTANT_GENERIC_ERROR,

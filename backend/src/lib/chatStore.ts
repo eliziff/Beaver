@@ -70,20 +70,23 @@ async function requireContext(contexts: ChatContexts, scope: ChatScope, input: {
 }
 
 const retentionCutoff = () => new Date(Date.now() - RETENTION_MS).toISOString();
-async function purge(repository: ChatRepository) {
-  (await repository.purge(retentionCutoff())).forEach(abortChatTurnForDeletion);
-}
-
 export function createChatStore(repositoryFor: CreateChatRepository,
-  generate: GenerateChatTitle, contexts: ChatContexts): ChatStore {
+  generate: GenerateChatTitle, contexts: ChatContexts,
+  cancel?: (scope: ChatScope, chatId: string) => Promise<unknown>): ChatStore {
+  const abort = async (scope: ChatScope, chatId: string) => {
+    abortChatTurnForDeletion(chatId);
+    await cancel?.(scope, chatId);
+  };
+  const purge = async (scope: ChatScope, repository: ChatRepository) =>
+    await Promise.all((await repository.purge(retentionCutoff())).map((id) => abort(scope, id)));
   return {
     async list(scope, options) {
       const repository = repositoryFor(scope);
-      await requireContext(contexts, scope, options); await purge(repository);
+      await requireContext(contexts, scope, options); await purge(scope, repository);
       return repository.list(options);
     },
     async deleted(scope) {
-      const repository = repositoryFor(scope); await purge(repository);
+      const repository = repositoryFor(scope); await purge(scope, repository);
       return repository.deleted();
     },
     async create(scope, input) {
@@ -112,20 +115,20 @@ export function createChatStore(repositoryFor: CreateChatRepository,
     },
     async trash(scope, chatId) {
       const removed = await repositoryFor(scope).trash(chatId, new Date().toISOString());
-      if (removed) abortChatTurnForDeletion(chatId); return removed;
+      if (removed) await abort(scope, chatId); return removed;
     },
     async restore(scope, chatId) {
       const repository = repositoryFor(scope), cutoff = retentionCutoff();
-      await purge(repository);
+      await purge(scope, repository);
       return repository.restore(chatId, cutoff, new Date().toISOString());
     },
     async remove(scope, chatId) {
       const removed = await repositoryFor(scope).remove(chatId);
-      if (removed) abortChatTurnForDeletion(chatId); return removed;
+      if (removed) await abort(scope, chatId); return removed;
     },
     async deleteAll(scope) {
       const ids = await repositoryFor(scope).removeAll();
-      ids.forEach(abortChatTurnForDeletion); return ids.length;
+      await Promise.all(ids.map((id) => abort(scope, id))); return ids.length;
     },
     async generateTitle(scope, chatId, message) {
       const repository = repositoryFor(scope);

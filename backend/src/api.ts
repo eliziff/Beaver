@@ -125,7 +125,8 @@ api.use(
     const [chats, chat] = await Promise.all([
       runtime.chats(), runtime.chat(),
     ]);
-    return createChatRouter(chats, chat);
+    const { durableChatTurns } = await import("./lib/chatTurnQueue");
+    return createChatRouter(chats, chat, durableChatTurns);
   }),
 );
 api.use(

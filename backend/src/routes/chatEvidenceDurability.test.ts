@@ -122,6 +122,7 @@ async function loadApp() {
     { generateChatTitle },
     { createChatApplication },
     { providerSessionFeatures },
+    { inlineChatTurnQueue },
     { localDocuments, localLibraryStore, localProjects },
   ] = await Promise.all([
     import("./chat"),
@@ -131,6 +132,7 @@ async function loadApp() {
     import("../lib/chatTitle"),
     import("../lib/chat/chatApplication"),
     import("../lib/providerSessionFeatures"),
+    import("../lib/__tests__/support/inlineChatTurnQueue"),
     import("../lib/__tests__/support/localDocumentFixtures"),
   ]);
   const chats = createChatStore(
@@ -160,6 +162,7 @@ async function loadApp() {
   app.use("/chat", createChatRouter(
     chats,
     application,
+    inlineChatTurnQueue(application),
   ));
   return { app, store: chats, projects: localProjects };
 }
@@ -909,7 +912,8 @@ describe("chat PDF evidence durability", () => {
         },
       });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('"accepted":false');
     expect(await loaded.store.list({ userId: USER_ID }, {})).toEqual([]);
   });
 
@@ -932,8 +936,8 @@ describe("chat PDF evidence durability", () => {
         },
       });
 
-    expect(failed.status).toBe(500);
-    expect(failed.body).toEqual({ detail: "Chat operation failed" });
+    expect(failed.status).toBe(200);
+    expect(failed.text).toContain('"accepted":false');
     expect(await loaded.store.list({ userId: USER_ID }, {})).toEqual([]);
 
     mocks.preflightFailure = false;
@@ -1174,8 +1178,8 @@ describe("chat PDF evidence durability", () => {
           responses: [{ ...responseTurn.responses[0], answer: "Alberta" }],
         },
       });
-    expect(changedRetry.status).toBe(400);
-    expect(changedRetry.body.detail).toMatch(/retry the same response/iu);
+    expect(changedRetry.status).toBe(200);
+    expect(changedRetry.text).toContain('"accepted":false');
     expect((await storedChat(loaded.store, created.body.id))
       ?.transcript_version).toBe(3);
 
@@ -1544,8 +1548,8 @@ describe("chat PDF evidence durability", () => {
         },
       });
 
-    expect(response.status).toBe(400);
-    expect(response.body.detail).toMatch(/no assistant question/iu);
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('"accepted":false');
     expect(mocks.streamChatWithTools).not.toHaveBeenCalled();
     expect(
       (await storedChat(loaded.store, created.body.id))
