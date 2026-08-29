@@ -356,6 +356,7 @@ export async function runChatTurn(options: {
       model: capability.displayName,
       effort: capability.effort,
     };
+    let resumeState: ReadSubagentCheckpoint | undefined;
     const checkpoint = (): ReadSubagentCheckpoint | undefined => continuationId
       ? {
           id,
@@ -364,7 +365,6 @@ export async function runChatTurn(options: {
           effort: capability.effort,
           assignment,
           evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
-          ...(activities.size ? { activities: [...activities.values()] } : {}),
         }
       : undefined;
     const publish = (event: ReadSubagentEvent, visible = event) => {
@@ -373,11 +373,14 @@ export async function runChatTurn(options: {
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
     };
-    const running = (activity?: ToolActivity) => publish({
-      ...base, status: "running",
-      ...(activities.size ? { activities: [...activities.values()] } : {}),
-      ...(continuationId ? { resume: checkpoint() } : {}),
-    }, { ...base, status: "running", ...(activity && { activity }) });
+    const running = (activity?: ToolActivity) => {
+      if (!activity || activity.status !== "running") resumeState = checkpoint();
+      publish({
+        ...base, status: "running",
+        ...(activities.size ? { activities: [...activities.values()] } : {}),
+        ...(resumeState ? { resume: resumeState } : {}),
+      }, { ...base, status: "running", ...(activity && { activity }) });
+    };
     running();
     try {
       const child = await runChatTurn({
@@ -453,10 +456,10 @@ export async function runChatTurn(options: {
       const status = interrupted ? "interrupted" as const : "error" as const;
       const saved = checkpoint();
       const errorMessage = safeErrorMessage(error, "Reading agent failed");
-      if (saved) resumableReaders.set(id, saved);
       for (const [key, activity] of activities) {
         if (activity.status === "running") activities.set(key, { ...activity, status });
       }
+      if (saved) resumableReaders.set(id, { ...saved, activities: [...activities.values()] });
       publish({
         ...base,
         status,

@@ -1,28 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
-import {
-  ChatStoreError,
-  type ChatScope,
-  type ChatStore,
-} from "../lib/chatStore";
-import {
-  ChatApplicationError,
-  chatTurnInputSchema,
-  type ChatApplication,
-  type EventSink,
-} from "../lib/chat/chatApplication";
-import {
-  abortChatTurn,
-  beginChatTurn,
-  chatTurnInProgress,
-  finishChatTurn,
-  setChatTurnControl,
-  steerChatTurn,
-} from "../lib/chatTurns";
-import {
-  CODEX_THREAD_ID,
-} from "../lib/llm/codex";
+import { ChatStoreError, type ChatScope, type ChatStore } from "../lib/chatStore";
+import { ChatApplicationError, chatTurnInputSchema, type ChatApplication,
+  type EventSink } from "../lib/chat/chatApplication";
+import { abortChatTurn, beginChatTurn, chatTurnInProgress, finishChatTurn,
+  setChatTurnControl, steerChatTurn } from "../lib/chatTurns";
+import { CODEX_THREAD_ID } from "../lib/llm/codex";
 import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord } from "../lib/value";
@@ -100,6 +84,10 @@ export function createChatRouter(
   }));
 
   router.get("/:chatId", route(async (req, res, scope) => {
+    const after = Number(req.query.after_version);
+    if (Number.isSafeInteger(after) && chatTurnInProgress(req.params.chatId) &&
+        (await chats.get(scope, req.params.chatId))?.transcript_version === after)
+      return void res.status(204).send();
     const detail = await chats.detail(scope, req.params.chatId);
     if (!detail) return void res.status(404).json({ detail: "Chat not found" });
     res.json({
