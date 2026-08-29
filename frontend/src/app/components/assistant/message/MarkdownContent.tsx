@@ -14,6 +14,7 @@ import {
     citationPillParts,
     citationTooltip,
 } from "./CitationSources";
+import { omitBroadCitationDuplicates } from "./citationUtils";
 export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
     const { remarkPlugins, urlTransform, ...rest } = props;
     return (
@@ -31,11 +32,13 @@ const PLAIN_LINK =
 
 const ASSISTANT_SOURCE = "/__beaver_source/";
 function sourceCitations(text: string, citations: Citation[]) {
-    return text.replace(/(?<!\\)\[(\d+)\](?!\()/gu, (marker, raw: string) => {
-        const ref = Number(raw);
-        return citations.some((candidate) => candidate.ref === ref)
-            ? `[source ${ref}](${ASSISTANT_SOURCE}${ref})`
-            : marker;
+    const byRef = new Map(citations.map((citation) => [citation.ref, citation]));
+    return text.replace(/(?<!\\)\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*(?!\()/gu, (markers) => {
+        const selected = omitBroadCitationDuplicates(
+            (markers.match(/\d+/gu) ?? []).flatMap((ref) => byRef.get(Number(ref)) ?? []),
+        );
+        return selected.length ? selected.map(({ ref }) =>
+            `[source ${ref}](${ASSISTANT_SOURCE}${ref})`).join("") : markers;
     });
 }
 
@@ -44,15 +47,17 @@ export function CitationPill({
     onClick,
     className = "",
     title,
+    truncateStyleOfCause = false,
 }: {
     citation: Citation;
     onClick?: (citation: Citation) => void;
     className?: string;
     title?: string;
+    truncateStyleOfCause?: boolean;
 }) {
     const label = citationPillParts(citation);
     const content = label.styleOfCause ? (
-        <><em>{label.styleOfCause}</em>{label.rest}</>
+        <><em className={truncateStyleOfCause ? "inline-block max-w-56 truncate align-bottom" : undefined}>{label.styleOfCause}</em>{label.rest}</>
     ) : label.rest;
     const href = safeAssistantUrl(
         ("url" in citation ? citation.url : null) ?? citation.external_url,
@@ -92,10 +97,12 @@ export function CitationPillMarkdown({
     text,
     citations = [],
     onCitationClick,
+    truncateStyleOfCause = false,
 }: {
     text: string;
     citations?: Citation[];
     onCitationClick?: (citation: Citation) => void;
+    truncateStyleOfCause?: boolean;
 }) {
     return (
         <GfmMarkdown
@@ -107,7 +114,7 @@ export function CitationPillMarkdown({
                         ? Number(href.slice(ASSISTANT_SOURCE.length))
                         : -1;
                     const citation = citations.find(({ ref }) => ref === sourceRef);
-                    if (citation) return <CitationPill citation={citation} onClick={onCitationClick} />;
+                    if (citation) return <CitationPill citation={citation} onClick={onCitationClick} truncateStyleOfCause={truncateStyleOfCause} />;
                     const link = safeAssistantUrl(href);
                     if (!link || !link.startsWith("/")) return <>{children}</>;
                     const internal = link.startsWith("/");

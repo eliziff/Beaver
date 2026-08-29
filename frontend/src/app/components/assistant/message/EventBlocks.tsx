@@ -174,6 +174,7 @@ export function ActivityRow({
                                     text={markdown}
                                     citations={citations}
                                     onCitationClick={onCitationClick}
+                                    truncateStyleOfCause
                                 />
                             ) : (
                                 <GfmMarkdown
@@ -197,6 +198,7 @@ export function ActivityRow({
                                         key={`${citation.kind}:${citation.ref}`}
                                         citation={citation}
                                         onClick={onCitationClick}
+                                        truncateStyleOfCause
                                     />
                                 ))}
                             </div>

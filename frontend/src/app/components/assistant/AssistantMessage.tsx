@@ -15,7 +15,6 @@ import { EditCard } from "./EditCard";
 import {
     preprocessCitations,
     citationSourceKey,
-    type CitationHistory,
 } from "./message/citationUtils";
 import { MarkdownContent } from "./message/MarkdownContent";
 import { EditCardsSection } from "./message/EditCardsSection";
@@ -74,7 +73,6 @@ export function AssistantMessage({
         onEditResolved?.(args);
     };
     const inlineCitationTargets: Citation[] = [];
-    const citationHistory: CitationHistory = { seen: new Set(), previous: null };
     const citationsByRef = new Map<number, Citation>();
     for (const citation of message.citations) {
         if (!citationsByRef.has(citation.ref)) citationsByRef.set(citation.ref, citation);
@@ -87,7 +85,6 @@ export function AssistantMessage({
                       block.text,
                       citationsByRef,
                       inlineCitationTargets,
-                      citationHistory,
                   ),
               }
             : block,

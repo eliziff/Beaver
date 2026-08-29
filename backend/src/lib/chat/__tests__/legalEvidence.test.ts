@@ -11,6 +11,7 @@ import {
   GROUNDED_QUOTATION_POLICY_CURRENT,
   hasCaseNameInText,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
+  legalEvidenceCitationEntries,
   legalEvidenceReceiptEvent,
   legalEvidenceRequested,
   priorLegalEvidenceReceipts,
@@ -23,6 +24,7 @@ import {
 } from "../legalEvidence";
 import {
   createLegalEvidenceCitations,
+  createLegalEvidenceCitationsFromEntries,
   createLegalSourceSearchCitations,
 } from "../citations";
 import { CODING_PRODUCTION_SYSTEM_PROMPT } from "../prompts";
@@ -90,7 +92,7 @@ describe("production legal evidence", () => {
     );
   });
 
-  it("consolidates one provision family into a single range citation", () => {
+  it("keeps final provision citations exact while compacting the tool-call view", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const ids = ["sec50(1)", "sec50(1)(a)", "sec50(1)(b)", "sec50(1)(c)"].map(
       (label) => {
@@ -116,28 +118,26 @@ describe("production legal evidence", () => {
       { text: "Fourth clause proposition.", evidence_ids: [ids[3]] },
     ] }, state);
 
-    // The parent provision is present, so the family renders as the parent
-    // alone - no (a)-(c) residue - and all four claims share one ref.
     expect(renderLegalEvidenceAnswer(state)).toBe(
       [
         "First clause proposition. [1]",
-        "Second clause proposition. [1]",
-        "Third clause proposition. [1]",
-        "Fourth clause proposition. [1]",
+        "Second clause proposition. [2]",
+        "Third clause proposition. [3]",
+        "Fourth clause proposition. [4]",
       ].join("\n\n"),
     );
     const citations = createLegalEvidenceCitations(state);
-    expect(citations).toHaveLength(1);
-    expect(citations[0]).toEqual(expect.objectContaining({
-      kind: "a2aj",
-      ref: 1,
-      pinpoint: "s 50(1)",
-      locator_kind: "section",
-      quotes: expect.any(Array),
-    }));
+    expect(citations.map(({ pinpoint }) => pinpoint)).toEqual([
+      "s 50(1)", "s 50(1)(a)", "s 50(1)(b)", "s 50(1)(c)",
+    ]);
+    expect(createLegalEvidenceCitationsFromEntries(
+      legalEvidenceCitationEntries(state),
+    )).toEqual([expect.objectContaining({
+      pinpoint: "s 50(1)", quotes: expect.any(Array),
+    })]);
   });
 
-  it("renders sibling-only families with shared-prefix tails", () => {
+  it("keeps final sibling provisions separate while compacting the tool-call view", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const ids = ["sec49(2)(a)", "sec49(2)(b)"].map((label) => {
       const evidence = {
@@ -159,10 +159,15 @@ describe("production legal evidence", () => {
     }] }, state);
 
     const citations = createLegalEvidenceCitations(state);
-    expect(citations).toHaveLength(1);
-    expect(citations[0]).toEqual(expect.objectContaining({
+    expect(renderLegalEvidenceAnswer(state)).toBe("Both clauses matter. [1][2]");
+    expect(citations.map(({ pinpoint }) => pinpoint)).toEqual([
+      "s 49(2)(a)", "s 49(2)(b)",
+    ]);
+    expect(createLegalEvidenceCitationsFromEntries(
+      legalEvidenceCitationEntries(state),
+    )).toEqual([expect.objectContaining({
       pinpoint: "s 49(2)(a)\u2013(b)",
-    }));
+    })]);
   });
 
   it("uses the approved quotation and paraphrase instruction everywhere", () => {
@@ -373,17 +378,64 @@ describe("production legal evidence", () => {
     }] }, state);
 
     const rendered = renderLegalEvidenceAnswer(state)!;
-    expect(rendered).toBe("The court allowed the appeal. [1]");
+    expect(rendered).toBe("The court allowed the appeal. [1][2]");
     expect(rendered).not.toContain("http");
+    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
+      .toEqual(["para 12", "para 13"]);
+  });
+
+  it("drops a broad authority receipt when the same claim has an exact pinpoint", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const source = "The necessity test is demanding. Valero identified no unsettled question.";
+    const broad = createTnaEvidence({
+      jurisdiction: "CA", sourceClass: "case", stableSourceId: "forest-ethics",
+      sourceText: source, spanText: "The necessity test is demanding.",
+      citation: "2013 FCA 236", name: "Forest Ethics v Canada", dataset: "FCA",
+      externalUrl: "https://example.test/forest-ethics",
+      locatorKind: "document", locatorLabel: "document",
+    });
+    const exact = createTnaEvidence({
+      jurisdiction: "CA", sourceClass: "case", stableSourceId: "forest-ethics",
+      sourceText: source, spanText: "Valero identified no unsettled question.",
+      citation: "2013 FCA 236", name: "Forest Ethics v Canada", dataset: "FCA",
+      externalUrl: "https://example.test/forest-ethics#para31",
+      locatorKind: "paragraph", locatorLabel: "par31",
+    });
+    [broad, exact].forEach((evidence) => registerLegalEvidence(state, evidence));
+    submitLegalEvidenceAnswer({ claims: [{
+      text: "Valero identified no question requiring its joinder.",
+      evidence_ids: [broad.evidence_id, exact.evidence_id],
+    }] }, state);
+
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "Valero identified no question requiring its joinder. [1]",
+    );
     expect(createLegalEvidenceCitations(state)).toEqual([
-      expect.objectContaining({
-        pinpoint: "paras 12–13",
-        quotes: [{ quote: "The appeal is allowed." }, { quote: "The appeal is allowed." }],
-      }),
+      expect.objectContaining({ pinpoint: "para 31" }),
     ]);
   });
 
-  it("collapses journal page receipts into one canonical citation range", () => {
+  it("requires separate claims when sentences use different passages", () => {
+    const state = createLegalEvidenceTurnState("citation_structure");
+    const evidence = [passage("par30"), passage("par31")];
+    evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
+
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "The test is demanding. Valero failed to identify an unsettled question.",
+      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+    }] }, state).errors).toContain(
+      "claims[0] must split sentences supported by different passages",
+    );
+
+    expect(submitLegalEvidenceAnswer({ claims: [{
+      text: "R. v. Smith and Acme Ltd. Canada support one proposition.",
+      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
+    }] }, state).errors ?? []).not.toContain(
+      "claims[0] must split sentences supported by different passages",
+    );
+  });
+
+  it("keeps final journal pages exact while compacting the tool-call view", () => {
     const state = createLegalEvidenceTurnState("citation_structure");
     const citation = "Gordon F. Henderson, “Problems Involved in the Assignment of Patents and Patent Rights” (1966) 1:1 Ottawa L Rev 36";
     const evidence = [60, 61, 62, 63].map((page) =>
@@ -403,14 +455,19 @@ describe("production legal evidence", () => {
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
     }] }, state);
 
-    expect(createLegalEvidenceCitations(state)).toEqual([
-      expect.objectContaining({
+    expect(renderLegalEvidenceAnswer(state)).toBe(
+      "The article discusses assignments. [1][2][3][4]",
+    );
+    expect(createLegalEvidenceCitations(state).map(({ pinpoint }) => pinpoint))
+      .toEqual(["60", "61", "62", "63"]);
+    expect(createLegalEvidenceCitationsFromEntries(
+      legalEvidenceCitationEntries(state),
+    )).toEqual([expect.objectContaining({
         authority: citation,
         locator: "60–63",
         pinpoint: "60–63",
         quotes: expect.arrayContaining(evidence.map(({ span_text }) => ({ quote: span_text }))),
-      }),
-    ]);
+    })]);
   });
 
   it("projects searched case names through the ordinary citation model", () => {

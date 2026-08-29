@@ -37,7 +37,6 @@ import {
 import {
   createLegalEvidenceTurnState,
   finalizeLegalEvidence,
-  legalEvidenceCitationEntries,
   LEGAL_EVIDENCE_SUBMIT_TOOL,
   LEGAL_EVIDENCE_TOOL_NAME,
   legalEvidenceReceiptEvent,
@@ -437,9 +436,7 @@ export async function runChatTurn(options: {
         status: "completed",
         output: child.fullText,
         activities: [...activities.values()],
-        citations: createLegalEvidenceCitationsFromEntries(
-          legalEvidenceCitationEntries(child.evidence),
-        ),
+        citations: createLegalEvidenceCitations(child.evidence),
         grounding,
       });
       return {

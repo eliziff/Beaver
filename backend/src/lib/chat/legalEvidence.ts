@@ -27,7 +27,7 @@ export type LegalSourceClass = "case" | "legislation" | "commentary";
 export const GROUNDED_ANSWER_CONTRACT =
   "Whenever a claim depends on retrieved evidence, attach the exact evidence_id returned for the passage that supports it and finish with submit_grounded_answer. A tool call by itself does not require grounding; ground the claims that rely on its results. Put evidence only in evidence_ids. Do not write citation markers, URLs, source links, or pinpoints yourself.";
 export const GROUNDED_CLAIM_GRANULARITY =
-  "Keep each claim as narrow as the answer reasonably allows. Ordinarily, use one independently verifiable proposition per claim and attach only the smallest responsive passage. Never rely on a broad page, paragraph range, or section when a shorter passage or native pinpoint fully supports the proposition. Split claims when their propositions require different evidence.";
+  "Keep each claim as narrow as the answer reasonably allows. Ordinarily, use one independently verifiable proposition per claim and attach only the smallest responsive passage. Never rely on a broad page, paragraph range, or section when a shorter passage or native pinpoint fully supports the proposition. End a claim when its evidence changes; do not combine sentences supported by different passages.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -674,6 +674,8 @@ function parseClaims(value: unknown, state: LegalEvidenceTurnState) {
     if (!text || text.length > 1_200) errors.push(`claims[${index}].text is invalid`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
+    if (ids.length > 1 && /\p{Ll}{4,}[.!?]["')\]]*\s+\p{Lu}/u.test(text))
+      errors.push(`claims[${index}] must split sentences supported by different passages`);
     for (const id of ids) {
       const receipt = state.evidence.get(id)?.receipt;
       if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
@@ -842,7 +844,11 @@ export function legalEvidenceCitationGroupsFromEntries(
 export function legalEvidenceCitationGroups(
   state: LegalEvidenceTurnState,
 ): LegalEvidenceCitationGroup[] {
-  return legalEvidenceCitationGroupsFromEntries(legalEvidenceCitationEntries(state));
+  return legalEvidenceCitationEntries(state).map((entry, index) => ({
+    ref: index + 1,
+    members: [{ ...entry, ref: index + 1 }],
+    locatorLabels: [entry.receipt.locator.label],
+  }));
 }
 
 export function legalEvidenceCitationEntries(
@@ -850,11 +856,18 @@ export function legalEvidenceCitationEntries(
 ): Array<RegisteredEvidence & { ref: number }> {
   const entries: Array<RegisteredEvidence & { ref: number }> = [];
   const seen = new Set<string>();
-  for (const claim of state.answer ?? []) for (const id of claim.evidence_ids) {
-    const entry = state.evidence.get(id);
-    if (!entry?.receipt.span_text || seen.has(id)) continue;
-    seen.add(id);
-    entries.push({ ...entry, ref: entries.length + 1 });
+  for (const claim of state.answer ?? []) {
+    const claimEntries = claim.evidence_ids.flatMap((id) => state.evidence.get(id) ?? []);
+    const pinpointed = new Set(claimEntries
+      .filter(({ receipt }) => receipt.locator.kind !== "document")
+      .map(citationSourceKey));
+    for (const entry of claimEntries) {
+      const { evidence_id, locator, span_text } = entry.receipt;
+      if (!span_text || seen.has(evidence_id) ||
+          (locator.kind === "document" && pinpointed.has(citationSourceKey(entry)))) continue;
+      seen.add(evidence_id);
+      entries.push({ ...entry, ref: entries.length + 1 });
+    }
   }
   return entries;
 }
