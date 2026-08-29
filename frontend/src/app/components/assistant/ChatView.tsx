@@ -4,6 +4,7 @@ import {
     useEffect,
     useImperativeHandle,
     useLayoutEffect,
+    useMemo,
     useRef,
     useState,
 } from "react";
@@ -590,10 +591,10 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             }
             return next.slice(-READ_SUBAGENT_RUN_LIMIT);
         });
-    }, [readSubagents.showDock, session.readers]);
-    const readSubagentPanels = readSubagentPanelIds.flatMap((id) =>
-        session.readers.find((reader) => reader.id === id) ?? [],
-    );
+    }, [readSubagents.showDock, session.readers, setReadSubagentPanelIds]);
+    const readSubagentPanels = useMemo(() => readSubagentPanelIds.flatMap((id) =>
+        session.readers.find((reader) => reader.id === id) ?? []
+    ), [readSubagentPanelIds, session.readers]);
     useEffect(() => {
         if (
             readSubagents.showDock &&
@@ -609,7 +610,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             }
         }
         previousReadSubagentCount.current = readSubagentPanels.length;
-    }, [readSubagentPanelIds, readSubagents.showDock, session.readers, setDockExpanded]);
+    }, [readSubagentPanels, readSubagents.showDock, setDockExpanded]);
     const openReadSubagentPanel = (panel: AssistantReaderRun) => {
         dismissedReadSubagentIds.current.delete(panel.id);
         const withoutCurrent = readSubagentPanelIds.filter(

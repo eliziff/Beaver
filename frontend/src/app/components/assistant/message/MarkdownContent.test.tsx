@@ -47,8 +47,29 @@ describe("MarkdownContent links", () => {
             name: "Example v. Example, 2020 BCSC 1 at para 12",
         });
         expect(chip).toHaveClass("bg-red-800");
+        expect(screen.getByText("Example v. Example")).not.toHaveClass("truncate");
         await userEvent.click(chip);
         expect(onCitationClick).toHaveBeenCalledWith(source);
+    });
+
+    it("keeps the exact agent pinpoint and removes an adjacent broad duplicate", () => {
+        const broad: Citation = {
+            kind: "a2aj", source_class: "case", ref: 1,
+            citation: "2013 FCA 236", name: "Forest Ethics Advocacy Association v. Canada",
+            dataset: "FCA", url: null, quotes: [{ quote: "The test is demanding." }],
+        };
+        const exact: Citation = {
+            ...broad, ref: 2, locator_kind: "paragraph", locator: "31",
+            pinpoint: "para 31", quotes: [{ quote: "Valero identified no unsettled question." }],
+        };
+        const targets: Citation[] = [];
+        preprocessCitations("Result. [1][2]", new Map([[1, broad], [2, exact]]), targets);
+        render(<CitationPillMarkdown text="Result. [1][2]" citations={[broad, exact]} />);
+
+        expect(targets).toEqual([exact]);
+        expect(screen.getAllByText(/Forest Ethics Advocacy Association/u)).toHaveLength(1);
+        expect(screen.getByText(/Forest Ethics Advocacy Association/u).closest("span"))
+            .toHaveTextContent("Forest Ethics Advocacy Association v. Canada, 2013 FCA 236 at para 31");
     });
 
     it("rejects credential-bearing links in shared Markdown", () => {
@@ -130,7 +151,7 @@ describe("MarkdownContent links", () => {
         );
     });
 
-    it("uses only the pinpoint for consecutive passages from one decision", () => {
+    it("keeps the full authority on consecutive final-answer pinpoints", () => {
         const citations = new Map<number, Citation>([
             [1, {
                 kind: "a2aj",
@@ -159,14 +180,11 @@ describe("MarkdownContent links", () => {
         renderMarkdown(text, targets);
 
         expect(document.querySelector('[data-citation-ref="2"]')).toHaveTextContent(
-            "para. 29",
-        );
-        expect(document.querySelector('[data-citation-ref="2"]')).not.toHaveTextContent(
-            "Retvedt",
+            "R. v. Retvedt, 2017 BCSC 2477, para. 29",
         );
     });
 
-    it("compresses repeated legislation citations like other authorities", () => {
+    it("keeps the full legislation title on consecutive final-answer pinpoints", () => {
         const citations = new Map<number, Citation>([
             [1, {
                 kind: "a2aj",
@@ -195,10 +213,7 @@ describe("MarkdownContent links", () => {
         renderMarkdown(text, targets);
 
         expect(document.querySelector('[data-citation-ref="2"]')).toHaveTextContent(
-            "s. 19.16",
-        );
-        expect(document.querySelector('[data-citation-ref="2"]')).not.toHaveTextContent(
-            "Family Law Act",
+            "Family Law Act, SBC 2011, c 25, s. 19.16",
         );
     });
 

@@ -278,6 +278,42 @@ describe("assistantSessionReducer", () => {
     expect(assistantText(state)).toBe("main response");
   });
 
+  it("keeps every citation-heavy reader when reconciling a transcript", () => {
+    const reader = (id: number, activityCount: number) => ({
+      type: "subagent_run",
+      id: `reader-${id}`,
+      task: `Read assignment ${id}`,
+      status: "completed",
+      activities: Array.from({ length: activityCount }, (_, activity) => ({
+        id: `reader-${id}:activity-${activity}`,
+        tool: "read",
+        label: "Read authority",
+        status: "completed",
+        citations: Array.from({ length: 4 }, (_, ref) => ({
+          kind: "a2aj",
+          source_class: "case",
+          ref,
+          citation: "2026 ABCA 1",
+          name: "Example v. Example",
+          dataset: "ABCA",
+          url: null,
+          quotes: [{ quote: "A grounded passage." }],
+        })),
+      })),
+      citations: [],
+    });
+    const events = [reader(1, 84), reader(2, 12), reader(3, 12), reader(4, 96)];
+
+    const state = createAssistantSessionState({ chatId: "chat-1", messages: [
+      { ...user, id: "user-1" },
+      { id: "assistant-1", role: "assistant", content: events, turn_complete: true },
+    ] });
+
+    expect(state.readers.map(({ id }) => id)).toEqual([
+      "reader-1", "reader-2", "reader-3", "reader-4",
+    ]);
+  });
+
   it("ignores late runs and events associated with another active chat", () => {
     const state = running();
     const event = parseAssistantProtocolEvent({ type: "content_final", text: "stale", citations: [] });

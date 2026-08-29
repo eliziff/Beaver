@@ -25,6 +25,15 @@ vi.mock("../lib/llm", async (importOriginal) => ({
   modelSupportsImageInput: () => true,
   streamChatWithTools: mocks.streamChatWithTools,
 }));
+vi.mock("../lib/codexCatalog", () => ({
+  getCodexModelCatalog: async () => ({
+    source: "live",
+    models: [{
+      slug: "gpt-5.6-luna", displayName: "Luna",
+      supportedReasoningLevels: [{ effort: "low" }],
+    }],
+  }),
+}));
 vi.mock("../lib/chat/assistantTools", () => ({
   assistantTools: (runtime: {
     userId: string;
@@ -212,6 +221,40 @@ afterEach(async () => {
 });
 
 describe("chat PDF evidence durability", () => {
+
+  it("keeps only the latest durable snapshot for each reading agent", async () => {
+    mocks.streamChatWithTools.mockImplementation(async (params) => {
+      if (params.providerSession) return { fullText: "Reader result." };
+      await params.runTools?.([{
+        id: "load-readers", name: "load_tools",
+        input: { names: ["delegate_read"] },
+      }]);
+      await params.runTools?.([{
+        id: "round", name: "delegate_read", input: { assignments: [
+          { task: "Read note A", scope: "note A", jurisdiction: "CA" },
+          { task: "Read note B", scope: "note B", jurisdiction: "CA" },
+        ] },
+      }]);
+      return { fullText: "Done." };
+    });
+    const loaded = await loadApp();
+    const created = await request(loaded.app).post("/chat/create").send({});
+
+    expect((await request(loaded.app).post("/chat").send({
+      chat_id: created.body.id,
+      expected_version: 0,
+      subagent_mode: "beaver",
+      subagent_model: "gpt-5.6-luna",
+      subagent_effort: "low",
+      current_turn: { kind: "message", content: "Compare two notes." },
+    })).status).toBe(200);
+    const events = (await storedChat(loaded.store, created.body.id))!
+      .messages[1].content as Record<string, unknown>[];
+
+    const readers = events.filter(({ type }) => type === "subagent_run");
+    expect(readers.map(({ id }) => id)).toEqual(["round:1", "round:2"]);
+    expect(readers.every(({ status }) => status !== "running")).toBe(true);
+  });
 
   it("omits empty chats from history without invalidating their direct route", async () => {
     const loaded = await loadApp();

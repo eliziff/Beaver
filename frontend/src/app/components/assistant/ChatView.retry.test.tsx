@@ -22,6 +22,7 @@ vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/beaverApi", () => ({
     getChat: mocks.getChat,
     streamChat: mocks.streamChat,
+    listSystemWorkflows: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({
@@ -109,6 +110,7 @@ function Harness() {
 describe("ChatView rejected normal turn", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        window.localStorage.clear();
         mocks.loadChats.mockResolvedValue(undefined);
         mocks.getChat.mockRejectedValue(new Error("initial load unavailable"));
         vi.stubGlobal(
@@ -196,6 +198,36 @@ describe("ChatView rejected normal turn", () => {
         );
 
         expect(screen.getByTestId("assistant-streaming")).toHaveTextContent("false");
+    });
+
+    it("keeps all four reading-agent tabs after terminal transcript reconciliation", async () => {
+        const session = (status: "running" | "completed") =>
+            createAssistantSessionState({ chatId: "chat-1", messages: [
+                { id: "user-1", role: "user", content: "Research it" },
+                {
+                    id: "assistant-1",
+                    role: "assistant",
+                    content: Array.from({ length: 4 }, (_, index) => ({
+                        type: "subagent_run",
+                        id: `reader:${index + 1}`,
+                        task: `Assignment ${index + 1}`,
+                        status,
+                        activities: [],
+                        citations: [],
+                    })),
+                },
+            ] });
+        const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
+        const { rerender } = render(<ChatView {...props} session={session("running")} />);
+
+        for (let index = 1; index <= 4; index += 1) {
+            expect(await screen.findByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
+        }
+
+        rerender(<ChatView {...props} session={session("completed")} />);
+        for (let index = 1; index <= 4; index += 1) {
+            expect(screen.getByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
+        }
     });
 
     it("announces response progress and only reports successful completion", async () => {

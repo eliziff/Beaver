@@ -46,6 +46,7 @@ function numericRanges(labels: readonly string[]) {
   const values = [...new Set(labels.map((label) => label.replace(PREFIX, "").trim()))]
     .map((label) => /^\d{1,6}$/u.test(label) ? Number(label) : null);
   if (values.some((value) => value === null)) return null;
+  values.sort((left, right) => left! - right!);
   const groups: string[] = [];
   for (let index = 0; index < values.length; index += 1) {
     const start = values[index]!;

@@ -1,10 +1,5 @@
 import { citationPinpoint, type Citation } from "../../shared/types";
 
-export type CitationHistory = {
-    seen: Set<string>;
-    previous: string | null;
-};
-
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {
         const identity = annotation.citation?.trim().toLocaleLowerCase();
@@ -17,37 +12,26 @@ export function citationSourceKey(annotation: Citation): string {
     return `document:${annotation.document_id}:${annotation.version_id ?? ""}`;
 }
 
+export function omitBroadCitationDuplicates(citations: Citation[]): Citation[] {
+    const pinpointed = new Set(citations
+        .filter((citation) => citationPinpoint(citation))
+        .map(citationSourceKey));
+    return citations.filter((citation) =>
+        citationPinpoint(citation) || !pinpointed.has(citationSourceKey(citation)));
+}
+
 export function preprocessCitations(
     text: string,
     citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
-    history: CitationHistory = { seen: new Set(), previous: null },
 ): string {
-    return text.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (full, refsStr) => {
-        const refs = (refsStr as string)
-            .split(",")
-            .map((s: string) => parseInt(s.trim(), 10));
-        const tokens = refs.flatMap((ref: number) => {
-            const citation = citations.get(ref);
-            if (!citation) return [];
-            const sourceKey = citationSourceKey(citation);
-            const canUseSupra = citation.source_class === "case" ||
-                citation.source_class === "legislation" ||
-                citation.source_class === "commentary" ||
-                (citation.kind === "public_legal" && citation.provider === "journal");
-            const displayForm =
-                sourceKey === history.previous && citationPinpoint(citation)
-                    ? "pinpoint"
-                    : history.seen.has(sourceKey) && canUseSupra
-                      ? "supra"
-                      : "full";
+    return text.replace(/\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*/g, (full) => {
+        const selected = omitBroadCitationDuplicates(
+            (full.match(/\d+/g) ?? []).flatMap((ref) => citations.get(Number(ref)) ?? []),
+        );
+        const tokens = selected.map((citation) => {
             const idx = inlineCitationTargets.length;
-            inlineCitationTargets.push({
-                ...citation,
-                display_form: displayForm,
-            });
-            history.seen.add(sourceKey);
-            history.previous = sourceKey;
+            inlineCitationTargets.push(citation);
             return [`\`§${idx}§\`\u200B`];
         });
         return tokens.length > 0 ? tokens.join("") : full;
