@@ -41,7 +41,9 @@ hashes, attempts, validation errors, and final receipt.
 
 `analysis` is three flat case-wide lists:
 
-- one clear mention of every adjudicative decision cited, quoted, or described;
+- one exact in-source label for every adjudicative decision cited, quoted, or
+  described in the judicial reasons, disposition, or court-authored procedural
+  account;
 - same-litigation procedural relationships, including any action the present
   court takes on the earlier decision; and
 - each opinion's proposition-level treatments of that decision, with a compact
@@ -107,10 +109,10 @@ The model owns questions that require reading law: whether text is the court's
 own position, what proposition a cited decision supplies, what the current
 opinion does with it, the scope of that treatment, and what the present court
 directly did to a decision under review. Those fields are graded semantically
-against the gold. Opinion boundaries, writers, joins, votes, exact spans, and
-no-oracle receipts are checked mechanically. The semantic judge receives only
-treatments and same-litigation relationships, not the citation roster or mechanical
-validation work.
+against the gold. Opinion boundaries, writers, joins, votes, express result-only
+agreement, exact spans, and no-oracle receipts are checked mechanically. The
+semantic judge receives only treatments and same-litigation relationships, not
+the citation roster or mechanical validation work.
 
 Point-level support is deliberately conservative. Writers and full joiners are
 confirmed supporters. A qualified agreement is retained as exact source
@@ -165,7 +167,9 @@ first run as the source of the shared opinion pass:
 ```
 
 The second run refuses a missing, stale, or invalid structure checkpoint; it
-never substitutes a new opinion-stage call. The launcher allows up to 131,072
+never substitutes a new opinion-stage call. It also requires the source run to
+use the same cases, provider, model, effort, structure prompt, examples,
+correction policy, limits, and worker count. The launcher allows up to 131,072
 output tokens by default so difficult full-case analyses are not truncated.
 
 Rerunning the same command recompiles preserved stage drafts first, then resumes
