@@ -20,6 +20,7 @@ async function start() {
   const host = runtime.mode === "local" ? "127.0.0.1" : "0.0.0.0";
   const listener = server.listen(PORT, host, () => {
     console.log(`Beaver running on port ${PORT}`);
+    process.send?.({ type: "ready" });
   });
   listener.maxHeadersCount = 100;
   listener.headersTimeout = 15_000;
@@ -48,6 +49,7 @@ async function start() {
   });
   stopOn("SIGINT");
   stopOn("SIGTERM");
+  process.once("disconnect", () => void stop().then(() => process.exit(0)));
 }
 void start().catch((error) => {
   releaseRuntimeLock();

@@ -404,7 +404,7 @@ export async function streamClaudeP(
       if (!CLAUDE_SESSION_ID.test(sessionId)) {
         throw new Error("Claude returned an invalid continuation ID.");
       }
-      params.providerSession.onContinuationId?.(sessionId);
+      await params.providerSession.onContinuationId?.(sessionId);
     }
     const messagesJson = JSON.stringify(params.messages);
     const toolsJson = JSON.stringify(initialTools);

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createChatRouter } from "../../routes/chat";
 import type { ChatApplication } from "../../lib/chat/chatApplication";
 import type { ChatStore } from "../../lib/chatStore";
+import { inlineChatTurnQueue } from "../../lib/__tests__/support/inlineChatTurnQueue";
 
 vi.mock("../../middleware/auth", () => ({
   requireAuth: (_req: unknown, res: { locals: Record<string, unknown> }, next: () => void) => {
@@ -28,7 +29,6 @@ const application = {
   async turn(_auth, input, sink) {
     runTurn(input);
     if (!sink.claim(input.chat_id ?? CHAT_ID)) throw new Error("claim failed");
-    sink.start();
     sink.emit({ type: "chat_id", chatId: input.chat_id ?? CHAT_ID, transcriptVersion: 1 });
     if (failStream) {
       sink.emit({ type: "error", message: "upstream LLM failure" });
@@ -40,7 +40,7 @@ const application = {
 } as ChatApplication;
 const app = express();
 app.use(express.json());
-app.use("/chat", createChatRouter(chats, application));
+app.use("/chat", createChatRouter(chats, application, inlineChatTurnQueue(application)));
 
 const VALID_BODY = {
   expected_version: 0,
@@ -59,6 +59,7 @@ describe("POST /chat — canonical streaming endpoint", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/event-stream");
     expect(res.text).toContain('"type":"chat_id"');
+    expect(res.text.match(/"type":"transcript_version"/gu)).toHaveLength(1);
     expect(res.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
     expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({
       edit_mode: "auto", expected_version: 0,

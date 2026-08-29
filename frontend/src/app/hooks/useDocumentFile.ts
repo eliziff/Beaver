@@ -73,15 +73,6 @@ async function load(
   return request;
 }
 
-export function preloadDocumentFile(
-  documentId: string,
-  versionId?: string | null,
-  revision?: string | number | null,
-  original = false,
-) {
-  return load(documentId, versionId, revision, original);
-}
-
 export function useDocumentFile(
   documentId: string | null | undefined,
   versionId?: string | null,

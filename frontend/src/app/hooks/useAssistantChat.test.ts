@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   compactChat: vi.fn(),
   getChat: vi.fn(),
   stopChat: vi.fn(),
+  stopChatJob: vi.fn(),
+  streamActiveChat: vi.fn(),
+  streamChatJob: vi.fn(),
   steerChat: vi.fn(),
   streamChat: vi.fn(),
   loadChats: vi.fn(),
@@ -41,6 +44,9 @@ vi.mock("@/app/lib/beaverApi", () => ({
   compactChat: mocks.compactChat,
   getChat: mocks.getChat,
   stopChat: mocks.stopChat,
+  stopChatJob: mocks.stopChatJob,
+  streamActiveChat: mocks.streamActiveChat,
+  streamChatJob: mocks.streamChatJob,
   steerChat: mocks.steerChat,
   streamChat: mocks.streamChat,
   generateChatTitle: mocks.generateChatTitle,
@@ -96,6 +102,8 @@ beforeEach(() => {
   mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
   mocks.renameChat.mockResolvedValue(undefined);
   mocks.stopChat.mockResolvedValue({ stopped: true });
+  mocks.stopChatJob.mockResolvedValue({ stopped: true });
+  mocks.streamActiveChat.mockRejectedValue(new Error("observer unavailable"));
   mocks.steerChat.mockResolvedValue({ steered: true });
   mocks.compactChat.mockResolvedValue({ compacted: true });
   mocks.getChat.mockRejectedValue(new Error("initial load unavailable"));
@@ -104,7 +112,17 @@ beforeEach(() => {
 });
 
 describe("useAssistantChat local transcript boundary", () => {
-  it("loads one transcript and resumes an active turn from the server version", async () => {
+  it("replays all active readers before loading the completed transcript", async () => {
+    const readers = Array.from({ length: 4 }, (_, index) => ({
+      type: "subagent_run", id: `reader-${index}`, task: `Read ${index}`,
+      status: "completed", activities: [], citations: [],
+    }));
+    mocks.streamActiveChat.mockResolvedValueOnce(streamResponse([
+      { type: "turn_queued", jobId: crypto.randomUUID() },
+      { type: "chat_id", chatId: "chat-1", transcriptVersion: 4 },
+      ...readers,
+      { type: "transcript_version", transcriptVersion: 5 },
+    ]));
     mocks.getChat
       .mockResolvedValueOnce({
         chat: { id: "chat-1", transcript_version: 4, turn_in_progress: true },
@@ -114,7 +132,9 @@ describe("useAssistantChat local transcript boundary", () => {
         chat: { id: "chat-1", transcript_version: 5, turn_in_progress: false },
         messages: [
           { id: "user-1", role: "user", content: "Research this" },
-          { id: "assistant-1", role: "assistant", content: "Finished" },
+          { id: "assistant-1", role: "assistant", content: [
+            ...readers, { type: "content", text: "Finished" },
+          ] },
         ],
       });
 
@@ -123,8 +143,10 @@ describe("useAssistantChat local transcript boundary", () => {
     await waitFor(() => expect(result.current.messages.at(-1)?.content).toBe("Finished"));
     expect(result.current.transcriptVersion).toBe(5);
     expect(result.current.run).toBeNull();
+    expect(result.current.readers).toHaveLength(4);
+    expect(mocks.streamActiveChat).toHaveBeenCalledWith("chat-1", expect.any(AbortSignal));
     expect(mocks.getChat).toHaveBeenCalledTimes(2);
-    expect(mocks.getChat).toHaveBeenNthCalledWith(2, "chat-1", 4);
+    expect(mocks.getChat).toHaveBeenNthCalledWith(2, "chat-1");
   });
 
   it("ignores a stale transcript when the selected chat changes", async () => {
@@ -225,14 +247,14 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
-  it("replaces browser fetch errors with recovery guidance", async () => {
+  it("restores a pre-queue fetch failure without duplicating it in the transcript", async () => {
     mocks.streamChat.mockRejectedValueOnce(new TypeError("fetch failed"));
     const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
 
     await act(() => result.current.handleChat({ role: "user", content: "Draft this" }));
 
-    expect(result.current.messages.at(-1)?.error).toEqual(expect.any(String));
-    expect(result.current.messages.at(-1)?.error).not.toContain("fetch failed");
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.rejectedTurn?.message.content).toBe("Draft this");
   });
 
   it("uses a nonempty fallback for an empty stream error", async () => {
@@ -579,7 +601,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
-  it("keeps structured selections when the provider fails after accepting them", async () => {
+  it("keeps accepted structured selections in the transcript, not the composer", async () => {
     let renders = 0;
     mocks.getChat.mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 1, turn_in_progress: false },
@@ -637,22 +659,8 @@ describe("useAssistantChat local transcript boundary", () => {
       error: "Unable to get a response. Try again.",
     });
     expect(renders).toBeGreaterThanOrEqual(2);
-    expect(
-      result.current.rejectedTurn?.options?.askInputsResponse,
-    ).toEqual(response);
-
-    await act(async () => {
-      await result.current.retryRejectedTurn();
-    });
-    expect(mocks.streamChat).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        expected_version: 3,
-        current_turn: {
-          kind: "ask_inputs_response",
-          responses: response.responses,
-        },
-      }),
-    );
+    expect(result.current.rejectedTurn).toBeNull();
+    expect(mocks.streamChat).toHaveBeenCalledOnce();
   });
 
   it("does not offer retry after a committed local mutation", async () => {
@@ -786,7 +794,7 @@ describe("useAssistantChat local transcript boundary", () => {
     });
   });
 
-  it("rejects a clean but truncated local SSE response", async () => {
+  it("does not restore a transcript-committed turn after a truncated SSE response", async () => {
     mocks.streamChat.mockResolvedValue(
       new Response(
         'data: {"type":"chat_id","chatId":"chat-1","transcriptVersion":1}\n\n',
@@ -804,13 +812,34 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    expect(result.current.rejectedTurn?.message.content).toBe(
-      "Do not lose this",
-    );
+    expect(result.current.rejectedTurn).toBeNull();
     expect(mocks.loadChats).not.toHaveBeenCalled();
     expect(result.current.messages.at(-1)?.error).toBe(
       "Unable to get a response. Try again.",
     );
+  });
+
+  it("reattaches a new chat by durable job id when its first stream is truncated", async () => {
+    const jobId = crypto.randomUUID();
+    mocks.streamChat.mockResolvedValue(new Response(
+      `data: ${JSON.stringify({ type: "turn_queued", jobId })}\n\n`,
+      { status: 200, headers: { "Content-Type": "text/event-stream" } },
+    ));
+    mocks.streamChatJob.mockResolvedValue(streamResponse([
+      { type: "turn_queued", jobId },
+      { type: "chat_id", chatId: "chat-new", transcriptVersion: 1 },
+      { type: "content_final", text: "Recovered.", citations: [] },
+      { type: "transcript_version", transcriptVersion: 2 },
+    ]));
+    const { result } = renderHook(() => useAssistantChat({}));
+
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "Keep running" });
+    });
+
+    expect(mocks.streamChatJob).toHaveBeenCalledWith(jobId, expect.any(AbortSignal));
+    expect(result.current.rejectedTurn).toBeNull();
+    expect(result.current.messages.at(-1)?.content).toBe("Recovered.");
   });
 
   it("accepts canonical completion when the local stream loses its terminal frame", async () => {

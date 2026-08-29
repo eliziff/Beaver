@@ -76,6 +76,8 @@ const documents = lazy(async () => {
 const library = lazy(async () => createLibraryStore((await persistence()).library, await documents()));
 const tabular = lazy(async () => createTabularApplication(
   (await persistence()).tabular, await documents(), await projects()));
+const cancelChatTurn = async (scope: ChatScope, chatId: string) =>
+  (await import("./lib/chatTurnQueue")).durableChatTurns.cancel(scope, chatId);
 const chats = lazy(async () => {
   const contexts = {
     project: async (scope: ChatScope, id: string) => !!await (await projects()).get(scope, id),
@@ -84,9 +86,11 @@ const chats = lazy(async () => {
       catch (error) { if ((error as { status?: number }).status === 404) return false; throw error; }
     },
   };
-  return createChatStore((await persistence()).chats, generateChatTitle, contexts);
+  return createChatStore((await persistence()).chats, generateChatTitle, contexts,
+    cancelChatTurn);
 });
-const projects = lazy(async () => createProjectStore((await persistence()).projects, await documents()));
+const projects = lazy(async () => createProjectStore((await persistence()).projects,
+  await documents(), cancelChatTurn));
 const workflows = lazy(async () => {
   const ports = await persistence();
   return { repository: ports.workflows, collaboration: ports.workflowCollaboration };
@@ -95,20 +99,27 @@ const legalSources = lazy(async () => (await import("./lib/legalSourceStore"))
   .createLegalSourceStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 const audit = lazy(async () => (await import("./lib/audit"))
   .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
-const jobs = lazy(async () => {
-  const [{ startJobWorker }, { pdfJobHandlers }, { providerPdfJobHandlers }, documentStore] = await Promise.all([
+async function startWorkers() {
+  const [{ startJobWorker, recoverLocalJobs }, { pdfJobHandlers },
+    { providerPdfJobHandlers }, { chatTurnJobHandler, CHAT_TURN_JOB },
+    documentStore, chatStore, chatApplication] = await Promise.all([
     import("./lib/jobQueue"),
     import("./lib/pdfJobs"),
     import("./lib/providerPdfLibraryBridge"),
+    import("./lib/chatTurnWorker"),
     documents(),
+    chats(),
+    chat(),
   ]);
   const handlers = {
     ...pdfJobHandlers(documentStore),
     ...providerPdfJobHandlers(),
+    [CHAT_TURN_JOB]: chatTurnJobHandler(chatApplication, chatStore),
   };
+  await recoverLocalJobs();
   const workers = Array.from({ length: preparationWorkers }, () => startJobWorker(handlers));
   return { stop: () => Promise.all(workers.map((worker) => worker.stop())) };
-});
+}
 async function connectorTools(userId: string): Promise<BeaverTool<ChatToolContext>[]> {
   if (!capabilities.connectors) return [];
   const mcp = await connectors();
@@ -154,15 +165,13 @@ const shutdown = lazy(async () => {
     import("./lib/tableOfAuthorities")
       .then(({ shutdownTableOfAuthorities }) => shutdownTableOfAuthorities()),
   ];
-  const worker = jobs.loaded();
-  if (worker) tasks.push(worker.then((value) => value.stop()));
   await Promise.all(tasks);
   while (backgroundTasks.size) await Promise.all([...backgroundTasks]);
   await import("./lib/relationalDatabase")
     .then(({ closeRelationalDatabase }) => closeRelationalDatabase());
 });
 export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
-  initialize: async () => {
+  initialize: async (options: { cleanup?: boolean } = {}) => {
     // Force lazy native citation grammars before the server accepts requests.
     structureNative().hasCitationInText("");
     if (!local) encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
@@ -170,7 +179,7 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
       encryptionSecret("MCP_CONNECTORS_ENCRYPTION_SECRET");
       publicOrigin();
     }
-    await (await documents()).resumeCleanup();
-    await jobs();
+    if (options.cleanup !== false) await (await documents()).resumeCleanup();
   }, chat, chats, documents,
-  audit, background, connectors, legalSources, library, projects, tabular, workflows, shutdown };
+  audit, background, connectors, legalSources, library, projects, startWorkers,
+  tabular, workflows, shutdown };

@@ -2,10 +2,10 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { ChatStoreError, type ChatScope, type ChatStore } from "../lib/chatStore";
-import { ChatApplicationError, chatTurnInputSchema, type ChatApplication,
-  type EventSink } from "../lib/chat/chatApplication";
-import { abortChatTurn, beginChatTurn, chatTurnInProgress, finishChatTurn,
-  setChatTurnControl, steerChatTurn } from "../lib/chatTurns";
+import { ChatApplicationError, chatTurnInputSchema,
+  type ChatApplication } from "../lib/chat/chatApplication";
+import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
+import type { ChatTurnQueue } from "../lib/chatTurnQueue";
 import { CODEX_THREAD_ID } from "../lib/llm/codex";
 import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { safeErrorLog } from "../lib/safeError";
@@ -54,9 +54,56 @@ function optionalId(value: unknown, label: string) {
 export function createChatRouter(
   chats: ChatStore,
   application: ChatApplication,
+  turns: ChatTurnQueue,
 ) {
   const router = Router();
   router.use(requireAuth);
+
+  const streamTurn = async (
+    req: Request,
+    res: Response,
+    scope: ChatScope,
+    jobId: string,
+    initialChatId?: string,
+  ) => {
+    const controller = requestAbortController(req, res);
+    let accepted = false, versionSent = false, chatId = initialChatId;
+    startSse(res);
+    writeSse(res, { type: "turn_queued", jobId });
+    try {
+      const completed = await turns.observe(scope, jobId, controller.signal, (event) => {
+        const row = jsonRecord(event);
+        if (row?.type === "chat_id" && typeof row.chatId === "string") {
+          accepted = true;
+          chatId = row.chatId;
+        }
+        if (row?.type === "transcript_version") versionSent = true;
+        writeSse(res, event);
+      });
+      if (completed.status === "failed") writeSse(res, {
+        type: "error",
+        message: "The assistant response stopped unexpectedly. You can retry this turn.",
+        retryable: true,
+        accepted,
+      });
+      if (completed.status === "cancelled") writeSse(res,
+        { type: "turn_status", status: "cancelled" });
+      const result = jsonRecord(completed.result);
+      if (typeof result?.chat_id === "string") chatId = result.chat_id;
+      const current = chatId ? await chats.get(scope, chatId) : null;
+      if (!versionSent) writeSse(res, {
+        type: "transcript_version",
+        transcriptVersion: current?.transcript_version ?? 0,
+      });
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    } finally {
+      if (!res.destroyed && !res.writableEnded) {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      }
+    }
+  };
 
   router.get("/", route(async (req, res, scope) => {
     const tabularReviewId = text(req.query.tabular_review_id, 200) || undefined;
@@ -85,7 +132,8 @@ export function createChatRouter(
 
   router.get("/:chatId", route(async (req, res, scope) => {
     const after = Number(req.query.after_version);
-    if (Number.isSafeInteger(after) && chatTurnInProgress(req.params.chatId) &&
+    const active = !!await turns.activeJob(scope, req.params.chatId);
+    if (Number.isSafeInteger(after) && active &&
         (await chats.get(scope, req.params.chatId))?.transcript_version === after)
       return void res.status(204).send();
     const detail = await chats.detail(scope, req.params.chatId);
@@ -93,7 +141,7 @@ export function createChatRouter(
     res.json({
       chat: {
         ...detail.chat,
-        turn_in_progress: chatTurnInProgress(req.params.chatId),
+        turn_in_progress: active,
       },
       messages: detail.messages,
     });
@@ -103,7 +151,27 @@ export function createChatRouter(
     if (!await chats.get(scope, req.params.chatId)) {
       return void res.status(404).json({ detail: "Chat not found" });
     }
-    res.json({ stopped: abortChatTurn(req.params.chatId) });
+    res.json({ stopped: await turns.cancel(scope, req.params.chatId) });
+  }));
+
+  router.post("/jobs/:jobId/stop", route(async (req, res, scope) => {
+    res.json({ stopped: await turns.cancelJob(scope, req.params.jobId) });
+  }));
+
+  router.get("/jobs/:jobId/stream", route(async (req, res, scope) => {
+    if (!await turns.job(scope, req.params.jobId)) {
+      return void res.status(404).json({ detail: "Response not found" });
+    }
+    await streamTurn(req, res, scope, req.params.jobId);
+  }));
+
+  router.get("/:chatId/stream", route(async (req, res, scope) => {
+    if (!await chats.get(scope, req.params.chatId)) {
+      return void res.status(404).json({ detail: "Chat not found" });
+    }
+    const job = await turns.activeJob(scope, req.params.chatId);
+    if (!job) return void res.status(409).json({ detail: "No response is running" });
+    await streamTurn(req, res, scope, job.id, req.params.chatId);
   }));
 
   router.post("/:chatId/steer", route(async (req, res, scope) => {
@@ -114,7 +182,7 @@ export function createChatRouter(
     if (!CODEX_THREAD_ID.test(id) || !instruction) {
       return void res.status(400).json({ detail: "id and text are required" });
     }
-    if (!await steerChatTurn(req.params.chatId, { id, text: instruction })) {
+    if (!await turns.steer(scope, req.params.chatId, { id, text: instruction })) {
       return void res.status(409).json({
         detail: "No steerable response is running",
       });
@@ -123,6 +191,10 @@ export function createChatRouter(
   }));
 
   router.post("/:chatId/compact", route(async (req, res, scope) => {
+    if (await turns.activeJob(scope, req.params.chatId)) {
+      throw new ChatApplicationError(409, "A response is already running",
+        "chat_turn_in_progress");
+    }
     const controller = requestAbortController(req, res);
     let claimedChatId: string | null = null;
     try {
@@ -191,48 +263,32 @@ export function createChatRouter(
     if (!parsed.success) return void res.status(400).json({
       detail: parsed.error.issues[0]?.message ?? "Invalid chat turn",
     });
-    const controller = new AbortController();
-    let claimedChatId: string | null = null;
-    let started = false;
-    const sink: EventSink = {
-      claim(chatId) {
-        if (!beginChatTurn(chatId, controller)) return false;
-        claimedChatId = chatId;
-        return true;
-      },
-      start() {
-        startSse(res);
-        started = true;
-      },
-      emit: (event) => writeSse(res, event),
-      setControl: (control) => {
-        if (claimedChatId) setChatTurnControl(claimedChatId, controller, control);
-      },
-    };
-    try {
-      await application.turn(scope, parsed.data, sink, controller.signal);
-    } catch (error) {
-      if (!res.headersSent && error instanceof ChatApplicationError) {
-        return void res.status(error.status).json({
-          ...(error.code ? { code: error.code } : {}),
-          ...(error.currentVersion !== undefined
-            ? { current_version: error.currentVersion } : {}),
-          detail: error.message,
-        });
-      }
-      if (!res.headersSent) throw error;
-      console.error("[chat] streaming turn failed", safeErrorLog(error));
-    } finally {
-      if (claimedChatId) {
-        if (started && !res.destroyed && !res.writableEnded) {
-          res.write("data: [DONE]\n\n");
-        }
-        finishChatTurn(claimedChatId, controller);
-      }
-      if (started && !res.destroyed && !res.writableEnded) {
-        res.end();
-      }
+    const chat = parsed.data.chat_id
+      ? await chats.get(scope, parsed.data.chat_id) : null;
+    if (parsed.data.chat_id && !chat) {
+      return void res.status(404).json({ detail: "Chat not found" });
     }
+    if (chat && parsed.data.project_id !== undefined &&
+        chat.project_id !== (parsed.data.project_id ?? null)) {
+      throw new ChatApplicationError(400, "project_id does not match chat");
+    }
+    if (chat && parsed.data.tabular_review_id !== undefined &&
+        chat.tabular_review_id !== (parsed.data.tabular_review_id ?? null)) {
+      throw new ChatApplicationError(400, "tabular_review_id does not match chat");
+    }
+    if (!chat && parsed.data.expected_version !== 0) {
+      throw new ChatApplicationError(409, "Chat changed",
+        "chat_version_conflict", 0);
+    }
+    if (chat && chat.transcript_version !== parsed.data.expected_version) {
+      throw new ChatApplicationError(409, "Chat changed",
+        "chat_version_conflict", chat.transcript_version);
+    }
+    const queued = await turns.enqueue(scope, parsed.data);
+    if (!queued.created) throw new ChatApplicationError(409,
+      "A response is already running", "chat_turn_in_progress",
+      chat?.transcript_version ?? 0);
+    await streamTurn(req, res, scope, queued.job.id, chat?.id);
   }));
 
   return router;

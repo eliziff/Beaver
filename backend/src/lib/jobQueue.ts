@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { EventEmitter } from "node:events";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   relationalDatabase,
   sql,
   type RelationalDatabase,
 } from "./relationalDatabase";
 
-type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 export type ApplicationJob = {
   id: string;
@@ -24,14 +24,22 @@ export type ApplicationJob = {
   progress: Json | null;
   result: Json | null;
   lastError: string | null;
+  cancelRequested: boolean;
 };
 
 type JobRow = Record<string, unknown>;
-type HandlerContext = {
+const wakeWorkers = new Set<() => void>();
+const wakeJobWorker = () => wakeWorkers.forEach((wake) => wake());
+export type JobHandlerContext = {
   signal: AbortSignal;
   progress(value: Json): Promise<void>;
+  checkpoint(value: { payload?: Json; progress?: Json; groupKey?: string }): Promise<void>;
 };
-export type JobHandler = (job: ApplicationJob, context: HandlerContext) => Promise<Json>;
+export type JobHandler = (job: ApplicationJob, context: JobHandlerContext) => Promise<Json>;
+
+export class PermanentJobError extends Error {
+  name = "PermanentJobError";
+}
 
 const now = () => new Date().toISOString();
 const later = (milliseconds: number) => new Date(Date.now() + milliseconds).toISOString();
@@ -69,6 +77,7 @@ const job = (row: JobRow): ApplicationJob => ({
   attempts: Number(row.attempts), maxAttempts: Number(row.max_attempts),
   progress: decode(row.progress), result: decode(row.result),
   lastError: typeof row.last_error === "string" ? row.last_error : null,
+  cancelRequested: typeof row.cancel_requested_at === "string",
 });
 
 export async function enqueueJob(input: {
@@ -90,7 +99,7 @@ export async function enqueueJob(input: {
   const userId = bounded(input.userId, 200, "Job user");
   const priority = Math.max(-100, Math.min(100, Math.trunc(input.priority ?? 0)));
   const maxAttempts = Math.max(1, Math.min(10, Math.trunc(input.maxAttempts ?? 3)));
-  const payload = boundedJson(input.payload, 32 * 1024, "Job payload");
+  const payload = boundedJson(input.payload, 256 * 1024, "Job payload");
   const rows = (await db.query<JobRow>(sql`INSERT INTO application_jobs(
       id,kind,dedupe_key,group_key,user_id,document_id,document_version_id,payload,
       priority,status,run_at,attempts,max_attempts,created_at,updated_at)
@@ -102,7 +111,9 @@ export async function enqueueJob(input: {
         THEN application_jobs.priority ELSE excluded.priority END,
       updated_at=excluded.updated_at
     RETURNING *`)).rows;
-  return job(rows[0]);
+  const queued = job(rows[0]);
+  wakeJobWorker();
+  return queued;
 }
 
 async function claim(workerId: string, leaseMilliseconds: number, kinds: string[]) {
@@ -135,18 +146,34 @@ async function heartbeat(id: string, workerId: string, leaseMilliseconds: number
   const row = (await db.query<JobRow>(sql`UPDATE application_jobs SET
       locked_until=${later(leaseMilliseconds)},updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}
-      AND interrupt_requested_at IS NULL RETURNING id`)).rows[0];
+      AND interrupt_requested_at IS NULL AND cancel_requested_at IS NULL
+      RETURNING id`)).rows[0];
   return !!row;
 }
 
 async function finish(id: string, workerId: string, result: Json) {
   const db = await relationalDatabase(), timestamp = now();
   const value = boundedJson(result, 16 * 1024, "Job result");
-  await db.query(sql`UPDATE application_jobs SET status='succeeded',result=${value},
-    last_error=NULL,dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
+  await db.transaction(async (tx) => {
+    const succeeded = (await tx.query<{ id: string }>(sql`UPDATE application_jobs SET
+      status='succeeded',result=${value},last_error=NULL,dedupe_key=NULL,
+      locked_by=NULL,locked_until=NULL,completed_at=${timestamp},updated_at=${timestamp}
+      WHERE id=${id} AND status='running' AND locked_by=${workerId}
+        AND cancel_requested_at IS NULL RETURNING id`)).rows[0];
+    if (!succeeded) await tx.query(sql`UPDATE application_jobs SET status='cancelled',
+      dedupe_key=NULL,locked_by=NULL,locked_until=NULL,completed_at=${timestamp},
+      updated_at=${timestamp} WHERE id=${id} AND status='running'
+        AND locked_by=${workerId} AND cancel_requested_at IS NOT NULL`);
+  });
+}
+
+async function completeCancellation(id: string, workerId: string) {
+  const timestamp = now();
+  await (await relationalDatabase()).query(sql`UPDATE application_jobs SET
+    status='cancelled',dedupe_key=NULL,locked_by=NULL,locked_until=NULL,
     completed_at=${timestamp},updated_at=${timestamp}
-    WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
-  wakeJobWaiters(id);
+    WHERE id=${id} AND status='running' AND locked_by=${workerId}
+      AND cancel_requested_at IS NOT NULL`);
 }
 
 async function release(id: string, workerId: string) {
@@ -155,12 +182,11 @@ async function release(id: string, workerId: string) {
     attempts=CASE WHEN attempts>0 THEN attempts-1 ELSE 0 END,
     locked_by=NULL,locked_until=NULL,interrupt_requested_at=NULL,updated_at=${timestamp}
     WHERE id=${id} AND status='running' AND locked_by=${workerId}`);
-  wakeJobWaiters(id);
 }
 
 async function fail(job: ApplicationJob, workerId: string, error: unknown) {
   const db = await relationalDatabase(), timestamp = now();
-  const exhausted = job.attempts >= job.maxAttempts;
+  const exhausted = error instanceof PermanentJobError || job.attempts >= job.maxAttempts;
   const delay = Math.min(60_000, 2_000 * (2 ** Math.max(0, job.attempts - 1)));
   const category = errorCategory(error);
   await db.query(sql`UPDATE application_jobs SET status=${exhausted ? "failed" : "queued"},
@@ -168,7 +194,6 @@ async function fail(job: ApplicationJob, workerId: string, error: unknown) {
     interrupt_requested_at=NULL,dedupe_key=${exhausted ? null : job.dedupeKey},
     completed_at=${exhausted ? timestamp : null},updated_at=${timestamp}
     WHERE id=${job.id} AND status='running' AND locked_by=${workerId}`);
-  wakeJobWaiters(job.id);
 }
 
 export async function interruptJobs(groupKey: string, belowPriority: number) {
@@ -183,12 +208,125 @@ export async function interruptJobs(groupKey: string, belowPriority: number) {
   }
 }
 
+export async function requestJobCancellation(id: string, userId: string) {
+  const db = await relationalDatabase(), timestamp = now();
+  const row = (await db.query<JobRow>(sql`UPDATE application_jobs SET
+    status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
+    cancel_requested_at=${timestamp},
+    dedupe_key=CASE WHEN status='queued' THEN NULL ELSE dedupe_key END,
+    completed_at=CASE WHEN status='queued' THEN ${timestamp} ELSE completed_at END,
+    updated_at=${timestamp}
+    WHERE id=${bounded(id, 100, "Job ID")} AND user_id=${bounded(userId, 200, "Job user")}
+      AND status IN('queued','running') RETURNING *`)).rows[0];
+  if (!row) return null;
+  const current = job(row);
+  for (const active of activeJobs.values()) {
+    if (active.job.id === current.id) active.controller.abort();
+  }
+  return current;
+}
+
+export async function jobCancellationRequested(id: string, workerId?: string) {
+  const owner = workerId ? sql`AND locked_by=${workerId}` : sql.raw("");
+  const row = (await (await relationalDatabase()).query<{ id: string }>(sql`
+    SELECT id FROM application_jobs WHERE id=${id} AND status='running'
+      ${owner} AND cancel_requested_at IS NOT NULL`)).rows[0];
+  return !!row;
+}
+
+export async function activeJobForGroup(groupKey: string, userId: string) {
+  const db = await relationalDatabase();
+  const row = (await db.query<JobRow>(sql`SELECT * FROM application_jobs
+    WHERE group_key=${bounded(groupKey, 500, "Job group")}
+      AND status IN('queued','running') AND user_id=${bounded(userId, 200, "Job user")}
+    ORDER BY created_at,id LIMIT 1`)).rows[0];
+  return row ? job(row) : null;
+}
+
+export async function recoverLocalJobs() {
+  const db = await relationalDatabase();
+  if (db.engine !== "sqlite") return 0;
+  const timestamp = now();
+  return db.transaction(async (tx) => {
+    await tx.query(sql`UPDATE application_jobs SET status='cancelled',dedupe_key=NULL,
+      locked_by=NULL,locked_until=NULL,completed_at=${timestamp},updated_at=${timestamp}
+      WHERE status='running' AND cancel_requested_at IS NOT NULL`);
+    return (await tx.query(sql`UPDATE application_jobs SET status='queued',
+      run_at=${timestamp},locked_by=NULL,locked_until=NULL,
+      interrupt_requested_at=NULL,updated_at=${timestamp}
+      WHERE status='running'`)).changes;
+  });
+}
+
 export async function getJob(id: string, userId: string) {
   const db = await relationalDatabase();
   const row = (await db.query<JobRow>(sql`SELECT * FROM application_jobs
     WHERE id=${bounded(id, 100, "Job ID")}
       AND user_id=${bounded(userId, 200, "Job user")}`)).rows[0];
   return row ? job(row) : null;
+}
+
+export const jsonValue = (value: unknown) =>
+  JSON.parse(JSON.stringify(value ?? null)) as Json;
+
+export async function createJobEventWriter(jobId: string) {
+  const database = await relationalDatabase();
+  let sequence = Number((await database.query<{ sequence: number }>(sql`
+    SELECT COALESCE(MAX(sequence),0) sequence FROM application_job_events
+    WHERE job_id=${jobId}`)).rows[0]?.sequence ?? 0), writes = Promise.resolve();
+  return {
+    append(value: unknown) {
+      const event = boundedJson(jsonValue(value), 512 * 1024, "Job event");
+      const current = ++sequence, created = now();
+      writes = writes.then(async () => { await database.query(sql`INSERT INTO
+        application_job_events(job_id,sequence,event,created_at)
+        VALUES(${jobId},${current},${event},${created})`); });
+    },
+    flush: () => writes,
+  };
+}
+
+export async function readJobEvents(userId: string, jobId: string, after: number) {
+  const rows = (await (await relationalDatabase()).query<{
+    sequence: number; event: unknown;
+  }>(sql`SELECT e.sequence,e.event FROM application_job_events e
+    JOIN application_jobs j ON j.id=e.job_id WHERE e.job_id=${jobId}
+      AND j.user_id=${bounded(userId, 200, "Job user")} AND e.sequence>${after}
+    ORDER BY e.sequence LIMIT 500`)).rows;
+  return rows.map((row) => ({ sequence: Number(row.sequence), event: decode(row.event) }));
+}
+
+export async function enqueueJobCommand(
+  userId: string,
+  jobId: string,
+  kind: string,
+  payload: Json,
+) {
+  const database = await relationalDatabase(), created = now();
+  if (!(await database.query<{ id: string }>(sql`SELECT id FROM application_jobs
+    WHERE id=${jobId} AND user_id=${bounded(userId, 200, "Job user")}
+      AND status='running'`)).rows[0]) return false;
+  await database.query(sql`INSERT INTO application_job_commands(
+    id,job_id,kind,payload,created_at) VALUES(${randomUUID()},${jobId},
+      ${bounded(kind, 80, "Job command")},${boundedJson(payload, 32 * 1024, "Job command")},${created})`);
+  return true;
+}
+
+export async function pendingJobCommands(jobId: string) {
+  return (await (await relationalDatabase()).query<{
+    id: string; kind: string; payload: unknown;
+  }>(sql`SELECT id,kind,payload FROM application_job_commands
+    WHERE job_id=${jobId} AND handled_at IS NULL ORDER BY created_at,id LIMIT 20`)).rows
+    .map((row) => ({ ...row, payload: decode(row.payload) }));
+}
+
+export async function finishJobCommand(id: string) {
+  await (await relationalDatabase()).query(sql`UPDATE application_job_commands
+    SET handled_at=${now()} WHERE id=${id} AND handled_at IS NULL`);
+}
+
+export function waitForJobEvent(signal: AbortSignal, milliseconds = 100) {
+  return delay(milliseconds, undefined, { signal }).catch(() => undefined);
 }
 
 export async function pruneJobs(
@@ -207,59 +345,7 @@ export async function pruneJobs(
   return rows.length;
 }
 
-const jobChanges = new EventEmitter().setMaxListeners(0);
-const wakeJobWaiters = (id: string) => { jobChanges.emit(id); };
-
-function nextJobChange(id: string, signal?: AbortSignal) {
-  return new Promise<void>((resolve) => {
-    const finish = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", finish);
-      jobChanges.off(id, finish);
-      resolve();
-    };
-    const timer = setTimeout(finish, 250);
-    timer.unref();
-    jobChanges.once(id, finish);
-    signal?.addEventListener("abort", finish, { once: true });
-    if (signal?.aborted) finish();
-  });
-}
-
-export async function waitForJob(
-  id: string,
-  userId: string,
-  options: {
-    signal?: AbortSignal;
-    timeoutMilliseconds?: number;
-    progress?(value: Json | null): void;
-  } = {},
-) {
-  const deadline = Date.now() + Math.max(1_000,
-    Math.min(options.timeoutMilliseconds ?? 10 * 60_000, 30 * 60_000));
-  let previous = "";
-  while (Date.now() < deadline) {
-    if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const changed = nextJobChange(id, options.signal);
-    const current = await getJob(id, userId);
-    if (!current) throw new Error("Job unavailable");
-    const progress = encode(current.progress);
-    if (progress !== previous) {
-      previous = progress;
-      options.progress?.(current.progress);
-    }
-    if (current.status === "succeeded") return current;
-    if (current.status === "failed") throw new Error("Background job failed");
-    if (current.status === "cancelled") throw new DOMException("Aborted", "AbortError");
-    await changed;
-  }
-  throw new Error("Background job timed out");
-}
-
 const activeJobs = new Map<string, { job: ApplicationJob; controller: AbortController }>();
-const wakeWorkers = new Set<() => void>();
-
-export const wakeJobWorker = () => wakeWorkers.forEach((wake) => wake());
 
 export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
   const workerId = randomUUID(), lease = 30_000, kinds = Object.keys(handlers);
@@ -272,12 +358,13 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
       resume = undefined;
       resolve();
     };
-    timer = setTimeout(resume, 5_000);
+    timer = setTimeout(resume, 250);
     timer.unref();
   });
   const execute = async (next: ApplicationJob) => {
     const handler = handlers[next.kind];
     const controller = new AbortController();
+    if (next.cancelRequested) controller.abort();
     activeJobs.set(workerId, { job: next, controller });
     const pulse = setInterval(() => {
       void heartbeat(next.id, workerId, lease).then((owned) => {
@@ -285,27 +372,39 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
       }, () => controller.abort());
     }, 5_000);
     pulse.unref();
+    const releaseOrCancel = async () => {
+      if (!stopping && controller.signal.aborted &&
+          await jobCancellationRequested(next.id, workerId))
+        await completeCancellation(next.id, workerId);
+      else await release(next.id, workerId);
+    };
     try {
       if (!handler) throw new Error("UnknownJobKind");
+      const checkpoint: JobHandlerContext["checkpoint"] = async (value) => {
+        const payload = Object.hasOwn(value, "payload") ? value.payload! : next.payload;
+        const progress = Object.hasOwn(value, "progress") ? value.progress! : next.progress;
+        const groupKey = value.groupKey === undefined ? next.groupKey
+          : bounded(value.groupKey, 500, "Job group");
+        const updated = await (await relationalDatabase()).query<{ id: string }>(sql`
+          UPDATE application_jobs SET payload=${boundedJson(payload, 256 * 1024, "Job payload")},
+            progress=${progress === null ? null : boundedJson(progress, 16 * 1024, "Job progress")},
+            group_key=${groupKey},updated_at=${now()} WHERE id=${next.id}
+            AND status='running' AND locked_by=${workerId} RETURNING id`);
+        if (!updated.rows[0]) {
+          controller.abort();
+          throw new DOMException("Aborted", "AbortError");
+        }
+        next.payload = payload; next.progress = progress; next.groupKey = groupKey;
+      };
       const result = await handler(next, {
         signal: controller.signal,
-        progress: async (value) => {
-          const data = boundedJson(value, 8 * 1024, "Job progress");
-          const updated = await (await relationalDatabase()).query<{ id: string }>(
-            sql`UPDATE application_jobs
-            SET progress=${data},updated_at=${now()} WHERE id=${next.id}
-              AND status='running' AND locked_by=${workerId} RETURNING id`);
-          if (!updated.rows[0]) {
-            controller.abort();
-            throw new DOMException("Aborted", "AbortError");
-          }
-          wakeJobWaiters(next.id);
-        },
+        progress: (value) => checkpoint({ progress: value }),
+        checkpoint,
       });
-      if (controller.signal.aborted) await release(next.id, workerId);
+      if (stopping || controller.signal.aborted) await releaseOrCancel();
       else await finish(next.id, workerId, result);
     } catch (error) {
-      if (controller.signal.aborted || stopping) await release(next.id, workerId);
+      if (stopping || controller.signal.aborted) await releaseOrCancel();
       else await fail(next, workerId, error);
     } finally {
       clearInterval(pulse);
@@ -333,7 +432,6 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
   })();
   wakeWorkers.add(wake);
   return {
-    wake,
     async stop() {
       stopping = true;
       wake();

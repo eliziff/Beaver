@@ -2,7 +2,7 @@ import type { ChatApplicationFeatures } from "./chat/chatApplication";
 import { beaverCodexHome } from "./llm/codexAppServer";
 import { compactCodexSession } from "./llm/codex";
 import { providerForModel } from "./llm/models";
-import { claimProviderSession, deleteProviderSession,
+import { deleteProviderSession, matchingProviderSession,
   providerSessionCompatibilityKey, readProviderSession,
   writeProviderSession } from "./providerSessionStore";
 import { safeErrorLog } from "./safeError";
@@ -29,7 +29,7 @@ export const providerSessionFeatures: Partial<ChatApplicationFeatures> = {
             ? providerSessionCompatibilityKey(process.env.CODEX_API_KEY) : null } });
       let continuationId: string | undefined;
       try {
-        continuationId = (await claimProviderSession({ userId: input.auth.userId,
+        continuationId = (await matchingProviderSession({ userId: input.auth.userId,
           chatId: input.chatId, projectId: input.projectId, compatibilityKey,
           transcriptVersion: input.expectedVersion }))?.continuation_id;
       } catch (error) {

@@ -214,7 +214,7 @@ export type StreamChatParams = {
   providerSession?: {
     persist: true;
     continuationId?: string;
-    onContinuationId?: (continuationId: string) => void;
+    onContinuationId?: (continuationId: string) => void | Promise<void>;
     onControl?: (control: ProviderTurnControl | null) => void;
   };
 };
