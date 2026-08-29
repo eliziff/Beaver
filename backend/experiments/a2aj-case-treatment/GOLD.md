@@ -1,8 +1,9 @@
 # Gold authoring standard
 
 `gold/gold-ablation-10-v6.jsonl` is the canonical ten-case gold for the v6
-contract ablation. It uses the richer self-check representation, but both
-`simple` and `self-check` candidates compile into the same comparison record.
+contract ablation. It records the audited treating opinion, but omits the
+candidate-only copied-support check. Both `simple` and `self-check` candidates
+compile into the same comparison record.
 `gold/gold.jsonl` is retained as earlier source material. The launcher requires
 an explicit gold path instead of silently selecting either file.
 
@@ -34,14 +35,12 @@ an explicit gold path instead of silently selecting either file.
    treatment for each decision. Use no treatment for a bare mention.
 5. State the proposition as this containing opinion presents it. Then state
    succinctly and completely what the opinion does with it and the material
-   factual or legal scope. Record the treating opinion and the smallest complete
-   evidence blocks. Copy short supporting passages so the compiler can align
-   exact offsets without treating the copied wording as semantic gold.
+   factual or legal scope. Record the audited treating opinion and the smallest
+   complete evidence blocks.
 6. Store exact words attributed to the cited decision in `quoted_passages`,
-   including interrupted or visibly edited quotations. Keep these distinct
-   from `supporting_passages`, which contain the current opinion's own words.
-   Do not attribute counsel's words, another court's words, or an unadopted
-   quotation to the current opinion.
+   including interrupted or visibly edited quotations. Do not attribute
+   counsel's words, another court's words, or an unadopted quotation to the
+   current opinion.
 7. Add a flat `procedural_relationships` entry only for a decision from the same
    litigation. Record its role and any action the present court directly takes
    on it. Identify the affected part when the action is narrower than the whole

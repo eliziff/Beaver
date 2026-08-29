@@ -1592,7 +1592,7 @@ export function compileAnalysis(
     ok: errors.length === 0,
     errors: unique(errors),
     value: item as unknown as DecisionAnalysis,
-    compiled: errors.length === 0 ? compiled : null,
+    compiled,
     grounding,
     evidence_receipts: [...evidence.values()],
     prose_copy_receipts: proseCopyReceipts,
@@ -1638,6 +1638,28 @@ export function compileSubmission(
     structure,
     analysis,
   };
+}
+
+/** Compile human-authored reference truth without requiring model self-check fields. */
+export function compileReferenceSubmission(raw: unknown, material: CaseMaterial): SubmissionCompilation {
+  const compilation = compileSubmission(raw, material, "simple");
+  if (!compilation.ok || !compilation.analysis?.compiled) return compilation;
+  const analysis = record(record(raw)?.analysis);
+  const treatments = list(analysis?.treatments);
+  const errors: string[] = [];
+  for (const [index, value] of treatments.entries()) {
+    const treatment = record(value);
+    const opinionId = treatment?.opinion_id;
+    const derived = compilation.analysis.compiled.treatments[index]?.opinion_id;
+    if (typeof opinionId !== "string" || !/^o[1-9][0-9]*$/u.test(opinionId)) {
+      errors.push(`analysis.treatments[${index}].opinion_id: reference opinion_id is required`);
+    } else if (opinionId !== derived) {
+      errors.push(`analysis.treatments[${index}].opinion_id: ${opinionId} conflicts with evidence in ${derived || "no opinion"}`);
+    }
+  }
+  return errors.length
+    ? { ...compilation, ok: false, errors, value: null }
+    : compilation;
 }
 
 function numberedDecisionPacket(material: CaseMaterial) {
@@ -1925,19 +1947,19 @@ function anchoredSpanExcerpt(span: AnchoredSpan) {
 export function semanticDraftView(compilation: SubmissionCompilation, idPrefix = "") {
   const valid = semanticView(compilation, idPrefix);
   if (valid) return valid;
-  if (!compilation.structure.compiled || !compilation.analysis?.value) return null;
+  if (!compilation.structure.compiled || !compilation.analysis?.compiled) return null;
   const structure = compilation.structure.compiled;
-  const analysis = compilation.analysis.value;
+  const analysis = compilation.analysis.compiled;
   return {
     procedural_relationships: analysis.procedural_relationships.map((relationship, index) => ({
       relationship_id: `${idPrefix}r${index + 1}`,
       cited_decision: relationship.cited_decision,
       description: relationship.description,
-      evidence: relationship.evidence_blocks,
+      evidence: relationship.evidence_blocks.map(({ exact_text }) => exact_text),
       actions: relationship.actions.map((action) => ({
         action: action.action,
         affected_part: action.affected_part,
-        evidence: action.evidence_blocks,
+        evidence: action.evidence_blocks.map(({ exact_text }) => exact_text),
       })),
     })),
     treatments: analysis.treatments.map((treatment, index) => {
@@ -1945,13 +1967,13 @@ export function semanticDraftView(compilation: SubmissionCompilation, idPrefix =
       return {
         treatment_id: `${idPrefix}t${index + 1}`,
         cited_decision: treatment.cited_decision,
-        treating_opinion: opinion ? opinionLabel(opinion) : treatment.opinion_id ?? "derived from evidence",
+        treating_opinion: opinion ? opinionLabel(opinion) : "not identified",
         signals: treatment.signals,
         other_signal: treatment.other_signal,
         proposition: treatment.proposition,
         treatment: treatment.treatment,
-        evidence: treatment.evidence_blocks,
-        quoted_passages: treatment.quoted_passages.map(({ text }) => text),
+        evidence: treatment.evidence_blocks.map(({ exact_text }) => exact_text),
+        quoted_passages: treatment.quoted_passages.map(({ exact_text }) => exact_text),
       };
     }),
   };
