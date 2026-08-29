@@ -26,7 +26,6 @@ it("keeps an idle SSE observer alive without owning its work", () => {
   const response = {
     destroyed: false, writableEnded: false,
     setTimeout: vi.fn(), set: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(),
-    socket: { setTimeout: vi.fn(), setNoDelay: vi.fn() },
     once: vi.fn((_event, callback) => { close = callback; }),
   } as unknown as Response;
 
