@@ -15,6 +15,7 @@ vi.mock("./codexAppServer", () => ({
   CODEX_APP_SERVER_CLOSED: "$closed",
   acquireCodexAppServer: vi.fn(async () => ({
     bridgeToken: "test-token",
+    inheritedMcpServers: ["openaiDeveloperDocs", "node_repl"],
     alive: () => true,
     request: transport.request,
     subscribe(listener: (event: { method: string; params: Record<string, unknown> }) => void) {
@@ -71,6 +72,10 @@ describe("Codex app-server adapter", () => {
       config: {
         "features.shell_tool": false,
         "features.code_mode.direct_only_tool_namespaces": ["mcp__mike_runtime"],
+        mcp_servers: {
+          openaiDeveloperDocs: { enabled: false },
+          node_repl: { enabled: false },
+        },
         web_search: "disabled",
       },
     });

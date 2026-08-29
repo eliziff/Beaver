@@ -461,9 +461,9 @@ export async function runChatTurn(options: {
         ...base,
         status,
         error: errorMessage,
-        publicError: /ground(?:ed|ing)/iu.test(errorMessage)
-          ? "Grounding verification failed; this reading agent can be resumed."
-          : "Reading agent failed; this reading agent can be resumed.",
+        publicError: saved
+          ? `${/ground(?:ed|ing)/iu.test(errorMessage) ? "Grounding verification" : "Reading agent"} failed; this reading agent can be resumed.`
+          : "Reading agent failed before it started; retry it.",
         activities: [...activities.values()],
         ...(saved && { resume: saved }),
       });

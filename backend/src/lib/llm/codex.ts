@@ -114,7 +114,11 @@ async function withCodexImages<T>(
   }
 }
 
-function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
+function threadConfig(
+  params: StreamChatParams,
+  bridge: McpToolBridge | null,
+  inheritedMcpServers: string[],
+) {
   return {
     include_permissions_instructions: false,
     include_apps_instructions: false,
@@ -147,8 +151,9 @@ function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
     ...(params.compactThreshold
       ? { model_auto_compact_token_limit: Math.trunc(params.compactThreshold) }
       : {}),
-    ...(bridge && {
-      mcp_servers: {
+    mcp_servers: {
+      ...Object.fromEntries(inheritedMcpServers.map((name) => [name, { enabled: false }])),
+      ...(bridge && {
         mike_runtime: {
           url: bridge.url,
           bearer_token_env_var: "MIKE_CODEX_BRIDGE_TOKEN",
@@ -157,14 +162,15 @@ function threadConfig(params: StreamChatParams, bridge: McpToolBridge | null) {
           startup_timeout_sec: 10,
           tool_timeout_sec: CODEX_TOOL_TIMEOUT_SECONDS,
         },
-      },
-    }),
+      }),
+    },
   };
 }
 
 function threadParams(
   params: StreamChatParams,
   bridge: McpToolBridge | null,
+  inheritedMcpServers: string[],
 ) {
   const model = codexModelSlug(params.model);
   return {
@@ -176,7 +182,7 @@ function threadParams(
     baseInstructions: BEAVER_BASE_INSTRUCTIONS,
     developerInstructions: params.systemPrompt.trim(),
     personality: "none",
-    config: threadConfig(params, bridge),
+    config: threadConfig(params, bridge, inheritedMcpServers),
   };
 }
 
@@ -446,7 +452,7 @@ async function runCodexTurn(
   const unsubscribe = server.subscribe(listener);
   params.abortSignal?.addEventListener("abort", onAbort, { once: true });
   try {
-    const common = threadParams(params, bridge);
+    const common = threadParams(params, bridge, server.inheritedMcpServers);
     const opened = continuationId
       ? await server.request<ThreadResponse>("thread/resume", {
           threadId: continuationId,

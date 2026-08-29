@@ -126,6 +126,44 @@ it("forwards nested tool progress to the provider inactivity watchdog", async ()
   expect(heartbeat).toHaveBeenCalledOnce();
 });
 
+it("does not advertise resume when a reader never started", async () => {
+  const privateEvents: Record<string, unknown>[] = [];
+  const publicEvents: Record<string, unknown>[] = [];
+  stream.mockImplementation(async (params) => {
+    if (params.providerSession) {
+      throw new Error("Codex app-server thread/start request timed out.");
+    }
+    await params.runTools([{
+      id: "load-readers", name: "load_tools", input: { names: ["delegate_read"] },
+    }]);
+    await params.runTools([{
+      id: "round", name: "delegate_read", input: { assignments: [
+        { task: "Read note A", scope: "note A", jurisdiction: "CA" },
+        { task: "Read note B", scope: "note B", jurisdiction: "CA" },
+      ] },
+    }]);
+    return { fullText: "Done." };
+  });
+
+  await runChatTurn({
+    model: "gemini-3-flash-preview",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Read a note." }],
+    createTools: () => [],
+    emit: (event) => publicEvents.push(event as Record<string, unknown>),
+    onSubagentEvent: (event) => privateEvents.push(event),
+    subagentMode: "beaver",
+  });
+
+  expect(privateEvents).toContainEqual(expect.objectContaining({
+    status: "error", error: expect.stringContaining("thread/start"),
+  }));
+  expect(privateEvents.some((event) => "resume" in event)).toBe(false);
+  expect(publicEvents).toContainEqual(expect.objectContaining({
+    status: "error", error: "Reading agent failed before it started; retry it.",
+  }));
+});
+
 it("keeps failed reader checkpoints resumable in the same turn", async () => {
   const privateEvents: Record<string, unknown>[] = [];
   const publicEvents: Record<string, unknown>[] = [];
