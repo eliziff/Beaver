@@ -2,7 +2,7 @@
 
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -1930,7 +1930,84 @@ async function judge(flags: Flags) {
     case_scores: caseScores,
   };
   await writeFile(path.join(judgeDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
-  console.log(JSON.stringify(summary, null, 2));
+  if (flags.quiet !== true) console.log(JSON.stringify(summary, null, 2));
+}
+
+async function appendedText(filename: string, offset: number) {
+  try {
+    const size = (await stat(filename)).size;
+    const start = size < offset ? 0 : offset;
+    if (size === start) return { offset: size, text: "" };
+    const handle = await open(filename, "r");
+    try {
+      const buffer = Buffer.allocUnsafe(size - start);
+      await handle.read(buffer, 0, buffer.length, start);
+      return { offset: size, text: buffer.toString("utf8") };
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { offset: 0, text: "" };
+    throw error;
+  }
+}
+
+async function fileSize(filename: string) {
+  try { return (await stat(filename)).size; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw error;
+  }
+}
+
+async function watchJudge(flags: Flags) {
+  const runDir = flag(flags, "run-dir");
+  const completionFile = flag(flags, "completion-file");
+  if (!runDir || !completionFile) throw new Error("judge --watch requires --run-dir and --completion-file");
+  const pollMilliseconds = Math.floor(numberFlag(flags, "poll-ms", 1_000, 100, 60_000));
+  const progressFile = path.join(path.resolve(runDir), "progress.jsonl");
+  let progressOffset = await fileSize(progressFile);
+  let partialLine = "";
+
+  const baseFlags = { ...flags };
+  delete baseFlags.watch;
+  delete baseFlags["completion-file"];
+  delete baseFlags["poll-ms"];
+  delete baseFlags["document-ids"];
+
+  const existingReceipts = await runReceipts(runDir);
+  const requested = await requestedRunIds(runDir, existingReceipts);
+  const existingIds = [...existingReceipts]
+    .filter(([documentId, receipt]) => requested.has(documentId) && receipt.status === "accepted")
+    .map(([documentId]) => documentId);
+  if (existingIds.length) {
+    await judge({ ...baseFlags, quiet: true, "document-ids": existingIds.join(",") });
+  }
+
+  for (;;) {
+    const growth = await appendedText(progressFile, progressOffset);
+    progressOffset = growth.offset;
+    const lines = `${partialLine}${growth.text}`.split(/\r?\n/u);
+    partialLine = lines.pop() ?? "";
+    const landed = new Set<number>();
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        const event = JSON.parse(line) as Json;
+        if (event.kind === "case_finished" && ["accepted", "rejected"].includes(String(event.status))) {
+          landed.add(Number(event.document_id));
+        }
+      } catch { /* A final full pass still covers a malformed progress line. */ }
+    }
+    if (landed.size) {
+      await judge({ ...baseFlags, quiet: true, "document-ids": [...landed].join(",") });
+    }
+    if (existsSync(completionFile)) {
+      await judge(baseFlags);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMilliseconds));
+  }
 }
 
 async function exportGold(flags: Flags) {
@@ -2044,7 +2121,7 @@ async function main() {
   else if (command === "validate-gold") await validateGold(flags);
   else if (command === "run") await runInference(flags);
   else if (command === "benchmark") await benchmark(flags);
-  else if (command === "judge") await judge(flags);
+  else if (command === "judge") await (flags.watch === true ? watchJudge(flags) : judge(flags));
   else if (command === "raw-output") await rawOutput(flags);
   else if (command === "export") await exportGold(flags);
   else if (command === "show-prompt") await showPrompt(flags);

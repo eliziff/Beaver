@@ -144,7 +144,9 @@ node_modules\.bin\tsx.cmd experiments\a2aj-case-treatment\cli.ts run `
 ```
 
 For the normal inference, mechanical benchmark, and semantic-judge sequence,
-use the single launcher from the repository root:
+use the single launcher from the repository root. It starts semantic judging as
+each case receipt lands; one slow inference case does not hold the others at a
+run-wide barrier.
 
 ```powershell
 .\backend\experiments\a2aj-case-treatment\run-benchmark.ps1 `
