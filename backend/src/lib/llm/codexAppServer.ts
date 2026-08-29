@@ -24,6 +24,7 @@ export const CODEX_APP_SERVER_CLOSED = "$closed";
 export type CodexAppServer = {
   bridgeToken: string;
   codexHome: string;
+  inheritedMcpServers: string[];
   request<T>(method: string, params?: unknown): Promise<T>;
   subscribe(listener: (event: CodexAppServerNotification) => void): () => void;
   alive(): boolean;
@@ -31,11 +32,8 @@ export type CodexAppServer = {
 };
 
 export function beaverCodexHome() {
-  return (
-    process.env.BEAVER_CODEX_HOME?.trim() ||
-    process.env.CODEX_HOME?.trim() ||
-    path.join(os.homedir(), ".codex")
-  );
+  return process.env.BEAVER_CODEX_HOME?.trim() || process.env.CODEX_HOME?.trim()
+    || path.join(os.homedir(), ".codex");
 }
 
 function terminate(child: ChildProcessWithoutNullStreams) {
@@ -57,11 +55,7 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
   const bridgeToken = randomBytes(32).toString("hex");
   const child = spawn(
     process.env.CODEX_COMMAND?.trim() || (process.platform === "win32" ? "codex.cmd" : "codex"),
-    [
-      "app-server",
-      "--stdio",
-      "--strict-config",
-    ], {
+    ["app-server", "--stdio", "--strict-config"], {
     cwd: os.tmpdir(),
     env: {
       ...isolatedProcessEnv([
@@ -180,17 +174,16 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
       });
       write({ id, method, params: params ?? {} });
     });
+  const required = <T,>(method: string, params?: unknown) => request<T>(method, params)
+    .catch((error) => { terminate(child); throw error; });
 
-  const initialized = await request<{ userAgent?: unknown; codexHome?: unknown }>(
+  const initialized = await required<{ userAgent?: unknown; codexHome?: unknown }>(
     "initialize",
     {
       clientInfo: { name: "beaver", title: "Beaver", version: "1.0.0" },
       capabilities: { experimentalApi: false, requestAttestation: false },
     },
-  ).catch((error) => {
-    terminate(child);
-    throw error;
-  });
+  );
   if (
     typeof initialized.userAgent !== "string" ||
     path.resolve(String(initialized.codexHome)) !== codexHome
@@ -199,10 +192,12 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
     throw new Error("Codex app-server returned an incompatible initialize response.");
   }
   write({ method: "initialized", params: {} });
+  const { config } = await required<{ config?: JsonObject }>("config/read");
 
   return {
     bridgeToken,
     codexHome,
+    inheritedMcpServers: Object.keys((config?.mcp_servers as JsonObject) ?? {}),
     request,
     subscribe(listener) {
       listeners.add(listener);
@@ -216,9 +211,7 @@ async function launch(apiKey: string): Promise<CodexAppServer> {
 const servers = new Map<string, Promise<CodexAppServer>>();
 
 export async function acquireCodexAppServer(apiKey = "") {
-  const key = apiKey
-    ? createHash("sha256").update(apiKey).digest("hex")
-    : "subscription";
+  const key = apiKey ? createHash("sha256").update(apiKey).digest("hex") : "subscription";
   const existing = servers.get(key);
   if (existing) {
     const server = await existing.catch(() => null);
