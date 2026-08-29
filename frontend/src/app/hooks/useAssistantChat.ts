@@ -117,23 +117,25 @@ export function useAssistantChat({
       let seenVersion = baselineVersion;
       while (generation === pollGenerationRef.current) {
         try {
-          const latest = await getChat(targetChatId);
-          const version = latest.chat.transcript_version ?? seenVersion;
-          if (version > seenVersion || latest.chat.turn_in_progress === false) {
-            seenVersion = version;
-            dispatch({
-              type: "transcript_loaded",
-              chatId: targetChatId,
-              messages: latest.messages,
-              transcriptVersion: version,
-              active: latest.chat.turn_in_progress === true,
-              preserveRejected: true,
-            });
-          }
-          if (latest.chat.turn_in_progress === false) {
-            setChatTurnInProgress?.(targetChatId, false);
-            if (!tabularReviewId) void loadChats();
-            return;
+          const latest = await getChat(targetChatId, seenVersion);
+          if (latest) {
+            const version = latest.chat.transcript_version ?? seenVersion;
+            if (version > seenVersion || latest.chat.turn_in_progress === false) {
+              seenVersion = version;
+              dispatch({
+                type: "transcript_loaded",
+                chatId: targetChatId,
+                messages: latest.messages,
+                transcriptVersion: version,
+                active: latest.chat.turn_in_progress === true,
+                preserveRejected: true,
+              });
+            }
+            if (latest.chat.turn_in_progress === false) {
+              setChatTurnInProgress?.(targetChatId, false);
+              if (!tabularReviewId) void loadChats();
+              return;
+            }
           }
         } catch {
           // Keep the last usable transcript while the local service reconnects.

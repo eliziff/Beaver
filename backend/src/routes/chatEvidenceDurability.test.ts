@@ -256,7 +256,7 @@ describe("chat PDF evidence durability", () => {
     expect(readers.every(({ status }) => status !== "running")).toBe(true);
   });
 
-  it("coalesces progress snapshots behind a slow durable write", async () => {
+  it("checkpoints sustained progress without writing every update", async () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       const activities: { id: string; label: string; status: "completed" }[] = [];
       for (let index = 0; index < 50; index += 1) {
@@ -266,6 +266,7 @@ describe("chat PDF evidence durability", () => {
           id: "reader-1", task: "Read the record", model: "gpt-5.6-luna",
           effort: "low", status: "running", activities: [...activities], activity,
         });
+        await new Promise<void>((resolve) => setImmediate(resolve));
       }
       params.callbacks?.onSubagentUpdate?.({
         id: "reader-1", task: "Read the record", model: "gpt-5.6-luna",
@@ -275,25 +276,16 @@ describe("chat PDF evidence durability", () => {
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const commit = loaded.store.commitTurn.bind(loaded.store);
-    let release!: () => void, calls = 0;
-    const blocked = new Promise<void>((resolve) => { release = resolve; });
-    vi.spyOn(loaded.store, "commitTurn").mockImplementation(async (...args) => {
-      calls += 1;
-      if (calls === 2) await blocked;
-      return commit(...args);
-    });
+    const commit = vi.spyOn(loaded.store, "commitTurn");
 
-    const response = request(loaded.app).post("/chat").send({
+    const response = await request(loaded.app).post("/chat").send({
       chat_id: created.body.id,
       expected_version: 0,
       current_turn: { kind: "message", content: "Read this." },
-    }).then((value) => value);
-    await vi.waitFor(() => expect(calls).toBe(2));
-    release();
+    });
 
-    expect((await response).status).toBe(200);
-    expect(calls).toBeLessThanOrEqual(4);
+    expect(response.status).toBe(200);
+    expect(commit.mock.calls.length).toBeLessThan(10);
     const reader = ((await storedChat(loaded.store, created.body.id))!
       .messages[1].content as Record<string, unknown>[])
       .find(({ type }) => type === "subagent_run");
@@ -511,6 +503,11 @@ describe("chat PDF evidence durability", () => {
       transcript_version: 1,
       messages: [{ role: "user", content: "Long turn" }],
     });
+    expect((await request(loaded.app)
+      .get(`/chat/${created.body.id}?after_version=1`)).status).toBe(204);
+    expect((await request(loaded.app)
+      .get(`/chat/${created.body.id}?after_version=0`)).body.chat)
+      .toMatchObject({ transcript_version: 1, turn_in_progress: true });
 
     release();
     expect((await first).status).toBe(200);
