@@ -8,25 +8,14 @@ const wordCount = (value: string) => value.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p
 import type {
   DecisionCitationInventory,
 } from "../a2aj-decision-roster/caseDecisionMvp";
-import { MIN_OPINION_WORDS } from "../a2aj-decision-roster/legalOpinionBoundaries";
 import type { ModelSourceLine } from "../a2aj-decision-roster/caseTargetMvpReduced";
 
-export const CASE_TREATMENT_CONTRACT_VERSION = "a2aj-proposition-treatment-v1";
+export const CASE_TREATMENT_CONTRACT_VERSION = "a2aj-proposition-treatment-v6";
 
 export const RESULT_POSITIONS = [
   "supports_disposition",
   "opposes_disposition",
   "mixed",
-  "unclear",
-] as const;
-
-export const REFERENCE_VOICES = [
-  "current_opinion",
-  "party_or_counsel",
-  "decision_under_review",
-  "quoted_decision",
-  "other_quoted_source",
-  "document_metadata",
   "unclear",
 ] as const;
 
@@ -45,13 +34,6 @@ export const TREATMENT_SIGNALS = [
   "other",
 ] as const;
 
-export const PROCEDURAL_STAGE_RELATIONS = [
-  "decision_under_review",
-  "earlier_stage_same_proceeding",
-  "related_order_same_proceeding",
-  "other_same_proceeding",
-] as const;
-
 export const PROCEDURAL_ACTIONS = [
   "affirmed",
   "reversed",
@@ -60,15 +42,15 @@ export const PROCEDURAL_ACTIONS = [
   "remitted",
   "leave_granted",
   "leave_refused",
-  "none",
   "other",
 ] as const;
 
+export const ANALYSIS_CONTRACTS = ["simple", "self-check"] as const;
+
 export type ResultPosition = (typeof RESULT_POSITIONS)[number];
-export type ReferenceVoice = (typeof REFERENCE_VOICES)[number];
 export type TreatmentSignal = (typeof TREATMENT_SIGNALS)[number];
-export type ProceduralStageRelation = (typeof PROCEDURAL_STAGE_RELATIONS)[number];
 export type ProceduralAction = (typeof PROCEDURAL_ACTIONS)[number];
+export type AnalysisContract = (typeof ANALYSIS_CONTRACTS)[number];
 
 /**
  * Model-facing source span. Quotes are exact substrings of the numbered start
@@ -79,6 +61,13 @@ export type AnchoredSpan = {
   end_line: number;
   start_quote: string;
   end_quote: string;
+};
+
+export type SourceBlockId = `p${number}`;
+
+export type BlockQuotation = {
+  block_ids: SourceBlockId[];
+  text: string;
 };
 
 export type PersonEvidence = { name: string; evidence: AnchoredSpan };
@@ -100,7 +89,6 @@ export type DecisionStructure = {
     opinion_links: Array<{
       opinion_id: string;
       relation: "wrote" | "joined" | "joined_in_part";
-      scope: string | null;
       evidence: AnchoredSpan;
     }>;
   }>;
@@ -108,60 +96,33 @@ export type DecisionStructure = {
 };
 
 export type DecisionAnalysis = {
-  references: Array<{
-    reference_id: string;
-    detected_occurrence_id: string | null;
-    reference_status: "decision_reference" | "not_decision_reference" | "unclear";
-    voice: ReferenceVoice;
-    span: AnchoredSpan;
+  decision_mentions: Array<{
+    cited_decision: string;
+    identifying_block: SourceBlockId;
   }>;
-  attributed_passages: Array<{
-    passage_id: string;
-    reference_ids: string[];
-    span: AnchoredSpan;
+  procedural_relationships: Array<{
+    cited_decision: string;
+    identifying_block: SourceBlockId;
+    description: string;
+    evidence_blocks: SourceBlockId[];
+    actions: Array<{
+      action: ProceduralAction;
+      affected_part: string | null;
+      evidence_blocks: SourceBlockId[];
+    }>;
   }>;
   treatments: Array<{
-    treatment_id: string;
-    reference_ids: string[];
-    opinion_id: string;
+    cited_decision: string;
+    identifying_block: SourceBlockId;
+    opinion_id?: string;
     signals: TreatmentSignal[];
     other_signal: string | null;
-    cited_proposition: string;
-    treatment_summary: string;
-    evidence_spans: AnchoredSpan[];
-    attributed_passage_ids: string[];
-    partial_adopters: string[];
+    proposition: string;
+    treatment: string;
+    evidence_blocks: SourceBlockId[];
+    supporting_passages?: BlockQuotation[];
+    quoted_passages: BlockQuotation[];
   }>;
-  procedural_history: Array<{
-    history_id: string;
-    reference_ids: string[];
-    opinion_id: string | null;
-    stage_relation: ProceduralStageRelation;
-    current_decision_action: ProceduralAction;
-    other_action: string | null;
-    summary: string;
-    evidence_spans: AnchoredSpan[];
-  }>;
-  reference_uses: Array<{
-    reference_id: string;
-    treatment_ids: string[];
-    procedural_history_ids: string[];
-  }>;
-};
-
-export type AuthorityInventory = {
-  authorities: Array<{
-    authority_id: string;
-    identifying_text: string;
-    occurrences: AnchoredSpan[];
-  }>;
-};
-
-export type AuthorityInventoryCompilation = {
-  ok: boolean;
-  errors: string[];
-  value: AuthorityInventory | null;
-  grounding: GroundingReceipt[];
 };
 
 export type CaseTreatmentSubmission = {
@@ -170,6 +131,7 @@ export type CaseTreatmentSubmission = {
 };
 
 export type GoldRecord = {
+  contract_version: typeof CASE_TREATMENT_CONTRACT_VERSION;
   document_id: number;
   citation: string;
   source_sha256: string;
@@ -230,7 +192,7 @@ type ResolvedOpinion = {
   result_position: ResultPosition;
   writers: string[];
   full_joiners: string[];
-  partial_joiners: Array<{ name: string; scope: string }>;
+  qualified_joiners: Array<{ name: string; evidence: ResolvedSpan }>;
 };
 
 export type CompiledStructure = {
@@ -239,52 +201,55 @@ export type CompiledStructure = {
     name: string;
     result_position: ResultPosition;
     result_only: boolean;
-    links: Array<{ opinion_id: string; relation: "wrote" | "joined" | "joined_in_part"; scope: string | null }>;
+    links: Array<{ opinion_id: string; relation: "wrote" | "joined" | "joined_in_part"; evidence: ResolvedSpan }>;
   }>;
   nonparticipants: string[];
   disposition_spans: ResolvedSpan[];
 };
 
 export type CompiledAnalysis = {
-  references: Array<{
-    reference_id: string;
-    detected_occurrence_id: string | null;
-    reference_status: "decision_reference" | "not_decision_reference" | "unclear";
-    voice: ReferenceVoice;
-    span: ResolvedSpan;
+  decision_mentions: Array<{
+    decision_id: string;
+    cited_decision: string;
+    identifying_block: ResolvedSpan;
   }>;
-  attributed_passages: Array<{
-    passage_id: string;
-    reference_ids: string[];
-    span: ResolvedSpan;
-    deterministic_quote_ids: string[];
+  procedural_relationships: Array<{
+    relationship_id: string;
+    decision_id: string;
+    cited_decision: string;
+    identifying_block: ResolvedSpan;
+    description: string;
+    evidence_blocks: ResolvedSpan[];
+    actions: Array<{
+      action: ProceduralAction;
+      affected_part: string | null;
+      evidence_blocks: ResolvedSpan[];
+    }>;
   }>;
   treatments: Array<{
     treatment_id: string;
-    reference_ids: string[];
+    decision_id: string;
+    cited_decision: string;
+    identifying_block: ResolvedSpan;
     opinion_id: string;
+    model_opinion_id: string | null;
     signals: TreatmentSignal[];
     other_signal: string | null;
-    cited_proposition: string;
-    treatment_summary: string;
-    evidence_spans: ResolvedSpan[];
-    attributed_passage_ids: string[];
-    partial_adopters: string[];
-  }>;
-  procedural_history: Array<{
-    history_id: string;
-    reference_ids: string[];
-    opinion_id: string | null;
-    stage_relation: ProceduralStageRelation;
-    current_decision_action: ProceduralAction;
-    other_action: string | null;
-    summary: string;
-    evidence_spans: ResolvedSpan[];
-  }>;
-  reference_uses: Array<{
-    reference_id: string;
-    treatment_ids: string[];
-    procedural_history_ids: string[];
+    proposition: string;
+    treatment: string;
+    evidence_blocks: ResolvedSpan[];
+    supporting_passages: Array<ResolvedSpan & {
+      block_ids: SourceBlockId[];
+      model_text: string;
+      alignment: "exact" | "normalized";
+      deterministic_quote_ids: string[];
+    }>;
+    quoted_passages: Array<ResolvedSpan & {
+      block_ids: SourceBlockId[];
+      model_text: string;
+      alignment: "exact" | "normalized";
+      deterministic_quote_ids: string[];
+    }>;
   }>;
 };
 
@@ -294,6 +259,18 @@ export type GroundingReceipt = {
   end: number;
   exact_text: string;
   text_sha256: string;
+};
+
+export type ProseCopyReceipt = {
+  path: string;
+  exact_text: string;
+  text_sha256: string;
+  source: {
+    evidence_id: string;
+    start: number;
+    end: number;
+    text_sha256: string;
+  };
 };
 
 export type BoundaryAdjustment = {
@@ -325,6 +302,7 @@ export type AnalysisCompilation = {
   compiled: CompiledAnalysis | null;
   grounding: GroundingReceipt[];
   evidence_receipts: LegalEvidenceReceipt[];
+  prose_copy_receipts: ProseCopyReceipt[];
   deterministic_quote_candidates: Array<{
     id: string;
     text: string;
@@ -332,11 +310,25 @@ export type AnalysisCompilation = {
     end: number;
     text_sha256: string;
   }>;
-  citation_coverage: {
-    detected: number;
-    accounted_for: number;
-    model_added: number;
-    completeness: "not_asserted";
+  no_oracle_citation_check: {
+    checked: number;
+    covered: number;
+    omissions: Array<{
+      occurrence_id: string;
+      line: number;
+      exact_text: string;
+      start: number;
+      end: number;
+      text_sha256: string;
+    }>;
+    unresolved: Array<{
+      occurrence_id: string;
+      line: number;
+      exact_text: string;
+      start: number;
+      end: number;
+      text_sha256: string;
+    }>;
   };
 };
 
@@ -427,10 +419,9 @@ export const CASE_STRUCTURE_SCHEMA = {
               properties: {
                 opinion_id: { type: "string", pattern: "^o[1-9][0-9]*$" },
                 relation: { enum: ["wrote", "joined", "joined_in_part"] },
-                scope: { type: ["string", "null"], maxLength: 1_000 },
                 evidence: anchoredSpanSchema,
               },
-              required: ["opinion_id", "relation", "scope", "evidence"],
+              required: ["opinion_id", "relation", "evidence"],
             },
           },
         },
@@ -465,163 +456,116 @@ export function structureOutputSchema(lineCount: number) {
   return bindLineMaximum(CASE_STRUCTURE_SCHEMA, lineCount);
 }
 
-export function authorityInventoryOutputSchema(lineCount: number) {
-  return bindLineMaximum({
+export function analysisOutputSchema(
+  lineCount: number,
+  opinionIds?: readonly string[],
+  contract: AnalysisContract = "self-check",
+) {
+  if (!Number.isSafeInteger(lineCount) || lineCount < 1) throw new Error("source requires at least one block");
+  if (!ANALYSIS_CONTRACTS.includes(contract)) throw new Error(`unknown analysis contract ${contract}`);
+  const blockId = { type: "string", pattern: "^p[1-9][0-9]*$" };
+  const blockList = { type: "array", minItems: 1, maxItems: 50, items: blockId };
+  const blockQuotation = {
     type: "object",
     additionalProperties: false,
     properties: {
-      authorities: {
+      block_ids: blockList,
+      text: { type: "string", minLength: 1, maxLength: 12_000 },
+    },
+    required: ["block_ids", "text"],
+  };
+  const opinionId = opinionIds?.length
+    ? { type: "string", enum: [...opinionIds] }
+    : { type: "string", pattern: "^o[1-9][0-9]*$" };
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      decision_mentions: {
         type: "array",
         maxItems: 500,
         items: {
           type: "object",
           additionalProperties: false,
           properties: {
-            authority_id: { type: "string", pattern: "^a[1-9][0-9]*$" },
-            identifying_text: { type: "string", minLength: 2, maxLength: 500 },
-            occurrences: { type: "array", minItems: 1, maxItems: 100, items: anchoredSpanSchema },
+            cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+            identifying_block: blockId,
           },
-          required: ["authority_id", "identifying_text", "occurrences"],
+          required: ["cited_decision", "identifying_block"],
         },
       },
-    },
-    required: ["authorities"],
-  }, lineCount);
-}
-
-const referenceIdSchema = { type: "string", pattern: "^r[1-9][0-9]*$" } as const;
-const passageIdSchema = { type: "string", pattern: "^q[1-9][0-9]*$" } as const;
-
-export function analysisOutputSchema(
-  inventory: DecisionCitationInventory,
-  lineCount: number,
-  opinionIds?: readonly string[],
-) {
-  const detectedIds = inventory.occurrences.map(({ id }) => id);
-  const referenceCapacity = Math.max(500, detectedIds.length + 500);
-  const analysisCapacity = Math.max(500, detectedIds.length * 4 + 100);
-  const opinionId = opinionIds?.length
-    ? { type: "string", enum: [...opinionIds] }
-    : { type: "string", pattern: "^o[1-9][0-9]*$" };
-  return bindLineMaximum({
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      references: {
+      procedural_relationships: {
         type: "array",
-        minItems: detectedIds.length,
-        maxItems: referenceCapacity,
+        maxItems: 100,
         items: {
           type: "object",
           additionalProperties: false,
           properties: {
-            reference_id: referenceIdSchema,
-            detected_occurrence_id: detectedIds.length
-              ? { anyOf: [{ type: "string", enum: detectedIds }, { type: "null" }] }
-              : { type: "null" },
-            reference_status: { enum: ["decision_reference", "not_decision_reference", "unclear"] },
-            voice: { enum: REFERENCE_VOICES },
-            span: anchoredSpanSchema,
+            cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+            identifying_block: blockId,
+            description: { type: "string", minLength: 1, maxLength: 4_000 },
+            evidence_blocks: blockList,
+            actions: {
+              type: "array",
+              maxItems: 20,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  action: { enum: PROCEDURAL_ACTIONS },
+                  affected_part: { type: ["string", "null"], maxLength: 2_000 },
+                  evidence_blocks: blockList,
+                },
+                required: ["action", "affected_part", "evidence_blocks"],
+              },
+            },
           },
-          required: ["reference_id", "detected_occurrence_id", "reference_status", "voice", "span"],
-        },
-      },
-      attributed_passages: {
-        type: "array",
-        maxItems: analysisCapacity,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            passage_id: passageIdSchema,
-            reference_ids: { type: "array", minItems: 1, maxItems: 30, items: referenceIdSchema },
-            span: anchoredSpanSchema,
-          },
-          required: ["passage_id", "reference_ids", "span"],
+          required: ["cited_decision", "identifying_block", "description", "evidence_blocks", "actions"],
         },
       },
       treatments: {
         type: "array",
-        maxItems: analysisCapacity,
+        maxItems: 2_000,
         items: {
           type: "object",
           additionalProperties: false,
           properties: {
-            treatment_id: { type: "string", pattern: "^t[1-9][0-9]*$" },
-            reference_ids: { type: "array", minItems: 1, maxItems: 30, items: referenceIdSchema },
-            opinion_id: opinionId,
+            cited_decision: { type: "string", minLength: 1, maxLength: 500 },
+            identifying_block: blockId,
+            ...(contract === "self-check" ? { opinion_id: opinionId } : {}),
             signals: { type: "array", minItems: 1, maxItems: 5, items: { enum: TREATMENT_SIGNALS } },
             other_signal: { type: ["string", "null"], maxLength: 300 },
-            cited_proposition: { type: "string", minLength: 1, maxLength: 4_000 },
-            treatment_summary: { type: "string", minLength: 1, maxLength: 4_000 },
-            evidence_spans: { type: "array", minItems: 1, maxItems: 20, items: anchoredSpanSchema },
-            attributed_passage_ids: { type: "array", maxItems: 30, items: passageIdSchema },
-            partial_adopters: { type: "array", maxItems: 40, items: { type: "string", minLength: 2, maxLength: 200 } },
-          },
-          required: [
-            "treatment_id", "reference_ids", "opinion_id", "signals", "other_signal",
-            "cited_proposition", "treatment_summary", "evidence_spans",
-            "attributed_passage_ids", "partial_adopters",
-          ],
-        },
-      },
-      procedural_history: {
-        type: "array",
-        maxItems: referenceCapacity,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            history_id: { type: "string", pattern: "^h[1-9][0-9]*$" },
-            reference_ids: { type: "array", minItems: 1, maxItems: 30, items: referenceIdSchema },
-            opinion_id: { anyOf: [opinionId, { type: "null" }] },
-            stage_relation: { enum: PROCEDURAL_STAGE_RELATIONS },
-            current_decision_action: { enum: PROCEDURAL_ACTIONS },
-            other_action: { type: ["string", "null"], maxLength: 300 },
-            summary: { type: "string", minLength: 1, maxLength: 4_000 },
-            evidence_spans: { type: "array", minItems: 1, maxItems: 20, items: anchoredSpanSchema },
-          },
-          required: [
-            "history_id", "reference_ids", "opinion_id", "stage_relation",
-            "current_decision_action", "other_action", "summary", "evidence_spans",
-          ],
-        },
-      },
-      reference_uses: {
-        type: "array",
-        minItems: detectedIds.length,
-        maxItems: referenceCapacity,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            reference_id: referenceIdSchema,
-            treatment_ids: {
+            proposition: { type: "string", minLength: 1, maxLength: 4_000 },
+            treatment: { type: "string", minLength: 1, maxLength: 4_000 },
+            evidence_blocks: blockList,
+            ...(contract === "self-check" ? {
+              supporting_passages: { type: "array", minItems: 1, maxItems: 20, items: blockQuotation },
+            } : {}),
+            quoted_passages: {
               type: "array",
-              maxItems: analysisCapacity,
-              items: { type: "string", pattern: "^t[1-9][0-9]*$" },
-            },
-            procedural_history_ids: {
-              type: "array",
-              maxItems: referenceCapacity,
-              items: { type: "string", pattern: "^h[1-9][0-9]*$" },
+              maxItems: 20,
+              items: blockQuotation,
             },
           },
-          required: ["reference_id", "treatment_ids", "procedural_history_ids"],
+          required: [
+            "cited_decision", "identifying_block",
+            ...(contract === "self-check" ? ["opinion_id", "supporting_passages"] : []),
+            "signals", "other_signal", "proposition", "treatment", "evidence_blocks", "quoted_passages",
+          ],
         },
       },
     },
-    required: ["references", "attributed_passages", "treatments", "procedural_history", "reference_uses"],
-  }, lineCount);
+    required: ["decision_mentions", "procedural_relationships", "treatments"],
+  };
 }
 
-export function submissionOutputSchema(inventory: DecisionCitationInventory, lineCount: number) {
+export function submissionOutputSchema(lineCount: number, contract: AnalysisContract = "self-check") {
   return {
     type: "object",
     additionalProperties: false,
     properties: {
       structure: structureOutputSchema(lineCount),
-      analysis: analysisOutputSchema(inventory, lineCount),
+      analysis: analysisOutputSchema(lineCount, undefined, contract),
     },
     required: ["structure", "analysis"],
   };
@@ -753,35 +697,225 @@ function collectSpan(
   return span;
 }
 
-export function compileAuthorityInventory(raw: unknown, material: CaseMaterial): AuthorityInventoryCompilation {
-  const item = record(raw);
-  if (!item) return { ok: false, errors: ["authority inventory: expected an object"], value: null, grounding: [] };
-  const errors: string[] = [];
-  const grounding: GroundingReceipt[] = [];
-  const evidence = new Map<string, LegalEvidenceReceipt>();
-  const ids = new Set<string>();
-  const spans = new Set<string>();
-  const authorities: AuthorityInventory["authorities"] = [];
-  for (const [index, rawAuthority] of requiredList(item.authorities, "authorities", errors).entries()) {
-    const path = `authorities[${index}]`;
-    const authority = record(rawAuthority);
-    if (!authority) { errors.push(`${path}: expected an object`); continue; }
-    const authorityId = idValue(authority.authority_id, /^a[1-9][0-9]*$/u, `${path}.authority_id`, errors);
-    if (ids.has(authorityId)) errors.push(`${path}.authority_id: duplicate ${authorityId}`);
-    ids.add(authorityId);
-    const identifyingText = stringValue(authority.identifying_text, `${path}.identifying_text`, errors);
-    const occurrences = requiredList(authority.occurrences, `${path}.occurrences`, errors).flatMap((value, occurrenceIndex) => {
-      const span = collectSpan(value, `${path}.occurrences[${occurrenceIndex}]`, material, errors, grounding, evidence, 2_000, false);
-      if (!span) return [];
-      const key = `${span.start}:${span.end}`;
-      if (spans.has(key)) errors.push(`${path}.occurrences[${occurrenceIndex}]: duplicate occurrence span`);
-      spans.add(key);
-      return [value as AnchoredSpan];
-    });
-    if (!occurrences.length) errors.push(`${path}.occurrences: at least one occurrence is required`);
-    authorities.push({ authority_id: authorityId, identifying_text: identifyingText, occurrences });
+function sourceBlock(
+  value: unknown,
+  path: string,
+  material: CaseMaterial,
+  errors: string[],
+) {
+  if (typeof value !== "string" || !/^p[1-9][0-9]*$/u.test(value)) {
+    errors.push(`${path}: expected a source block such as p12`);
+    return null;
   }
-  return { ok: errors.length === 0, errors: unique(errors), value: errors.length ? null : { authorities }, grounding };
+  const number = Number(value.slice(1));
+  const line = material.source_lines[number - 1];
+  if (!line || line.line !== number) {
+    errors.push(`${path}: unknown source block ${value}`);
+    return null;
+  }
+  const exactText = material.text.slice(line.start, line.end);
+  return {
+    start_line: number,
+    end_line: number,
+    start_quote: exactText,
+    end_quote: exactText,
+    start: line.start,
+    end: line.end,
+    exact_text: exactText,
+    text_sha256: sha256(exactText),
+  } satisfies ResolvedSpan;
+}
+
+function collectBlock(
+  value: unknown,
+  path: string,
+  material: CaseMaterial,
+  errors: string[],
+  grounding: GroundingReceipt[],
+  evidence: Map<string, LegalEvidenceReceipt>,
+  retainEvidenceReceipt = true,
+) {
+  const span = sourceBlock(value, path, material, errors);
+  if (!span) return null;
+  grounding.push({ path, start: span.start, end: span.end, exact_text: span.exact_text, text_sha256: span.text_sha256 });
+  if (retainEvidenceReceipt) {
+    const receipt = evidenceReceipt(material, path, span);
+    evidence.set(receipt.evidence_id, receipt);
+  }
+  return span;
+}
+
+function collectBlocks(
+  value: unknown,
+  path: string,
+  material: CaseMaterial,
+  errors: string[],
+  grounding: GroundingReceipt[],
+  evidence: Map<string, LegalEvidenceReceipt>,
+  opinion?: ResolvedOpinion,
+) {
+  const values = requiredList(value, path, errors);
+  if (!values.length) {
+    errors.push(`${path}: at least one source block is required`);
+    return [];
+  }
+  const seen = new Set<string>();
+  return values.flatMap((blockId, index) => {
+    if (typeof blockId === "string" && seen.has(blockId)) {
+      errors.push(`${path}[${index}]: duplicate source block ${blockId}`);
+      return [];
+    }
+    if (typeof blockId === "string") seen.add(blockId);
+    const span = collectBlock(blockId, `${path}[${index}]`, material, errors, grounding, evidence);
+    if (!span) return [];
+    if (opinion && (span.end <= opinion.boundary.start || span.start >= opinion.boundary.end)) {
+      errors.push(`${path}[${index}]: block ${String(blockId)} is outside ${opinion.opinion_id}`);
+    }
+    return [span];
+  });
+}
+
+function normalizedText(value: string, withOffsets = false) {
+  let text = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let whitespace = false;
+  for (let index = 0; index < value.length;) {
+    const point = value.codePointAt(index)!;
+    const character = String.fromCodePoint(point);
+    const width = character.length;
+    if (/\s/u.test(character)) {
+      if (text && !whitespace) {
+        text += " ";
+        starts.push(index);
+        ends.push(index + width);
+      } else if (whitespace && ends.length) {
+        ends[ends.length - 1] = index + width;
+      }
+      whitespace = true;
+      index += width;
+      continue;
+    }
+    whitespace = false;
+    const mapped = /[\u201c\u201d\u201e\u201f]/u.test(character)
+      ? '"'
+      : /[\u2018\u2019\u201a\u201b]/u.test(character)
+        ? "'"
+        : /[\u2010-\u2015\u2212]/u.test(character)
+          ? "-"
+          : character;
+    text += mapped;
+    if (withOffsets) for (let offset = 0; offset < mapped.length; offset += 1) {
+      starts.push(index);
+      ends.push(index + width);
+    }
+    index += width;
+  }
+  return { text: withOffsets ? text : text.trim(), starts, ends };
+}
+
+function stringMatches(haystack: string, needle: string) {
+  const matches: number[] = [];
+  let cursor = 0;
+  while (cursor <= haystack.length - needle.length) {
+    const index = haystack.indexOf(needle, cursor);
+    if (index < 0) break;
+    matches.push(index);
+    cursor = index + Math.max(1, needle.length);
+  }
+  return matches;
+}
+
+function collectBlockQuotation(
+  value: unknown,
+  path: string,
+  material: CaseMaterial,
+  errors: string[],
+  grounding: GroundingReceipt[],
+  evidence: Map<string, LegalEvidenceReceipt>,
+  opinion: ResolvedOpinion | undefined,
+  deterministicQuotes: Array<{ id: string; start: number; end: number }>,
+) {
+  const item = record(value);
+  if (!item) {
+    errors.push(`${path}: expected quoted text and its source blocks`);
+    return null;
+  }
+  const modelText = stringValue(item.text, `${path}.text`, errors);
+  const rawBlockIds = requiredList(item.block_ids, `${path}.block_ids`, errors);
+  if (!rawBlockIds.length) {
+    errors.push(`${path}.block_ids: at least one source block is required`);
+    return null;
+  }
+  const blockIds = unique(rawBlockIds.filter((blockId): blockId is SourceBlockId =>
+    typeof blockId === "string" && /^p[1-9][0-9]*$/u.test(blockId)
+  ));
+  if (blockIds.length !== rawBlockIds.length) {
+    errors.push(`${path}.block_ids: source blocks must be valid and unique`);
+    return null;
+  }
+  const blockNumbers = blockIds.map((blockId) => Number(blockId.slice(1))).sort((left, right) => left - right);
+  if (blockNumbers.some((number, index) => index > 0 && number !== blockNumbers[index - 1] + 1)) {
+    errors.push(`${path}.block_ids: a copied passage must use consecutive source blocks`);
+    return null;
+  }
+  const blocks = blockIds.flatMap((blockId, index) => {
+    const span = sourceBlock(blockId, `${path}.block_ids[${index}]`, material, errors);
+    return span ? [span] : [];
+  });
+  if (blocks.length !== blockIds.length || !modelText) return null;
+  const envelopeStart = Math.min(...blocks.map(({ start }) => start));
+  const envelopeEnd = Math.max(...blocks.map(({ end }) => end));
+  const envelope = material.text.slice(envelopeStart, envelopeEnd);
+  let start = -1;
+  let end = -1;
+  let alignment: "exact" | "normalized" = "exact";
+  const exactMatches = stringMatches(envelope, modelText);
+  if (exactMatches.length === 1) {
+    start = envelopeStart + exactMatches[0];
+    end = start + modelText.length;
+  } else {
+    const normalizedEnvelope = normalizedText(envelope, true);
+    const normalizedNeedle = normalizedText(modelText).text;
+    const matches = normalizedNeedle ? stringMatches(normalizedEnvelope.text, normalizedNeedle) : [];
+    if (matches.length === 1) {
+      const normalizedStart = matches[0];
+      const normalizedEnd = normalizedStart + normalizedNeedle.length - 1;
+      start = envelopeStart + normalizedEnvelope.starts[normalizedStart];
+      end = envelopeStart + normalizedEnvelope.ends[normalizedEnd];
+      alignment = "normalized";
+    } else {
+      const suggestion = quoteRepairSuggestion(modelText, [envelope]);
+      errors.push(`${path}.text: quoted text ${matches.length > 1 || exactMatches.length > 1 ? "is ambiguous" : "was not found"} within ${blockIds.join(", ")}${suggestion ? `; ${suggestion}` : ""}`);
+      return null;
+    }
+  }
+  if (opinion && (start < opinion.boundary.start || end > opinion.boundary.end)) {
+    errors.push(`${path}: quoted passage is outside ${opinion.opinion_id}`);
+  }
+  const exactText = material.text.slice(start, end);
+  const startLine = sourceLineAt(material, start)!;
+  const endLine = sourceLineAt(material, Math.max(start, end - 1))!;
+  const span = {
+    start_line: startLine.line,
+    end_line: endLine.line,
+    start_quote: material.text.slice(start, Math.min(end, startLine.end)),
+    end_quote: material.text.slice(Math.max(start, endLine.start), end),
+    start,
+    end,
+    exact_text: exactText,
+    text_sha256: sha256(exactText),
+    block_ids: blockIds,
+    model_text: modelText,
+    alignment,
+    deterministic_quote_ids: deterministicQuotes
+      .filter((quote) => quote.start >= start && quote.end <= end)
+      .map(({ id }) => id),
+  } satisfies CompiledAnalysis["treatments"][number]["quoted_passages"][number];
+  grounding.push({ path, start, end, exact_text: exactText, text_sha256: span.text_sha256 });
+  const receipt = evidenceReceipt(material, path, span);
+  evidence.set(receipt.evidence_id, receipt);
+  return span;
 }
 
 function evidenceNamesPerson(name: string, evidenceText: string) {
@@ -789,8 +923,9 @@ function evidenceNamesPerson(name: string, evidenceText: string) {
     "a", "c", "chief", "cj", "cjc", "cja", "dr", "honorable", "honourable", "j", "ja",
     "judge", "justice", "madam", "mr", "mrs", "ms", "the",
   ]);
-  const tokens = (value: string) => value.normalize("NFKD").replace(/\p{M}/gu, "")
-    .toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const tokens = (value: string) => (value.normalize("NFKD").replace(/\p{M}/gu, "")
+    .toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .map((token) => token.replace(/([\p{L}\p{N}])\1{2,}/gu, "$1$1"));
   const identifying = tokens(name).filter((token) => token.length > 1 && !ignored.has(token));
   const evidence = new Set(tokens(evidenceText));
   // Court reasons identify judges by surname alone ("Matthews J."), so any
@@ -798,7 +933,11 @@ function evidenceNamesPerson(name: string, evidenceText: string) {
   return identifying.length > 0 && identifying.some((token) => evidence.has(token));
 }
 
-const BOUNDARY_HEADING = /^(?:introduction|background|analysis|reasons?(?: for (?:judgment|decision|order)| of (?:the )?court)?|order|conclusion|disposition)\s*:?[.]?$/iu;
+const BOUNDARY_HEADING = /^(?:(?:summary of )?(?:orders?|dispositions?)|decision|introduction|background|analysis|reasons?(?: for (?:judgment|decision|order)| of (?:the )?court)?|conclusion)\s*:?[.]?$/iu;
+const SIGNED_JUDGMENT_TAIL = /^(?:signed|dated)\s+at\s+.+,\s+(?:this\s+)?\d{1,2}(?:st|nd|rd|th)?\s+day\s+of\b/iu;
+const OPINION_BYLINE = /(?:\((?:concurring|dissenting|separate)\s+reasons?\)|^(?:concurring|dissenting|separate)\s+reasons?\b|^the following (?:are|is) the reasons (?:delivered|given) by\s*:?$)/iu;
+const JUDICIAL_SIGNATURE_LINE = /^(?:[“"][\p{L}\p{M}.'’ -]{2,80}[”"]|(?:c\.?\s*j|j)(?:\.?\s*a)?\.?)$/iu;
+const JUDICIAL_SIGNATURE_SEPARATOR = /^[_\p{Pd}]{3,}$/u;
 
 export function trailingJudicialSignature(text: string) {
   const lines = [...text.matchAll(/[^\r\n]+/gu)];
@@ -812,9 +951,28 @@ export function trailingJudicialSignature(text: string) {
 }
 
 export function paragraphCoverageEnd(text: string) {
-  let end = trailingJudicialSignature(text)?.start ?? text.length;
-  for (const line of text.matchAll(/[^\r\n]+/gu)) {
-    if (line.index && BOUNDARY_HEADING.test(line[0].trim())) end = Math.min(end, line.index);
+  const signature = trailingJudicialSignature(text);
+  let end = signature?.start ?? text.length;
+  const lines = [...text.matchAll(/[^\r\n]+/gu)];
+  if (signature) {
+    const signatureLine = lines.findIndex(({ index }) => index === signature.start);
+    for (let prior = signatureLine - 1; prior >= 0; prior -= 1) {
+      const line = lines[prior][0].trim();
+      if (!JUDICIAL_SIGNATURE_LINE.test(line) && !JUDICIAL_SIGNATURE_SEPARATOR.test(line)) break;
+      end = Math.min(end, lines[prior].index!);
+    }
+  }
+  for (const [index, line] of lines.entries()) {
+    if (line.index && (BOUNDARY_HEADING.test(line[0].trim()) || SIGNED_JUDGMENT_TAIL.test(line[0].trim()))) {
+      end = Math.min(end, line.index);
+    }
+    if (line.index && OPINION_BYLINE.test(line[0].trim())) {
+      let tailStart = line.index;
+      for (let prior = index - 1; prior >= 0 && JUDICIAL_SIGNATURE_LINE.test(lines[prior][0].trim()); prior -= 1) {
+        tailStart = lines[prior].index!;
+      }
+      end = Math.min(end, tailStart);
+    }
   }
   return text.slice(0, end).trimEnd().length;
 }
@@ -908,9 +1066,6 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
     const canonical = rawBoundary ? canonicalizeBoundary(rawBoundary, opinionId, material) : null;
     const boundary = canonical?.boundary ?? null;
     if (canonical?.adjustment) boundaryAdjustments.push(canonical.adjustment);
-    if (boundary && wordCount(boundary.exact_text) < MIN_OPINION_WORDS) {
-      errors.push(`${path}.boundary: fewer than ${MIN_OPINION_WORDS} substantive words`);
-    }
     const resultPosition = enumValue(opinion.result_position, RESULT_POSITIONS, `${path}.result_position`, errors);
     const collective = opinion.collective_author === null ? null : record(opinion.collective_author);
     let collectiveName: string | null = null;
@@ -929,7 +1084,7 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
       result_position: resultPosition,
       writers: [],
       full_joiners: [],
-      partial_joiners: [],
+      qualified_joiners: [],
     });
   }
   for (let index = 1; index < resolvedOpinions.length; index += 1) {
@@ -963,20 +1118,16 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
       const opinionId = idValue(link.opinion_id, /^o[1-9][0-9]*$/u, `${linkPath}.opinion_id`, errors);
       if (!opinionIds.has(opinionId)) errors.push(`${linkPath}: unknown opinion_id ${opinionId}`);
       const relation = enumValue(link.relation, ["wrote", "joined", "joined_in_part"] as const, `${linkPath}.relation`, errors);
-      const scope = link.scope === null ? null : stringValue(link.scope, `${linkPath}.scope`, errors);
-      if ((relation === "joined_in_part") !== Boolean(scope?.trim())) {
-        errors.push(`${linkPath}: scope is required only for joined_in_part`);
-      }
-      const linkKey = `${opinionId}:${relation}`;
-      if (linked.has(linkKey)) errors.push(`${linkPath}: duplicate opinion relationship`);
-      linked.add(linkKey);
-      collectPersonEvidence(name, link.evidence, `${linkPath}.evidence`, material, errors, grounding, evidence);
-      links.push({ opinion_id: opinionId, relation, scope });
+      if (linked.has(opinionId)) errors.push(`${linkPath}: participant has more than one relationship to ${opinionId}`);
+      linked.add(opinionId);
+      const linkEvidence = collectPersonEvidence(name, link.evidence, `${linkPath}.evidence`, material, errors, grounding, evidence);
+      if (!linkEvidence) continue;
+      links.push({ opinion_id: opinionId, relation, evidence: linkEvidence });
       const opinion = resolvedOpinions.find((candidate) => candidate.opinion_id === opinionId);
       if (opinion) {
         if (relation === "wrote") opinion.writers.push(name);
         else if (relation === "joined") opinion.full_joiners.push(name);
-        else opinion.partial_joiners.push({ name, scope: scope ?? "" });
+        else opinion.qualified_joiners.push({ name, evidence: linkEvidence });
       }
     }
     const resultOnly = links.length === 0 && Boolean(resultEvidence &&
@@ -1014,9 +1165,17 @@ export function compileStructure(raw: unknown, material: CaseMaterial): Structur
 
   let covered = 0;
   if (material.coverage.status === "asserted") for (const required of material.coverage.spans) {
-    const owners = resolvedOpinions.filter(({ boundary }) => required.start >= boundary.start && required.end <= boundary.end);
+    const requiredText = material.text.slice(required.start, required.end);
+    const requiredEnd = required.start + paragraphCoverageEnd(requiredText);
+    const owners = resolvedOpinions.filter(({ boundary }) => required.start >= boundary.start && requiredEnd <= boundary.end);
     if (owners.length === 1) covered += 1;
-    else errors.push(`structure coverage: substantive ${required.label} is inside ${owners.length} opinion boundaries`);
+    else {
+      const lines = material.source_lines
+        .filter((line) => line.end > required.start && line.start < required.end)
+        .map((line) => line.line);
+      const where = lines.length ? ` (line${lines.length === 1 ? "" : "s"} ${lines.join("-")})` : "";
+      errors.push(`structure coverage: substantive ${required.label}${where} is inside ${owners.length} opinion boundaries`);
+    }
   }
   const value = item as unknown as DecisionStructure;
   const compiled: CompiledStructure = {
@@ -1054,16 +1213,157 @@ function validateLocalIds(
   return values;
 }
 
+const STRICT_DECISION_CITATION = /^(?:19|20)\d{2}\s+(?:[A-Z][A-Z0-9.-]{1,15}|CanLII)\s+\d+(?:\s*\([A-Z][A-Z0-9. -]*\))?$/u;
+
+function sourceLineAt(material: CaseMaterial, offset: number) {
+  return material.source_lines.find((line) => offset >= line.start && offset < line.end) ?? null;
+}
+
+/**
+ * Production-safe citation check. It uses only the decision text, the
+ * deterministic detector, the accepted opinion boundaries, and this draft.
+ * Gold annotations are intentionally neither accepted nor consulted.
+ */
+export function noOracleCitationCheck(
+  material: CaseMaterial,
+  structure: CompiledStructure,
+  analysis: CompiledAnalysis,
+): AnalysisCompilation["no_oracle_citation_check"] {
+  const insideOpinion = (start: number, end: number) => structure.opinions.some((opinion) =>
+    start >= opinion.boundary.start && end <= opinion.boundary.end
+  );
+  const strictOccurrences = material.citation_inventory.occurrences.filter((occurrence) =>
+    (insideOpinion(occurrence.start, occurrence.end) || Boolean(
+      occurrence.linkedContext && insideOpinion(occurrence.linkedContext.start, occurrence.linkedContext.end)
+    )) &&
+    STRICT_DECISION_CITATION.test(occurrence.quote.replace(/\s+/gu, " ").trim())
+  );
+  const strictByAuthority = new Map<string, typeof strictOccurrences>();
+  for (const occurrence of strictOccurrences) {
+    const values = strictByAuthority.get(occurrence.authority_id) ?? [];
+    values.push(occurrence);
+    strictByAuthority.set(occurrence.authority_id, values);
+  }
+
+  const representedSpans: ResolvedSpan[] = [
+    ...analysis.decision_mentions.map(({ identifying_block }) => identifying_block),
+    ...analysis.procedural_relationships.flatMap((relationship) => [
+      relationship.identifying_block,
+      ...relationship.evidence_blocks,
+      ...relationship.actions.flatMap(({ evidence_blocks }) => evidence_blocks),
+    ]),
+    ...analysis.treatments.flatMap((treatment) => [
+      treatment.identifying_block,
+      ...treatment.evidence_blocks,
+      ...treatment.quoted_passages,
+    ]),
+  ];
+  const identifyingSpans = analysis.decision_mentions.map(({ identifying_block }) => identifying_block);
+  const overlaps = (start: number, end: number, span: ResolvedSpan) => start < span.end && end > span.start;
+  const nearbyIdentification = (start: number, end: number) => {
+    const occurrenceLine = sourceLineAt(material, start);
+    if (!occurrenceLine) return false;
+    return identifyingSpans.some((span) => {
+      const spanLine = sourceLineAt(material, span.start);
+      return spanLine?.line === occurrenceLine.line &&
+        Math.max(0, Math.max(start, span.start) - Math.min(end, span.end)) <= 240;
+    });
+  };
+
+  const unmatched: AnalysisCompilation["no_oracle_citation_check"]["omissions"] = [];
+  let covered = 0;
+  for (const [authorityId, candidates] of strictByAuthority) {
+    const allOccurrences = material.citation_inventory.occurrences.filter((occurrence) => occurrence.authority_id === authorityId);
+    const represented = allOccurrences.some((occurrence) => {
+      const context = occurrence.linkedContext;
+      return representedSpans.some((span) => overlaps(occurrence.start, occurrence.end, span)) ||
+        nearbyIdentification(occurrence.start, occurrence.end) ||
+        Boolean(context && (
+          representedSpans.some((span) => overlaps(context.start, context.end, span)) ||
+          nearbyIdentification(context.start, context.end)
+        ));
+    });
+    if (represented) { covered += 1; continue; }
+    const occurrence = candidates[0];
+    const line = sourceLineAt(material, occurrence.start);
+    if (!line) continue;
+    unmatched.push({
+      occurrence_id: occurrence.id,
+      line: line.line,
+      exact_text: occurrence.quote,
+      start: occurrence.start,
+      end: occurrence.end,
+      text_sha256: sha256(occurrence.quote),
+    });
+  }
+  // Distinct citation forms can name one decision. Without an alias oracle,
+  // an unmatched form proves an omission only when the draft names no cited
+  // decision at all. Otherwise retain it for review without rejecting the draft.
+  const omissions = analysis.decision_mentions.length === 0 ? unmatched : [];
+  const unresolved = analysis.decision_mentions.length === 0 ? [] : unmatched;
+  return { checked: strictByAuthority.size, covered, omissions, unresolved };
+}
+
+type VisibleGroundingSpan = {
+  evidenceId: string;
+  text: string;
+  span: ResolvedSpan;
+};
+
+function collectProseGrounding(
+  path: string,
+  prose: string,
+  visible: VisibleGroundingSpan[],
+  errors: string[],
+  copyReceipts: ProseCopyReceipt[],
+) {
+  for (const error of groundedProseErrors(prose, visible.map(({ evidenceId }) => evidenceId), visible)) {
+    const match = /^unmarked copied passage (.+) matches visible evidence ([^;]+);/u.exec(error);
+    if (!match) {
+      errors.push(`${path}: ${error}`);
+      continue;
+    }
+    const source = visible.find(({ evidenceId }) => evidenceId === match[2]);
+    let exactText: unknown;
+    try {
+      exactText = JSON.parse(match[1]);
+    } catch {
+      errors.push(`${path}: ${error}`);
+      continue;
+    }
+    if (!source || typeof exactText !== "string") {
+      errors.push(`${path}: ${error}`);
+      continue;
+    }
+    copyReceipts.push({
+      path,
+      exact_text: exactText,
+      text_sha256: sha256(exactText),
+      source: {
+        evidence_id: source.evidenceId,
+        start: source.span.start,
+        end: source.span.end,
+        text_sha256: source.span.text_sha256,
+      },
+    });
+  }
+}
+
 export function compileAnalysis(
   raw: unknown,
   _structure: DecisionStructure,
   compiledStructure: CompiledStructure,
   material: CaseMaterial,
-  requiredDetectedOccurrenceIds?: readonly string[],
+  contract: AnalysisContract = "self-check",
 ): AnalysisCompilation {
   const errors: string[] = [];
   const grounding: GroundingReceipt[] = [];
   const evidence = new Map<string, LegalEvidenceReceipt>();
+  const proseCopyReceipts: ProseCopyReceipt[] = [];
+  const deterministicQuotes = deterministicQuoteCandidates(material).map((quote) => ({
+    ...quote,
+    text_sha256: sha256(quote.text),
+  }));
   const item = record(raw);
   if (!item) {
     return {
@@ -1073,225 +1373,221 @@ export function compileAnalysis(
       compiled: null,
       grounding,
       evidence_receipts: [],
-      deterministic_quote_candidates: [],
-      citation_coverage: { detected: requiredDetectedOccurrenceIds?.length ?? material.citation_inventory.occurrences.length, accounted_for: 0, model_added: 0, completeness: "not_asserted" },
+      prose_copy_receipts: proseCopyReceipts,
+      deterministic_quote_candidates: deterministicQuotes,
+      no_oracle_citation_check: { checked: 0, covered: 0, omissions: [], unresolved: [] },
     };
   }
-  const detected = new Map(material.citation_inventory.occurrences.map((value) => [value.id, value]));
-  const requiredDetected = new Set(requiredDetectedOccurrenceIds ?? detected.keys());
-  for (const id of requiredDetected) if (!detected.has(id)) errors.push(`analysis.references: unknown required detector occurrence ${id}`);
-  const detectedUsed = new Set<string>();
-  const references = new Map<string, CompiledAnalysis["references"][number]>();
-  const referencePaths = new Map<string, string>();
-  for (const [index, value] of requiredList(item.references, "analysis.references", errors).entries()) {
-    const path = `analysis.references[${index}]`;
-    const reference = record(value);
-    if (!reference) { errors.push(`${path}: expected an object`); continue; }
-    const id = idValue(reference.reference_id, /^r[1-9][0-9]*$/u, `${path}.reference_id`, errors);
-    if (references.has(id)) errors.push(`${path}: duplicate reference_id ${id}`);
-    else referencePaths.set(id, path);
-    const detectedId = reference.detected_occurrence_id === null
-      ? null
-      : stringValue(reference.detected_occurrence_id, `${path}.detected_occurrence_id`, errors);
-    const occurrence = detectedId === null ? null : detected.get(detectedId);
-    if (detectedId !== null && !occurrence) errors.push(`${path}: unknown detected occurrence ${detectedId}`);
-    if (detectedId !== null && !requiredDetected.has(detectedId)) errors.push(`${path}: detected occurrence ${detectedId} is outside this analysis target`);
-    if (detectedId !== null && detectedUsed.has(detectedId)) errors.push(`${path}: duplicate detected occurrence ${detectedId}`);
-    if (detectedId !== null) detectedUsed.add(detectedId);
-    const status = enumValue(reference.reference_status, ["decision_reference", "not_decision_reference", "unclear"] as const, `${path}.reference_status`, errors);
-    const voice = enumValue(reference.voice, REFERENCE_VOICES, `${path}.voice`, errors);
-    const span = collectSpan(reference.span, `${path}.span`, material, errors, grounding, evidence, 2_000);
-    if (span && occurrence) {
-      if (occurrence.start < span.start || occurrence.end > span.end) errors.push(`${path}: detector occurrence is outside the reference span`);
-      if (!span.exact_text.includes(occurrence.quote)) errors.push(`${path}: reference span must include ${JSON.stringify(occurrence.quote)}`);
+  const opinions = new Map(compiledStructure.opinions.map((value) => [value.opinion_id, value]));
+  const deriveOpinion = (blocks: ResolvedSpan[], path: string) => {
+    const blockOpinions = blocks.map((block) => {
+      const overlaps = compiledStructure.opinions
+        .map((opinion) => ({
+          opinion,
+          characters: Math.max(0, Math.min(block.end, opinion.boundary.end) - Math.max(block.start, opinion.boundary.start)),
+        }))
+        .filter(({ characters }) => characters > 0)
+        .sort((left, right) => right.characters - left.characters);
+      if (!overlaps.length || (overlaps[1] && overlaps[0].characters === overlaps[1].characters)) return null;
+      return overlaps[0].opinion.opinion_id;
+    });
+    const ids = unique(blockOpinions.filter((id): id is string => id !== null));
+    if (ids.length !== 1 || blockOpinions.some((id) => id === null) || blocks.length === 0) {
+      errors.push(`${path}: evidence blocks must identify exactly one judicial opinion`);
+      return null;
     }
-    if (span && !occurrence && material.citation_inventory.occurrences.some((candidate) =>
-      candidate.start >= span.start && candidate.end <= span.end
-    )) errors.push(`${path}: a supplied detector occurrence inside this span was not linked`);
-    if (span) references.set(id, { reference_id: id, detected_occurrence_id: detectedId, reference_status: status, voice, span });
-  }
-  for (const id of requiredDetected) if (!detectedUsed.has(id)) errors.push(`analysis.references: missing detector occurrence ${id}`);
+    return opinions.get(ids[0]) ?? null;
+  };
+  const mentions: CompiledAnalysis["decision_mentions"] = [];
+  const relationships: CompiledAnalysis["procedural_relationships"] = [];
+  const treatments: CompiledAnalysis["treatments"] = [];
+  const identities = new Map<string, CompiledAnalysis["decision_mentions"][number]>();
+  const identityKey = (value: string) => value.normalize("NFKC").toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const identify = (value: Record<string, unknown>, path: string) => {
+    const citedDecision = stringValue(value.cited_decision, `${path}.cited_decision`, errors);
+    const identifyingBlock = collectBlock(
+      value.identifying_block,
+      `${path}.identifying_block`,
+      material,
+      errors,
+      grounding,
+      evidence,
+    );
+    if (!citedDecision || !identifyingBlock) return null;
+    const key = identityKey(citedDecision);
+    let identity = identities.get(key);
+    if (!identity) {
+      identity = {
+        decision_id: `d${identities.size + 1}`,
+        cited_decision: citedDecision,
+        identifying_block: identifyingBlock,
+      };
+      identities.set(key, identity);
+      mentions.push(identity);
+    }
+    return { ...identity, cited_decision: citedDecision, identifying_block: identifyingBlock };
+  };
 
-  const decisionReferences = new Map([...references].filter(([, value]) => value.reference_status === "decision_reference"));
-  const deterministicQuotes = deterministicQuoteCandidates(material).map((quote) => ({
-    ...quote,
-    text_sha256: sha256(quote.text),
-  }));
-  const passages = new Map<string, CompiledAnalysis["attributed_passages"][number]>();
-  for (const [index, value] of requiredList(item.attributed_passages, "analysis.attributed_passages", errors).entries()) {
-    const path = `analysis.attributed_passages[${index}]`;
-    const passage = record(value);
-    if (!passage) { errors.push(`${path}: expected an object`); continue; }
-    const id = idValue(passage.passage_id, /^q[1-9][0-9]*$/u, `${path}.passage_id`, errors);
-    if (passages.has(id)) errors.push(`${path}: duplicate passage_id ${id}`);
-    const referenceIds = validateLocalIds(passage.reference_ids, /^r[1-9][0-9]*$/u, `${path}.reference_ids`, decisionReferences, errors);
-    const span = collectSpan(passage.span, `${path}.span`, material, errors, grounding, evidence, 12_000);
-    if (span) passages.set(id, {
-      passage_id: id,
-      reference_ids: referenceIds,
+  for (const [index, value] of requiredList(item.decision_mentions, "analysis.decision_mentions", errors).entries()) {
+    const path = `analysis.decision_mentions[${index}]`;
+    const mention = record(value);
+    if (!mention) errors.push(`${path}: expected an object`);
+    else identify(mention, path);
+  }
+
+  for (const [index, value] of requiredList(item.procedural_relationships, "analysis.procedural_relationships", errors).entries()) {
+    const path = `analysis.procedural_relationships[${index}]`;
+    const relationship = record(value);
+    if (!relationship) { errors.push(`${path}: expected an object`); continue; }
+    const identity = identify(relationship, path);
+    const description = stringValue(relationship.description, `${path}.description`, errors);
+    const evidenceBlocks = collectBlocks(
+      relationship.evidence_blocks,
+      `${path}.evidence_blocks`,
+      material,
+      errors,
+      grounding,
+      evidence,
+    );
+    const visible = evidenceBlocks.map((span, blockIndex) => ({
+      evidenceId: `e${blockIndex + 1}`,
+      text: span.exact_text,
       span,
-      deterministic_quote_ids: deterministicQuotes
-        .filter((quote) => quote.start >= span.start && quote.end <= span.end)
-        .map(({ id: quoteId }) => quoteId),
+    }));
+    collectProseGrounding(`${path}.description`, description, visible, errors, proseCopyReceipts);
+    const actions = requiredList(relationship.actions, `${path}.actions`, errors).flatMap((value, actionIndex) => {
+      const actionPath = `${path}.actions[${actionIndex}]`;
+      const action = record(value);
+      if (!action) { errors.push(`${actionPath}: expected an object`); return []; }
+      return [{
+        action: enumValue(action.action, PROCEDURAL_ACTIONS, `${actionPath}.action`, errors),
+        affected_part: action.affected_part === null
+          ? null
+          : stringValue(action.affected_part, `${actionPath}.affected_part`, errors),
+        evidence_blocks: collectBlocks(
+          action.evidence_blocks,
+          `${actionPath}.evidence_blocks`,
+          material,
+          errors,
+          grounding,
+          evidence,
+        ),
+      }];
+    });
+    if (identity) relationships.push({
+      relationship_id: `r${relationships.length + 1}`,
+      ...identity,
+      description,
+      evidence_blocks: evidenceBlocks,
+      actions,
     });
   }
 
-  const opinions = new Map(compiledStructure.opinions.map((value) => [value.opinion_id, value]));
-  const partialByOpinion = new Map(compiledStructure.opinions.map((opinion) => [
-    opinion.opinion_id,
-    new Set(opinion.partial_joiners.map(({ name }) => personKey(name))),
-  ]));
-  const treatments: CompiledAnalysis["treatments"] = [];
-  const treatmentIds = new Set<string>();
   for (const [index, value] of requiredList(item.treatments, "analysis.treatments", errors).entries()) {
     const path = `analysis.treatments[${index}]`;
     const treatment = record(value);
     if (!treatment) { errors.push(`${path}: expected an object`); continue; }
-    const id = idValue(treatment.treatment_id, /^t[1-9][0-9]*$/u, `${path}.treatment_id`, errors);
-    if (treatmentIds.has(id)) errors.push(`${path}: duplicate treatment_id ${id}`);
-    treatmentIds.add(id);
-    const referenceIds = validateLocalIds(treatment.reference_ids, /^r[1-9][0-9]*$/u, `${path}.reference_ids`, decisionReferences, errors);
-    const opinionId = idValue(treatment.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors);
-    const opinion = opinions.get(opinionId);
-    if (!opinion) errors.push(`${path}: unknown opinion_id ${opinionId}`);
+    const identity = identify(treatment, path);
+    const modelOpinionId = contract === "self-check"
+      ? idValue(treatment.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors)
+      : null;
+    if (modelOpinionId && !opinions.has(modelOpinionId)) errors.push(`${path}: unknown opinion_id ${modelOpinionId}`);
     const signals = requiredList(treatment.signals, `${path}.signals`, errors).map((signal, signalIndex) =>
       enumValue(signal, TREATMENT_SIGNALS, `${path}.signals[${signalIndex}]`, errors)
     );
-    if (!signals.length || unique(signals).length !== signals.length) errors.push(`${path}.signals: signals must be non-empty and unique`);
-    const otherSignal = treatment.other_signal === null ? null : stringValue(treatment.other_signal, `${path}.other_signal`, errors);
-    if (signals.includes("other") !== Boolean(otherSignal?.trim())) errors.push(`${path}: other_signal is required only when signals includes other`);
-    const citedProposition = stringValue(treatment.cited_proposition, `${path}.cited_proposition`, errors);
-    const treatmentSummary = stringValue(treatment.treatment_summary, `${path}.treatment_summary`, errors);
-    const evidenceSpans = requiredList(treatment.evidence_spans, `${path}.evidence_spans`, errors).flatMap((spanValue, spanIndex) => {
-      const span = collectSpan(spanValue, `${path}.evidence_spans[${spanIndex}]`, material, errors, grounding, evidence, 12_000);
-      if (span && opinion && (span.start < opinion.boundary.start || span.end > opinion.boundary.end)) {
-        errors.push(`${path}.evidence_spans[${spanIndex}]: evidence is outside ${opinionId}`);
-      }
-      return span ? [span] : [];
-    });
-    if (!evidenceSpans.length) errors.push(`${path}.evidence_spans: at least one evidence span is required`);
-    const passageIds = validateLocalIds(treatment.attributed_passage_ids, /^q[1-9][0-9]*$/u, `${path}.attributed_passage_ids`, passages, errors, true);
-    for (const passageId of passageIds) {
-      const passage = passages.get(passageId);
-      if (passage && !passage.reference_ids.some((referenceId) => referenceIds.includes(referenceId))) {
-        errors.push(`${path}: ${passageId} is attributed to a different reference`);
-      }
+    if (!signals.length || unique(signals).length !== signals.length) {
+      errors.push(`${path}.signals: signals must be non-empty and unique`);
     }
-    const adopters = requiredList(treatment.partial_adopters, `${path}.partial_adopters`, errors).map((name, adopterIndex) =>
-      stringValue(name, `${path}.partial_adopters[${adopterIndex}]`, errors, 2)
+    const otherSignal = treatment.other_signal === null
+      ? null
+      : stringValue(treatment.other_signal, `${path}.other_signal`, errors);
+    if (signals.includes("other") !== Boolean(otherSignal?.trim())) {
+      errors.push(`${path}: other_signal is required only when signals includes other`);
+    }
+    const proposition = stringValue(treatment.proposition, `${path}.proposition`, errors);
+    const treatmentText = stringValue(treatment.treatment, `${path}.treatment`, errors);
+    const evidenceBlocks = collectBlocks(
+      treatment.evidence_blocks,
+      `${path}.evidence_blocks`,
+      material,
+      errors,
+      grounding,
+      evidence,
     );
-    if (unique(adopters.map(personKey)).length !== adopters.length) errors.push(`${path}.partial_adopters: names must be unique`);
-    const permittedAdopters = partialByOpinion.get(opinionId) ?? new Set<string>();
-    for (const name of adopters) if (!permittedAdopters.has(personKey(name))) {
-      errors.push(`${path}.partial_adopters: ${name} is not recorded as partially joining ${opinionId}`);
+    const opinion = deriveOpinion(evidenceBlocks, `${path}.evidence_blocks`);
+    const opinionId = opinion?.opinion_id ?? modelOpinionId ?? "";
+    if (contract === "self-check" && opinion && modelOpinionId && opinion.opinion_id !== modelOpinionId) {
+      errors.push(`${path}.opinion_id: ${modelOpinionId} conflicts with evidence in ${opinion.opinion_id}`);
     }
+    const supportingValues = contract === "self-check"
+      ? requiredList(treatment.supporting_passages, `${path}.supporting_passages`, errors)
+      : [];
+    if (contract === "self-check" && !supportingValues.length) {
+      errors.push(`${path}.supporting_passages: at least one supporting passage is required`);
+    }
+    const supportingPassages = contract === "self-check"
+      ? supportingValues
+        .flatMap((passage, passageIndex) => {
+          const resolved = collectBlockQuotation(
+            passage,
+            `${path}.supporting_passages[${passageIndex}]`,
+            material,
+            errors,
+            grounding,
+            evidence,
+            opinion ?? undefined,
+            deterministicQuotes,
+          );
+          return resolved ? [resolved] : [];
+        })
+      : [];
+    const quotedPassages = requiredList(treatment.quoted_passages, `${path}.quoted_passages`, errors)
+      .flatMap((passage, passageIndex) => {
+        const resolved = collectBlockQuotation(
+          passage,
+          `${path}.quoted_passages[${passageIndex}]`,
+          material,
+          errors,
+          grounding,
+          evidence,
+          opinion,
+          deterministicQuotes,
+        );
+        return resolved ? [resolved] : [];
+      });
     const visible = [
-      ...evidenceSpans.map((span, spanIndex) => ({ evidenceId: `e${spanIndex + 1}`, text: span.exact_text })),
-      ...passageIds.flatMap((passageId) => {
-        const passage = passages.get(passageId);
-        return passage ? [{ evidenceId: passageId, text: passage.span.exact_text }] : [];
-      }),
+      ...evidenceBlocks.map((span, blockIndex) => ({ evidenceId: `e${blockIndex + 1}`, text: span.exact_text, span })),
+      ...supportingPassages.map((span, passageIndex) => ({ evidenceId: `s${passageIndex + 1}`, text: span.exact_text, span })),
+      ...quotedPassages.map((span, passageIndex) => ({ evidenceId: `q${passageIndex + 1}`, text: span.exact_text, span })),
     ];
-    for (const [field, prose] of [["cited_proposition", citedProposition], ["treatment_summary", treatmentSummary]] as const) {
-      errors.push(...groundedProseErrors(prose, visible.map(({ evidenceId }) => evidenceId), visible)
-        .map((error) => `${path}.${field}: ${error}`));
+    for (const [field, prose] of [["proposition", proposition], ["treatment", treatmentText]] as const) {
+      collectProseGrounding(`${path}.${field}`, prose, visible, errors, proseCopyReceipts);
     }
-    treatments.push({
-      treatment_id: id,
-      reference_ids: referenceIds,
+    if (identity) treatments.push({
+      treatment_id: `t${treatments.length + 1}`,
+      ...identity,
       opinion_id: opinionId,
+      model_opinion_id: modelOpinionId,
       signals,
       other_signal: otherSignal,
-      cited_proposition: citedProposition,
-      treatment_summary: treatmentSummary,
-      evidence_spans: evidenceSpans,
-      attributed_passage_ids: passageIds,
-      partial_adopters: adopters,
+      proposition,
+      treatment: treatmentText,
+      evidence_blocks: evidenceBlocks,
+      supporting_passages: supportingPassages,
+      quoted_passages: quotedPassages,
     });
-  }
-
-  const histories: CompiledAnalysis["procedural_history"] = [];
-  const historyIds = new Set<string>();
-  for (const [index, value] of requiredList(item.procedural_history, "analysis.procedural_history", errors).entries()) {
-    const path = `analysis.procedural_history[${index}]`;
-    const history = record(value);
-    if (!history) { errors.push(`${path}: expected an object`); continue; }
-    const id = idValue(history.history_id, /^h[1-9][0-9]*$/u, `${path}.history_id`, errors);
-    if (historyIds.has(id)) errors.push(`${path}: duplicate history_id ${id}`);
-    historyIds.add(id);
-    const referenceIds = validateLocalIds(history.reference_ids, /^r[1-9][0-9]*$/u, `${path}.reference_ids`, decisionReferences, errors);
-    const opinionId = history.opinion_id === null ? null : idValue(history.opinion_id, /^o[1-9][0-9]*$/u, `${path}.opinion_id`, errors);
-    const opinion = opinionId === null ? null : opinions.get(opinionId);
-    if (opinionId !== null && !opinion) errors.push(`${path}: unknown opinion_id ${opinionId}`);
-    const stageRelation = enumValue(history.stage_relation, PROCEDURAL_STAGE_RELATIONS, `${path}.stage_relation`, errors);
-    const action = enumValue(history.current_decision_action, PROCEDURAL_ACTIONS, `${path}.current_decision_action`, errors);
-    const otherAction = history.other_action === null ? null : stringValue(history.other_action, `${path}.other_action`, errors);
-    if ((action === "other") !== Boolean(otherAction?.trim())) errors.push(`${path}: other_action is required only for action=other`);
-    const summary = stringValue(history.summary, `${path}.summary`, errors);
-    const evidenceSpans = requiredList(history.evidence_spans, `${path}.evidence_spans`, errors).flatMap((spanValue, spanIndex) => {
-      const span = collectSpan(spanValue, `${path}.evidence_spans[${spanIndex}]`, material, errors, grounding, evidence, 12_000);
-      if (span && opinion && (span.start < opinion.boundary.start || span.end > opinion.boundary.end)) {
-        errors.push(`${path}.evidence_spans[${spanIndex}]: evidence is outside ${opinionId}`);
-      }
-      return span ? [span] : [];
-    });
-    if (!evidenceSpans.length) errors.push(`${path}.evidence_spans: at least one evidence span is required`);
-    const visible = evidenceSpans.map((span, spanIndex) => ({ evidenceId: `h${spanIndex + 1}`, text: span.exact_text }));
-    errors.push(...groundedProseErrors(summary, visible.map(({ evidenceId }) => evidenceId), visible)
-      .map((error) => `${path}.summary: ${error}`));
-    histories.push({
-      history_id: id,
-      reference_ids: referenceIds,
-      opinion_id: opinionId,
-      stage_relation: stageRelation,
-      current_decision_action: action,
-      other_action: otherAction,
-      summary,
-      evidence_spans: evidenceSpans,
-    });
-  }
-
-  const referenceUses: CompiledAnalysis["reference_uses"] = [];
-  const usedReferences = new Set<string>();
-  const knownTreatments = new Map(treatments.map((value) => [value.treatment_id, value]));
-  const knownHistories = new Map(histories.map((value) => [value.history_id, value]));
-  for (const [index, value] of requiredList(item.reference_uses, "analysis.reference_uses", errors).entries()) {
-    const path = `analysis.reference_uses[${index}]`;
-    const use = record(value);
-    if (!use) { errors.push(`${path}: expected an object`); continue; }
-    const referenceId = idValue(use.reference_id, /^r[1-9][0-9]*$/u, `${path}.reference_id`, errors);
-    if (!references.has(referenceId)) errors.push(`${path}: unknown reference_id ${referenceId}`);
-    if (usedReferences.has(referenceId)) errors.push(`${path}: duplicate reference_id ${referenceId}`);
-    usedReferences.add(referenceId);
-    const treatmentIds = validateLocalIds(use.treatment_ids, /^t[1-9][0-9]*$/u, `${path}.treatment_ids`, knownTreatments, errors, true);
-    const historyIds = validateLocalIds(use.procedural_history_ids, /^h[1-9][0-9]*$/u, `${path}.procedural_history_ids`, knownHistories, errors, true);
-    referenceUses.push({ reference_id: referenceId, treatment_ids: treatmentIds, procedural_history_ids: historyIds });
-  }
-  const usesByReference = new Map(referenceUses.map((value) => [value.reference_id, value]));
-  for (const referenceId of references.keys()) {
-    const sourcePath = referencePaths.get(referenceId) ?? "analysis.references";
-    const use = usesByReference.get(referenceId);
-    if (!use) {
-      errors.push(`${sourcePath}: reference ${referenceId} is missing its reference_uses entry`);
-      continue;
-    }
-    const expectedTreatments = treatments.filter((value) => value.reference_ids.includes(referenceId)).map((value) => value.treatment_id);
-    const expectedHistories = histories.filter((value) => value.reference_ids.includes(referenceId)).map((value) => value.history_id);
-    if (JSON.stringify([...use.treatment_ids].sort()) !== JSON.stringify(expectedTreatments.sort())) {
-      errors.push(`${sourcePath}: reference ${referenceId} has incomplete treatment_ids in reference_uses`);
-    }
-    if (JSON.stringify([...use.procedural_history_ids].sort()) !== JSON.stringify(expectedHistories.sort())) {
-      errors.push(`${sourcePath}: reference ${referenceId} has incomplete procedural_history_ids in reference_uses`);
-    }
   }
 
   const compiled: CompiledAnalysis = {
-    references: [...references.values()],
-    attributed_passages: [...passages.values()],
+    decision_mentions: mentions,
+    procedural_relationships: relationships,
     treatments,
-    procedural_history: histories,
-    reference_uses: referenceUses,
   };
+  const citationCheck = noOracleCitationCheck(material, compiledStructure, compiled);
+  for (const omission of citationCheck.omissions) {
+    errors.push(`analysis.decision_mentions: source block p${omission.line} contains an unmistakable decision citation ${JSON.stringify(omission.exact_text)} that is not represented`);
+  }
   return {
     ok: errors.length === 0,
     errors: unique(errors),
@@ -1299,17 +1595,17 @@ export function compileAnalysis(
     compiled: errors.length === 0 ? compiled : null,
     grounding,
     evidence_receipts: [...evidence.values()],
+    prose_copy_receipts: proseCopyReceipts,
     deterministic_quote_candidates: deterministicQuotes,
-    citation_coverage: {
-      detected: requiredDetected.size,
-      accounted_for: detectedUsed.size,
-      model_added: [...references.values()].filter(({ detected_occurrence_id }) => detected_occurrence_id === null).length,
-      completeness: "not_asserted",
-    },
+    no_oracle_citation_check: citationCheck,
   };
 }
 
-export function compileSubmission(raw: unknown, material: CaseMaterial): SubmissionCompilation {
+export function compileSubmission(
+  raw: unknown,
+  material: CaseMaterial,
+  contract: AnalysisContract = "self-check",
+): SubmissionCompilation {
   const item = record(raw);
   if (!item) {
     const structure = compileStructure(null, material);
@@ -1333,7 +1629,7 @@ export function compileSubmission(raw: unknown, material: CaseMaterial): Submiss
       analysis: null,
     };
   }
-  const analysis = compileAnalysis(item.analysis, structure.value, structure.compiled, material);
+  const analysis = compileAnalysis(item.analysis, structure.value, structure.compiled, material, contract);
   return {
     ok: structure.ok && analysis.ok,
     errors: unique([...structure.errors, ...analysis.errors]),
@@ -1348,33 +1644,18 @@ function numberedDecisionPacket(material: CaseMaterial) {
   return [
     "[DECISION]",
     JSON.stringify({ citation: material.citation, name: material.name, date: material.date, dataset: material.dataset }),
-    "[COMPLETE NUMBERED DECISION]",
-    material.source_lines.map((line) => `${line.line}: ${material.text.slice(line.start, line.end)}`).join("\n"),
+    "[COMPLETE DECISION]",
+    material.source_lines.map((line) => `[p${line.line}] ${material.text.slice(line.start, line.end)}`).join("\n"),
   ].join("\n\n");
 }
 
-function referenceCandidatePacket(material: CaseMaterial, heading = "POSSIBLE DECISION REFERENCES — search hints, not a complete or authoritative list") {
-  const lineRange = (start: number, end: number) => {
-    const hits = material.source_lines.filter((line) => line.end > start && line.start < end);
-    return hits.length ? [hits[0].line, hits.at(-1)!.line] : [null, null];
-  };
-  return [
-    `[${heading}]`,
-    JSON.stringify(material.citation_inventory.occurrences.map((occurrence) => [
-      occurrence.id,
-      ...lineRange(occurrence.start, occurrence.end),
-      occurrence.quote,
-    ])),
-  ].join("\n\n");
-}
-
-const SPAN_INSTRUCTIONS = `Every source span uses four fields. start_quote must be copied exactly from start_line, and end_quote exactly from end_line. They delimit the first and last characters of the span. For a short span on one line, the same exact excerpt may be used for both anchors. Copy the decision's spelling and punctuation exactly; the line number before each colon is not part of the decision.`;
+const SPAN_INSTRUCTIONS = `Each source block is labelled pN. For structure spans, start_line and end_line are the numeric N values. start_quote must be copied exactly from the start block and end_quote exactly from the end block. They delimit the first and last characters of the span. For a short span in one block, the same exact excerpt may be used for both anchors. Copy spelling and punctuation exactly; block labels are not part of the decision.`;
 
 export const STRUCTURE_INSTRUCTIONS = `Read the complete decision and identify its judicial reasons and votes.
 
 An opinion is an independently reasoned body of judicial reasons. A panel list, headnote, signature, order, correction, disposition-only line, or bare statement such as "I agree" is not a separate opinion. Bound each opinion from its first substantive heading or sentence through its last substantive sentence. Do not include editorial material, counsel lists, signatures, or a bare joinder in an opinion boundary.
 
-List every participating decision-maker. Link a participant to an opinion as wrote, joined, or joined_in_part only when the decision establishes that relationship, and ground each link in a passage that names that participant explicitly; a heading such as "Reasons for Judgment" does not by itself identify its writer. For joined_in_part, state the expressly identified scope in plain language. Panel membership alone proves neither authorship nor joinder. Use collective_author only when the reasons identify an institutional writer such as "The Court"; otherwise leave it null when no writer is stated. List an expressly nonparticipating judge only in nonparticipants.
+List every participating decision-maker. Link a participant to an opinion as wrote, joined, or joined_in_part only when the decision establishes that relationship. For joined_in_part, use the exact passage in which the judge qualifies the agreement; do not summarize its legal scope. Ground every link in a passage that identifies the participant, because a heading such as "Reasons for Judgment" does not by itself identify its writer. Panel membership alone proves neither authorship nor joinder. Use collective_author only when the reasons identify an institutional writer such as "The Court"; otherwise leave it null when no writer is stated. List an expressly nonparticipating judge only in nonparticipants.
 
 result_position describes whether an opinion or participant supports the decision's disposition, opposes it, reaches mixed results, or is genuinely unclear. Agreement by all judges is support for the disposition even if the word "majority" is absent. A judge agreeing only in the result has no opinion link unless the source also identifies reasons that judge adopts.
 
@@ -1382,22 +1663,17 @@ ${SPAN_INSTRUCTIONS}
 
 Return only JSON matching the supplied schema.`;
 
-export const ANALYSIS_INSTRUCTIONS = `Read the complete decision and the supplied opinion structure. Describe how each judicial opinion treats decisions it cites.
+export const ANALYSIS_INSTRUCTIONS = `Read the complete decision and the supplied judicial-opinion structure. Describe what its judicial opinions say about other adjudicative decisions.
 
-REFERENCES
-The supplied possible references are fallible search hints and are not exhaustive. Account for each supplied occurrence exactly once by placing its ID in detected_occurrence_id. Find additional references to legal decisions in the complete text and give those a null detected_occurrence_id. Do not guess a global database identity or resolve citation aliases. A reference span contains the exact identifying words in this decision.
+In decision_mentions, list one clear mention of every other decision found anywhere in the document, including quotations, parties' arguments, and procedural descriptions. cited_decision is a short name or citation as printed in the document. identifying_block is the pN block containing that mention. Do not include legislation, secondary sources, or the present decision.
 
-voice identifies whose legal position the surrounding passage presents: the current judicial opinion, a party or counsel, the decision under review, a quoted decision, another quoted source, document metadata, or genuinely unclear. Court-written prose recounting counsel's argument has party_or_counsel voice. A quotation or a reported argument is not the current opinion's position unless the opinion adopts it.
+In procedural_relationships, record only decisions from the same litigation. description explains how the earlier decision fits into the litigation. actions records what the present court directly does to it; actions may be empty. Use separate actions when different parts receive different results, and set affected_part to null when an action applies to the whole decision. Reversing a judgment is a procedural action, not precedential overruling.
 
-ATTRIBUTED PASSAGES
-Record a passage when the decision reproduces words that it attributes to a referenced decision and those words matter to the analysis. Delimit the exact passage as it appears here, including visible editorial alterations. This list is open-ended; quotation-mark detection is only a hint.
+In treatments, record each legal proposition that a judicial opinion adopts, applies, explains, extends, distinguishes, limits, criticizes, questions, rejects, or otherwise evaluates. proposition states the proposition as the opinion presents it. treatment states succinctly what the opinion does with that proposition and any material limit on its scope. Use separate observations for different opinions, propositions, operations, or material scopes.
 
-TREATMENTS
-One treatment records one opinion's treatment of one proposition attributed to a cited decision. The cited proposition may contain several sentences or the connected components of a legal test when that is the meaningful unit. Create separate treatments when the same cited decision is used for materially different propositions or is treated differently by different opinions.
+A mention alone is not treatment. A party's submission, an unadopted quotation, or another decision's reasoning is not the current opinion's position. evidence_blocks must identify the current judicial opinion's own words adopting or evaluating the proposition.
 
-cited_proposition states what the current opinion presents the cited decision as standing for. treatment_summary states, succinctly but completely, what the current opinion does with that proposition and the material factual or legal scope of that action. Both must be supported by the listed evidence spans. Write both fields in your own words; never reproduce eight or more consecutive words from the decision outside quotation marks, and keep quoted wording identical to those spans or a linked attributed passage.
-
-Every reference_ids list, including those in attributed_passages and procedural_history records, may contain only reference_id values defined in references.
+Each evidence_blocks value is a list of pN block IDs. quoted_passages contains exact words attributed to the cited decision that matter to the treatment. For each quoted passage, give the pN blocks containing it and copy its text verbatim, including visible editorial alterations. It may be empty.
 
 signals may contain more than one independently supported operation:
 - explained: interprets or clarifies the cited proposition;
@@ -1413,27 +1689,22 @@ signals may contain more than one independently supported operation:
 - overruled: expressly displaces its legal rule by a court able to do so;
 - other: a substantive operation not described above, named in other_signal.
 
-A bare citation, factual comparison, quotation, counsel submission, or description of another court does not itself establish treatment. Treatment evidence must include the current opinion's own words performing the operation. List in partial_adopters only judges whose recorded partial joinder expressly encompasses this proposition; do not repeat writers or full joiners.
-
-PROCEDURAL HISTORY
-Separately record cited decisions from the same proceeding. stage_relation describes how the cited decision fits in the litigation. current_decision_action describes what this decision does to the cited decision: for example, affirmed, reversed, varied, quashed, or remitted. Reversing a judgment under appeal is not overruling its legal rule. The summary explains the procedural relationship and result.
-
-REFERENCE USES
-For every reference, return one reference_uses row. List the treatment and procedural-history records that use that exact reference occurrence. Leave both ID arrays empty when the occurrence supports neither. The same occurrence may support both.
-
-${SPAN_INSTRUCTIONS}
-
 Return only JSON matching the supplied schema.`;
 
-export const AUTHORITY_INVENTORY_INSTRUCTIONS = `Read the complete decision and list every judicial decision it cites or names.
+export const ANALYSIS_EXAMPLES = `EXAMPLE
+{"decision_mentions":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4"},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8"}],"procedural_relationships":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","description":"This is the trial judgment under appeal.","evidence_blocks":["p4"],"actions":[{"action":"reversed","affected_part":"the limitation finding","evidence_blocks":["p5"]}]}],"treatments":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","opinion_id":"o1","signals":["not_followed"],"other_signal":null,"proposition":"The limitation period began when the plaintiff first suspected an injury.","treatment":"The opinion rejects that proposition because the period begins only with knowledge of the material facts.","evidence_blocks":["p6"],"supporting_passages":[{"block_ids":["p6"],"text":"I respectfully disagree"}],"quoted_passages":[]},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8","opinion_id":"o1","signals":["approved","applied"],"other_signal":null,"proposition":"A waiver of statutory rights must be unequivocal.","treatment":"The opinion adopts that requirement and finds no waiver.","evidence_blocks":["p8","p9"],"supporting_passages":[{"block_ids":["p8","p9"],"text":"Brown states that a waiver must be unequivocal. I apply that rule here"}],"quoted_passages":[{"block_ids":["p8"],"text":"A waiver must be unequivocal"}]}]}`;
 
-Group multiple citations, short forms, or mentions only when the text makes clear that they refer to the same decision. Do not resolve the references to external database identifiers. Do not include legislation, secondary sources, party submissions that do not identify a decision, or the current decision's own title and citation in editorial metadata.
+const SELF_CHECK_ANALYSIS_INSTRUCTIONS = `For each treatment, state which supplied opinion made it. In supporting_passages, copy one or more short verbatim passages containing that opinion's own words that directly support the characterization. These passages are distinct from quoted_passages, which reproduce words attributed to the cited decision.`;
 
-identifying_text should reproduce the clearest name or citation used in this decision. Record every occurrence that helped you identify the authority. The supplied possible references are fallible search hints, not an exhaustive list.
-
-${SPAN_INSTRUCTIONS}
-
-Return only JSON matching the supplied schema.`;
+export function analysisExampleText(contract: AnalysisContract) {
+  if (contract === "self-check") return ANALYSIS_EXAMPLES;
+  const value = JSON.parse(ANALYSIS_EXAMPLES.slice(ANALYSIS_EXAMPLES.indexOf("{") )) as DecisionAnalysis;
+  for (const treatment of value.treatments) {
+    delete treatment.opinion_id;
+    delete treatment.supporting_passages;
+  }
+  return `EXAMPLE\n${JSON.stringify(value)}`;
+}
 
 export function structurePrompt(material: CaseMaterial) {
   return [STRUCTURE_INSTRUCTIONS, numberedDecisionPacket(material)].join("\n\n");
@@ -1474,56 +1745,67 @@ export function structurePromptWithHints(material: CaseMaterial) {
 
 function compactStructure(structure: DecisionStructure) {
   return {
-    opinions: structure.opinions,
-    participants: structure.participants,
-    nonparticipants: structure.nonparticipants,
+    opinions: structure.opinions.map((opinion) => ({
+      opinion_id: opinion.opinion_id,
+      start_block: `p${opinion.boundary.start_line}`,
+      end_block: `p${opinion.boundary.end_line}`,
+      collective_author: opinion.collective_author?.name ?? null,
+      result_position: opinion.result_position,
+    })),
+    participants: structure.participants.map((participant) => ({
+      name: participant.name,
+      result_position: participant.result_position,
+      opinion_links: participant.opinion_links.map(({ opinion_id, relation }) => ({ opinion_id, relation })),
+    })),
+    nonparticipants: structure.nonparticipants.map(({ name }) => name),
   };
 }
 
-export function authorityInventoryPrompt(material: CaseMaterial) {
-  return [
-    AUTHORITY_INVENTORY_INSTRUCTIONS,
-    referenceCandidatePacket(material),
-    numberedDecisionPacket(material),
-  ].join("\n\n");
-}
-
-export function analysisPrompt(material: CaseMaterial, structure: DecisionStructure, authorityInventory?: AuthorityInventory) {
+export function analysisPrompt(
+  material: CaseMaterial,
+  structure: DecisionStructure,
+  includeExamples = false,
+  contract: AnalysisContract = "self-check",
+) {
   return [
     ANALYSIS_INSTRUCTIONS,
+    contract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : "",
+    includeExamples ? analysisExampleText(contract) : "",
     "[JUDICIAL OPINION STRUCTURE]",
     JSON.stringify(compactStructure(structure)),
-    authorityInventory ? "[REFERENCE INVENTORY FROM A COMPLETE FIRST READING]" : "",
-    authorityInventory ? JSON.stringify(authorityInventory) : "",
-    referenceCandidatePacket(material),
     numberedDecisionPacket(material),
   ].filter(Boolean).join("\n\n");
 }
 
-export function oneStagePrompt(material: CaseMaterial, includeStructureHints = false) {
+export function oneStagePrompt(
+  material: CaseMaterial,
+  includeStructureHints = false,
+  includeAnalysisExamples = false,
+  contract: AnalysisContract = "self-check",
+) {
   return [
     "Return one structured account of this complete court decision.",
     "[JUDICIAL OPINIONS AND VOTES]",
     STRUCTURE_INSTRUCTIONS.replace(/Return only JSON matching the supplied schema\.$/u, ""),
     "[CITED DECISIONS AND THEIR TREATMENT]",
-    ANALYSIS_INSTRUCTIONS.replace(/Read the complete decision and the supplied opinion structure\. /u, "Read the complete decision. ")
+    ANALYSIS_INSTRUCTIONS.replace(/^Read the complete decision and the supplied judicial-opinion structure\. /u, "Read the complete decision. ")
       .replace(/Return only JSON matching the supplied schema\.$/u, ""),
+    contract === "self-check" ? SELF_CHECK_ANALYSIS_INSTRUCTIONS : "",
+    includeAnalysisExamples ? analysisExampleText(contract) : "",
     "Return only JSON matching the supplied schema.",
     includeStructureHints ? structureHintPacket(material) : "",
-    referenceCandidatePacket(material),
     numberedDecisionPacket(material),
   ].filter(Boolean).join("\n\n");
 }
 
-export function propositionSupport(
+export function opinionSupportBounds(
   structure: CompiledStructure,
-  treatment: CompiledAnalysis["treatments"][number],
+  treatment: Pick<CompiledAnalysis["treatments"][number], "opinion_id">,
 ) {
   const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === treatment.opinion_id);
-  const namedSupporters = unique([
+  const confirmed = unique([
     ...(opinion?.writers ?? []),
     ...(opinion?.full_joiners ?? []),
-    ...treatment.partial_adopters,
   ].map(personKey));
   const panelSize = unique(structure.participants.map(({ name }) => personKey(name))).length;
   const collectiveSupporters = Boolean(opinion?.collective_author) && structure.opinions.length === 1
@@ -1532,16 +1814,63 @@ export function propositionSupport(
         (participant.result_position === opinion?.result_position || participant.result_position === "unclear")
       ).map(({ name }) => personKey(name))
     : [];
-  const supporterCount = unique([...namedSupporters, ...collectiveSupporters]).length;
+  const confirmedCount = unique([...confirmed, ...collectiveSupporters]).length;
+  const possibleCount = unique([
+    ...confirmed,
+    ...collectiveSupporters,
+    ...(opinion?.qualified_joiners ?? []).map(({ name }) => personKey(name)),
+  ]).length;
   return {
-    supporters: supporterCount,
+    confirmed_supporters: confirmedCount,
+    possible_supporters: possibleCount,
     panel_size: panelSize,
     status: panelSize === 0
       ? "unknown" as const
-      : supporterCount > panelSize / 2
+      : confirmedCount > panelSize / 2
         ? "majority" as const
-        : "not_majority" as const,
+        : possibleCount <= panelSize / 2
+          ? "not_majority" as const
+          : "unresolved" as const,
   };
+}
+
+export function submissionReviewFlags(compilation: SubmissionCompilation) {
+  const groups = new Map<string, Array<{
+    decision_id: string;
+    treatment_id: string;
+    opinion_id: string;
+    proposition: string;
+    treatment: string;
+  }>>();
+  const normalize = (value: string) => value.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en");
+  for (const treatment of compilation.analysis?.compiled?.treatments ?? []) {
+    const key = JSON.stringify([
+      treatment.opinion_id,
+      normalize(treatment.proposition),
+      normalize(treatment.treatment),
+    ]);
+    const group = groups.get(key) ?? [];
+    group.push({
+      decision_id: treatment.decision_id,
+      treatment_id: treatment.treatment_id,
+      opinion_id: treatment.opinion_id,
+      proposition: treatment.proposition,
+      treatment: treatment.treatment,
+    });
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((group) => {
+    const decisionIds = unique(group.map(({ decision_id }) => decision_id));
+    if (decisionIds.length < 2) return [];
+    return [{
+      kind: "shared_treatment_wording" as const,
+      opinion_id: group[0].opinion_id,
+      decision_ids: decisionIds,
+      treatment_ids: group.map(({ treatment_id }) => treatment_id),
+      proposition: group[0].proposition,
+      treatment: group[0].treatment,
+    }];
+  });
 }
 
 function opinionLabel(opinion: ResolvedOpinion) {
@@ -1553,40 +1882,78 @@ export function semanticView(compilation: SubmissionCompilation, idPrefix = "") 
   if (!compilation.ok || !compilation.structure.compiled || !compilation.analysis?.compiled) return null;
   const structure = compilation.structure.compiled;
   const analysis = compilation.analysis.compiled;
-  const references = new Map(analysis.references.map((reference) => [reference.reference_id, reference]));
-  const passages = new Map(analysis.attributed_passages.map((passage) => [passage.passage_id, passage]));
   return {
+    procedural_relationships: analysis.procedural_relationships.map((relationship, index) => ({
+      relationship_id: `${idPrefix}r${index + 1}`,
+      cited_decision: relationship.cited_decision,
+      description: relationship.description,
+      evidence: relationship.evidence_blocks.map(({ exact_text }) => exact_text),
+      actions: relationship.actions.map((action) => ({
+        action: action.action,
+        affected_part: action.affected_part,
+        evidence: action.evidence_blocks.map(({ exact_text }) => exact_text),
+      })),
+    })),
     treatments: analysis.treatments.map((treatment, index) => {
       const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === treatment.opinion_id)!;
       return {
         treatment_id: `${idPrefix}t${index + 1}`,
-        cited_references: treatment.reference_ids.map((id) => {
-          const reference = references.get(id);
-          return {
-            reference: reference?.span.exact_text ?? id,
-            voice: reference?.voice ?? "unclear",
-          };
-        }),
+        cited_decision: treatment.cited_decision,
         treating_opinion: opinionLabel(opinion),
         signals: treatment.signals,
         other_signal: treatment.other_signal,
-        cited_proposition: treatment.cited_proposition,
-        treatment_summary: treatment.treatment_summary,
-        evidence: treatment.evidence_spans.map(({ exact_text }) => exact_text),
-        reproduced_passages: treatment.attributed_passage_ids.map((id) => passages.get(id)?.span.exact_text ?? id),
-        judges_adopting_in_part: treatment.partial_adopters,
-        majority_support: propositionSupport(structure, treatment).status,
+        proposition: treatment.proposition,
+        treatment: treatment.treatment,
+        evidence: treatment.evidence_blocks.map(({ exact_text }) => exact_text),
+        quoted_passages: treatment.quoted_passages.map(({ exact_text }) => exact_text),
       };
     }),
-    procedural_history: analysis.procedural_history.map((history, index) => ({
-      history_id: `${idPrefix}h${index + 1}`,
-      cited_references: history.reference_ids.map((id) => references.get(id)?.span.exact_text ?? id),
-      stage_relation: history.stage_relation,
-      current_decision_action: history.current_decision_action,
-      other_action: history.other_action,
-      summary: history.summary,
-      evidence: history.evidence_spans.map(({ exact_text }) => exact_text),
+  };
+}
+
+function anchoredSpanExcerpt(span: AnchoredSpan) {
+  return span.start_quote === span.end_quote
+    ? span.start_quote
+    : `${span.start_quote} … ${span.end_quote}`;
+}
+
+/**
+ * Semantic-only view of a parsed draft. This deliberately ignores failed
+ * locator grounding and redundant reverse-link bookkeeping so those failures
+ * do not prevent an independent legal-meaning review.
+ */
+export function semanticDraftView(compilation: SubmissionCompilation, idPrefix = "") {
+  const valid = semanticView(compilation, idPrefix);
+  if (valid) return valid;
+  if (!compilation.structure.compiled || !compilation.analysis?.value) return null;
+  const structure = compilation.structure.compiled;
+  const analysis = compilation.analysis.value;
+  return {
+    procedural_relationships: analysis.procedural_relationships.map((relationship, index) => ({
+      relationship_id: `${idPrefix}r${index + 1}`,
+      cited_decision: relationship.cited_decision,
+      description: relationship.description,
+      evidence: relationship.evidence_blocks,
+      actions: relationship.actions.map((action) => ({
+        action: action.action,
+        affected_part: action.affected_part,
+        evidence: action.evidence_blocks,
+      })),
     })),
+    treatments: analysis.treatments.map((treatment, index) => {
+      const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === treatment.opinion_id);
+      return {
+        treatment_id: `${idPrefix}t${index + 1}`,
+        cited_decision: treatment.cited_decision,
+        treating_opinion: opinion ? opinionLabel(opinion) : treatment.opinion_id ?? "derived from evidence",
+        signals: treatment.signals,
+        other_signal: treatment.other_signal,
+        proposition: treatment.proposition,
+        treatment: treatment.treatment,
+        evidence: treatment.evidence_blocks,
+        quoted_passages: treatment.quoted_passages.map(({ text }) => text),
+      };
+    }),
   };
 }
 
@@ -1608,14 +1975,13 @@ export const SEMANTIC_JUDGE_SCHEMA = {
             items: { type: "string", pattern: "^ct[1-9][0-9]*$" },
           },
           verdict: { enum: ["pass", "minor_error", "major_error"] },
-          aspects: { type: "array", maxItems: 7, items: { enum: [
+          aspects: { type: "array", maxItems: 6, items: { enum: [
             "coverage",
             "attribution",
-            "cited_proposition",
+            "proposition",
             "treatment",
             "scope",
-            "support",
-            "majority_support",
+            "evidence",
           ] } },
           explanation: { type: ["string", "null"], maxLength: 2_000 },
         },
@@ -1636,45 +2002,48 @@ export const SEMANTIC_JUDGE_SCHEMA = {
         required: ["candidate_treatment_id", "severity", "explanation"],
       },
     },
-    procedural_history_grades: {
+    procedural_relationship_grades: {
       type: "array",
       maxItems: 500,
       items: {
         type: "object",
         additionalProperties: false,
         properties: {
-          reference_history_id: { type: "string", pattern: "^gh[1-9][0-9]*$" },
-          candidate_history_ids: {
+          reference_relationship_id: { type: "string", pattern: "^gr[1-9][0-9]*$" },
+          candidate_relationship_ids: {
             type: "array",
             maxItems: 500,
-            items: { type: "string", pattern: "^ch[1-9][0-9]*$" },
+            items: { type: "string", pattern: "^cr[1-9][0-9]*$" },
           },
           verdict: { enum: ["pass", "minor_error", "major_error"] },
+          aspects: { type: "array", maxItems: 6, items: { enum: [
+            "coverage", "cited_decision", "description", "actions", "affected_part", "evidence",
+          ] } },
           explanation: { type: ["string", "null"], maxLength: 2_000 },
         },
-        required: ["reference_history_id", "candidate_history_ids", "verdict", "explanation"],
+        required: ["reference_relationship_id", "candidate_relationship_ids", "verdict", "aspects", "explanation"],
       },
     },
-    extra_candidate_history: {
+    extra_candidate_relationships: {
       type: "array",
       maxItems: 500,
       items: {
         type: "object",
         additionalProperties: false,
         properties: {
-          candidate_history_id: { type: "string", pattern: "^ch[1-9][0-9]*$" },
+          candidate_relationship_id: { type: "string", pattern: "^cr[1-9][0-9]*$" },
           severity: { enum: ["minor", "major"] },
           explanation: { type: "string", minLength: 1, maxLength: 2_000 },
         },
-        required: ["candidate_history_id", "severity", "explanation"],
+        required: ["candidate_relationship_id", "severity", "explanation"],
       },
     },
   },
   required: [
     "treatment_grades",
     "extra_candidate_treatments",
-    "procedural_history_grades",
-    "extra_candidate_history",
+    "procedural_relationship_grades",
+    "extra_candidate_relationships",
   ],
 } as const;
 
@@ -1688,9 +2057,9 @@ export function semanticJudgeScore(value: unknown) {
     ...rows("treatment_grades").map(({ verdict }) => gradePoints(verdict)),
     ...rows("extra_candidate_treatments").map(({ severity }) => gradePoints(severity)),
   ];
-  const historyPoints = [
-    ...rows("procedural_history_grades").map(({ verdict }) => gradePoints(verdict)),
-    ...rows("extra_candidate_history").map(({ severity }) => gradePoints(severity)),
+  const relationshipPoints = [
+    ...rows("procedural_relationship_grades").map(({ verdict }) => gradePoints(verdict)),
+    ...rows("extra_candidate_relationships").map(({ severity }) => gradePoints(severity)),
   ];
   const score = (points: number[]) => ({
     items: points.length,
@@ -1698,13 +2067,20 @@ export function semanticJudgeScore(value: unknown) {
     score: points.length ? points.reduce((total, point) => total + point, 0) / points.length : 1,
   });
   const treatment = score(treatmentPoints);
-  const procedural_history = score(historyPoints);
-  const overall = score([...treatmentPoints, ...historyPoints]);
+  const procedural_relationship = score(relationshipPoints);
+  const overall = score([...treatmentPoints, ...relationshipPoints]);
+  const majorErrors = [
+    ...rows("treatment_grades").map(({ verdict }) => verdict),
+    ...rows("extra_candidate_treatments").map(({ severity }) => severity),
+    ...rows("procedural_relationship_grades").map(({ verdict }) => verdict),
+    ...rows("extra_candidate_relationships").map(({ severity }) => severity),
+  ].filter((grade) => grade === "major_error" || grade === "major").length;
   return {
     treatment,
-    procedural_history,
+    procedural_relationship,
     overall,
-    passed: overall.score >= SEMANTIC_PASS_THRESHOLD,
+    major_errors: majorErrors,
+    passed: overall.score >= SEMANTIC_PASS_THRESHOLD && majorErrors === 0,
     passing_threshold: SEMANTIC_PASS_THRESHOLD,
   };
 }
@@ -1713,21 +2089,27 @@ export function semanticJudgeResultErrors(
   gold: SubmissionCompilation,
   candidate: SubmissionCompilation,
   value: unknown,
+  includeInvalidCandidate = false,
 ) {
   const reference = semanticView(gold, "g");
-  const answer = semanticView(candidate, "c");
+  const answer = includeInvalidCandidate
+    ? semanticDraftView(candidate, "c")
+    : semanticView(candidate, "c");
   const result = record(value);
   if (!reference || !answer || !result) return ["semantic judge result is not an object"];
   const errors: string[] = [];
   const referenceTreatments = new Set(reference.treatments.map(({ treatment_id }) => treatment_id));
   const candidateTreatments = new Set(answer.treatments.map(({ treatment_id }) => treatment_id));
-  const referenceHistory = new Set(reference.procedural_history.map(({ history_id }) => history_id));
-  const candidateHistory = new Set(answer.procedural_history.map(({ history_id }) => history_id));
+  const referenceRelationships = new Set(reference.procedural_relationships.map(({ relationship_id }) => relationship_id));
+  const candidateRelationships = new Set(answer.procedural_relationships.map(({ relationship_id }) => relationship_id));
   const seenReferenceTreatments = new Set<string>();
   const seenCandidateTreatments = new Set<string>();
-  const seenReferenceHistory = new Set<string>();
-  const seenCandidateHistory = new Set<string>();
+  const seenReferenceRelationships = new Set<string>();
+  const seenCandidateRelationships = new Set<string>();
   const rows = (name: string) => Array.isArray(result[name]) ? result[name] as unknown[] : [];
+  for (const name of ["treatment_grades", "extra_candidate_treatments", "procedural_relationship_grades", "extra_candidate_relationships"]) {
+    if (!Array.isArray(result[name])) errors.push(`${name}: expected an array`);
+  }
 
   for (const [index, raw] of rows("treatment_grades").entries()) {
     const grade = record(raw);
@@ -1743,6 +2125,9 @@ export function semanticJudgeResultErrors(
     const verdict = grade?.verdict;
     const aspects = list(grade?.aspects);
     const explanation = grade?.explanation;
+    if (!["pass", "minor_error", "major_error"].includes(String(verdict))) {
+      errors.push(`treatment_grades[${index}]: invalid verdict ${String(verdict)}`);
+    }
     if (verdict === "pass" && (aspects.length || explanation !== null)) {
       errors.push(`treatment_grades[${index}]: pass requires no aspects and a null explanation`);
     }
@@ -1756,55 +2141,69 @@ export function semanticJudgeResultErrors(
     if (!candidateTreatments.has(id)) errors.push(`extra_candidate_treatments[${index}]: unknown candidate treatment ${id}`);
     if (seenCandidateTreatments.has(id)) errors.push(`extra_candidate_treatments[${index}]: candidate treatment ${id} is already matched`);
     seenCandidateTreatments.add(id);
+    if (!["minor", "major"].includes(String(grade?.severity))) errors.push(`extra_candidate_treatments[${index}]: invalid severity ${String(grade?.severity)}`);
+    if (typeof grade?.explanation !== "string" || !grade.explanation.trim()) errors.push(`extra_candidate_treatments[${index}]: explanation is required`);
   }
-  for (const [index, raw] of rows("procedural_history_grades").entries()) {
+  for (const [index, raw] of rows("procedural_relationship_grades").entries()) {
     const grade = record(raw);
-    const id = typeof grade?.reference_history_id === "string" ? grade.reference_history_id : "";
-    if (!referenceHistory.has(id)) errors.push(`procedural_history_grades[${index}]: unknown reference history ${id}`);
-    if (seenReferenceHistory.has(id)) errors.push(`procedural_history_grades[${index}]: duplicate reference history ${id}`);
-    seenReferenceHistory.add(id);
-    for (const candidateId of list(grade?.candidate_history_ids)) {
-      if (typeof candidateId !== "string" || !candidateHistory.has(candidateId)) {
-        errors.push(`procedural_history_grades[${index}]: unknown candidate history ${String(candidateId)}`);
-      } else seenCandidateHistory.add(candidateId);
+    const id = typeof grade?.reference_relationship_id === "string" ? grade.reference_relationship_id : "";
+    if (!referenceRelationships.has(id)) errors.push(`procedural_relationship_grades[${index}]: unknown reference relationship ${id}`);
+    if (seenReferenceRelationships.has(id)) errors.push(`procedural_relationship_grades[${index}]: duplicate reference relationship ${id}`);
+    seenReferenceRelationships.add(id);
+    for (const candidateId of list(grade?.candidate_relationship_ids)) {
+      if (typeof candidateId !== "string" || !candidateRelationships.has(candidateId)) {
+        errors.push(`procedural_relationship_grades[${index}]: unknown candidate relationship ${String(candidateId)}`);
+      } else seenCandidateRelationships.add(candidateId);
     }
     const verdict = grade?.verdict;
+    const aspects = list(grade?.aspects);
     const explanation = grade?.explanation;
-    if (verdict === "pass" && explanation !== null) {
-      errors.push(`procedural_history_grades[${index}]: pass requires a null explanation`);
+    if (!["pass", "minor_error", "major_error"].includes(String(verdict))) {
+      errors.push(`procedural_relationship_grades[${index}]: invalid verdict ${String(verdict)}`);
     }
-    if (verdict !== "pass" && (typeof explanation !== "string" || !explanation.trim())) {
-      errors.push(`procedural_history_grades[${index}]: an error requires an explanation`);
+    if (verdict === "pass" && (aspects.length || explanation !== null)) {
+      errors.push(`procedural_relationship_grades[${index}]: pass requires no aspects and a null explanation`);
+    }
+    if (verdict !== "pass" && (!aspects.length || typeof explanation !== "string" || !explanation.trim())) {
+      errors.push(`procedural_relationship_grades[${index}]: an error requires aspects and an explanation`);
     }
   }
-  for (const [index, raw] of rows("extra_candidate_history").entries()) {
+  for (const [index, raw] of rows("extra_candidate_relationships").entries()) {
     const grade = record(raw);
-    const id = typeof grade?.candidate_history_id === "string" ? grade.candidate_history_id : "";
-    if (!candidateHistory.has(id)) errors.push(`extra_candidate_history[${index}]: unknown candidate history ${id}`);
-    if (seenCandidateHistory.has(id)) errors.push(`extra_candidate_history[${index}]: candidate history ${id} is already matched`);
-    seenCandidateHistory.add(id);
+    const id = typeof grade?.candidate_relationship_id === "string" ? grade.candidate_relationship_id : "";
+    if (!candidateRelationships.has(id)) errors.push(`extra_candidate_relationships[${index}]: unknown candidate relationship ${id}`);
+    if (seenCandidateRelationships.has(id)) errors.push(`extra_candidate_relationships[${index}]: candidate relationship ${id} is already matched`);
+    seenCandidateRelationships.add(id);
+    if (!["minor", "major"].includes(String(grade?.severity))) errors.push(`extra_candidate_relationships[${index}]: invalid severity ${String(grade?.severity)}`);
+    if (typeof grade?.explanation !== "string" || !grade.explanation.trim()) errors.push(`extra_candidate_relationships[${index}]: explanation is required`);
   }
 
   for (const id of referenceTreatments) if (!seenReferenceTreatments.has(id)) errors.push(`missing grade for ${id}`);
   for (const id of candidateTreatments) if (!seenCandidateTreatments.has(id)) errors.push(`candidate treatment ${id} is neither matched nor extra`);
-  for (const id of referenceHistory) if (!seenReferenceHistory.has(id)) errors.push(`missing grade for ${id}`);
-  for (const id of candidateHistory) if (!seenCandidateHistory.has(id)) errors.push(`candidate history ${id} is neither matched nor extra`);
+  for (const id of referenceRelationships) if (!seenReferenceRelationships.has(id)) errors.push(`missing grade for ${id}`);
+  for (const id of candidateRelationships) if (!seenCandidateRelationships.has(id)) errors.push(`candidate relationship ${id} is neither matched nor extra`);
   return errors;
 }
 
-export function semanticJudgePrompt(gold: SubmissionCompilation, candidate: SubmissionCompilation) {
+export function semanticJudgePrompt(
+  gold: SubmissionCompilation,
+  candidate: SubmissionCompilation,
+  includeInvalidCandidate = false,
+) {
   const reference = semanticView(gold, "g");
-  const answer = semanticView(candidate, "c");
+  const answer = includeInvalidCandidate
+    ? semanticDraftView(candidate, "c")
+    : semanticView(candidate, "c");
   if (!reference || !answer) throw new Error("semantic judgment requires two valid compiled submissions");
   return `Assess the legal accuracy of the candidate's account of how the current decision treats cited decisions. Use the reference answer as the standard.
 
-Compare the candidate and reference by legal meaning. Determine whether the candidate includes every substantive treatment and invents none; accurately states the proposition attributed to each cited decision; accurately describes what the treating opinion does with that proposition and its material scope; attributes the treatment to the correct judicial opinion and position; supplies evidence that supports the account; correctly identifies majority support; and accurately describes any procedural history from the same proceeding. Flag a treatment that presents a party's submission, a quotation, or another decision's reasoning as the current opinion's own position unless that opinion adopts it.
+For each treatment, assess whether the candidate identifies the cited decision, treating opinion, proposition, treatment, material scope, and supporting evidence accurately. Flag a candidate that presents a party's submission, a quotation, or another decision's reasoning as the current opinion's position unless the opinion adopts it. For each procedural relationship, assess how the cited decision fits into the litigation, what the present court did to it, and which parts were affected.
 
-Equivalent wording, ordering, and grouping are acceptable when coverage and legal meaning are preserved.
+Equivalent wording and different divisions of the explanation are acceptable when every legal point is preserved.
 
-Return one treatment grade for every reference treatment ID. List the candidate treatment IDs that collectively express that proposition; this may be empty when the proposition is missing, and one candidate treatment may correspond to more than one reference treatment. List every candidate treatment that corresponds to no reference proposition under extra_candidate_treatments. Grade procedural-history records the same way in their separate arrays.
+Return one grade for every reference treatment and procedural relationship. List the candidate IDs that collectively express the same legal point; use an empty array when it is missing. List every unmatched candidate item in the corresponding extra-candidate array.
 
-pass means the proposition or history is substantively accurate. minor_error means a localized error or ambiguity unlikely to materially alter a legal researcher's understanding. major_error means an omission, invention, misattribution, or other error that could materially mislead legal research. For a pass, return no aspects and a null explanation; otherwise identify the affected aspects and explain the error concisely.
+pass means the item is substantively accurate. minor_error means a localized imprecision that does not change the legal operation, proposition, material scope, opinion attribution, procedural action, or affected part. major_error means an omission or invention of a substantive item, attribution to the wrong opinion or speaker, a wrong proposition or treatment direction, a materially wrong scope, a wrong procedural action or affected part, or evidence that does not support the characterization. A signal mismatch is major when it changes the legal operation and minor when the prose remains accurate and the difference is only a less precise compatible label. For a pass, return no aspects and a null explanation; otherwise identify the affected aspects and explain the error concisely.
 
 Return only schema JSON.
 
@@ -1829,9 +2228,44 @@ const judicialNameKey = (value: string) => value.normalize("NFKC").toLocaleLower
   .split(/\s+/u)
   .filter((token) => token && ![
     "the", "honourable", "honorable", "mr", "mrs", "ms", "madam", "chief",
-    "associate", "justice", "judge", "j", "ja", "cj", "cja", "jj",
+    "associate", "justice", "judge", "prothonotary", "master", "registrar",
+    "j", "ja", "cj", "cja", "jj",
   ].includes(token) && !/^\p{L}$/u.test(token))
   .join(" ");
+
+function sameJudicialName(left: string, right: string) {
+  const leftTokens = judicialNameKey(left).split(" ").filter(Boolean);
+  const rightTokens = judicialNameKey(right).split(" ").filter(Boolean);
+  if (leftTokens.join(" ") === rightTokens.join(" ")) return true;
+  return (leftTokens.length === 1 && rightTokens.includes(leftTokens[0])) ||
+    (rightTokens.length === 1 && leftTokens.includes(rightTokens[0]));
+}
+
+function sameJudicialNames(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  const remaining = [...right];
+  return left.every((name) => {
+    const index = remaining.findIndex((candidate) => sameJudicialName(name, candidate));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+    return true;
+  });
+}
+
+function sameJudicialVotes(
+  left: Array<{ name: string; result_position: string }>,
+  right: Array<{ name: string; result_position: string }>,
+) {
+  if (left.length !== right.length) return false;
+  const remaining = [...right];
+  return left.every((vote) => {
+    const index = remaining.findIndex((candidate) =>
+      vote.result_position === candidate.result_position && sameJudicialName(vote.name, candidate.name));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+    return true;
+  });
+}
 
 function categoryScore(categories: Record<string, boolean>) {
   const values = Object.values(categories);
@@ -1839,9 +2273,25 @@ function categoryScore(categories: Record<string, boolean>) {
   return { passed, total: values.length, score: values.length ? passed / values.length : 0 };
 }
 
+function boundaryDecorationLine(text: string) {
+  const content = text.trim();
+  if (!content || /^[\p{P}\p{S}]+$/u.test(content) || /^\[\d+\]$/u.test(content)) return true;
+  const unwrapped = content
+    .replace(/^(?:\/{2}|\*{1,3}|_+)\s*/u, "")
+    .replace(/\s*(?:\/{2}|\*{1,3}|_+)$/u, "")
+    .trim();
+  return BOUNDARY_HEADING.test(unwrapped) || OPINION_BYLINE.test(unwrapped) ||
+    /^(?:[a-z]|\d+)[.)]\s*(?:introduction|background|analysis|reasons?|order|conclusion|disposition)\b/iu.test(unwrapped) ||
+    /^the (?:judgment|reasons?) of .{1,180} (?:was|were) delivered by\s*:?$/iu.test(unwrapped) ||
+    /^[\p{L}\p{M}.,'\u2019 -]{2,80}\s+(?:c\.?\s*j\.?|j\.?\s*a?\.?|prothonotary|master|registrar)(?:\s*\((?:concurring|dissenting|separate)(?:\s+reasons?)?\))?\s*(?::|--?)?$/iu.test(unwrapped);
+}
+
 function recognizedBoundaryHeading(text: string) {
   const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  return lines.length > 0 && lines.every((line) => BOUNDARY_HEADING.test(line));
+  if (!lines.length) return false;
+  const signature = trailingJudicialSignature(text);
+  if (signature) lines.pop();
+  return lines.length === 0 || lines.every(boundaryDecorationLine);
 }
 
 function safeGoldBoundaryDifference(
@@ -1858,13 +2308,13 @@ function safeGoldBoundaryDifference(
   const insideDisposition = (rangeStart: number, rangeEnd: number) => dispositions.some((span) => {
     if (rangeStart >= span.start && rangeEnd <= span.end) return true;
     if (span.start < rangeStart || span.end > rangeEnd) return false;
-    return /^\s*(?:\[\d+\]\s*)?$/u.test(material.text.slice(rangeStart, span.start)) &&
+    return /^\s*(?:(?:summary of )?(?:orders?|dispositions?)\s*:?[.]?\s*)?(?:\[\d+\]\s*)?$/iu.test(material.text.slice(rangeStart, span.start)) &&
       /^\s*$/u.test(material.text.slice(span.end, rangeEnd));
   });
   return insideDisposition(contentStart, contentEnd) || recognizedBoundaryHeading(content) ||
     [...raw.matchAll(/[^\r\n]+/gu)].every((line) => {
       const lineContent = line[0].trim();
-      if (!lineContent || BOUNDARY_HEADING.test(lineContent)) return true;
+      if (boundaryDecorationLine(lineContent)) return true;
       const lineStart = start + line.index! + line[0].indexOf(lineContent);
       return insideDisposition(lineStart, lineStart + lineContent.length);
     });
@@ -1929,19 +2379,18 @@ export function compareStructureMechanics(gold: StructureCompilation, candidate:
     boundaries_acceptable: matches.length === gold.compiled.opinions.length && matches.length === candidate.compiled.opinions.length &&
       matches.every(({ boundary }) => boundary.acceptable),
     writers_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) =>
-      same(normalizedNames(expected.writers), normalizedNames(actual.writers)) && expected.collective_author === actual.collective_author
+      sameJudicialNames(expected.writers, actual.writers) &&
+      (expected.collective_author === actual.collective_author ||
+        !!expected.collective_author && !!actual.collective_author && sameJudicialName(expected.collective_author, actual.collective_author))
     ),
     full_joiners_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) =>
-      same(normalizedNames(expected.full_joiners), normalizedNames(actual.full_joiners))
+      sameJudicialNames(expected.full_joiners, actual.full_joiners)
     ),
-    partial_joiners_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) =>
-      same(normalizedNames(expected.partial_joiners.map(({ name }) => name)), normalizedNames(actual.partial_joiners.map(({ name }) => name)))
+    qualified_agreements_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) =>
+      sameJudicialNames(expected.qualified_joiners.map(({ name }) => name), actual.qualified_joiners.map(({ name }) => name))
     ),
     opinion_results_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) => expected.result_position === actual.result_position),
-    participant_votes_exact: same(
-      gold.compiled.participants.map(({ name, result_position }) => [judicialNameKey(name), result_position]).sort(),
-      candidate.compiled.participants.map(({ name, result_position }) => [judicialNameKey(name), result_position]).sort(),
-    ),
+    participant_votes_exact: sameJudicialVotes(gold.compiled.participants, candidate.compiled.participants),
     nonparticipants_exact: same(normalizedNames(gold.compiled.nonparticipants), normalizedNames(candidate.compiled.nonparticipants)),
   };
   return {

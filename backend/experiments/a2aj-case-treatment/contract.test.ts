@@ -3,20 +3,22 @@ import { describe, expect, it } from "vitest";
 import { modelSourceLines } from "../a2aj-decision-roster/caseTargetMvpReduced";
 import {
   analysisOutputSchema,
-  authorityInventoryOutputSchema,
-  authorityInventoryPrompt,
+  analysisPrompt,
+  CASE_TREATMENT_CONTRACT_VERSION,
   compareStructureMechanics,
   compileSubmission,
-  compileAuthorityInventory,
   deterministicQuoteCandidates,
   oneStagePrompt,
+  noOracleCitationCheck,
   paragraphCoverageEnd,
-  propositionSupport,
+  opinionSupportBounds,
   SEMANTIC_JUDGE_SCHEMA,
+  semanticDraftView,
   semanticJudgePrompt,
   semanticJudgeResultErrors,
   semanticJudgeScore,
   semanticView,
+  submissionReviewFlags,
   submissionOutputSchema,
   type AnchoredSpan,
   type CaseMaterial,
@@ -28,6 +30,7 @@ import {
 const TEXT = [
   "Before: Alpha J., Beta J., Gamma J.",
   "Reasons of The Court",
+  "Alpha J.",
   "[1] Alpha J.: This appeal concerns the legal requirements for electronic notice.",
   "[2] In Prior v. Example, 2020 SCC 1, the Court held that \u201ca valid notice must identify the legal basis.\u201d",
   "[3] I approve that rule and extend it to electronic notices because recipients need the same protection.",
@@ -47,6 +50,13 @@ function anchored(startText: string, endText = startText): AnchoredSpan {
   const startLine = sourceLines.find(({ start, end }) => startIndex >= start && startIndex < end)!.line;
   const endLine = sourceLines.find(({ start, end }) => endIndex >= start && endIndex < end)!.line;
   return { start_line: startLine, end_line: endLine, start_quote: startText, end_quote: endText };
+}
+
+function block(text: string) {
+  const index = TEXT.indexOf(text);
+  const line = sourceLines.find(({ start, end }) => index >= start && index < end)?.line;
+  if (!line) throw new Error(`missing fixture block: ${text}`);
+  return `p${line}` as const;
 }
 
 const citationStart = TEXT.indexOf("2020 SCC 1");
@@ -111,7 +121,6 @@ function submission(): CaseTreatmentSubmission {
           opinion_links: [{
             opinion_id: "o1",
             relation: "wrote",
-            scope: null,
             evidence: anchored("Alpha J.:")
           }],
         },
@@ -123,7 +132,6 @@ function submission(): CaseTreatmentSubmission {
           opinion_links: [{
             opinion_id: "o1",
             relation: "joined",
-            scope: null,
             evidence: anchored("Beta J.: I agree with Alpha J.'s reasons."),
           }],
         },
@@ -138,56 +146,139 @@ function submission(): CaseTreatmentSubmission {
       nonparticipants: [],
     },
     analysis: {
-      references: [{
-        reference_id: "r1",
-        detected_occurrence_id: "c1",
-        reference_status: "decision_reference",
-        voice: "current_opinion",
-        span: anchored("Prior v. Example, 2020 SCC 1"),
+      decision_mentions: [{
+        cited_decision: "Prior v. Example, 2020 SCC 1",
+        identifying_block: block("Prior v. Example, 2020 SCC 1"),
       }],
-      attributed_passages: [{
-        passage_id: "q1",
-        reference_ids: ["r1"],
-        span: anchored("a valid notice must identify the legal basis."),
-      }],
+      procedural_relationships: [],
       treatments: [{
-        treatment_id: "t1",
-        reference_ids: ["r1"],
+        cited_decision: "Prior v. Example, 2020 SCC 1",
+        identifying_block: block("Prior v. Example, 2020 SCC 1"),
         opinion_id: "o1",
         signals: ["approved", "extended"],
         other_signal: null,
-        cited_proposition: "Prior establishes that \u201ca valid notice must identify the legal basis.\u201d",
-        treatment_summary: "The opinion endorses that notice rule and applies it beyond its earlier setting to electronic notices.",
-        evidence_spans: [
-          anchored("the Court held", "a valid notice must identify the legal basis."),
-          anchored("I approve that rule", "recipients need the same protection."),
-        ],
-        attributed_passage_ids: ["q1"],
-        partial_adopters: [],
-      }],
-      procedural_history: [],
-      reference_uses: [{
-        reference_id: "r1",
-        treatment_ids: ["t1"],
-        procedural_history_ids: [],
+        proposition: "Prior establishes that \u201ca valid notice must identify the legal basis.\u201d",
+        treatment: "The opinion endorses that notice rule and applies it beyond its earlier setting to electronic notices.",
+        evidence_blocks: [block("I approve that rule")],
+        supporting_passages: [{
+          block_ids: [block("I approve that rule")],
+          text: "I approve that rule and extend it to electronic notices because recipients need the same protection.",
+        }],
+        quoted_passages: [{
+          block_ids: [block("a valid notice must identify the legal basis.")],
+          text: "a valid notice must identify the legal basis.",
+        }],
       }],
     },
   };
 }
 
 describe("proposition-first case treatment contract", () => {
-  it("compiles exact source spans and derives proposition-level majority support", () => {
+  it("compiles exact source spans and proves when one opinion has majority support", () => {
     const compiled = compileSubmission(submission(), material);
     expect(compiled.errors).toEqual([]);
     expect(compiled.ok).toBe(true);
     expect(compiled.structure.coverage).toEqual({ status: "asserted", required: 4, covered: 4 });
     const treatment = compiled.analysis!.compiled!.treatments[0];
-    expect(propositionSupport(compiled.structure.compiled!, treatment)).toEqual({
-      supporters: 2,
+    expect(opinionSupportBounds(compiled.structure.compiled!, treatment)).toEqual({
+      confirmed_supporters: 2,
+      possible_supporters: 2,
       panel_size: 3,
       status: "majority",
     });
-    expect(treatment.evidence_spans[0].exact_text).toContain("a valid notice must identify the legal basis");
+    expect(treatment.evidence_blocks[0].exact_text).toContain("I approve that rule");
+  });
+
+  it("assigns treatment IDs in the host instead of asking the model", () => {
+    const draft = submission();
+    (draft.analysis.treatments[0] as unknown as Record<string, unknown>).treatment_id = "t99";
+    const compiled = compileSubmission(draft, material);
+    expect(compiled.analysis!.compiled!.treatments[0].treatment_id).toBe("t1");
+    expect(JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"]))).not.toContain("treatment_id");
+  });
+
+  it("offers simple and self-check analysis contracts with one compiled result", () => {
+    const simple = submission();
+    delete simple.analysis.treatments[0].opinion_id;
+    delete simple.analysis.treatments[0].supporting_passages;
+    const compiled = compileSubmission(simple, material, "simple");
+    expect(compiled.ok).toBe(true);
+    expect(compiled.analysis!.compiled!.treatments[0]).toMatchObject({
+      opinion_id: "o1",
+      model_opinion_id: null,
+      supporting_passages: [],
+    });
+
+    const simpleSchema = JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"], "simple"));
+    const checkedSchema = JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"], "self-check"));
+    expect(simpleSchema).not.toContain('"opinion_id"');
+    expect(simpleSchema).not.toContain('"supporting_passages"');
+    expect(checkedSchema).toContain('"opinion_id"');
+    expect(checkedSchema).toContain('"supporting_passages"');
+    expect(analysisPrompt(material, simple.structure, false, "simple")).not.toContain("supporting_passages");
+    expect(analysisPrompt(material, simple.structure, false, "self-check")).toContain("supporting_passages");
+  });
+
+  it("checks the self-reported opinion and aligns copied support to exact offsets", () => {
+    const checked = submission();
+    checked.analysis.treatments[0].supporting_passages![0].text =
+      "I approve  that rule and extend it to electronic notices because recipients need the same protection.";
+    const compiled = compileSubmission(checked, material, "self-check");
+    expect(compiled.ok).toBe(true);
+    expect(compiled.analysis!.compiled!.treatments[0]).toMatchObject({
+      opinion_id: "o1",
+      model_opinion_id: "o1",
+      supporting_passages: [expect.objectContaining({ alignment: "normalized" })],
+    });
+
+    const wrong = submission();
+    wrong.analysis.treatments[0].opinion_id = "o2";
+    expect(compileSubmission(wrong, material, "self-check").errors).toContain(
+      "analysis.treatments[0]: unknown opinion_id o2",
+    );
+  });
+
+  it("records source-exact prose as a receipt instead of rejecting it", () => {
+    const draft = submission();
+    draft.analysis.treatments[0].treatment =
+      "The opinion says I approve that rule and extend it to electronic notices.";
+    const compiled = compileSubmission(draft, material);
+    expect(compiled.ok).toBe(true);
+    expect(compiled.analysis!.prose_copy_receipts).toEqual([expect.objectContaining({
+      path: "analysis.treatments[0].treatment",
+      exact_text: "I approve that rule and extend it to electronic notices",
+      source: expect.objectContaining({ evidence_id: "e1" }),
+    })]);
+  });
+
+  it("flags treatment prose copied across different cited decisions for semantic review", () => {
+    const compiled = structuredClone(compileSubmission(submission(), material));
+    const original = compiled.analysis!.compiled!.treatments[0];
+    compiled.analysis!.compiled!.treatments.push({
+      ...structuredClone(original), decision_id: "d2", treatment_id: "t2",
+    });
+    expect(submissionReviewFlags(compiled)).toEqual([expect.objectContaining({
+      kind: "shared_treatment_wording",
+      opinion_id: "o1",
+      decision_ids: ["d1", "d2"],
+      treatment_ids: ["t1", "t2"],
+    })]);
+  });
+
+  it("leaves point-level support unresolved when a qualified agreement could change the count", () => {
+    const draft = submission();
+    draft.structure.participants[1].opinion_links[0].relation = "joined_in_part";
+    const compiled = compileSubmission(draft, material);
+    expect(compiled.ok).toBe(true);
+    const treatment = compiled.analysis!.compiled!.treatments[0];
+    expect(opinionSupportBounds(compiled.structure.compiled!, treatment)).toEqual({
+      confirmed_supporters: 1,
+      possible_supporters: 2,
+      panel_size: 3,
+      status: "unresolved",
+    });
+    expect(compiled.structure.compiled!.opinions[0].qualified_joiners[0].evidence.exact_text)
+      .toBe("Beta J.: I agree with Alpha J.'s reasons.");
   });
 
   it("keeps machine-detected quotations alongside analyst-delimited passages", () => {
@@ -195,62 +286,191 @@ describe("proposition-first case treatment contract", () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0].text).toBe("a valid notice must identify the legal basis.");
     const compiled = compileSubmission(submission(), material);
-    expect(compiled.analysis!.compiled!.attributed_passages[0].deterministic_quote_ids).toEqual(["dq1"]);
+    expect(compiled.analysis!.compiled!.treatments[0].quoted_passages[0].deterministic_quote_ids).toEqual(["dq1"]);
     expect(compiled.analysis!.deterministic_quote_candidates[0].text).toBe(candidates[0].text);
   });
 
-  it("rejects missing detector accounting and substantive text outside every opinion", () => {
-    const missingReference = submission();
-    missingReference.analysis.references = [];
-    expect(compileSubmission(missingReference, material).errors).toContain("analysis.references: missing detector occurrence c1");
-
-    const missingBoundary = submission();
-    missingBoundary.structure.opinions[0].boundary = anchored("[1] Alpha J.:", "recipients need the same protection.");
-    expect(compileSubmission(missingBoundary, material).errors).toContain("structure coverage: substantive [4] is inside 0 opinion boundaries");
+  it("stores a procedural relationship separately from precedential treatment", () => {
+    const draft = submission();
+    draft.analysis.procedural_relationships.push({
+      cited_decision: "Prior v. Example, 2020 SCC 1",
+      identifying_block: block("Prior v. Example, 2020 SCC 1"),
+      description: "The appeal is dismissed.",
+      evidence_blocks: [block("The appeal is dismissed.")],
+      actions: [{
+        action: "affirmed",
+        affected_part: null,
+        evidence_blocks: [block("The appeal is dismissed.")],
+      }],
+    });
+    const compiled = compileSubmission(draft, material);
+    expect(compiled.ok).toBe(true);
+    expect(semanticView(compiled)?.procedural_relationships[0]).toMatchObject({
+      cited_decision: "Prior v. Example, 2020 SCC 1",
+      actions: [{ action: "affirmed", affected_part: null }],
+    });
   });
 
-  it("requires every reference occurrence to declare its treatment and history uses", () => {
-    const missingUse = submission();
-    missingUse.analysis.reference_uses = [];
-    expect(compileSubmission(missingUse, material).errors).toContain(
-      "analysis.references[0]: reference r1 is missing its reference_uses entry",
+  it("flags an obvious citation omission only after reading the draft", () => {
+    const missingReference = submission();
+    missingReference.analysis.decision_mentions = [];
+    missingReference.analysis.treatments = [];
+    const compiled = compileSubmission(missingReference, material);
+    expect(compiled.analysis?.no_oracle_citation_check).toMatchObject({ checked: 1, covered: 0 });
+    expect(compiled.errors).toContain(
+      'analysis.decision_mentions: source block p5 contains an unmistakable decision citation "2020 SCC 1" that is not represented',
     );
+  });
 
-    const missingTreatment = submission();
-    missingTreatment.analysis.reference_uses[0].treatment_ids = [];
-    expect(compileSubmission(missingTreatment, material).errors).toContain(
-      "analysis.references[0]: reference r1 has incomplete treatment_ids in reference_uses",
+  it("rejects substantive text outside every opinion", () => {
+    const missingBoundary = submission();
+    missingBoundary.structure.opinions[0].boundary = anchored("[1] Alpha J.:", "recipients need the same protection.");
+    expect(compileSubmission(missingBoundary, material).errors.some((error) =>
+      error.startsWith("structure coverage: substantive [4]") && error.endsWith("inside 0 opinion boundaries"),
+    )).toBe(true);
+  });
+
+  it("requires a treatment's reproduced passage to occur in its opinion", () => {
+    const wrongSpeaker = submission();
+    wrongSpeaker.analysis.treatments[0].quoted_passages = [
+      { block_ids: [block("Beta J.: I agree with Alpha J.'s reasons.")], text: "Beta J.: I agree with Alpha J.'s reasons." },
+    ];
+    expect(compileSubmission(wrongSpeaker, material).errors).toContain(
+      "analysis.treatments[0].quoted_passages[0]: quoted passage is outside o1",
+    );
+  });
+
+  it("does not make a valid answer depend on detector identities", () => {
+    const changedDetector = structuredClone(material);
+    changedDetector.citation_inventory = { authorities: [], occurrences: [] };
+    expect(compileSubmission(submission(), changedDetector).ok).toBe(true);
+    const normal = compileSubmission(submission(), material);
+    expect(noOracleCitationCheck(material, normal.structure.compiled!, normal.analysis!.compiled!)).toEqual({
+      checked: 1,
+      covered: 1,
+      omissions: [],
+      unresolved: [],
+    });
+  });
+
+  it("uses a source footnote link to avoid a false citation omission", () => {
+    const text = "Prior supplies the governing rule.[1]\n[1] Prior v. Example, 2020 SCC 1.";
+    const lines = modelSourceLines(text);
+    const citationStart = text.indexOf("2020 SCC 1");
+    const nameStart = text.indexOf("Prior");
+    const footnoteMaterial: CaseMaterial = {
+      ...material,
+      text,
+      source_lines: lines,
+      coverage: { status: "not_asserted", spans: [] },
+      citation_inventory: {
+        authorities: [{
+          id: "a1", citation_key: "2020scc1", display_citations: ["2020 SCC 1"],
+          occurrence_ids: ["c1"], document_id: null,
+        }],
+        occurrences: [{
+          id: "c1", kind: "citation", quote: "2020 SCC 1", start: citationStart,
+          end: citationStart + 10, citationKey: "2020scc1", authority_id: "a1",
+          citation_key: "2020scc1",
+          linkedContext: { kind: "footnote_reference", quote: "Prior", start: nameStart, end: nameStart + 5 },
+        }],
+      },
+    };
+    const resolved = (start: number, end: number, exactText: string) => ({
+      start_line: 1, end_line: 1, start_quote: exactText, end_quote: exactText,
+      start, end, exact_text: exactText, text_sha256: "fixture",
+    });
+    expect(noOracleCitationCheck(footnoteMaterial, {
+      opinions: [{
+        opinion_id: "o1", boundary: resolved(0, lines[0].end, text.slice(0, lines[0].end)),
+        collective_author: null, result_position: "supports_disposition",
+        writers: [], full_joiners: [], qualified_joiners: [],
+      }],
+      participants: [], nonparticipants: [], disposition_spans: [],
+    }, {
+      decision_mentions: [{
+        decision_id: "d1",
+        cited_decision: "Prior",
+        identifying_block: resolved(nameStart, nameStart + 5, "Prior"),
+      }],
+      procedural_relationships: [], treatments: [],
+    })).toEqual({ checked: 1, covered: 1, omissions: [], unresolved: [] });
+  });
+
+  it("does not reject an unmatched citation form when it could be an alias", () => {
+    const text = "Alpha J.\nPrior v. Example, 2020 SCC 1, governs.\nPrior v. Example, 2020 CanLII 10, is the same judgment.";
+    const lines = modelSourceLines(text);
+    const first = text.indexOf("2020 SCC 1");
+    const second = text.indexOf("2020 CanLII 10");
+    const name = text.indexOf("Prior v. Example");
+    const resolved = (start: number, end: number, exactText: string) => ({
+      start_line: 1, end_line: 1, start_quote: exactText, end_quote: exactText,
+      start, end, exact_text: exactText, text_sha256: "fixture",
+    });
+    const aliasMaterial: CaseMaterial = {
+      ...material,
+      text,
+      source_lines: lines,
+      coverage: { status: "not_asserted", spans: [] },
+      citation_inventory: {
+        authorities: [],
+        occurrences: [
+          { id: "c1", kind: "citation", quote: "2020 SCC 1", start: first, end: first + 10, citationKey: "2020scc1", authority_id: "a1", citation_key: "2020scc1", linkedContext: null },
+          { id: "c2", kind: "citation", quote: "2020 CanLII 10", start: second, end: second + 14, citationKey: "2020canlii10", authority_id: "a2", citation_key: "2020canlii10", linkedContext: null },
+        ],
+      },
+    };
+    const check = noOracleCitationCheck(aliasMaterial, {
+      opinions: [{
+        opinion_id: "o1", boundary: resolved(0, text.length, text), collective_author: null,
+        result_position: "supports_disposition", writers: ["Alpha J."], full_joiners: [], qualified_joiners: [],
+      }],
+      participants: [], nonparticipants: [], disposition_spans: [],
+    }, {
+      decision_mentions: [{
+        decision_id: "d1", cited_decision: "Prior v. Example, 2020 SCC 1",
+        identifying_block: resolved(name, first + 10, "Prior v. Example, 2020 SCC 1"),
+      }],
+      procedural_relationships: [], treatments: [],
+    });
+    expect(check.omissions).toEqual([]);
+    expect(check.unresolved).toMatchObject([{ exact_text: "2020 CanLII 10" }]);
+  });
+
+  it("requires every treatment to identify a known judicial opinion", () => {
+    const invalid = submission();
+    invalid.analysis.treatments[0].opinion_id = "o2";
+    expect(compileSubmission(invalid, material).errors).toContain(
+      "analysis.treatments[0]: unknown opinion_id o2",
     );
   });
 
   it("rejects treatment evidence assigned to the wrong opinion and invented quotations", () => {
     const outside = submission();
-    outside.analysis.treatments[0].evidence_spans = [anchored("I agree with Alpha J.'s reasons.")];
-    expect(compileSubmission(outside, material).errors.some((error) => error.includes("evidence is outside o1"))).toBe(true);
+    outside.analysis.treatments[0].evidence_blocks = [block("I agree with Alpha J.'s reasons.")];
+    expect(compileSubmission(outside, material).errors.some((error) => error.includes("evidence blocks must identify exactly one judicial opinion"))).toBe(true);
 
     const invented = submission();
-    invented.analysis.treatments[0].treatment_summary =
+    invented.analysis.treatments[0].treatment =
       "The opinion adopted \u201ca completely invented proposition that does not appear anywhere in this decision.\u201d";
     expect(compileSubmission(invented, material).errors.some((error) =>
-      error.includes("analysis.treatments[0].treatment_summary") && error.includes("does not match its cited evidence")
+      error.includes("analysis.treatments[0].treatment") && error.includes("does not match its cited evidence")
     )).toBe(true);
   });
 
-  it("rejects a bare joinder masquerading as an opinion", () => {
-    const invalid = submission();
-    invalid.structure.opinions.push({
+  it("does not use length alone to reject a proposed opinion", () => {
+    const short = submission();
+    short.structure.opinions.push({
       opinion_id: "o2",
       boundary: anchored("Gamma J.: I agree in the result only."),
       collective_author: null,
       result_position: "supports_disposition",
       result_evidence: anchored("I agree in the result only."),
     });
-    expect(compileSubmission(invalid, material).errors).toContain(
-      "structure.opinions[1].boundary: fewer than 40 substantive words",
-    );
+    expect(compileSubmission(short, material).errors.some((error) => error.includes("substantive words"))).toBe(false);
   });
 
-  it("derives majority support for sole collectively authored reasons without counting a result-only judge", () => {
+  it("derives majority opinion support for sole collectively authored reasons without counting a result-only judge", () => {
     const collective = submission();
     collective.structure.opinions[0].collective_author = {
       name: "The Court",
@@ -260,10 +480,15 @@ describe("proposition-first case treatment contract", () => {
     collective.structure.participants[1].opinion_links = [];
     const compiled = compileSubmission(collective, material);
     expect(compiled.ok).toBe(true);
-    expect(propositionSupport(
+    expect(opinionSupportBounds(
       compiled.structure.compiled!,
       compiled.analysis!.compiled!.treatments[0],
-    )).toEqual({ supporters: 2, panel_size: 3, status: "majority" });
+    )).toEqual({
+      confirmed_supporters: 2,
+      possible_supporters: 2,
+      panel_size: 3,
+      status: "majority",
+    });
   });
 
   it("grounds participants whose evidence uses courtroom short forms", () => {
@@ -275,15 +500,38 @@ describe("proposition-first case treatment contract", () => {
     unidentified.structure.participants[0].opinion_links[0].evidence = anchored("This appeal concerns");
     const errors = compileSubmission(unidentified, material).errors;
     expect(errors.some((error) => error.includes("evidence does not identify Alpha J."))).toBe(true);
+
+    const typoText = `${TEXT}\nAlpppha J.`;
+    const typoLines = modelSourceLines(typoText);
+    const typoLine = typoLines.at(-1)!;
+    const repeatedLetterTypo = submission();
+    repeatedLetterTypo.structure.participants[0].name = "Alppha J.";
+    repeatedLetterTypo.structure.participants[0].panel_evidence = {
+      start_line: typoLine.line,
+      end_line: typoLine.line,
+      start_quote: "Alpppha J.",
+      end_quote: "Alpppha J.",
+    };
+    repeatedLetterTypo.structure.participants[0].opinion_links[0].evidence =
+      repeatedLetterTypo.structure.participants[0].panel_evidence;
+    expect(compileSubmission(repeatedLetterTypo, {
+      ...material,
+      text: typoText,
+      source_lines: typoLines,
+    }).ok).toBe(true);
   });
 
   it("scores opinion structure mechanically without treating judicial title formatting as a different writer", () => {
     const expected = compileSubmission(submission(), material).structure;
     const candidate = compileSubmission(submission(), material).structure;
-    candidate.compiled!.opinions[0].writers = ["The Honourable Justice A. Alpha"];
-    candidate.compiled!.participants[0].name = "The Honourable Justice A. Alpha";
+    candidate.compiled!.opinions[0].writers = ["Alpha, Adrian B."];
+    candidate.compiled!.opinions[0].full_joiners = ["Bianca Beta"];
+    candidate.compiled!.participants[0].name = "Alpha, Adrian B.";
+    candidate.compiled!.participants[1].name = "Bianca Beta";
+    candidate.compiled!.participants[2].name = "Gamma, Greta";
     const comparison = compareStructureMechanics(expected, candidate, material)!;
     expect(comparison.categories.writers_exact).toBe(true);
+    expect(comparison.categories.full_joiners_exact).toBe(true);
     expect(comparison.categories.participant_votes_exact).toBe(true);
     expect(comparison.category_score).toEqual({ passed: 8, total: 8, score: 1 });
   });
@@ -297,6 +545,73 @@ describe("proposition-first case treatment contract", () => {
     expect(comparison.categories.boundaries_acceptable).toBe(true);
     expect(comparison.metrics.exact_boundaries).toBe(0);
 
+    const bylineText = [
+      "//Alpha J.//",
+      "The judgment of Beta and Alpha JJ. was delivered by",
+      "A. introduction",
+      "[1] Alpha J.: This is substantive reasoning.",
+    ].join("\n");
+    const bylineMaterial = {
+      ...material,
+      text: bylineText,
+      source_lines: modelSourceLines(bylineText),
+      coverage: { status: "not_asserted" as const, spans: [] },
+    };
+    const bylineExpected = structuredClone(expected);
+    const bylineCandidate = structuredClone(expected);
+    const reasonStart = bylineText.indexOf("[1]");
+    bylineExpected.compiled!.opinions[0].boundary = {
+      ...bylineExpected.compiled!.opinions[0].boundary,
+      start: 0,
+      end: bylineText.length,
+      exact_text: bylineText,
+    };
+    bylineCandidate.compiled!.opinions[0].boundary = {
+      ...bylineCandidate.compiled!.opinions[0].boundary,
+      start: reasonStart,
+      end: bylineText.length - 1,
+      exact_text: bylineText.slice(reasonStart, -1),
+    };
+    expect(compareStructureMechanics(bylineExpected, bylineCandidate, bylineMaterial)!.categories.boundaries_acceptable)
+      .toBe(true);
+
+    const officerText = [
+      "REASONS FOR ORDER",
+      "RICHARD MORNEAU, PROTHONOTARY",
+      "[1] Substantive reasoning.",
+      "Summary of Dispositions",
+      "[2] The motion is dismissed.",
+    ].join("\n");
+    const officerMaterial = {
+      ...material,
+      text: officerText,
+      source_lines: modelSourceLines(officerText),
+      coverage: { status: "not_asserted" as const, spans: [] },
+    };
+    const officerExpected = structuredClone(expected);
+    const officerCandidate = structuredClone(expected);
+    const reasonsStart = officerText.indexOf("[1]");
+    const summaryStart = officerText.indexOf("Summary of Dispositions");
+    const dispositionStart = officerText.indexOf("[2]");
+    const resolved = (start: number, end: number) => ({
+      ...officerExpected.compiled!.opinions[0].boundary,
+      start,
+      end,
+      exact_text: officerText.slice(start, end),
+    });
+    officerExpected.compiled!.opinions[0].boundary = resolved(reasonsStart, summaryStart);
+    officerCandidate.compiled!.opinions[0].boundary = resolved(0, officerText.length);
+    officerExpected.compiled!.opinions[0].writers = ["Richard Morneau, Prothonotary"];
+    officerCandidate.compiled!.opinions[0].writers = ["Richard Morneau"];
+    officerExpected.compiled!.participants[0].name = "Richard Morneau, Prothonotary";
+    officerCandidate.compiled!.participants[0].name = "Richard Morneau";
+    officerExpected.compiled!.disposition_spans = [resolved(dispositionStart, officerText.length)];
+    officerCandidate.compiled!.disposition_spans = officerExpected.compiled!.disposition_spans;
+    const officerComparison = compareStructureMechanics(officerExpected, officerCandidate, officerMaterial)!;
+    expect(officerComparison.categories.boundaries_acceptable).toBe(true);
+    expect(officerComparison.categories.writers_exact).toBe(true);
+    expect(officerComparison.categories.participant_votes_exact).toBe(true);
+
     const withSignature = submission();
     withSignature.structure.opinions[0].boundary = anchored("[1] Alpha J.:", "\"Alpha J.\"");
     const canonicalized = compileSubmission(withSignature, material);
@@ -309,6 +624,12 @@ describe("proposition-first case treatment contract", () => {
       removed_text: "\"Alpha J.\"",
     }]);
     expect(paragraphCoverageEnd("[4] Reasons end.\nORDER\nAppeal dismissed.")).toBe("[4] Reasons end.".length);
+    expect(paragraphCoverageEnd("[29] Appeal dismissed.\nSigned at Ottawa, Canada, this 12th day of August 2003.\nJudge"))
+      .toBe("[29] Appeal dismissed.".length);
+    expect(paragraphCoverageEnd("[54] Special costs ordered.\n\"P. Walker J.\"\n________________\nThe Honourable Mr. Justice Paul Walker"))
+      .toBe("[54] Special costs ordered.".length);
+    expect(paragraphCoverageEnd("73 The appeal is allowed.\nThe following are the reasons delivered by"))
+      .toBe("73 The appeal is allowed.".length);
   });
 
   it("accepts a gold disposition edge variant but not omitted substantive reasoning", () => {
@@ -331,36 +652,56 @@ describe("proposition-first case treatment contract", () => {
     expect(compareStructureMechanics(expected, reasoningOmission, gradingMaterial)!.categories.boundaries_acceptable).toBe(false);
   });
 
-  it("requires the complete JSON surface even when an omitted array would otherwise be empty", () => {
+  it("requires the case-wide procedural relationship list", () => {
     const incomplete = submission() as unknown as Record<string, unknown>;
-    delete (incomplete.analysis as Record<string, unknown>).procedural_history;
-    expect(compileSubmission(incomplete, material).errors).toContain("analysis.procedural_history: expected an array");
+    delete (incomplete.analysis as Record<string, unknown>).procedural_relationships;
+    expect(compileSubmission(incomplete, material).errors).toContain(
+      "analysis.procedural_relationships: expected an array",
+    );
   });
 
-  it("grounds a case-wide authority inventory without turning it into treatment output", () => {
-    const draft = {
-      authorities: [{
-        authority_id: "a1",
-        identifying_text: "Prior v. Example, 2020 SCC 1",
-        occurrences: [anchored("Prior v. Example, 2020 SCC 1")],
-      }],
-    };
-    expect(compileAuthorityInventory(draft, material)).toMatchObject({ ok: true, value: draft });
-    expect(authorityInventoryOutputSchema(sourceLines.length)).toMatchObject({ type: "object" });
-    expect(authorityInventoryPrompt(material)).toContain("list every judicial decision");
+  it("asks for one case-wide analysis without exposing detector candidates", () => {
+    const prompt = analysisPrompt(material, submission().structure);
+    expect(prompt).toContain("list one clear mention of every other decision");
+    expect(prompt).not.toContain("POSSIBLE DECISION REFERENCES");
+    expect(prompt).not.toContain("detected_occurrence_id");
+    expect(prompt).not.toContain('"c1"');
+    expect(prompt).not.toContain("partial_adopters");
+    expect(prompt).not.toContain("EXAMPLE");
+    expect(analysisPrompt(material, submission().structure, true)).toContain("EXAMPLE");
+  });
+
+  it("keeps qualified agreements as source evidence rather than interpreted treatment fields", () => {
+    const schema = JSON.stringify(submissionOutputSchema(sourceLines.length));
+    expect(schema).toContain('"joined_in_part"');
+    expect(schema).not.toContain('"scope"');
+    expect(schema).not.toContain('"partial_adopters"');
+  });
+
+  it("rejects contradictory relationships between one participant and one opinion", () => {
+    const draft = submission();
+    draft.structure.participants[0].opinion_links.push({
+      opinion_id: "o1",
+      relation: "joined_in_part",
+      evidence: anchored("Alpha J.:", "recipients need the same protection."),
+    });
+    expect(compileSubmission(draft, material).errors).toContain(
+      "structure.participants[0].opinion_links[1]: participant has more than one relationship to o1",
+    );
   });
 
   it("has no issue-number layer in schemas, extraction prompts, gold, or semantic judgment", () => {
     const compiled = compileSubmission(submission(), material);
     const gold: GoldRecord = {
+      contract_version: CASE_TREATMENT_CONTRACT_VERSION,
       document_id: material.document_id,
       citation: material.citation,
       source_sha256: "fixture",
       annotation: submission(),
     };
     const surfaces = [
-      JSON.stringify(submissionOutputSchema(inventory, sourceLines.length)),
-      JSON.stringify(analysisOutputSchema(inventory, sourceLines.length)),
+      JSON.stringify(submissionOutputSchema(sourceLines.length)),
+      JSON.stringify(analysisOutputSchema(sourceLines.length)),
       JSON.stringify(gold),
       oneStagePrompt(material),
       JSON.stringify(semanticView(compiled)),
@@ -371,9 +712,8 @@ describe("proposition-first case treatment contract", () => {
 
   it("emits structured-output schemas accepted by the Codex Responses API", () => {
     const schemas = [
-      submissionOutputSchema(inventory, sourceLines.length),
-      analysisOutputSchema(inventory, sourceLines.length),
-      authorityInventoryOutputSchema(sourceLines.length),
+      submissionOutputSchema(sourceLines.length),
+      analysisOutputSchema(sourceLines.length),
     ];
     for (const schema of schemas) expect(JSON.stringify(schema)).not.toContain('"uniqueItems"');
   });
@@ -382,20 +722,17 @@ describe("proposition-first case treatment contract", () => {
     const compiled = compileSubmission(submission(), material);
     const view = semanticView(compiled);
     const prompt = semanticJudgePrompt(compiled, compiled);
-    expect(Object.keys(view!)).toEqual(["treatments", "procedural_history"]);
+    expect(Object.keys(view!)).toEqual(["procedural_relationships", "treatments"]);
     expect(view!.treatments[0].treatment_id).toBe("t1");
-    expect(view!.treatments[0].cited_references).toEqual([{
-      reference: "Prior v. Example, 2020 SCC 1",
-      voice: "current_opinion",
-    }]);
-    expect(view!.treatments[0].majority_support).toBe("majority");
+    expect(view!.treatments[0].cited_decision).toBe("Prior v. Example, 2020 SCC 1");
+    expect(view!.treatments[0]).not.toHaveProperty("majority_support");
     expect(JSON.stringify(view)).not.toMatch(/boundary|panel_evidence|opinion_links/u);
     expect(prompt).not.toMatch(/deterministic|source anchors|panel rosters|vote arithmetic/u);
     expect(Object.keys(SEMANTIC_JUDGE_SCHEMA.properties)).toEqual([
       "treatment_grades",
       "extra_candidate_treatments",
-      "procedural_history_grades",
-      "extra_candidate_history",
+      "procedural_relationship_grades",
+      "extra_candidate_relationships",
     ]);
     const grade = {
       treatment_grades: [{
@@ -406,15 +743,109 @@ describe("proposition-first case treatment contract", () => {
         explanation: null,
       }],
       extra_candidate_treatments: [],
-      procedural_history_grades: [],
-      extra_candidate_history: [],
+      procedural_relationship_grades: [],
+      extra_candidate_relationships: [],
     };
     expect(semanticJudgeResultErrors(compiled, compiled, grade)).toEqual([]);
     expect(semanticJudgeScore(grade)).toMatchObject({
       treatment: { items: 1, earned: 1, score: 1 },
       overall: { items: 1, earned: 1, score: 1 },
       passed: true,
+      major_errors: 0,
       passing_threshold: 0.8,
     });
+    expect(semanticJudgeScore({
+      ...grade,
+      treatment_grades: [
+        ...Array.from({ length: 9 }, (_, index) => ({
+          reference_treatment_id: `gt${index + 1}`,
+          candidate_treatment_ids: [`ct${index + 1}`],
+          verdict: "pass",
+          aspects: [],
+          explanation: null,
+        })),
+        {
+          reference_treatment_id: "gt10",
+          candidate_treatment_ids: [],
+          verdict: "major_error",
+          aspects: ["coverage"],
+          explanation: "Missing treatment.",
+        },
+      ],
+    })).toMatchObject({ overall: { score: 0.9 }, major_errors: 1, passed: false });
+  });
+
+  it("grades procedural relationships with the same pass, minor, and major contract", () => {
+    const draft = submission();
+    draft.analysis.procedural_relationships.push({
+      cited_decision: "Prior v. Example, 2020 SCC 1",
+      identifying_block: block("Prior v. Example, 2020 SCC 1"),
+      description: "The appeal is dismissed.",
+      evidence_blocks: [block("The appeal is dismissed.")],
+      actions: [{
+        action: "affirmed",
+        affected_part: null,
+        evidence_blocks: [block("The appeal is dismissed.")],
+      }],
+    });
+    const compiled = compileSubmission(draft, material);
+    const pass = {
+      treatment_grades: [{
+        reference_treatment_id: "gt1", candidate_treatment_ids: ["ct1"],
+        verdict: "pass", aspects: [], explanation: null,
+      }],
+      extra_candidate_treatments: [],
+      procedural_relationship_grades: [{
+        reference_relationship_id: "gr1", candidate_relationship_ids: ["cr1"],
+        verdict: "pass", aspects: [], explanation: null,
+      }],
+      extra_candidate_relationships: [],
+    };
+    expect(semanticJudgeResultErrors(compiled, compiled, pass)).toEqual([]);
+    expect(semanticJudgeScore(pass)).toMatchObject({
+      treatment: { score: 1 }, procedural_relationship: { score: 1 }, overall: { score: 1 }, passed: true,
+    });
+    expect(semanticJudgeScore({
+      ...pass,
+      procedural_relationship_grades: [{
+        reference_relationship_id: "gr1", candidate_relationship_ids: ["cr1"],
+        verdict: "minor_error", aspects: ["affected_part"], explanation: "The affected part is imprecise.",
+      }],
+    })).toMatchObject({ procedural_relationship: { score: 0.5 }, overall: { score: 0.75 }, passed: false });
+    expect(semanticJudgeScore({
+      ...pass,
+      procedural_relationship_grades: [{
+        reference_relationship_id: "gr1", candidate_relationship_ids: [],
+        verdict: "major_error", aspects: ["coverage"], explanation: "The relationship is missing.",
+      }],
+    })).toMatchObject({ procedural_relationship: { score: 0 }, major_errors: 1, passed: false });
+  });
+
+  it("can judge preserved legal content despite mechanical locator errors", () => {
+    const reference = compileSubmission(submission(), material);
+    const draft = submission();
+    draft.analysis.treatments[0].evidence_blocks[0] = "p99";
+    const invalid = compileSubmission(draft, material);
+    expect(invalid.ok).toBe(false);
+    expect(semanticView(invalid)).toBeNull();
+    expect(semanticDraftView(invalid, "c")?.treatments[0]).toMatchObject({
+      treatment_id: "ct1",
+      proposition: draft.analysis.treatments[0].proposition,
+      treatment: draft.analysis.treatments[0].treatment,
+    });
+    expect(semanticJudgePrompt(reference, invalid, true)).toContain("[CANDIDATE ANSWER]");
+    const grade = {
+      treatment_grades: [{
+        reference_treatment_id: "gt1",
+        candidate_treatment_ids: ["ct1"],
+        verdict: "pass",
+        aspects: [],
+        explanation: null,
+      }],
+      extra_candidate_treatments: [],
+      procedural_relationship_grades: [],
+      extra_candidate_relationships: [],
+    };
+    expect(semanticJudgeResultErrors(reference, invalid, grade, true)).toEqual([]);
   });
 });

@@ -1,6 +1,5 @@
 runs/
-packets/
+packets*/
 scratch/
 *.local.json
 *.local.jsonl
-

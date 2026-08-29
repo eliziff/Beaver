@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { applyJsonPatch, embedSchemaInPrompt, parseJson, runCheckpointedStage } from "./cli";
+import { applyJsonPatch, assertRunContract, embedSchemaInPrompt, fixedSemanticGrade, parseJson, runCheckpointedStage } from "./cli";
+import { CASE_TREATMENT_CONTRACT_VERSION, semanticJudgeScore } from "./contract";
 
 describe("case-treatment model output parsing", () => {
   it("parses plain JSON directly", () => {
@@ -38,6 +39,47 @@ describe("case-treatment model output parsing", () => {
   });
 });
 
+describe("run contract isolation", () => {
+  it("returns the analysis arm recorded by the run", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-contract-"));
+    try {
+      await writeFile(path.join(directory, "manifest.json"), JSON.stringify({
+        contract: { contract_version: CASE_TREATMENT_CONTRACT_VERSION, analysis_contract: "simple" },
+      }));
+      await expect(assertRunContract(directory)).resolves.toBe("simple");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to benchmark artifacts from another contract", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-contract-"));
+    try {
+      await writeFile(path.join(directory, "manifest.json"), JSON.stringify({
+        contract: { contract_version: "older-contract" },
+      }));
+      await expect(assertRunContract(directory)).rejects.toThrow(
+        `run uses contract older-contract; expected ${CASE_TREATMENT_CONTRACT_VERSION}`,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("semantic benchmark aggregation", () => {
+  it("counts exact cases as passes and unjudgeable omissions as major errors", () => {
+    const exact = fixedSemanticGrade(2, 1, "pass");
+    const omitted = fixedSemanticGrade(1, 1, "major_error");
+    expect(semanticJudgeScore({
+      treatment_grades: [...exact.treatment_grades, ...omitted.treatment_grades],
+      extra_candidate_treatments: [],
+      procedural_relationship_grades: [...exact.procedural_relationship_grades, ...omitted.procedural_relationship_grades],
+      extra_candidate_relationships: [],
+    }).overall).toEqual({ items: 5, earned: 3, score: 0.6 });
+  });
+});
+
 describe("stateless schema delivery", () => {
   it("embeds the schema in the prompt for schema-blind gateways", () => {
     const embedded = embedSchemaInPrompt("Do the task. Return only JSON matching the supplied schema.", {
@@ -57,6 +99,13 @@ describe("JSON Patch corrections", () => {
     expect(patched.value).toEqual({ answer: 42 });
     const removed = applyJsonPatch({ answer: 41 }, [{ op: "remove", path: "" }]);
     expect(removed.errors).toEqual(["correction: operation 1 cannot remove the root document"]);
+  });
+
+  it("normalizes a redundant compiler namespace in a stage-local path", () => {
+    expect(applyJsonPatch(
+      { treatments: [{ evidence_blocks: ["p1"] }] },
+      [{ op: "replace", path: "/analysis/treatments/0/evidence_blocks/0", value: "p2" }],
+    )).toEqual({ value: { treatments: [{ evidence_blocks: ["p2"] }] }, errors: [] });
   });
 
   it("resends the complete original prompt when a stateless response is unparseable", async () => {
@@ -115,7 +164,41 @@ describe("case-treatment stage checkpoints", () => {
     }
   });
 
-  it("retries the same stage after a provider startup failure", async () => {
+  it("recompiles a preserved rejected draft before spending another model call", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-recompile-"));
+    const checkpointFile = path.join(directory, "stage.json");
+    try {
+      const rejected = await runCheckpointedStage({
+        prompt: "prompt",
+        schema: { type: "object", required: ["answer"] },
+        compile: (value: unknown) => ({ ok: false, errors: ["old mechanical rule"], value: value as { answer: number }, grounding: [] }),
+        max_corrections: 0,
+        stateless_corrections: false,
+        model_call: async () => ({
+          call_id: "draft", raw: "{\"answer\":41}", parsed: { answer: 41 }, error: null,
+          continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "draft",
+        }),
+        checkpoint_file: checkpointFile,
+      });
+      expect(rejected.accepted).toBe(false);
+
+      const recovered = await runCheckpointedStage({
+        prompt: "prompt",
+        schema: { type: "object" },
+        compile: (value: unknown) => ({ ok: true, errors: [], value: value as { answer: number }, grounding: [] }),
+        max_corrections: 0,
+        stateless_corrections: false,
+        model_call: async () => { throw new Error("should not run"); },
+        checkpoint_file: checkpointFile,
+      });
+      expect(recovered.value).toEqual({ answer: 41 });
+      expect(recovered.attempts).toMatchObject([{ checkpoint_reused: true }]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("fails the stage immediately after a provider startup failure", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-retry-"));
     let calls = 0;
     try {
@@ -128,14 +211,14 @@ describe("case-treatment stage checkpoints", () => {
         model_call: async (prompt) => {
           calls += 1;
           expect(prompt).toBe("unchanged prompt");
-          return calls === 1
-            ? { call_id: "failed", raw: "", parsed: null, error: "startup failed", continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "empty" }
-            : { call_id: "landed", raw: "{\"answer\":42}", parsed: { answer: 42 }, error: null, continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "hash" };
+          return { call_id: "failed", raw: "", parsed: null, error: "startup failed", continuation_id: null, elapsed_seconds: 1, usage: null, output_sha256: "empty" };
         },
         checkpoint_file: path.join(directory, "stage.json"),
       });
-      expect(result.value).toEqual({ answer: 42 });
-      expect(calls).toBe(2);
+      expect(result.value).toBeNull();
+      expect(result.errors).toEqual(["startup failed"]);
+      expect(result.provider_failed).toBe(true);
+      expect(calls).toBe(1);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
