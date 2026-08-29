@@ -18,6 +18,7 @@ export function publicAssistantEvent(value: unknown): unknown | null {
   if (event.type !== "subagent_run") return value;
   return {
     type: "subagent_run", id: event.id, task: event.task, status: event.status,
+    ...(record(event.activity) && { activity: event.activity }),
     ...(Array.isArray(event.activities) && { activities: event.activities }),
     ...(typeof event.output === "string" && { output: event.output }),
     ...(typeof event.publicError === "string" && { error: event.publicError }),

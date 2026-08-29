@@ -367,18 +367,17 @@ export async function runChatTurn(options: {
           ...(activities.size ? { activities: [...activities.values()] } : {}),
         }
       : undefined;
-    const publish = (event: ReadSubagentEvent) => {
+    const publish = (event: ReadSubagentEvent, visible = event) => {
       context.onActivity?.();
-      emit(publicAssistantEvent(event));
+      emit(publicAssistantEvent(visible));
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
     };
-    const running = () => publish({
-      ...base,
-      status: "running",
+    const running = (activity?: ToolActivity) => publish({
+      ...base, status: "running",
       ...(activities.size ? { activities: [...activities.values()] } : {}),
-      ...(checkpoint() ? { resume: checkpoint() } : {}),
-    });
+      ...(continuationId ? { resume: checkpoint() } : {}),
+    }, { ...base, status: "running", ...(activity && { activity }) });
     running();
     try {
       const child = await runChatTurn({
@@ -403,7 +402,7 @@ export async function runChatTurn(options: {
           const { type, ...activity } = event as ToolActivity & { type?: string };
           if (type === "tool_activity") {
             activities.set(activity.id, activity);
-            running();
+            running(activity);
           }
         },
         apiKeys: options.apiKeys,
@@ -669,19 +668,19 @@ export async function runChatTurn(options: {
     },
     onSubagentUpdate(update: ProviderSubagentUpdate) {
       providerActivity = true;
-      const { activities, ...native } = update;
+      const { activities, activity, ...native } = update;
+      const decorate = <T extends { label: string }>(value: T) =>
+        ({ ...value, tool: "native" });
       const event: ReadSubagentEvent = {
         type: "subagent_run",
         agent: "native",
         ...native,
-        ...(activities && {
-          activities: activities.map((activity) => ({
-            ...activity,
-            tool: "native",
-          })),
-        }),
+        ...(activities && { activities: activities.map(decorate) }),
       };
-      emit(publicAssistantEvent(event));
+      emit(publicAssistantEvent(event.status === "running" ? {
+        type: "subagent_run", agent: "native", ...native,
+        ...(activity && { activity: decorate(activity) }),
+      } : event));
       options.onSubagentEvent?.(event);
       if (event.status !== "running") addEvent(event);
     },
