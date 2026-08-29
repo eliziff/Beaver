@@ -224,6 +224,29 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
+  it("replaces browser fetch errors with recovery guidance", async () => {
+    mocks.streamChat.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+
+    await act(() => result.current.handleChat({ role: "user", content: "Draft this" }));
+
+    expect(result.current.messages.at(-1)?.error).toEqual(expect.any(String));
+    expect(result.current.messages.at(-1)?.error).not.toContain("fetch failed");
+  });
+
+  it("uses a nonempty fallback for an empty stream error", async () => {
+    mocks.streamChat.mockResolvedValueOnce(streamResponse([
+      { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
+      { type: "error", message: "", retryable: false },
+      { type: "transcript_version", transcriptVersion: 2 },
+    ]));
+    const { result } = renderHook(() => useAssistantChat({ chatId: "chat-1" }));
+
+    await act(() => result.current.handleChat({ role: "user", content: "Draft this" }));
+
+    expect(result.current.messages.at(-1)?.error).toEqual(expect.any(String));
+  });
+
   it("claims and submits a staged route handoff once", async () => {
     const message = { role: "user" as const, content: "Draft this" };
     mocks.peekPendingChatMessage.mockReturnValue(message);

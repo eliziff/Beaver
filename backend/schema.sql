@@ -181,11 +181,6 @@ create table if not exists chat_messages (
   workflow jsonb, citations jsonb, created_at text not null,
   check(role in ('user','assistant'))
 );
-create table if not exists chat_message_events (
-  message_id text not null references chat_messages(id) on delete cascade,
-  ordinal integer not null, event jsonb not null, created_at text not null,
-  primary key(message_id,ordinal)
-);
 create table if not exists provider_sessions (
   chat_id text primary key references chats(id) on delete cascade,
   user_id text not null, project_id text, continuation_id text not null,
@@ -296,7 +291,7 @@ revoke execute on function public.sync_shared_members() from public,anon,authent
 -- The service role remains available to account/audit/export administration.
 revoke all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,provider_sessions,application_jobs,workflows,
+  tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
   hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -304,7 +299,7 @@ revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oau
   from public,anon,authenticated;
 grant all on table projects,project_members,project_subfolders,library_folders,documents,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
-  tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,provider_sessions,application_jobs,workflows,
+  tabular_review_members,tabular_cells,chats,chat_messages,provider_sessions,application_jobs,workflows,
   hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -332,7 +327,6 @@ alter table tabular_review_members enable row level security;
 alter table tabular_cells enable row level security;
 alter table chats enable row level security;
 alter table chat_messages enable row level security;
-alter table chat_message_events enable row level security;
 alter table provider_sessions enable row level security;
 alter table application_jobs enable row level security;
 alter table workflows enable row level security;

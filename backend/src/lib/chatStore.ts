@@ -18,9 +18,6 @@ export type ChatTurnCommit = { expectedVersion: number;
   userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown };
   assistantMessage?: { id: string; turnId?: string; content: unknown[]; citations?: unknown[] } };
 
-export const CHAT_MESSAGE_RESET_EVENT = "chat_message_reset";
-export const CHAT_MESSAGE_CITATIONS_EVENT = "chat_message_citations";
-
 export class ChatStoreError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
@@ -34,8 +31,6 @@ export type ChatStore = {
   create(scope: ChatScope, input: ChatCreateInput): Promise<ChatRecord>; get(scope: ChatScope, id: string): Promise<ChatRecord | null>;
   detail(scope: ChatScope, id: string): Promise<ChatDetail | null>; transcript(scope: ChatScope, id: string): Promise<ChatMessageRecord[] | null>;
   commitTurn(scope: ChatScope, id: string, commit: ChatTurnCommit): Promise<ChatCommitResult>;
-  appendAssistantEvents(scope: ChatScope, id: string, messageId: string, events: unknown[],
-    citations?: unknown[], expectedVersion?: number): Promise<ChatCommitResult>;
   appendAssistantEvent(scope: ChatScope, id: string, messageId: string, event: Record<string, unknown>): Promise<ChatCommitResult>;
   update(scope: ChatScope, id: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
   trash(scope: ChatScope, id: string): Promise<boolean>; restore(scope: ChatScope, id: string): Promise<boolean>;
@@ -44,8 +39,7 @@ export type ChatStore = {
 };
 
 export type ChatMutation = { kind: "turn"; turn: ChatTurnCommit }
-  | { kind: "append"; messageId: string; events: unknown[]; citations?: unknown[];
-    expectedVersion?: number };
+  | { kind: "append"; messageId: string; event: Record<string, unknown> };
 
 export type ChatRepository = {
   list(options: ChatListOptions): Promise<ChatRecord[]>; deleted(): Promise<ChatRecord[]>;
@@ -109,17 +103,8 @@ export function createChatStore(repositoryFor: CreateChatRepository,
         throw new Error("Chat turn commit is empty");
       return repositoryFor(scope).commit(chatId, { kind: "turn", turn });
     },
-    async appendAssistantEvents(scope, chatId, messageId, events, citations, expectedVersion) {
-      if (!events.length && citations === undefined)
-        throw new Error("Assistant event append is empty");
-      return repositoryFor(scope).commit(chatId, {
-        kind: "append", messageId, events, citations, expectedVersion,
-      });
-    },
     async appendAssistantEvent(scope, chatId, messageId, event) {
-      return repositoryFor(scope).commit(chatId, {
-        kind: "append", messageId, events: [event],
-      }); },
+      return repositoryFor(scope).commit(chatId, { kind: "append", messageId, event }); },
     async update(scope, chatId, input) {
       const repository = repositoryFor(scope);
       await requireContext(contexts, scope, { projectId: input.projectId });
