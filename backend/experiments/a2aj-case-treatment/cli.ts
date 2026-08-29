@@ -25,33 +25,32 @@ import { analyzeTextOpinionStructure } from "../a2aj-decision-roster/legalOpinio
 import {
   analysisOutputSchema,
   analysisPrompt,
+  analysisExampleText,
+  ANALYSIS_CONTRACTS,
   ANALYSIS_INSTRUCTIONS,
-  authorityInventoryOutputSchema,
-  authorityInventoryPrompt,
-  AUTHORITY_INVENTORY_INSTRUCTIONS,
   CASE_TREATMENT_CONTRACT_VERSION,
   compareStructureMechanics,
   compareDeterministicStructure,
   compileAnalysis,
-  compileAuthorityInventory,
   compileStructure,
   compileSubmission,
   oneStagePrompt,
   paragraphCoverageEnd,
-  propositionSupport,
+  opinionSupportBounds,
   SEMANTIC_JUDGE_SCHEMA,
   semanticJudgePrompt,
   semanticJudgeResultErrors,
   semanticJudgeScore,
+  semanticDraftView,
   semanticView,
+  submissionReviewFlags,
   structureOutputSchema,
   structurePrompt,
   structurePromptWithHints,
   STRUCTURE_INSTRUCTIONS,
   submissionOutputSchema,
   type AnalysisCompilation,
-  type AuthorityInventory,
-  type AuthorityInventoryCompilation,
+  type AnalysisContract,
   type CaseMaterial,
   type CaseTreatmentSubmission,
   type DecisionAnalysis,
@@ -565,6 +564,13 @@ async function writePackets(flags: Flags) {
 async function readGold(filename: string) {
   const rows = await readJsonl<GoldRecord>(path.resolve(filename));
   if (!rows.length) throw new Error("gold JSONL is empty");
+  for (const [index, row] of rows.entries()) {
+    if (row.contract_version !== CASE_TREATMENT_CONTRACT_VERSION) {
+      throw new Error(
+        `gold row ${index + 1} uses contract ${String(row.contract_version)}; expected ${CASE_TREATMENT_CONTRACT_VERSION}`,
+      );
+    }
+  }
   const ids = rows.map(({ document_id }) => document_id);
   if (new Set(ids).size !== ids.length) throw new Error("gold contains duplicate document IDs");
   return rows;
@@ -578,29 +584,34 @@ async function validateGold(flags: Flags) {
   const byId = new Map(rows.map((row) => [row.document_id, row]));
   const report = progressLine("validated", rows.length);
   let completed = 0;
+  let reviewFlagCount = 0;
   await forEachMaterial(rows.map(({ document_id }) => document_id), Math.floor(numberFlag(flags, "workers", 8, 1, 32)), async (material, index) => {
     const row = byId.get(material.document_id)!;
     const errors = row.citation !== material.citation ? [`citation mismatch: ${row.citation} != ${material.citation}`] : [];
     if (row.source_sha256 !== sha256(material.text)) errors.push("source_sha256 does not match the exact source text");
     const compilation = compileSubmission(row.annotation, material);
     errors.push(...compilation.errors);
+    const reviewFlags = submissionReviewFlags(compilation);
+    reviewFlagCount += reviewFlags.length;
     results[index] = {
       document_id: row.document_id,
       citation: row.citation,
       ok: errors.length === 0,
       errors: [...new Set(errors)],
       coverage: compilation.structure.coverage,
-      citation_coverage: compilation.analysis?.citation_coverage ?? null,
+      no_oracle_citation_check: compilation.analysis?.no_oracle_citation_check ?? null,
+      review_flags: reviewFlags,
     };
     report(++completed);
   });
-  const summary = { cases: rows.length, valid: results.filter(({ ok }) => ok).length, results };
+  const summary = { cases: rows.length, valid: results.filter(({ ok }) => ok).length, review_flags: reviewFlagCount, results };
   const output = flag(flags, "out");
   if (output) await writeFile(path.resolve(output), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   console.log(JSON.stringify({
     cases: summary.cases,
     valid: summary.valid,
     invalid: summary.cases - summary.valid,
+    review_flags: summary.review_flags,
     output: output ? path.resolve(output) : null,
     ...(!output && summary.valid !== summary.cases ? { failures: results.filter(({ ok }) => !ok) } : {}),
   }, null, 2));
@@ -708,14 +719,6 @@ function progressLine(label: string, total: number) {
   };
 }
 
-async function callCount(filename: string) {
-  let count = 0;
-  await forEachJsonl<{ kind?: string }>(filename, ({ kind }) => {
-    if (kind === "model_call_started") count += 1;
-  });
-  return count;
-}
-
 async function callStats(filename: string) {
   let total = 0;
   const byRoute = new Map<string, number>();
@@ -741,16 +744,18 @@ function relevantGrounding(errors: string[], grounding: Array<{ path: string; ex
   }));
 }
 
-function correctionPrompt(errors: string[], grounding: Array<{ path: string; exact_text: string; start: number; end: number }>) {
+function correctionPrompt(errors: string[], grounding: Array<{ path: string; exact_text: string; start: number; end: number }>, draft?: unknown) {
+  const fields = draft && typeof draft === "object" && !Array.isArray(draft) ? Object.keys(draft as Record<string, unknown>) : [];
   return [
     "Return only an RFC 6902 JSON Patch array that corrects your previous JSON.",
     "Every operation path is an RFC 6902 pointer into that previous JSON. Prefer targeted operations on the fields implicated by the validation errors; do not repeat unchanged content.",
     "Use only add, replace, or remove operations.",
+    fields.length ? `Paths are relative to the object you returned; its top-level fields are ${fields.join(", ")}.` : "",
     "Validation errors:",
     ...errors.slice(0, 60).map((error) => `- ${error}`),
     "Exact source receipts for affected fields:",
     JSON.stringify(relevantGrounding(errors, grounding)),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function statelessCorrectionPrompt(
@@ -763,7 +768,7 @@ function statelessCorrectionPrompt(
     originalPrompt,
     "[PREVIOUS JSON DRAFT]",
     JSON.stringify(previousDraft),
-    correctionPrompt(errors, grounding),
+    correctionPrompt(errors, grounding, previousDraft),
   ].join("\n\n");
 }
 
@@ -796,7 +801,12 @@ export function applyJsonPatch(document: unknown, rawPatch: unknown) {
         value = structuredClone(operation.value);
         continue;
       }
-      const parts = jsonPointerParts(operation.path);
+      let parts = jsonPointerParts(operation.path);
+      if (
+        parts.length > 1 && ["analysis", "structure"].includes(parts[0]) &&
+        value && typeof value === "object" && !Array.isArray(value) &&
+        !Object.hasOwn(value, parts[0]) && Object.hasOwn(value, parts[1])
+      ) parts = parts.slice(1);
       let parent: unknown = value;
       for (const part of parts.slice(0, -1)) {
         if (Array.isArray(parent)) {
@@ -979,6 +989,7 @@ async function runStage<T, C extends { ok: boolean; errors: string[]; value: T |
   let finalRaw: unknown = null;
   let compilation: C | null = null;
   let errors: string[] = [];
+  let providerFailed = false;
   const originalPrompt = args.prompt;
   let correction = false;
   for (let attempt = 0; attempt <= args.max_corrections; attempt += 1) {
@@ -1005,14 +1016,12 @@ async function runStage<T, C extends { ok: boolean; errors: string[]; value: T |
       usage: result.usage,
       errors,
     });
+    if (result.error) { providerFailed = true; break; }
     if (compilation?.ok && compilation.value) {
-      return { accepted: true, value: compilation.value, compilation, errors, attempts, final_raw: finalRaw };
+      return { accepted: true, provider_failed: false, value: compilation.value, compilation, errors, attempts, final_raw: finalRaw };
     }
     if (attempt === args.max_corrections) break;
-    if (result.error) {
-      continuationId = undefined;
-      if (correction) prompt = statelessCorrectionPrompt(originalPrompt, finalRaw, errors, compilation?.grounding ?? []);
-    } else if (result.parsed === null && !correction) {
+    if (result.parsed === null && !correction) {
       // Only a provider-owned session can resolve "the original task" from memory.
       continuationId = result.continuation_id ?? undefined;
       prompt = result.continuation_id
@@ -1021,14 +1030,14 @@ async function runStage<T, C extends { ok: boolean; errors: string[]; value: T |
     } else if (result.continuation_id) {
       continuationId = result.continuation_id;
       correction = true;
-      prompt = correctionPrompt(errors, compilation?.grounding ?? []);
+      prompt = correctionPrompt(errors, compilation?.grounding ?? [], finalRaw);
     } else if (args.stateless_corrections) {
       continuationId = undefined;
       correction = true;
       prompt = statelessCorrectionPrompt(originalPrompt, finalRaw, errors, compilation?.grounding ?? []);
     } else break;
   }
-  return { accepted: false, value: null, compilation, errors, attempts, final_raw: finalRaw };
+  return { accepted: false, provider_failed: providerFailed, value: null, compilation, errors, attempts, final_raw: finalRaw };
 }
 
 function stageCheckpointKey(prompt: string, schema: Record<string, unknown>) {
@@ -1039,10 +1048,14 @@ function stageCheckpointKey(prompt: string, schema: Record<string, unknown>) {
   }));
 }
 
-async function saveStageCheckpoint(filename: string, key: string, value: unknown, attempts: Json[]) {
+function stageTaskKey(prompt: string) {
+  return sha256(JSON.stringify({ contract: CASE_TREATMENT_CONTRACT_VERSION, prompt: sha256(prompt) }));
+}
+
+async function saveStageCheckpoint(filename: string, key: string, taskKey: string, value: unknown, attempts: Json[]) {
   await mkdir(path.dirname(filename), { recursive: true });
   const temporary = `${filename}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify({ key, value, attempts })}\n`, "utf8");
+  await writeFile(temporary, `${JSON.stringify({ key, task_key: taskKey, value, attempts })}\n`, "utf8");
   await rename(temporary, filename);
 }
 
@@ -1050,13 +1063,20 @@ export async function runCheckpointedStage<T, C extends { ok: boolean; errors: s
   checkpoint_file: string;
 }) {
   const key = stageCheckpointKey(args.prompt, args.schema);
+  const taskKey = stageTaskKey(args.prompt);
   if (existsSync(args.checkpoint_file)) {
     try {
-      const saved = JSON.parse(await readFile(args.checkpoint_file, "utf8")) as { key?: unknown; value?: unknown; attempts?: Json[] };
-      if (saved.key === key) {
+      const saved = JSON.parse(await readFile(args.checkpoint_file, "utf8")) as {
+        key?: unknown;
+        task_key?: unknown;
+        value?: unknown;
+        attempts?: Json[];
+      };
+      if (saved.key === key || saved.task_key === taskKey) {
         const compilation = args.compile(saved.value);
         if (compilation.ok && compilation.value) return {
           accepted: true,
+          provider_failed: false,
           value: compilation.value,
           compilation,
           errors: [],
@@ -1067,8 +1087,8 @@ export async function runCheckpointedStage<T, C extends { ok: boolean; errors: s
     } catch { /* A torn or stale checkpoint is simply recomputed. */ }
   }
   const result = await runStage(args);
-  if (result.accepted && result.value) {
-    await saveStageCheckpoint(args.checkpoint_file, key, result.value, result.attempts);
+  if (result.final_raw !== null) {
+    await saveStageCheckpoint(args.checkpoint_file, key, taskKey, result.final_raw, result.attempts);
   }
   return result;
 }
@@ -1076,12 +1096,13 @@ export async function runCheckpointedStage<T, C extends { ok: boolean; errors: s
 function compactReceipt(compilation: SubmissionCompilation, material: CaseMaterial) {
   const structure = compilation.structure.compiled;
   const analysis = compilation.analysis?.compiled;
-  const detected = new Map(material.citation_inventory.occurrences.map((occurrence) => [occurrence.id, occurrence]));
   return {
     coverage: compilation.structure.coverage,
     boundary_adjustments: compilation.structure.boundary_adjustments,
     no_oracle_structure_check: compareDeterministicStructure(compilation.structure, material),
-    citation_coverage: compilation.analysis?.citation_coverage ?? null,
+    no_oracle_citation_check: compilation.analysis?.no_oracle_citation_check ?? null,
+    prose_copy_receipts: compilation.analysis?.prose_copy_receipts ?? [],
+    review_flags: submissionReviewFlags(compilation),
     opinions: structure?.opinions.map((opinion) => ({
       opinion_id: opinion.opinion_id,
       start: opinion.boundary.start,
@@ -1090,41 +1111,44 @@ function compactReceipt(compilation: SubmissionCompilation, material: CaseMateri
       writers: opinion.writers,
       collective_author: opinion.collective_author,
       full_joiners: opinion.full_joiners,
-      partial_joiners: opinion.partial_joiners,
+      qualified_agreements: opinion.qualified_joiners,
       result_position: opinion.result_position,
     })) ?? [],
-    references: analysis?.references.map((reference) => {
-      const occurrence = reference.detected_occurrence_id ? detected.get(reference.detected_occurrence_id) : null;
-      return {
-        reference_id: reference.reference_id,
-        detected_occurrence_id: reference.detected_occurrence_id,
-        detected_authority_id: occurrence?.authority_id ?? null,
-        detected_citation_key: occurrence?.citation_key ?? null,
-        reference_status: reference.reference_status,
-        voice: reference.voice,
-        start: reference.span.start,
-        end: reference.span.end,
-        text_sha256: reference.span.text_sha256,
-      };
-    }) ?? [],
-    reference_uses: analysis?.reference_uses ?? [],
+    decision_mentions: analysis?.decision_mentions.map((decision) => ({
+      decision_id: decision.decision_id,
+      start: decision.identifying_block.start,
+      end: decision.identifying_block.end,
+      text_sha256: decision.identifying_block.text_sha256,
+    })) ?? [],
+    procedural_relationships: analysis?.procedural_relationships.map((relationship) => ({
+      relationship_id: relationship.relationship_id,
+      decision_id: relationship.decision_id,
+      evidence: relationship.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+      actions: relationship.actions.map((action) => ({
+        action: action.action,
+        affected_part: action.affected_part,
+        evidence: action.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+      })),
+    })) ?? [],
     treatments: analysis?.treatments.map((treatment) => ({
       treatment_id: treatment.treatment_id,
+      decision_id: treatment.decision_id,
       opinion_id: treatment.opinion_id,
-      reference_ids: treatment.reference_ids,
+      model_opinion_id: treatment.model_opinion_id,
+      opinion_check: treatment.model_opinion_id === null
+        ? "host_derived"
+        : treatment.model_opinion_id === treatment.opinion_id ? "verified" : "conflict",
       signals: treatment.signals,
-      evidence: treatment.evidence_spans.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
-      proposition_support: structure ? propositionSupport(structure, treatment) : null,
+      evidence: treatment.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+      supporting_passages: treatment.supporting_passages.map(({ start, end, text_sha256, model_text, alignment }) => ({
+        start, end, text_sha256, model_text, alignment,
+      })),
+      quoted_passages: treatment.quoted_passages.map(({ start, end, text_sha256, model_text, alignment, deterministic_quote_ids }) => ({
+        start, end, text_sha256, model_text, alignment, deterministic_quote_ids,
+      })),
+      opinion_support_bounds: structure ? opinionSupportBounds(structure, treatment) : null,
     })) ?? [],
     deterministic_quote_candidates: compilation.analysis?.deterministic_quote_candidates ?? [],
-    attributed_passages: analysis?.attributed_passages.map((passage) => ({
-      passage_id: passage.passage_id,
-      reference_ids: passage.reference_ids,
-      start: passage.span.start,
-      end: passage.span.end,
-      text_sha256: passage.span.text_sha256,
-      deterministic_quote_ids: passage.deterministic_quote_ids,
-    })) ?? [],
     evidence_receipts: [
       ...compilation.structure.evidence_receipts,
       ...(compilation.analysis?.evidence_receipts ?? []),
@@ -1157,13 +1181,16 @@ async function runInference(flags: Flags) {
   const ids = await selectedIds(flags);
   const mode = flag(flags, "mode", "two-stage");
   if (!["one-stage", "two-stage"].includes(mode)) throw new Error("--mode must be one-stage or two-stage");
-  const authorityPass = flags["authority-pass"] === true;
-  if (authorityPass && mode !== "two-stage") throw new Error("--authority-pass requires --mode two-stage");
+  const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
+  if (!ANALYSIS_CONTRACTS.includes(analysisContract)) {
+    throw new Error(`--analysis-contract must be ${ANALYSIS_CONTRACTS.join(" or ")}`);
+  }
   const outDir = path.resolve(flag(flags, "out-dir"));
   if (!flag(flags, "out-dir")) throw new Error("run requires --out-dir");
   const workers = Math.floor(numberFlag(flags, "workers", 8, 1, 32));
   const maxCorrections = Math.floor(numberFlag(flags, "max-corrections", 2, 0, 5));
   const includeStructureHints = flags["structure-hints"] === true;
+  const includeAnalysisExamples = flags["analysis-examples"] === true;
   const timeoutSeconds = numberFlag(flags, "timeout-seconds", 1_800, 1, 7_200);
   const provider = flag(flags, "provider", "codex");
   if (!["codex", "ox-alpha"].includes(provider)) throw new Error("--provider must be codex or ox-alpha");
@@ -1217,7 +1244,9 @@ async function runInference(flags: Flags) {
   const requestsPerMinute = selectedOxRoutes.length
     ? Object.fromEntries([...oxRuntimes].map(([route, runtime]) => [route, runtime.requests_per_minute]))
     : null;
-  const callBudget = Math.floor(numberFlag(flags, "call-budget", 0, 0));
+  const requestedCallBudget = flags["call-budget"] === undefined
+    ? null
+    : Math.floor(numberFlag(flags, "call-budget", 0, 0));
   if (flags["daily-request-cap"] !== undefined && !selectedOxRoutes.includes("openrouter")) {
     throw new Error("--daily-request-cap applies only when --ox-route(s) includes openrouter");
   }
@@ -1256,13 +1285,14 @@ async function runInference(flags: Flags) {
     max_corrections: maxCorrections,
     max_output_tokens: maxOutputTokens,
     structure_hints: includeStructureHints,
-    authority_pass: authorityPass,
+    analysis_examples: includeAnalysisExamples,
+    analysis_contract: analysisContract,
     requests_per_minute: requestsPerMinute,
     daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
     requested_ids: ids,
     structure_instructions: STRUCTURE_INSTRUCTIONS,
-    authority_inventory_instructions: authorityPass ? AUTHORITY_INVENTORY_INSTRUCTIONS : null,
     analysis_instructions: ANALYSIS_INSTRUCTIONS,
+    analysis_example_text: includeAnalysisExamples ? analysisExampleText(analysisContract) : null,
   };
   if (existsSync(manifestFile)) {
     const prior = JSON.parse(await readFile(manifestFile, "utf8")) as { contract?: unknown };
@@ -1278,23 +1308,11 @@ async function runInference(flags: Flags) {
   const existing = new Map([...priorReceipts].filter(([, receipt]) => receipt.status === "accepted"));
   const retry = flags["retry-finished"] === true;
   const pending = ids.filter((id) => retry || !existing.has(id));
-  const stages = mode === "one-stage" ? 1 : authorityPass ? 3 : 2;
+  const stages = mode === "one-stage" ? 1 : 2;
   const startedCalls = await callStats(callLedgerFile);
-  const used = startedCalls.total;
   const ceiling = pending.length * stages * (1 + maxCorrections);
-  if (pending.length && callBudget < used + ceiling) {
-    throw new Error(`--call-budget must cover ${used + ceiling} total attempts`);
-  }
-  for (const route of selectedOxRoutes) {
-    const cap = dailyRequestCaps.get(route);
-    if (cap === null || cap === undefined) continue;
-    const usedByRoute = startedCalls.byRoute.get(route) ?? 0;
-    const routeCeiling = pending.filter((id) => routeByDocument.get(id) === route).length * stages * (1 + maxCorrections);
-    if (usedByRoute + routeCeiling > cap) {
-      throw new Error(`${route} needs up to ${usedByRoute + routeCeiling} calls, above its ${cap}-request run cap`);
-    }
-  }
-  let reservedCalls = used;
+  const callBudget = requestedCallBudget ?? ceiling;
+  let reservedCalls = 0;
   const reservedByRoute = new Map(startedCalls.byRoute);
   const reserveCall = (route: string) => {
     if (reservedCalls >= callBudget) throw new Error(`run exhausted its ${callBudget}-call budget`);
@@ -1311,7 +1329,8 @@ async function runInference(flags: Flags) {
     utc: now(), kind: "run_started", contract_version: CASE_TREATMENT_CONTRACT_VERSION,
     mode, provider, routes: routeNames, models, effort,
     route_assignment: selectedOxRoutes.length > 1 ? "requested_ids_round_robin" : "single",
-    structure_hints: includeStructureHints, authority_pass: authorityPass,
+    structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
+    analysis_contract: analysisContract,
     max_output_tokens: maxOutputTokens, requests_per_minute: requestsPerMinute,
     daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
     provider_preflights: providerPreflight, workers, requested_ids: ids, pending_ids: pending,
@@ -1351,11 +1370,12 @@ async function runInference(flags: Flags) {
       let stageAttempts: Json = {};
       let lastErrors: string[] = [];
       let finalRaw: unknown = null;
+      let providerFailed = false;
       if (mode === "one-stage") {
-        const schema = submissionOutputSchema(material.citation_inventory, material.source_lines.length);
+        const schema = submissionOutputSchema(material.source_lines.length, analysisContract);
         const result = await runCheckpointedStage<CaseTreatmentSubmission, SubmissionCompilation>({
-          prompt: oneStagePrompt(material, includeStructureHints), schema,
-          compile: (value) => compileSubmission(value, material),
+          prompt: oneStagePrompt(material, includeStructureHints, includeAnalysisExamples, analysisContract), schema,
+          compile: (value) => compileSubmission(value, material, analysisContract),
           max_corrections: maxCorrections,
           stateless_corrections: Boolean(oxRoute),
           model_call: call("one_stage"),
@@ -1366,6 +1386,7 @@ async function runInference(flags: Flags) {
         stageAttempts = { one_stage: result.attempts };
         lastErrors = result.errors;
         finalRaw = result.final_raw;
+        providerFailed = result.provider_failed;
       } else {
         const structureSchema = structureOutputSchema(material.source_lines.length);
         const structureResult = await runCheckpointedStage<DecisionStructure, StructureCompilation>({
@@ -1379,48 +1400,32 @@ async function runInference(flags: Flags) {
         stageAttempts = { structure: structureResult.attempts };
         lastErrors = structureResult.errors;
         finalRaw = { structure: structureResult.final_raw };
+        providerFailed = structureResult.provider_failed;
         if (structureResult.accepted && structureResult.value && structureResult.compilation?.compiled) {
           const opinionIds = structureResult.value.opinions.map(({ opinion_id }) => opinion_id);
-          let authorityInventory: AuthorityInventory | undefined;
-          if (authorityPass) {
-            const inventorySchema = authorityInventoryOutputSchema(material.source_lines.length);
-            const inventoryResult = await runCheckpointedStage<AuthorityInventory, AuthorityInventoryCompilation>({
-              prompt: authorityInventoryPrompt(material), schema: inventorySchema,
-              compile: (value) => compileAuthorityInventory(value, material),
-              max_corrections: maxCorrections,
-              stateless_corrections: Boolean(oxRoute),
-              model_call: call("authority_inventory"),
-              checkpoint_file: path.join(caseCheckpointDir, "authorities.json"),
-            });
-            stageAttempts = { ...stageAttempts, authority_inventory: inventoryResult.attempts };
-            lastErrors = inventoryResult.errors;
-            finalRaw = { structure: structureResult.final_raw, authority_inventory: inventoryResult.final_raw };
-            if (inventoryResult.accepted && inventoryResult.value) authorityInventory = inventoryResult.value;
-          }
-          if (!authorityPass || authorityInventory) {
-            const analysisSchema = analysisOutputSchema(material.citation_inventory, material.source_lines.length, opinionIds);
-            const analysisResult = await runCheckpointedStage<DecisionAnalysis, AnalysisCompilation>({
-              prompt: analysisPrompt(material, structureResult.value, authorityInventory), schema: analysisSchema,
-              compile: (value) => compileAnalysis(value, structureResult.value!, structureResult.compilation!.compiled!, material),
-              max_corrections: maxCorrections,
-              stateless_corrections: Boolean(oxRoute),
-              model_call: call("analysis"),
-              checkpoint_file: path.join(caseCheckpointDir, "analysis.json"),
-            });
-            stageAttempts = { ...stageAttempts, analysis: analysisResult.attempts };
-            lastErrors = analysisResult.errors;
-            finalRaw = { structure: structureResult.final_raw, ...(authorityInventory ? { authority_inventory: authorityInventory } : {}), analysis: analysisResult.final_raw };
-            if (analysisResult.accepted && analysisResult.value && analysisResult.compilation) {
-              submission = { structure: structureResult.value, analysis: analysisResult.value };
-              compilation = {
-                ok: true,
-                errors: [],
-                value: submission,
-                grounding: [...structureResult.compilation.grounding, ...analysisResult.compilation.grounding],
-                structure: structureResult.compilation,
-                analysis: analysisResult.compilation,
-              };
-            }
+          const analysisSchema = analysisOutputSchema(material.source_lines.length, opinionIds, analysisContract);
+          const analysisResult = await runCheckpointedStage<DecisionAnalysis, AnalysisCompilation>({
+            prompt: analysisPrompt(material, structureResult.value, includeAnalysisExamples, analysisContract), schema: analysisSchema,
+            compile: (value) => compileAnalysis(value, structureResult.value!, structureResult.compilation!.compiled!, material, analysisContract),
+            max_corrections: maxCorrections,
+            stateless_corrections: Boolean(oxRoute),
+            model_call: call("analysis"),
+            checkpoint_file: path.join(caseCheckpointDir, "analysis.json"),
+          });
+          stageAttempts = { ...stageAttempts, analysis: analysisResult.attempts };
+          lastErrors = analysisResult.errors;
+          finalRaw = { structure: structureResult.final_raw, analysis: analysisResult.final_raw };
+          providerFailed = analysisResult.provider_failed;
+          if (analysisResult.accepted && analysisResult.value && analysisResult.compilation) {
+            submission = { structure: structureResult.value, analysis: analysisResult.value };
+            compilation = {
+              ok: true,
+              errors: [],
+              value: submission,
+              grounding: [...structureResult.compilation.grounding, ...analysisResult.compilation.grounding],
+              structure: structureResult.compilation,
+              analysis: analysisResult.compilation,
+            };
           }
         }
       }
@@ -1428,10 +1433,10 @@ async function runInference(flags: Flags) {
       const receipt: Json = {
         utc: now(), kind: "case_receipt", contract_version: CASE_TREATMENT_CONTRACT_VERSION,
         document_id: documentId, citation: material.citation, dataset: material.dataset,
-        source_sha256: sha256(material.text), mode, model, effort,
+        source_sha256: sha256(material.text), mode, model, effort, analysis_contract: analysisContract,
         provider, route,
-        structure_hints: includeStructureHints, authority_pass: authorityPass,
-        status: accepted ? "accepted" : "rejected",
+        structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
+        status: accepted ? "accepted" : providerFailed ? "failed" : "rejected",
         errors: accepted ? [] : lastErrors,
         attempts: stageAttempts,
         submission,
@@ -1470,7 +1475,7 @@ async function runInference(flags: Flags) {
     .concat(outcomes.filter(Boolean));
   const summary = {
     contract_version: CASE_TREATMENT_CONTRACT_VERSION,
-    mode, provider, routes: routeNames, models, effort,
+    mode, provider, routes: routeNames, models, effort, analysis_contract: analysisContract,
     structure_hints: includeStructureHints,
     provider_preflights: providerPreflight,
     requested: ids.length,
@@ -1533,7 +1538,25 @@ async function rawOutput(flags: Flags) {
   else process.stdout.write(output);
 }
 
+export async function assertRunContract(runDir: string) {
+  const manifestFile = path.join(path.resolve(runDir), "manifest.json");
+  if (!existsSync(manifestFile)) throw new Error("run manifest is missing");
+  const manifest = JSON.parse(await readFile(manifestFile, "utf8")) as {
+    contract?: { contract_version?: unknown; analysis_contract?: unknown };
+  };
+  const version = manifest.contract?.contract_version;
+  if (version !== CASE_TREATMENT_CONTRACT_VERSION) {
+    throw new Error(`run uses contract ${String(version ?? "unknown")}; expected ${CASE_TREATMENT_CONTRACT_VERSION}`);
+  }
+  const analysisContract = manifest.contract?.analysis_contract;
+  if (!ANALYSIS_CONTRACTS.includes(analysisContract as AnalysisContract)) {
+    throw new Error(`run uses unknown analysis contract ${String(analysisContract ?? "unknown")}`);
+  }
+  return analysisContract as AnalysisContract;
+}
+
 async function benchmarkCases(goldFile: string, runDir: string) {
+  const analysisContract = await assertRunContract(runDir);
   const gold = await readGold(goldFile);
   const receipts = await runReceipts(runDir);
   const requested = await requestedRunIds(runDir, receipts);
@@ -1555,7 +1578,7 @@ async function benchmarkCases(goldFile: string, runDir: string) {
     if (!expected.ok) throw new Error(`${reference.document_id}: invalid gold: ${expected.errors.join("; ")}`);
     const candidateRow = receipts.get(reference.document_id) ?? null;
     const candidateRaw = candidateRow?.submission ?? candidateRow?.final_parsed_draft ?? null;
-    const candidate = candidateRaw === null ? null : compileSubmission(candidateRaw, material);
+    const candidate = candidateRaw === null ? null : compileSubmission(candidateRaw, material, analysisContract);
     const expectedView = semanticView(expected);
     const candidateView = candidate ? semanticView(candidate) : null;
     values[index] = {
@@ -1587,7 +1610,9 @@ function aggregateStructureScore(values: Array<{
   const passed = receipts.reduce((total, receipt) => total + receipt.category_score.passed, 0);
   const checks = receipts.reduce((total, receipt) => total + receipt.category_score.total, 0);
   return {
+    requested_cases: values.length,
     cases: receipts.length,
+    unscored_cases: values.length - receipts.length,
     accepted_cases: receipts.filter(({ accepted }) => accepted).length,
     accepted_rate: receipts.length ? receipts.filter(({ accepted }) => accepted).length / receipts.length : 0,
     category_score: { passed, total: checks, score: checks ? passed / checks : 0 },
@@ -1596,6 +1621,15 @@ function aggregateStructureScore(values: Array<{
       : 0,
     categories,
     receipts,
+  };
+}
+
+export function fixedSemanticGrade(treatments: number, relationships: number, verdict: "pass" | "major_error") {
+  return {
+    treatment_grades: Array.from({ length: treatments }, () => ({ verdict })),
+    extra_candidate_treatments: [],
+    procedural_relationship_grades: Array.from({ length: relationships }, () => ({ verdict })),
+    extra_candidate_relationships: [],
   };
 }
 
@@ -1648,8 +1682,10 @@ async function judge(flags: Flags) {
   if (!gold || !runDir) throw new Error("judge requires --gold and --run-dir");
   const requestedIds = flag(flags, "document-ids");
   const requested = requestedIds ? new Set(parseIds(requestedIds)) : null;
-  const eligible = (await benchmarkCases(gold, runDir)).filter(({ document_id, candidate }) =>
-    candidate?.ok === true && (!requested || requested.has(document_id)));
+  const benchmarkValues = (await benchmarkCases(gold, runDir)).filter(({ document_id }) =>
+    !requested || requested.has(document_id));
+  const eligible = benchmarkValues.filter(({ candidate }) =>
+    candidate !== null && semanticDraftView(candidate, "c") !== null);
   const values = eligible.filter(({ semantic_exact }) => !semantic_exact);
   const provider = flag(flags, "provider", "codex");
   if (!["codex", "ox-alpha"].includes(provider)) throw new Error("--provider must be codex or ox-alpha");
@@ -1679,20 +1715,43 @@ async function judge(flags: Flags) {
   const rawDir = path.join(judgeDir, "raw");
   const promptDir = path.join(judgeDir, "prompts");
   await Promise.all([judgeDir, rawDir, promptDir].map((directory) => mkdir(directory, { recursive: true })));
+  const work = values.map((value, index) => {
+    const useDraft = value.candidate!.ok !== true;
+    const prompt = semanticJudgePrompt(value.expected, value.candidate!, useDraft);
+    return {
+      index,
+      value,
+      prompt,
+      useDraft,
+      judge_key: sha256(JSON.stringify({
+        prompt: sha256(prompt),
+        schema: sha256(JSON.stringify(SEMANTIC_JUDGE_SCHEMA)),
+        model,
+        effort,
+      })),
+    };
+  });
+  const resultsFile = path.join(judgeDir, "results.jsonl");
+  const prior = existsSync(resultsFile) ? await readJsonl<Record<string, unknown>>(resultsFile) : [];
+  const reusable = new Map<string, Json>();
+  for (const result of prior) {
+    if (result.error === null && typeof result.judge_key === "string") reusable.set(result.judge_key, result as Json);
+  }
+  const pending = work.filter(({ judge_key }) => !reusable.has(judge_key));
   const ledgerFile = path.join(judgeDir, "calls.jsonl");
-  const used = await callCount(ledgerFile);
-  const budget = Math.floor(numberFlag(flags, "call-budget", 0, 0));
-  if (budget < used + values.length) throw new Error(`--call-budget must cover ${used + values.length} total attempts`);
+  const budget = flags["call-budget"] === undefined
+    ? pending.length
+    : Math.floor(numberFlag(flags, "call-budget", 0, 0));
+  if (budget < pending.length) throw new Error(`--call-budget must cover ${pending.length} attempts for this invocation`);
   const ledger = new JsonlWriter(ledgerFile);
-  const output = new JsonlWriter(path.join(judgeDir, "results.jsonl"));
-  const grades = new Array<Json>(values.length);
-  const report = progressLine("judged", values.length);
+  const output = new JsonlWriter(resultsFile);
+  const grades = work.map(({ judge_key }) => reusable.get(judge_key) ?? null) as Json[];
+  const report = progressLine("judged", pending.length);
   let completed = 0;
-  const rawWriters = Array.from({ length: Math.min(workers, values.length) }, (_, worker) =>
+  const rawWriters = Array.from({ length: Math.min(workers, pending.length) }, (_, worker) =>
     new JsonlWriter(path.join(rawDir, `worker-${worker + 1}.jsonl`)));
-  await workerPool(values, workers, async (value, index, worker) => {
+  await workerPool(pending, workers, async ({ index, value, prompt, judge_key, useDraft }, _pendingIndex, worker) => {
     const raw = rawWriters[worker];
-    const prompt = semanticJudgePrompt(value.expected, value.candidate!);
     await writeFile(path.join(promptDir, `${value.document_id}.txt`), prompt, "utf8");
     const result = await modelCall({
       prompt, schema: SEMANTIC_JUDGE_SCHEMA, model, effort, max_output_tokens: 16_384,
@@ -1702,10 +1761,12 @@ async function judge(flags: Flags) {
       start_limiter: oxRuntime?.limiter,
       raw, ledger, document_id: value.document_id, stage: "semantic_judge", attempt: 1,
     });
-    const resultErrors = result.error ? [] : semanticJudgeResultErrors(value.expected, value.candidate!, result.parsed);
+    const resultErrors = result.error
+      ? []
+      : semanticJudgeResultErrors(value.expected, value.candidate!, result.parsed, useDraft);
     const error = result.error ?? (resultErrors.length ? `Invalid semantic grade: ${resultErrors.join("; ")}` : null);
     const grade = {
-      utc: now(), document_id: value.document_id, citation: value.citation,
+      utc: now(), judge_key, document_id: value.document_id, citation: value.citation,
       structure: value.structure,
       parsed: error ? null : result.parsed, error, output_sha256: result.output_sha256,
       score: error ? null : semanticJudgeScore(result.parsed),
@@ -1716,26 +1777,66 @@ async function judge(flags: Flags) {
     report(++completed);
   });
   await Promise.all([ledger.close(), output.close(), ...rawWriters.map((writer) => writer.close())]);
-  const parsed = grades.flatMap(({ parsed }) => parsed ? [parsed as {
+  type SemanticGrade = {
     treatment_grades: Array<{ verdict: string }>;
     extra_candidate_treatments: Array<{ severity: string }>;
-    procedural_history_grades: Array<{ verdict: string }>;
-    extra_candidate_history: Array<{ severity: string }>;
-  }] : []);
+    procedural_relationship_grades: Array<{ verdict: string }>;
+    extra_candidate_relationships: Array<{ severity: string }>;
+  };
+  const judgedGrades = grades.flatMap(({ parsed }) => parsed ? [parsed as SemanticGrade] : []);
+  const exactValues = benchmarkValues.filter(({ semantic_exact }) => semantic_exact);
+  const eligibleIds = new Set(eligible.map(({ document_id }) => document_id));
+  const unjudgeableValues = benchmarkValues.filter(({ document_id, semantic_exact }) =>
+    !semantic_exact && !eligibleIds.has(document_id));
+  const fixedGradeFor = (value: typeof benchmarkValues[number], verdict: "pass" | "major_error") => {
+    const expected = semanticView(value.expected, "g");
+    if (!expected) throw new Error(`${value.document_id}: gold has no semantic view`);
+    return fixedSemanticGrade(expected.treatments.length, expected.procedural_relationships.length, verdict);
+  };
+  const parsed = [
+    ...exactValues.map((value) => fixedGradeFor(value, "pass")),
+    ...unjudgeableValues.map((value) => fixedGradeFor(value, "major_error")),
+    ...judgedGrades,
+  ];
   const treatmentGrades = parsed.flatMap(({ treatment_grades }) => treatment_grades);
   const extraTreatments = parsed.flatMap(({ extra_candidate_treatments }) => extra_candidate_treatments);
-  const historyGrades = parsed.flatMap(({ procedural_history_grades }) => procedural_history_grades);
-  const extraHistory = parsed.flatMap(({ extra_candidate_history }) => extra_candidate_history);
+  const relationshipGrades = parsed.flatMap(({ procedural_relationship_grades }) => procedural_relationship_grades);
+  const extraRelationships = parsed.flatMap(({ extra_candidate_relationships }) => extra_candidate_relationships);
   const aggregateScore = semanticJudgeScore({
     treatment_grades: treatmentGrades,
     extra_candidate_treatments: extraTreatments,
-    procedural_history_grades: historyGrades,
-    extra_candidate_history: extraHistory,
+    procedural_relationship_grades: relationshipGrades,
+    extra_candidate_relationships: extraRelationships,
   });
+  const judgedByDocument = new Map(grades.map((grade) => [Number(grade.document_id), grade]));
+  const caseScores = benchmarkValues.map((value) => {
+    if (value.semantic_exact) {
+      const score = semanticJudgeScore(fixedGradeFor(value, "pass"));
+      return { document_id: value.document_id, citation: value.citation, source: "deterministic_exact", score };
+    }
+    if (!eligibleIds.has(value.document_id)) {
+      const score = semanticJudgeScore(fixedGradeFor(value, "major_error"));
+      return { document_id: value.document_id, citation: value.citation, source: "no_semantic_draft", score };
+    }
+    const grade = judgedByDocument.get(value.document_id);
+    return {
+      document_id: value.document_id,
+      citation: value.citation,
+      source: "semantic_judge",
+      score: grade?.score ?? null,
+      error: grade?.error ?? "semantic judge result missing",
+    };
+  });
+  const complete = caseScores.every(({ score }) => score !== null);
   const summary = {
-    cases: grades.length,
+    cases: benchmarkValues.length,
+    scored_cases: caseScores.filter(({ score }) => score !== null).length,
+    complete,
+    deterministically_exact_cases: exactValues.length,
+    unjudgeable_candidate_cases: unjudgeableValues.length,
+    judge_cases: grades.length,
     failed_cases: grades.filter(({ error }) => error).length,
-    score: aggregateScore,
+    score: { ...aggregateScore, passed: complete && aggregateScore.passed },
     treatment_propositions: treatmentGrades.length,
     treatment_pass: treatmentGrades.filter(({ verdict }) => verdict === "pass").length,
     treatment_minor_error: treatmentGrades.filter(({ verdict }) => verdict === "minor_error").length,
@@ -1743,12 +1844,13 @@ async function judge(flags: Flags) {
     extra_candidate_treatments: extraTreatments.length,
     extra_treatment_minor_error: extraTreatments.filter(({ severity }) => severity === "minor").length,
     extra_treatment_major_error: extraTreatments.filter(({ severity }) => severity === "major").length,
-    procedural_history_items: historyGrades.length,
-    procedural_history_pass: historyGrades.filter(({ verdict }) => verdict === "pass").length,
-    procedural_history_minor_error: historyGrades.filter(({ verdict }) => verdict === "minor_error").length,
-    procedural_history_major_error: historyGrades.filter(({ verdict }) => verdict === "major_error").length,
-    extra_candidate_history: extraHistory.length,
-    structure_score: aggregateStructureScore(eligible),
+    procedural_relationship_items: relationshipGrades.length,
+    procedural_relationship_pass: relationshipGrades.filter(({ verdict }) => verdict === "pass").length,
+    procedural_relationship_minor_error: relationshipGrades.filter(({ verdict }) => verdict === "minor_error").length,
+    procedural_relationship_major_error: relationshipGrades.filter(({ verdict }) => verdict === "major_error").length,
+    extra_candidate_relationships: extraRelationships.length,
+    structure_score: aggregateStructureScore(benchmarkValues),
+    case_scores: caseScores,
   };
   await writeFile(path.join(judgeDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   console.log(JSON.stringify(summary, null, 2));
@@ -1770,61 +1872,55 @@ async function exportGold(flags: Flags) {
     }
     const structure = compilation.structure.compiled;
     const analysis = compilation.analysis.compiled;
-    const references = new Map(analysis.references.map((reference) => [reference.reference_id, reference]));
-    const detected = new Map(material.citation_inventory.occurrences.map((occurrence) => [occurrence.id, occurrence]));
-    const citedReference = (id: string) => {
-      const reference = references.get(id)!;
-      const occurrence = reference.detected_occurrence_id ? detected.get(reference.detected_occurrence_id) : null;
-      return {
-        reference_id: id,
-        exact_text: reference.span.exact_text,
-        start: reference.span.start,
-        end: reference.span.end,
-        detected_occurrence_id: reference.detected_occurrence_id,
-        detected_authority_id: occurrence?.authority_id ?? null,
-        detected_citation_key: occurrence?.citation_key ?? null,
+    for (const decision of analysis.decision_mentions) {
+      const citedDecision = {
+        decision_id: decision.decision_id,
+        exact_text: decision.identifying_block.exact_text,
+        start: decision.identifying_block.start,
+        end: decision.identifying_block.end,
       };
-    };
-    for (const treatment of analysis.treatments) {
-      const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === treatment.opinion_id)!;
-      await output.append({
-        kind: "treatment",
+      for (const relationship of analysis.procedural_relationships.filter(({ decision_id }) => decision_id === decision.decision_id)) {
+        await output.append({
+        kind: "procedural_relationship",
         containing_document_id: row.document_id,
         containing_citation: row.citation,
-        containing_opinion: {
-          writers: opinion.writers,
-          collective_author: opinion.collective_author,
-          result_position: opinion.result_position,
-        },
-        cited_references: treatment.reference_ids.map(citedReference),
-        signals: treatment.signals,
-        other_signal: treatment.other_signal,
-        cited_proposition: treatment.cited_proposition,
-        treatment_summary: treatment.treatment_summary,
-        proposition_support: propositionSupport(structure, treatment),
-        attributed_passages: treatment.attributed_passage_ids.map((id) => {
-          const passage = analysis.attributed_passages.find(({ passage_id }) => passage_id === id)!;
-          return {
-            start: passage.span.start,
-            end: passage.span.end,
-            exact_text: passage.span.exact_text,
-            deterministic_quote_ids: passage.deterministic_quote_ids,
-          };
-        }),
-        evidence: treatment.evidence_spans.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+        cited_decision: citedDecision,
+        description: relationship.description,
+        actions: relationship.actions.map((action) => ({
+          action: action.action,
+          affected_part: action.affected_part,
+          evidence: action.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+        })),
+        evidence: relationship.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
       });
+      }
+      for (const treatment of analysis.treatments.filter(({ decision_id }) => decision_id === decision.decision_id)) {
+        const opinion = structure.opinions.find(({ opinion_id }) => opinion_id === treatment.opinion_id)!;
+        await output.append({
+          kind: "treatment",
+          containing_document_id: row.document_id,
+          containing_citation: row.citation,
+          containing_opinion: {
+            writers: opinion.writers,
+            collective_author: opinion.collective_author,
+            result_position: opinion.result_position,
+          },
+          cited_decision: citedDecision,
+          signals: treatment.signals,
+          other_signal: treatment.other_signal,
+          proposition: treatment.proposition,
+          treatment: treatment.treatment,
+          opinion_support_bounds: opinionSupportBounds(structure, treatment),
+          quoted_passages: treatment.quoted_passages.map((passage) => ({
+            start: passage.start,
+            end: passage.end,
+            exact_text: passage.exact_text,
+            deterministic_quote_ids: passage.deterministic_quote_ids,
+          })),
+          evidence: treatment.evidence_blocks.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
+        });
+      }
     }
-    for (const history of analysis.procedural_history) await output.append({
-      kind: "procedural_history",
-      containing_document_id: row.document_id,
-      containing_citation: row.citation,
-      cited_references: history.reference_ids.map(citedReference),
-      stage_relation: history.stage_relation,
-      current_decision_action: history.current_decision_action,
-      other_action: history.other_action,
-      summary: history.summary,
-      evidence: history.evidence_spans.map(({ start, end, text_sha256 }) => ({ start, end, text_sha256 })),
-    });
   });
   await output.close();
   console.log(outputFile);
@@ -1834,28 +1930,30 @@ async function showPrompt(flags: Flags) {
   const [id] = await selectedIds(flags);
   const material = await materialFor(id, documentsFor([id]).get(id)!);
   const stage = flag(flags, "stage", "structure");
+  const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
+  if (!ANALYSIS_CONTRACTS.includes(analysisContract)) throw new Error("invalid --analysis-contract");
   const includeStructureHints = flags["structure-hints"] === true;
   if (stage === "structure") console.log(includeStructureHints ? structurePromptWithHints(material) : structurePrompt(material));
-  else if (stage === "authority-inventory") console.log(authorityInventoryPrompt(material));
-  else if (stage === "one-stage") console.log(oneStagePrompt(material, includeStructureHints));
+  else if (stage === "one-stage") console.log(oneStagePrompt(material, includeStructureHints, false, analysisContract));
   else if (stage === "analysis") {
     const goldFile = flag(flags, "gold");
     if (!goldFile) throw new Error("analysis prompt requires --gold");
     const gold = (await readGold(goldFile)).find(({ document_id }) => document_id === id);
     if (!gold) throw new Error(`gold has no record for ${id}`);
-    console.log(analysisPrompt(material, gold.annotation.structure));
-  } else throw new Error("--stage must be structure, authority-inventory, analysis, or one-stage");
+    console.log(analysisPrompt(material, gold.annotation.structure, false, analysisContract));
+  } else throw new Error("--stage must be structure, analysis, or one-stage");
 }
 
 async function showSchema(flags: Flags) {
   const [id] = await selectedIds(flags);
   const material = await materialFor(id, documentsFor([id]).get(id)!);
   const stage = flag(flags, "stage", "one-stage");
+  const analysisContract = flag(flags, "analysis-contract", "self-check") as AnalysisContract;
+  if (!ANALYSIS_CONTRACTS.includes(analysisContract)) throw new Error("invalid --analysis-contract");
   if (stage === "structure") console.log(JSON.stringify(structureOutputSchema(material.source_lines.length), null, 2));
-  else if (stage === "authority-inventory") console.log(JSON.stringify(authorityInventoryOutputSchema(material.source_lines.length), null, 2));
-  else if (stage === "analysis") console.log(JSON.stringify(analysisOutputSchema(material.citation_inventory, material.source_lines.length), null, 2));
-  else if (stage === "one-stage") console.log(JSON.stringify(submissionOutputSchema(material.citation_inventory, material.source_lines.length), null, 2));
-  else throw new Error("--stage must be structure, authority-inventory, analysis, or one-stage");
+  else if (stage === "analysis") console.log(JSON.stringify(analysisOutputSchema(material.source_lines.length, undefined, analysisContract), null, 2));
+  else if (stage === "one-stage") console.log(JSON.stringify(submissionOutputSchema(material.source_lines.length, analysisContract), null, 2));
+  else throw new Error("--stage must be structure, analysis, or one-stage");
 }
 
 async function main() {
