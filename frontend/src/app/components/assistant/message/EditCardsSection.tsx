@@ -22,10 +22,11 @@ function BulkEditActions({
         setBusy(verb);
         try {
             const grouped = new Map<string, EditAnnotation[]>();
-            pending.forEach(({ annotation }) => {
+            for (const { annotation } of pending) {
                 const group = grouped.get(annotation.document_id);
-                group ? group.push(annotation) : grouped.set(annotation.document_id, [annotation]);
-            });
+                if (group) group.push(annotation);
+                else grouped.set(annotation.document_id, [annotation]);
+            }
             await Promise.all([...grouped.values()].map((edits) =>
                 resolveEdits(edits, verb, handlers)));
         } finally {

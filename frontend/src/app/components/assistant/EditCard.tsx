@@ -104,7 +104,7 @@ export async function resolveEdits(
         return status;
     } catch (error) {
         console.error("Edit resolution failed", error);
-        reverts.forEach((revert) => { try { revert(); } catch {} });
+        reverts.forEach((revert) => { try { revert(); } catch { /* Best-effort rollback. */ } });
         edits.forEach((edit) => onError?.({
             editId: edit.edit_id, documentId,
             versionId: edit.version_id ?? null,

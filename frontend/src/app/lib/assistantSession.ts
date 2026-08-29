@@ -175,17 +175,6 @@ const safeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const statusSchema = z.enum(["running", "completed", "error", "interrupted", "cancelled"])
   .transform((status): AssistantActivityStatus => status === "cancelled" ? "interrupted" : status);
 
-function bounded(value: unknown, depth = 0, budget = { value: 0 }): boolean {
-  if (depth > 12 || ++budget.value > 4_096) return false;
-  if (!value || typeof value !== "object") return true;
-  return Object.entries(value).every(([key, child]) =>
-    key !== "__proto__" && key !== "prototype" && key !== "constructor" &&
-    bounded(child, depth + 1, budget));
-}
-const boundedEvent = z.unknown().superRefine((value, context) => {
-  if (!bounded(value)) context.addIssue({ code: "custom", message: "unsafe event" });
-});
-
 export function safeAssistantUrl(
   value: unknown,
   { relative = true }: { relative?: boolean } = {},
@@ -396,10 +385,10 @@ const protocolSchemas = [
     status: z.enum(["running", "completed", "failed"]) }).transform((row): ProtocolEvent => row),
   documentArtifactSchema,
 ];
-const protocolSchema = boundedEvent.pipe(z.union(protocolSchemas as [
+const protocolSchema = z.union(protocolSchemas as [
   (typeof protocolSchemas)[number], (typeof protocolSchemas)[number],
   ...(typeof protocolSchemas)[number][],
-]));
+]);
 export function parseAssistantProtocolEvent(value: unknown): ParseResult {
   const parsed = protocolSchema.safeParse(value);
   return parsed.success ? { ok: true, event: parsed.data as ProtocolEvent } : { ok: false };

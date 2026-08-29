@@ -734,7 +734,12 @@ export function createChatApplication(deps: Dependencies) {
       let persistence = Promise.resolve();
       const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: unknown[], citations: unknown[] = []) {
-        assistantContent.push(...events);
+        for (const event of events) {
+          const row = asRecord(event);
+          const index = row?.type === "subagent_run" && typeof row.id === "string"
+            ? assistantContent.findIndex((value) => asRecord(value)?.type === "subagent_run" && asRecord(value)?.id === row.id) : -1;
+          if (index < 0) assistantContent.push(event); else assistantContent[index] = event;
+        }
         assistantCitations.push(...citations);
         const content = [...assistantContent], savedCitations = [...assistantCitations];
         persistence = persistence.then(async () => {
