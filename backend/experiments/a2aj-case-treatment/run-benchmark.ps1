@@ -47,6 +47,8 @@ $tsx = Join-Path $backend 'node_modules\.bin\tsx.cmd'
 $cli = Join-Path $PSScriptRoot 'cli.ts'
 $runDir = Join-Path $PSScriptRoot "runs\$RunName"
 $structureRunDir = if ($StructureRunName) { Join-Path $PSScriptRoot "runs\$StructureRunName" } else { $null }
+$judgeJob = $null
+$completionFile = Join-Path $runDir ('.inference-complete-' + [guid]::NewGuid().ToString('N'))
 
 if ($structureRunDir -and $Mode -ne 'two-stage') { throw '-StructureRunName requires -Mode two-stage' }
 if ($StructureRunName -eq $RunName) { throw '-StructureRunName must identify a different run' }
@@ -78,22 +80,47 @@ try {
     )
     if ($structureRunDir) { $runArgs += @('--structure-run-dir', $structureRunDir) }
     if ($AnalysisExamples) { $runArgs += '--analysis-examples' }
+
+    if (-not $SkipJudge) {
+        New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+        $judgeJob = Start-Job -ScriptBlock {
+            param($Backend, $Tsx, $Cli, $GoldPath, $RunDirectory, $Completion, $JudgeModelName, $JudgeEffortName, $WorkerCount)
+            Set-Location -LiteralPath $Backend
+            & $Tsx $Cli judge `
+                --watch `
+                --completion-file $Completion `
+                --gold $GoldPath `
+                --run-dir $RunDirectory `
+                --provider codex `
+                --model $JudgeModelName `
+                --effort $JudgeEffortName `
+                --workers $WorkerCount
+            if ($LASTEXITCODE -ne 0) { throw "Semantic judge failed with exit code $LASTEXITCODE" }
+        } -ArgumentList $backend, $tsx, $cli, $goldPath, $runDir, $completionFile, $JudgeModel, $JudgeEffort, $Workers
+    }
+
     & $tsx @runArgs
     if ($LASTEXITCODE -ne 0) { throw "Inference failed with exit code $LASTEXITCODE" }
+
+    if ($judgeJob) { [System.IO.File]::WriteAllText($completionFile, '') }
 
     & $tsx $cli benchmark --gold $goldPath --run-dir $runDir
     if ($LASTEXITCODE -ne 0) { throw "Mechanical benchmark failed with exit code $LASTEXITCODE" }
 
-    if (-not $SkipJudge) {
-        & $tsx $cli judge `
-            --gold $goldPath `
-            --run-dir $runDir `
-            --provider codex `
-            --model $JudgeModel `
-            --effort $JudgeEffort `
-            --workers $Workers
-        if ($LASTEXITCODE -ne 0) { throw "Semantic judge failed with exit code $LASTEXITCODE" }
+    if ($judgeJob) {
+        Wait-Job -Job $judgeJob | Out-Null
+        $judgeState = $judgeJob.State
+        $judgeReason = $judgeJob.ChildJobs[0].JobStateInfo.Reason
+        Receive-Job -Job $judgeJob -ErrorAction Continue
+        if ($judgeState -ne 'Completed') {
+            throw "Semantic judge failed: $judgeReason"
+        }
     }
 } finally {
+    if ($judgeJob) {
+        if ($judgeJob.State -eq 'Running') { Stop-Job -Job $judgeJob }
+        Remove-Job -Job $judgeJob -Force
+    }
+    if (Test-Path -LiteralPath $completionFile) { [System.IO.File]::Delete($completionFile) }
     Pop-Location
 }
