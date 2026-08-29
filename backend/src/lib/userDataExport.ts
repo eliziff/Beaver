@@ -42,9 +42,7 @@ type Reader = ReturnType<typeof exportReader>;
 async function loadUserChats(read: Reader, userId: string) {
   const chats = await read.all("chats", (query) => query.eq("user_id", userId)
     .order("created_at", { ascending: true }));
-  const messages = await read.byIds("chat_messages", "chat_id", idsFrom(chats));
-  return { chats, messages,
-    events: await read.byIds("chat_message_events", "message_id", idsFrom(messages)) };
+  return { chats, messages: await read.byIds("chat_messages", "chat_id", idsFrom(chats)) };
 }
 
 const exportHeader = (userId: string, userEmail?: string | null) => ({
@@ -67,10 +65,9 @@ export async function buildUserTabularReviewsExport(db: Db, userId: string,
     read.byIds("tabular_cells", "review_id", idsFrom(tabularReviews)),
     read.byIds("chats", "tabular_review_id", idsFrom(tabularReviews)),
   ]);
-  const messages = await read.byIds("chat_messages", "chat_id", idsFrom(chats));
   return { ...exportHeader(userId, userEmail), tabular_reviews: tabularReviews,
-    tabular_cells: cells, chats: { chats, messages,
-      events: await read.byIds("chat_message_events", "message_id", idsFrom(messages)) } };
+    tabular_cells: cells, chats: { chats,
+      messages: await read.byIds("chat_messages", "chat_id", idsFrom(chats)) } };
 }
 
 export async function buildUserAccountExport(db: Db, userId: string,

@@ -54,29 +54,20 @@ describe("local chat store", () => {
       userMessage: { id: randomUUID(), content: "Question" },
     });
     vi.setSystemTime("2026-07-26T12:00:01.000Z");
-    const assistantId = randomUUID();
     await store.commitTurn(scope(), chat.id, {
       expectedVersion: 1,
       assistantMessage: {
-        id: assistantId,
+        id: randomUUID(),
         content: [{ type: "content", text: "Answer" }],
       },
     });
-    await store.appendAssistantEvents(scope(), chat.id, assistantId, [
-      { type: "tool_activity", id: "read", status: "running" },
-      { type: "tool_activity", id: "read", status: "completed" },
-    ], [], 2);
 
     store = await reopenStore();
     expect(await store.transcript(scope(), chat.id)).toMatchObject([
       { role: "user", content: "Question" },
-      { role: "assistant", content: [
-        { type: "content", text: "Answer" },
-        { type: "tool_activity", id: "read", status: "running" },
-        { type: "tool_activity", id: "read", status: "completed" },
-      ], citations: [] },
+      { role: "assistant", content: [{ type: "content", text: "Answer" }] },
     ]);
-    expect(await store.get(scope(), chat.id)).toMatchObject({ transcript_version: 3 });
+    expect(await store.get(scope(), chat.id)).toMatchObject({ transcript_version: 2 });
   });
 
   it("atomically rejects two writers at the same transcript version", async () => {
