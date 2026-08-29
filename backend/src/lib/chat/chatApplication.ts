@@ -213,6 +213,7 @@ type Dependencies = {
 
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
+const LIVE_EVENT_TYPES = new Set(["subagent_run", "tool_activity"]);
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
   if (!assistant || !Array.isArray(assistant.content)) return null;
@@ -630,12 +631,10 @@ export function createChatApplication(deps: Dependencies) {
           },
         };
       }
-      if (!commit.userMessage && !commit.assistantMessage) {
-        // A retried turn without an assistant receipt still needs one atomic CAS write.
-        commit.assistantMessage = {
-          id: randomUUID(), turnId, content: [], citations: [],
-        };
-      }
+      const assistantId = assistant?.id ?? commit.assistantMessage?.id ?? randomUUID();
+      commit.assistantMessage ??= {
+        id: assistantId, turnId, content: assistantContent, citations: assistantCitations,
+      };
       const transcriptForModel = rows
         .map((row) => row.id === assistant?.id
           ? { ...row, content: assistantContent, citations: assistantCitations }
@@ -694,8 +693,8 @@ export function createChatApplication(deps: Dependencies) {
         conflict("chat_version_conflict", claimed.currentVersion);
       }
       let version = claimed.currentVersion;
-      if (!assistant && commit.assistantMessage) assistant = {
-        id: commit.assistantMessage.id,
+      if (!assistant) assistant = {
+        id: assistantId,
         chat_id: chat.id,
         turn_id: turnId,
         role: "assistant",
@@ -732,32 +731,14 @@ export function createChatApplication(deps: Dependencies) {
         contextCheckpoint: message.contextCheckpoint,
       }));
       let persistence = Promise.resolve();
-      const assistantId = assistant?.id ?? randomUUID();
-      const upsertEvents = (events: unknown[]) => {
-        for (const event of events) {
-          const row = asRecord(event);
-          if (row?.type === "subagent_run" && typeof row.id === "string") {
-            const index = assistantContent.findIndex((value) => {
-              const current = asRecord(value);
-              return current?.type === "subagent_run" && current.id === row.id;
-            });
-            if (index >= 0) assistantContent[index] = event;
-            else assistantContent.push(event);
-          } else assistantContent.push(event);
-        }
-      };
-      function queuePersist(events: unknown[], citations: unknown[] = []) {
-        upsertEvents(events);
-        assistantCitations.push(...citations);
-        const content = [...assistantContent], savedCitations = [...assistantCitations];
+      function queuePersist(events: unknown[], citations?: unknown[]) {
+        if (citations) assistantCitations.push(...citations);
+        const savedCitations = citations === undefined ? undefined : [...assistantCitations];
         persistence = persistence.then(async () => {
           if (chatTurnWasDeleted(chat!.id)) return;
-          const result = await deps.chats.commitTurn(auth, chat!.id, {
-            expectedVersion: version,
-            assistantMessage: {
-              id: assistantId, turnId, content, citations: savedCitations,
-            },
-          });
+          const result = await deps.chats.appendAssistantEvents(
+            auth, chat!.id, assistantId, events, savedCitations, version,
+          );
           if (result.status === "missing") return;
           if (result.status === "conflict") {
             conflict("chat_version_conflict", result.currentVersion);
@@ -795,7 +776,12 @@ export function createChatApplication(deps: Dependencies) {
           systemPrompt,
           messages: modelMessages,
           createTools: localTools.createTools,
-          emit: sink.emit,
+          emit: (event) => {
+            sink.emit(event);
+            if (asRecord(event)?.type === "tool_activity") {
+              void queuePersist([event]).catch(() => undefined);
+            }
+          },
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
           compactThreshold: compactionThresholdForModel(selectedModel),
@@ -847,7 +833,8 @@ export function createChatApplication(deps: Dependencies) {
         activeContinuationId = result.continuationId ?? activeContinuationId;
         await persistence;
         const events: unknown[] = result.events.filter(({ type }) =>
-          !["reasoning", "error", "context_usage"].includes(type));
+          !["reasoning", "error", "context_usage"].includes(type) &&
+          !LIVE_EVENT_TYPES.has(type));
         if (!result.fullText && !result.events.some(({ type }) => [
           "content", "document_artifact", "automation_run",
         ].includes(type)) && result.status !== "paused") {
@@ -878,7 +865,8 @@ export function createChatApplication(deps: Dependencies) {
           await queuePersist([
             ...(error instanceof AssistantStreamError
               ? error.events.filter(({ type }) =>
-                  !["reasoning", "error", "context_usage"].includes(type))
+                  !["reasoning", "error", "context_usage"].includes(type) &&
+                  !LIVE_EVENT_TYPES.has(type))
               : []),
             isAbortError(error)
               ? { type: "turn_status", status: "cancelled" }
