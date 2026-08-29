@@ -153,7 +153,20 @@ use the single launcher from the repository root:
 ```
 
 Run the same command with a different `RunName` and
-`-AnalysisContract self-check` for the explicit-verification arm.
+`-AnalysisContract self-check` for the explicit-verification arm, naming the
+first run as the source of the shared opinion pass:
+
+```powershell
+.\backend\experiments\a2aj-case-treatment\run-benchmark.ps1 `
+  -CaseFile backend\experiments\a2aj-case-treatment\gold\selection-smoke-10.json `
+  -Gold backend\experiments\a2aj-case-treatment\gold\gold-ablation-10-v6.jsonl `
+  -RunName v6-self-check-luna-max -Model gpt-5.6-luna -Effort max -Workers 10 `
+  -AnalysisContract self-check -StructureRunName v6-simple-luna-max
+```
+
+The second run refuses a missing, stale, or invalid structure checkpoint; it
+never substitutes a new opinion-stage call. The launcher allows up to 131,072
+output tokens by default so difficult full-case analyses are not truncated.
 
 Rerunning the same command recompiles preserved stage drafts first, then resumes
 only stages and cases that still need model work. Model-call

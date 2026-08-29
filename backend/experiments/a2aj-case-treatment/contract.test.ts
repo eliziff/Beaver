@@ -6,6 +6,7 @@ import {
   analysisPrompt,
   CASE_TREATMENT_CONTRACT_VERSION,
   compareStructureMechanics,
+  compileReferenceSubmission,
   compileSubmission,
   deterministicQuoteCandidates,
   oneStagePrompt,
@@ -217,6 +218,22 @@ describe("proposition-first case treatment contract", () => {
     expect(checkedSchema).toContain('"supporting_passages"');
     expect(analysisPrompt(material, simple.structure, false, "simple")).not.toContain("supporting_passages");
     expect(analysisPrompt(material, simple.structure, false, "self-check")).toContain("supporting_passages");
+  });
+
+  it("compiles reference truth without candidate-only self-check passages", () => {
+    const reference = submission();
+    delete reference.analysis.treatments[0].supporting_passages;
+    expect(compileReferenceSubmission(reference, material).ok).toBe(true);
+
+    delete reference.analysis.treatments[0].opinion_id;
+    expect(compileReferenceSubmission(reference, material).errors).toContain(
+      "analysis.treatments[0].opinion_id: reference opinion_id is required",
+    );
+
+    reference.analysis.treatments[0].opinion_id = "o2";
+    expect(compileReferenceSubmission(reference, material).errors).toContain(
+      "analysis.treatments[0].opinion_id: o2 conflicts with evidence in o1",
+    );
   });
 
   it("checks the self-reported opinion and aligns copied support to exact offsets", () => {
@@ -847,5 +864,16 @@ describe("proposition-first case treatment contract", () => {
       extra_candidate_relationships: [],
     };
     expect(semanticJudgeResultErrors(reference, invalid, grade, true)).toEqual([]);
+  });
+
+  it("retains host-derived opinion attribution when another draft item is invalid", () => {
+    const draft = submission();
+    delete draft.analysis.treatments[0].opinion_id;
+    delete draft.analysis.treatments[0].supporting_passages;
+    (draft.analysis.decision_mentions as unknown[]).push({});
+    const invalid = compileSubmission(draft, material, "simple");
+    expect(invalid.ok).toBe(false);
+    expect(invalid.analysis?.compiled).not.toBeNull();
+    expect(semanticDraftView(invalid, "c")?.treatments[0].treating_opinion).toBe("Alpha J.");
   });
 });
