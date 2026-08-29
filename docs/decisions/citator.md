@@ -114,26 +114,26 @@ edge to an opinion only when both use the same source hash and the edge's text
 offset falls inside that opinion's exact `[start, end)` range. This makes the
 opinion role and result position deterministic metadata on the edge.
 
-Treatment classification must support two experimental modes. In combined
-mode, one model response finds opinion boundaries and classifies the selected
-citation contexts together. In staged mode, the treatment classifier receives
-the completed opinion extraction. The same frozen cases, resolved citation
-edges, model, and effort are used to measure whether joint attention improves
-either task enough to outweigh its larger schema and coupled failures. No
-production mode is selected before that ablation.
+Treatment extraction supports two experimental modes. In combined mode, one
+model response reads the complete decision and returns both opinion structure
+and treatment. In staged mode, a second complete-decision reading receives the
+accepted opinion structure. Both modes independently list the adjudicative
+decisions mentioned in judicial material, separate same-litigation procedure,
+and describe substantive treatment per opinion and proposition. Frozen cases,
+model settings, and the gold stay constant when the modes are compared.
 
-In both modes, explicit treatment markers and the existing
-prose-versus-authority-list classifier select citation contexts; the model is
-not asked to classify every bare citation. The parsed opinion and treatment
-records remain independently validated and stored even when they came from one
-response.
+The deterministic citation detector is not an input roster and does not define
+which references exist. After the draft, it provides only a conservative
+omission receipt and may trigger a targeted correction when an omission is
+unmistakable. Source offsets and the containing opinion are then derived from
+grounded evidence blocks. Global citation identity and aliases are resolved
+later, without rerunning treatment extraction.
 
-The treatment classifier decides only what the citing passage says: who is
-speaking, the treatment label and scope, and the exact supporting quote. Code
-supplies the resolved citation edge, source offsets, target identity, court,
-date, and containing opinion. A party submission, quoted source, concurrence,
-or dissent is retained as evidence but cannot silently become treatment by the
-deciding court.
+The treatment model decides what the judicial opinion itself says: the cited
+proposition, the operation performed on it, its material scope, and supporting
+evidence. A party submission, quoted source, concurrence, or dissent remains
+attributed to its actual speaker and cannot silently become the position of a
+different opinion.
 
 A cited decision need not be in the local corpus. A resolved external citation
 key can receive treatment events from in-corpus citing decisions; the target's
@@ -298,23 +298,19 @@ commencement, amendment, repeal, and official correction. Attach judicial
 treatment to the exact provision and version. Never infer present in-force
 status from a case citation.
 
-### Stage 3 — treatment candidates
+### Stage 3 — case-wide treatment extraction
 
-Run cheap deterministic rules when explicit treatment language is close to a
-resolved citation and occurs in the court’s reasons. Send only ambiguous new
-edges—not user queries or whole corpora—to a bounded model classifier.
+After opinion structure is available, one model call reads the complete
+decision and returns its cited-decision roster, same-litigation relationships,
+and proposition-level treatment by judicial opinion. It receives no
+detector-selected citation list. Exact source blocks bind each result to the
+containing opinion; deterministic rules validate spans, quotes, obvious speaker
+conflicts, and only unmistakable citation omissions. A bounded correction
+returns a patch for those defects instead of rewriting the complete answer.
 
-The classifier receives:
-
-- the citing paragraph and bounded neighbours;
-- the cited proposition/pinpoint where available;
-- majority/dissent and judgment-section metadata;
-- the requested fixed label schema; and
-- an instruction to return the supporting span or abstain.
-
-Its result remains `machine_candidate` until a high-precision rule, independent
-corroboration, or human review promotes it. The model never writes a status
-sentence or URL and is never needed at lookup time.
+The result remains `machine_candidate` until benchmark evidence and the chosen
+review policy justify promotion. Extraction happens once during ingestion; no
+model is needed when a researcher later opens or queries the citator.
 
 ### Stage 4 — proposition-level indirect risk
 

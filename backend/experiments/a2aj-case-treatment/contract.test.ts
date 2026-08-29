@@ -198,6 +198,14 @@ describe("proposition-first case treatment contract", () => {
     expect(JSON.stringify(analysisOutputSchema(sourceLines.length, ["o1"]))).not.toContain("treatment_id");
   });
 
+  it("requires every cited-decision label to be copied from its identifying block", () => {
+    const draft = submission();
+    draft.analysis.decision_mentions[0].cited_decision = "Invented v. Authority";
+    expect(compileSubmission(draft, material).errors).toContain(
+      "analysis.decision_mentions[0].cited_decision: copy one contiguous exact name or citation from the identifying block",
+    );
+  });
+
   it("offers simple and self-check analysis contracts with one compiled result", () => {
     const simple = submission();
     delete simple.analysis.treatments[0].opinion_id;
@@ -550,7 +558,13 @@ describe("proposition-first case treatment contract", () => {
     expect(comparison.categories.writers_exact).toBe(true);
     expect(comparison.categories.full_joiners_exact).toBe(true);
     expect(comparison.categories.participant_votes_exact).toBe(true);
-    expect(comparison.category_score).toEqual({ passed: 8, total: 8, score: 1 });
+    expect(comparison.categories.result_only_participants_exact).toBe(true);
+    expect(comparison.category_score).toEqual({ passed: 9, total: 9, score: 1 });
+
+    const missedResultOnly = compileSubmission(submission(), material).structure;
+    missedResultOnly.compiled!.participants[2].result_only = false;
+    expect(compareStructureMechanics(expected, missedResultOnly, material)!.categories.result_only_participants_exact)
+      .toBe(false);
   });
 
   it("accepts a harmless boundary heading variant and canonicalizes a judicial signature", () => {
@@ -680,6 +694,8 @@ describe("proposition-first case treatment contract", () => {
   it("asks for one case-wide analysis without exposing detector candidates", () => {
     const prompt = analysisPrompt(material, submission().structure);
     expect(prompt).toContain("list one clear mention of every other decision");
+    expect(prompt).toContain("Do not list decisions appearing only in editorial metadata, headnotes");
+    expect(prompt).toContain("short contiguous exact name or citation copied from identifying_block");
     expect(prompt).not.toContain("POSSIBLE DECISION REFERENCES");
     expect(prompt).not.toContain("detected_occurrence_id");
     expect(prompt).not.toContain('"c1"');

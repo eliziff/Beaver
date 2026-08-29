@@ -7,6 +7,11 @@ compile into the same comparison record.
 `gold/gold.jsonl` is retained as earlier source material. The launcher requires
 an explicit gold path instead of silently selecting either file.
 
+The canonical ten are a fixed diagnostic subset converted from previously
+audited gold. They test the v6 contract and the `simple`/`self-check` ablation;
+they are not a random prevalence sample or an untouched holdout. The selection
+rules below govern new benchmark expansion.
+
 ## Selection
 
 - Use seeded random selection and retain the seed and draw order.
@@ -26,9 +31,12 @@ an explicit gold path instead of silently selecting either file.
    by the text. Do not turn headings, signatures, or bare agreements into
    opinions.
 3. In `decision_mentions`, record one clear source block for every adjudicative
-   decision cited, quoted, or described. Merge aliases only when the source
-   establishes that they identify the same decision. Do not include the current
-   case's editorial metadata.
+   decision cited, quoted, or described in the judicial reasons, disposition,
+   or court-authored procedural account. Use a short exact name or citation
+   copied from that block. Merge aliases only when the source establishes that
+   they identify the same decision. Exclude the present decision, editorial
+   metadata, headnotes, publisher-added histories, and counsel or authority
+   lists.
 4. In the flat `treatments` list, identify each proposition an opinion
    attributes to a cited decision and any substantive operation the opinion
    performs on it. If a passage treats several decisions together, record one
@@ -103,7 +111,8 @@ A case enters the benchmark only when:
 - its source hash matches;
 - every compiler and grounding check passes;
 - conservative substantive coverage passes where asserted;
-- every actual cited decision is recorded once;
+- every in-scope cited decision is represented, with aliases merged only when
+  the source itself establishes their identity;
 - every treatment is attached to an existing opinion and cited decision;
 - marked quotations are exact, unsupported or altered quotations fail, and
   substantial source-exact wording in analyst prose has a source receipt; and
