@@ -1415,6 +1415,9 @@ export function compileAnalysis(
       evidence,
     );
     if (!citedDecision || !identifyingBlock) return null;
+    if (!identifyingBlock.exact_text.includes(citedDecision)) {
+      errors.push(`${path}.cited_decision: copy one contiguous exact name or citation from the identifying block`);
+    }
     const key = identityKey(citedDecision);
     let identity = identities.get(key);
     if (!identity) {
@@ -1687,7 +1690,7 @@ Return only JSON matching the supplied schema.`;
 
 export const ANALYSIS_INSTRUCTIONS = `Read the complete decision and the supplied judicial-opinion structure. Describe what its judicial opinions say about other adjudicative decisions.
 
-In decision_mentions, list one clear mention of every other decision found anywhere in the document, including quotations, parties' arguments, and procedural descriptions. cited_decision is a short name or citation as printed in the document. identifying_block is the pN block containing that mention. Do not include legislation, secondary sources, or the present decision.
+In decision_mentions, list one clear mention of every other decision in the judicial reasons, dispositions, or court-authored procedural account, including decisions quoted there and decisions discussed while recounting a party's argument. Do not list decisions appearing only in editorial metadata, headnotes, histories added by a publisher, or counsel and authority lists. In every list, cited_decision is a short contiguous exact name or citation copied from identifying_block. Do not include legislation, secondary sources, or the present decision.
 
 In procedural_relationships, record only decisions from the same litigation. description explains how the earlier decision fits into the litigation. actions records what the present court directly does to it; actions may be empty. Use separate actions when different parts receive different results, and set affected_part to null when an action applies to the whole decision. Reversing a judgment is a procedural action, not precedential overruling.
 
@@ -1716,7 +1719,7 @@ Return only JSON matching the supplied schema.`;
 export const ANALYSIS_EXAMPLES = `EXAMPLE
 {"decision_mentions":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4"},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8"}],"procedural_relationships":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","description":"This is the trial judgment under appeal.","evidence_blocks":["p4"],"actions":[{"action":"reversed","affected_part":"the limitation finding","evidence_blocks":["p5"]}]}],"treatments":[{"cited_decision":"Smith v. Jones, 2023 ABKB 100","identifying_block":"p4","opinion_id":"o1","signals":["not_followed"],"other_signal":null,"proposition":"The limitation period began when the plaintiff first suspected an injury.","treatment":"The opinion rejects that proposition because the period begins only with knowledge of the material facts.","evidence_blocks":["p6"],"supporting_passages":[{"block_ids":["p6"],"text":"I respectfully disagree"}],"quoted_passages":[]},{"cited_decision":"Brown v. Canada, 2019 SCC 5","identifying_block":"p8","opinion_id":"o1","signals":["approved","applied"],"other_signal":null,"proposition":"A waiver of statutory rights must be unequivocal.","treatment":"The opinion adopts that requirement and finds no waiver.","evidence_blocks":["p8","p9"],"supporting_passages":[{"block_ids":["p8","p9"],"text":"Brown states that a waiver must be unequivocal. I apply that rule here"}],"quoted_passages":[{"block_ids":["p8"],"text":"A waiver must be unequivocal"}]}]}`;
 
-const SELF_CHECK_ANALYSIS_INSTRUCTIONS = `For each treatment, state which supplied opinion made it. In supporting_passages, copy one or more short verbatim passages containing that opinion's own words that directly support the characterization. These passages are distinct from quoted_passages, which reproduce words attributed to the cited decision.`;
+export const SELF_CHECK_ANALYSIS_INSTRUCTIONS = `For each treatment, state which opinion in the structure made it. In supporting_passages, copy one or more short verbatim passages containing that opinion's own words that directly support the characterization. These passages are distinct from quoted_passages, which reproduce words attributed to the cited decision.`;
 
 export function analysisExampleText(contract: AnalysisContract) {
   if (contract === "self-check") return ANALYSIS_EXAMPLES;
@@ -2289,6 +2292,21 @@ function sameJudicialVotes(
   });
 }
 
+function sameResultOnlyParticipants(
+  left: Array<{ name: string; result_only: boolean }>,
+  right: Array<{ name: string; result_only: boolean }>,
+) {
+  if (left.length !== right.length) return false;
+  const remaining = [...right];
+  return left.every((participant) => {
+    const index = remaining.findIndex((candidate) =>
+      participant.result_only === candidate.result_only && sameJudicialName(participant.name, candidate.name));
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+    return true;
+  });
+}
+
 function categoryScore(categories: Record<string, boolean>) {
   const values = Object.values(categories);
   const passed = values.filter(Boolean).length;
@@ -2413,6 +2431,7 @@ export function compareStructureMechanics(gold: StructureCompilation, candidate:
     ),
     opinion_results_exact: matches.length === gold.compiled.opinions.length && matches.every(({ expected, actual }) => expected.result_position === actual.result_position),
     participant_votes_exact: sameJudicialVotes(gold.compiled.participants, candidate.compiled.participants),
+    result_only_participants_exact: sameResultOnlyParticipants(gold.compiled.participants, candidate.compiled.participants),
     nonparticipants_exact: same(normalizedNames(gold.compiled.nonparticipants), normalizedNames(candidate.compiled.nonparticipants)),
   };
   return {
@@ -2481,6 +2500,10 @@ export function compareDeterministicStructure(gold: StructureCompilation, materi
     panel_names_exact: same(
       normalizedNames(gold.compiled.participants.map(({ name }) => name)),
       normalizedNames(hints.panel),
+    ),
+    result_only_participants_exact: same(
+      normalizedNames(gold.compiled.participants.filter(({ result_only }) => result_only).map(({ name }) => name)),
+      normalizedNames(hints.judges.filter(({ relationship }) => relationship === "concurs_in_result_only").map(({ name }) => name)),
     ),
     nonparticipants_exact: same(normalizedNames(gold.compiled.nonparticipants), normalizedNames(hints.nonparticipants)),
   };

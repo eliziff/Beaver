@@ -1,6 +1,6 @@
 {
-  "format": "a2aj-proposition-treatment-v2-selection",
-  "sampling": "mixed court-decision smoke test",
+  "format": "a2aj-proposition-treatment-v6-selection",
+  "sampling": "fixed diagnostic contract-ablation subset",
   "document_ids": [
     118406,
     192926,

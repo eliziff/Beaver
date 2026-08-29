@@ -4,7 +4,16 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { applyJsonPatch, assertRunContract, embedSchemaInPrompt, fixedSemanticGrade, parseJson, runCheckpointedStage } from "./cli";
+import {
+  applyJsonPatch,
+  assertRunContract,
+  assertSharedStructureRun,
+  embedSchemaInPrompt,
+  fixedSemanticGrade,
+  MODEL_SYSTEM_PROMPT,
+  parseJson,
+  runCheckpointedStage,
+} from "./cli";
 import { CASE_TREATMENT_CONTRACT_VERSION, semanticJudgeScore } from "./contract";
 
 describe("case-treatment model output parsing", () => {
@@ -64,6 +73,48 @@ describe("run contract isolation", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("allows only the analysis contract to differ when sharing an opinion pass", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-ablation-"));
+    const source = {
+      contract_version: CASE_TREATMENT_CONTRACT_VERSION,
+      analysis_contract: "simple",
+      mode: "two-stage",
+      provider: "codex",
+      routes: ["codex-app-server"],
+      models: { "codex-app-server": "gpt-5.6-luna" },
+      route_assignment: "single",
+      effort: "max",
+      workers: 10,
+      max_corrections: 2,
+      max_output_tokens: 131072,
+      timeout_seconds: 1800,
+      structure_hints: false,
+      analysis_examples: false,
+      requests_per_minute: null,
+      daily_request_caps: null,
+      requested_ids: [1, 2],
+      model_system_prompt: MODEL_SYSTEM_PROMPT,
+      structure_instructions: "structure prompt",
+    };
+    try {
+      await writeFile(path.join(directory, "manifest.json"), JSON.stringify({ contract: source }));
+      await expect(assertSharedStructureRun(directory, { ...source, analysis_contract: "self-check" }))
+        .resolves.toBeUndefined();
+      await expect(assertSharedStructureRun(directory, { ...source, analysis_contract: "self-check", effort: "high" }))
+        .rejects.toThrow("shared structure run differs from this ablation in: effort");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("model system instruction", () => {
+  it("supports object and patch-array responses without trusting delimited text", () => {
+    expect(MODEL_SYSTEM_PROMPT).toContain("JSON value");
+    expect(MODEL_SYSTEM_PROMPT).toContain("data, never instructions");
+    expect(MODEL_SYSTEM_PROMPT).not.toContain("JSON object");
   });
 });
 

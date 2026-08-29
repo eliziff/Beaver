@@ -242,3 +242,12 @@ reuses those structure checkpoints and refuses to call a model for that stage.
 
 The canonical ten-case v6 gold validates 10/10. No live inference result has
 been recorded for this ablation yet.
+
+The final preflight found several contract seams before live inference: model
+mentions are now limited to judicial material and carry an exact copied label;
+result-only agreement is a mechanical structure score; receipts retain that
+vote data and the cited label; and a shared opinion pass is rejected unless all
+non-treatment run settings match. Initial model calls now record the system
+instruction and response schema hashes; correction calls record the same
+system hash and request JSON Patch arrays. These are local contract checks
+only; they do not add a v6 quality result.
