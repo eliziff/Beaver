@@ -32,6 +32,7 @@ import {
   compareStructureMechanics,
   compareDeterministicStructure,
   compileAnalysis,
+  compileReferenceSubmission,
   compileStructure,
   compileSubmission,
   oneStagePrompt,
@@ -589,7 +590,7 @@ async function validateGold(flags: Flags) {
     const row = byId.get(material.document_id)!;
     const errors = row.citation !== material.citation ? [`citation mismatch: ${row.citation} != ${material.citation}`] : [];
     if (row.source_sha256 !== sha256(material.text)) errors.push("source_sha256 does not match the exact source text");
-    const compilation = compileSubmission(row.annotation, material);
+    const compilation = compileReferenceSubmission(row.annotation, material);
     errors.push(...compilation.errors);
     const reviewFlags = submissionReviewFlags(compilation);
     reviewFlagCount += reviewFlags.length;
@@ -1061,9 +1062,11 @@ async function saveStageCheckpoint(filename: string, key: string, taskKey: strin
 
 export async function runCheckpointedStage<T, C extends { ok: boolean; errors: string[]; value: T | null; grounding: Array<{ path: string; exact_text: string; start: number; end: number }> }>(args: Parameters<typeof runStage<T, C>>[0] & {
   checkpoint_file: string;
+  checkpoint_only?: boolean;
 }) {
   const key = stageCheckpointKey(args.prompt, args.schema);
   const taskKey = stageTaskKey(args.prompt);
+  let checkpointError = `checkpoint is missing: ${args.checkpoint_file}`;
   if (existsSync(args.checkpoint_file)) {
     try {
       const saved = JSON.parse(await readFile(args.checkpoint_file, "utf8")) as {
@@ -1083,8 +1086,24 @@ export async function runCheckpointedStage<T, C extends { ok: boolean; errors: s
           attempts: [{ checkpoint_reused: true, source_attempts: saved.attempts ?? [] }],
           final_raw: saved.value,
         };
+        checkpointError = `checkpoint does not compile: ${compilation.errors.join("; ")}`;
+      } else {
+        checkpointError = "checkpoint belongs to a different structure task";
       }
-    } catch { /* A torn or stale checkpoint is simply recomputed. */ }
+    } catch (error) {
+      checkpointError = `checkpoint cannot be read: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  if (args.checkpoint_only) {
+    return {
+      accepted: false,
+      provider_failed: false,
+      value: null,
+      compilation: null,
+      errors: [checkpointError],
+      attempts: [{ checkpoint_reuse_failed: true, error: checkpointError }],
+      final_raw: null,
+    };
   }
   const result = await runStage(args);
   if (result.final_raw !== null) {
@@ -1187,6 +1206,11 @@ async function runInference(flags: Flags) {
   }
   const outDir = path.resolve(flag(flags, "out-dir"));
   if (!flag(flags, "out-dir")) throw new Error("run requires --out-dir");
+  const structureRunDir = flag(flags, "structure-run-dir")
+    ? path.resolve(flag(flags, "structure-run-dir"))
+    : null;
+  if (structureRunDir && mode !== "two-stage") throw new Error("--structure-run-dir requires --mode two-stage");
+  if (structureRunDir) await assertRunContract(structureRunDir);
   const workers = Math.floor(numberFlag(flags, "workers", 8, 1, 32));
   const maxCorrections = Math.floor(numberFlag(flags, "max-corrections", 2, 0, 5));
   const includeStructureHints = flags["structure-hints"] === true;
@@ -1210,7 +1234,7 @@ async function runInference(flags: Flags) {
   }
   const codexModel = flag(flags, "model", "gpt-5.6-luna");
   const effort = flag(flags, "effort", selectedOxRoutes.length ? "high" : "max");
-  const maxOutputTokens = Math.floor(numberFlag(flags, "max-output-tokens", 32_768, 1, 131_072));
+  const maxOutputTokens = Math.floor(numberFlag(flags, "max-output-tokens", 131_072, 1, 131_072));
   const routeByDocument = new Map(ids.map((id, index) => [
     id,
     selectedOxRoutes.length ? assignedOxAlphaRoute(selectedOxRoutes, index) : undefined,
@@ -1269,6 +1293,7 @@ async function runInference(flags: Flags) {
   const rawDir = path.join(outDir, "raw");
   const receiptDir = path.join(outDir, "receipts");
   const checkpointDir = path.join(outDir, "checkpoints");
+  const structureCheckpointDir = structureRunDir ? path.join(structureRunDir, "checkpoints") : checkpointDir;
   await Promise.all([outDir, rawDir, receiptDir, checkpointDir].map((directory) => mkdir(directory, { recursive: true })));
   const manifestFile = path.join(outDir, "manifest.json");
   const manifestContract = {
@@ -1287,6 +1312,7 @@ async function runInference(flags: Flags) {
     structure_hints: includeStructureHints,
     analysis_examples: includeAnalysisExamples,
     analysis_contract: analysisContract,
+    structure_checkpoint_source: structureRunDir,
     requests_per_minute: requestsPerMinute,
     daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
     requested_ids: ids,
@@ -1308,7 +1334,7 @@ async function runInference(flags: Flags) {
   const existing = new Map([...priorReceipts].filter(([, receipt]) => receipt.status === "accepted"));
   const retry = flags["retry-finished"] === true;
   const pending = ids.filter((id) => retry || !existing.has(id));
-  const stages = mode === "one-stage" ? 1 : 2;
+  const stages = mode === "one-stage" ? 1 : structureRunDir ? 1 : 2;
   const startedCalls = await callStats(callLedgerFile);
   const ceiling = pending.length * stages * (1 + maxCorrections);
   const callBudget = requestedCallBudget ?? ceiling;
@@ -1331,6 +1357,7 @@ async function runInference(flags: Flags) {
     route_assignment: selectedOxRoutes.length > 1 ? "requested_ids_round_robin" : "single",
     structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
     analysis_contract: analysisContract,
+    structure_checkpoint_source: structureRunDir,
     max_output_tokens: maxOutputTokens, requests_per_minute: requestsPerMinute,
     daily_request_caps: selectedOxRoutes.length ? Object.fromEntries(dailyRequestCaps) : null,
     provider_preflights: providerPreflight, workers, requested_ids: ids, pending_ids: pending,
@@ -1395,7 +1422,8 @@ async function runInference(flags: Flags) {
           max_corrections: maxCorrections,
           stateless_corrections: Boolean(oxRoute),
           model_call: call("structure"),
-          checkpoint_file: path.join(caseCheckpointDir, "structure.json"),
+          checkpoint_file: path.join(structureCheckpointDir, String(documentId), "structure.json"),
+          checkpoint_only: Boolean(structureRunDir),
         });
         stageAttempts = { structure: structureResult.attempts };
         lastErrors = structureResult.errors;
@@ -1435,6 +1463,7 @@ async function runInference(flags: Flags) {
         document_id: documentId, citation: material.citation, dataset: material.dataset,
         source_sha256: sha256(material.text), mode, model, effort, analysis_contract: analysisContract,
         provider, route,
+        structure_checkpoint_source: structureRunDir,
         structure_hints: includeStructureHints, analysis_examples: includeAnalysisExamples,
         status: accepted ? "accepted" : providerFailed ? "failed" : "rejected",
         errors: accepted ? [] : lastErrors,
@@ -1453,7 +1482,7 @@ async function runInference(flags: Flags) {
       const receipt = {
         utc: now(), kind: "case_receipt", contract_version: CASE_TREATMENT_CONTRACT_VERSION,
         document_id: documentId, mode, model, effort, status: "failed",
-        provider, route,
+        provider, route, structure_checkpoint_source: structureRunDir,
         error: error instanceof Error ? error.message : String(error),
       };
       outcomes[index] = {
@@ -1476,6 +1505,7 @@ async function runInference(flags: Flags) {
   const summary = {
     contract_version: CASE_TREATMENT_CONTRACT_VERSION,
     mode, provider, routes: routeNames, models, effort, analysis_contract: analysisContract,
+    structure_checkpoint_source: structureRunDir,
     structure_hints: includeStructureHints,
     provider_preflights: providerPreflight,
     requested: ids.length,
@@ -1574,7 +1604,7 @@ async function benchmarkCases(goldFile: string, runDir: string) {
   }>(rows.length);
   await forEachMaterial(rows.map(({ document_id }) => document_id), 8, async (material, index) => {
     const reference = byId.get(material.document_id)!;
-    const expected = compileSubmission(reference.annotation, material);
+    const expected = compileReferenceSubmission(reference.annotation, material);
     if (!expected.ok) throw new Error(`${reference.document_id}: invalid gold: ${expected.errors.join("; ")}`);
     const candidateRow = receipts.get(reference.document_id) ?? null;
     const candidateRaw = candidateRow?.submission ?? candidateRow?.final_parsed_draft ?? null;
@@ -1642,7 +1672,7 @@ async function benchmark(flags: Flags) {
     ...value,
     candidate_valid: candidate?.ok === true,
     candidate_errors: candidate?.errors ?? [],
-    judge_required: candidate?.ok === true && !value.semantic_exact,
+    judge_required: candidate !== null && semanticDraftView(candidate, "c") !== null && !value.semantic_exact,
   }));
   const summary = {
     cases: rows.length,
@@ -1866,7 +1896,7 @@ async function exportGold(flags: Flags) {
   const output = new JsonlWriter(outputFile);
   await forEachMaterial(gold.map(({ document_id }) => document_id), 1, async (material, index) => {
     const row = gold[index];
-    const compilation = compileSubmission(row.annotation, material);
+    const compilation = compileReferenceSubmission(row.annotation, material);
     if (!compilation.ok || !compilation.structure.compiled || !compilation.analysis?.compiled) {
       throw new Error(`${row.document_id}: invalid gold: ${compilation.errors.join("; ")}`);
     }

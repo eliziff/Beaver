@@ -237,6 +237,8 @@ semantic judge constant while varying only the treatment output contract.
 treating opinion in the host. `self-check` additionally asks Luna to state the
 opinion and copy short verbatim support; the host aligns that text and checks
 the attribution independently. Both arms compile to one flat treatment record.
+The second arm must name the first with `-StructureRunName`; the runner then
+reuses those structure checkpoints and refuses to call a model for that stage.
 
 The canonical ten-case v6 gold validates 10/10. No live inference result has
 been recorded for this ablation yet.

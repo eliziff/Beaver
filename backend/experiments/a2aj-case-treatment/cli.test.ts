@@ -155,10 +155,39 @@ describe("case-treatment stage checkpoints", () => {
     };
     try {
       expect((await runCheckpointedStage(args)).value).toEqual({ answer: 42 });
-      const resumed = await runCheckpointedStage({ ...args, model_call: async () => { throw new Error("should not run"); } });
+      const resumed = await runCheckpointedStage({
+        ...args,
+        checkpoint_only: true,
+        model_call: async () => { throw new Error("should not run"); },
+      });
       expect(resumed.value).toEqual({ answer: 42 });
       expect(resumed.attempts).toMatchObject([{ checkpoint_reused: true }]);
       expect(calls).toBe(1);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a missing shared checkpoint without making a model call", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "a2aj-treatment-checkpoint-only-"));
+    let calls = 0;
+    try {
+      const result = await runCheckpointedStage({
+        prompt: "prompt",
+        schema: { type: "object" },
+        compile: (value: unknown) => ({ ok: true, errors: [], value: value as { answer: number }, grounding: [] }),
+        max_corrections: 0,
+        stateless_corrections: false,
+        model_call: async () => {
+          calls += 1;
+          throw new Error("should not run");
+        },
+        checkpoint_file: path.join(directory, "missing.json"),
+        checkpoint_only: true,
+      });
+      expect(result.accepted).toBe(false);
+      expect(result.errors[0]).toContain("checkpoint is missing");
+      expect(calls).toBe(0);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

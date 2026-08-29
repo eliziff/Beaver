@@ -21,6 +21,12 @@ param(
     [ValidateSet('simple', 'self-check')]
     [string]$AnalysisContract = 'self-check',
 
+    [ValidateRange(1, 131072)]
+    [int]$MaxOutputTokens = 131072,
+
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]*$')]
+    [string]$StructureRunName,
+
     [Parameter(Mandatory)]
     [string]$Gold,
 
@@ -40,6 +46,13 @@ $backend = Join-Path $repoRoot 'backend'
 $tsx = Join-Path $backend 'node_modules\.bin\tsx.cmd'
 $cli = Join-Path $PSScriptRoot 'cli.ts'
 $runDir = Join-Path $PSScriptRoot "runs\$RunName"
+$structureRunDir = if ($StructureRunName) { Join-Path $PSScriptRoot "runs\$StructureRunName" } else { $null }
+
+if ($structureRunDir -and $Mode -ne 'two-stage') { throw '-StructureRunName requires -Mode two-stage' }
+if ($StructureRunName -eq $RunName) { throw '-StructureRunName must identify a different run' }
+if ($structureRunDir -and -not (Test-Path -LiteralPath $structureRunDir -PathType Container)) {
+    throw "Structure run does not exist: $structureRunDir"
+}
 
 function Resolve-RepoFile([string]$Path) {
     $candidate = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path $repoRoot $Path }
@@ -60,8 +73,10 @@ try {
         '--effort', $Effort,
         '--workers', $Workers,
         '--analysis-contract', $AnalysisContract,
+        '--max-output-tokens', $MaxOutputTokens,
         '--out-dir', $runDir
     )
+    if ($structureRunDir) { $runArgs += @('--structure-run-dir', $structureRunDir) }
     if ($AnalysisExamples) { $runArgs += '--analysis-examples' }
     & $tsx @runArgs
     if ($LASTEXITCODE -ne 0) { throw "Inference failed with exit code $LASTEXITCODE" }
