@@ -213,6 +213,9 @@ type Dependencies = {
 
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
+const CHAT_PROGRESS_CHECKPOINT_MS = 30_000;
+const REPLACEABLE_EVENT_TYPES = new Set(["automation_run", "subagent_run", "tool_activity"]);
+const TRANSIENT_EVENT_TYPES = new Set(["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]);
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
   if (!assistant || !Array.isArray(assistant.content)) return null;
@@ -721,7 +724,7 @@ export function createChatApplication(deps: Dependencies) {
         includeResearchTools: features.includeResearchTools,
         onMutationCommitted: () => queuePersist([{
           type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1,
-        }]),
+        }], [], true),
       });
       const slugByDocumentId = new Map(Object.entries(context.docIndex)
         .map(([slug, info]) => [info.document_id, slug]));
@@ -731,21 +734,24 @@ export function createChatApplication(deps: Dependencies) {
         images: imageForMessage(message, images),
         contextCheckpoint: message.contextCheckpoint,
       }));
-      let persistence: Promise<void> | undefined;
-      let pendingContent: unknown[] | undefined;
+      let persistence: Promise<void> | undefined, pendingContent: unknown[] | undefined, nextCheckpoint = 0;
       const assistantId = assistant?.id ?? randomUUID();
-      function queuePersist(events: unknown[], citations: unknown[] = []) {
+      function queuePersist(events: unknown[], citations: unknown[] = [], force = false) {
         for (const event of events) {
           const row = asRecord(event);
-          const index = typeof row?.id === "string" &&
-            ["automation_run", "subagent_run", "tool_activity"].includes(String(row.type))
+          const index = typeof row?.id === "string" && REPLACEABLE_EVENT_TYPES.has(String(row.type))
             ? assistantContent.findIndex((value) => {
                 const current = asRecord(value);
                 return current?.type === row.type && current?.id === row.id;
               }) : -1;
+          const previous = index < 0 ? undefined : asRecord(assistantContent[index]);
           if (index < 0) assistantContent.push(event); else assistantContent[index] = event;
+          force ||= row?.type === "subagent_run" &&
+            (index < 0 || row.status !== "running" || Boolean(row.resume && !previous?.resume));
         }
         assistantCitations.push(...citations);
+        if (!force && performance.now() < nextCheckpoint) return persistence;
+        nextCheckpoint = performance.now() + CHAT_PROGRESS_CHECKPOINT_MS;
         pendingContent = [...assistantContent];
         persistence ??= (async () => {
           while (pendingContent) {
@@ -783,7 +789,7 @@ export function createChatApplication(deps: Dependencies) {
       }
       let activeContinuationId = providerSession?.continuationId;
       const onSubagentEvent = (event: ReadSubagentEvent) =>
-        !chatTurnWasDeleted(chat!.id) && void queuePersist([event]);
+        !chatTurnWasDeleted(chat!.id) && void queuePersist([event])?.catch(() => undefined);
       try {
         sink.start();
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
@@ -795,7 +801,7 @@ export function createChatApplication(deps: Dependencies) {
           emit: (event) => {
             sink.emit(event);
             if (asRecord(event)?.type === "tool_activity")
-              void queuePersist([event]).catch(() => undefined);
+              void queuePersist([event])?.catch(() => undefined);
           },
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
@@ -847,16 +853,14 @@ export function createChatApplication(deps: Dependencies) {
         });
         activeContinuationId = result.continuationId ?? activeContinuationId;
         await persistence;
-        const events: unknown[] = result.events.filter(({ type }) =>
-          !["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]
-            .includes(type));
+        const events: unknown[] = result.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type));
         if (!result.fullText && !result.events.some(({ type }) => [
           "content", "document_artifact", "automation_run",
         ].includes(type)) && result.status !== "paused") {
           events.push({ type: "error", message: "The selected model returned no response." });
         }
         events.push({ type: LOCAL_TURN_COMPLETED_EVENT, schema_version: 1 });
-        await queuePersist(events, result.citations);
+        await queuePersist(events, result.citations, true);
         if (!chat.title) {
           const lastUser = [...messages].reverse().find(({ role }) => role === "user");
           if (lastUser?.content) {
@@ -879,14 +883,12 @@ export function createChatApplication(deps: Dependencies) {
           await persistence?.catch(() => undefined);
           await queuePersist([
             ...(error instanceof AssistantStreamError
-              ? error.events.filter(({ type }) =>
-                  !["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]
-                    .includes(type))
+              ? error.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type))
               : []),
             isAbortError(error)
               ? { type: "turn_status", status: "cancelled" }
               : { type: "error", message },
-          ]).catch((persistError) => console.error(
+          ], [], true)?.catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
           await providerSession?.save(activeContinuationId, version);

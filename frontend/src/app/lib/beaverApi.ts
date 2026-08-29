@@ -664,8 +664,13 @@ export const listChats = (options?: {
 }) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}));
 export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${segment(projectId)}/chats`);
-export const getChat = (chatId: string) =>
-  apiRequest<{ chat: Chat; messages: AssistantTranscriptMessage[] }>(`/chat/${segment(chatId)}`);
+type ChatDetail = { chat: Chat; messages: AssistantTranscriptMessage[] };
+export function getChat(chatId: string): Promise<ChatDetail>;
+export function getChat(chatId: string, afterVersion: number): Promise<ChatDetail | undefined>;
+export function getChat(chatId: string, afterVersion?: number) {
+  return apiRequest<ChatDetail | undefined>(
+    pagePath(`/chat/${segment(chatId)}`, { after_version: afterVersion }));
+}
 export const renameChat = (chatId: string, title: string) =>
   patch<void>(`/chat/${segment(chatId)}`, { title });
 export const updateChatProject = (

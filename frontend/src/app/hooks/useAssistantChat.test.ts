@@ -124,6 +124,7 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.transcriptVersion).toBe(5);
     expect(result.current.run).toBeNull();
     expect(mocks.getChat).toHaveBeenCalledTimes(2);
+    expect(mocks.getChat).toHaveBeenNthCalledWith(2, "chat-1", 4);
   });
 
   it("ignores a stale transcript when the selected chat changes", async () => {
