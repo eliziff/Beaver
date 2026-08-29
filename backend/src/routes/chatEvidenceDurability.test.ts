@@ -421,7 +421,10 @@ describe("chat PDF evidence durability", () => {
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(await storedChat(loaded.store, created.body.id)).toMatchObject({
       transcript_version: 1,
-      messages: [{ role: "user", content: "Long turn" }],
+      messages: [
+        { role: "user", content: "Long turn" },
+        { role: "assistant", content: [] },
+      ],
     });
 
     release();

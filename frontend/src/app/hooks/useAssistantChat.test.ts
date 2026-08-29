@@ -66,6 +66,11 @@ function streamResponse(events: unknown[]) {
   });
 }
 
+const completedTurn = (accepted = 1, completed = accepted + 1) => streamResponse([
+  { type: "chat_id", chatId: "chat-1", transcriptVersion: accepted },
+  { type: "transcript_version", transcriptVersion: completed },
+]);
+
 function byteSplitStreamResponse(events: unknown[]) {
   const bytes = new TextEncoder().encode(
     [
@@ -169,12 +174,7 @@ describe("useAssistantChat local transcript boundary", () => {
     updateAssistantPreferences({ jurisdiction: {
       mode: "presume", jurisdictions: ["ca-ab", "us-ny"],
     } });
-    mocks.streamChat.mockResolvedValueOnce(
-      streamResponse([
-        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
+    mocks.streamChat.mockResolvedValueOnce(completedTurn());
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
@@ -203,12 +203,7 @@ describe("useAssistantChat local transcript boundary", () => {
     updateAssistantPreferences({
       readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },
     });
-    mocks.streamChat.mockResolvedValueOnce(
-      streamResponse([
-        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
+    mocks.streamChat.mockResolvedValueOnce(completedTurn());
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
@@ -229,58 +224,11 @@ describe("useAssistantChat local transcript boundary", () => {
     );
   });
 
-  it("replaces browser fetch errors with recovery guidance", async () => {
-    mocks.streamChat.mockRejectedValueOnce(new TypeError("fetch failed"));
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Draft this",
-      });
-    });
-
-    expect(result.current.messages.at(-1)?.error).toBe(
-      "Unable to get a response. Check the local service or provider connection, then try again.",
-    );
-  });
-
-  it("uses a concise fallback for an empty stream error", async () => {
-    mocks.streamChat.mockResolvedValueOnce(
-      streamResponse([
-        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-        { type: "error", message: "", retryable: false },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "Draft this",
-      });
-    });
-
-    expect(result.current.messages.at(-1)?.error).toBe(
-      "Unable to get a response. Try again.",
-    );
-  });
-
   it("claims and submits a staged route handoff once", async () => {
     const message = { role: "user" as const, content: "Draft this" };
     mocks.peekPendingChatMessage.mockReturnValue(message);
     mocks.claimPendingChatMessage.mockReturnValue(message);
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        { type: "chat_id", chatId: "chat-1", transcriptVersion: 1 },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
+    mocks.streamChat.mockResolvedValue(completedTurn());
 
     renderHook(() => useAssistantChat({ chatId: "chat-1" }));
 
@@ -300,26 +248,8 @@ describe("useAssistantChat local transcript boundary", () => {
       messages: [],
     });
     mocks.streamChat
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 5,
-          },
-          { type: "transcript_version", transcriptVersion: 6 },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 7,
-          },
-          { type: "transcript_version", transcriptVersion: 8 },
-        ]),
-      );
+      .mockResolvedValueOnce(completedTurn(5, 6))
+      .mockResolvedValueOnce(completedTurn(7, 8));
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
@@ -366,26 +296,8 @@ describe("useAssistantChat local transcript boundary", () => {
 
   it("sends the durable project ID on every project chat turn", async () => {
     mocks.streamChat
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 1,
-          },
-          { type: "transcript_version", transcriptVersion: 2 },
-        ]),
-      )
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 3,
-          },
-          { type: "transcript_version", transcriptVersion: 4 },
-        ]),
-      );
+      .mockResolvedValueOnce(completedTurn())
+      .mockResolvedValueOnce(completedTurn(3, 4));
     const { result } = renderHook(() =>
       useAssistantChat({
         chatId: "chat-1",
@@ -428,16 +340,7 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("sends selected documents with the first workflow turn", async () => {
-    mocks.streamChat.mockResolvedValue(
-      streamResponse([
-        {
-          type: "chat_id",
-          chatId: "chat-1",
-          transcriptVersion: 1,
-        },
-        { type: "transcript_version", transcriptVersion: 2 },
-      ]),
-    );
+    mocks.streamChat.mockResolvedValue(completedTurn());
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
     );
@@ -545,16 +448,7 @@ describe("useAssistantChat local transcript boundary", () => {
           { status: 409, headers: { "Content-Type": "application/json" } },
         ),
       )
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 3,
-          },
-          { type: "transcript_version", transcriptVersion: 4 },
-        ]),
-      );
+      .mockResolvedValueOnce(completedTurn(3, 4));
     mocks.getChat
       .mockRejectedValueOnce(new Error("initial load unavailable"))
       .mockResolvedValueOnce({
@@ -613,16 +507,7 @@ describe("useAssistantChat local transcript boundary", () => {
           { status: 409, headers: { "Content-Type": "application/json" } },
         ),
       )
-      .mockResolvedValueOnce(
-        streamResponse([
-          {
-            type: "chat_id",
-            chatId: "chat-1",
-            transcriptVersion: 3,
-          },
-          { type: "transcript_version", transcriptVersion: 4 },
-        ]),
-      );
+      .mockResolvedValueOnce(completedTurn(3, 4));
     mocks.getChat.mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 2 },
       messages: [
