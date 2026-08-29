@@ -133,6 +133,11 @@ it("keeps failed reader checkpoints resumable in the same turn", async () => {
   let session = 0;
   stream.mockImplementation(async (params) => {
     if (params.providerSession) {
+      params.callbacks.onToolCallStart({
+        id: `reader-tool-${session + 1}`,
+        name: "search_sources",
+        input: { query: "authority" },
+      });
       if (params.providerSession.continuationId)
         resumed.push(params.providerSession.continuationId);
       params.providerSession.onContinuationId?.(`reader-session-${++session}`);
@@ -185,6 +190,61 @@ it("keeps failed reader checkpoints resumable in the same turn", async () => {
   ]));
   expect(publicEvents.some((event) => "resume" in event || "publicError" in event))
     .toBe(false);
+  expect(publicEvents.filter((event) => event.status === "running" && event.activity))
+    .toEqual(expect.arrayContaining([
+      expect.objectContaining({ activity: expect.objectContaining({ id: "reader-tool-1" }) }),
+    ]));
+  expect(publicEvents.some((event) =>
+    event.status === "running" && event.activity && "activities" in event)).toBe(false);
+  expect(privateEvents).toContainEqual(expect.objectContaining({
+    status: "running",
+    activities: [expect.objectContaining({ id: "reader-tool-1" })],
+  }));
+});
+
+it("streams native subagent deltas while retaining durable snapshots", async () => {
+  const publicEvents: Record<string, unknown>[] = [];
+  const privateEvents: Record<string, unknown>[] = [];
+  const running = {
+    id: "native-1", task: "Read the authorities", model: "gpt-5.6-luna",
+    effort: "high", status: "running" as const,
+    activities: [{ id: "native-tool-1", label: "Searching", status: "running" as const }],
+    activity: { id: "native-tool-1", label: "Searching", status: "running" as const },
+  };
+  stream.mockImplementationOnce(async ({ callbacks }) => {
+    callbacks.onSubagentUpdate(running);
+    callbacks.onSubagentUpdate({
+      ...running,
+      status: "completed",
+      output: "Found it.",
+      activities: [{ ...running.activities[0], status: "completed" }],
+      activity: { ...running.activity, status: "completed" },
+    });
+    return { fullText: "Done." };
+  });
+
+  await runChatTurn({
+    model: "codex:gpt-5.6-luna",
+    systemPrompt: "",
+    messages: [{ role: "user", content: "Research." }],
+    createTools: () => [],
+    emit: (event) => publicEvents.push(event as Record<string, unknown>),
+    onSubagentEvent: (event) => privateEvents.push(event),
+  });
+
+  expect(publicEvents).toContainEqual(expect.objectContaining({
+    type: "subagent_run", id: "native-1", status: "running",
+    activity: expect.objectContaining({ id: "native-tool-1", tool: "native" }),
+  }));
+  expect(publicEvents.some((event) => event.status === "running" && "activities" in event))
+    .toBe(false);
+  expect(publicEvents).toContainEqual(expect.objectContaining({
+    id: "native-1", status: "completed",
+    activities: [expect.objectContaining({ id: "native-tool-1", tool: "native" })],
+  }));
+  expect(privateEvents[0]).toEqual(expect.objectContaining({
+    activities: [expect.objectContaining({ id: "native-tool-1" })],
+  }));
 });
 
 it("persists private tool receipts without emitting them", async () => {

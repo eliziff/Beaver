@@ -731,31 +731,37 @@ export function createChatApplication(deps: Dependencies) {
         images: imageForMessage(message, images),
         contextCheckpoint: message.contextCheckpoint,
       }));
-      let persistence = Promise.resolve();
+      let persistence: Promise<void> | undefined;
+      let pendingContent: unknown[] | undefined;
       const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: unknown[], citations: unknown[] = []) {
         for (const event of events) {
           const row = asRecord(event);
-          const index = row?.type === "subagent_run" && typeof row.id === "string"
-            ? assistantContent.findIndex((value) => asRecord(value)?.type === "subagent_run" && asRecord(value)?.id === row.id) : -1;
+          const index = typeof row?.id === "string" &&
+            ["automation_run", "subagent_run", "tool_activity"].includes(String(row.type))
+            ? assistantContent.findIndex((value) => {
+                const current = asRecord(value);
+                return current?.type === row.type && current?.id === row.id;
+              }) : -1;
           if (index < 0) assistantContent.push(event); else assistantContent[index] = event;
         }
         assistantCitations.push(...citations);
-        const content = [...assistantContent], savedCitations = [...assistantCitations];
-        persistence = persistence.then(async () => {
-          if (chatTurnWasDeleted(chat!.id)) return;
-          const result = await deps.chats.commitTurn(auth, chat!.id, {
-            expectedVersion: version,
-            assistantMessage: {
-              id: assistantId, turnId, content, citations: savedCitations,
-            },
-          });
-          if (result.status === "missing") return;
-          if (result.status === "conflict") {
-            conflict("chat_version_conflict", result.currentVersion);
+        pendingContent = [...assistantContent];
+        persistence ??= (async () => {
+          while (pendingContent) {
+            const content = pendingContent;
+            pendingContent = undefined;
+            if (chatTurnWasDeleted(chat!.id)) continue;
+            const result = await deps.chats.commitTurn(auth, chat!.id, {
+              expectedVersion: version,
+              assistantMessage: { id: assistantId, turnId, content,
+                citations: [...assistantCitations] },
+            });
+            if (result.status === "conflict")
+              conflict("chat_version_conflict", result.currentVersion);
+            if (result.status === "committed") version = result.currentVersion;
           }
-          version = result.currentVersion;
-        });
+        })().finally(() => { persistence = undefined; });
         return persistence;
       }
 
@@ -776,9 +782,8 @@ export function createChatApplication(deps: Dependencies) {
         console.warn("[chat] provider continuation unavailable", safeErrorLog(error));
       }
       let activeContinuationId = providerSession?.continuationId;
-      const onSubagentEvent = (event: ReadSubagentEvent) => {
-        if (!chatTurnWasDeleted(chat!.id)) queuePersist([event]);
-      };
+      const onSubagentEvent = (event: ReadSubagentEvent) =>
+        !chatTurnWasDeleted(chat!.id) && void queuePersist([event]);
       try {
         sink.start();
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
@@ -789,9 +794,8 @@ export function createChatApplication(deps: Dependencies) {
           createTools: localTools.createTools,
           emit: (event) => {
             sink.emit(event);
-            if (asRecord(event)?.type === "tool_activity") {
+            if (asRecord(event)?.type === "tool_activity")
               void queuePersist([event]).catch(() => undefined);
-            }
           },
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
@@ -872,7 +876,7 @@ export function createChatApplication(deps: Dependencies) {
         const message = safeErrorMessage(error, "Model request failed");
         console.error("[chat]", safeErrorLog(error));
         if (!chatTurnWasDeleted(chat.id)) {
-          await persistence.catch(() => undefined);
+          await persistence?.catch(() => undefined);
           await queuePersist([
             ...(error instanceof AssistantStreamError
               ? error.events.filter(({ type }) =>

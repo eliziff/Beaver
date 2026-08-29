@@ -41,6 +41,7 @@ export type ReadSubagentEvent = {
   output?: string;
   error?: string;
   publicError?: string;
+  activity?: ToolActivity;
   activities?: ToolActivity[];
   citations?: Record<string, unknown>[];
   grounding?: LegalEvidenceReceiptEvent;
