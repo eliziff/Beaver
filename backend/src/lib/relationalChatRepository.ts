@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
-import { patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, type ChatMutation, type ChatRecord, type CreateChatRepository } from "./chatStore";
+import { CHAT_MESSAGE_CITATIONS_EVENT, CHAT_MESSAGE_RESET_EVENT, patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, type ChatMutation, type ChatRecord, type CreateChatRepository } from "./chatStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { chatAccess, changes, documentAccess, now, one, rows, type Row } from "./relationalRepositorySupport";
 
@@ -15,6 +15,39 @@ const chatMessage = (row: Row): ChatMessageRecord => ({ ...row, id: String(row.i
   ...(row.files !== null ? { files: decode(row.files, null) } : {}),
   ...(row.workflow !== null ? { workflow: decode(row.workflow, null) } : {}),
   ...(row.citations !== null ? { citations: decode(row.citations, null) } : {}) });
+async function appendEvents(db: RelationalDatabase, messageId: string, events: unknown[]) {
+  if (!events.length) return;
+  const latest = await one(sql`SELECT MAX(ordinal) ordinal FROM chat_message_events
+    WHERE message_id=${messageId}`, db);
+  const first = Number(latest?.ordinal ?? -1) + 1, created = now();
+  for (const [index, event] of events.entries()) await changes(sql`INSERT INTO
+    chat_message_events(message_id,ordinal,event,created_at)
+    VALUES(${messageId},${first + index},${encode(event)},${created})`, db);
+}
+function projectEvents(messages: ChatMessageRecord[], eventRows: Row[]) {
+  const byMessage = new Map<string, Row[]>();
+  for (const row of eventRows) {
+    const events = byMessage.get(String(row.message_id)) ?? [];
+    events.push(row); byMessage.set(String(row.message_id), events);
+  }
+  return messages.map((message) => {
+    if (message.role !== "assistant") return message;
+    let content = Array.isArray(message.content) ? [...message.content]
+      : typeof message.content === "string" && message.content
+        ? [{ type: "content", text: message.content }] : [];
+    let citations = message.citations;
+    for (const row of byMessage.get(message.id) ?? []) {
+      const event = decode<Record<string, unknown>>(row.event, {});
+      if (event.type === CHAT_MESSAGE_RESET_EVENT) {
+        content = []; citations = undefined;
+      } else if (event.type === CHAT_MESSAGE_CITATIONS_EVENT) {
+        citations = Array.isArray(event.citations) ? event.citations : [];
+      } else content.push(event);
+    }
+    return { ...message, content,
+      ...(citations === undefined ? {} : { citations }) };
+  });
+}
 async function findChat(scope: ApplicationScope, id: string, deleted = false,
   owner = false, db?: RelationalDatabase) {
   const row = await one(sql`SELECT c.* FROM chats c WHERE c.id=${id}
@@ -52,23 +85,28 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
     const current = await findChat(scope, id, false, false, tx);
     if (!current) return { status: "missing" };
     const expected = mutation.kind === "turn" ? mutation.turn.expectedVersion
-      : current.transcript_version;
+      : mutation.expectedVersion ?? current.transcript_version;
     if (expected !== current.transcript_version)
       return { status: "conflict", currentVersion: current.transcript_version };
     let prior: Row | null = null;
     if (mutation.kind === "append") {
-      prior = await one(sql`SELECT content FROM chat_messages WHERE id=${mutation.messageId}
+      prior = await one(sql`SELECT id FROM chat_messages WHERE id=${mutation.messageId}
         AND chat_id=${id} AND role='assistant'`, tx);
       if (!prior) return { status: "missing" };
     }
     const version = current.transcript_version + 1, created = now();
-    if (!await changes(sql`UPDATE chats SET updated_at=${created},transcript_version=${version}
+    const assistantCreated = mutation.kind === "turn" && mutation.turn.userMessage
+      ? new Date(Date.parse(created) + 1).toISOString() : created;
+    if (!await changes(sql`UPDATE chats SET updated_at=${assistantCreated},transcript_version=${version}
       WHERE id=${id} AND transcript_version=${current.transcript_version}`, tx))
       return { status: "conflict", currentVersion: current.transcript_version };
     if (mutation.kind === "append") {
-      const content = decode<unknown[]>(prior!.content, []);
-      await changes(sql`UPDATE chat_messages SET content=${encode([...content, mutation.event])}
-        WHERE id=${mutation.messageId} AND chat_id=${id}`, tx);
+      await appendEvents(tx, mutation.messageId, [
+        ...mutation.events,
+        ...(mutation.citations === undefined ? [] : [{
+          type: CHAT_MESSAGE_CITATIONS_EVENT, citations: mutation.citations,
+        }]),
+      ]);
     } else {
       const { userMessage, assistantMessage } = mutation.turn;
       if (userMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
@@ -76,12 +114,20 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         ${userMessage.turnId ?? null},'user',${encode(userMessage.content)},
         ${userMessage.files === undefined ? null : encode(userMessage.files)},
         ${userMessage.workflow === undefined ? null : encode(userMessage.workflow)},${null},${created})`, tx);
-      if (assistantMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
-        content,files,workflow,citations,created_at) VALUES(${assistantMessage.id},${id},
-        ${assistantMessage.turnId ?? null},'assistant',${encode(assistantMessage.content)},${null},${null},
-        ${assistantMessage.citations === undefined ? null : encode(assistantMessage.citations)},${created})
-        ON CONFLICT(id) DO UPDATE SET turn_id=COALESCE(excluded.turn_id,chat_messages.turn_id),
-          content=excluded.content,citations=excluded.citations`, tx);
+      if (assistantMessage) {
+        const exists = await one(sql`SELECT id FROM chat_messages WHERE id=${assistantMessage.id}
+          AND chat_id=${id} AND role='assistant'`, tx);
+        if (!exists) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
+          content,files,workflow,citations,created_at) VALUES(${assistantMessage.id},${id},
+          ${assistantMessage.turnId ?? null},'assistant',${encode([])},${null},${null},${null},${assistantCreated})`, tx);
+        await appendEvents(tx, assistantMessage.id, [
+          ...(exists ? [{ type: CHAT_MESSAGE_RESET_EVENT }] : []),
+          ...assistantMessage.content,
+          ...(assistantMessage.citations === undefined ? [] : [{
+            type: CHAT_MESSAGE_CITATIONS_EVENT, citations: assistantMessage.citations,
+          }]),
+        ]);
+      }
     }
     return { status: "committed", currentVersion: version };
   });
@@ -117,7 +163,10 @@ export const chatRepository: CreateChatRepository = (scope) => ({
     if (!chat) return null;
     const values = messages ? (await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
       ORDER BY created_at,id`)).map(chatMessage) : [];
-    return { chat, messages: values };
+    const events = values.length ? await rows(sql`SELECT e.* FROM chat_message_events e
+      JOIN chat_messages m ON m.id=e.message_id WHERE m.chat_id=${id}
+      ORDER BY e.message_id,e.ordinal`) : [];
+    return { chat, messages: projectEvents(values, events) };
   },
   async owns(id) { return !!await findChat(scope, id, false, true); },
   commit(id, mutation) { return commitChat(scope, id, mutation); },
