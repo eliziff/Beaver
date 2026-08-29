@@ -278,6 +278,44 @@ describe("assistantSessionReducer", () => {
     expect(assistantText(state)).toBe("main response");
   });
 
+  it("merges live reader deltas and replaces them with the durable terminal snapshot", () => {
+    let state = running();
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "running",
+    });
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "running",
+      activity: { id: "search-1", tool: "search_sources", label: "Searching", status: "running" },
+    });
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "running",
+      activity: { id: "search-1", tool: "search_sources", label: "Searched", status: "completed" },
+    });
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "running",
+      activity: { id: "read-1", tool: "Read", label: "Reading", status: "running" },
+    });
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "running",
+    });
+
+    expect(state.readers[0].activities).toEqual([
+      expect.objectContaining({ id: "search-1", status: "completed" }),
+      expect.objectContaining({ id: "read-1", status: "running" }),
+    ]);
+
+    state = applyRaw(state, {
+      type: "subagent_run", id: "reader-1", task: "Read the record", status: "completed",
+      output: "Done.",
+      activities: [{ id: "read-1", tool: "Read", label: "Read", status: "completed" }],
+      citations: [],
+    });
+    expect(state.readers[0]).toMatchObject({
+      status: "completed", output: "Done.",
+      activities: [{ id: "read-1", status: "completed" }],
+    });
+  });
+
   it("keeps every citation-heavy reader when reconciling a transcript", () => {
     const reader = (id: number, activityCount: number) => ({
       type: "subagent_run",

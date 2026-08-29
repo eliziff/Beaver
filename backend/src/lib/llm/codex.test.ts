@@ -195,6 +195,40 @@ describe("Codex app-server adapter", () => {
     }]);
   });
 
+  it("marks the changed native subagent activity without dropping its snapshot", async () => {
+    const updates: Record<string, unknown>[] = [];
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") {
+        setTimeout(() => {
+          const item = {
+            id: "spawn-1", type: "collabAgentToolCall", tool: "spawnAgent",
+            status: "inProgress", prompt: "Read the authorities",
+            receiverThreadIds: ["reader-1"],
+            agentsStates: { "reader-1": { status: "pendingInit" } },
+          };
+          transport.emit("item/started", { threadId, turnId, item });
+          complete();
+        }, 0);
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+
+    await streamCodex({
+      model: "codex:gpt-5.6-luna",
+      systemPrompt: "",
+      messages: [{ role: "user", content: "Research." }],
+      callbacks: { onSubagentUpdate: (update) => updates.push(update) },
+    });
+
+    expect(updates).toEqual([expect.objectContaining({
+      id: "reader-1",
+      activity: expect.objectContaining({ id: "spawn-1" }),
+      activities: [expect.objectContaining({ id: "spawn-1" })],
+    })]);
+  });
+
   it("steers the active native turn", async () => {
     let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
     transport.request.mockImplementation(async (method: string) => {

@@ -106,11 +106,9 @@ export type ProviderSubagentUpdate = {
   status: "running" | "completed" | "error" | "interrupted";
   output?: string;
   error?: string;
-  activities?: Array<{
-    id: string;
-    label: string;
-    status: "running" | "completed" | "error" | "interrupted";
-  }>;
+  activity?: NonNullable<ProviderSubagentUpdate["activities"]>[number];
+  activities?: Array<{ id: string; label: string;
+    status: "running" | "completed" | "error" | "interrupted" }>;
 };
 
 export type StreamCallbacks = {

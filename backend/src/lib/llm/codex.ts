@@ -325,7 +325,7 @@ async function runCodexTurn(
         ...(status === "error" && message ? { error: message } : {}),
       };
       nativeAgents.set(id, update);
-      params.callbacks?.onSubagentUpdate?.(update);
+      params.callbacks?.onSubagentUpdate?.({ ...update, activity });
     }
   };
 
