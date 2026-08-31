@@ -5,14 +5,15 @@ vi.mock("./runtime", () => ({ runtime: {
   mode: "cloud",
   chats: async () => ({}),
   chat: async () => ({}),
+  user: async () => ({}),
 } }));
 vi.mock("./routes/chat", () => ({
   createChatRouter: () => (_req: unknown, res: { sendStatus: (status: number) => void }) =>
     res.sendStatus(204),
 }));
 vi.mock("./routes/user", () => ({
-  userRouter: (_req: unknown, res: { sendStatus: (status: number) => void }) =>
-    res.sendStatus(204),
+  createUserRouter: () =>
+    (_req: unknown, res: { sendStatus: (status: number) => void }) => res.sendStatus(204),
 }));
 
 import { api } from "./api";

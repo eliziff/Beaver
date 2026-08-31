@@ -7,19 +7,13 @@ import {
     type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquarePlus, Upload } from "lucide-react";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
-import {
-    DocTable,
-    type DocTableFolder,
-    type DocTableSelectionActions,
-} from "../documents/DocTable";
-import { DocumentAutomation } from "../documents/DocumentAutomation";
-import { FolderSvgIcon } from "../shared/FolderSvgIcon";
+import { DocTable, type DocTableFolder } from "../documents/DocTable";
+import { DirectoryActions, type UploadActions } from "../documents/UploadAction";
 import { PageHeader } from "../shared/PageHeader";
-import { TableToolbar } from "../shared/TableToolbar";
 import type { Document } from "../shared/types";
-import { TabPillButton } from "../ui/tab-pill-button";
+import { Tabs } from "../ui/tabs";
+import { SearchBar } from "../ui/search-bar";
 import { usePagedDirectory } from "../../hooks/usePagedDirectory";
 import {
     directoryResource,
@@ -86,9 +80,7 @@ export function LibraryCollectionPage({
     const search = workspace?.views[kind].search ?? localSearch;
     const setSearch = (value: string) =>
         workspace ? workspace.setSearch(kind, value) : setLocalSearch(value);
-    const [selection, setSelection] =
-        useState<DocTableSelectionActions | null>(null);
-    const [upload, setUpload] = useStoredAction();
+    const [uploadActions, setUploadActions] = useState<UploadActions | null>(null);
     const [createFolder, setCreateFolder] = useStoredAction();
     const title = kind === "files" ? "Files" : "Templates";
     const resource = useMemo(() => directoryResource({ library: kind }), [kind]);
@@ -98,20 +90,20 @@ export function LibraryCollectionPage({
         search,
         [resource, search],
     );
+    const { reload, replaceDocumentParseStates } = directory;
     const operations = useMemo(
         () => ({
             ...resource,
             refreshCollection: (parentId?: string | null) =>
-                directory.reload(parentId),
+                reload(parentId),
             refreshDocumentParseStates: async (documentIds: string[]) =>
-                directory.replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
+                replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
             retryPdfParse: retryLibraryPdfParse.bind(null, kind),
         }),
-        [directory.reload, directory.replaceDocumentParseStates, kind, resource],
+        [kind, reload, replaceDocumentParseStates, resource],
     );
 
-    function openChat() {
-        const documents = selection?.selectedDocuments ?? [];
+    function openChat(documents: Document[]) {
         if (onOpenInChat) onOpenInChat(documents);
         else {
             stageNewChatDocuments(documents);
@@ -123,99 +115,43 @@ export function LibraryCollectionPage({
         <div className="flex h-full min-h-0 flex-col">
             {!embedded && (
                 <PageHeader
-                    breadcrumbs={[{ label: "Library" }, { label: title }]}
+                    breadcrumbs={[{ label: "Library" }]}
                     actions={[
                         {
                             type: "search",
                             value: search,
                             onChange: setSearch,
                             placeholder: `Search ${title.toLowerCase()}…`,
-                        },
-                        {
-                            icon: <Upload className="h-3.5 w-3.5" />,
-                            label: <span className="hidden sm:inline">Upload</span>,
-                            title: "Upload",
-                            onClick: upload ?? undefined,
-                            disabled: !upload || directory.loading,
+                            booleanSearch: true,
                         },
                     ]}
                 />
             )}
             {embedded && (
-                <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2">
-                    <label className="flex h-9 min-w-0 flex-1 items-center rounded-md border border-gray-300 bg-white px-3">
-                        <span className="sr-only">Search {title.toLowerCase()}</span>
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(event) => setSearch(event.currentTarget.value)}
-                            placeholder={`Search ${title.toLowerCase()}…`}
-                            className="min-w-0 flex-1 bg-transparent text-base text-gray-800 outline-none placeholder:text-gray-400 sm:text-sm"
-                        />
-                    </label>
-                    <button
-                        type="button"
-                        onClick={upload ?? undefined}
-                        disabled={!upload || directory.loading}
-                        className="grid size-9 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-40"
-                        aria-label="Upload"
-                        title="Upload"
-                    >
-                        <Upload className="size-4" aria-hidden="true" />
-                    </button>
+                <div className="border-b border-gray-200 px-3 py-2">
+                    <SearchBar value={search} onValueChange={setSearch} booleanSearch
+                        placeholder={`Search ${title.toLowerCase()}…`}
+                        aria-label={`Search ${title.toLowerCase()}`} />
                 </div>
             )}
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-                <TableToolbar
-                    items={LIBRARY_TABS}
-                    active={kind}
-                    onChange={(next) =>
+                <Tabs
+                    options={LIBRARY_TABS.map(({ id, label }) => ({ value: id, label }))}
+                    value={kind}
+                    onValueChange={(next) =>
                         onKindChange
-                            ? onKindChange(next)
-                            : navigate(libraryRoute(next))
+                            ? onKindChange(next as LibraryKind)
+                            : navigate(libraryRoute(next as LibraryKind))
                     }
+                    ariaLabel="Library sections"
+                    variant="quiet"
+                    className="h-full"
                     actions={
-                        <div className="flex items-center gap-1.5">
-                            <TabPillButton
-                                disabled={!selection?.selectedCount}
-                                onClick={openChat}
-                            >
-                                <MessageSquarePlus className="h-3.5 w-3.5" />
-                                <span
-                                    className={
-                                        embedded ? "sr-only" : "hidden sm:inline"
-                                    }
-                                >
-                                    {onOpenInChat
-                                        ? "Open in chat"
-                                        : "Open in new chat"}
-                                </span>
-                            </TabPillButton>
-                            {kind === "files" && (
-                                <DocumentAutomation
-                                    document={selection?.automationDocument ?? null}
-                                    showWhenUnavailable
-                                    onDocumentChanged={
-                                        selection?.onAutomationDocumentChanged
-                                    }
-                                />
-                            )}
-                            <TabPillButton
-                                onClick={createFolder ?? undefined}
-                                disabled={!createFolder || directory.loading}
-                            >
-                                <FolderSvgIcon className="h-3.5 w-3.5" />
-                                <span
-                                    className={
-                                        embedded ? "sr-only" : "hidden sm:inline"
-                                    }
-                                >
-                                    Folder
-                                </span>
-                            </TabPillButton>
-                        </div>
+                        <DirectoryActions actions={uploadActions}
+                            busy={directory.loading} compact={embedded}
+                            onCreateFolder={createFolder} />
                     }
-                />
+                >
                 <DocTable
                     scopeKey={kind}
                     documents={directory.documents}
@@ -223,9 +159,10 @@ export function LibraryCollectionPage({
                     loading={directory.loading}
                     search={search}
                     operations={operations}
-                    onAddDocumentsActionChange={setUpload}
+                    onUploadActionsChange={setUploadActions}
                     onCreateFolderActionChange={setCreateFolder}
-                    onSelectionActionsChange={setSelection}
+                    onOpenSelectionInChat={openChat}
+                    openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"}
                     selectionFirst
                     compact={embedded}
                     emptyDropLabel={
@@ -238,6 +175,7 @@ export function LibraryCollectionPage({
                     onFolderExpanded={directory.ensureParent}
                     onLoadMore={directory.loadMore}
                 />
+                </Tabs>
             </div>
         </div>
     );

@@ -1,142 +1,138 @@
-import {
-    fireEvent,
-    render,
-    screen,
-    waitFor,
-} from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import type { Workflow } from "../shared/types";
 import { WorkflowList } from "./WorkflowList";
 
-const mocks = vi.hoisted(() => ({
-    deleteWorkflow: vi.fn(),
-    hideWorkflow: vi.fn(),
-    listWorkflows: vi.fn(),
-    listHiddenWorkflows: vi.fn(),
-    listSystemWorkflows: vi.fn(),
-    push: vi.fn(),
-    unhideWorkflow: vi.fn(),
-}));
-
-vi.mock("react-router-dom", () => ({
-    useNavigate: () => mocks.push,
-}));
+const mocks = vi.hoisted(() => ({ listWorkflows: vi.fn(), listWorkProducts: vi.fn(),
+    createReview: vi.fn() }));
 vi.mock("@/app/lib/beaverApi", () => ({
-    deleteWorkflow: mocks.deleteWorkflow,
-    hideWorkflow: mocks.hideWorkflow,
-    unhideWorkflow: mocks.unhideWorkflow,
     listWorkflows: mocks.listWorkflows,
-    listHiddenWorkflows: mocks.listHiddenWorkflows,
-    listSystemWorkflows: mocks.listSystemWorkflows,
+    listWorkProducts: mocks.listWorkProducts,
+    listTabularReviews: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    createTabularReview: mocks.createReview,
+    deleteWorkflow: vi.fn(), createWorkflow: vi.fn(), updateWorkflow: vi.fn(),
 }));
-vi.mock("./NewWorkflowModal", () => ({ NewWorkflowModal: () => null }));
-vi.mock("./UseWorkflowModal", () => ({
-    UseWorkflowModal: ({ workflow }: { workflow: Workflow | null }) =>
-        workflow ? <p>Using {workflow.metadata.title}</p> : null,
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+    useUserProfile: () => ({ profile: { features: { authorities: true } } }),
 }));
 
-const workflow = (
-    id: string,
-    title: string,
-    type: "assistant" | "tabular",
-    access: Partial<
-        Pick<Workflow, "allow_edit" | "is_owner" | "is_system" | "user_id">
-    > = {},
-) =>
-    ({
-        id,
-        user_id: "user-1",
-        metadata: {
-            title,
-            description: null,
-            type,
-            contributors: [],
-            language: "English",
-            version: "1.0.0",
-            practice: null,
-            jurisdictions: null,
-        },
-        skill_md: null,
-        columns_config: null,
-        is_system: false,
-        created_at: "2026-07-29T00:00:00.000Z",
-        ...access,
-    }) satisfies Workflow;
-
-beforeEach(() => {
-    mocks.deleteWorkflow.mockReset().mockResolvedValue(undefined);
-    mocks.hideWorkflow.mockReset().mockResolvedValue(undefined);
-    mocks.unhideWorkflow.mockReset().mockResolvedValue(undefined);
-    mocks.push.mockReset();
-    mocks.listWorkflows.mockReset().mockResolvedValue({ items: [
-        workflow("assistant-1", "Draft contract", "assistant"),
-        workflow("tabular-1", "Review leases", "tabular"),
-    ], next_cursor: null });
-    mocks.listHiddenWorkflows.mockReset();
-    mocks.listHiddenWorkflows.mockResolvedValue([]);
-    mocks.listSystemWorkflows.mockReset().mockResolvedValue([]);
+const item = (id: string, title: string, category: string,
+    launcher: Workflow["launcher"]): Workflow => ({
+    id, user_id: null, is_system: true, created_at: "2026-08-30T00:00:00Z",
+    metadata: { title, description: `${title} description`, category, audiences: ["general"],
+        contributors: [], language: "English", version: "1", jurisdictions: ["General"] },
+    launcher,
 });
-it("filters loaded workflows and opens the selected one", async () => {
-    render(<WorkflowList />);
-
-    await screen.findByText("Draft contract");
-    fireEvent.change(screen.getByPlaceholderText("Search workflows…"), {
-        target: { value: "lease" },
-    });
-    expect(screen.queryByText("Draft contract")).not.toBeInTheDocument();
-
-    fireEvent.click(await screen.findByText("Review leases"));
-    expect(screen.getByText("Using Review leases")).toBeInTheDocument();
+const drafting = item("drafting", "Drafting", "Drafting and document preparation", {
+    kind: "instructions", variants: [{ id: "drafting-written", label: "Draft",
+        result: "Written response", execution: "assistant", skill_md: "Draft",
+        columns_config: null }],
 });
-it("uses workflow capabilities for row and bulk actions", async () => {
-    mocks.listWorkflows.mockResolvedValue({ items: [
-        workflow("owned", "Owned workflow", "assistant", {
-            allow_edit: true,
-            is_owner: true,
-        }),
-        workflow("shared-edit", "Editable share", "assistant", {
-            allow_edit: true,
-            is_owner: false,
-        }),
-        workflow("shared-read", "Read-only share", "assistant", {
-            allow_edit: false,
-            is_owner: false,
-        }),
-        workflow("system", "System workflow", "assistant", {
-            allow_edit: false,
-            is_owner: false,
-            is_system: true,
-            user_id: null,
-        }),
-    ], next_cursor: null });
-    render(<WorkflowList />);
+const agreements = item("agreement-work", "Agreement Work", "Agreements", {
+    kind: "instructions", variants: [{ id: "agreements-written", label: "Review",
+        result: "Written review", execution: "assistant", skill_md: "Review",
+        columns_config: null }],
+});
+const templates = item("templates", "Templates", "Templates", {
+    kind: "instructions", variants: [
+        { id: "create-template", label: "Create a reusable template", result: null,
+            execution: "assistant", skill_md: "Create", columns_config: null },
+        { id: "builtin-draft-from-template", label: "Draft from a template", result: null,
+            execution: "assistant", skill_md: "Draft", columns_config: null },
+    ],
+});
+const courtRecords = item("court-records", "Court Records",
+    "Court and hearing materials", { kind: "court_records" });
+courtRecords.metadata.jurisdictions = ["Alberta", "Federal"];
 
-    await screen.findByText("Editable share");
-    expect(screen.queryByRole("checkbox", {
-        name: "Select Editable share",
-    })).not.toBeInTheDocument();
+beforeAll(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
+beforeEach(() => { vi.clearAllMocks(); mocks.listWorkProducts.mockResolvedValue([]); });
+
+it("filters one catalogue and opens a singleton workspace in one click", async () => {
+    agreements.metadata.audiences = ["solicitor"];
+    courtRecords.metadata.audiences = ["litigator"];
+    mocks.listWorkflows.mockResolvedValue([drafting, agreements, courtRecords, courtRecords]);
+    const view = render(<MemoryRouter><WorkflowList /><Location /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Start Draft in Chat" }))
+        .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Details for Draft" }));
+    expect(screen.getByText("Drafting description")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
+    expect(await screen.findByRole("button", { name: "Start Review in Chat" }))
+        .toBeInTheDocument();
+    expect(screen.queryByText("Written review")).toBeNull();
+    expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("tab", { name: "All" }));
+    await waitFor(() => expect(view.container.querySelectorAll(
+        '[data-workflow-id="court-records"]')).toHaveLength(1));
+    expect(view.container.querySelector(
+        '[data-workflow-category="Court materials"] summary')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Details for Court records" }));
+    expect(screen.getByText("Jurisdictions: Alberta, Federal")).toBeVisible();
     fireEvent.click(screen.getByRole("button", {
-        name: "More actions for Editable share",
+        name: "Start Court records in Court Records",
     }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
-    expect(mocks.push).toHaveBeenCalledWith(
-        "/workflows/assistant/shared-edit",
-    );
-
-    expect(
-        screen.queryByRole("button", {
-            name: "More actions for Read-only share",
-        }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", {
-        name: "Select Read-only share",
-    })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("checkbox", {
-        name: "Select System workflow",
-    }));
-    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
-    await waitFor(() =>
-        expect(mocks.hideWorkflow).toHaveBeenCalledWith("system"),
-    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/court-records");
 });
+
+it("hands template drafting to Assistant without another workflow modal", async () => {
+    mocks.listWorkflows.mockResolvedValue([templates]);
+    const view = render(<MemoryRouter><WorkflowList /><Location /></MemoryRouter>);
+    await waitFor(() => expect(view.container.querySelector(
+        '[data-workflow-category="Templates"] summary')).not.toBeNull());
+    fireEvent.click(view.container.querySelector(
+        '[data-workflow-category="Templates"] summary')!);
+    fireEvent.click(screen.getByRole("button", {
+        name: "Start Draft from a template in Chat",
+    }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/assistant");
+    expect(screen.getByTestId("location").dataset.state).toContain(
+        '"variant_id":"builtin-draft-from-template"');
+    expect(screen.getByTestId("location").dataset.state).toContain(
+        '"documentTab":"templates"');
+});
+
+it("switches audience tabs locally without loading or another request", async () => {
+    agreements.metadata.audiences = ["solicitor"];
+    mocks.listWorkflows.mockResolvedValue([drafting, agreements]);
+    const view = render(<MemoryRouter><WorkflowList /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Start Draft in Chat" }))
+        .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Review in Chat" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
+    expect(screen.getByRole("button", { name: "Start Draft in Chat" }))
+        .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Review in Chat" }))
+        .toBeInTheDocument();
+    expect(view.container.querySelector(".animate-pulse")).toBeNull();
+    expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
+});
+
+it("resumes Court Records and Authorities drafts beside workflow reviews", async () => {
+    mocks.listWorkflows.mockResolvedValue([drafting]);
+    mocks.listWorkProducts
+        .mockResolvedValueOnce([{ id: "record-1", kind: "court-record",
+            title: "Motion record", updatedAt: "2026-08-30T02:00:00Z" }])
+        .mockResolvedValueOnce([{ id: "book-1", kind: "authorities",
+            title: "Book of authorities", updatedAt: "2026-08-30T01:00:00Z" }]);
+    render(<MemoryRouter><WorkflowList /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByText("Continue working"));
+    expect(screen.getByRole("link", { name: "Resume Motion record in Court Records" }))
+        .toHaveAttribute("href", "/court-records?draft=record-1");
+    expect(screen.getByRole("link", { name: "Resume Book of authorities in Authorities" }))
+        .toHaveAttribute("href", "/table-of-authorities?draft=book-1");
+});
+
+function Location() {
+    const location = useLocation();
+    return <output data-testid="location"
+        data-state={JSON.stringify(location.state)}>{location.pathname}</output>;
+}

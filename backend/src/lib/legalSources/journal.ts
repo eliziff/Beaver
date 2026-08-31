@@ -561,11 +561,15 @@ async function viewer(identifier: string) {
     schemaVersion: "mike.legal-source.v1" as const,
     provider: "journal" as const,
     reference: {
+      provider: "journal" as const,
+      id: article.identity,
+      kind: "journal" as const,
       docType: "articles" as const,
       citation: article.citation,
       sourceId: article.identity,
       language: article.language,
       dataset: article.dataset || null,
+      sourceSha256: viewer.documentRevision,
     },
     metadata: {
       title: article.title,

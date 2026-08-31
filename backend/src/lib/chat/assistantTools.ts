@@ -15,9 +15,13 @@ import {
 } from "../legalSourceRegistry";
 import type { RemoteLegalSourceDocument } from "../legalSources/remoteProvider";
 import { fixDocumentSupras } from "../docxDeterministicCleanup";
-import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
-import { resolveDraftingOptions } from "../draftingStyle";
-import { getDraftingStyleSettings } from "../draftingStyleStore";
+import { createDocxAuthorityLedger,
+  resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
+import {
+  DEFAULT_DRAFTING_STYLE,
+  resolveDraftingOptions,
+  type DraftingStyleSettings,
+} from "../draftingStyle";
 import {
   applyTrackedEdits,
   extractDocxBodyText,
@@ -55,27 +59,22 @@ import type {
   Tool,
 } from "../llm";
 import {
-  getTableOfAuthoritiesJob,
-  submitTableOfAuthoritiesDocument,
-} from "../tableOfAuthorities";
-import {
   assistantReadEvidenceActivityLabel,
   assistantToolActivityLabel,
   type A2AJReferenceDirection,
 } from "./tools/a2ajTools";
 import {
   createA2AJPassageEvidence,
-  createCourtlistenerEvidence,
   createGovInfoEvidence,
   createGovUkEmploymentTribunalEvidence,
-  createHansardEvidence,
   createTnaEvidence,
   createLibraryEvidence,
-  createPublicJournalPassageEvidence,
   legalEvidenceProseIntegrityErrors,
+  legalSourceEvidence,
   modelEvidencePassage,
   registerLegalEvidence,
   type LegalEvidenceReceipt,
+  type LegalEvidenceSpan,
   type LegalEvidenceTurnState,
   type RegisteredEvidence,
 } from "./legalEvidence";
@@ -115,8 +114,8 @@ import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
 import {
   supraFixEvent,
-  tableOfAuthoritiesEvent,
-} from "./localAutomationEvent";
+  workProductEvent,
+} from "./localWorkflowRun";
 import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   toolText,
@@ -129,6 +128,15 @@ import type { TabularCellStore, WorkflowStore } from "./types";
 import type { ReadSubagentAssignment } from "./readSubagents";
 import type { AssistantEvent } from "./turnEngine";
 import { safeErrorMessage } from "../safeError";
+import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
+import type { CourtRecordsApplication } from "../courtRecordsApplication";
+import { COURT_RECORD_PROFILES, COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
+import type { FeaturePreferences } from "../userPreferences";
+import type { WorkProductApplication } from "../workProductApplication";
+import type { WorkProductKind } from "../workProduct";
+import { createResearchSetState, decodeResearchSetState, publicResearchSetActionSchema,
+  researchQueryReceipt, researchSetSummary, type ResearchSetActor } from "../researchSet";
+import { createResearchSetQueryService } from "../researchSetQuery";
 
 const DOCUMENT_ID_PROPERTY = {
   type: "string",
@@ -144,26 +152,23 @@ const objectSchema = (
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
-const DOCUMENT_OPERATION_TOOL: Tool & BeaverToolPolicy = {
+const documentOperationTool = (): Tool & BeaverToolPolicy => ({
   name: "document_operation",
   specialist: true,
   sequential: true,
   activity: (input) => ({
     metadata: "Updating Library metadata",
     fix_supras: "Fixing supra references",
-    table_of_authorities: "Creating a table of authorities",
   } as Record<string, string>)[String(input.action)] ?? "Updating document",
-  description:
-    "Specialist operation on one version-pinned Library document. Actions: metadata saves user-requested classification or notes; fix_supras creates native Word supra cross-references; lint_structure reports structural defects without editing; table_of_authorities starts deterministic authorities detection for DOCX or PDF. Do not pre-compute filesystem paths.",
+  description: "Specialist operation on one version-pinned Library document. " +
+    "Actions: metadata saves user-requested classification or notes; fix_supras " +
+    "creates native Word supra cross-references; lint_structure reports structural " +
+    "defects without editing. Do not pre-compute filesystem paths.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: {
       type: "string",
-      enum: [
-        "metadata",
-        "fix_supras",
-        "table_of_authorities",
-      ],
+      enum: ["metadata", "fix_supras"],
     },
     document_id: DOCUMENT_ID_PROPERTY,
     kind: { type: "string", enum: ["file", "template"] },
@@ -174,9 +179,8 @@ const DOCUMENT_OPERATION_TOOL: Tool & BeaverToolPolicy = {
       description: { type: "string" },
     }),
     notes: { type: "string" },
-    split_fallback: { type: "string", enum: ["off", "auto"] },
   }, ["action", "document_id"]),
-};
+});
 const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   name: "lint_document",
   specialist: true,
@@ -187,6 +191,48 @@ const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   annotations: { readOnlyHint: true },
   inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
 };
+const COURT_RECORD_PROFILE_IDS = COURT_RECORD_PROFILES.map(({ id }) => id);
+const COURT_RECORD_COVER_FIELDS = [...new Set(
+  COURT_RECORD_PROFILES.flatMap(({ coverFields }) => coverFields),
+)];
+const COURT_RECORD_SLOT_IDS = [...new Set(COURT_RECORD_PROFILES.flatMap(({ slots }) =>
+  slots.filter((slot) => slot.requirement !== "forbidden" && !slot.generated &&
+    !slot.descriptionOnly).map(({ id }) => id)))];
+const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
+  create: "Creating draft", select: "Opening draft", update: "Updating draft",
+  refresh: "Refreshing draft", build: "Building draft", research: "Updating saved research",
+};
+const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy => ({
+  name: "update_work_product",
+  specialist: true,
+  sequential: true,
+  activity: (input) => WORK_PRODUCT_ACTIVITY[String(input.action)] ?? "Updating draft",
+  description: "Create, select, or update a Court Record, Authorities draft, or saved " +
+    "research set using the same operations as the workspace.",
+  annotations: { readOnlyHint: false },
+  inputSchema: objectSchema({
+    action: { type: "string", enum: ["create", "select", "update", "refresh", "build"] },
+    kind: { type: "string", enum: ["court-record",
+      ...(authoritiesEnabled ? ["authorities"] : []), "research-set"] },
+    draft_id: { type: "string", minLength: 1 },
+    title: { type: "string", minLength: 1, maxLength: 300 },
+    profile_id: { type: "string", enum: COURT_RECORD_PROFILE_IDS },
+    cover: objectSchema(Object.fromEntries(COURT_RECORD_COVER_FIELDS.map((field) =>
+      [field, { type: "string", minLength: 1, maxLength: 5000 }]))),
+    document_id: DOCUMENT_ID_PROPERTY,
+    slot_id: { type: "string", enum: COURT_RECORD_SLOT_IDS },
+    replace_entry_id: { type: "string" },
+    child_draft_id: { type: "string", minLength: 1 },
+    output_role: { type: "string", enum: ["table", "book"] },
+    evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
+      items: { type: "string", minLength: 1 } },
+    query_ids: { type: "array", uniqueItems: true,
+      items: { type: "string", minLength: 1 } },
+    research_action: { type: "object", description:
+      "Use {type:'save'}; {type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',labelIds?}; " +
+      "{type:'label',id?,name,parentId?,color?}; {type:'annotate',kind:'source'|'evidence',id,labelIds?,note?}; {type:'memo',markdown}." },
+  }, ["action", "kind"]),
+});
 
 function oneHopLegalScope(
   document: NativeDocument,
@@ -529,24 +575,6 @@ async function readNonDocumentResource(
         })
       : fail("Workflow not found");
   }
-  if (resource?.kind === "job") {
-    try {
-      const payload = {
-        ok: true,
-        resource: requested,
-        job: await getTableOfAuthoritiesJob(userId, resource.id),
-      };
-      const event = tableOfAuthoritiesEvent(payload, call.id);
-      return {
-        ...result(payload),
-        ...(event ? { events: [event] } : {}),
-      };
-    } catch (error) {
-      return fail(
-        safeErrorMessage(error, "Table of Authorities status lookup failed"),
-      );
-    }
-  }
   if (resource?.kind !== "source") return null;
   if (resource.provider !== "pdf") {
     return fail(`Read does not support source provider '${resource.provider}'.`);
@@ -598,14 +626,6 @@ async function readNonDocumentResource(
 }
 
 type EvidenceSource = Omit<RegisteredEvidence, "receipt">;
-type EvidenceSpan = {
-  text: string;
-  start: number;
-  end: number;
-  blockId?: string;
-  locator?: LegalEvidenceReceipt["locator"];
-};
-
 function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
   const source = passage.documentArtifact;
   if (passage.source.provider !== "a2aj") return { source };
@@ -618,7 +638,7 @@ function legalEvidenceSource(passage: LegalSourcePassage): EvidenceSource {
 function cleanSearchEvidenceSpan(
   passage: LegalSourcePassage,
   hit: { at: number; excerpt: string },
-): EvidenceSpan {
+): LegalEvidenceSpan {
   const matchEnd = hit.at + hit.excerpt.length;
   const source = passage.documentArtifact;
   if (passage.role === "document" || !passage.blockArtifact) {
@@ -642,107 +662,6 @@ function cleanSearchEvidenceSpan(
   while (start < end && /\s/u.test(text[start])) start += 1;
   while (end > start && /\s/u.test(text[end - 1])) end -= 1;
   return { text: text.slice(start, end), start, end };
-}
-
-function legalSourceEvidence(
-  passage: LegalSourcePassage,
-  span?: EvidenceSpan,
-): LegalEvidenceReceipt | undefined {
-  if (passage.source.provider === "a2aj") {
-    const native = objectRecord(passage.native);
-    if (typeof native?.citation === "string" &&
-        typeof native.dataset === "string" &&
-        (native.language === "en" || native.language === "fr")) {
-      const source = passage.documentArtifact;
-      const block = passage.blockArtifact;
-      const selected = span ?? (block
-        ? {
-            text: block.text,
-            start: block.start,
-            end: block.end,
-            blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-            ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
-              ? { locator: { kind: block.kind as "paragraph" | "page" | "section" | "footnote",
-                  label: block.label } }
-              : {}),
-          }
-        : null);
-      return selected ? createA2AJPassageEvidence({
-        citation: native.citation,
-        name: typeof native.name === "string" ? native.name : null,
-        dataset: native.dataset,
-        language: native.language,
-        sourceSha256: structureNative().documentRevision(source),
-        spanText: selected.text,
-        start: selected.start,
-        end: selected.end,
-        externalUrl: typeof native.url === "string" ? native.url : null,
-        sourceClass: passage.source.kind === "legislation" ? "legislation" : "case",
-        blockId: selected.blockId,
-        locator: selected.locator,
-      }) : undefined;
-    }
-  }
-  if (!span && passage.role === "document") {
-    return undefined;
-  }
-  if (passage.source.provider === "journal") {
-    const source = passage.documentArtifact;
-    return createPublicJournalPassageEvidence({
-      citation: passage.source.citation ?? passage.source.id,
-      name: passage.source.title ?? null,
-      date: passage.source.date ?? null,
-      url: passage.source.url ?? null,
-      text: span?.text ?? passage.text,
-      sourceSha256: structureNative().documentRevision(source),
-      articleId: passage.source.id,
-      language: passage.source.language,
-      locatorKind: span?.locator?.kind ?? passage.locator.requested?.kind ?? "document",
-      locatorLabel: span?.locator?.label ?? passage.locator.label,
-    });
-  }
-  const sourceClass = passage.source.kind === "legislation"
-    ? "legislation"
-    : passage.source.kind === "case"
-      ? "case"
-      : "commentary";
-  const jurisdiction = passage.source.provider === "courtlistener" ||
-      passage.source.provider === "govinfo"
-    ? "US"
-    : passage.source.provider === "tna" ||
-        passage.source.provider === "govuk-et"
-      ? "UK"
-      : "CA-ON";
-  const createEvidence = {
-    courtlistener: createCourtlistenerEvidence,
-    tna: createTnaEvidence,
-    "govuk-et": createGovUkEmploymentTribunalEvidence,
-    govinfo: createGovInfoEvidence,
-    hansard: createHansardEvidence,
-  }[passage.source.provider];
-  if (!createEvidence) return undefined;
-  const source = passage.documentArtifact;
-  return createEvidence({
-    jurisdiction,
-    sourceClass,
-    stableSourceId: [
-      passage.source.id,
-      passage.source.part ?? "",
-    ].join(":"),
-    sourceReference: passage.source,
-    sourceSha256: structureNative().documentRevision(source),
-    spanText: span?.text ?? passage.text,
-    citation: passage.source.citation ?? passage.source.id,
-    name: passage.source.title,
-    dataset: passage.source.collection ?? passage.source.provider,
-    language: passage.source.language,
-    version: passage.source.date,
-    externalUrl: passage.source.url,
-    locatorKind: span?.locator?.kind ??
-      (span ? "document" : passage.locator.requested?.kind ?? "document"),
-    locatorLabel: span?.locator?.label ??
-      (span ? `characters ${span.start + 1}–${span.end}` : passage.locator.label),
-  });
 }
 
 function sourceReference(
@@ -949,6 +868,27 @@ async function readLegalSourceResource(
         }),
         ...(evidence.length ? { evidence } : {}),
         ...(evidenceSources.size ? { evidenceSources } : {}),
+        queryReceipts: [{
+          call_id: call.id,
+          tool: "Read",
+          executed_at: new Date().toISOString(),
+          executor_version: "legal-source-pattern-v1",
+          input: {
+            resource: trimmed(args.file_path),
+            pattern,
+            ...(locator ? { locator_kind: locatorKind, locator } : {}),
+            ...(endLocator ? { end_locator: endLocator } : {}),
+            context_blocks: locator
+              ? Math.min(2, Math.max(0, Math.trunc(Number(args.context_blocks) || 0)))
+              : 0,
+            max_results: maxResults,
+            context_chars: contextChars,
+          },
+          results: evidence.map(({ evidence_id }, rank) => ({
+            rank: rank + 1,
+            evidence_id,
+          })),
+        }],
       };
     }
 
@@ -2330,6 +2270,21 @@ type AssistantToolsDependencies = {
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
+  workProducts: Pick<WorkProductApplication,
+    "create" | "get" | "resolve" | "applyResearchSetAction">;
+  model?: string;
+  chatId?: string;
+  researchSetId?: string;
+  researchSetRevision?: number;
+  authorities: Pick<AuthoritiesWorkspaceApplication,
+    "importDraft" | "refresh" | "build" | "addReceipts">;
+  authoritiesId?: string;
+  authoritiesRevision?: number;
+  courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
+  courtRecordId?: string;
+  courtRecordRevision?: number;
+  productFeatures?: FeaturePreferences;
+  draftingStyle?: DraftingStyleSettings;
   workflows?: WorkflowStore;
   allowedDocumentIds?: Set<string>;
   matterId?: string | null;
@@ -2370,6 +2325,19 @@ export function assistantTools<Context extends {
     documents,
     library,
     projects,
+    workProducts,
+    model = "assistant",
+    chatId,
+    researchSetId,
+    researchSetRevision,
+    authorities,
+    authoritiesId,
+    authoritiesRevision,
+    courtRecords,
+    courtRecordId,
+    courtRecordRevision,
+    productFeatures,
+    draftingStyle = DEFAULT_DRAFTING_STYLE,
     workflows,
     scope: turnScope,
     readerAssignment,
@@ -2381,10 +2349,11 @@ export function assistantTools<Context extends {
   }: AssistantToolsDependencies,
 ): BeaverTool<Context>[] {
   const scope: DocumentScope = { userId, userEmail };
+  const workProductProjectId = matterId ?? null;
   const availableWorkflows = workflows ?? new Map(
-    SYSTEM_ASSISTANT_WORKFLOWS.map(({ id, title, skill_md }) => [
-      id,
-      { title, skill_md },
+    SYSTEM_ASSISTANT_WORKFLOWS.map(({ id, variant_id, title, skill_md }) => [
+      variant_id,
+      { workflow_id: id, title, skill_md },
     ]),
   );
   const knownDocumentNames = new Map(documentNames);
@@ -2476,7 +2445,7 @@ export function assistantTools<Context extends {
       const generatedAt = new Date();
       const drafting = resolveDraftingOptions(
         args,
-        await getDraftingStyleSettings(userId),
+        draftingStyle,
       );
       const evidence = resolveDocxEvidenceCitations(
         legalEvidenceState,
@@ -2507,6 +2476,10 @@ export function assistantTools<Context extends {
           timeZone,
         },
       );
+      const authorityLedger = await createDocxAuthorityLedger(
+        legalEvidenceState, markdown, rendered.bytes, evidence,
+        drafting.citationPlacement,
+      );
       return persistGenerated(
         filename,
         rendered.bytes,
@@ -2522,6 +2495,7 @@ export function assistantTools<Context extends {
               JSON.stringify(args.citations ?? []),
             ),
             evidenceBindings: evidence.bindings,
+            ...(authorityLedger ? { authorityLedger } : {}),
           },
         },
       );
@@ -2559,9 +2533,9 @@ export function assistantTools<Context extends {
   const runWorkflow = documentTool(
     async (call, args, documentId) => {
       const action = args.action as "fix_supras" | "lint_structure";
-      const automationEvent = action === "fix_supras" ? supraFixEvent : null;
+      const workflowEvent = action === "fix_supras" ? supraFixEvent : null;
       const respond = (output: Record<string, unknown>) => withEvent(
-        documentResult(output), automationEvent?.(output, call.id),
+        documentResult(output), workflowEvent?.(output, call.id),
       );
       try {
         const output = await runDocxWorkflow(
@@ -2583,44 +2557,24 @@ export function assistantTools<Context extends {
     },
   );
 
-  const createAuthorities = documentTool(
-    async (call, args, documentId) => {
-      const versionId = trimmed(args.version_id);
-      const respond = (payload: Record<string, unknown>) => withEvent(
-        payload.ok === true ? mutationResult(payload) : fail(String(payload.error)),
-        tableOfAuthoritiesEvent(payload, call.id),
-      );
-      try {
-        const file = await documents.read(scope, documentId, versionId || null, false);
-        if (!file) return respond({ ok: false, error: "Library version not found" });
-        if (!["docx", "pdf"].includes(file.fileType.toLowerCase())) return respond({
-          ok: false,
-          error: "Table of Authorities requires a Word or PDF Library version",
-        });
-        const job = await submitTableOfAuthoritiesDocument({
-          userId: scope.userId,
-          bytes: file.bytes,
-          filename: file.version.filename ?? file.filename,
-          splitFallback: args.split_fallback === "off" ? "off" : "auto",
-          projectId: matterId,
-        });
-        const payload = {
-          ok: true,
-          document_id: documentId,
-          version_id: file.version.id,
-          filename: file.version.filename,
-          resource: resourceReference.job(job.id),
-          job,
-          next_required_action:
-            `Read ${resourceReference.job(job.id)} until detection is complete.`,
-        };
-        return respond(payload);
-      } catch (error) {
-        const message = safeErrorMessage(error, "Table of Authorities submission failed");
-        return respond({ ok: false, error: message });
-      }
-    },
-  );
+  const evidenceSeeds = (input: Record<string, unknown>) => {
+    const ids = Array.isArray(input.evidence_ids)
+      ? input.evidence_ids.map(trimmed)
+      : [];
+    if (!ids.length || ids.some((id) => !id)) {
+      throw new Error("At least one evidence ID is required");
+    }
+    const grouped = new Map<string, LegalEvidenceReceipt[]>();
+    for (const id of ids) {
+      const receipt = legalEvidenceState?.evidence.get(id)?.receipt;
+      if (!receipt) throw new Error(`Unknown evidence ID: ${id}`);
+      const key = structureNative().citationLookupKey(receipt.citation);
+      if (!key) throw new Error(`Evidence does not identify an authority: ${id}`);
+      const receipts = grouped.get(key);
+      if (receipts) receipts.push(receipt); else grouped.set(key, [receipt]);
+    }
+    return [...grouped].map(([authorityKey, receipts]) => ({ authorityKey, receipts }));
+  };
 
   const runCitator: AssistantToolRun = async (call, args) => {
     const citator = executeCitatorTool(call.name, args)!;
@@ -2651,7 +2605,7 @@ export function assistantTools<Context extends {
     ));
   });
 
-  const sourceSearch: AssistantToolRun = async (_call, input, signal) => {
+  const sourceSearch: AssistantToolRun = async (call, input, signal) => {
     const sourceTypes = Array.isArray(input.source_types)
       ? input.source_types.filter((value): value is string => typeof value === "string")
       : [];
@@ -2668,9 +2622,37 @@ export function assistantTools<Context extends {
     const searched = await searchSources(readerAssignment
       ? { ...input, jurisdiction: readerAssignment.jurisdiction }
       : input, signal);
+    const resources = Array.isArray(searched.results)
+      ? searched.results.flatMap((value) => {
+          const resource = objectRecord(value)?.resource;
+          return typeof resource === "string" && resource.startsWith("source://")
+            ? [resource] : [];
+        }).map((resource, rank) => ({ rank: rank + 1, resource }))
+      : [];
     return {
       ...result(searched),
       activityCitations: createLegalSourceSearchCitations(searched.results),
+      queryReceipts: [{
+        call_id: call.id,
+        tool: "search_sources",
+        executed_at: new Date().toISOString(),
+        executor_version: "legal-source-search-v1",
+        input: {
+          query: searched.query,
+          source_types: sourceTypes,
+          syntax: input.syntax === "boolean" ? "boolean" : "terms",
+          search_type: searched.search_type,
+          jurisdiction: readerAssignment?.jurisdiction ?? (trimmed(input.jurisdiction) || null),
+          collection: collection || null,
+          court: trimmed(input.court) || null,
+          speaker: trimmed(input.speaker) || null,
+          date_from: trimmed(input.date_from) || null,
+          date_to: trimmed(input.date_to) || null,
+          sort: trimmed(input.sort) || "relevance",
+          limit: Math.max(1, Math.min(20, Math.trunc(Number(input.limit) || 10))),
+        },
+        results: resources,
+      }],
     };
   };
   const documentOperation: AssistantToolRun = (call, input, signal) => {
@@ -2681,10 +2663,223 @@ export function assistantTools<Context extends {
         return updateMetadata(call, input, signal);
       case "fix_supras":
         return runWorkflow(call, input, signal);
-      case "table_of_authorities":
-        return createAuthorities(call, input, signal);
       default:
         return Promise.resolve(fail("Unknown document operation"));
+    }
+  };
+  const workProductRevisions = new Map<string, number>();
+  if (courtRecordId && courtRecordRevision) {
+    workProductRevisions.set(courtRecordId, courtRecordRevision);
+  }
+  if (authoritiesId && authoritiesRevision) {
+    workProductRevisions.set(authoritiesId, authoritiesRevision);
+  }
+  if (researchSetId && researchSetRevision) {
+    workProductRevisions.set(researchSetId, researchSetRevision);
+  }
+  const targetWorkProduct = async (kind: WorkProductKind, input: Record<string, unknown>) => {
+    const active = kind === "court-record" ? { id: courtRecordId, revision: courtRecordRevision }
+      : kind === "authorities" ? { id: authoritiesId, revision: authoritiesRevision }
+      : { id: researchSetId, revision: researchSetRevision };
+    const id = trimmed(input.draft_id) || active.id;
+    if (!id) throw new Error(`No ${kind === "research-set" ? "research set" :
+      kind === "court-record" ? "Court Record" : "Authorities"} is active`);
+    const product = await workProducts.get(scope, id);
+    if (product.kind !== kind || product.projectId !== workProductProjectId &&
+        !(kind === "research-set" && product.projectId === null)) {
+      throw new Error("Draft is outside this chat's work-product scope");
+    }
+    return { product, revision: workProductRevisions.get(id) ?? product.revision };
+  };
+  const workProductPayload = (product: { id: string; kind: WorkProductKind;
+    revision: number }, values: Record<string, unknown> = {}) => {
+    workProductRevisions.set(product.id, product.revision);
+    return { ok: true, work_product: { id: product.id, kind: product.kind,
+      revision: product.revision }, ...values };
+  };
+  const authorizedDocument = async (input: Record<string, unknown>) => {
+    const rawDocument = trimmed(input.document_id);
+    const document = rawDocument ? parseResourceReference(rawDocument) : null;
+    if (rawDocument && document?.kind !== "document") {
+      throw new Error("document_id must be a version-pinned Library document");
+    }
+    if (document?.kind === "document" && (matterId
+      ? !allowedDocumentIds?.has(document.documentId)
+      : !await library.document({ ...scope, kind: "file" }, document.documentId))) {
+      throw new Error("Document is outside this chat's document scope");
+    }
+    return document?.kind === "document" ? document : null;
+  };
+  const updateWorkProduct: AssistantToolRun = async (call, input) => {
+    const kind = input.kind as WorkProductKind;
+    const respond = (payload: Record<string, unknown>, mutated = false) => withEvent(
+      payload.ok === true ? (mutated ? mutationResult(payload) : result(payload))
+        : fail(String(payload.error)),
+      workProductEvent(payload, call.id),
+    );
+    if (kind !== "court-record" && kind !== "authorities" && kind !== "research-set") {
+      return respond({ ok: false, error: "Select a supported work-product kind" });
+    }
+    if (kind === "authorities" && productFeatures?.authorities === false) {
+      return respond({ ok: false, error: "Authorities is turned off in Settings." });
+    }
+    const rawCover = input.cover === undefined ? undefined : objectRecord(input.cover);
+    if (input.cover !== undefined && !rawCover) {
+      return respond({ ok: false, error: "cover must be an object" });
+    }
+    const cover = rawCover && Object.fromEntries(Object.entries(rawCover)
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+    if (rawCover && Object.keys(cover!).length !== Object.keys(rawCover).length) {
+      return respond({ ok: false, error: "cover values must be text" });
+    }
+    try {
+      if (input.action === "create") {
+        if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
+        if (kind === "research-set") {
+          const title = trimmed(input.title) || "Saved research";
+          const actor: ResearchSetActor = { kind: "model", id: model,
+            origin: { type: "chat", chatId: chatId ?? "unknown", callId: call.id } };
+          const product = await workProducts.create(scope, { kind, title,
+            projectId: workProductProjectId,
+            state: createResearchSetState(actor, title) });
+          return respond(workProductPayload(product), true);
+        }
+        if (kind === "court-record") {
+          const profileId = trimmed(input.profile_id);
+          if (!COURT_RECORD_PROFILE_BY_ID.has(profileId)) {
+            throw new Error("Select an available court record format");
+          }
+          const product = await workProducts.create(scope, { kind,
+            title: trimmed(input.title) || "Untitled court record",
+            projectId: workProductProjectId,
+            state: { profileId, cover: {}, entries: [], bindings: {} } });
+          return respond(workProductPayload(product), true);
+        }
+        const document = await authorizedDocument(input);
+        const seeds = input.evidence_ids === undefined ? null : evidenceSeeds(input);
+        if (document && seeds) throw new Error("Create Authorities from one source at a time");
+        const product = await authorities.importDraft(scope, {
+          source: document ? { kind: "document", documentId: document.documentId,
+            version: "latest" } : seeds ? { kind: "receipts", seeds } : { kind: "manual" },
+          title: trimmed(input.title) || undefined, projectId: workProductProjectId,
+        });
+        return respond(workProductPayload(product), true);
+      }
+      const target = await targetWorkProduct(kind, input);
+      if (input.action === "select") {
+        return respond(workProductPayload(target.product, {
+          requested_action: "open",
+          ...(kind === "research-set"
+            ? { research: researchSetSummary(decodeResearchSetState(target.product.state)!) } : {}),
+        }));
+      }
+      if (kind === "research-set") {
+        if (input.action !== "update") throw new Error("Saved research supports create, select, and update");
+        const actor: ResearchSetActor = { kind: "model", id: model,
+          origin: { type: "chat", chatId: chatId ?? "unknown", callId: call.id } };
+        const command = objectRecord(input.research_action);
+        if (!command) throw new Error("Select a research_action");
+        if (command.type === "query") {
+          const queried = await createResearchSetQueryService(workProducts).run(scope,
+            target.product.id, { revision: target.revision, text: trimmed(command.text),
+              syntax: command.syntax === "literal" ? "literal" : "terms",
+              target: command.target === "passages" ? "passages" : "sources",
+              labelIds: Array.isArray(command.labelIds)
+                ? command.labelIds.filter((id): id is string => typeof id === "string") : [] },
+            { actor });
+          return respond(workProductPayload(queried.product, { query_id: queried.queryId,
+            counts: queried.counts }), true);
+        }
+        let action;
+        if (command.type === "save") {
+          if (!legalEvidenceState) throw new Error("No verified legal evidence is available");
+          const evidenceIds = Array.isArray(input.evidence_ids)
+            ? input.evidence_ids.filter((id): id is string => typeof id === "string") : [];
+          const evidence = evidenceIds.map((id) => legalEvidenceState.evidence.get(id)?.receipt);
+          if (evidence.some((receipt) => !receipt)) {
+            throw new Error("evidence_ids must name verified evidence from this turn");
+          }
+          const queryIds = Array.isArray(input.query_ids)
+            ? input.query_ids.filter((id): id is string => typeof id === "string") : [];
+          const queries = queryIds.map((id) => legalEvidenceState.queries.get(id));
+          if (queries.some((receipt) => !receipt)) throw new Error("Unknown query_id");
+          if (!evidenceIds.length && !queryIds.length) throw new Error("Select evidence_ids or query_ids");
+          action = { type: "merge" as const,
+            evidence: evidence.flatMap((receipt) => receipt ? [receipt] : []),
+            queries: queries.flatMap((receipt) => receipt ? [researchQueryReceipt(receipt)] : []) };
+        } else action = publicResearchSetActionSchema.parse(command);
+        const product = await workProducts.applyResearchSetAction(scope, target.product.id,
+          { revision: target.revision, action }, actor);
+        return respond(workProductPayload(product, {
+          research: researchSetSummary(decodeResearchSetState(product.state)!) }), true);
+      }
+      if (input.action === "refresh") {
+        if (kind === "authorities") {
+          const product = await authorities.refresh(scope, target.product.id, target.revision);
+          return respond(workProductPayload(product), product.revision !== target.product.revision);
+        }
+        const resolution = await workProducts.resolve(scope, target.product.id);
+        return respond(workProductPayload(resolution.product, {
+          requested_action: "refresh", freshness: resolution.freshness,
+        }));
+      }
+      if (input.action === "build") {
+        if (kind === "authorities") {
+          const built = await authorities.build(scope, target.product.id, target.revision);
+          return respond(workProductPayload(built.product, {
+            output_roles: Object.keys(built.product.outputs),
+          }), true);
+        }
+        return respond(workProductPayload(target.product, { requested_action: "build" }));
+      }
+      if (input.action !== "update") throw new Error("Unknown work-product action");
+      if (kind === "authorities") {
+        const product = await authorities.addReceipts(scope, target.product.id,
+          target.revision, evidenceSeeds(input));
+        return respond(workProductPayload(product), true);
+      }
+      if (!courtRecords) throw new Error("Court Records is unavailable");
+      const childId = trimmed(input.child_draft_id);
+      const outputRole = trimmed(input.output_role);
+      const slotId = trimmed(input.slot_id);
+      if (!!childId !== !!outputRole) {
+        throw new Error("child_draft_id and output_role must be supplied together");
+      }
+      if (childId) {
+        if (slotId !== "authorities" && slotId !== "authority-extract") {
+          throw new Error("Select an Authorities output slot");
+        }
+        const linked = await courtRecords.bindOutput(scope, {
+          courtRecordId: target.product.id, revision: target.revision, kindId: slotId,
+          childWorkProductId: childId, role: outputRole as "table" | "book",
+          ...(trimmed(input.replace_entry_id)
+            ? { replaceEntryId: trimmed(input.replace_entry_id) } : {}),
+          projectId: workProductProjectId,
+        });
+        return respond(workProductPayload(linked.product, { entry_id: linked.entryId }), true);
+      }
+      const document = await authorizedDocument(input);
+      if (!!document !== !!slotId) {
+        throw new Error("document_id and slot_id must be supplied together");
+      }
+      const profileId = trimmed(input.profile_id);
+      if (!profileId && !cover && !document) throw new Error("No draft changes were supplied");
+      const updated = await courtRecords.updateDraft(scope, {
+        courtRecordId: target.product.id, revision: target.revision,
+        projectId: workProductProjectId,
+        ...(profileId ? { profileId } : {}), ...(cover ? { cover } : {}),
+        ...(document ? { document: { documentId: document.documentId,
+          versionId: document.versionId, slotId,
+          ...(trimmed(input.replace_entry_id)
+            ? { replaceEntryId: trimmed(input.replace_entry_id) } : {}) } } : {}),
+      });
+      return respond(workProductPayload(updated.product, {
+        filled_fields: updated.filled, entry_id: updated.entryId,
+      }), updated.product.revision !== target.product.revision);
+    } catch (error) {
+      return respond({ ok: false, error: safeErrorMessage(
+        error, "The work product could not be updated",
+      ) });
     }
   };
   const codingWithArtifacts: AssistantToolRun = (call, input, signal, progress) => {
@@ -2777,7 +2972,10 @@ export function assistantTools<Context extends {
     definition(WRITE_TOOL, write),
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
     definition(CITATOR_TOOL, runCitator),
-    definition(DOCUMENT_OPERATION_TOOL, documentOperation),
+    ...(turnScope === "main"
+      ? [definition(workProductTool(productFeatures?.authorities !== false), updateWorkProduct)]
+      : []),
+    definition(documentOperationTool(), documentOperation),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
       runWorkflow(call, { ...input, action: "lint_structure" }, signal)),
     definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts),

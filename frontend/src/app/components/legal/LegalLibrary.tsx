@@ -2,31 +2,38 @@ import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     ExternalLink,
-    LibraryBig,
     Loader2,
     Search,
-    Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
+import { WorkProductAssistant } from "@/app/components/assistant/WorkProductAssistant";
 import {
-    deleteLegalSource,
+    actOnResearchSet,
+    createResearchSet,
+    deleteWorkProduct,
+    duplicateWorkProduct,
     getLegalSourceCoverage,
-    listLegalLibrary,
-    saveLegalSource,
+    getResearchSet,
+    listResearchSets,
+    runResearchSetQuery,
     searchLegalSources,
+    updateWorkProduct,
     type LegalSearchDocumentType,
     type LegalSourceCoverage,
-    type LegalSourceReference,
     type LegalSourceSearchResult,
 } from "@/app/lib/beaverApi";
+import { legalSourceViewerHref, researchSetMetadata, type ResearchSetAction,
+    type ResearchSetMetadata, type ResearchSetProduct, type ResearchSetState,
+    type ResearchSourceReference } from "@/app/lib/researchSets";
 import {
-    legalSourceKindLabel,
     LegalSourceViewer,
     type LegalSourceViewerProps,
 } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
-import { safeAssistantUrl } from "@/app/lib/assistantSession";
+import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
+import { SearchBar } from "@/app/components/ui/search-bar";
+import { ResearchSetWorkspace } from "./ResearchSetWorkspace";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -46,25 +53,13 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["hansard", "Hansard"],
 ];
 
-function directSourceHref(result: LegalSourceSearchResult) {
-    const query = new URLSearchParams({
-        provider: result.provider,
-        citation: result.citation,
-        doc_type: result.doc_type,
-        language: "en",
-    });
-    if (result.dataset) query.set("dataset", result.dataset);
-    if (result.source_id) query.set("source_id", result.source_id);
-    return `/sources/view?${query}`;
-}
-
-function savedSourceKey(source: {
-    provider: string;
-    citation: string;
-    dataset: string | null;
-}) {
-    return JSON.stringify([source.provider, source.dataset, source.citation]);
-}
+const researchReference = (result: LegalSourceSearchResult): ResearchSourceReference => ({
+    provider: result.provider, id: result.source_id ?? result.citation,
+    kind: result.doc_type === "cases" ? "case" : result.doc_type === "laws"
+        ? "legislation" : result.doc_type === "articles" ? "journal" : "hansard",
+    title: result.name, citation: result.citation, date: result.date,
+    collection: result.dataset, language: "en", url: result.url,
+});
 
 function SearchSnippet({ children }: { children: string }) {
     let emphasized = false;
@@ -87,10 +82,8 @@ function SearchSnippet({ children }: { children: string }) {
 }
 
 export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
-    const [references, setReferences] = useState<LegalSourceReference[] | null>(
-        null,
-    );
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
+    const [searchQuery, setSearchQuery] = useState("");
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [filters, setFilters] = useState({
         docType: "all" as SourceTab,
@@ -99,20 +92,69 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
         dataset: "",
     });
     const [searching, setSearching] = useState(false);
-    const [savingCitation, setSavingCitation] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [sets, setSets] = useState<ResearchSetMetadata[] | null>(null);
+    const [activeSetId, setActiveSetId] = useState<string | null>(null);
+    const [activeSet, setActiveSet] = useState<ResearchSetProduct | null>(null);
+    const [researchBusy, setResearchBusy] = useState(false);
+    const [assistantOpen, setAssistantOpen] = useState(false);
+    const [researchChats, setResearchChats] = useState<Record<string, string>>({});
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
         setFilters((current) => ({ ...current, ...next }));
     useEffect(() => {
-        listLegalLibrary()
-            .then(setReferences)
-            .catch((reason: unknown) => {
-                setReferences([]);
-                setError(errorMessage(reason, "Could not load legal sources"));
-            });
         getLegalSourceCoverage().then(setCoverage).catch(() => undefined);
+        listResearchSets().then((items) => {
+            setSets(items); const id = items[0]?.id;
+            if (id) { setActiveSetId(id); void getResearchSet(id).then(setActiveSet)
+                .catch((reason) => setError(errorMessage(reason, "Could not open saved research"))); }
+        }).catch(() => { setSets([]); setActiveSet(null); });
     }, []);
+
+    const replaceSet = (next: ResearchSetProduct) => {
+        setSets((current) => [researchSetMetadata(next),
+            ...(current ?? []).filter(({ id }) => id !== next.id)]);
+        setActiveSet(next); setActiveSetId(next.id);
+        return next;
+    };
+    async function selectSet(id: string) {
+        setActiveSetId(id); setActiveSet(null); setResearchBusy(true);
+        try { setActiveSet(await getResearchSet(id)); }
+        catch (reason) { setError(errorMessage(reason, "Could not open saved research")); }
+        finally { setResearchBusy(false); }
+    }
+    async function createSet() {
+        replaceSet(await createResearchSet({ title: "Untitled research" }));
+    }
+    async function researchAction(action: ResearchSetAction) {
+        if (!activeSet) return;
+        setResearchBusy(true);
+        try { replaceSet(await actOnResearchSet(activeSet.id, activeSet.revision, action)); }
+        finally { setResearchBusy(false); }
+    }
+    async function updateSet(change: { title?: string; projectId?: string | null }) {
+        if (!activeSet) return;
+        replaceSet(await updateWorkProduct<ResearchSetState>(activeSet.id,
+            { revision: activeSet.revision, ...change }));
+    }
+    async function duplicateSet() {
+        if (activeSet) replaceSet(await duplicateWorkProduct<ResearchSetState>(activeSet.id));
+    }
+    async function deleteSet() {
+        if (!activeSet) return;
+        await deleteWorkProduct(activeSet.id);
+        const next = (sets ?? []).filter(({ id }) => id !== activeSet.id);
+        setSets(next); setActiveSetId(next[0]?.id ?? null);
+        setActiveSet(next[0] ? await getResearchSet(next[0].id) : null);
+    }
+    async function saveResult(result: LegalSourceSearchResult) {
+        setResearchBusy(true);
+        try {
+            const destination = activeSet ?? replaceSet(await createResearchSet({ title: "Saved research" }));
+            replaceSet(await actOnResearchSet(destination.id, destination.revision, { type: "source",
+                reference: researchReference(result) }));
+        } finally { setResearchBusy(false); }
+    }
     const typeCoverage = coverage.filter((item) => item.docType === docType);
     const jurisdictions = Array.from(
         new Map(
@@ -128,11 +170,10 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
             (!sourceKind || item.sourceKind === sourceKind),
     );
     const selectedDatasets = dataset ? [dataset] : undefined;
-    const savedSources = new Set(references?.map(savedSourceKey));
     async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        const query = form.get("query")?.toString().trim() ?? "";
+        const query = searchQuery.trim();
         if (!query) return;
         setSearching(true);
         setError(null);
@@ -179,45 +220,15 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
             setSearching(false);
         }
     }
-    async function saveResult(result: LegalSourceSearchResult) {
-        if (result.doc_type === "hansard") return;
-        setSavingCitation(result.citation);
-        setError(null);
-        try {
-            const saved = await saveLegalSource({
-                citation: result.citation,
-                docType: result.doc_type,
-                dataset: result.dataset,
-                sourceId: result.source_id,
-            });
-            setReferences((current) =>
-                current?.some((item) => item.id === saved.id)
-                    ? current
-                    : [...(current ?? []), saved],
-            );
-        } catch (reason) {
-            setError(errorMessage(reason, "Could not save legal source"));
-        } finally {
-            setSavingCitation(null);
-        }
-    }
-    async function remove(reference: LegalSourceReference) {
-        try {
-            await deleteLegalSource(reference.id);
-            setReferences((current) =>
-                (current ?? []).filter((item) => item.id !== reference.id),
-            );
-        } catch (reason) {
-            setError(errorMessage(reason, "Could not remove legal source"));
-        }
-    }
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="relative flex h-full min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col">
             {!embedded && <PageHeader breadcrumbs={[{ label: "Sources" }]} />}
             <div
                 className={`min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
             >
-                <div className="mx-auto max-w-5xl space-y-6">
+                <div className="mx-auto max-w-5xl">
+                    <div className="space-y-4">
                     <form
                         onSubmit={runSearch}
                         className="rounded-lg border border-gray-200 bg-white p-4"
@@ -250,13 +261,11 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                             ))}
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row">
-                            <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand">
-                                <Search className="h-4 w-4 shrink-0 text-gray-400" />
-                                <span className="sr-only">Search sources</span>
-                                <input
-                                    name="query"
-                                    required
-                                    placeholder={
+                            <SearchBar name="query" required value={searchQuery}
+                                onValueChange={setSearchQuery} booleanSearch
+                                aria-label="Search sources"
+                                wrapperClassName="h-10 flex-1 focus-within:border-brand"
+                                placeholder={
                                         docType === "all"
                                             ? "Search cases, legislation, journals, and Hansard"
                                             : docType === "hansard"
@@ -266,10 +275,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                             : docType === "articles"
                                               ? "Article title, author, journal, or citation"
                                             : "Case name, citation, or legal concept"
-                                    }
-                                    className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
-                                />
-                            </label>
+                                    } />
                             <button
                                 type="submit"
                                 disabled={searching}
@@ -437,6 +443,25 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                             </div>
                         )}
                     </form>
+                    <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-gray-900">
+                            Saved research{sets ? ` · ${sets.length}` : ""}
+                        </summary>
+                        <div className="mt-3">
+                            <ResearchSetWorkspace key={activeSetId ?? "none"} sets={sets} product={activeSet}
+                                busy={researchBusy} onSelect={(id) => void selectSet(id)} onCreate={createSet}
+                                onRename={(title) => updateSet({ title })} onDuplicate={duplicateSet}
+                                onDelete={deleteSet} onAction={researchAction}
+                                onMove={(projectId) => updateSet({ projectId })}
+                                onQuery={(input) => {
+                                    if (!activeSet) return Promise.reject(new Error("Choose a research set"));
+                                    return runResearchSetQuery(activeSet.id,
+                                        { ...input, revision: activeSet.revision }).then((result) => {
+                                            replaceSet(result.product); return result;
+                                        });
+                                }} onAssistant={() => setAssistantOpen(true)} />
+                        </div>
+                    </details>
                     {error && (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
@@ -449,9 +474,6 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                             </h2>
                             <div className="grid gap-2">
                                 {results.map((result) => {
-                                    const saved = savedSources.has(
-                                        savedSourceKey(result),
-                                    );
                                     const sourceHref = safeAssistantUrl(result.url, {
                                         relative: false,
                                     });
@@ -487,34 +509,17 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                             <div className="flex shrink-0 flex-wrap gap-2">
                                                 {result.provider !== "hansard" && (
                                                     <Link
-                                                        to={directSourceHref(result)}
+                                                        to={legalSourceViewerHref(researchReference(result))}
                                                         className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
                                                     >
                                                         View
                                                     </Link>
                                                 )}
-                                                {result.provider !== "hansard" && (
-                                                    <button
-                                                    type="button"
-                                                    disabled={
-                                                        savingCitation ===
-                                                            result.citation ||
-                                                        saved
-                                                    }
-                                                    onClick={() =>
-                                                        void saveResult(result)
-                                                    }
-                                                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-800 hover:border-brand disabled:text-gray-400"
-                                                >
-                                                    {savingCitation ===
-                                                    result.citation ? (
-                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    ) : (
-                                                        <LibraryBig className="h-3.5 w-3.5" />
-                                                    )}
-                                                    {saved ? "Saved" : "Save"}
-                                                    </button>
-                                                )}
+                                                <button type="button" disabled={researchBusy}
+                                                    onClick={() => void saveResult(result)}
+                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                                                    Save
+                                                </button>
                                                 {sourceHref && (
                                                     <a
                                                         href={sourceHref}
@@ -536,79 +541,23 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                             </div>
                         </section>
                     )}
-                    <section>
-                        <h2 className="mb-2 text-base font-semibold text-gray-900">
-                            Saved sources
-                        </h2>
-                        {references === null ? (
-                            <div className="flex justify-center py-10">
-                                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-                            </div>
-                        ) : references.length ? (
-                            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/60">
-                                {references.map((reference) => {
-                                    const href = `/sources/${reference.id}`;
-                                    return (
-                                        <div
-                                            key={reference.id}
-                                            className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-brand-soft/50"
-                                        >
-                                            <LibraryBig className="h-4 w-4 shrink-0 text-brand" />
-                                            <Link
-                                                to={href}
-                                                className="min-w-0 flex-1"
-                                            >
-                                                <p className="truncate text-sm font-medium text-gray-900">
-                                                    {reference.citation}
-                                                </p>
-                                                <p className="mt-0.5 text-xs text-gray-500">
-                                                    {[
-                                                        legalSourceKindLabel(
-                                                            reference.doc_type,
-                                                        ),
-                                                        reference.dataset,
-                                                    ]
-                                                        .filter(Boolean)
-                                                        .join(" · ")}
-                                                </p>
-                                            </Link>
-                                            <a
-                                                href={href}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="rounded p-1.5 text-gray-400 hover:bg-white hover:text-brand"
-                                                aria-label={`Open ${reference.citation} in a new tab`}
-                                                title="Open in new tab"
-                                            >
-                                                <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    void remove(reference)
-                                                }
-                                                className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-700"
-                                                aria-label={`Remove ${reference.citation} from Sources`}
-                                                title="Remove from Sources"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <p className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500">
-                                Search above to add a legal source.
-                            </p>
-                        )}
-                    </section>
+                    </div>
                 </div>
             </div>
         </div>
+        {assistantOpen && activeSet && <WorkProductAssistant product={activeSet}
+            chatId={researchChats[activeSet.id]}
+            onChatIdChange={(id) => setResearchChats((current) => ({ ...current,
+                [activeSet.id]: id }))}
+            onClose={() => setAssistantOpen(false)}
+            onTurnComplete={() => void getResearchSet(activeSet.id).then(replaceSet)} />}
+        </div>
     );
 }
-export function LegalLibrarySourcePage(viewerProps: LegalSourceViewerProps) {
+
+export function LegalLibrarySourcePage({
+    ...viewerProps
+}: LegalSourceViewerProps) {
     const navigate = useNavigate();
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -621,8 +570,8 @@ export function LegalLibrarySourcePage(viewerProps: LegalSourceViewerProps) {
                     { label: "Source" },
                 ]}
             />
-            <div className="min-h-0 min-w-0 flex-1">
-                <LegalSourceViewer {...viewerProps} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1"><LegalSourceViewer {...viewerProps} /></div>
             </div>
         </div>
     );

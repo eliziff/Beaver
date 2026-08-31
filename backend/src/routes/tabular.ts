@@ -3,9 +3,8 @@ import { z, type ZodType } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
-import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
+import { requestAbortController } from "../lib/httpStreaming";
 import { tabularDtos, type TabularApplication } from "../lib/tabular/application";
-import { safePublicErrorMessage } from "../lib/safeError";
 import { downloadHeaders } from "../lib/storage";
 
 const scope = applicationScope;
@@ -50,24 +49,13 @@ export function createTabularRouter(app: TabularApplication) {
   }));
   router.post("/:reviewId/regenerate-cell", json((req, res) =>
     app.regenerate(scope(res), parse(tabularDtos.id, req.params.reviewId),
-      parse(tabularDtos.regenerate, req.body), requestAbortController(req, res).signal)));
+      parse(tabularDtos.regenerate, req.body)), 202));
+  router.post("/:reviewId/stop", json((req, res) =>
+    app.stop(scope(res), parse(tabularDtos.id, req.params.reviewId))));
 
-  router.post("/:reviewId/generate", asyncRoute(async (req, res) => {
-    const signal = requestAbortController(req, res).signal;
-    const job = await app.generate(scope(res),
+  router.post("/:reviewId/generate", json((req, res) => app.generate(scope(res),
       parse(tabularDtos.id, req.params.reviewId),
-      parse(tabularDtos.generate, req.body ?? {}), signal);
-    startSse(res);
-    const send = (event: unknown) => { if (!signal.aborted) writeSse(res, event); };
-    try { await job.run(send); }
-    catch (error) {
-      if (!signal.aborted) send({ type: "error",
-        message: safePublicErrorMessage(error, "Generation failed. Try again.") });
-    } finally {
-      if (!signal.aborted && !res.writableEnded) res.write("data: [DONE]\n\n");
-      if (!res.writableEnded) res.end();
-    }
-  }));
+      parse(tabularDtos.generate, req.body ?? {})), 202));
 
   return router;
 }

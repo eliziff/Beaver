@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,9 +8,6 @@ const workspace = path.resolve(root, "../..");
 const corpusPath = path.join(workspace, "legal-structure/data/grammar-corpus.json");
 const eyeciteReceiptPath = path.join(root, "eyecite-us-receipt.json");
 const manifestPath = path.join(workspace, "legal-structure/data/manifest.json");
-const bundles = [
-  path.join(workspace, "AuthoritiesHelper/data/legal-grammar-tables"),
-];
 const allowedTableKeys = new Set(["description", "defs", "entries"]);
 const allowedEntryKeys = new Set([
   "id",
@@ -165,26 +162,7 @@ const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
 
 if (process.argv.includes("--sync")) {
   writeFileSync(manifestPath, manifestBytes);
-  for (const bundle of bundles) {
-    mkdirSync(bundle, { recursive: true });
-    writeFileSync(path.join(bundle, "grammar-corpus.json"), corpusBytes);
-    writeFileSync(path.join(bundle, "manifest.json"), manifestBytes);
-  }
 }
 
 if (!sameManifest(readFileSync(manifestPath), manifestBytes)) fail("manifest.json is stale; run npm run sync");
-for (const bundle of bundles) {
-  for (const name of ["grammar-corpus.json", "manifest.json"]) {
-    const expected = name === "grammar-corpus.json" ? corpusBytes : manifestBytes;
-    let actual;
-    try {
-      actual = readFileSync(path.join(bundle, name));
-    } catch {
-      fail(`${path.relative(workspace, bundle)}/${name} is missing; run npm run sync`);
-    }
-    if (!(name === "manifest.json" ? sameManifest(actual, expected) : actual.equals(expected))) {
-      fail(`${path.relative(workspace, bundle)}/${name} is stale; run npm run sync`);
-    }
-  }
-}
 console.log(`legal grammar corpus ok: ${ids.size} entries, ${vectors} vectors, ${manifest.sha256}`);

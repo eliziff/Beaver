@@ -8,7 +8,8 @@ let catalog: ModelCatalog | null = null;
 let refreshedAt = 0;
 let pending: Promise<ModelCatalog> | null = null;
 const hasModels = (value: ModelCatalog) =>
-    value.models.length > 0 || !!value.ollama?.models.length;
+    value.models.length > 0 || !!value.ollama?.models.length ||
+    !!value.openCodeGo?.models.length;
 function readCachedCatalog() {
     if (typeof window === "undefined") return null;
     try {

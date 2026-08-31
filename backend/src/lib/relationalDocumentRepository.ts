@@ -29,11 +29,17 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
     status, ...detail, error: "PDF processing was cancelled",
   };
   if (status === "failed") return {
-    status, ...detail, error: "PDF processing failed",
+    status, ...detail, error: row.pdf_job_error === "PdfEncrypted"
+      ? "PDF is password-protected. Remove its password, then upload it again."
+      : "PDF processing failed",
   };
   if (status !== "succeeded") return null;
   const result = decode<Record<string, unknown>>(row.pdf_job_result, {});
-  const completed = { ...detail, ...(Number.isSafeInteger(result.pageCount) &&
+  const routed = Array.isArray(result.ocrRoutedPages) ? result.ocrRoutedPages
+    .filter((page): page is number => Number.isInteger(page) && page >= 0)
+    .map((page) => page + 1).slice(0, 32) : [];
+  const completed = { ...(routed.length ? { phase: "ocr" as const, pages: routed } : {}),
+    ...(Number.isSafeInteger(result.pageCount) &&
     Number(result.pageCount) > 0 ? { page_count: Number(result.pageCount) } : {}) };
   if (result.status === "ready" || result.status === "degraded") {
     return { status: result.status, ...completed };
@@ -81,7 +87,7 @@ async function aggregate(db: RelationalDatabase, scope: ApplicationScope,
   documentId: string, owner = false): Promise<DocumentAggregate | null> {
   const document = await one(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
       j.status pdf_job_status,
-      j.progress pdf_job_progress,j.result pdf_job_result,
+      j.progress pdf_job_progress,j.result pdf_job_result,j.last_error pdf_job_error,
       CASE WHEN d.user_id=${scope.userId} THEN 1 ELSE 0 END is_owner
     FROM documents d JOIN document_versions v ON v.id=d.current_version_id
       LEFT JOIN application_jobs j ON j.id=(SELECT q.id
@@ -177,7 +183,7 @@ export const documentRepository: DocumentRepository = {
     if (!unique.length) return [];
     return (await rows(sql`SELECT d.id,v.page_count pdf_page_count,v.pdf_profile,
       j.status pdf_job_status,
-      j.progress pdf_job_progress,j.result pdf_job_result
+      j.progress pdf_job_progress,j.result pdf_job_result,j.last_error pdf_job_error
       FROM documents d JOIN document_versions v ON v.id=d.current_version_id
         LEFT JOIN application_jobs j ON j.id=(SELECT q.id
         FROM application_jobs q WHERE q.document_id=d.id

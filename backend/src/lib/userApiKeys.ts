@@ -2,32 +2,26 @@ import type { UserApiKeys } from "./llm";
 import { decryptSecret, encryptionSecret, encryptSecret } from "./secretEncryption";
 import { createServerSupabase } from "./supabase";
 import { safeErrorLog } from "./safeError";
+import {
+  API_KEY_PROVIDERS,
+  type ApiKeyProvider,
+  type ApiKeyStatus,
+} from "./userCredentials";
 
 type Db = ReturnType<typeof createServerSupabase>;
-export const API_KEY_PROVIDERS = [
-  "claude", "gemini", "openai", "deepseek", "openrouter", "meta", "courtlistener",
-] as const;
-export type ApiKeyProvider = typeof API_KEY_PROVIDERS[number];
-type ApiKeySource = "user" | "env" | null;
-export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
-  sources: Record<ApiKeyProvider, ApiKeySource>;
-};
 type EncryptedKeyRow = { provider: string; encrypted_key: string; iv: string; auth_tag: string };
 
 const ENVIRONMENT_KEYS: Record<ApiKeyProvider, string> = {
   claude: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY",
   openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY",
   openrouter: "OPENROUTER_API_KEY", meta: "META_API_KEY",
+  "opencode-go": "OPENCODE_GO_API_KEY",
   courtlistener: "COURTLISTENER_API_TOKEN",
 };
 const SALT = "beaver-user-api-keys-v1";
 
 function environmentKey(provider: ApiKeyProvider) {
   return process.env[ENVIRONMENT_KEYS[provider]]?.trim() || null;
-}
-
-export function normalizeApiKeyProvider(value: string): ApiKeyProvider | null {
-  return API_KEY_PROVIDERS.find((provider) => provider === value) ?? null;
 }
 
 export const hasEnvApiKey = (provider: ApiKeyProvider) => !!environmentKey(provider);
@@ -39,7 +33,7 @@ export function getEnvironmentApiKeys(): UserApiKeys {
 }
 
 export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
-  const sources = {} as Record<ApiKeyProvider, ApiKeySource>;
+  const sources = {} as ApiKeyStatus["sources"];
   const status = { sources } as ApiKeyStatus;
   for (const provider of API_KEY_PROVIDERS) {
     const present = hasEnvApiKey(provider);
@@ -56,7 +50,7 @@ export async function getUserApiKeyStatus(userId: string, db: Db = createServerS
   const { data, error } = await db.from("user_api_keys").select("provider").eq("user_id", userId);
   if (error) throw error;
   for (const row of data ?? []) {
-    const provider = normalizeApiKeyProvider(String(row.provider));
+    const provider = API_KEY_PROVIDERS.find((value) => value === String(row.provider));
     if (provider && !status[provider]) {
       status[provider] = true;
       status.sources[provider] = "user";
@@ -71,7 +65,7 @@ export async function getUserApiKeys(userId: string, db: Db = createServerSupaba
     .select("provider, encrypted_key, iv, auth_tag").eq("user_id", userId);
   if (error) throw error;
   for (const row of (data ?? []) as EncryptedKeyRow[]) {
-    const provider = normalizeApiKeyProvider(row.provider);
+    const provider = API_KEY_PROVIDERS.find((value) => value === row.provider);
     if (!provider || keys[provider]) continue;
     try { keys[provider] = decryptSecret(
       { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag }, secret(), SALT,

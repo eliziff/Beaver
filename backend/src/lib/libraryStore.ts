@@ -2,6 +2,7 @@ import type { DocumentRecord, DocumentStore } from "./documentStore";
 import { normalizeDocumentFilename, type LibraryKind } from "./normalize";
 import { deleteFolderDocuments, validateFolderMove } from "./folderApplication";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { deterministicUuid } from "./hash";
 
 export type LibraryScope = ApplicationScope & { kind: LibraryKind };
 type LibraryDocument = DocumentRecord;
@@ -21,15 +22,17 @@ type LibraryRepositoryPage = Omit<LibraryPage, "items"> & {
 export type LibraryRepository = {
   page(scope: LibraryScope, options: LibraryPageOptions): Promise<LibraryRepositoryPage>;
   folder(scope: LibraryScope, folderId: string): Promise<LibraryFolder | null>;
-  createFolder(scope: LibraryScope, name: string, parentFolderId: string | null): Promise<LibraryFolder | null>;
+  createFolder(scope: LibraryScope, name: string, parentFolderId: string | null,
+    stableId?: string): Promise<LibraryFolder | null>;
   updateFolder(scope: LibraryScope, folderId: string, update: { name?: string;
     parentFolderId?: string | null }): Promise<LibraryFolder | null>;
   folderDocumentIds(scope: LibraryScope, folderId: string): Promise<string[] | null>;
   deleteFolder(scope: LibraryScope, folderId: string): Promise<boolean>;
 };
 
-export type LibraryStore = Pick<LibraryRepository, "createFolder" |
+export type LibraryStore = Pick<LibraryRepository, "folder" | "createFolder" |
   "updateFolder" | "deleteFolder"> & {
+  ensureRootFolder(scope: LibraryScope, name: string, key: string): Promise<LibraryFolder>;
   page(scope: LibraryScope, options: LibraryPageOptions): Promise<LibraryPage>;
   document(scope: LibraryScope, id: string): Promise<LibraryDocument | null>;
   moveDocument(scope: LibraryScope, id: string, folderId: string | null): Promise<LibraryDocument | null>;
@@ -52,6 +55,7 @@ export function createLibraryStore(
     isLibraryDocument(scope, await documents.metadata(scope, id, true));
 
   return {
+    folder: (scope, id) => repository.folder(scope, id),
     async page(scope, options) {
       const page = await repository.page(scope, options);
       const items = await Promise.all(page.items.map(async (item) => item.kind === "folder"
@@ -64,6 +68,11 @@ export function createLibraryStore(
     async createFolder(scope, name, parentId) {
       if (parentId) await folder(scope, parentId, "Parent folder not found");
       return repository.createFolder(scope, name, parentId);
+    },
+    async ensureRootFolder(scope, name, key) {
+      return await repository.createFolder(scope, name, null, deterministicUuid(
+        `workflow-folder\0library\0${scope.userId}\0${scope.kind}\0${key}`,
+      )) ?? Promise.reject(new ApplicationError(404, "Folder not found"));
     },
     async updateFolder(scope, id, update) {
       if (!await repository.folder(scope, id)) return null;

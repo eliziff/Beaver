@@ -1,9 +1,9 @@
 import { Outlet } from "react-router-dom";
-import { Providers } from "@/app/components/providers";
+import { Providers, type LoginGate } from "@/app/components/providers";
 
-export default function Root() {
+export default function Root({ LoginGate }: { LoginGate?: LoginGate }) {
     return (
-        <Providers>
+        <Providers LoginGate={LoginGate}>
             <Outlet />
         </Providers>
     );

@@ -226,6 +226,24 @@ export async function requestJobCancellation(id: string, userId: string) {
   return current;
 }
 
+export async function requestGroupCancellation(groupKey: string, userId: string) {
+  const db = await relationalDatabase(), timestamp = now();
+  const rows = (await db.query<{ id: string }>(sql`UPDATE application_jobs SET
+    status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
+    cancel_requested_at=${timestamp},
+    dedupe_key=CASE WHEN status='queued' THEN NULL ELSE dedupe_key END,
+    completed_at=CASE WHEN status='queued' THEN ${timestamp} ELSE completed_at END,
+    updated_at=${timestamp}
+    WHERE group_key=${bounded(groupKey, 500, "Job group")}
+      AND user_id=${bounded(userId, 200, "Job user")}
+      AND status IN('queued','running') RETURNING id`)).rows;
+  const cancelled = new Set(rows.map(({ id }) => id));
+  for (const active of activeJobs.values()) {
+    if (cancelled.has(active.job.id)) active.controller.abort();
+  }
+  return rows.length;
+}
+
 export async function jobCancellationRequested(id: string, workerId?: string) {
   const owner = workerId ? sql`AND locked_by=${workerId}` : sql.raw("");
   const row = (await (await relationalDatabase()).query<{ id: string }>(sql`
@@ -308,7 +326,7 @@ export async function enqueueJobCommand(
       AND status='running'`)).rows[0]) return false;
   await database.query(sql`INSERT INTO application_job_commands(
     id,job_id,kind,payload,created_at) VALUES(${randomUUID()},${jobId},
-      ${bounded(kind, 80, "Job command")},${boundedJson(payload, 32 * 1024, "Job command")},${created})`);
+      ${bounded(kind, 80, "Job command")},${boundedJson(payload, 128 * 1024, "Job command")},${created})`);
   return true;
 }
 

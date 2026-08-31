@@ -9,7 +9,7 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
     useUserProfile: () => ({
         profile: { draftingStyle: DEFAULT_DRAFTING_STYLE },
         loading: false,
-        updateDraftingStyle: mocks.update,
+        updateProfile: mocks.update,
     }),
 }));
 
@@ -28,8 +28,18 @@ describe("DraftingStyleSettings", () => {
         expect(screen.getByLabelText("Factum heading numbering")).toBeVisible();
         await user.selectOptions(screen.getByLabelText("Factum source links"), "false");
         expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
-            documents: expect.objectContaining({
-                factum: expect.objectContaining({ citationHyperlinks: false }),
+            draftingStyle: expect.objectContaining({
+                documents: expect.objectContaining({
+                    factum: expect.objectContaining({ citationHyperlinks: false }),
+                }),
+            }),
+        }));
+        await user.selectOptions(screen.getByLabelText("Factum heading numbering"), "true");
+        expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+            draftingStyle: expect.objectContaining({
+                documents: expect.objectContaining({
+                    factum: expect.objectContaining({ numberHeadings: true }),
+                }),
             }),
         }));
         const citation = screen.getByLabelText("Factum citation placement");
@@ -37,9 +47,11 @@ describe("DraftingStyleSettings", () => {
         await user.selectOptions(citation, "after-paragraph");
 
         expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
-            documents: expect.objectContaining({
-                factum: expect.objectContaining({
-                    citationPlacement: "after-paragraph",
+            draftingStyle: expect.objectContaining({
+                documents: expect.objectContaining({
+                    factum: expect.objectContaining({
+                        citationPlacement: "after-paragraph",
+                    }),
                 }),
             }),
         }));

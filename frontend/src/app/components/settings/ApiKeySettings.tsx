@@ -38,6 +38,13 @@ const API_KEY_FIELDS = [
         placeholder: "sk-or-...",
     },
     {
+        provider: "opencode-go",
+        label: "OpenCode Go",
+        placeholder: "OpenCode Go key",
+        description:
+            "Uses your OpenCode Go subscription across its supported model catalog.",
+    },
+    {
         provider: "meta",
         label: "Meta (Muse Spark)",
         placeholder: "LLM_...",

@@ -11,7 +11,7 @@ import {
 import { AccountSection } from "../AccountSection";
 type ModelPreferenceField = "titleModel" | "tabularModel";
 export default function ModelPreferencesPage() {
-    const { profile, updateModelPreference } = useUserProfile();
+    const { profile, updateProfile } = useUserProfile();
     const [savingField, setSavingField] = useState<ModelPreferenceField | null>(
         null,
     );
@@ -24,7 +24,7 @@ export default function ModelPreferencesPage() {
     ) => {
         setOptimisticValues((current) => ({ ...current, [field]: id }));
         setSavingField(field);
-        const ok = await updateModelPreference(field, id);
+        const ok = await updateProfile({ [field]: id });
         setSavingField((current) => (current === field ? null : current));
         if (!ok) {
             setOptimisticValues((current) => {

@@ -53,7 +53,7 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
     } else if (pathname === "/assistant" || pathname.startsWith("/assistant/")) {
       void loadChats();
     }
-  }, [limit, pathname, user]);
+  }, [loadChats, pathname, user]);
 
   const saveChat = useCallback(async (projectId?: string) => {
     try {

@@ -23,6 +23,30 @@ type CitatorExcerptClassification = {
   functionWords: number; proseWindow: string | null; rule: string;
 };
 
+export type NativeCitationTextSpan = { text: string; start: number; end: number };
+
+export type NativeCitationOccurrence = NativeCitationTextSpan & {
+  styledCitation: NativeCitationTextSpan;
+  coreCitation: NativeCitationTextSpan;
+  pinpoints: Array<NativeCitationTextSpan & {
+    kind: "paragraph" | "section" | "page";
+  }>;
+  kind: "case" | "statute" | "journal" | "other";
+  shortForm?: string;
+  reasons: string[];
+};
+
+/** Footnote offsets use JavaScript UTF-16 code units. */
+export type NativeAuthorityTextUnit = {
+  key: string;
+  kind: "body" | "footnote";
+  ordinal: number;
+  footnote_id: number | null;
+  page_numbers: number[];
+  text: string;
+  footnote_refs: Array<[footnoteId: number, offset: number]>;
+};
+
 type PdfStructureLookupBase = {
   schema_version: "legalpdf.structure-lookup.v1";
   requested: {
@@ -67,6 +91,7 @@ type StructureAddon = {
   deriveDocumentStructure(request: unknown): Promise<NativeDocument>;
   deriveDocxDocument(bytes: Buffer, id: string, drafting?: boolean): Promise<NativeDocument>;
   docxText(bytes: Buffer, drafting?: boolean, limit?: number): Promise<string>;
+  docxAuthorityTextUnits(bytes: Buffer): Promise<NativeAuthorityTextUnit[]>;
   fixDocxSupraCrossReferences(bytes: Buffer): Promise<{
     bytes: Buffer; detected: number; converted: number; already_linked: number;
     review_required: number; bookmarks_added: number;
@@ -77,6 +102,7 @@ type StructureAddon = {
   preparePdfDocument(bytes: Buffer, request: unknown): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
+  pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -113,6 +139,7 @@ type StructureAddon = {
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;
   }>;
+  citationOccurrencesInText(text: string): NativeCitationOccurrence[];
   caselawCitationLookupKey(text: string): string;
   hasCitationInText(text: string): boolean;
   classifyCitatorExcerpt(text: string): CitatorExcerptClassification;

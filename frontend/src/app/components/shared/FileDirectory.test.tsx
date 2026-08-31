@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "./types";
 import { FileDirectory } from "./FileDirectory";
@@ -19,9 +19,10 @@ const document: Document = {
 };
 
 const listDirectory = vi.hoisted(() => vi.fn());
+const listProjects = vi.hoisted(() => vi.fn());
 vi.mock("@/app/lib/beaverApi", () => ({
     directoryResource: () => ({ list: listDirectory }),
-    listProjects: vi.fn(),
+    listProjects,
 }));
 
 describe("FileDirectory folders", () => {
@@ -46,6 +47,11 @@ describe("FileDirectory folders", () => {
             />,
         );
 
+        const files = screen.getByRole("tab", { name: "Files" });
+        fireEvent.keyDown(files, { key: "ArrowRight" });
+        expect(screen.getByRole("tab", { name: "Templates" }))
+            .toHaveAttribute("aria-selected", "true");
+
         expect(screen.queryByText("Inside.pdf")).not.toBeInTheDocument();
         fireEvent.click(await screen.findByText("Folder"));
         expect(await screen.findByText("Inside.pdf")).toBeVisible();
@@ -54,5 +60,21 @@ describe("FileDirectory folders", () => {
             target: { value: "inside" },
         });
         expect(await screen.findByText("Inside.pdf")).toBeVisible();
+    });
+
+    it("does not carry a project search into that project's files", async () => {
+        listDirectory.mockResolvedValue({ items: [], next_cursor: null });
+        listProjects.mockResolvedValue({
+            items: [{ id: "project-1", name: "Matter A" }], next_cursor: null,
+        });
+        render(<FileDirectory selectedDocuments={[]} onChange={vi.fn()} showTabs />);
+
+        fireEvent.click(screen.getByRole("tab", { name: "Projects" }));
+        fireEvent.change(screen.getByRole("searchbox"), {
+            target: { value: "Matter A" },
+        });
+        fireEvent.click(await screen.findByRole("button", { name: "Matter A" }));
+
+        await waitFor(() => expect(screen.getByRole("searchbox")).toHaveValue(""));
     });
 });

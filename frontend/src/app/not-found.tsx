@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { pillButtonClassName } from "@/app/components/ui/pill-button";
+import { buttonClassName } from "@/app/components/ui/button";
 export default function NotFound() {
     return (
         <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -13,7 +13,7 @@ export default function NotFound() {
                 </p>
                 <Link
                     to="/"
-                    className={pillButtonClassName("black", "normal")}
+                    className={buttonClassName({ variant: "black", size: "normal" })}
                 >
                     Go home
                 </Link>

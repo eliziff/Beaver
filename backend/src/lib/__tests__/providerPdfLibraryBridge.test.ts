@@ -165,6 +165,22 @@ describe("provider PDF projection bridge", () => {
       ...attachment,
       url: "http://example.com/source.pdf",
     })).toThrow();
+    for (const url of ["https://www.canlii.org/source.pdf",
+      "https://download.canlii.ca./source.pdf"]) {
+      expect(() => bridge.providerPdfRequestReference({ ...attachment, url }))
+        .toThrow("blocked host");
+    }
+  });
+
+  it("does not follow an allowed provider redirect into CanLII", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 302,
+      headers: { Location: "https://www.canlii.ca./redirected.pdf" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const bridge = await import("../providerPdfLibraryBridge");
+
+    await expect(bridge.downloadProviderPdfAttachment(attachment))
+      .rejects.toThrow("blocked host");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed when a source digest is spliced onto another request", async () => {

@@ -1363,6 +1363,15 @@
         <section class="card" aria-labelledby="case-title">
           <div class="card-heading"><h2 id="case-title">2. Case details</h2></div>
           <form id="details-form" class="form-grid">
+            <div class="field wide">
+              <label for="court-preset">Court preset</label>
+              <select id="court-preset">
+                <option value="bcsc">British Columbia Supreme Court</option>
+                <option value="alberta">Alberta civil courts</option>
+                <option value="federal">Federal Court / Federal Court of Appeal</option>
+              </select>
+              <small id="preset-guidance" class="muted"></small>
+            </div>
             <div class="field">
               <label for="file-number">Court file number</label>
               <input id="file-number" name="file-number" type="text" required>
@@ -1599,6 +1608,42 @@
       "file-number", "registry", "court", "claimant", "respondent",
       "affidavit-number", "deponent", "sworn-date", "sworn-place",
     ];
+    const courtPresets = {
+      bcsc: {
+        court: "Supreme Court of British Columbia",
+        certificate: "bc",
+        guidance: "BC Supreme Civil Rule 22-2: exhibit certificate wording and consecutive documentary-exhibit pages. The commissioner must sign each certificate.",
+        source: "https://www.bclaws.gov.bc.ca/civix/document/id/loo94/loo94/168_2009_03",
+      },
+      alberta: {
+        court: "Court of King's Bench of Alberta",
+        certificate: "ab",
+        guidance: "Alberta Rules 13.19 and 13.21: identify each exhibit by commissioner certificate; 25+ affidavit-and-exhibit pages require tabs or one consecutive series.",
+        source: "https://www.canlii.org/en/ab/laws/regu/alta-reg-124-2010/",
+      },
+      federal: {
+        court: "Federal Court",
+        certificate: "federal",
+        guidance: "Federal Court Rules 65 and 80/Form 80A: the source affidavit must meet page-format rules and the oath-taker must sign each exhibit endorsement or certificate.",
+        source: "https://laws-lois.justice.gc.ca/eng/regulations/SOR-98-106/section-80.html",
+      },
+    };
+
+    function activeCourtPreset() {
+      return courtPresets[$("#court-preset").value] || courtPresets.bcsc;
+    }
+
+    function renderCourtPreset() {
+      const preset = activeCourtPreset();
+      const guidance = $("#preset-guidance");
+      guidance.textContent = `${preset.guidance} `;
+      const link = document.createElement("a");
+      link.href = preset.source;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Official source";
+      guidance.append(link);
+    }
     const CDN = {
       pdfLib: "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js",
       pdfJs: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs",
@@ -2702,7 +2747,8 @@
     function certificatePage(document, fonts, exhibit, number) {
       const page = document.addPage([612, 792]);
       const { roman, bold, italic } = fonts;
-      if ($("#page-numbers").checked) pageNumber(page, number, roman);
+      const preset = activeCourtPreset();
+      if ($("#page-numbers").checked && preset.certificate !== "bc") pageNumber(page, number, roman);
       centeredAt(page, `Court File No. ${fieldValue("file-number") || "—"}`, 474, 714, bold, 11);
       centeredAt(page, `Court Registry: ${fieldValue("registry") || "—"}`, 474, 691, bold, 11);
       centered(page, `In the ${fieldValue("court") || "Court"}`, 642, bold, 11.5);
@@ -2711,14 +2757,17 @@
       page.drawText("Respondent:", { x: 70, y: 544, size: 11, font: bold });
       centeredBlock(page, (fieldValue("respondent") || "—").toUpperCase(), 518, bold, 11.5, 410, 15);
 
-      const affidavit = fieldValue("affidavit-number").replace(/^#/, "");
       centered(page, `This is Exhibit “${exhibit}” referred to in the`, 450, bold, 11.5);
-      centeredBlock(page, `Affidavit #${affidavit || "—"}`, 432, bold, 11.5, 420, 15);
-      centeredBlock(page, `sworn before me at ${fieldValue("sworn-place") || "—"}`, 414, bold, 11.5, 420, 15);
-      centered(page, `this ${legalDate(fieldValue("sworn-date")) || "—"}`, 396, bold, 11.5);
+      centeredBlock(page, `affidavit of ${fieldValue("deponent") || "—"}`, 432, bold, 11.5, 420, 15);
+      if (preset.certificate === "bc") {
+        centeredBlock(page, `sworn (or affirmed) before me on ${legalDate(fieldValue("sworn-date")) || "—"}`, 414, bold, 11.5, 420, 15);
+      } else {
+        centeredBlock(page, `sworn (or affirmed) before me at ${fieldValue("sworn-place") || "—"}`, 414, bold, 11.5, 420, 15);
+        centered(page, `this ${legalDate(fieldValue("sworn-date")) || "—"}`, 396, bold, 11.5);
+      }
       page.drawLine({ start: { x: 212, y: 370 }, end: { x: 400, y: 370 }, thickness: 1 });
-      centered(page, "A commissioner for taking Affidavits", 350, italic, 11);
-      centered(page, "Within British Columbia", 332, italic, 11);
+      centered(page, preset.certificate === "federal" ? "Person before whom the affidavit was sworn" : "A commissioner for taking affidavits", 350, italic, 11);
+      centered(page, preset.certificate === "ab" ? "in and for Alberta" : preset.certificate === "bc" ? "within British Columbia" : "", 332, italic, 11);
       return page;
     }
 
@@ -2761,10 +2810,15 @@
       output.setModificationDate(new Date());
 
       if (report) progress("Adding affidavit", 0, state.order.length + 1);
-      await appendDocument(output, state.affidavit);
+      const preset = activeCourtPreset();
+      const affidavitPages = await appendDocument(output, state.affidavit, (page, index) => {
+        if ($("#page-numbers").checked && preset.certificate === "ab") {
+          pageNumber(page, index + 1, fonts.roman);
+        }
+      });
       const toc = [{ label: "Affidavit", detail: state.affidavit.name, page: 1 }];
 
-      let exhibitPage = 1;
+      let exhibitPage = preset.certificate === "ab" ? affidavitPages + 1 : 1;
       for (let index = 0; index < state.order.length; index += 1) {
         const entry = entryById(state.order[index]);
         if (report) progress(`Adding Exhibit ${indexLabel(index)}`, index + 1, state.order.length + 1);
@@ -2777,7 +2831,7 @@
           page: output.getPageCount() + 1,
         });
         certificatePage(output, fonts, indexLabel(index), exhibitPage);
-        exhibitPage += 1;
+        if ($("#page-numbers").checked && preset.certificate !== "bc") exhibitPage += 1;
         if (!entry) {
           if (allowIncomplete) continue;
           throw new Error(`Exhibit ${indexLabel(index)} has no file.`);
@@ -3008,6 +3062,8 @@
       $("#court").value = typeof preferences.court === "string" && preferences.court
         ? preferences.court
         : "Supreme Court of British Columbia";
+      $("#court-preset").value = courtPresets[preferences.courtPreset] ? preferences.courtPreset : "bcsc";
+      renderCourtPreset();
     }
 
     function savePreferences() {
@@ -3015,6 +3071,7 @@
         localStorage.setItem(preferencesKey, JSON.stringify({
           registry: fieldValue("registry"),
           court: fieldValue("court"),
+          courtPreset: $("#court-preset").value,
         }));
       } catch {}
     }
@@ -3124,6 +3181,14 @@
     });
     ["registry", "court"].forEach((id) => {
       $(`#${id}`).addEventListener("change", savePreferences);
+    });
+    $("#court-preset").addEventListener("change", () => {
+      $("#court").value = activeCourtPreset().court;
+      $("#bumpers").checked = false;
+      $("#page-numbers").checked = true;
+      renderCourtPreset();
+      savePreferences();
+      schedulePreview();
     });
 
     $("#exhibit-list").addEventListener("change", (event) => {

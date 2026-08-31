@@ -48,7 +48,7 @@ describe("SelectAssistantProjectModal", () => {
             />,
         );
 
-        const project = await screen.findByRole("option", { name: /Matter One/ });
+        const project = await screen.findByRole("button", { name: /Matter One/ });
         const continueButton = screen.getByRole("button", {
             name: "Continue",
         });

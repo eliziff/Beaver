@@ -48,16 +48,16 @@ Current support is useful but narrow:
 | Targeted search | **Existing.** `find_in_document` and `library_find` return bounded context, but not durable, version-bound match handles suitable for later mutation. |
 | Tracked substitutions | **Partial.** `applyTrackedEdits` emits `w:ins`/`w:del` and supports multiple substitutions in main-body and table paragraphs. It does not edit headers, footers, comments, footnotes, or endnotes; edits cannot cross paragraphs; inline content controls are not visible; and touching a pre-existing insertion may accept its wrapper. |
 | Accept/reject revisions | **Existing, narrow.** `resolveTrackedChange` accepts or rejects one known revision ID and creates another document version. |
-| Citation hyperlinking | **Existing.** `library_link_docx_citations` is a bounded workflow that inspects and splits footnote citations, resolves verified provider links, and writes a new Library version. A model is used only for unresolved citation splits. |
+| Citation hyperlinking | **Partial.** Beaver-generated DOCX citations can carry separate authority and pinpoint links. There is currently no bounded linker for citations already present in an imported DOCX; the old linker was deleted and must not be treated as an implementation. |
 | Updating supra references | **Existing.** `library_fix_docx_supras` adds bookmarks around ordinary footnote references and converts unambiguous `supra note N` text to native `NOTEREF ... \h` fields. It is idempotent and reports restarted, split, or otherwise unsafe cases instead of guessing. |
 | General styles, fields, notes, comments, sections, headers, content controls, and accessibility mutation | **Gap.** The installed `docx` package exposes some generation primitives, but Beaver has no preservation-tested, version-bound general mutation surface for these features. |
 
 The implementation evidence is
 `backend/src/lib/chat/tools/documentOps.ts`,
 `backend/src/lib/docxTrackedChanges.ts`,
-`backend/src/lib/docxCitationLinking.ts`,
+`backend/src/lib/docxEvidenceCitations.ts`,
 `backend/src/lib/docxDeterministicCleanup.ts`, and
-`backend/src/lib/chat/localAssistantTools.ts`. The design evidence is
+`backend/src/lib/chat/assistantTools.ts`. The design evidence is
 [Document mutation, spreadsheets, and content controls](document-mutation.md)
 and [ALR macro portability](alr-macro-portability.md). The macro audit is
 evidence for useful Word idioms, not a runtime dependency.

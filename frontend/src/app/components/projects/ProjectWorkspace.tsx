@@ -16,14 +16,16 @@ import {
   listProjectChats,
   updateProject,
 } from "@/app/lib/beaverApi";
-import type { Chat, ColumnConfig, Project } from "../shared/types";
+import type { Chat, ColumnConfig, Document, Project } from "../shared/types";
+import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import { PeopleModal } from "../modals/PeopleModal";
 import { NewTRModal } from "../tabular/NewTRModal";
-import { TableToolbar } from "../shared/TableToolbar";
+import { Tabs } from "../ui/tabs";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { Modal } from "../modals/Modal";
+import { ConfirmPopup } from "../popups/ConfirmPopup";
+import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
 import { projectBreadcrumbLabel, ProjectPageHeader, type ProjectWorkspaceSection } from "./ProjectPageParts";
 
@@ -39,9 +41,8 @@ type Context = {
   ensureProjectChats: () => Promise<Chat[]>;
   creatingChat: boolean;
   creatingReview: boolean;
-  createChat: () => Promise<void>;
+  createChat: (documents?: Document[]) => Promise<void>;
   openNewReview: () => void;
-  setAddDocumentsHeaderAction: (action: (() => void) | null) => void;
   setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
 type Dialog = "people" | "details" | "review" | "delete" | "deleting" | "deleted" | null;
@@ -49,7 +50,7 @@ const Workspace = createContext<Context | null>(null);
 const sections = [
   { id: "documents", label: "Documents", path: "" },
   { id: "assistant", label: "Chats", path: "/assistant" },
-  { id: "reviews", label: "Tabular Reviews", path: "/tabular-reviews" },
+  { id: "reviews", label: "Reviews", path: "/tabular-reviews" },
 ] as const;
 
 export function useProjectWorkspace() {
@@ -73,7 +74,6 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [creatingReview, setCreatingReview] = useState(false);
-  const [addDocuments, setAddDocuments] = useState<(() => void) | null>(null);
   const chatRequest = useRef<Promise<Chat[]> | null>(null);
   const tail = pathname.split("/").filter(Boolean).slice(2);
   const activeSection: ProjectWorkspaceSection = tail[0] === "assistant"
@@ -101,11 +101,12 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
     return chatRequest.current;
   }, [projectChats, projectId]);
 
-  const createChat = useCallback(async () => {
+  const createChat = useCallback(async (documents: Document[] = []) => {
     setCreatingChat(true);
     try {
       const id = await saveChat(projectId);
       if (!id) return;
+      stageNewChatDocuments(documents);
       setProjectChats((current) => current ? [{
         id,
         project_id: projectId,
@@ -120,15 +121,12 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
     }
   }, [navigate, profile?.displayName, projectId, saveChat, user?.id]);
 
-  const setAddDocumentsHeaderAction = useCallback((action: (() => void) | null) => {
-    setAddDocuments(() => action);
-  }, []);
-
   async function createReview(
     title: string,
     _ignored?: string,
     documentIds: string[] = [],
     columns: ColumnConfig[] | null = [],
+    workflowId?: string,
   ) {
     setCreatingReview(true);
     try {
@@ -136,6 +134,7 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
         title: title || undefined,
         document_ids: documentIds,
         columns_config: columns ?? [],
+        workflow_id: workflowId,
         project_id: projectId,
       });
       navigate(`/projects/${projectId}/tabular-reviews/${review.id}`);
@@ -170,35 +169,30 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
     creatingReview,
     createChat,
     openNewReview: () => setDialog("review"),
-    setAddDocumentsHeaderAction,
     setOwnerOnlyAction,
   };
-  const ownerOnlyDialog = (
-    <Modal
-      open={!!ownerOnlyAction}
-      onClose={() => setOwnerOnlyAction(null)}
-      role="alertdialog"
-      size="sm"
-      className="h-auto min-h-48"
-      breadcrumbs={["Owner access required"]}
-      cancelAction={{ label: "Dismiss", onClick: () => setOwnerOnlyAction(null) }}
-    >
-      <p className="pb-3 text-sm text-gray-700">
-        Only the project owner can {ownerOnlyAction}.
-      </p>
-    </Modal>
-  );
+  const ownerOnlyDialog = <OwnerOnlyPopup open={!!ownerOnlyAction}
+    title="Owner access required" action={ownerOnlyAction ?? undefined}
+    onClose={() => setOwnerOnlyAction(null)} />;
+  if (project === null) return <Workspace.Provider value={value}>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <ProjectPageHeader project={null} search="" isOwner={false}
+        onBackToProjects={() => navigate("/projects")}
+        onOpenDetails={() => {}} onDeleteProject={() => {}}
+        onSearchChange={() => {}} onOpenPeople={() => {}} />
+      <p className="grid min-h-0 flex-1 place-items-center px-6 text-sm text-gray-500"
+        role="status">This project could not be found.</p>
+    </div>
+  </Workspace.Provider>;
   if (!showShell) return <Workspace.Provider value={value}>{children}{ownerOnlyDialog}</Workspace.Provider>;
   return (
     <Workspace.Provider value={value}>
       <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <ProjectPageHeader
-          project={project ?? null}
+          project={project}
           search={searches[activeSection]}
-          activeSection={activeSection}
-          creatingChat={creatingChat}
-          creatingReview={creatingReview}
           isOwner={project?.is_owner !== false}
+          booleanSearch={activeSection !== "assistant"}
           onBackToProjects={() => navigate("/projects")}
           onOpenDetails={() => setDialog("details")}
           onDeleteProject={() => project?.is_owner === false
@@ -206,9 +200,6 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
             : setDialog("delete")}
           onSearchChange={(search) => setSearches((current) => ({ ...current, [activeSection]: search }))}
           onOpenPeople={() => setDialog("people")}
-          onNewChat={() => void createChat()}
-          onNewReview={() => setDialog("review")}
-          onAddDocuments={addDocuments ?? undefined}
         />
         {children}
         {ownerOnlyDialog}
@@ -230,29 +221,14 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
             name, cm_number: cmNumber, practice: practice || null,
           }))}
         />
-        <Modal
+        <ConfirmPopup
           open={dialog === "delete" || dialog === "deleting" || dialog === "deleted"}
-          onClose={() => { if (dialog !== "deleting") setDialog(null); }}
-          role="alertdialog"
-          size="sm"
-          className="h-auto min-h-48"
-          breadcrumbs={["Delete project?"]}
-          cancelAction={dialog === "deleted" ? false : {
-            label: "Cancel",
-            onClick: () => setDialog(null),
-            disabled: dialog === "deleting",
-          }}
-          primaryAction={{
-            label: dialog === "deleted" ? "Deleted" : dialog === "deleting" ? "Deleting…" : "Delete",
-            onClick: () => void removeProject(),
-            disabled: dialog === "deleting" || dialog === "deleted",
-            variant: "danger",
-          }}
-        >
-          <p className="pb-3 text-sm text-gray-700">
-            This will permanently delete the project and its related documents, chats, and tabular reviews.
-          </p>
-        </Modal>
+          title="Delete project?"
+          message="This will permanently delete the project and its related documents, chats, and tabular reviews."
+          confirmLabel={dialog === "deleted" ? "Deleted" : "Delete project"}
+          confirmStatus={dialog === "deleting" ? "loading" : dialog === "deleted" ? "complete" : "idle"}
+          onCancel={() => { if (dialog !== "deleting") setDialog(null); }}
+          onConfirm={() => void removeProject()} />
         {project && (
           <PeopleModal
             open={dialog === "people"}
@@ -270,15 +246,36 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   );
 }
 
-export function ProjectSectionToolbar({ actions }: { actions?: ReactNode }) {
+export function ProjectSectionTabs({ actions, children }: {
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const { activeSection, projectId } = useProjectWorkspace();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const restoreFocus = Boolean((state as { focusProjectSectionTab?: boolean } | null)
+    ?.focusProjectSectionTab);
+  useEffect(() => {
+    if (!restoreFocus) return;
+    const frame = requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(
+      '[role="tablist"][aria-label="Project sections"] [aria-selected="true"]')
+      ?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, restoreFocus]);
   return (
-    <TableToolbar
-      items={sections}
-      active={activeSection}
-      onChange={(next) => navigate(`/projects/${projectId}${sections.find(({ id }) => id === next)?.path ?? ""}`)}
+    <Tabs
+      value={activeSection}
+      onValueChange={(next) => navigate(
+        `/projects/${projectId}${sections.find(({ id }) => id === next)?.path ?? ""}`,
+        { state: { focusProjectSectionTab: true } },
+      )}
+      options={sections.map(({ id, label }) => ({ value: id, label }))}
+      ariaLabel="Project sections"
+      variant="underline"
       actions={actions}
-    />
+      className="min-h-0 flex-1 [&>[data-tabs-rail]]:mx-4 [&>[data-tabs-rail]]:gap-2 [&>[role=tabpanel]]:pt-2 md:[&>[data-tabs-rail]]:mx-6"
+    >
+      {children}
+    </Tabs>
   );
 }

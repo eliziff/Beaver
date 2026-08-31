@@ -3,6 +3,7 @@ import {
     type HTMLAttributes,
     type ReactNode,
     type RefObject,
+    useRef,
 } from "react";
 import { cn } from "@/app/lib/utils";
 import {
@@ -11,7 +12,7 @@ import {
     LIQUID_TABLE_SURFACE_CLASS,
 } from "@/app/components/ui/liquid-surface";
 import { CheckboxControl } from "@/app/components/ui/checkbox";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 const TABLE_PRIMARY_CELL_WIDTH_CLASS =
     "w-[248px] sm:w-[292px] md:w-[332px] shrink-0";
 export const TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS =
@@ -58,16 +59,36 @@ export function useTableSelection<T extends { id: string }>(
     selectedIds: readonly string[],
     onChange: (ids: string[]) => void,
 ) {
+    const anchor = useRef<string | null>(null);
     const selected = new Set(selectedIds);
     const allSelected = rows.length > 0 && rows.every(({ id }) => selected.has(id));
+    const range = (id: string) => {
+        const ids = rows.map((row) => row.id);
+        const start = anchor.current ? ids.indexOf(anchor.current) : -1;
+        const end = ids.indexOf(id);
+        if (start < 0 || end < 0) return [id];
+        return ids.slice(Math.min(start, end), Math.max(start, end) + 1);
+    };
     return {
         selected,
         allSelected,
         someSelected: !allSelected && rows.some(({ id }) => selected.has(id)),
         toggleAll: () => onChange(allSelected ? [] : rows.map(({ id }) => id)),
-        toggle: (id: string) => onChange(selected.has(id)
-            ? selectedIds.filter((selectedId) => selectedId !== id)
-            : [...selectedIds, id]),
+        toggle(id: string, useRange = false) {
+            const next = new Set(selectedIds);
+            for (const selectedId of useRange ? range(id) : [id]) {
+                if (selected.has(id)) next.delete(selectedId);
+                else next.add(selectedId);
+            }
+            anchor.current = id;
+            onChange([...next]);
+        },
+        select(id: string, useRange = false) {
+            const next = useRange ? new Set(selectedIds) : new Set<string>();
+            for (const selectedId of useRange ? range(id) : [id]) next.add(selectedId);
+            anchor.current = id;
+            onChange([...next]);
+        },
     };
 }
 export function TableScrollArea({
@@ -83,7 +104,7 @@ export function TableScrollArea({
 }) {
     return (
         <div className={cn("mx-4 mb-2 min-h-0 min-w-0 flex-1 md:mx-6 md:mb-3", className)}>
-            <div className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
+            <div role="table" className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", LIQUID_TABLE_SURFACE_CLASS)}>
                 <div
                     ref={scrollRef}
                     className={cn(
@@ -104,7 +125,7 @@ export function TableScrollArea({
 }
 export function TableHeaderRow({ children, className, ...props }: DivProps) {
     return (
-        <div
+        <div role="row"
             className={cn(
                 "z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
                 className,
@@ -126,7 +147,7 @@ export function TableRow({
     selected?: boolean;
 }) {
     return (
-        <div
+        <div role="row"
             className={cn(
                 "group flex h-11 min-w-0 items-center pr-3 [content-visibility:auto] [contain-intrinsic-size:auto_44px]",
                 interactive && "cursor-pointer",
@@ -150,7 +171,7 @@ export function TableStickyCell({
     header?: boolean;
 }) {
     return (
-        <div
+        <div role={header ? "columnheader" : "cell"}
             className={cn(
                 "flex pl-4 pr-2 text-left",
                 widthClassName,
@@ -261,7 +282,7 @@ export function TablePrimaryCell({
 }
 export function TableHeaderCell({ children, className, ...props }: DivProps) {
     return (
-        <div
+        <div role="columnheader"
             className={cn(
                 "flex shrink-0 items-center px-2 text-left",
                 className,
@@ -274,7 +295,7 @@ export function TableHeaderCell({ children, className, ...props }: DivProps) {
 }
 export function TableCell({ children, className, ...props }: DivProps) {
     return (
-        <div
+        <div role="cell"
             className={cn(
                 "shrink-0 truncate px-2 text-sm text-gray-700",
                 className,
@@ -287,7 +308,7 @@ export function TableCell({ children, className, ...props }: DivProps) {
 }
 export function TableBody({ children, className, ...props }: DivProps) {
     return (
-        <div className={cn("flex-1", className)} {...props}>
+        <div role="rowgroup" className={cn("flex-1", className)} {...props}>
             {children}
         </div>
     );
@@ -335,7 +356,7 @@ export const TableLoadMore = ({ show, onClick }: {
     show: boolean; onClick: () => void;
 }) => show ? (
         <div className="flex justify-center border-t border-gray-200 bg-white p-3">
-            <PillButton tone="white" onClick={onClick}>Load more</PillButton>
+            <Button variant="white" size="compact" onClick={onClick}>Load more</Button>
         </div>
     ) : null;
 export function TableEmptyState({

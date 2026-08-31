@@ -18,10 +18,12 @@ import {
 
 interface Props {
     doc: { document_id: string; version_id?: string | null } | null;
+    bytes?: Uint8Array;
     revision?: string | number | null;
     quotes?: CitationQuote[];
     quoteFocusKey?: string | number;
     rounded?: boolean;
+    ariaLabel?: string;
     onUnavailable?: () => void;
 }
 
@@ -89,10 +91,12 @@ function scrollToHighlight(
 
 export function PdfView({
     doc,
+    bytes,
     revision,
     quotes,
     quoteFocusKey,
     rounded = true,
+    ariaLabel = "PDF document",
     onUnavailable,
 }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -354,11 +358,11 @@ export function PdfView({
     }, [renderPdf]);
 
     useEffect(() => {
-        if (error || (result && result.type !== "pdf")) {
+        if (!bytes && (error || (result && result.type !== "pdf"))) {
             notifyUnavailable();
             return;
         }
-        if (!result) return;
+        if (!bytes && !result) return;
         pagesRef.current = [];
         quotesRef.current = quoteList;
         zoomRef.current = 1;
@@ -375,7 +379,7 @@ export function PdfView({
             const lib = await getPdfJs();
             if (cancelled) return;
             const pdf = await lib.getDocument({
-                data: new Uint8Array(result.buffer).slice(),
+                data: bytes?.slice() ?? new Uint8Array(result!.buffer).slice(),
                 isEvalSupported: false,
                 maxImageSize: MAX_PDF_IMAGE_PIXELS,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,
@@ -404,7 +408,7 @@ export function PdfView({
             pdfRef.current = null;
             void pdf?.destroy();
         };
-    }, [error, result, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [bytes, error, result, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!pdfRef.current) return;
@@ -432,16 +436,16 @@ export function PdfView({
     return (
         <section
             className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
-            aria-label="PDF document"
+            aria-label={ariaLabel}
         >
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
-                {loading && (
+                {!bytes && loading && (
                     <div role="status" className="flex h-full items-center justify-center">
                         <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
                         <span className="sr-only">Loading PDF…</span>
                     </div>
                 )}
-                {(error || viewerError) && (
+                {((!bytes && error) || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
                             {error || viewerError}

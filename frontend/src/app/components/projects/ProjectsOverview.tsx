@@ -1,6 +1,6 @@
 "use client";
 import { useDeferredValue, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
@@ -8,7 +8,8 @@ import {
     updateProject,
     deleteProject,
 } from "@/app/lib/beaverApi";
-import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
+import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
+import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
 import type { Project } from "@/app/components/shared/types";
 import { NewProjectModal } from "./NewProjectModal";
@@ -29,10 +30,10 @@ import {
     TableSelectionHeader,
     useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { formatDate } from "@/app/lib/utils";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 function isProjectOwner(project: Project, currentUserId?: string | null) {
     return project.is_owner ?? project.user_id === currentUserId;
@@ -66,7 +67,8 @@ export function ProjectsOverview() {
     const [activeFilter, setActiveFilter] = useState<ProjectFilter>("all");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [search, setSearch] = useState("");
-    const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
+    const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
+    const [deleteRequest, setDeleteRequest] = useState<{ ids: string[]; loading: boolean } | null>(null);
     const navigate = useNavigate();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
@@ -111,59 +113,41 @@ export function ProjectsOverview() {
             ),
         );
     }
-    async function handleDeleteSelected() {
-        const ids = selectedIds;
+    async function confirmDelete() {
+        if (!deleteRequest) return;
+        const ids = deleteRequest.ids;
+        const requested = new Set(ids);
+        setDeleteRequest({ ids, loading: true });
         const owned = rows
             .filter(
                 (project) =>
-                    selection.selected.has(project.id) &&
+                    requested.has(project.id) &&
                     isProjectOwner(project, user?.id),
             )
             .map((project) => project.id);
-        const ownedIds = new Set(owned);
         const blocked = ids.length - owned.length;
-        setSelectedIds([]);
-        await Promise.all(owned.map((id) => deleteProject(id).catch(() => {})));
+        const results = await Promise.allSettled(owned.map((id) => deleteProject(id)));
+        const deletedIds = new Set(owned.filter((_, index) => results[index].status === "fulfilled"));
+        const failedIds = owned.filter((_, index) => results[index].status === "rejected");
+        setSelectedIds(failedIds);
         updateProjects((previous) =>
-            previous.filter((project) => !ownedIds.has(project.id)),
+            previous.filter((project) => !deletedIds.has(project.id)),
         );
-        if (blocked > 0) {
-            setOwnerOnlyAction(
-                `delete ${blocked} of the selected projects — only the project owner can delete a project`,
-            );
-        }
+        const failed = rows.filter((project) => failedIds.includes(project.id))
+            .map((project) => `${project.name} (${project.id})`).join(", ");
+        setDeleteWarning([
+            blocked > 0 && `${blocked} selected ${blocked === 1 ? "project was" : "projects were"} not owned by you.`,
+            failed && `Could not delete ${failed}. Try again.`,
+        ].filter(Boolean).join(" ") || null);
+        setDeleteRequest(null);
     }
-    async function handleDeleteOne(id: string) {
-        await deleteProject(id);
-        updateProjects((previous) =>
-            previous.filter((project) => project.id !== id),
-        );
-    }
-    const toolbarActions = (
-        <span
-            aria-label="Selected project actions"
-            className="inline-flex h-8 w-[17rem] items-center justify-end gap-1.5"
-        >
-            <TabPillButton
-                disabled={selectedIds.length !== 1}
-                onClick={() =>
-                    navigate(`/projects/${selectedIds[0]}/assistant`)
-                }
-            >
-                <MessageSquarePlus className="h-3.5 w-3.5" />
-                Open in new chat
-            </TabPillButton>
-            <PillButton
-                tone="danger"
-                className={`h-8 ${selectedIds.length ? "" : "invisible pointer-events-none"}`}
-                onClick={() => void handleDeleteSelected()}
-                aria-hidden={!selectedIds.length}
-                tabIndex={selectedIds.length ? undefined : -1}
-            >
-                Delete selected
-            </PillButton>
-        </span>
-    );
+    const selectionItems = [
+        ...(selectedIds.length === 1 ? [{
+            label: "Open in new chat",
+            onSelect: () => navigate(`/projects/${selectedIds[0]}/assistant`),
+        }] : []),
+        { label: "Delete", onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) },
+    ];
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
             <PageHeader loading={loading}>
@@ -177,38 +161,67 @@ export function ProjectsOverview() {
                             aria-keyshortcuts="/"
                             value={search}
                             onValueChange={setSearch}
-                            placeholder="Search projects..."
+                            placeholder="Search projects"
                             aria-label="Search projects"
                             disabled={loading}
+                            booleanSearch
                             wrapperClassName="min-w-0 flex-1 border-gray-300 bg-white shadow-none sm:w-72"
                         />
-                        <PillButton
+                        <Button
                             data-page-new
                             aria-keyshortcuts="Alt+N"
-                            tone="black"
+                            variant="black"
                             size="normal"
                             onClick={() => setModalOpen(true)}
                             disabled={loading}
                             className="h-9 shrink-0 shadow-none"
                         >
                             <FolderSvgIcon className="h-4 w-4" />
-                            Create project +
-                        </PillButton>
+                            New project
+                        </Button>
                     </div>
                 </div>
             </PageHeader>
             <TableToolbar
                 items={PROJECT_FILTERS}
                 active={activeFilter}
+                ariaLabel="Project filters"
                 onChange={(nextFilter) => {
                     setActiveFilter(nextFilter);
                     setSelectedIds([]);
                 }}
-                actions={toolbarActions}
             />
             <TableScrollArea
                 className="[&>div]:bg-white"
-                header={
+                header={selectedIds.length ? (
+                    <TableSelectionHeader label={`${selectedIds.length} selected`}
+                        selection={selection} selectionLabel="Select loaded projects"
+                        className="w-full min-w-0 bg-white"
+                        primaryClassName="min-w-0 flex-1 bg-white"
+                        widthClassName="min-w-0 flex-1">
+                        <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
+                            {selectedIds.length === 1 && <Button variant="white"
+                                size="normal" className="h-8 py-0"
+                                onClick={() => navigate(`/projects/${selectedIds[0]}/assistant`)}
+                            >
+                                <MessageSquarePlus className="h-3.5 w-3.5" />
+                                Open in new chat
+                            </Button>}
+                            <MoreActionsMenu
+                                label="More actions for selected projects"
+                                items={[{ label: "Delete", onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) }]}
+                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                            />
+                        </div>
+                        <div className="sm:hidden">
+                            <MoreActionsMenu
+                                label="Actions"
+                                items={selectionItems}
+                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                            />
+                        </div>
+                    </TableSelectionHeader>
+                ) : (
                     <TableSelectionHeader label="Name" loading={loading}
                         selection={selection} selectionLabel="Select loaded projects"
                         className="w-full min-w-0 bg-white"
@@ -218,7 +231,7 @@ export function ProjectsOverview() {
                             className="mr-2 h-5 w-5 shrink-0" />}>
                         <TableHeaderCell className="w-8" />
                     </TableSelectionHeader>
-                }
+                )}
             >
                 {loading ? (
                     <TableLoadingRows count={SKELETON_ROWS}
@@ -273,9 +286,11 @@ export function ProjectsOverview() {
                                         className="mr-2 h-5 w-5 shrink-0 text-gray-700"
                                     />
                                     <div className="min-w-0 flex-1">
-                                        <div className="truncate text-base font-medium text-gray-900">
+                                        <Link to={`/projects/${project.id}`}
+                                            onClick={(event) => event.stopPropagation()}
+                                            className="block truncate rounded-sm text-base font-medium text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
                                             {project.name}
-                                        </div>
+                                        </Link>
                                         <div className="truncate text-xs text-gray-600">
                                             {projectSummary(project, user?.id)}
                                             {" \u00b7 "}
@@ -294,9 +309,7 @@ export function ProjectsOverview() {
                                             onEditDetails={() =>
                                                 setDetailsProjectId(project.id)
                                             }
-                                            onDelete={() =>
-                                                void handleDeleteOne(project.id)
-                                            }
+                                            onDelete={() => setDeleteRequest({ ids: [project.id], loading: false })}
                                         />
                                     )}
                                 </div>
@@ -323,11 +336,18 @@ export function ProjectsOverview() {
                 onClose={() => setDetailsProjectId(null)}
                 onSave={handleProjectDetailsSave}
             />
-            <OwnerOnlyPopup
-                open={!!ownerOnlyAction}
-                action={ownerOnlyAction ?? undefined}
-                onClose={() => setOwnerOnlyAction(null)}
+            <WarningPopup
+                open={!!deleteWarning}
+                title="Some projects were not deleted"
+                message={deleteWarning}
+                onClose={() => setDeleteWarning(null)}
             />
+            <ConfirmPopup open={!!deleteRequest}
+                title={`Delete ${deleteRequest?.ids.length === 1 ? "project" : `${deleteRequest?.ids.length} projects`}?`}
+                message="This permanently deletes the selected project data."
+                confirmLabel="Delete" confirmStatus={deleteRequest?.loading ? "loading" : "idle"}
+                onConfirm={() => void confirmDelete()}
+                onCancel={() => { if (!deleteRequest?.loading) setDeleteRequest(null); }} />
         </div>
     );
 }

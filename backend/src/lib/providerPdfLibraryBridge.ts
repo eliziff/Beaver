@@ -73,8 +73,14 @@ const text = (value: string | null | undefined, maximum: number) => {
 };
 
 function publicUrl(raw: string) {
-  return normalizeRemoteHttpsUrl(raw, { label: "Source PDF URL", maxUrlLength: 8_192,
+  const url = normalizeRemoteHttpsUrl(raw, { label: "Source PDF URL", maxUrlLength: 8_192,
     defaultPortOnly: true, allowIpLiterals: false, blockedHostSuffixes: [".local"] }).url;
+  const hostname = url.hostname.toLowerCase().replace(/\.+$/u, "");
+  if (["canlii.ca", "canlii.org"].some((domain) =>
+    hostname === domain || hostname.endsWith(`.${domain}`))) {
+    throw new Error("Source PDF URL points to a blocked host.");
+  }
+  return url;
 }
 
 function sourceUrl(raw: string) {
@@ -190,6 +196,16 @@ async function download(request: SafeRequest, signal?: AbortSignal) {
       throw error;
     }
   });
+}
+
+/** Downloads one provider-verified PDF through the shared guarded cache. */
+export async function downloadProviderPdfAttachment(
+  input: ProviderPdfAttachment,
+  signal?: AbortSignal,
+) {
+  const request = safeRequest(input);
+  const result = await download(request, signal);
+  return { bytes: await readFile(result.path), sourceSha256: result.digest };
 }
 
 const parse = (bytes: Buffer, digest: string, signal?: AbortSignal,

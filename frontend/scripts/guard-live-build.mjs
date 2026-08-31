@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const BUILD_BLOCKED_MESSAGE =
-    "Frontend build blocked because Beaver is listening on 127.0.0.1:3000. Run `.\\scripts\\mike.ps1 stop`, build, then run `.\\scripts\\mike.ps1 start -WithTableOfAuthorities`.";
+    "Frontend build blocked because Beaver is listening on 127.0.0.1:3000. Run `.\\scripts\\mike.ps1 stop`, build, then run `.\\scripts\\mike.ps1 start`.";
 
 export function isFrontendLive({
     host = "127.0.0.1",

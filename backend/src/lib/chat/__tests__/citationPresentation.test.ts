@@ -25,8 +25,8 @@ describe("legal evidence citation presentation", () => {
       locatorLabel: "par12",
     });
     const source = await structureNative().deriveDocumentStructure({
-      kind: "a2aj",
-      input: { citation: receipt.citation, source_kind: "cases", text },
+      kind: "provider_text",
+      input: { provider: "a2aj", citation: receipt.citation, source_kind: "cases", text },
     });
     const presented = presentLegalEvidence({ receipt, source });
     expect(presented.authority).toBe("Example v State, 2026 SCC 1");
@@ -58,8 +58,9 @@ describe("legal evidence citation presentation", () => {
       locatorLabel: "sec77",
     });
     const source = await structureNative().deriveDocumentStructure({
-      kind: "a2aj",
+      kind: "provider_text",
       input: {
+        provider: "a2aj",
         citation: receipt.citation,
         source_kind: "laws",
         text: sourceText,
@@ -86,8 +87,9 @@ describe("legal evidence citation presentation", () => {
     const url =
       "https://decisions.fca-caf.gc.ca/fca-caf/decisions/en/item/522310/index.do";
     const source = await structureNative().deriveDocumentStructure({
-      kind: "a2aj",
+      kind: "provider_text",
       input: {
+        provider: "a2aj",
         citation: "2026 FCA 42",
         source_kind: "cases",
         text,

@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, MessageSquare, MessageSquareX, Play, Plus, Upload, Users } from "lucide-react";
+import { MessageSquare, MessageSquareX, Play, Plus, Square, Upload, Users } from "lucide-react";
 import {
-    BeaverApiError, clearTabularCells, deleteTabularReview, getProject, getTabularReview,
+    clearTabularCells, deleteTabularReview, getProject, getTabularReview,
     getTabularReviewPeople, regenerateTabularCell,
-    directoryResource, exportTabularReview, streamTabularGeneration, updateTabularReview,
+    directoryResource, exportTabularReview, stopTabularGeneration,
+    startTabularGeneration, updateTabularReview,
     uploadDocuments, uploadStandaloneDocument,
 } from "@/app/lib/beaverApi";
+import { BeaverApiError } from "@/app/lib/apiTransport";
 import { downloadBlob } from "@/app/lib/download";
-import { readSseData } from "@/app/lib/sse";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
-import type { ColumnConfig, Document, Project, TabularCell, TabularReview, Workflow } from "../shared/types";
-import { HeaderActionsMenu } from "../shared/HeaderActionsMenu";
+import type { ColumnConfig, Document, Project, TabularCell, TabularReview } from "../shared/types";
+import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
 import { TableToolbar } from "../shared/TableToolbar";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
@@ -24,8 +25,9 @@ import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
 import { ActionMenu } from "../ui/action-menu";
-import { TabPillButton } from "../ui/tab-pill-button";
+import { Button } from "../ui/button";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
+import type { WorkflowSelection } from "../workflows/workflowRoutes";
 import { AddColumnModal } from "./AddColumnModal";
 import type { ParsedCitation } from "./citation-utils";
 import { TabularReviewDetailsModal } from "./TabularReviewDetailsModal";
@@ -103,9 +105,21 @@ export function TRView({ reviewId, projectId }: Props) {
                 setCells(data.cells);
                 setDocuments(data.documents);
                 setProjects(loadedProjects);
+                setUi({ generating: data.review.is_running === true });
             })
             .finally(() => setUi({ loading: false }));
     }, [projectId, reviewId, setUi]);
+
+    useEffect(() => {
+        if (!generating) return;
+        const refresh = () => void getTabularReview(reviewId).then((data) => {
+            setReview(data.review);
+            setCells(data.cells);
+            if (!data.review.is_running) setUi({ generating: false });
+        }).catch(() => undefined);
+        const timer = window.setInterval(refresh, 2_000);
+        return () => window.clearInterval(timer);
+    }, [generating, reviewId, setUi]);
 
     function setChatId(next: string | null | undefined) {
         setUi({ chatId: next });
@@ -120,10 +134,11 @@ export function TRView({ reviewId, projectId }: Props) {
         setReview((current) =>
             current ? { ...current, columns_config: next } : current);
     }
-    async function saveColumns(next: ColumnConfig[]) {
+    async function saveColumns(next: ColumnConfig[], workflowId?: string) {
         const updated = await updateTabularReview(reviewId, {
             columns_config: next,
             document_ids: documents.map(({ id }) => id),
+            ...(workflowId && { workflow_id: workflowId }),
         });
         setReview({ ...updated, columns_config: updated.columns_config || next });
     }
@@ -174,24 +189,28 @@ export function TRView({ reviewId, projectId }: Props) {
         return false;
     }
     async function regenerateCell(documentId: string, columnIndex: number) {
-        if (modelUnavailable()) return;
+        if (generating || modelUnavailable()) return;
+        setUi({ generating: true });
         patchCell(documentId, columnIndex, { status: "generating", content: null });
         try {
-            const content = await regenerateTabularCell(
+            await regenerateTabularCell(
                 reviewId, documentId, columnIndex, { model, reasoningEffort });
-            patchCell(documentId, columnIndex, { status: "done", content });
         } catch (error) {
             console.error("Regeneration failed", error);
             patchCell(documentId, columnIndex, { status: "error" });
+            setUi({ generating: false });
         }
     }
     async function generate() {
         if (!review || generating || !columns.length || modelUnavailable()) return;
         setUi({ generating: true });
         try {
-            const response = await streamTabularGeneration(
+            const { queued } = await startTabularGeneration(
                 reviewId, { model, reasoningEffort });
-            if (!response.body) throw new Error("No body");
+            if (!queued) {
+                setUi({ generating: false });
+                return;
+            }
             setCells((current) => {
                 const existing = new Map(current.map((cell) =>
                     [cellKey(cell.document_id, cell.column_index), cell]));
@@ -206,30 +225,24 @@ export function TRView({ reviewId, projectId }: Props) {
                         : { ...cell, status: "generating", content: null };
                 }));
             });
-            for await (const chunk of readSseData(response.body)) {
-                if (chunk === "[DONE]") continue;
-                try {
-                    const data = JSON.parse(chunk);
-                    if (data.type === "cell_update" &&
-                        data.status !== "generating") {
-                        patchCell(data.document_id, data.column_index, {
-                            content: data.content, status: data.status,
-                        });
-                    }
-                } catch { /* Ignore malformed streamed events. */ }
-            }
         } catch (error) {
             if (error instanceof BeaverApiError &&
                 error.code === "missing_api_key") {
-                const value = error.details?.provider;
-                const provider = typeof value === "string" &&
-                    ["claude", "gemini", "openai"].includes(value)
-                    ? value as ModelProvider : getModelProvider(model);
-                if (provider) setUi({ missingProvider: provider });
+                setUi({ missingProvider: getModelProvider(model) });
             }
             console.error("Generation failed", error);
-        } finally {
             setUi({ generating: false });
+        }
+    }
+    async function stopGeneration() {
+        try {
+            await stopTabularGeneration(reviewId);
+            const data = await getTabularReview(reviewId);
+            setReview(data.review);
+            setCells(data.cells);
+            setUi({ generating: data.review.is_running === true });
+        } catch (error) {
+            console.error("Failed to stop generation", error);
         }
     }
     async function addColumns(incoming: ColumnConfig[]) {
@@ -346,9 +359,9 @@ export function TRView({ reviewId, projectId }: Props) {
             console.error("Failed to delete tabular review", error);
         }
     }
-    async function applyWorkflow(workflow: Workflow) {
-        if (!workflow.columns_config?.length) return;
-        const next = workflow.columns_config.map((column, index) =>
+    async function applyWorkflow({ workflow, variant }: WorkflowSelection) {
+        if (!variant.columns_config?.length) return;
+        const next = variant.columns_config.map((column, index) =>
             ({ ...column, index }));
         const previousColumns = columns;
         const previousCells = cells;
@@ -356,7 +369,7 @@ export function TRView({ reviewId, projectId }: Props) {
         setColumns(next);
         setCells([]);
         try {
-            await saveColumns(next);
+            await saveColumns(next, workflow.id);
             if (documents.length) {
                 try {
                     await clearTabularCells(
@@ -449,7 +462,7 @@ export function TRView({ reviewId, projectId }: Props) {
             icon: <Users className="h-4 w-4" />,
         } satisfies PageHeaderAction] : []),
         { type: "custom",
-            render: <HeaderActionsMenu items={menuItems} />,
+            render: <MoreActionsMenu items={menuItems} />,
         },
         {
             onClick: () => setUi({ modal: "documents" }),
@@ -458,12 +471,12 @@ export function TRView({ reviewId, projectId }: Props) {
             label: <span className="hidden sm:inline">Documents</span>,
         },
         {
-            onClick: generate, disabled: generating || !hasTable,
+            onClick: generating ? stopGeneration : generate, disabled: !hasTable,
             icon: generating
-                ? <Loader2 className="h-4 w-4 animate-spin" />
+                ? <Square className="h-4 w-4" fill="currentColor" />
                 : <Play className="h-4 w-4" />,
             label: <span className="hidden sm:inline">
-                {generating ? "Running\u2026" : "Run"}
+                {generating ? "Stop" : "Run"}
             </span>,
         },
         {
@@ -516,11 +529,12 @@ export function TRView({ reviewId, projectId }: Props) {
                                     </ActionMenu>
                                 )}
                                 {!loading && (
-                                    <TabPillButton onClick={() =>
+                                    <Button variant="white" size="normal"
+                                        className="h-8 py-0" onClick={() =>
                                         setUi({ columnModal: null })}>
                                         <Plus className="h-3.5 w-3.5" />
                                         Add Columns
-                                    </TabPillButton>
+                                    </Button>
                                 )}
                             </div>
                         } />
@@ -601,7 +615,7 @@ export function TRView({ reviewId, projectId }: Props) {
                     key={JSON.stringify(cellView)} cell={expandedCell}
                     document={expandedDocument} column={expandedColumn}
                     onClose={() => setUi({ cellView: null })}
-                    onRegenerate={() => regenerateCell(
+                    onRegenerate={generating ? undefined : () => regenerateCell(
                         expandedCell.document_id, expandedCell.column_index)}
                     displayDocument={expandedCitation !== undefined}
                     citationQuote={expandedCitation?.quote}
@@ -658,13 +672,12 @@ export function TRView({ reviewId, projectId }: Props) {
                     if (workflowStatus !== "applying")
                         setUi({ workflowStatus: null });
                 }}
-                workflowType="tabular"
+                execution="tabular"
                 breadcrumbs={[...modalCrumbs, "Add workflow"]}
-                primaryLabel="Apply" selectingLabel="Applying..."
                 selecting={workflowStatus === "applying"}
                 closeOnSelect={false}
-                disabledWorkflow={(workflow) =>
-                    !workflow.columns_config?.length}
+                disabledWorkflow={({ variant }) =>
+                    !variant.columns_config?.length}
             />
             <ConfirmPopup
                 open={deleteStatus !== null} title="Delete tabular review?"

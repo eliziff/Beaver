@@ -74,7 +74,6 @@ export async function deleteUserAccountData(
         db.from("tabular_reviews").delete().eq("user_id", userId),
         db.from("chats").delete().eq("user_id", userId),
         db.from("project_subfolders").delete().eq("user_id", userId),
-        db.from("hidden_workflows").delete().eq("user_id", userId),
         db
             .from("workflow_open_source_submissions")
             .delete()
@@ -87,6 +86,7 @@ export async function deleteUserAccountData(
                   .eq("shared_with_email", userEmail.trim().toLowerCase())
             : Promise.resolve({ error: null }),
         db.from("workflows").delete().eq("user_id", userId),
+        db.from("work_products").delete().eq("user_id", userId),
         db.from("audit_events").delete().eq("user_id", userId),
         db.from("user_preferences").delete().eq("user_id", userId),
         db.from("object_cleanup").delete().eq("user_id", userId),

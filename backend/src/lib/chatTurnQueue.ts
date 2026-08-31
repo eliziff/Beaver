@@ -19,6 +19,8 @@ export type ChatTurnQueue = {
     emit: (event: unknown) => void): Promise<ApplicationJob>;
   cancel(scope: ChatScope, chatId: string): Promise<boolean>;
   cancelJob(scope: ChatScope, jobId: string): Promise<boolean>;
+  clientResult(scope: ChatScope, jobId: string, callId: string,
+    result: unknown): Promise<boolean>;
   steer(scope: ChatScope, chatId: string,
     message: { id: string; text: string }): Promise<boolean>;
 };
@@ -61,6 +63,10 @@ export const durableChatTurns: ChatTurnQueue = {
   },
   async cancelJob(scope, jobId) {
     return !!await requestJobCancellation(jobId, scope.userId);
+  },
+  async clientResult(scope, jobId, callId, result) {
+    return enqueueJobCommand(scope.userId, jobId, "client_tool_result",
+      jsonValue({ callId, result }));
   },
   async steer(scope, chatId, message) {
     const job = await activeJob(scope, chatId);

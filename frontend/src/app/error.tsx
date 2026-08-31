@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useRouteError } from "react-router-dom";
-import { pillButtonClassName } from "@/app/components/ui/pill-button";
+import { buttonClassName } from "@/app/components/ui/button";
 
 export default function RouteError() {
     const error = useRouteError();
@@ -17,7 +17,7 @@ export default function RouteError() {
                     We encountered an unexpected error. This has been logged and
                     our team will look into it.
                 </p>
-                <Link to="/" className={pillButtonClassName("black", "normal")}>
+                <Link to="/" className={buttonClassName({ variant: "black", size: "normal" })}>
                     Home
                 </Link>
             </div>

@@ -1,8 +1,8 @@
 # Local subrepositories
 
-Beaver pins five public repositories as ordinary Git submodules:
+Beaver pins four public repositories as ordinary Git submodules:
 `legal-structure-parser` (checked out at `legal-structure/`),
-`legal-pdf-parser`, `legal-browser-ocr`, `AuthoritiesHelper`, and
+`legal-pdf-parser`, `legal-browser-ocr`, and
 `mike-workflows`. `OpenLegalData` has no public remote and remains
 recoverable from a committed Git bundle.
 
@@ -36,7 +36,6 @@ if (-not (Test-Path .\OpenLegalData\.git)) {
 
 ```powershell
 git -C .\OpenLegalData rev-parse HEAD
-git -C .\AuthoritiesHelper rev-parse HEAD
 git -C .\legal-browser-ocr rev-parse HEAD
 git -C .\legal-pdf-parser rev-parse HEAD
 git -C .\legal-structure rev-parse HEAD

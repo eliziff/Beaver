@@ -13,13 +13,8 @@ alter default privileges for role postgres in schema public
 create table if not exists user_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
-  email text, display_name text, organisation text,
-  tier text not null default 'Free',
-  message_credits_used integer not null default 0,
-  credits_reset_date timestamptz not null default (now() + interval '30 days'),
-  title_model text, tabular_model text, quote_model text,
+  email text,
   mfa_on_login boolean not null default false,
-  legal_research_us boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -31,6 +26,17 @@ security definer set search_path = '' as $$
 begin
   insert into public.user_profiles(user_id,email) values(new.id,lower(new.email))
   on conflict(user_id) do update set email=excluded.email,updated_at=now();
+  insert into public.user_preferences(user_id,display_name,organisation,updated_at)
+  values(
+    new.id,
+    nullif(left(btrim(coalesce(new.raw_user_meta_data->>'display_name',
+      new.raw_user_meta_data->>'full_name',new.raw_user_meta_data->>'name','')),160),''),
+    nullif(left(btrim(coalesce(new.raw_user_meta_data->>'organisation','')),240),''),
+    now()
+  ) on conflict(user_id) do update set
+    display_name=coalesce(public.user_preferences.display_name,excluded.display_name),
+    organisation=coalesce(public.user_preferences.organisation,excluded.organisation),
+    updated_at=now();
   return new;
 exception when others then return new;
 end $$;
@@ -51,7 +57,7 @@ create table if not exists user_api_keys (
 -- This section is deliberately valid in both PostgreSQL and SQLite. JSONB is
 -- stored as JSON text by SQLite and decoded at the repository boundary.
 create table if not exists user_mcp_connectors (
-  id text primary key, user_id text not null, name text not null,
+  id text primary key, user_id uuid not null, name text not null,
   transport text not null default 'streamable_http', server_url text not null,
   auth_type text not null default 'none', enabled integer not null default 1,
   tool_policy jsonb not null default '{}', encrypted_auth_config text,
@@ -68,7 +74,7 @@ create table if not exists user_mcp_oauth_tokens (
   created_at text not null, updated_at text not null
 );
 create table if not exists user_mcp_oauth_states (
-  id text primary key, user_id text not null,
+  id text primary key, user_id uuid not null,
   connector_id text not null references user_mcp_connectors(id) on delete cascade,
   state_hash text not null unique, encrypted_state_config text not null,
   state_config_iv text not null, state_config_tag text not null,
@@ -84,7 +90,7 @@ create table if not exists user_mcp_connector_tools (
   unique(connector_id,tool_name)
 );
 create table if not exists user_mcp_tool_audit_logs (
-  id text primary key, user_id text not null,
+  id text primary key, user_id uuid not null,
   connector_id text not null references user_mcp_connectors(id) on delete cascade,
   tool_id text references user_mcp_connector_tools(id) on delete set null,
   tool_name text not null, openai_tool_name text not null, status text not null,
@@ -92,7 +98,7 @@ create table if not exists user_mcp_tool_audit_logs (
   result_size_chars integer not null default 0, created_at text not null
 );
 create table if not exists projects (
-  id text primary key, user_id text not null, name text not null,
+  id text primary key, user_id uuid not null, name text not null,
   cm_number text, practice text, shared_with jsonb not null default '[]',
   metadata jsonb not null default '{}', notes text,
   created_at text not null, updated_at text not null
@@ -102,19 +108,19 @@ create table if not exists project_members (
   email text not null, primary key(project_id,email)
 );
 create table if not exists project_subfolders (
-  id text primary key, user_id text not null, project_id text not null references projects(id) on delete cascade,
+  id text primary key, user_id uuid not null, project_id text not null references projects(id) on delete cascade,
   name text not null, parent_folder_id text references project_subfolders(id) on delete cascade,
   created_at text not null, updated_at text not null
 );
 create table if not exists library_folders (
-  id text primary key, user_id text not null, library_kind text not null,
+  id text primary key, user_id uuid not null, library_kind text not null,
   name text not null, parent_folder_id text references library_folders(id) on delete cascade,
   created_at text not null, updated_at text not null,
   check(library_kind in ('file','template'))
 );
 create table if not exists documents (
   id text primary key, project_id text references projects(id) on delete cascade,
-  user_id text not null, status text not null default 'ready',
+  user_id uuid not null, status text not null default 'ready',
   folder_id text references project_subfolders(id) on delete set null,
   library_kind text not null default 'file',
   library_folder_id text references library_folders(id) on delete cascade,
@@ -143,15 +149,15 @@ create table if not exists document_edits (
   resolved_at text, check(status in ('pending','accepted','rejected'))
 );
 create table if not exists object_cleanup (
-  storage_path text primary key, user_id text not null, created_at text not null
+  storage_path text primary key, user_id uuid not null, created_at text not null
 );
 create table if not exists library_legal_sources (
-  user_id text not null, id text not null, pointer_json text not null,
+  user_id uuid not null, id text not null, pointer_json text not null,
   primary key(user_id,id)
 );
 
 create table if not exists tabular_reviews (
-  id text primary key, user_id text not null, project_id text references projects(id) on delete cascade,
+  id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
   title text, columns_config jsonb not null default '[]', document_ids jsonb not null default '[]',
   workflow_id text, shared_with jsonb not null default '[]',
   created_at text not null, updated_at text not null
@@ -169,8 +175,9 @@ create table if not exists tabular_cells (
 );
 
 create table if not exists chats (
-  id text primary key, user_id text not null, project_id text references projects(id) on delete cascade,
+  id text primary key, user_id uuid not null, project_id text references projects(id) on delete cascade,
   tabular_review_id text references tabular_reviews(id) on delete cascade, title text,
+  model text, reasoning_effort text,
   created_at text not null, updated_at text not null, deleted_at text,
   transcript_version integer not null default 0,
   check(project_id is null or tabular_review_id is null)
@@ -188,14 +195,14 @@ create table if not exists chat_message_events (
 );
 create table if not exists provider_sessions (
   chat_id text primary key references chats(id) on delete cascade,
-  user_id text not null, project_id text, continuation_id text not null,
+  user_id uuid not null, project_id text, continuation_id text not null,
   compatibility_key text not null, transcript_version integer not null,
   created_at text not null, updated_at text not null
 );
 
 create table if not exists application_jobs (
   id text primary key, kind text not null, dedupe_key text, group_key text,
-  user_id text not null, document_id text references documents(id) on delete cascade,
+  user_id uuid not null, document_id text references documents(id) on delete cascade,
   document_version_id text references document_versions(id) on delete cascade,
   payload jsonb not null, priority integer not null default 0,
   status text not null, run_at text not null, attempts integer not null default 0,
@@ -222,35 +229,54 @@ create table if not exists application_job_commands (
 );
 
 create table if not exists workflows (
-  id text primary key, user_id text not null, title text not null, type text not null,
-  prompt_md text, columns_config jsonb, language text, version text, practice text,
-  jurisdictions jsonb, contributors jsonb, created_at text not null, updated_at text not null,
-  check(type in ('assistant','tabular'))
+  id text primary key, user_id uuid not null, title text not null, execution text not null,
+  variant_label text not null, variant_result text,
+  prompt_md text, columns_config jsonb, language text, version text, category text not null,
+  audiences jsonb not null, jurisdictions jsonb, contributors jsonb,
+  created_at text not null, updated_at text not null,
+  check(execution in ('assistant','tabular'))
 );
-create table if not exists hidden_workflows (
-  user_id text not null, workflow_id text not null, created_at text not null,
-  primary key(user_id,workflow_id)
+create table if not exists work_products (
+  id text primary key, user_id uuid not null,
+  project_id text references projects(id) on delete cascade,
+  kind text not null, title text not null,
+  state_json jsonb not null default '{}', outputs_json jsonb not null default '{}',
+  revision integer not null default 1, created_at text not null, updated_at text not null,
+  check(kind in ('court-record','authorities','research-set')), check(revision > 0)
 );
 create table if not exists workflow_shares (
   id text primary key, workflow_id text not null references workflows(id) on delete cascade,
-  shared_by_user_id text not null, shared_with_email text not null,
+  shared_by_user_id uuid not null, shared_with_email text not null,
   allow_edit boolean not null default false, created_at text not null,
   unique(workflow_id,shared_with_email)
 );
 create table if not exists workflow_open_source_submissions (
   id text primary key, workflow_id text not null references workflows(id) on delete cascade,
-  submitted_by_user_id text not null, submitter_email text, submitter_name text,
+  submitted_by_user_id uuid not null, submitter_email text, submitter_name text,
   contributor_mode text not null, snapshot jsonb not null, status text not null,
   submitted_at text not null, updated_at text not null, reviewed_at text
 );
 create table if not exists audit_events (
-  id text primary key, user_id text not null, user_email text,
+  id text primary key, user_id uuid not null, user_email text,
   action text not null, status text not null default 'completed', title text, surface text,
   project_id text, chat_id text, document_id text, review_id text, model text, detail jsonb,
   created_at text not null, check(status in ('completed','cancelled','failed'))
 );
 create table if not exists user_preferences (
-  user_id text primary key, drafting_style jsonb not null default '{"version":1}',
+  user_id uuid primary key,
+  display_name text, organisation text,
+  practice_setting text, professional_title text,
+  practice_areas jsonb not null default '[]',
+  jurisdiction_mode text not null default 'ask',
+  jurisdictions jsonb not null default '[]',
+  onboarding_completed integer not null default 0,
+  title_model text, tabular_model text,
+  last_selected_chat_model text, last_selected_reasoning_effort text,
+  legal_research_us integer not null default 1,
+  features jsonb not null default '{"authorities":true}',
+  workflow_file_targets jsonb not null default '{}',
+  filing_contact jsonb not null default '{}',
+  drafting_style jsonb not null default '{"version":1}',
   updated_at text not null
 );
 
@@ -274,10 +300,37 @@ create index if not exists application_jobs_document on
 create index if not exists application_job_commands_pending on
   application_job_commands(job_id,handled_at,created_at,id);
 create index if not exists workflows_page on workflows(user_id,created_at desc,id);
+create index if not exists work_products_page on work_products(user_id,updated_at desc,id desc);
+create index if not exists work_products_project on work_products(project_id,updated_at desc,id desc);
 create index if not exists workflow_shares_email on workflow_shares(shared_with_email,workflow_id);
 create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
 create index if not exists audit_events_project_created on audit_events(project_id,created_at desc);
 -- BEAVER_CORE_END
+
+-- Cloud owns identity; local mode uses the same UUID-shaped values without
+-- importing Supabase into application code.
+alter table user_mcp_connectors add constraint user_mcp_connectors_auth_user
+  foreign key(user_id) references auth.users(id) on delete cascade;
+alter table user_mcp_oauth_states add constraint user_mcp_oauth_states_auth_user
+  foreign key(user_id) references auth.users(id) on delete cascade;
+alter table user_mcp_tool_audit_logs add constraint user_mcp_tool_logs_auth_user
+  foreign key(user_id) references auth.users(id) on delete cascade;
+alter table projects add constraint projects_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table project_subfolders add constraint project_subfolders_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table library_folders add constraint library_folders_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table documents add constraint documents_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table object_cleanup add constraint object_cleanup_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table library_legal_sources add constraint library_sources_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table tabular_reviews add constraint tabular_reviews_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table chats add constraint chats_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table provider_sessions add constraint provider_sessions_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table application_jobs add constraint application_jobs_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table workflows add constraint workflows_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table work_products add constraint work_products_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table workflow_shares add constraint workflow_shares_auth_user foreign key(shared_by_user_id) references auth.users(id) on delete cascade;
+alter table workflow_open_source_submissions add constraint workflow_submissions_auth_user foreign key(submitted_by_user_id) references auth.users(id) on delete cascade;
+alter table audit_events add constraint audit_events_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table user_preferences add constraint user_preferences_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 
 -- Supabase administration/export code also writes shared_with. Keep the
 -- indexed authorization tables synchronized without teaching every caller a
@@ -312,8 +365,8 @@ revoke all on table projects,project_members,project_subfolders,library_folders,
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,
-  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
+  application_job_events,application_job_commands,workflows,work_products,
+  workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -322,8 +375,8 @@ grant all on table projects,project_members,project_subfolders,library_folders,d
   document_versions,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,chats,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,
-  hidden_workflows,workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
+  application_job_events,application_job_commands,workflows,work_products,
+  workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
   user_mcp_oauth_states,user_mcp_connector_tools,user_mcp_tool_audit_logs
@@ -356,7 +409,7 @@ alter table application_jobs enable row level security;
 alter table application_job_events enable row level security;
 alter table application_job_commands enable row level security;
 alter table workflows enable row level security;
-alter table hidden_workflows enable row level security;
+alter table work_products enable row level security;
 alter table workflow_shares enable row level security;
 alter table workflow_open_source_submissions enable row level security;
 alter table audit_events enable row level security;

@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
 import { type Dispatch, type SetStateAction } from "react";
-import { Plus } from "lucide-react";
 import type { Project, TabularReview } from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
@@ -9,17 +8,15 @@ import {
     TableCell,
     TableEmptyState,
     TableHeaderCell,
-    TableHeaderRow,
     TableLoadingRows,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
-    TableSelectionCheckbox,
+    TableSelectionHeader,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    TableStickyCell,
     useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
-import { PillButton } from "@/app/components/ui/pill-button";import { formatDate } from "@/app/lib/utils";
+import { formatDate } from "@/app/lib/utils";
 const REVIEW_COLUMN = {
     columns: "hidden w-24 md:flex",
     documents: "hidden w-28 xl:flex",
@@ -32,26 +29,22 @@ export function TabularReviewsTable({
     filteredReviews,
     selectedReviewIds,
     setSelectedReviewIds,
-    creatingReview,
-    createDisabled = false,
     projects,
     reviewHref,
-    onCreateReview,
     onOpenDetails,
     onDeleteReview,
+    onDeleteSelected,
     loading = false,
 }: {
     reviews: TabularReview[];
     filteredReviews: TabularReview[];
     selectedReviewIds: string[];
     setSelectedReviewIds: Dispatch<SetStateAction<string[]>>;
-    creatingReview: boolean;
-    createDisabled?: boolean;
     projects?: Project[];
     reviewHref: (review: TabularReview) => string;
-    onCreateReview: () => void;
     onOpenDetails: (review: TabularReview) => void;
     onDeleteReview: (review: TabularReview) => Promise<void> | void;
+    onDeleteSelected: () => void;
     loading?: boolean;
 }) {
     const navigate = useNavigate();
@@ -65,30 +58,25 @@ export function TabularReviewsTable({
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
     return (
         <TableScrollArea
-            header={
-                <TableHeaderRow className={rowPadding}>
-                    <TableStickyCell
-                        header
-                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    >
-                        <TableSelectionCheckbox loading={loading}
-                            aria-label="Select loaded reviews"
-                            checked={selection.allSelected}
-                            indeterminate={selection.someSelected}
-                            onChange={selection.toggleAll} />
-                        <span className="mr-1">Name</span>
-                    </TableStickyCell>
+            header={<TableSelectionHeader className={rowPadding}
+                widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                selection={selection} selectionLabel="Select loaded reviews"
+                loading={loading}
+                label={selectedReviewIds.length
+                    ? <span className="text-sm font-medium text-gray-800">
+                        {selectedReviewIds.length} selected
+                    </span>
+                    : "Name"}>
+                {selectedReviewIds.length ? (
+                    <RowActions toolbar label="Actions" onDelete={onDeleteSelected} />
+                ) : <>
                     <TableHeaderCell
                         className={`ml-auto ${REVIEW_COLUMN.columns}`}
                     >
-                        <div className="flex items-center gap-1">
-                            <span>Columns</span>
-                        </div>
+                        Columns
                     </TableHeaderCell>
                     <TableHeaderCell className={REVIEW_COLUMN.documents}>
-                        <div className="flex items-center gap-1">
-                            <span>Documents</span>
-                        </div>
+                        Documents
                     </TableHeaderCell>
                     {showProject && (
                         <TableHeaderCell className={REVIEW_COLUMN.project}>
@@ -96,13 +84,11 @@ export function TabularReviewsTable({
                         </TableHeaderCell>
                     )}
                     <TableHeaderCell className={REVIEW_COLUMN.created}>
-                        <div className="flex items-center gap-1">
-                            <span>Created</span>
-                        </div>
+                        Created
                     </TableHeaderCell>
                     <TableHeaderCell className={REVIEW_COLUMN.actions} />
-                </TableHeaderRow>
-            }
+                </>}
+            </TableSelectionHeader>}
         >
             {loading ? (
                 <TableLoadingRows count={showProject ? 3 : 5}
@@ -122,21 +108,11 @@ export function TabularReviewsTable({
                 <TableEmptyState>
                     <TabularReviewSkeuoIcon className="mb-4 h-8 w-8" />
                     <p className="font-serif text-2xl font-medium text-gray-900">
-                        Tabular Reviews
+                        No reviews yet
                     </p>
                     <p className="mt-1 max-w-xs text-xs text-gray-400">
                         Extract data from documents into tables using AI.
                     </p>
-                    <PillButton
-                        tone="black"
-                        size="sm"
-                        onClick={onCreateReview}
-                        disabled={creatingReview || createDisabled}
-                        className="mt-4 px-3"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        Create
-                    </PillButton>
                 </TableEmptyState>
             ) : visibleReviews.length === 0 ? (
                 <TableEmptyState>

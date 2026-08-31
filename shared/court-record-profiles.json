@@ -1,0 +1,502 @@
+[
+  {
+    "id": "general-affidavit-exhibits",
+    "label": "Affidavit with exhibits",
+    "coverFields": ["courtName","courtFileNumber","registry","affidavitNumber","deponent","swornDate","swornPlace"],
+    "slots": [
+      {"id":"affidavit","label":"Affidavit","requirement":"required","order":10},
+      {"id":"exhibit","label":"Exhibit","requirement":"optional","order":20,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "general-court-record",
+    "label": "Court record",
+    "coverFields": ["courtName","courtFileNumber","registry","recordTitle"],
+    "slots": [
+      {"id":"document","label":"Documents","requirement":"required","order":10,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-affidavit-exhibits",
+    "label": "Affidavit with exhibits",
+    "coverFields": ["courtFileNumber","registry","affidavitNumber","deponent","swornDate","swornPlace"],
+    "slots": [
+      {"id":"affidavit","label":"Affidavit","requirement":"required","order":10},
+      {"id":"exhibit","label":"Exhibit","requirement":"optional","order":20,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-affidavit-exhibits",
+    "label": "Affidavit with exhibits",
+    "coverFields": ["courtFileNumber","registry","affidavitNumber","deponent","swornDate","swornPlace"],
+    "slots": [
+      {"id":"affidavit","label":"Affidavit","requirement":"required","order":10},
+      {"id":"exhibit","label":"Exhibit","requirement":"optional","order":20,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-affidavit-exhibits",
+    "label": "Affidavit with exhibits",
+    "coverFields": ["courtFileNumber","registry","affidavitNumber","deponent","swornDate","swornPlace"],
+    "slots": [
+      {"id":"affidavit","label":"Affidavit","requirement":"required","order":10},
+      {"id":"exhibit","label":"Exhibit","requirement":"optional","order":20,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-chambers-justice-applicant-set",
+    "label": "Civil chambers — Justice applicant filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"application","label":"Application","requirement":"required","order":10},
+      {"id":"affidavit","label":"Supporting affidavit or evidence","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"brief","label":"Applicant’s brief","requirement":"conditional","order":30},
+      {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"Proposed order","requirement":"required","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-chambers-justice-respondent-set",
+    "label": "Civil chambers — Justice respondent filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"responding-affidavit","label":"Responding affidavit or evidence","requirement":"optional","order":10,"repeatable":true},
+      {"id":"responding-pleading","label":"Responding pleading","requirement":"optional","order":20,"repeatable":true},
+      {"id":"brief","label":"Respondent’s brief","requirement":"optional","order":30},
+      {"id":"authorities","label":"Respondent’s authorities","requirement":"optional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"optional","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"proof-service","label":"Proof of service","requirement":"optional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-chambers-applications-judge-applicant-set",
+    "label": "Civil chambers — Applications Judge applicant filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"application","label":"Application","requirement":"required","order":10},
+      {"id":"affidavit","label":"Supporting affidavit or evidence","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"brief","label":"Applicant’s brief","requirement":"conditional","order":30},
+      {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"PDF proposed order","requirement":"forbidden","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-chambers-applications-judge-respondent-set",
+    "label": "Civil chambers — Applications Judge respondent filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"responding-affidavit","label":"Responding affidavit or evidence","requirement":"optional","order":10,"repeatable":true},
+      {"id":"responding-pleading","label":"Responding pleading","requirement":"optional","order":20,"repeatable":true},
+      {"id":"brief","label":"Respondent’s brief","requirement":"optional","order":30},
+      {"id":"authorities","label":"Respondent’s authorities","requirement":"optional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"PDF proposed order","requirement":"forbidden","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"proof-service","label":"Proof of service","requirement":"optional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-desk-justice-application-set",
+    "label": "Justice without-notice or consent desk application",
+    "coverFields": [],
+    "slots": [
+      {"id":"application-form","label":"Application Form","requirement":"required","order":10},
+      {"id":"application","label":"Application or originating document","requirement":"conditional","order":20},
+      {"id":"supporting-material","label":"Supporting affidavit or material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"consent","label":"Consent material","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"Proposed order","requirement":"required","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-desk-applications-judge-application-set",
+    "label": "Applications Judge without-notice or consent desk application",
+    "coverFields": [],
+    "slots": [
+      {"id":"application-form","label":"Application Form","requirement":"required","order":10},
+      {"id":"application","label":"Application or originating document","requirement":"conditional","order":20},
+      {"id":"supporting-material","label":"Supporting affidavit or material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"consent","label":"Consent material","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proposed-order","label":"PDF proposed order","requirement":"forbidden","order":50,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-special-application-applicant-set",
+    "label": "Special Application — applicant filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"application","label":"Application or originating application","requirement":"required","order":10},
+      {"id":"evidence","label":"Affidavit or other Rule 6.11 evidence","requirement":"required","order":20,"repeatable":true},
+      {"id":"brief","label":"Applicant’s brief","requirement":"required","order":30},
+      {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"oral-hearing-order","label":"Oral Hearing Order","requirement":"conditional","order":50},
+      {"id":"proposed-order","label":"Proposed order","requirement":"required","order":60,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-special-application-respondent-set",
+    "label": "Special Application — respondent filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"evidence","label":"Responding affidavit or Rule 6.11 evidence","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"brief","label":"Respondent’s brief","requirement":"required","order":20},
+      {"id":"authorities","label":"Respondent’s authorities","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"optional","order":40,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-review-appeal-applicant-set",
+    "label": "Judicial review or civil appeal — applicant set",
+    "coverFields": [],
+    "slots": [
+      {"id":"commencement","label":"Application or notice of appeal","requirement":"required","order":10},
+      {"id":"record-proceedings","label":"Record of proceedings","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"affidavit","label":"Permitted affidavit","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"brief","label":"Applicant’s brief","requirement":"required","order":40},
+      {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"proposed-order","label":"Proposed order","requirement":"required","order":60,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-review-appeal-respondent-set",
+    "label": "Judicial review or civil appeal — respondent set",
+    "coverFields": [],
+    "slots": [
+      {"id":"affidavit","label":"Permitted responding affidavit","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"brief","label":"Respondent’s brief","requirement":"required","order":20},
+      {"id":"authorities","label":"Respondent’s authorities","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"optional","order":40,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-commercial-applicant-set",
+    "label": "Commercial List — applicant filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"booking-letter","label":"Booking letter and brief timetable","requirement":"conditional","order":10},
+      {"id":"application","label":"Application","requirement":"required","order":20},
+      {"id":"evidence","label":"Supporting affidavit or material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"brief","label":"Applicant’s brief","requirement":"required","order":40,"maximumPages":35},
+      {"id":"authorities","label":"Applicant’s authorities","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"proposed-order","label":"Proposed order","requirement":"required","order":60,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-commercial-respondent-set",
+    "label": "Commercial List — respondent filing set",
+    "coverFields": [],
+    "slots": [
+      {"id":"evidence","label":"Responding affidavit or material","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"brief","label":"Respondent’s brief","requirement":"required","order":20,"maximumPages":35},
+      {"id":"authorities","label":"Respondent’s authorities","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"proposed-order","label":"Respondent’s proposed order","requirement":"optional","order":40,"acceptedFormats":["pdf","docx"]},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-kb-commercial-compendium",
+    "label": "Commercial List hearing compendium",
+    "coverFields": ["courtFileNumber"],
+    "slots": [
+      {"id":"document-extract","label":"Document extract","requirement":"optional","order":10,"repeatable":true},
+      {"id":"transcript-extract","label":"Transcript extract","requirement":"optional","order":20,"repeatable":true},
+      {"id":"prior-order","label":"Previous order","requirement":"optional","order":30,"repeatable":true},
+      {"id":"authority-extract","label":"Authority extract","requirement":"optional","order":40,"repeatable":true},
+      {"id":"nonessential","label":"Non-essential material","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-ca-appeal-record",
+    "label": "Civil appeal record",
+    "coverFields": ["courtFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"part-1-pleading","label":"Part 1 — Pleading","requirement":"required","order":10,"repeatable":true,"group":"Part 1 — Pleadings"},
+      {"id":"part-2-reasons","label":"Part 2 — Reasons","requirement":"required","order":20,"repeatable":true,"group":"Part 2 — Final Documents"},
+      {"id":"part-2-order","label":"Part 2 — Formal order or decision","requirement":"required","order":30,"group":"Part 2 — Final Documents"},
+      {"id":"part-2-access-order","label":"Part 2 — Restricted-access order","requirement":"conditional","order":40,"repeatable":true,"group":"Part 2 — Final Documents","condition":"Include if one applies."},
+      {"id":"part-2-prior-order","label":"Part 2 — Prior order","requirement":"conditional","order":50,"repeatable":true,"group":"Part 2 — Final Documents"},
+      {"id":"part-2-permission","label":"Part 2 — Permission-to-appeal order","requirement":"conditional","order":60,"group":"Part 2 — Final Documents"},
+      {"id":"part-2-notice","label":"Part 2 — Notice of appeal","requirement":"required","order":70,"repeatable":true,"group":"Part 2 — Final Documents"},
+      {"id":"part-2-service","label":"Part 2 — Statutory proof of service","requirement":"conditional","order":80,"group":"Part 2 — Final Documents"},
+      {"id":"part-3-transcript","label":"Part 3 — Transcript","requirement":"conditional","order":90,"repeatable":true,"group":"Part 3 — Transcripts"},
+      {"id":"part-3-no-oral-record","label":"Part 3 — No oral record","requirement":"conditional","order":100,"group":"Part 3 — Transcripts","condition":"Use when there is no oral record that can be transcribed.","descriptionOnly":true},
+      {"id":"evidence","label":"Evidence, affidavit or exhibit","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"argument","label":"Argument, trial brief or authority","requirement":"forbidden","order":910,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-ca-extracts-appellant",
+    "label": "Appellant’s extracts of key evidence",
+    "coverFields": ["courtFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"transcript-extract","label":"Transcript extract","requirement":"optional","order":10,"repeatable":true},
+      {"id":"exhibit-extract","label":"Exhibit extract","requirement":"optional","order":20,"repeatable":true},
+      {"id":"record-extract","label":"Other record extract","requirement":"optional","order":30,"repeatable":true},
+      {"id":"new-evidence","label":"New evidence","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"argument","label":"Argument, trial brief or authority","requirement":"forbidden","order":910,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-ca-extracts-respondent",
+    "label": "Respondent’s extracts of key evidence",
+    "coverFields": ["courtFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"transcript-extract","label":"Transcript extract","requirement":"optional","order":10,"repeatable":true},
+      {"id":"exhibit-extract","label":"Exhibit extract","requirement":"optional","order":20,"repeatable":true},
+      {"id":"record-extract","label":"Other record extract","requirement":"optional","order":30,"repeatable":true},
+      {"id":"new-evidence","label":"New evidence","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"argument","label":"Argument, trial brief or authority","requirement":"forbidden","order":910,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-ca-extracts-intervener",
+    "label": "Intervener’s extracts of key evidence",
+    "coverFields": ["courtFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"transcript-extract","label":"Transcript extract","requirement":"optional","order":10,"repeatable":true},
+      {"id":"exhibit-extract","label":"Exhibit extract","requirement":"optional","order":20,"repeatable":true},
+      {"id":"record-extract","label":"Other record extract","requirement":"optional","order":30,"repeatable":true},
+      {"id":"new-evidence","label":"New evidence","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"argument","label":"Argument, trial brief or authority","requirement":"forbidden","order":910,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "ab-ca-condensed-book",
+    "label": "Condensed book",
+    "coverFields": ["courtFileNumber","lowerCourtFileNumber","registry","decisionMaker","decisionDate","decisionFileDate","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"filed-extract","label":"Extract from filed material","requirement":"required","order":10,"repeatable":true},
+      {"id":"new-material","label":"New or unfiled material","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-motion-record-moving",
+    "label": "Moving party’s motion record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","hearingDate","recordSubtitle","applicationUnder"],
+    "slots": [
+      {"id":"notice-motion","label":"Notice of motion","requirement":"required","order":10},
+      {"id":"moving-evidence","label":"Affidavit or other moving material","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"transcript-extract","label":"Transcript portion","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"written-representations","label":"Written representations or memorandum","requirement":"required","order":40},
+      {"id":"other-filed-material","label":"Other necessary filed material","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-motion-record-moving",
+    "label": "Moving party’s motion record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","hearingDate","recordSubtitle","applicationUnder"],
+    "slots": [
+      {"id":"notice-motion","label":"Notice of motion","requirement":"required","order":10},
+      {"id":"moving-evidence","label":"Affidavit or other moving material","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"transcript-extract","label":"Transcript portion","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"written-representations","label":"Written representations or memorandum","requirement":"required","order":40},
+      {"id":"other-filed-material","label":"Other necessary filed material","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":60},
+      {"id":"oral-hearing-request","label":"Request for oral hearing","requirement":"conditional","order":80},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-motion-record-responding",
+    "label": "Responding party’s motion record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","hearingDate","recordSubtitle","applicationUnder"],
+    "slots": [
+      {"id":"responding-evidence","label":"Affidavit or responding material","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"transcript-extract","label":"Transcript portion","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"written-representations","label":"Written representations or memorandum","requirement":"required","order":30},
+      {"id":"other-filed-material","label":"Other necessary filed material","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":50},
+      {"id":"duplicate","label":"Material already in moving record","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-motion-record-responding",
+    "label": "Responding party’s motion record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","hearingDate","recordSubtitle","applicationUnder"],
+    "slots": [
+      {"id":"responding-evidence","label":"Affidavit or responding material","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"transcript-extract","label":"Transcript portion","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"written-representations","label":"Written representations or memorandum","requirement":"required","order":30},
+      {"id":"other-filed-material","label":"Other necessary filed material","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":50},
+      {"id":"duplicate","label":"Material already in moving record","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"oral-hearing-request","label":"Request for oral hearing","requirement":"conditional","order":80},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-application-record-applicant",
+    "label": "Applicant’s application record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","applicationUnder"],
+    "slots": [
+      {"id":"notice-application","label":"Notice of application","requirement":"required","order":10},
+      {"id":"decision","label":"Order and reasons under review","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"applicant-cross-exam","label":"Applicant’s cross-examination transcript","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"tribunal-material","label":"Rule 318 tribunal material","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"oral-evidence","label":"Relied-on oral-evidence transcript","requirement":"conditional","order":60,"repeatable":true},
+      {"id":"physical-exhibit","label":"Description of physical exhibit","requirement":"conditional","order":70,"repeatable":true,"descriptionOnly":true},
+      {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":80},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":90},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-application-record-applicant",
+    "label": "Applicant’s application record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","applicationUnder"],
+    "slots": [
+      {"id":"notice-application","label":"Notice of application","requirement":"required","order":10},
+      {"id":"decision","label":"Order and reasons under review","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"applicant-cross-exam","label":"Applicant’s cross-examination transcript","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"tribunal-material","label":"Rule 318 tribunal material","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"oral-evidence","label":"Relied-on oral-evidence transcript","requirement":"conditional","order":60,"repeatable":true},
+      {"id":"physical-exhibit","label":"Description of physical exhibit","requirement":"conditional","order":70,"repeatable":true,"descriptionOnly":true},
+      {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":80},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":90},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-application-record-respondent",
+    "label": "Respondent’s application record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","applicationUnder"],
+    "slots": [
+      {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"respondent-cross-exam","label":"Respondent’s cross-examination transcript","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"tribunal-material","label":"Additional Rule 318 tribunal material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"oral-evidence","label":"Relied-on oral-evidence transcript","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"physical-exhibit","label":"Description of physical exhibit","requirement":"conditional","order":50,"repeatable":true,"descriptionOnly":true},
+      {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":60},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":70},
+      {"id":"duplicate","label":"Material already in applicant’s record","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-application-record-respondent",
+    "label": "Respondent’s application record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","applicationUnder"],
+    "slots": [
+      {"id":"supporting-affidavit","label":"Supporting affidavit and exhibits","requirement":"conditional","order":10,"repeatable":true},
+      {"id":"respondent-cross-exam","label":"Respondent’s cross-examination transcript","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"tribunal-material","label":"Additional Rule 318 tribunal material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"oral-evidence","label":"Relied-on oral-evidence transcript","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"physical-exhibit","label":"Description of physical exhibit","requirement":"conditional","order":50,"repeatable":true,"descriptionOnly":true},
+      {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":60},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":70},
+      {"id":"duplicate","label":"Material already in applicant’s record","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-appeal-book",
+    "label": "Appeal book",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"notice","label":"Notice of appeal or cross appeal","requirement":"required","order":10,"repeatable":true},
+      {"id":"order-reasons","label":"Order and reasons","requirement":"required","order":20,"repeatable":true},
+      {"id":"originating-pleading","label":"Originating document or pleading","requirement":"required","order":30,"repeatable":true},
+      {"id":"agreed-material","label":"Agreed or ordered material","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"conduct-order","label":"Order about conduct of appeal","requirement":"conditional","order":50,"repeatable":true},
+      {"id":"other-relevant","label":"Other relevant document","requirement":"optional","order":60,"repeatable":true},
+      {"id":"contents-agreement","label":"Contents agreement or order","requirement":"required","order":70},
+      {"id":"form-344","label":"Form 344 certificate","requirement":"required","order":80,"generated":"fca-form-344-certificate"},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-condensed-book",
+    "label": "Condensed book for oral argument",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"appeal-book-extract","label":"Appeal-book extract","requirement":"optional","order":10,"repeatable":true},
+      {"id":"authority-extract","label":"Authority extract","requirement":"optional","order":20,"repeatable":true},
+      {"id":"new-material","label":"New or unfiled material","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fc-trial-record",
+    "label": "Trial record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"pleading","label":"Pleading","requirement":"required","order":10,"repeatable":true,"group":"Pleadings"},
+      {"id":"particulars","label":"Particulars","requirement":"conditional","order":20,"repeatable":true,"group":"Particulars"},
+      {"id":"trial-order-direction","label":"Trial order or direction","requirement":"conditional","order":30,"repeatable":true,"group":"Trial orders and directions"},
+      {"id":"necessary-filed-document","label":"Other filed document necessary for trial","requirement":"conditional","order":40,"repeatable":true,"group":"Other necessary filed documents"},
+      {"id":"unfiled-material","label":"Unfiled material","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-leave-motion-record",
+    "label": "Motion for leave to appeal record",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail","recordSubtitle","applicationUnder"],
+    "slots": [
+      {"id":"order-reasons","label":"Order and reasons","requirement":"required","order":10,"repeatable":true},
+      {"id":"notice-motion","label":"Notice of motion for leave to appeal","requirement":"required","order":20},
+      {"id":"pleadings-material","label":"Pleadings and necessary material","requirement":"conditional","order":30,"repeatable":true},
+      {"id":"supporting-affidavit","label":"Supporting affidavit","requirement":"conditional","order":40,"repeatable":true},
+      {"id":"memorandum","label":"Memorandum of fact and law","requirement":"required","order":50},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":60},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-leave-response-set",
+    "label": "Motion for leave to appeal — response set",
+    "coverFields": [],
+    "slots": [
+      {"id":"memorandum","label":"Respondent’s memorandum of fact and law","requirement":"required","order":10},
+      {"id":"supporting-affidavit","label":"Supporting affidavit","requirement":"conditional","order":20,"repeatable":true},
+      {"id":"proof-service","label":"Proof of service","requirement":"conditional","order":30},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-informal-motion-letter",
+    "label": "Informal motion letter",
+    "coverFields": [],
+    "slots": [
+      {"id":"letter-with-service","label":"Informal motion letter with proof of service","requirement":"required","order":10},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  },
+  {
+    "id": "fca-compendium",
+    "label": "Appeal compendium",
+    "coverFields": ["courtFileNumber","counselName","counselAddress","counselPhone","counselFax","counselEmail","otherCounselName","otherCounselAddress","otherCounselPhone","otherCounselFax","otherCounselEmail"],
+    "slots": [
+      {"id":"memorandum-material","label":"Material referred to in memorandum","requirement":"required","order":10,"repeatable":true},
+      {"id":"new-evidence","label":"New evidence","requirement":"forbidden","order":900,"repeatable":true},
+      {"id":"new-argument","label":"New argument","requirement":"forbidden","order":910,"repeatable":true},
+      {"id":"other-document","label":"Other document","requirement":"optional","order":890,"repeatable":true,"acceptedFormats":["pdf","docx"]}
+    ]
+  }
+]

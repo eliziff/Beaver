@@ -116,7 +116,9 @@ describe("findProfileUserByEmail", () => {
     it("finds a profile by normalized email", async () => {
         const db = makeDb(rows);
         await expect(
-            findProfileUserByEmail(db as any, "  ALICE@example.com "),
+            findProfileUserByEmail(db as any, "  ALICE@example.com ", {
+                get: async () => ({ displayName: "Alice" }) as never,
+            }),
         ).resolves.toEqual({
             id: "u1",
             email: "alice@example.com",

@@ -8,15 +8,10 @@ export type BeaverAppTarget =
   | { kind: "legal-source"; id: string }
   | {
       kind: "authorities";
-      jobId?: string | null;
-      projectId?: string | null;
+      draftId?: string | null;
     }
   | { kind: "tabular-review"; id: string; projectId?: string | null }
-  | {
-      kind: "workflow";
-      id: string;
-      workflowType: "assistant" | "tabular";
-    }
+  | { kind: "workflow"; id: string }
   | { kind: "chat"; id: string; projectId?: string | null };
 
 function identifier(value: string) {
@@ -45,8 +40,7 @@ export function appUrl(target: BeaverAppTarget): string {
   }
   if (target.kind === "authorities") {
     const query = new URLSearchParams();
-    if (target.jobId) query.set("job", identifier(target.jobId));
-    if (target.projectId) query.set("project", identifier(target.projectId));
+    if (target.draftId) query.set("draft", identifier(target.draftId));
     const suffix = query.toString();
     return suffix ? `/table-of-authorities?${suffix}` : "/table-of-authorities";
   }
@@ -57,9 +51,7 @@ export function appUrl(target: BeaverAppTarget): string {
       : `/${review}`;
   }
   if (target.kind === "workflow") {
-    const type =
-      target.workflowType === "assistant" ? "assistant" : "tabular-review";
-    return `/workflows/${type}/${segment(target.id)}`;
+    return `/workflows/${segment(target.id)}`;
   }
   return target.projectId
     ? `/projects/${segment(target.projectId)}/assistant/chat/${segment(target.id)}`

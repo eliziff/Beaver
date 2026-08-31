@@ -8,7 +8,7 @@ import {
 } from "./legalEvidence";
 
 const PUBLIC_EVENTS = new Set([
-  "ask_inputs", "ask_inputs_response", "automation_run", "compaction",
+  "ask_inputs", "ask_inputs_response", "workflow_run", "compaction",
   "content", "document_artifact", "error", "steering", "subagent_run",
   "tool_activity", "turn_status",
 ]);
@@ -55,7 +55,8 @@ const files = (value: unknown): ChatMessage["files"] => {
 };
 const workflow = (value: unknown): ChatMessage["workflow"] => {
   const row = record(value), id = text(row?.id), title = text(row?.title);
-  return id && title ? { id, title } : undefined;
+  const variantId = text(row?.variant_id);
+  return id && title ? { id, ...(variantId && { variant_id: variantId }), title } : undefined;
 };
 
 function responseText(value: unknown, requested: ReadonlyMap<string, AskInputItem>) {

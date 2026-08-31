@@ -16,16 +16,9 @@ describe("appUrl", () => {
     expect(appUrl({ kind: "legal-source", id: "source-1" })).toBe(
       "/sources/source-1",
     );
-    expect(appUrl({ kind: "authorities", jobId: "job-1" })).toBe(
-      "/table-of-authorities?job=job-1",
+    expect(appUrl({ kind: "authorities", draftId: "draft-1" })).toBe(
+      "/table-of-authorities?draft=draft-1",
     );
-    expect(
-      appUrl({
-        kind: "authorities",
-        jobId: "job-1",
-        projectId: "matter-1",
-      }),
-    ).toBe("/table-of-authorities?job=job-1&project=matter-1");
     expect(appUrl({ kind: "tabular-review", id: "review-1" })).toBe(
       "/tabular-reviews/review-1",
     );
@@ -40,16 +33,8 @@ describe("appUrl", () => {
       appUrl({
         kind: "workflow",
         id: "workflow-1",
-        workflowType: "assistant",
       }),
-    ).toBe("/workflows/assistant/workflow-1");
-    expect(
-      appUrl({
-        kind: "workflow",
-        id: "workflow-1",
-        workflowType: "tabular",
-      }),
-    ).toBe("/workflows/tabular-review/workflow-1");
+    ).toBe("/workflows/workflow-1");
     expect(appUrl({ kind: "chat", id: "chat-1" })).toBe(
       "/assistant/chat/chat-1",
     );

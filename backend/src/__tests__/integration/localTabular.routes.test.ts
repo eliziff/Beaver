@@ -50,10 +50,30 @@ function spreadsheetBytes(value: string) {
 async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
+  const { runtime } = await import("../../runtime");
+  const workers = await runtime.startWorkers();
   closeStores = async () => {
+    await workers.stop();
     await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
   };
   return api;
+}
+
+async function waitForReview(
+  api: Parameters<typeof request>[0],
+  reviewId: string,
+  predicate: (detail: { review: { is_running: boolean };
+    cells: { status: string }[] }) => boolean,
+) {
+  const deadline = Date.now() + 5_000;
+  let latest: unknown;
+  while (Date.now() < deadline) {
+    const response = await request(api).get(`/tabular-review/${reviewId}`);
+    latest = response.body;
+    if (response.status === 200 && predicate(response.body)) return response.body;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for tabular agents: ${JSON.stringify(latest)}`);
 }
 
 beforeEach(async () => {
@@ -226,12 +246,12 @@ describe("account-free tabular reviews", () => {
     const generated = await request(api).post(
       `/tabular-review/${created.body.id}/generate`,
     );
-    expect(generated.status).toBe(200);
-    expect(generated.text).toContain('"status":"done"');
-    expect(generated.text).toContain("data: [DONE]");
-    expect(generated.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+    expect(generated.status).toBe(202);
+    expect(generated.body).toMatchObject({ queued: 1, job_ids: [expect.any(String)] });
+    await waitForReview(api, created.body.id, (detail) =>
+      detail.review.is_running === false && detail.cells[0]?.status === "done");
 
-    closeStores?.();
+    await closeStores?.();
     closeStores = null;
     api = await loadApi();
 
@@ -283,17 +303,37 @@ describe("account-free tabular reviews", () => {
       request(api).post(`/tabular-review/${created.body.id}/regenerate-cell`)
         .send({ document_id: uploaded.body.id, column_index: 0 }),
     ]);
-    expect(cellRace.map(({ status }) => status).sort()).toEqual([200, 409]);
+    expect(cellRace.map(({ status }) => status).sort()).toEqual([202, 409]);
+    await waitForReview(api, created.body.id, (detail) =>
+      detail.review.is_running === false && detail.cells[0]?.status === "done");
 
     await request(api).post(`/tabular-review/${created.body.id}/clear-cells`)
       .send({ document_ids: [uploaded.body.id] });
-    mocks.streamChatWithTools.mockRejectedValueOnce(new Error("provider unavailable"));
-    const failedStream = await request(api).post(
-      `/tabular-review/${created.body.id}/generate`,
-    );
-    expect(failedStream.status).toBe(200);
-    expect(failedStream.text).toContain('"type":"error"');
-    expect(failedStream.text.match(/data: \[DONE\]/gu)).toHaveLength(1);
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    mocks.streamChatWithTools.mockImplementationOnce(async (params) => {
+      providerStarted();
+      await new Promise<void>((_resolve, reject) => {
+        const signal = params.abortSignal as AbortSignal;
+        signal.addEventListener("abort", () => reject(
+          signal.reason ?? new DOMException("Stopped", "AbortError"),
+        ), { once: true });
+      });
+      return { fullText: "" };
+    });
+    const running = request(api).post(`/tabular-review/${created.body.id}/generate`)
+      .then((response) => response);
+    await started;
+    expect((await request(api).get(
+      `/tabular-review/${created.body.id}`,
+    )).body.review.is_running).toBe(true);
+    expect((await request(api).post(
+      `/tabular-review/${created.body.id}/stop`,
+    )).body).toEqual({ stopped: true });
+    await running;
+    const stopped = await waitForReview(api, created.body.id, (detail) =>
+      detail.review.is_running === false);
+    expect(stopped.cells[0]).toMatchObject({ status: "pending", content: null });
 
     expect(
       (

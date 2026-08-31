@@ -1,11 +1,14 @@
 import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
-import { directoryResource, uploadDocuments, uploadStandaloneDocument } from "@/app/lib/beaverApi";
-import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
+import { directoryResource, uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/beaverApi";
+import { Modal } from "../modals/Modal";
+import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
+import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { FileDirectory } from "../shared/FileDirectory";
-import type { Document, Project, Workflow } from "../shared/types";
+import type { ColumnConfig, Document, Project } from "../shared/types";
 import { useWorkflowPickerState } from "../workflows/WorkflowPickerModal";
+import { workflowVariants, type WorkflowSelection } from "../workflows/workflowRoutes";
 
 type Props = {
     open: boolean;
@@ -14,8 +17,9 @@ type Props = {
         title: string,
         projectId?: string,
         documentIds?: string[],
-        columnsConfig?: Workflow["columns_config"],
-    ) => void;
+        columnsConfig?: ColumnConfig[] | null,
+        workflowId?: string,
+    ) => Promise<void> | void;
     projects?: Project[];
     projectId?: string;
     projectName?: string;
@@ -43,14 +47,19 @@ function OpenNewTRModal({
     const [standaloneUploads, setStandaloneUploads] = useState<Document[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
     const fileInput = useRef<HTMLInputElement>(null);
-    const workflow = useWorkflowPickerState("tabular");
+    const workflow = useWorkflowPickerState();
+    const [workflowSelection, setWorkflowSelection] = useState<WorkflowSelection | null>(null);
+    const workflowOptions = workflow.workflows.flatMap((item) =>
+        workflowVariants(item, "tabular").map((variant) => ({ workflow: item, variant })));
     const formId = "new-tabular-review-modal-form";
     const activeProjectId = fixedProjectId ??
         (underProject ? selectedProjectId : undefined);
     const invalid = underProject && !selectedProjectId;
 
-    function submit(event: React.FormEvent<HTMLFormElement>) {
+    async function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const submitter = (event.nativeEvent as SubmitEvent)
             .submitter as HTMLButtonElement | null;
@@ -58,29 +67,37 @@ function OpenNewTRModal({
             title.current = String(
                 new FormData(event.currentTarget).get("title") ?? "",
             ).trim() || "Untitled review";
-            if (!invalid) setStep("documents");
+            if (!invalid) { setError(""); setStep("documents"); }
             return;
         }
-        onAdd(
-            title.current,
-            activeProjectId,
-            documents.length ? documents.map(({ id }) => id) : undefined,
-            workflow.selected?.columns_config ?? undefined,
-        );
-        onClose();
+        setSubmitting(true); setError("");
+        try {
+            await onAdd(
+                title.current,
+                activeProjectId,
+                documents.length ? documents.map(({ id }) => id) : undefined,
+                workflowSelection?.variant.columns_config ?? undefined,
+                workflowSelection?.workflow.id,
+            );
+            onClose();
+        } catch {
+            setError("The review could not be created. Try again.");
+        } finally { setSubmitting(false); }
     }
 
     async function upload(files: FileList | null) {
         if (!files?.length) return;
-        setUploading(true);
+        setUploading(true); setError("");
         try {
             const resource = activeProjectId
                 ? directoryResource({ projectId: activeProjectId })
                 : null;
-            const added = await uploadDocuments(
+            const results = await uploadDocumentsSettled(
                 Array.from(files),
                 resource ? resource.uploadDocument : uploadStandaloneDocument,
             );
+            const added = results.flatMap((result) =>
+                result.status === "fulfilled" ? [result.value] : []);
             (activeProjectId ? setProjectUploads : setStandaloneUploads)(
                 (current) => [...added, ...current],
             );
@@ -92,8 +109,8 @@ function OpenNewTRModal({
                     ]),
                 ).values(),
             ]);
-        } catch (error) {
-            console.error("Upload failed", error);
+            const failed = results.length - added.length;
+            if (failed) setError(`${failed} file${failed === 1 ? "" : "s"} could not be uploaded. Try again.`);
         } finally {
             setUploading(false);
             if (fileInput.current) fileInput.current.value = "";
@@ -127,7 +144,7 @@ function OpenNewTRModal({
             cancelAction={step === "documents" ? {
                 label: "Back",
                 onClick: () => setStep("details"),
-                disabled: uploading,
+                disabled: uploading || submitting,
             } : undefined}
             primaryAction={step === "details" ? {
                 label: "Next",
@@ -139,7 +156,7 @@ function OpenNewTRModal({
                 type: "submit",
                 form: formId,
                 value: "create-review",
-                disabled: invalid || uploading,
+                disabled: invalid || uploading || submitting,
             }}
         >
             <input
@@ -157,67 +174,30 @@ function OpenNewTRModal({
             >
                 {step === "details" ? (
                     <div className="space-y-6">
-                        <div>
-                            <label
-                                className={MODAL_LABEL_CLASS}
-                                htmlFor="new-tr-title"
-                            >
-                                Review name
-                            </label>
-                            <input
-                                id="new-tr-title"
-                                name="title"
-                                type="text"
-                                placeholder="Review name"
-                                className={`${MODAL_INPUT_CLASS} placeholder:text-gray-400`}
-                                autoFocus
-                            />
-                        </div>
-                        <div>
-                            <label
-                                className={MODAL_LABEL_CLASS}
-                                htmlFor="new-tr-workflow-template"
-                            >
-                                Workflow template
-                            </label>
-                            <div className="flex min-w-0 items-center gap-2">
+                        <FormField label="Review name" htmlFor="new-tr-title">
+                            <ModalTextInput name="title" placeholder="Review name" autoFocus
+                                defaultValue={title.current} />
+                        </FormField>
+                        <FormField label="Workflow template" htmlFor="new-tr-workflow-template"
+                            hint={workflowSelection?.workflow.metadata.description}>
                                 <select
-                                    id="new-tr-workflow-template"
-                                    value={workflow.selected?.id ?? ""}
+                                    value={workflowSelection?.variant.id ?? ""}
                                     disabled={workflow.loading && !workflow.workflows.length}
-                                    onChange={(event) => workflow.setSelected(
-                                        workflow.workflows.find(({ id }) =>
-                                            id === event.currentTarget.value) ?? null,
-                                    )}
+                                    onChange={(event) => setWorkflowSelection(
+                                        workflowOptions.find(({ variant }) =>
+                                            variant.id === event.currentTarget.value) ?? null)}
                                     className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-600 disabled:opacity-60"
                                 >
                                     <option value="">Start from scratch</option>
-                                    {workflow.workflows.map((item) => (
-                                        <option key={item.id} value={item.id}>
-                                            {item.metadata.title}
+                                    {workflowOptions.map(({ workflow: item, variant }) => (
+                                        <option key={variant.id} value={variant.id}>
+                                            {item.metadata.title}: {variant.label}
                                         </option>
                                     ))}
                                 </select>
-                                {workflow.hasMore && (
-                                    <button
-                                        type="button"
-                                        onClick={() => void workflow.loadMore()}
-                                        disabled={workflow.loading}
-                                        className="h-10 shrink-0 px-2 text-sm text-gray-600 hover:text-gray-900"
-                                    >
-                                        {workflow.loading ? "Loading…" : "Load more"}
-                                    </button>
-                                )}
-                            </div>
-                            {workflow.selected?.metadata.description && (
-                                <p className="mt-2 text-xs leading-5 text-gray-500">
-                                    {workflow.selected.metadata.description}
-                                </p>
-                            )}
-                        </div>
+                        </FormField>
                         {!isProjectMode && (
-                            <div className="space-y-3">
-                                <p className={MODAL_LABEL_CLASS}>Project</p>
+                            <FieldGroup legend="Project" className="space-y-3">
                                 <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-gray-600">
                                     <input
                                         type="checkbox"
@@ -246,7 +226,7 @@ function OpenNewTRModal({
                                         disabled={projects?.length === 0}
                                     />
                                 )}
-                            </div>
+                            </FieldGroup>
                         )}
                     </div>
                 ) : (
@@ -264,6 +244,7 @@ function OpenNewTRModal({
                         )}
                     </div>
                 )}
+                {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
             </form>
         </Modal>
     );

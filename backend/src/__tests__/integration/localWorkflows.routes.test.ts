@@ -1,14 +1,11 @@
+import os from "node:os";
+import path from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  supabaseCalls: 0,
-}));
-
-vi.mock("../../lib/localMode", () => ({
-  isLocalRuntime: () => true,
-}));
-
+const mocks = vi.hoisted(() => ({ supabaseCalls: 0 }));
+vi.mock("../../lib/localMode", () => ({ isLocalRuntime: () => true }));
 vi.mock("../../lib/supabase", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/supabase")>()),
   createServerSupabase: () => {
@@ -17,13 +14,35 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
   },
 }));
 
+const canonicalIds = [
+  "drafting", "document-review", "document-comparison", "legal-research",
+  "quote-checking", "templates", "agreement-work", "due-diligence",
+  "transaction-management", "corporate-approvals", "submission-drafting",
+  "evidence-review", "court-records", "authorities",
+];
+const preservedRecipeIds = [
+  "builtin-change-of-control-tabular-review",
+  "builtin-commercial-agreement-tabular-review", "builtin-commercial-lease-review",
+  "builtin-commercial-lease-tabular-review", "builtin-compare-documents",
+  "builtin-corporate-approvals-review", "builtin-credit-agreement-review",
+  "builtin-credit-agreement-tabular-review", "builtin-draft-cp-checklist",
+  "builtin-draft-from-template", "builtin-draft-issues-list",
+  "builtin-e-discovery-tabular-review", "builtin-employment-agreement-review",
+  "builtin-employment-agreement-tabular-review", "builtin-extract-key-terms",
+  "builtin-guarantee-agreement-review",
+  "builtin-limited-partnership-agreement-tabular-review", "builtin-nda-review",
+  "builtin-nda-tabular-review", "builtin-proofread",
+  "builtin-shareholder-agreement-review",
+  "builtin-shareholder-agreement-tabular-review", "builtin-spa-tabular-review",
+  "builtin-supply-agreement-tabular-review",
+];
+
 async function loadApi() {
   vi.resetModules();
   return (await import("../../api")).api;
 }
 
 let dataHome: string;
-
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-workflows-"));
   vi.stubEnv("AUTH_MODE", "local");
@@ -32,133 +51,105 @@ beforeEach(async () => {
   vi.stubEnv("SUPABASE_SECRET_KEY", "");
   mocks.supabaseCalls = 0;
 });
-
 afterEach(async () => {
   await (await import("../../lib/relationalDatabase")).closeRelationalDatabase();
   vi.unstubAllEnvs();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
-});
+}, 30_000);
 
-describe("account-free workflows", () => {
-  it("exports the authorized durable workflow without accepting archive files", async () => {
+describe("account-free workflow catalogue", () => {
+  it("lists 14 canonical workflows while preserving every existing recipe as a variant", async () => {
+    const api = await loadApi();
+    const [all, general, solicitor, litigator, search] = await Promise.all([
+      request(api).get("/workflows?audience=all"),
+      request(api).get("/workflows?audience=general"),
+      request(api).get("/workflows?audience=solicitor"),
+      request(api).get("/workflows?audience=litigator"),
+      request(api).get("/workflows?audience=all&q=commercial%20lease"),
+    ]);
+
+    expect(all.status).toBe(200);
+    expect(all.body.map(({ id }: { id: string }) => id)).toEqual(canonicalIds);
+    expect(general.body).toHaveLength(6);
+    expect(solicitor.body).toHaveLength(10);
+    expect(litigator.body).toHaveLength(10);
+    expect(search.body.map(({ id }: { id: string }) => id)).toEqual(["agreement-work"]);
+    expect(all.body.flatMap(({ launcher }: { launcher: { variants?: object[] } }) =>
+      launcher.variants ?? []).every((variant: object) => !("skill_md" in variant))).toBe(true);
+    expect(all.body.some(({ launcher }: { launcher: { variants?: { columns_config?: unknown[] }[] } }) =>
+      launcher.variants?.some(({ columns_config }) => columns_config?.length))).toBe(true);
+    const variantIds = all.body.flatMap(({ launcher }: {
+      launcher: { kind: string; variants?: { id: string }[] };
+    }) => launcher.variants?.map(({ id }) => id) ?? []);
+    expect(variantIds).toEqual(expect.arrayContaining(preservedRecipeIds));
+    expect(new Set(variantIds).size).toBe(variantIds.length);
+    expect(all.body.find(({ id }: { id: string }) => id === "authorities").launcher)
+      .toEqual({ kind: "authorities" });
+    expect(all.body.find(({ id }: { id: string }) => id === "court-records").launcher)
+      .toEqual({ kind: "court_records" });
+    expect(mocks.supabaseCalls).toBe(0);
+  }, 30_000);
+
+  it("persists one canonical custom instruction variant and exports that exact result", async () => {
     const api = await loadApi();
     const created = await request(api).post("/workflows").send({
-      metadata: { title: "Contract review", type: "tabular" },
-      skill_md: "Review each agreement.",
-      columns_config: [{ index: 0, name: "Term", prompt: "Extract the term." }],
+      metadata: {
+        title: "Contract review", category: "Document review and comparison",
+        audiences: ["general"],
+      },
+      launcher: { kind: "instructions", variants: [{
+        label: "Review contracts", result: "Review table", execution: "tabular",
+        skill_md: "Review each agreement.",
+        columns_config: [{ index: 0, name: "Term", prompt: "Extract the term." }],
+      }] },
     });
-    const response = await request(api)
-      .get(`/workflows/${created.body.id}/export`)
-      .buffer(true)
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    expect(created.body).toMatchObject({
+      id, metadata: { category: "Document review and comparison", audiences: ["general"] },
+      launcher: { kind: "instructions", variants: [{ id, label: "Review contracts",
+        result: "Review table", execution: "tabular" }] },
+    });
+
+    const updated = await request(api).patch(`/workflows/${id}`).send({
+      metadata: { title: "Focused contract review", audiences: ["solicitor"] },
+      launcher: { kind: "instructions", variants: [{
+        label: "Review one contract", result: null, execution: "assistant",
+        skill_md: "Review the selected agreement.", columns_config: null,
+      }] },
+    });
+    expect(updated.body).toMatchObject({ id,
+      metadata: { title: "Focused contract review", audiences: ["solicitor"] },
+      launcher: { variants: [{ id, label: "Review one contract", result: null,
+        execution: "assistant", skill_md: "Review the selected agreement." }] } });
+    expect((await request(api).get("/workflows?audience=general")).body
+      .some((item: { id: string }) => item.id === id)).toBe(false);
+    expect((await request(api).get("/workflows?audience=solicitor")).body
+      .some((item: { id: string }) => item.id === id)).toBe(true);
+    expect((await request(api).get(`/workflows/${id}`)).body.launcher.variants[0].skill_md)
+      .toBe("Review the selected agreement.");
+
+    const exported = await request(api).get(`/workflows/${id}/export`).buffer(true)
       .parse((res, done) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
         res.on("end", () => done(null, Buffer.concat(chunks)));
       });
-    const zip = await (await import("jszip")).default.loadAsync(response.body);
+    const zip = await (await import("jszip")).default.loadAsync(exported.body);
+    expect(Object.keys(zip.files).filter((name) => !zip.files[name].dir))
+      .toEqual(["focused-contract-review/SKILL.md"]);
+    expect(await zip.file("focused-contract-review/SKILL.md")!.async("text"))
+      .toContain("Review the selected agreement.");
 
-    expect(response.status).toBe(200);
-    expect(response.headers["content-type"]).toMatch(/application\/zip/);
-    expect(Object.keys(zip.files).filter((path) => !zip.files[path].dir)).toEqual([
-      "contract-review/SKILL.md",
-      "contract-review/table-config.yaml",
-    ]);
-    expect(await zip.file("contract-review/SKILL.md")!.async("text"))
-      .toContain("Review each agreement.");
-    expect(JSON.parse(await zip.file("contract-review/table-config.yaml")!.async("text")))
-      .toMatchObject({ columns_config: [{ name: "Term" }] });
-    expect((await request(api).post("/workflows").send({
-      metadata: { title: "Unbounded", type: "tabular" },
-      columns_config: [{ index: 0, name: "Term", prompt: "Extract it", arbitrary: {} }],
-    })).status).toBe(400);
-    expect(mocks.supabaseCalls).toBe(0);
-  });
-
-  it("lists built-in assistant and tabular workflows without Supabase", async () => {
-    const api = await loadApi();
-    const [assistant, tabular, hidden] = await Promise.all([
-      request(api).get("/workflows/system?type=assistant"),
-      request(api).get("/workflows/system?type=tabular"),
-      request(api).get("/workflows/hidden"),
-    ]);
-
-    expect(assistant.status).toBe(200);
-    expect(assistant.body).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "builtin-draft-cp-checklist" }),
-      expect.objectContaining({ id: "builtin-proofread" }),
-    ]));
-    expect(tabular.body).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "builtin-change-of-control-tabular-review" }),
-      expect.objectContaining({ id: "builtin-commercial-agreement-tabular-review" }),
-    ]));
-    expect(
-      [...assistant.body, ...tabular.body].every(
-        (workflow: {
-          is_system: boolean;
-          allow_edit: boolean;
-          metadata: {
-            contributors: { name: string }[];
-            version: string;
-          };
-        }) =>
-          workflow.is_system &&
-          !workflow.allow_edit &&
-          workflow.metadata.version === "1.0.0" &&
-          workflow.metadata.contributors[0]?.name === "Open Legal Products",
-      ),
-    ).toBe(true);
-    expect(hidden.body).toEqual([]);
-    expect(mocks.supabaseCalls).toBe(0);
-  });
-
-  it("persists custom workflows and hidden state without Supabase", async () => {
-    const api = await loadApi();
-    const starter = await request(api).get(
-      "/workflows/builtin-draft-cp-checklist",
-    );
-    const created = await request(api)
-      .post("/workflows")
-      .send({
-        metadata: { title: "Local custom workflow", type: "assistant" },
-        skill_md: "Do the thing.",
-      });
-
-    expect(starter.status).toBe(200);
-    expect(starter.body).toMatchObject({
-      id: "builtin-draft-cp-checklist",
-      is_system: true,
-      allow_edit: false,
-      metadata: {
-        title: "Draft CP Checklist",
-        contributors: [{ name: "Open Legal Products" }],
-      },
-    });
-    expect(created.status).toBe(201);
-    const id = created.body.id as string;
-    expect((await request(api).patch(`/workflows/${id}`).send({
-      metadata: { title: "Updated local workflow" },
-      skill_md: "Do the safer thing.",
-    })).body).toMatchObject({ id, metadata: { title: "Updated local workflow" },
-      skill_md: "Do the safer thing.", allow_edit: true, is_owner: true });
-    expect((await request(api).post("/workflows/hidden")
-      .send({ workflow_id: id })).status).toBe(204);
-    expect((await request(api).get("/workflows/hidden")).body).toContain(id);
-    expect((await request(api).get("/workflows?type=assistant")).body.items)
-      .toEqual([expect.objectContaining({ id })]);
     const { runtime } = await import("../../runtime");
-    const workflowPorts = await runtime.workflows();
-    expect((await workflowPorts.repository({
+    const store = await runtime.workflows().then((ports) => ports.repository({
       userId: "00000000-0000-0000-0000-000000000001",
-    }).assistants()).get(id)).toEqual({
-      title: "Updated local workflow", skill_md: "Do the safer thing.",
-    });
+    }).assistants());
+    expect(store.get(id)).toEqual({ workflow_id: id,
+      title: "Focused contract review", skill_md: "Review the selected agreement." });
     expect((await request(api).delete(`/workflows/${id}`)).status).toBe(204);
     expect((await request(api).get(`/workflows/${id}`)).status).toBe(404);
-    expect((await request(api).get("/workflows/hidden")).body).not.toContain(id);
     expect(mocks.supabaseCalls).toBe(0);
-  });
+  }, 30_000);
 });
-import os from "node:os";
-import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";

@@ -21,6 +21,7 @@ const openAI = runtimeConstructor<OpenAIConstructor>("openai");
 type ResponsesWireConfig = {
   apiKey: string;
   baseURL: string;
+  model?: string;
   provider: string;
   persistent: boolean;
   promptCacheKey: string;
@@ -130,7 +131,7 @@ export function createResponsesWireAdapter(
           }
         : undefined;
       const stream = await (await client).responses.create({
-        model: params.model,
+        model: config.model ?? params.model,
         instructions: params.systemPrompt || undefined,
         input: requestInput,
         tools: wireTools(step.tools),

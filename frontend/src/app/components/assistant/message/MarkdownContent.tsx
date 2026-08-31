@@ -7,7 +7,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remend from "remend";
 import remarkGfm from "remark-gfm";
-import { safeAssistantUrl } from "@/app/lib/assistantSession";
+import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import type { Citation } from "../../shared/types";
 import { withoutMarkdownNode } from "./messageStyles";
 import {

@@ -27,6 +27,26 @@ it("selects all visible rows from a mixed selection", () => {
     expect(selectAll).not.toBeChecked();
 });
 
+it("selects a contiguous range from the last row anchor", () => {
+    function Harness() {
+        const [selectedIds, setSelectedIds] = useState<string[]>([]);
+        const selection = useTableSelection(
+            ["a", "b", "c", "d"].map((id) => ({ id })),
+            selectedIds,
+            setSelectedIds,
+        );
+        return <>
+            <button onClick={() => selection.select("b")}>B</button>
+            <button onClick={() => selection.select("d", true)}>Shift D</button>
+            <output>{selectedIds.join(",")}</output>
+        </>;
+    }
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shift D" }));
+    expect(screen.getByText("b,c,d")).toBeInTheDocument();
+});
+
 it("shows pagination only while more rows are available", () => {
     let clicks = 0;
     const { rerender } = render(

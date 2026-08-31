@@ -6,7 +6,7 @@ import type { DocumentAggregate, DocumentRepository,
   StoredDocumentVersion } from "./documentRepository";
 import { contentTypeForDocumentType, shouldConvertToPdf,
   validateDocumentFile } from "./documentTypes";
-import type { DocumentContent, DocumentFile, DocumentProvenance, DocumentScope,
+import type { AssistantDocumentProvenance, DocumentContent, DocumentFile, DocumentProvenance, DocumentScope,
   DocumentStore, DocumentVersion, StoredAssistantEdit } from "./documentStore";
 import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
@@ -70,6 +70,9 @@ async function validateArchive(input: DocumentFile) {
 
 const validateUpload = async (input: DocumentFile) => {
   const { filename, fileType } = input, inspected = await inspectUpload(input);
+  if (input.expectedSha256 && input.expectedSha256 !== inspected.sourceSha256) {
+    throw new ApplicationError(409, "The uploaded file does not match its build receipt");
+  }
   const name = safeFilename(filename);
   const validated = validateDocumentFile(name, inspected.head, inspected.sizeBytes);
   if (!validated.ok || validated.fileType !== fileType.toLowerCase()) {
@@ -87,15 +90,21 @@ const validateUpload = async (input: DocumentFile) => {
   return { filename: name, fileType: validated.fileType, ...inspected };
 };
 
+const assistantProvenance = (value: DocumentProvenance | undefined) =>
+  value?.actor === "assistant" ? value : undefined;
+
 const responseVersion = (version: StoredDocumentVersion): DocumentVersion => ({
   id: version.id, version_number: version.versionNumber, source: version.source,
   created_at: version.createdAt, filename: version.filename, file_type: version.fileType,
   size_bytes: version.sizeBytes, page_count: version.pageCount,
   source_sha256: version.sourceSha256,
-  provenance: version.provenance ? { schema_version: version.provenance.schemaVersion,
-    actor: version.provenance.actor, action: version.provenance.action,
-    parent_version_id: version.provenance.parentVersionId,
-    change_count: version.provenance.changeCount } : undefined,
+  provenance: version.provenance?.actor === "work-product"
+    ? { schema_version: version.provenance.schemaVersion, actor: version.provenance.actor,
+      action: version.provenance.action, receipt: version.provenance.receipt }
+    : version.provenance ? { schema_version: version.provenance.schemaVersion,
+      actor: version.provenance.actor, action: version.provenance.action,
+      parent_version_id: version.provenance.parentVersionId,
+      change_count: version.provenance.changeCount } : undefined,
   deleted_at: null,
 });
 
@@ -136,10 +145,13 @@ function editedFilename(version: StoredDocumentVersion) {
   }`;
 }
 
-function provenanceWithEdits(provenance: DocumentProvenance | undefined,
+function provenanceWithEdits(provenance: AssistantDocumentProvenance | undefined,
   edits: StoredAssistantEdit[]) {
+  const generation = provenance?.generation && { ...provenance.generation,
+    authorityLedger: undefined };
   return provenance && {
     ...provenance,
+    ...(generation ? { generation } : {}),
     changeCount: (provenance.changeCount ?? provenance.trackedEdits?.length ?? 0) + edits.length,
     trackedEdits: [...(provenance.trackedEdits ?? []), ...edits],
   };
@@ -195,7 +207,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       pageCount: null,
       sourceSha256, blobKey, pdfBlobKey: fileType === "pdf" ? blobKey : null, cleanupKeys: [],
       provenance: input.edits
-        ? provenanceWithEdits(input.provenance, input.edits)
+        ? provenanceWithEdits(assistantProvenance(input.provenance), input.edits)
         : input.provenance,
     };
     await pdfLifecyclePhase("upload.blob_write", input.documentId, () =>
@@ -375,7 +387,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       }
       const documentId = randomUUID();
       const version = await makeVersion({ scope, documentId, versionNumber: 1,
-        source: input.provenance?.action === "created" ? "generated" : "upload",
+        source: input.provenance?.actor === "work-product" ||
+          input.provenance?.action === "created" ? "generated" : "upload",
         ...input,
       });
       const now = version.createdAt, document = {
@@ -469,6 +482,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         fileType: version.fileType,
         sourceSha256: version.sourceSha256,
         ...(version.pdfProfile ? { pdfProfile: version.pdfProfile } : {}),
+        ...(version.provenance ? { provenance: version.provenance } : {}),
         readBytes: async () => {
           const bytes = await objects.get(version.blobKey);
           if (!bytes) throw new Error("Document source is unavailable");
@@ -511,7 +525,9 @@ export function createDocumentApplication(repository: DocumentRepository,
         return responseVersion(await add(scope, aggregate, {
           ...file,
           filename: safeFilename(file.filename),
-        }));
+        }, file.provenance ? { provenance: file.provenance,
+          source: file.provenance.actor === "work-product" ? "generated" : "user_upload" }
+          : undefined));
       } catch (error) {
         if (error instanceof DocumentWriteConflict) return null;
         throw error;
@@ -572,7 +588,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       const filename = safeFilename(input.filename);
       const next = await replace(scope, documentId, current, {
         filename, fileType: "docx", bytes: input.bytes, pageCount: null,
-        provenance: provenanceWithEdits(current.provenance, edits), edits,
+        provenance: provenanceWithEdits(assistantProvenance(current.provenance), edits), edits,
       });
       return { status: "committed" as const, version: responseVersion(next), edits };
     },
@@ -667,11 +683,12 @@ export function createDocumentApplication(repository: DocumentRepository,
       if (!source) return { status: "invalid" as const };
       const resolved = await resolveTrackedChange(source, ids, mode);
       if (!resolved.found) return { status: "invalid" as const };
+      const provenance = assistantProvenance(current.provenance);
       try {
         await replace(scope, documentId, current, { filename: current.filename,
           fileType: current.fileType, bytes: resolved.bytes, pageCount: current.pageCount,
-          provenance: current.provenance && { ...current.provenance,
-            trackedEdits: current.provenance.trackedEdits?.map((stored) =>
+          provenance: provenance && { ...provenance,
+            trackedEdits: provenance.trackedEdits?.map((stored) =>
               requested.has(stored.id) ? { ...stored, status: desired } : stored) },
           resolveEdits: { ids: pending.map(({ id }) => id), status: desired } });
       } catch (error) {

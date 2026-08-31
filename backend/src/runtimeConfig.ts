@@ -3,11 +3,7 @@ import { runtime } from "./runtime";
 type Capabilities = { capabilities: { connectors: boolean } };
 export type PublicRuntimeConfig = Capabilities & (
   | { mode: "local" }
-  | {
-      mode: "cloud";
-      supabaseUrl: string;
-      supabasePublishableKey: string;
-    });
+  | { mode: "cloud" });
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -41,13 +37,7 @@ export function publicRuntimeConfig(): PublicRuntimeConfig {
   if (url.protocol !== "https:" && (process.env.NODE_ENV === "production" || !loopback)) {
     throw new Error("SUPABASE_URL must use HTTPS (HTTP is allowed only for local development)");
   }
-  const publishable = required("SUPABASE_PUBLISHABLE_KEY");
-  if (publishable === required("SUPABASE_SECRET_KEY"))
+  if (required("SUPABASE_PUBLISHABLE_KEY") === required("SUPABASE_SECRET_KEY"))
     throw new Error("Supabase publishable and secret keys must differ");
-  return {
-    mode: "cloud",
-    capabilities,
-    supabaseUrl: url.origin,
-    supabasePublishableKey: publishable,
-  };
+  return { mode: "cloud", capabilities };
 }

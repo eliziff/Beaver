@@ -209,6 +209,8 @@ def cmd_grade(args) -> int:
                 t,
                 dataset=r["court"],
                 name=r.get("name"),
+                provider="a2aj",
+                require_report_start=str(r["court"]).upper() == "SCC",
             )
             production_ms = round(
                 (time.perf_counter() - production_started) * 1000, 3

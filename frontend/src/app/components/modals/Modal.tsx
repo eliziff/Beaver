@@ -1,12 +1,9 @@
 import { useId, useLayoutEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
 type ModalSize = "sm" | "md" | "lg" | "xl";
-export const MODAL_LABEL_CLASS = "mb-1 block text-sm font-medium text-gray-700";
-export const MODAL_INPUT_CLASS =
-    "block h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
 type ModalAction = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     "className"
@@ -231,9 +228,9 @@ function ModalActionButton({
                 ? "black"
                 : "white";
     return (
-        <PillButton tone={tone} size="normal" {...props}>
+        <Button variant={tone} size="normal" {...props}>
             {icon}
             {label}
-        </PillButton>
+        </Button>
     );
 }

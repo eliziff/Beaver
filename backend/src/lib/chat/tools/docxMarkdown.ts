@@ -837,6 +837,17 @@ function collectCitationOccurrences(document: DocxMarkdownDocument) {
   return occurrences;
 }
 
+export function docxMarkdownCitationMarkers(markdown: string) {
+  const document = parseDocxMarkdown(markdown);
+  const markers = (children: DocxMarkdownInline[]) => children.flatMap((child) =>
+    child.type === "citation" ? [{ id: child.id, occurrence: child.occurrence }] : []);
+  return {
+    body: collectCitationOccurrences(document).map(({ id, occurrence }) => ({ id, occurrence })),
+    footnotes: document.footnotes.flatMap(({ children }) => markers(children)),
+    footnoteCount: document.footnotes.length,
+  };
+}
+
 function inlineText(children: DocxMarkdownInline[]) {
   return children
     .map((child) =>

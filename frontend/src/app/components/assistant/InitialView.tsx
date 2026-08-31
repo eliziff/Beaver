@@ -4,22 +4,22 @@ import { MoreHorizontal, Zap } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { Modal } from "@/app/components/modals/Modal";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
-import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
-import { DocumentAutomation } from "../documents/DocumentAutomation";
-import { LegalLibraryPage } from "../legal/LegalLibrary";
-import { LibraryCollectionPage, LibraryWorkspaceProvider } from "../library/LibraryWorkspace";
-import { createTabularReview } from "@/app/lib/beaverApi";
+import { InitialDockPanel } from "./InitialDockPanel";
+import { createTabularReview, type LibraryKind } from "@/app/lib/beaverApi";
 import type { DirectoryTab } from "../shared/FileDirectory";
+import { workflowDocumentTab, workflowMessage, type AssistantWorkflowLaunch,
+    type WorkflowSelection } from "../workflows/workflowRoutes";
 import {
     QUICK_ACTIONS,
     type QuickActionId,
     useAssistantPreferences,
 } from "./assistantPreferences";
-import type { Document, Message, Workflow } from "../shared/types";
+import type { ColumnConfig, Document, Message } from "../shared/types";
 const NewTRModal = lazy(() => import("../tabular/NewTRModal").then(({ NewTRModal }) => ({ default: NewTRModal })));
 const SelectAssistantProjectModal = lazy(() => import("./SelectAssistantProjectModal").then(({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal })));
 const NewProjectModal = lazy(() => import("../projects/NewProjectModal").then(({ NewProjectModal }) => ({ default: NewProjectModal })));
@@ -29,6 +29,7 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
         QuickActionId,
         {
             workflowId: string;
+            variantId: string;
             title: string;
             prompt: string;
             initialDocumentTab?: DirectoryTab;
@@ -36,22 +37,26 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
     >
 > = {
     proofread: {
-        workflowId: "builtin-proofread",
+        workflowId: "drafting",
+        variantId: "builtin-proofread",
         title: "Proofread",
         prompt: "proofread",
     },
     compareDocuments: {
-        workflowId: "builtin-compare-documents",
+        workflowId: "document-comparison",
+        variantId: "builtin-compare-documents",
         title: "Compare Documents",
         prompt: "compare documents",
     },
     extractKeyTerms: {
-        workflowId: "builtin-extract-key-terms",
+        workflowId: "document-review",
+        variantId: "builtin-extract-key-terms",
         title: "Extract Key Terms",
         prompt: "extract key terms",
     },
     draftFromTemplate: {
-        workflowId: "builtin-draft-from-template",
+        workflowId: "templates",
+        variantId: "builtin-draft-from-template",
         title: "Draft from Template",
         prompt: "draft from template",
         initialDocumentTab: "templates",
@@ -60,17 +65,23 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
 export function InitialView({
     onSubmit,
     initialDocuments = [],
+    initialWorkflow,
 }: {
     onSubmit: (message: Message) => void;
     initialDocuments?: Document[];
+    initialWorkflow?: AssistantWorkflowLaunch;
 }) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const navigate = useNavigate();
     const [modal, setModal] = useState<InitialModal | null>(null);
-    const [dockTab, setDockTab] = useState("sources");
-    const [dockOpen, setDockOpen] = useState(false);
-    const [automationDocument, setAutomationDocument] = useState<Document | null>(null);
+    const [dockTab, setDockTab] = useState(initialWorkflow
+        ? initialWorkflow.documentTab === "templates" ? "library" : "workflows"
+        : "sources");
+    const [dockOpen, setDockOpen] = useState(!!initialWorkflow);
+    const [libraryKind, setLibraryKind] = useState<LibraryKind>(
+        initialWorkflow?.documentTab === "templates" ? "templates" : "files");
+    const [workflowDocument, setWorkflowDocument] = useState<Document | null>(null);
     const [{ quickActions: visibleActions }, updatePreferences] =
         useAssistantPreferences();
     const chatInputRef = useRef<ChatInputHandle>(null);
@@ -84,28 +95,47 @@ export function InitialView({
             chatInputRef.current?.addDoc(document);
         }
     }, [initialDocuments]);
+    useEffect(() => {
+        if (!initialWorkflow) return;
+        chatInputRef.current?.startWorkflowDocumentSelection(
+            initialWorkflow.workflow, undefined, { openDocumentPicker: false });
+        if (initialWorkflow.documentTab === "templates") {
+            setLibraryKind("templates");
+            setDockTab("library");
+        } else setDockTab("workflows");
+        setDockOpen(true);
+    }, [initialWorkflow]);
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
         if (!config) return;
         chatInputRef.current?.startWorkflowDocumentSelection(
             {
                 id: config.workflowId,
+                variant_id: config.variantId,
                 title: config.title,
             },
             config.prompt,
-            { initialDocumentTab: config.initialDocumentTab },
+            { initialDocumentTab: config.initialDocumentTab,
+                openDocumentPicker: config.initialDocumentTab !== "templates" },
         );
+        if (config.initialDocumentTab === "templates") {
+            setLibraryKind("templates");
+            setDockTab("library");
+            setDockOpen(true);
+        }
     }
     async function handleNewReview(
         title: string,
         projectId?: string,
         documentIds?: string[],
-        columnsConfig?: Workflow["columns_config"],
+        columnsConfig?: ColumnConfig[] | null,
+        workflowId?: string,
     ) {
         const review = await createTabularReview({
             title,
             document_ids: documentIds ?? [],
             columns_config: columnsConfig ?? [],
+            ...(workflowId && { workflow_id: workflowId }),
             ...(projectId && { project_id: projectId }),
         });
         setModal(null);
@@ -130,11 +160,30 @@ export function InitialView({
         setDockTab(tab);
         setDockOpen(true);
     };
+    const startWorkflow = (selection: WorkflowSelection) => {
+        const documentTab = workflowDocumentTab(selection);
+        chatInputRef.current?.startWorkflowDocumentSelection(
+            workflowMessage(selection), undefined, { openDocumentPicker: false });
+        if (documentTab === "templates") {
+            setLibraryKind("templates");
+            openDock("library");
+        }
+    };
+    const dockPanel = (tab: "library" | "workflows" | "sources") => (
+        <InitialDockPanel tab={tab} libraryKind={libraryKind}
+            workflowDocument={workflowDocument}
+            onLibraryKindChange={setLibraryKind}
+            onOpenInChat={(documents) => {
+                for (const document of documents) chatInputRef.current?.addDoc(document);
+            }}
+            onWorkflowSelect={startWorkflow} />
+    );
     const dockTabs: AssistantDockTab[] = [
-        { id: "library", label: "Library", content: <LibraryWorkspaceProvider><LibraryCollectionPage kind="files" onOpenInChat={(documents) => { for (const document of documents) chatInputRef.current?.addDoc(document); }} embedded /></LibraryWorkspaceProvider> },
-        { id: "workflows", label: "Workflows", content: <AssistantWorkflowDock onSelect={(workflow) => chatInputRef.current?.startWorkflowDocumentSelection({ id: workflow.id, title: workflow.metadata.title })} /> },
-        { id: "automations", label: "Automation", content: automationDocument ? <DocumentAutomation document={automationDocument} embedded /> : <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Open a document to use its automations.</div> },
-        { id: "sources", label: "Sources", content: <LegalLibraryPage embedded /> },
+        { id: "library", label: "Library", content: dockPanel("library") },
+        { id: "workflows", label: "Workflows",
+            icon: <WorkflowSkeuoIcon className="text-base leading-none" />,
+            content: dockPanel("workflows") },
+        { id: "sources", label: "Sources", content: dockPanel("sources") },
         { id: "agents", label: "Agents", content: <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Agent activity will appear here.</div> },
     ];
     return (
@@ -159,12 +208,13 @@ export function InitialView({
                     onCancel={() => {}}
                     isLoading={false}
                     onOpenWorkflows={() => {
+                        setWorkflowDocument(null);
                         openDock("workflows");
                     }}
-                    automationsAvailable={!!automationDocument}
-                    onOpenAutomations={(document) => {
-                        if (document) setAutomationDocument(document);
-                        openDock("automations");
+                    documentWorkflowsAvailable={!!workflowDocument}
+                    onRunDocumentWorkflow={(document) => {
+                        if (document) setWorkflowDocument(document);
+                        openDock("workflows");
                     }}
                 />
             </div>
@@ -179,12 +229,12 @@ export function InitialView({
                         <div className="group relative flex min-h-8 items-center justify-center">
                             <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
                                 <Zap aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                                Quick actions
+                                Shortcuts
                             </span>
                             <button
                                 type="button"
                                 onClick={() => setModal("quickActions")}
-                                aria-label="Configure quick actions"
+                                aria-label="Configure shortcuts"
                                 className="absolute left-full ml-1 flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
                             >
                                 <MoreHorizontal className="h-3.5 w-3.5" />
@@ -210,7 +260,7 @@ export function InitialView({
                 <Modal
                     open
                     onClose={() => setModal(null)}
-                    breadcrumbs={["Assistant", "Edit quick actions"]}
+                    breadcrumbs={["Assistant", "Edit shortcuts"]}
                     cancelAction={false}
                     primaryAction={{
                         label: "Done",
@@ -219,7 +269,7 @@ export function InitialView({
                 >
                     <div className="flex min-h-0 flex-1 flex-col pb-5">
                         <div className="grid grid-cols-[minmax(0,1fr)_112px] px-2 pb-1 pt-0.5 text-[11px] font-medium text-gray-400">
-                            <span>Quick action</span>
+                            <span>Shortcut</span>
                             <span className="flex items-center justify-end gap-2">
                                 <span>Enabled</span>
                             </span>

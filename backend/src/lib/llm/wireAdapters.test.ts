@@ -26,6 +26,7 @@ import { streamClaude } from "./claude";
 import { streamDeepSeek } from "./deepseek";
 import { streamGemini } from "./gemini";
 import { streamResponses } from "./openai";
+import { streamOpenCodeGo } from "./openCodeGo";
 import type { Tool } from "./types";
 
 const tool: Tool = {
@@ -53,6 +54,52 @@ afterEach(() => {
 });
 
 describe("provider wire adapters", () => {
+  it("routes OpenCode Go through Beaver's existing three wire adapters", async () => {
+    const requests: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      requests.push({ url, body });
+      return url.endsWith("/responses")
+        ? sse(
+            { type: "response.output_text.delta", delta: "response" },
+            { type: "response.completed", response: { id: "go-response" } },
+          )
+        : sse({ choices: [{ delta: { content: "chat" } }] });
+    }));
+    sdk.anthropicCreate.mockResolvedValueOnce(generator([
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "messages" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_stop" },
+    ]));
+    const base = {
+      systemPrompt: "system",
+      messages: [{ role: "user" as const, content: "Hello" }],
+      apiKeys: { "opencode-go": "test" },
+    };
+
+    const results = await Promise.all([
+      streamOpenCodeGo({ ...base, model: "opencode-go/gpt-5.6-luna" }),
+      streamOpenCodeGo({ ...base, model: "opencode-go/glm-5.3" }),
+      streamOpenCodeGo({ ...base, model: "opencode-go/qwen3.8-max", enableThinking: true }),
+    ]);
+
+    expect(results.map(({ fullText }) => fullText)).toEqual(["response", "chat", "messages"]);
+    expect(requests.map(({ url }) => url).sort()).toEqual([
+      "https://opencode.ai/zen/go/v1/chat/completions",
+      "https://opencode.ai/zen/go/v1/responses",
+    ]);
+    expect(requests.map(({ body }) => body.model).sort()).toEqual(["glm-5.3", "gpt-5.6-luna"]);
+    expect(sdk.anthropicClient).toHaveBeenCalledWith(expect.objectContaining({
+      baseURL: "https://opencode.ai/zen/go",
+    }));
+    expect(sdk.anthropicCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "qwen3.8-max" }),
+      expect.anything(),
+    );
+    expect(sdk.anthropicCreate.mock.calls[0][0]).not.toHaveProperty("thinking");
+  });
+
   it("preserves Anthropic signed thinking blocks through tool continuation", async () => {
     sdk.anthropicBetaCreate
       .mockResolvedValueOnce(generator([

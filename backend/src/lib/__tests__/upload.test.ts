@@ -1,7 +1,24 @@
 import express from "express";
 import request from "supertest";
 import { expect, it } from "vitest";
-import { singleFileUpload } from "../upload";
+import { multipleFileUpload, singleFileUpload } from "../upload";
+
+it("accepts only the declared number of repeated files", async () => {
+  const app = express();
+  app.post("/", multipleFileUpload("files", 2), (req, res) => {
+    res.json({ count: Array.isArray(req.files) ? req.files.length : 0 });
+  });
+  await request(app).post("/")
+    .attach("files", Buffer.from("one"), "one.txt")
+    .attach("files", Buffer.from("two"), "two.txt")
+    .expect(200, { count: 2 });
+  const excess = await request(app).post("/")
+    .attach("files", Buffer.from("one"), "one.txt")
+    .attach("files", Buffer.from("two"), "two.txt")
+    .attach("files", Buffer.from("three"), "three.txt");
+  expect(excess.status).toBe(400);
+  expect(excess.body.detail).toMatch(/too many files/iu);
+});
 
 it("bounds concurrent staged uploads", async () => {
   const app = express();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { DocumentAutomation } from "../documents/DocumentAutomation";
+import { DocumentWorkflowMenu } from "../documents/DocumentWorkflowMenu";
 import type {
   Citation,
   EditAnnotation,
@@ -13,7 +13,7 @@ import {
   isSpreadsheetFilename,
 } from "../shared/types";
 import { DocumentViewer } from "../shared/views/DocumentViewer";
-import { PillButton } from "../ui/pill-button";
+import { Button } from "../ui/button";
 import { downloadDocument } from "../../lib/beaverApi";
 import { downloadBlob } from "../../lib/download";
 import { useEditResolution } from "./EditCard";
@@ -88,19 +88,19 @@ export function DocPanel({
             {filename}
             {!!versionNumber && <small className="ml-2 font-sans text-xs">V{versionNumber}</small>}
           </h2>
-          <DocumentAutomation
+          <DocumentWorkflowMenu
             document={{ id: documentId, filename, project_id: projectId }}
             onDocumentChanged={(result) => setVersion({
               source: versionId,
               value: result.version_id,
             })}
           />
-          <PillButton tone="white" onClick={() => void download()} disabled={downloading || isReloading}>
+          <Button variant="white" size="compact" onClick={() => void download()} disabled={downloading || isReloading}>
             {downloading || isReloading
               ? <Loader2 className="size-3.5 animate-spin" />
               : <Download className="size-3.5" />}
             Download
-          </PillButton>
+          </Button>
         </header>
       )}
       <div className="flex min-h-0 flex-1 flex-col p-3">
@@ -137,12 +137,12 @@ function EditActions({ mode }: { mode: Extract<DocPanelMode, { kind: "edit" }> }
   );
   return (
     <header className="flex justify-end gap-2 border-b p-2">
-      <PillButton tone="black" onClick={() => resolve("accept")} disabled={disabled}>
+      <Button variant="black" size="compact" onClick={() => resolve("accept")} disabled={disabled}>
         {status === "accepted" ? "Accepted" : "Accept"}
-      </PillButton>
-      <PillButton tone="white" onClick={() => resolve("reject")} disabled={disabled}>
+      </Button>
+      <Button variant="white" size="compact" onClick={() => resolve("reject")} disabled={disabled}>
         {status === "rejected" ? "Rejected" : "Reject"}
-      </PillButton>
+      </Button>
     </header>
   );
 }

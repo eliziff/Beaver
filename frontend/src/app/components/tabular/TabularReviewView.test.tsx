@@ -1,6 +1,4 @@
-import { Profiler } from "react";
 import {
-    act,
     fireEvent,
     render,
     screen,
@@ -13,9 +11,8 @@ import { TRView } from "./TabularReviewView";
 const mocks = vi.hoisted(() => ({
     getTabularReview: vi.fn(),
     listProjects: vi.fn(),
-    streamGeneration: vi.fn(),
+    startGeneration: vi.fn(),
     uploadDocument: vi.fn(),
-    commits: 0,
 }));
 function fixture(status: TabularCell["status"]) {
     const document = { id: "document-1", filename: "lease.pdf" } as Document;
@@ -48,22 +45,6 @@ vi.mock("react-router-dom", () => ({
     useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
-    BeaverApiError: class BeaverApiError extends Error {
-        status: number;
-        code: string | null;
-        details: Record<string, unknown> | null;
-        constructor(args: {
-            message: string;
-            status: number;
-            code?: string | null;
-            details?: Record<string, unknown> | null;
-        }) {
-            super(args.message);
-            this.status = args.status;
-            this.code = args.code ?? null;
-            this.details = args.details ?? null;
-        }
-    },
     clearTabularCells: vi.fn(),
     deleteTabularReview: vi.fn(),
     directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
@@ -72,7 +53,8 @@ vi.mock("@/app/lib/beaverApi", () => ({
     getTabularReviewPeople: vi.fn(),
     listProjects: mocks.listProjects,
     regenerateTabularCell: vi.fn(),
-    streamTabularGeneration: mocks.streamGeneration,
+    startTabularGeneration: mocks.startGeneration,
+    stopTabularGeneration: vi.fn(),
     updateTabularReview: vi.fn(),
     uploadStandaloneDocument: vi.fn(),
 }));
@@ -163,26 +145,11 @@ vi.mock("../workflows/WorkflowPickerModal", () => ({
     WorkflowPickerModal: () => null,
 }));
 
-it("ignores generating events after cells are premarked", async () => {
-    const encoder = new TextEncoder();
-    let streamController!: ReadableStreamDefaultController<Uint8Array>;
+it("projects queued agents into the table", async () => {
     mocks.listProjects.mockResolvedValue({ items: [], next_cursor: null });
     mocks.getTabularReview.mockResolvedValue(fixture("pending").data);
-    mocks.streamGeneration.mockResolvedValue(
-        new Response(
-            new ReadableStream<Uint8Array>({
-                start(controller) {
-                    streamController = controller;
-                },
-            }),
-        ),
-    );
-    mocks.commits = 0;
-    render(
-        <Profiler id="review" onRender={() => mocks.commits++}>
-            <TRView reviewId="review-1" />
-        </Profiler>,
-    );
+    mocks.startGeneration.mockResolvedValue({ job_ids: ["job-1"], queued: 1 });
+    render(<TRView reviewId="review-1" />);
 
     await waitFor(() =>
         expect(screen.getByTestId("table")).toHaveAttribute(
@@ -202,36 +169,8 @@ it("ignores generating events after cells are premarked", async () => {
         "data-status",
         "generating",
     );
-    const commitsAfterPremark = mocks.commits;
-    await act(async () => {
-        streamController.enqueue(
-            encoder.encode(
-                'data: {"type":"cell_update","document_id":"document-1","column_index":0,"content":null,"status":"generating"}\n\n',
-            ),
-        );
+    expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
+    expect(mocks.startGeneration).toHaveBeenCalledWith("review-1", {
+        model: "gpt-5", reasoningEffort: "medium",
     });
-    expect(mocks.commits).toBe(commitsAfterPremark);
-
-    await act(async () => {
-        streamController.enqueue(
-            encoder.encode(
-                'data: {"type":"cell_update","document_id":"document-1","column_index":0,"content":{"summary":"Five years"},"status":"done"}\n\ndata: [DONE]\n\n',
-            ),
-        );
-        streamController.close();
-    });
-    await waitFor(() =>
-        expect(screen.getByTestId("table")).toHaveAttribute(
-            "data-status",
-            "done",
-        ),
-    );
-    expect(screen.getByTestId("table")).toHaveAttribute(
-        "data-content",
-        JSON.stringify({ summary: "Five years" }),
-    );
-    expect(screen.getByTestId("cell-details")).toHaveAttribute(
-        "data-status",
-        "done",
-    );
 });

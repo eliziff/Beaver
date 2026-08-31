@@ -3,10 +3,10 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { QUICK_ACTIONS, useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { AccountSection } from "../AccountSection";
-import { AccountToggle } from "../AccountToggle";
+import { Switch } from "@/app/components/ui/switch";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 export default function FeaturesPage() {
-    const { profile, updateLegalResearchUs } = useUserProfile();
+    const { profile, updateProfile } = useUserProfile();
     const [preferences, savePreferences] = useAssistantPreferences();
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export default function FeaturesPage() {
         setSaveError(null);
         setPendingUs(enabled);
         setSaving(true);
-        const ok = await updateLegalResearchUs(enabled);
+        const ok = await updateProfile({ legalResearchUs: enabled });
         setSaving(false);
         setPendingUs(null);
         if (!ok) {
@@ -38,8 +38,9 @@ export default function FeaturesPage() {
                                 start screen.
                             </p>
                         </div>
-                        <AccountToggle
+                        <Switch
                             checked={quickActionsEnabled}
+                            ariaLabel="Show quick actions"
                             size="md"
                             onChange={(checked) => savePreferences({
                                 quickActions: Object.fromEntries(

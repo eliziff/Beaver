@@ -42,6 +42,26 @@ it("rejects unsupported per-turn provider controls", () => {
   }).success).toBe(false);
 });
 
+it("accepts only typed Court Record, Authorities, and Research Set scopes", () => {
+  const base = { current_turn: { kind: "message", content: "Connect the book" },
+    expected_version: 0 };
+  expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
+    kind: "court-record", id: "00000000-0000-4000-8000-000000000001",
+    revision: 3,
+  } }).success).toBe(true);
+  expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
+    kind: "authorities", id: "00000000-0000-4000-8000-000000000001",
+    revision: 3,
+  } }).success).toBe(true);
+  expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
+    kind: "research-set", id: "00000000-0000-4000-8000-000000000001",
+    revision: 3,
+  } }).success).toBe(true);
+  expect(chatTurnInputSchema.safeParse({ ...base, work_product: {
+    kind: "other", id: "00000000-0000-4000-8000-000000000001", revision: 3,
+  } }).success).toBe(false);
+});
+
 it("rejects an explicit unknown model instead of silently rerouting it", () => {
   const turn = (model?: string) => chatTurnInputSchema.safeParse({
     current_turn: { kind: "message", content: "Run this" },

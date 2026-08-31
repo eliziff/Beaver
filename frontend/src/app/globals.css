@@ -71,6 +71,13 @@
         font: inherit;
     }
 }
+@media (max-width: 47.999rem) {
+    input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"]),
+    select,
+    textarea {
+        font-size: 1rem;
+    }
+}
 .maple-leaf-mark {
     display: inline-block;
     flex-shrink: 0;
@@ -103,6 +110,60 @@
 }
 .chat-input-container {
     container-type: inline-size;
+}
+.authorities-workspace,
+.court-records-workspace {
+    container-type: inline-size;
+}
+@container (max-width: 44rem) {
+    .builder-assistant-button {
+        min-width: 2.25rem;
+        padding-inline: 0;
+        width: 2.25rem;
+    }
+    .builder-assistant-label { display: none; }
+}
+@container (min-width: 32rem) {
+    .builder-header { flex-wrap: nowrap; }
+}
+.tab-list {
+    scrollbar-width: none;
+}
+.tab-list::-webkit-scrollbar {
+    display: none;
+}
+.authorities-citations { order: 1; }
+.authorities-build { order: 2; }
+.authorities-sources { order: 3; }
+.authorities-review-list { border-bottom-width: 1px; }
+@container (min-width: 52rem) {
+    .authorities-review { grid-template-columns: 16rem minmax(0, 1fr); }
+    .authorities-review-list {
+        border-bottom-width: 0;
+        border-inline-end-width: 1px;
+    }
+}
+@container (min-width: 64rem) {
+    .court-record-layout {
+        grid-template-columns: minmax(0, 1fr) 19rem;
+    }
+    .court-record-build-panel {
+        align-self: start;
+        position: sticky;
+        top: 1rem;
+    }
+    .authorities-layout {
+        grid-template-columns: minmax(0, 1fr) 21rem;
+    }
+    .authorities-citations { grid-column: 1; grid-row: 1; }
+    .authorities-sources { grid-column: 1; grid-row: 2; }
+    .authorities-build {
+        align-self: start;
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        position: sticky;
+        top: 1rem;
+    }
 }
 .chat-input-model-toggle {
     width: 100%;

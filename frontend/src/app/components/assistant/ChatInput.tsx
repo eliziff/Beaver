@@ -1,20 +1,22 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { ArrowRight, Check, Library, Loader2, Plus, Square, WandSparkles, Waypoints, X } from "lucide-react";
+import { ArrowRight, Check, Library, Loader2, Plus, Square, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
-import { AssistantWorkflowModal } from "./AssistantWorkflowModal";
+import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { WarningPopup } from "../popups/WarningPopup";
 import { ModelEffortToggle } from "./ModelToggle";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
-import type { Document, Message, Workflow as WorkflowDefinition } from "../shared/types";
+import type { Document, Message } from "../shared/types";
+import { workflowDocumentTab, workflowMessage, type WorkflowSelection } from "../workflows/workflowRoutes";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { cn } from "@/app/lib/utils";
 import { uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/beaverApi";
 import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles } from "@/app/lib/documentUploadValidation";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
+import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { useAssistantPreferences } from "./assistantPreferences";
 type Workflow = NonNullable<Message["workflow"]>;
 
@@ -53,6 +55,7 @@ export interface ChatInputHandle {
     clearDraft: () => void;
     startWorkflowDocumentSelection: (workflow: Workflow, prompt?: string, options?: {
         initialDocumentTab?: DirectoryTab;
+        openDocumentPicker?: boolean;
     }) => void;
 }
 interface Props {
@@ -71,26 +74,31 @@ interface Props {
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
     promptHistory?: string[];
-    automationsAvailable?: boolean;
-    onOpenAutomations?: (document?: Document) => void;
+    documentWorkflowsAvailable?: boolean;
+    onRunDocumentWorkflow?: (document?: Document) => void;
     onOpenWorkflows?: (
-        onSelect: (workflow: WorkflowDefinition) => void,
+        onSelect: (selection: WorkflowSelection) => void,
         initialWorkflowId?: string,
     ) => void;
+    initialModel?: string | null;
+    initialReasoningEffort?: string | null;
+    editModeLabels?: { manual: string; auto: string };
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, contextUsage, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
-        promptHistory = [], automationsAvailable = false,
-        onOpenAutomations, onOpenWorkflows }: Props,
+        promptHistory = [], documentWorkflowsAvailable = false,
+        onRunDocumentWorkflow, onOpenWorkflows, initialModel,
+        initialReasoningEffort, editModeLabels }: Props,
     ref,
 ) {
     const [hasValue, setHasValue] = useState(false);
     const [attachedDocs, setAttachedDocs] = useState<Document[]>([]);
     const [droppedDocuments, setDroppedDocuments] = useState<Document[]>([]);
     const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
-    const [model, setModel] = useSelectedModel();
-    const [reasoningEffort, setReasoningEffort] = useSelectedReasoningEffort();
+    const [model, setModel] = useSelectedModel(initialModel);
+    const [reasoningEffort, setReasoningEffort] =
+        useSelectedReasoningEffort(initialReasoningEffort);
     const [{ showAutoMode, showContextUsage, editMode }, updatePreferences] =
         useAssistantPreferences();
     const setEditMode = (mode: "manual" | "auto") =>
@@ -150,6 +158,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         return true;
     }
 
+    const startWorkflowDocumentSelection: ChatInputHandle["startWorkflowDocumentSelection"] =
+        (workflow, prompt, options) => {
+            setSelectedWorkflow(workflow);
+            if (prompt && !textareaRef.current?.value) setInputValue(prompt);
+            setPicker(options?.openDocumentPicker === false || attachedDocs.length
+                ? null : options?.initialDocumentTab ?? "files");
+        };
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => attachDocuments([doc]),
         clearDraft: () => {
@@ -159,13 +174,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             setAttachedDocs([]);
             setSelectedWorkflow(null);
         },
-        startWorkflowDocumentSelection: (workflow, prompt, options) => {
-            setSelectedWorkflow(workflow);
-            if (prompt && !textareaRef.current?.value) setInputValue(prompt);
-            if (attachedDocs.length === 0) {
-                setPicker(options?.initialDocumentTab ?? "files");
-            }
-        },
+        startWorkflowDocumentSelection,
     }));
     useEffect(() => {
         if (!restoreDraft) return;
@@ -262,7 +271,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             workflow: selectedWorkflow ?? undefined,
             model,
             reasoningEffort,
-            editMode: showAutoMode ? editMode : "manual",
+            editMode: showAutoMode || editModeLabels ? editMode : "manual",
         });
     };
     const documentButtonLabel = attachedDocs.length
@@ -421,20 +430,28 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        if (onOpenWorkflows) {
+                                        const document = attachedDocs.length === 1
+                                            ? attachedDocs[0]
+                                            : undefined;
+                                        if (
+                                            !selectedWorkflow &&
+                                            onRunDocumentWorkflow &&
+                                            (documentWorkflowsAvailable || document)
+                                        ) {
+                                            onRunDocumentWorkflow(document);
+                                        } else if (onOpenWorkflows) {
                                             onOpenWorkflows(
-                                                (workflow) =>
-                                                    setSelectedWorkflow({
-                                                        id: workflow.id,
-                                                        title: workflow.metadata.title,
-                                                    }),
+                                                (selection) => startWorkflowDocumentSelection(
+                                                    workflowMessage(selection), undefined,
+                                                    { openDocumentPicker: false },
+                                                ),
                                                 selectedWorkflow?.id,
                                             );
                                         } else {
                                             setPicker("workflows");
                                         }
                                     }}
-                                    aria-label="Open workflows"
+                                    aria-label="Workflows"
                                     className={cn(
                                         "flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
                                         selectedWorkflow
@@ -444,38 +461,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 >
                                     {selectedWorkflow
                                         ? <Check className="h-3.5 w-3.5" />
-                                        : <Waypoints className="h-3.5 w-3.5" />}
+                                        : <WorkflowSkeuoIcon className="text-base leading-none" />}
                                     <span className="chat-input-control-label hidden sm:inline">
                                         Workflows
                                     </span>
                                 </button>
-                                {onOpenAutomations && (
-                                    <button
-                                        type="button"
-                                        disabled={
-                                            !automationsAvailable &&
-                                            attachedDocs.length !== 1
-                                        }
-                                        onClick={() =>
-                                            onOpenAutomations(
-                                                attachedDocs.length === 1
-                                                    ? attachedDocs[0]
-                                                    : undefined,
-                                            )
-                                        }
-                                        aria-label="Open automations"
-                                        className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-600 hover:text-gray-900 disabled:cursor-default disabled:text-gray-300"
-                                    >
-                                        <WandSparkles className="h-3.5 w-3.5" />
-                                        <span className="chat-input-control-label hidden sm:inline">
-                                            Automations
-                                        </span>
-                                    </button>
-                                )}
                             </div>
                         )}
                         <div className="chat-input-actions ml-auto flex min-w-0 items-center justify-end gap-1">
-                            {showAutoMode && (
+                            {(showAutoMode || editModeLabels) && (
                                 <div
                                     role="group"
                                     aria-label="Editing mode"
@@ -501,7 +495,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                                     : "text-gray-500 hover:text-gray-800",
                                             )}
                                         >
-                                            {mode === "auto" ? "Auto" : "Manual"}
+                                            {editModeLabels?.[mode] ??
+                                                (mode === "auto" ? "Auto" : "Manual")}
                                         </button>
                                     ))}
                                 </div>
@@ -556,15 +551,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                 />
             )}
             {showContextTools && picker === "workflows" && (
-                <AssistantWorkflowModal
+                <WorkflowPickerModal
                     open
                     onClose={() => setPicker(null)}
-                    onSelect={(wf) => {
-                        setSelectedWorkflow({ id: wf.id, title: wf.metadata.title });
-                        setPicker(null);
-                    }}
-                    projectName={projectName}
-                    projectCmNumber={projectCmNumber}
+                    onSelect={(selection) => startWorkflowDocumentSelection(
+                        workflowMessage(selection), undefined,
+                        { initialDocumentTab: workflowDocumentTab(selection) },
+                    )}
+                    execution="assistant"
+                    breadcrumbs={projectName
+                        ? ["Projects", `${projectName}${projectCmNumber ? ` (#${projectCmNumber})` : ""}`, "Assistant", "Add workflow"]
+                        : ["Assistant", "Add workflow"]}
                 />
             )}
             <ApiKeyMissingPopup open={apiKeyModalProvider !== null} provider={apiKeyModalProvider}

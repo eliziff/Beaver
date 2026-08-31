@@ -13,13 +13,18 @@
  * rejected, and the report says WHICH check rejected it, so a check that has
  * never been observed to fire is visible.
  */
+import { createHash } from "node:crypto";
 import {
   automaticNearMisses,
   scoreTask,
   synthesiseResult,
   windowBounds,
 } from "./checks";
-import { fixtureText } from "./fixtures";
+import {
+  loadZip,
+  openDocxSession,
+} from "../../../backend/scripts/docx-edit-bench-bridge";
+import { FIXTURES, fixtureBytes, fixtureText } from "./fixtures";
 import { loadTasks } from "./tasks";
 import type { Score, Site, Task } from "./types";
 
@@ -103,6 +108,33 @@ export type TaskSelfTest = {
   /** Guards whose expectation cannot be broken by damaging a match. */
   sites_not_synthetically_exercisable: string[];
 };
+
+const sha256 = (bytes: Buffer) =>
+  createHash("sha256").update(bytes).digest("hex");
+
+async function packageSnapshot(bytes: Buffer): Promise<string> {
+  const zip = await loadZip(bytes);
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  const rows = await Promise.all(
+    entries.map(async (entry) =>
+      `${entry.name}:${sha256(await entry.async("nodebuffer"))}`,
+    ),
+  );
+  return rows.sort().join("\n");
+}
+
+/** Exact logical-package preservation through the canonical no-op session. */
+export async function selfTestFixturePackages() {
+  const failures: string[] = [];
+  for (const fixture of FIXTURES) {
+    const before = await fixtureBytes(fixture.id);
+    const after = await (await openDocxSession(before)).save();
+    if ((await packageSnapshot(before)) !== (await packageSnapshot(after))) {
+      failures.push(fixture.id);
+    }
+  }
+  return { checked: FIXTURES.length, failures };
+}
 
 async function originalsFor(task: Task): Promise<Map<string, string>> {
   const originals = new Map<string, string>();

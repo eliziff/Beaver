@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import type { Project } from "../shared/types";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { SearchBar } from "../ui/search-bar";
+import { CollectionState } from "../shared/CollectionState";
 import { getProject, listProjects } from "@/app/lib/beaverApi";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 interface Props {
@@ -44,9 +45,7 @@ export function ProjectChoiceList({
         const source = projects ?? page.items;
         const query = search.trim().toLocaleLowerCase();
         const filtered = projects && query ? source.filter((project) =>
-            `${project.name} ${project.cm_number ?? ""}`
-                .toLocaleLowerCase()
-                .includes(query),
+            `${project.name} ${project.cm_number ?? ""}`.toLocaleLowerCase().includes(query),
         ) : source;
         return selectedProject && !filtered.some(({ id }) => id === selectedProject.id)
             ? [selectedProject, ...filtered]
@@ -65,14 +64,12 @@ export function ProjectChoiceList({
                 disabled={disabled}
             />
             <div
-                role="listbox"
+                role="group"
                 aria-label="Projects"
                 className="h-48 overflow-y-auto p-1"
             >
                 {isLoading && visible.length === 0 ? (
-                    <p className="px-2 py-3 text-sm text-gray-500">
-                        Loading projects…
-                    </p>
+                    <CollectionState loading className="min-h-0 justify-start px-2 py-3">Loading projects…</CollectionState>
                 ) : visible.length ? (
                     <>
                     {visible.map((project) => {
@@ -81,18 +78,18 @@ export function ProjectChoiceList({
                             <button
                                 key={project.id}
                                 type="button"
-                                role="option"
-                                aria-selected={selected}
+                                aria-pressed={selected}
+                                title={project.name}
                                 disabled={disabled}
                                 onClick={() => onChange(project.id)}
-                                className={`flex min-h-10 w-full items-center gap-2 rounded px-2 text-left text-sm ${
+                                className={`flex min-h-10 w-full items-center gap-2 rounded px-2 py-2 text-left text-sm ${
                                     selected
                                         ? "bg-gray-900 text-white"
                                         : "text-gray-800 hover:bg-gray-100"
                                 } disabled:opacity-50`}
                             >
                                 <FolderSvgIcon className="h-4 w-4 shrink-0" />
-                                <span className="min-w-0 flex-1 truncate">
+                                <span className="min-w-0 flex-1 break-words">
                                     {project.name}
                                     {project.cm_number
                                         ? ` (#${project.cm_number})`
@@ -114,9 +111,9 @@ export function ProjectChoiceList({
                     )}
                     </>
                 ) : (
-                    <p className="px-2 py-3 text-sm text-gray-500">
+                    <CollectionState className="min-h-0 justify-start px-2 py-3">
                         {search ? "No matching projects" : "No projects yet"}
-                    </p>
+                    </CollectionState>
                 )}
             </div>
         </div>

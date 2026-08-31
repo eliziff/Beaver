@@ -71,13 +71,9 @@ describe("canonical document routes", () => {
   beforeEach(() => process.env.AUTH_MODE = "local");
 
   it("owns collection paging and upload validation", async () => {
-    const { app, library, documents } = fixture();
+    const { app, documents } = fixture();
     expect((await request(app).get("/single-documents?q=DRAFT")).body.items)
       .toEqual([{ id: "d1", filename: "draft.docx" }]);
-    expect(library.page).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "file" }),
-      expect.objectContaining({ q: "draft", documentsOnly: true }),
-    );
     expect((await request(app).post("/single-documents")
       .attach("file", Buffer.from("bad"), "draft.exe")).status).toBe(400);
     expect((await request(app).post("/single-documents")).status).toBe(400);

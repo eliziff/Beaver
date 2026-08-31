@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";import { Modal } from "../modals/Modal";
-import { ModalFieldLabel } from "../modals/ModalFieldLabel";
+import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
+import { Switch } from "../ui/switch";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import type { Project, TabularReview } from "../shared/types";
@@ -99,12 +100,8 @@ export function TabularReviewDetailsModal({
             cancelAction={canEdit ? undefined : false}
         >
             <div className="space-y-6">
-                <div>
-                    <ModalFieldLabel htmlFor="tabular-review-details-title">
-                        Review name
-                    </ModalFieldLabel>
+                <FormField label="Review name" htmlFor="tabular-review-details-title">
                     <ModalTextInput
-                        id="tabular-review-details-title"
                         type="text"
                         value={titleDraft}
                         onChange={(event) => {
@@ -118,39 +115,18 @@ export function TabularReviewDetailsModal({
                         disabled={!canEdit || saving}
                         autoFocus
                     />
-                </div>
+                </FormField>
                 {!lockProject && (
-                    <div className="space-y-3">
-                        <ModalFieldLabel as="p">Project</ModalFieldLabel>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (!canEdit || saving) return;
-                                const next = !underProject;
-                                setUnderProject(next);
-                                if (!next) setSelectedProjectId("");
-                                setSaved(false);
-                                setError(null);
-                            }}
-                            className="flex w-fit items-center gap-2.5"
-                        >
-                            <span
-                                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full ${
-                                    underProject ? "bg-gray-900" : "bg-gray-100"
-                                }`}
-                            >
-                                <span
-                                    className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white ${
-                                        underProject
-                                            ? "translate-x-4"
-                                            : "translate-x-0"
-                                    }`}
-                                />
-                            </span>
-                            <span className="text-sm text-gray-600">
-                                Move under a project
-                            </span>
-                        </button>
+                    <FieldGroup legend="Project" className="space-y-3">
+                        <label className="flex w-fit items-center gap-2.5 text-sm text-gray-600">
+                            <Switch checked={underProject} size="md" tone="dark"
+                                disabled={!canEdit || saving} onChange={(next) => {
+                                    setUnderProject(next);
+                                    if (!next) setSelectedProjectId("");
+                                    setSaved(false); setError(null);
+                                }} />
+                            Move under a project
+                        </label>
                         {underProject && (
                             <ProjectChoiceList
                                 projects={projects}
@@ -165,7 +141,7 @@ export function TabularReviewDetailsModal({
                                 }
                             />
                         )}
-                    </div>
+                    </FieldGroup>
                 )}
             </div>
         </Modal>

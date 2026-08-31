@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
-import {
-    ProjectSectionToolbar,
-    useProjectWorkspace,
-} from "@/app/components/projects/ProjectWorkspace";
+import { ProjectSectionTabs, useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { TableToolbar } from "@/app/components/shared/TableToolbar";
 import type {
@@ -15,7 +12,8 @@ import type {
 import { NewTRModal } from "@/app/components/tabular/NewTRModal";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
-import { ActionMenu } from "@/app/components/ui/action-menu";
+import { Button } from "@/app/components/ui/button";
+import { Loader2, Plus } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import {
@@ -157,6 +155,7 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
         selectedProjectId?: string,
         documentIds?: string[],
         columnsConfig?: ColumnConfig[] | null,
+        workflowId?: string,
     ) {
         setCreating(true);
         try {
@@ -164,6 +163,7 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
                 title,
                 document_ids: documentIds ?? [],
                 columns_config: columnsConfig ?? [],
+                workflow_id: workflowId,
                 ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
             });
             navigate(selectedProjectId
@@ -175,70 +175,21 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
         }
     }
 
-    const selectionActions = (
-        <span className="inline-flex h-8 w-28">
-            {selectedIds.length > 0 && (
-                <ActionMenu
-                    label="Actions"
-                    items={[{ label: "Delete", onSelect: removeSelected }]}
-                    className="w-full"
-                    triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-100"
-                >
-                    Actions <span aria-hidden="true">&#9662;</span>
-                </ActionMenu>
-            )}
-        </span>
-    );
-
     const collection = (
         <>
-            {projectContext ? (
-                <ProjectSectionToolbar actions={selectionActions} />
-            ) : (
-                <>
-                    <PageHeader
-                        loading={loading}
-                        actions={[
-                            {
-                                type: "search",
-                                value: search,
-                                onChange: setSearch,
-                                placeholder: "Search reviews...",
-                            },
-                            {
-                                type: "new",
-                                onClick: () => setNewReviewOpen(true),
-                                loading: creating,
-                                title: "New tabular review",
-                            },
-                        ]}
-                    >
-                        <h1 className="font-serif text-2xl font-medium text-gray-900">
-                            Tabular Reviews
-                        </h1>
-                    </PageHeader>
-                    <TableToolbar
-                        items={REVIEW_SCOPES}
-                        active={scope}
-                        onChange={setScope}
-                        actions={selectionActions}
-                    />
-                </>
-            )}
             <TabularReviewsTable
                 reviews={reviews}
                 filteredReviews={reviews}
                 selectedReviewIds={selectedIds}
                 setSelectedReviewIds={setSelectedIds}
-                creatingReview={creatingReview}
                 projects={[]}
                 reviewHref={(review) => review.project_id
                     ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
                     : `/tabular-reviews/${review.id}`
                 }
-                onCreateReview={projectContext?.openNewReview ?? (() => setNewReviewOpen(true))}
                 onOpenDetails={openDetails}
                 onDeleteReview={removeReview}
+                onDeleteSelected={() => void removeSelected()}
                 loading={loading}
             />
             {page.hasMore && (
@@ -277,8 +228,46 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
         </>
     );
 
-    return projectContext ? collection : (
+    if (projectContext) return (
+        <ProjectSectionTabs actions={
+            <Button variant="white" size="normal" className="h-8 py-0"
+                onClick={projectContext.openNewReview}
+                disabled={creatingReview}
+            >
+                {creatingReview ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Plus className="h-3.5 w-3.5" />}
+                Create review
+            </Button>
+        }>
+            {collection}
+        </ProjectSectionTabs>
+    );
+    return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <PageHeader
+                loading={loading}
+                actions={[
+                    {
+                        type: "search",
+                        value: search,
+                        onChange: setSearch,
+                        placeholder: "Search reviews...",
+                        booleanSearch: true,
+                    },
+                    {
+                        type: "new",
+                        onClick: () => setNewReviewOpen(true),
+                        loading: creating,
+                        title: "New tabular review",
+                    },
+                ]}
+            >
+                <h1 className="font-serif text-2xl font-medium text-gray-900">
+                    Tabular Reviews
+                </h1>
+            </PageHeader>
+            <TableToolbar items={REVIEW_SCOPES} active={scope} onChange={setScope}
+                ariaLabel="Tabular review filters" />
             {collection}
         </div>
     );

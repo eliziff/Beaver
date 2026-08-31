@@ -1,152 +1,60 @@
-import { useDeferredValue, useEffect, useState, type ReactNode } from "react";
-import {
-    getWorkflow,
-    listSystemWorkflows,
-    listWorkflows,
-} from "@/app/lib/beaverApi";
+import { useEffect, useState, type ReactNode } from "react";
+import { listWorkflows } from "@/app/lib/beaverApi";
 import { Modal } from "../modals/Modal";
-import type { Workflow } from "../shared/types";
+import type { WorkflowVariant } from "../shared/types";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
-import { usePagedQuery } from "@/app/hooks/usePagedQuery";
-interface WorkflowPickerModalProps {
-    open: boolean;
-    onClose: () => void;
-    onSelect: (workflow: Workflow) => Promise<void> | void;
-    workflowType: Workflow["metadata"]["type"];
-    breadcrumbs: ReactNode[];
-    primaryLabel?: string;
-    selectingLabel?: string;
-    selecting?: boolean;
-    closeOnSelect?: boolean;
-    initialWorkflowId?: string;
-    disabledWorkflow?: (workflow: Workflow) => boolean;
+import type { AudienceFilter } from "./workflowCatalog";
+import type { WorkflowSelection } from "./workflowRoutes";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
+
+interface Props {
+    open: boolean; onClose: () => void;
+    onSelect: (selection: WorkflowSelection) => Promise<void> | void;
+    execution: WorkflowVariant["execution"]; breadcrumbs: ReactNode[];
+    selecting?: boolean; closeOnSelect?: boolean; initialWorkflowId?: string;
+    disabledWorkflow?: (selection: WorkflowSelection) => boolean;
 }
-export function useWorkflowPickerState(
-    workflowType: Workflow["metadata"]["type"],
-    initialWorkflowId?: string,
-) {
-    const [systemWorkflows, setSystemWorkflows] = useState<Workflow[]>([]);
-    const [systemLoading, setSystemLoading] = useState(true);
-    const [selected, setSelected] = useState<Workflow | null>(null);
+
+export function useWorkflowPickerState(initialWorkflowId?: string) {
+    const { profile } = useUserProfile();
+    const [workflows, setWorkflows] = useState([] as WorkflowSelection["workflow"][]);
+    const [audience, setAudience] = useState<AudienceFilter>(initialWorkflowId ? "all" : "general");
     const [search, setSearch] = useState("");
-    const query = useDeferredValue(search.trim());
-    const custom = usePagedQuery(
-        (cursor, signal) => listWorkflows({
-            type: workflowType,
-            q: query,
-            cursor,
-        }, signal),
-        [query, workflowType],
-    );
+    const [loading, setLoading] = useState(true);
     useEffect(() => {
-        let cancelled = false;
-        listSystemWorkflows(workflowType)
-            .then((next) => {
-                if (cancelled) return;
-                setSystemWorkflows(next);
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setSystemWorkflows([]);
-            })
-            .finally(() => {
-                if (!cancelled) setSystemLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [workflowType]);
-    useEffect(() => {
-        if (!initialWorkflowId) return;
-        const loaded = [...systemWorkflows, ...custom.items].find(
-            (workflow) => workflow.id === initialWorkflowId,
-        );
-        if (loaded) {
-            setSelected(loaded);
-            return;
-        }
-        void getWorkflow(initialWorkflowId).then(setSelected).catch(() => {});
-    }, [custom.items, initialWorkflowId, systemWorkflows]);
-    const select = (workflow: Workflow | null) => {
-        if (!workflow) return setSelected(null);
-        setSelected(workflow);
-        void getWorkflow(workflow.id).then(setSelected).catch(() => setSelected(null));
-    };
-    return {
-        workflows: [...systemWorkflows, ...custom.items],
-        loading: systemLoading || custom.loading,
-        selected,
-        setSelected: select,
-        search,
-        setSearch,
-        hasMore: custom.hasMore,
-        loadMore: custom.loadMore,
-    };
+        let active = true;
+        listWorkflows({ audience: "all" })
+            .then((items) => { if (active) setWorkflows(items); })
+            .catch(() => { if (active) setWorkflows([]); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, []);
+    return { workflows: workflows.filter(({ id, metadata }) =>
+        (id !== "authorities" || profile?.features.authorities !== false) &&
+        (audience === "all" || metadata.audiences.includes("general") || metadata.audiences.includes(audience))),
+        setWorkflows, loading, search, setSearch, audience, setAudience };
 }
-export function WorkflowPickerModal({
-    open,
-    ...props
-}: WorkflowPickerModalProps) {
-    if (!open) return null;
-    return (
-        <OpenWorkflowPickerModal
-            key={`${props.workflowType}:${props.initialWorkflowId ?? ""}`}
-            {...props}
-        />
-    );
+
+export function WorkflowPickerModal({ open, ...props }: Props) {
+    return open ? <OpenWorkflowPickerModal key={`${props.execution}:${props.initialWorkflowId ?? ""}`} {...props} /> : null;
 }
-function OpenWorkflowPickerModal({
-    onClose,
-    onSelect,
-    workflowType,
-    breadcrumbs,
-    primaryLabel = "Use",
-    selectingLabel,
-    selecting = false,
-    closeOnSelect = true,
-    initialWorkflowId,
-    disabledWorkflow,
-}: Omit<WorkflowPickerModalProps, "open">) {
-    const {
-        workflows, loading, selected, setSelected, search, setSearch,
-        hasMore, loadMore,
-    } =
-        useWorkflowPickerState(workflowType, initialWorkflowId);
-    const selectionDisabled =
-        !selected || selecting || (selected && disabledWorkflow?.(selected));
-    const resolvedPrimaryLabel =
-        selecting && selectingLabel ? selectingLabel : primaryLabel;
-    function handleClose() {
-        onClose();
+
+function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
+    selecting = false, closeOnSelect = true, initialWorkflowId, disabledWorkflow }: Omit<Props, "open">) {
+    const state = useWorkflowPickerState(initialWorkflowId);
+    async function choose(selection: WorkflowSelection) {
+        if (selecting || disabledWorkflow?.(selection)) return;
+        await onSelect(selection);
+        if (closeOnSelect) onClose();
     }
-    async function handleSelect() {
-        if (!selected || selectionDisabled) return;
-        await onSelect(selected);
-        if (closeOnSelect) handleClose();
-    }
-    return (
-        <Modal
-            open
-            onClose={handleClose}
-            size="xl"
-            breadcrumbs={breadcrumbs}
-            primaryAction={{
-                label: resolvedPrimaryLabel,
-                onClick: () => void handleSelect(),
-                disabled: selectionDisabled,
-            }}
-        >
-            <WorkflowPickerContent
-                workflows={workflows}
-                selected={selected}
-                onSelect={setSelected}
-                search={search}
-                onSearchChange={setSearch}
-                loading={loading}
-                hasMore={hasMore}
-                onLoadMore={() => void loadMore()}
-                disabledWorkflow={disabledWorkflow}
-            />
-        </Modal>
-    );
+    return <Modal open onClose={onClose} size="xl" breadcrumbs={breadcrumbs}>
+        <WorkflowPickerContent workflows={state.workflows.filter(({ launcher }) =>
+            launcher.kind === "instructions")}
+            onSelect={(workflow, variant) => { if (variant) void choose({ workflow, variant }); }}
+            search={state.search} onSearchChange={state.setSearch}
+            audience={state.audience} onAudienceChange={state.setAudience}
+            loading={state.loading} execution={execution} initialWorkflowId={initialWorkflowId}
+            disabledItem={(workflow, variant) => !variant || selecting ||
+                Boolean(disabledWorkflow?.({ workflow, variant }))} />
+    </Modal>;
 }

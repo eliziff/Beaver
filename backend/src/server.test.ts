@@ -42,24 +42,12 @@ describe("public server boundary", () => {
       "script-src 'self'",
     );
     expect(response.headers["content-security-policy"]).toContain("img-src 'self' data: blob:");
+    expect(response.headers["content-security-policy"]).toContain("frame-src 'self' blob:");
     expect(response.headers["content-security-policy"]).not.toContain(
       "script-src 'self' 'unsafe-inline'",
     );
     expect(response.headers["permissions-policy"]).toContain("camera=()");
     expect(response.headers["x-powered-by"]).toBeUndefined();
-  });
-
-  it("hosts the canonical Authorities workspace without a second origin", async () => {
-    const response = await request(server)
-      .get("/authorities-helper/?mode=mike")
-      .set("Host", "127.0.0.1:3000");
-
-    expect(response.status).toBe(200);
-    expect(response.text).toContain('href="styles.css"');
-    expect(response.text).toContain('src="app.js"');
-    expect(response.headers["content-security-policy"]).toContain(
-      "frame-ancestors 'self'",
-    );
   });
 
   it("rejects DNS rebinding and cross-site browser requests in local mode", async () => {

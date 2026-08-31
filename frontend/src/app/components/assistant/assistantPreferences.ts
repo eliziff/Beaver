@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from "react";
-import { z } from "zod";
 
 export const QUICK_ACTIONS = [
     { id: "proofread", label: "Proofread" },
@@ -61,27 +60,38 @@ const quickActionDefaults = Object.fromEntries(QUICK_ACTIONS.map(({ id }) => [id
 const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
 const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 
-const preferenceSchema = z.strictObject({
-    activityDetail: z.enum(["auto", "standard", "tools", "trace"]),
-    showContextUsage: z.boolean(),
-    showAutoMode: z.boolean(),
-    editMode: z.enum(["manual", "auto"]),
-    quickActions: z.strictObject(Object.fromEntries(QUICK_ACTIONS.map(({ id }) => [id, z.boolean()])) as Record<QuickActionId, z.ZodBoolean>),
-    readSubagents: z.strictObject({
-        mode: z.enum(["none", "beaver", "native"]), showDock: z.boolean(),
-        model: z.string().max(200), effort: z.string().max(100),
-    }),
-    jurisdiction: z.strictObject({
-        mode: z.enum(["ask", "presume"]),
-        jurisdictions: z.array(z.string()).max(jurisdictionOptions.length),
-    }),
-});
-export type AssistantPreferences = z.infer<typeof preferenceSchema>;
+export type AssistantPreferences = {
+    activityDetail: "auto" | "standard" | "tools" | "trace";
+    showContextUsage: boolean;
+    showAutoMode: boolean;
+    editMode: "manual" | "auto";
+    quickActions: Record<QuickActionId, boolean>;
+    readSubagents: { mode: "none" | "beaver" | "native"; showDock: boolean;
+        model: string; effort: string };
+};
+const record = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+const exact = (value: Record<string, unknown>, keys: readonly string[]) =>
+    Object.keys(value).length === keys.length && keys.every((key) => key in value);
+function parsePreferences(value: unknown): AssistantPreferences | null {
+    if (!record(value) || !record(value.quickActions) || !record(value.readSubagents) ||
+        !exact(value, ["activityDetail", "showContextUsage", "showAutoMode", "editMode", "quickActions", "readSubagents"]) ||
+        !exact(value.quickActions, QUICK_ACTIONS.map(({ id }) => id)) ||
+        !exact(value.readSubagents, ["mode", "showDock", "model", "effort"]) ||
+        !["auto", "standard", "tools", "trace"].includes(String(value.activityDetail)) ||
+        !["manual", "auto"].includes(String(value.editMode)) ||
+        typeof value.showContextUsage !== "boolean" || typeof value.showAutoMode !== "boolean" ||
+        !Object.values(value.quickActions).every((item) => typeof item === "boolean") ||
+        !["none", "beaver", "native"].includes(String(value.readSubagents.mode)) ||
+        typeof value.readSubagents.showDock !== "boolean" ||
+        typeof value.readSubagents.model !== "string" || value.readSubagents.model.length > 200 ||
+        typeof value.readSubagents.effort !== "string" || value.readSubagents.effort.length > 100) return null;
+    return value as AssistantPreferences;
+}
 const DEFAULTS: AssistantPreferences = {
     activityDetail: "auto", showContextUsage: true, showAutoMode: false, editMode: "manual",
     quickActions: quickActionDefaults,
     readSubagents: { mode: "none", showDock: true, model: DEFAULT_READ_SUBAGENT_MODEL, effort: DEFAULT_READ_SUBAGENT_EFFORT },
-    jurisdiction: { mode: "presume", jurisdictions: JURISDICTION_GROUPS[0].options.map(([id]) => id) },
 };
 const STORAGE_KEY = "beaver.assistant.preferences";
 const UPDATED_EVENT = "beaver:assistant-preferences";
@@ -92,8 +102,7 @@ export function readAssistantPreferences(): AssistantPreferences {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw === cache.raw) return cache.value;
     try {
-        const parsed = preferenceSchema.safeParse(raw ? JSON.parse(raw) : DEFAULTS);
-        cache = { raw, value: parsed.success ? parsed.data : DEFAULTS };
+        cache = { raw, value: parsePreferences(raw ? JSON.parse(raw) : DEFAULTS) ?? DEFAULTS };
     } catch { cache = { raw, value: DEFAULTS }; }
     return cache.value;
 }
@@ -104,10 +113,10 @@ export function updateAssistantPreferences(
     if (typeof window === "undefined") return;
     const current = readAssistantPreferences();
     const candidate = typeof update === "function" ? update(current) : { ...current, ...update };
-    const parsed = preferenceSchema.safeParse(candidate);
-    if (!parsed.success) return;
-    const raw = JSON.stringify(parsed.data);
-    cache = { raw, value: parsed.data };
+    const parsed = parsePreferences(candidate);
+    if (!parsed) return;
+    const raw = JSON.stringify(parsed);
+    cache = { raw, value: parsed };
     window.localStorage.setItem(STORAGE_KEY, raw);
     window.dispatchEvent(new Event(UPDATED_EVENT));
 }
@@ -127,7 +136,12 @@ export function useAssistantPreferences() {
     return [preferences, updateAssistantPreferences] as const;
 }
 
-export function jurisdictionPreferenceForChat(preference = readAssistantPreferences().jurisdiction) {
+export type JurisdictionPreference = {
+    mode: "ask" | "presume";
+    jurisdictions: string[];
+};
+
+export function jurisdictionPreferenceForChat(preference: JurisdictionPreference) {
     if (preference.mode !== "presume" || preference.jurisdictions.length === 0) {
         return { mode: "ask" as const, jurisdictions: ["Canada"] };
     }

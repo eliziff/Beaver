@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useState } from "react";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
+import { Tabs } from "@/app/components/ui/tabs";
 import {
     JURISDICTION_GROUPS,
-    useAssistantPreferences,
 } from "@/app/components/assistant/assistantPreferences";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { cn } from "@/app/lib/utils";
 
 export function JurisdictionPreferenceEditor({
@@ -16,11 +17,12 @@ export function JurisdictionPreferenceEditor({
     const id = useId();
     const [query, setQuery] = useState("");
     const [countryIndex, setCountryIndex] = useState(0);
-    const countryTabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-    const [preferences, savePreferences] = useAssistantPreferences();
-    const preference = preferences.jurisdiction;
+    const { profile, updateProfile } = useUserProfile();
+    const preference = profile?.jurisdictionPreference ?? {
+        mode: "ask" as const, jurisdictions: [],
+    };
     const setPreference = (jurisdiction: typeof preference) =>
-        savePreferences({ jurisdiction });
+        void updateProfile({ jurisdictionPreference: jurisdiction });
     const selected = new Set(preference.jurisdictions);
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const disabled = preference.mode !== "presume";
@@ -29,23 +31,6 @@ export function JurisdictionPreferenceEditor({
             !normalizedQuery ||
             `${label} ${promptLabel}`.toLocaleLowerCase().includes(normalizedQuery),
         );
-    const selectCountry = (index: number) => {
-        const next = (index + JURISDICTION_GROUPS.length) % JURISDICTION_GROUPS.length;
-        setCountryIndex(next);
-        setQuery("");
-        countryTabRefs.current[next]?.focus();
-    };
-    const handleCountryKeyDown = (
-        event: KeyboardEvent<HTMLButtonElement>,
-        index: number,
-    ) => {
-        if (event.key === "ArrowRight") selectCountry(index + 1);
-        else if (event.key === "ArrowLeft") selectCountry(index - 1);
-        else if (event.key === "Home") selectCountry(0);
-        else if (event.key === "End") selectCountry(JURISDICTION_GROUPS.length - 1);
-        else return;
-        event.preventDefault();
-    };
     const allSelected = (group: (typeof JURISDICTION_GROUPS)[number]) =>
         group.options.every(([optionId]) => selected.has(optionId));
     const setAllSelected = (
@@ -110,49 +95,14 @@ export function JurisdictionPreferenceEditor({
                 aria-disabled={disabled}
                 className={cn(disabled && "opacity-50")}
             >
-                <div
-                    role="tablist"
-                    aria-label="Countries"
-                    className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1"
-                >
-                    {JURISDICTION_GROUPS.map((group, index) => {
-                        const active = index === countryIndex;
-                        return (
-                            <button
-                                key={group.label}
-                                ref={(node) => {
-                                    countryTabRefs.current[index] = node;
-                                }}
-                                type="button"
-                                role="tab"
-                                id={`${id}-country-tab-${index}`}
-                                aria-selected={active}
-                                aria-controls={`${id}-country-panel`}
-                                tabIndex={active ? 0 : -1}
-                                onClick={() => selectCountry(index)}
-                                onKeyDown={(event) =>
-                                    handleCountryKeyDown(event, index)
-                                }
-                                className={cn(
-                                    "min-h-10 min-w-0 truncate rounded-md border px-2 text-sm font-medium hover:text-gray-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900",
-                                    active
-                                        ? "border-gray-300 bg-white text-gray-950 shadow-sm"
-                                        : "border-transparent text-gray-600 hover:text-gray-950",
-                                )}
-                            >
-                                {group.tabLabel}
-                            </button>
-                        );
-                    })}
-                </div>
-                <div
-                    role="tabpanel"
-                    id={`${id}-country-panel`}
-                    aria-labelledby={`${id}-country-tab-${countryIndex}`}
-                >
+                <Tabs value={String(countryIndex)}
+                    onValueChange={(value) => { setCountryIndex(Number(value)); setQuery(""); }}
+                    options={JURISDICTION_GROUPS.map((group, index) => ({
+                        value: String(index), label: group.tabLabel,
+                    }))} ariaLabel="Countries">
+                <div className="pt-3">
                 <label className="mb-3 flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-gray-800 hover:bg-gray-100">
                     <CheckboxInput
-                        role="switch"
                         checked={allSelected(activeGroup)}
                         disabled={disabled}
                         onChange={(event) =>
@@ -238,6 +188,7 @@ export function JurisdictionPreferenceEditor({
                           : `${preference.jurisdictions.length} selected`}
                 </p>
                 </div>
+                </Tabs>
             </div>
         </div>
     );

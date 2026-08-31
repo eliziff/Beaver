@@ -1,4 +1,3 @@
-import { isLocalMode } from "@/app/lib/authMode";
 import type {
   Chat,
   ColumnConfig,
@@ -11,86 +10,29 @@ import type {
   TabularReview,
 } from "@/app/components/shared/types";
 import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
-const API_BASE = "/api";
+import type {
+  WorkProduct,
+  WorkProductBuildReceipt,
+  WorkProductCreate,
+  WorkProductKind,
+  WorkProductPatch,
+  WorkProductResolution,
+} from "@/app/lib/workProducts";
+import type {
+  AuthoritiesAction,
+  AuthoritiesBuildReceipt,
+  AuthoritiesProduct,
+} from "@/app/authorities/types";
+import type {
+  ResearchSetAction,
+  ResearchSetMetadata,
+  ResearchSetProduct,
+  ResearchSetQueryInput,
+  ResearchSetQueryResult,
+  ResearchSetState,
+} from "@/app/lib/researchSets";
+import { apiBlobRequest, apiFetch, apiRequest, responseError } from "./apiTransport";
 const segment = (value: string | number) => encodeURIComponent(String(value));
-export class BeaverApiError extends Error {
-  status: number;
-  code: string | null;
-  details: Record<string, unknown> | null;
-  constructor(args: { message: string; status: number; code?: string | null;
-    details?: Record<string, unknown> | null }) {
-    super(args.message);
-    this.name = "BeaverApiError";
-    this.status = args.status;
-    this.code = args.code ?? null;
-    this.details = args.details ?? null;
-  }
-}
-export function isMfaRequiredError(error: unknown) {
-  return (
-    error instanceof BeaverApiError &&
-    error.status === 403 &&
-    error.code === "mfa_verification_required"
-  );
-}
-async function getAuthHeader(): Promise<Record<string, string>> {
-  if (isLocalMode) return {};
-  const { getSupabase } = await import("@/app/lib/supabase");
-  const { data } = await getSupabase().auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-export async function apiFetch(path: string, init: RequestInit = {}) {
-  const headers = new Headers({
-    Accept: "application/json",
-    ...(await getAuthHeader()),
-  });
-  new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-  return fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    ...init,
-    headers,
-  });
-}
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await apiFetch(path, init);
-  if (!response.ok) throw await toApiError(response);
-  if (response.status === 204 || response.headers.get("content-length") === "0")
-    return undefined as T;
-  return (await response.json()) as T;
-}
-export async function apiBlobRequest(path: string, init?: RequestInit) {
-  const response = await apiFetch(path, init);
-  if (!response.ok) throw await toApiError(response);
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-  return {
-    blob: await response.blob(),
-    filename: filenameMatch?.[1] ?? null,
-  };
-}
-async function toApiError(response: Response) {
-  const text = await response.text();
-  try {
-    const value: unknown = JSON.parse(text);
-    const parsed = value && typeof value === "object" && !Array.isArray(value)
-      ? value as Record<string, unknown> : {};
-    return new BeaverApiError({
-      status: response.status,
-      code: typeof parsed.code === "string" ? parsed.code : null,
-      details: parsed,
-      message:
-        typeof parsed.detail === "string" && parsed.detail
-          ? parsed.detail
-          : `API error: ${response.status}`,
-    });
-  } catch {
-    return new BeaverApiError({
-      status: response.status,
-      message: text || `API error: ${response.status}`,
-    });
-  }
-}
 const JSON_HEADERS = { "Content-Type": "application/json" };
 function mutationInit(method: RequestInit["method"], body?: unknown): RequestInit {
   if (body === undefined) return { method };
@@ -102,11 +44,14 @@ const put = <T>(path: string, body: unknown) => apiRequest<T>(path, mutationInit
 const remove = <T>(path: string) => apiRequest<T>(path, mutationInit("DELETE"));
 function multipartRequest<T>(
   path: string, file: File,
-  options?: { method?: string; filename?: string },
+  options?: { method?: string; filename?: string; fields?: Record<string, string> },
 ) {
   const form = new FormData();
   form.append("file", file);
   if (options?.filename) form.append("filename", options.filename);
+  for (const [name, value] of Object.entries(options?.fields ?? {})) {
+    form.append(name, value);
+  }
   return apiRequest<T>(path, {
     method: options?.method ?? "POST",
     body: form,
@@ -127,7 +72,7 @@ function streamRequest(
     signal: options?.signal,
   }).then(async (response) => {
     if (!response.ok && !options?.allowStatuses?.includes(response.status)) {
-      throw await toApiError(response);
+      throw await responseError(response);
     }
     return response;
   });
@@ -143,9 +88,6 @@ function pagePath(path: string, query: object = {}) {
   }
   const encoded = params.toString();
   return encoded ? `${path}?${encoded}` : path;
-}
-export async function getApiAuthorization() {
-  return (await getAuthHeader()).Authorization ?? "";
 }
 export const listProjects = (options: PageQuery & {
   scope?: "all" | "mine" | "shared-with-me";
@@ -202,11 +144,32 @@ export interface DraftingStyleSettings {
 }
 export interface UserProfile {
   displayName: string | null; organisation: string | null;
-  tier: string; titleModel: string; tabularModel: string;
+  practiceSetting: string | null; professionalTitle: string | null;
+  practiceAreas: string[];
+  jurisdictionPreference: {
+    mode: "ask" | "presume"; jurisdictions: string[];
+  };
+  onboardingCompleted: boolean;
+  titleModel: string; tabularModel: string;
+  lastSelectedChatModel: string | null;
+  lastSelectedReasoningEffort: string | null;
   mfaOnLogin: boolean; legalResearchUs: boolean;
+  features: { authorities: boolean };
+  workflowFileTargets: WorkflowFileTargets;
+  filingContact: FilingContact;
   draftingStyle: DraftingStyleSettings;
   apiKeyStatus: ApiKeyStatus;
 }
+export type FilingContact = {
+  name: string; address: string; phone: string; fax: string; email: string;
+};
+export type WorkflowFileTarget =
+  | { kind: "library"; folderId: string }
+  | { kind: "project"; projectId: string; folderId: string };
+export type WorkflowFileTargets = {
+  "court-records": WorkflowFileTarget | null;
+  authorities: WorkflowFileTarget | null;
+};
 export interface UserLookupResult {
   exists: boolean; email: string; display_name: string | null;
 }
@@ -221,6 +184,10 @@ export interface ModelCatalog {
       name: string; displayName: string; supportsThinking?: boolean;
     }[];
   };
+  openCodeGo?: {
+    source: "live" | "unavailable";
+    models: { id: string; displayName: string }[];
+  };
   readSubagents?: {
     serverEnabled: boolean;
   };
@@ -231,19 +198,23 @@ export const lookupUserByEmail = (email: string) =>
   apiRequest<UserLookupResult>(`/user/lookup?email=${segment(email)}`);
 export const updateUserProfile = (
   payload: Partial<Pick<UserProfile,
-    "displayName" | "organisation" | "titleModel" | "tabularModel" | "legalResearchUs" | "draftingStyle">>,
+    "displayName" | "organisation" | "practiceSetting" | "professionalTitle" |
+    "practiceAreas" | "jurisdictionPreference" | "onboardingCompleted" |
+    "titleModel" | "tabularModel" | "lastSelectedChatModel" |
+    "lastSelectedReasoningEffort" | "legalResearchUs" | "features" |
+    "workflowFileTargets" | "filingContact" | "draftingStyle">>,
 ) => patch<UserProfile>("/user/profile", payload);
 export const updateUserMfaOnLogin = (enabled: boolean) =>
   patch<UserProfile>("/user/security/mfa-login", { enabled });
 export type ApiKeyProvider =
-  | "claude" | "gemini" | "openai" | "deepseek" | "openrouter" | "meta"
+  | "claude" | "gemini" | "openai" | "deepseek" | "openrouter" | "opencode-go" | "meta"
   | "courtlistener";
 type ApiKeySource = "user" | "env" | null;
 export type ApiKeyState = Record<ApiKeyProvider, {
   configured: boolean; source: ApiKeySource;
 }>;
 type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
-  sources?: Partial<Record<ApiKeyProvider, ApiKeySource>>;
+  sources: Record<ApiKeyProvider, ApiKeySource>;
 };
 export const saveApiKey = (provider: ApiKeyProvider, apiKey: string | null) =>
   put<ApiKeyStatus>(`/user/api-keys/${segment(provider)}`, { api_key: apiKey });
@@ -285,6 +256,10 @@ export const setMcpToolEnabled = (
   `/user/mcp-connectors/${segment(connectorId)}/tools/${segment(toolId)}`, { enabled },
 );
 export const getProject = (projectId: string) => apiRequest<Project>(`/projects/${segment(projectId)}`);
+export const getProjectFolder = (projectId: string, folderId: string) =>
+  apiRequest<Folder>(`/projects/${segment(projectId)}/folders/${segment(folderId)}`);
+export const getLibraryFolder = (folderId: string) =>
+  apiRequest<LibraryFolder>(`/library/files/folders/${segment(folderId)}`);
 export const updateProject = (
   projectId: string,
   payload: Partial<Pick<
@@ -336,14 +311,62 @@ export function directoryResource(scope: DirectoryScope) {
     : `/library/${scope.library}`;
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
-  const uploadDocument = (file: File) => multipartRequest<Document>(documents, file);
+  const uploadDocument = (file: File, folderId?: string | null) =>
+    multipartRequest<Document>(documents, file, {
+      ...(folderId ? { fields: { folder_id: folderId } } : {}),
+    });
+  const createFolder = (name: string, parentFolderId?: string | null) =>
+    post<Folder | LibraryFolder>(folders, {
+      name,
+      parent_folder_id: parentFolderId ?? null,
+    });
+  const uploadDirectory = async (
+    files: File[],
+    parentFolderId: string | null = null,
+    onProgress?: (completed: number, total: number) => void,
+  ) => {
+    const paths = files.map((file) => {
+      const parts = (file.webkitRelativePath || file.name)
+        .split(/[\\/]+/u)
+        .filter(Boolean);
+      if (parts.some((part) => part === "." || part === ".." || part.length > 200) ||
+          parts.length > 21) {
+        throw new Error(`Invalid folder path for ${file.name}.`);
+      }
+      return parts.slice(0, -1);
+    });
+    const wanted = new Set(paths.flatMap((parts) =>
+      parts.map((_part, index) => parts.slice(0, index + 1).join("/"))));
+    const folderIds = new Map<string, string>();
+    let completed = 0;
+    for (const path of [...wanted].sort((left, right) =>
+      left.split("/").length - right.split("/").length || left.localeCompare(right))) {
+      const parts = path.split("/");
+      const name = parts.pop()!;
+      const parentPath = parts.join("/");
+      const folder = await createFolder(
+        name,
+        parentPath ? folderIds.get(parentPath) : parentFolderId,
+      );
+      folderIds.set(path, folder.id);
+      onProgress?.(++completed, wanted.size + files.length);
+    }
+    const pathByFile = new Map(files.map((file, index) => [file, paths[index]]));
+    return uploadDocuments(files, async (file) => {
+      const folderId = folderIds.get(pathByFile.get(file)?.join("/") ?? "") ??
+        parentFolderId;
+      const document = await uploadDocument(file, folderId);
+      onProgress?.(++completed, wanted.size + files.length);
+      return document;
+    });
+  };
   return {
     list: (options: PageQuery & { parent_id?: string | null } = {}, signal?: AbortSignal) =>
       apiRequest<Page<DirectoryEntry>>(pagePath(`${root}${"projectId" in scope ? "/directory" : ""}`, options), { signal }),
     uploadDocument,
     uploadDocuments: (files: File[]) => uploadDocuments(files, uploadDocument),
-    createFolder: (name: string, parentFolderId?: string | null) =>
-      post<Folder | LibraryFolder>(folders, { name, parent_folder_id: parentFolderId ?? null }),
+    createFolder,
+    uploadDirectory,
     renameFolder: (folderId: string, name: string) =>
       patch<Folder | LibraryFolder>(`${folders}/${segment(folderId)}`, { name }),
     deleteFolder: (folderId: string) =>
@@ -358,13 +381,6 @@ export function directoryResource(scope: DirectoryScope) {
 }
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
-export interface LegalSourceReference {
-  id: string;
-  provider: "a2aj" | "journal";
-  doc_type: LegalDocumentType;
-  citation: string;
-  dataset: string | null;
-}
 export interface LegalSourceSearchResult {
   provider: "a2aj" | "journal" | "hansard";
   doc_type: LegalSearchDocumentType;
@@ -387,6 +403,10 @@ export interface LegalSourceCoverage {
 export interface LegalSourceViewerPayload {
   reference: {
     docType: LegalDocumentType;
+    provider: string;
+    id: string;
+    kind: "case" | "legislation" | "journal" | "hansard";
+    sourceSha256: string;
   };
   metadata: {
     title: string;
@@ -414,13 +434,15 @@ interface LegalSourceViewerAnchor {
   end: number;
   parentLabel?: string;
 }
-export const retryLibraryPdfParse = (kind: LibraryKind, documentId: string) =>
+export const retryLibraryPdfParse = (
+  kind: LibraryKind,
+  documentId: string,
+  options: { ocr_provider?: "kraken-lite" | "tesseract"; version_id?: string } = {},
+) =>
   post<{ status: string }>(
     `/library/${kind}/documents/${segment(documentId)}/actions/retry-pdf-parse`,
-    {},
+    options,
   );
-export const listLegalLibrary = async () =>
-  (await apiRequest<{ references: LegalSourceReference[] }>("/sources")).references;
 export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;
 export const searchLegalSources = async (args: {
@@ -452,24 +474,6 @@ export const searchLegalSources = async (args: {
       }),
     )
   ).results;
-};
-export const saveLegalSource = (args: {
-  citation: string;
-  docType: LegalDocumentType;
-  language?: "en" | "fr";
-  dataset?: string | null;
-  sourceId?: string | null;
-}) => post<LegalSourceReference>("/sources", {
-  citation: args.citation,
-  doc_type: args.docType,
-  language: args.language ?? "en",
-  dataset: args.dataset ?? undefined,
-  source_id: args.sourceId ?? undefined,
-});
-export const deleteLegalSource = async (referenceId: string): Promise<void> => {
-  const path = `/sources/${segment(referenceId)}`;
-  await remove(path);
-  legalSourceDocumentRequests.delete(`${path}/document`);
 };
 const legalSourceDocumentRequests = new Map<
   string,
@@ -520,33 +524,14 @@ export type DeterministicDocxActionResult = {
   linked_citations?: number;
   unresolved_citations?: number;
 };
-export const inspectLibraryDocumentAutomation = (documentId: string) =>
+export const inspectDocxWorkflowCapabilities = (documentId: string) =>
   apiRequest<{ supra_references: boolean }>(
-    `/library/files/documents/${segment(documentId)}/automation`,
+    `/library/files/documents/${segment(documentId)}/workflow-capabilities`,
   );
 export const fixLibraryDocxSupras = (documentId: string) =>
   post<DeterministicDocxActionResult>(
     `/library/files/documents/${segment(documentId)}/actions/fix-supras`,
   );
-export type TableOfAuthoritiesJob = {
-  id: string;
-  state: string;
-  operation: string;
-  progress: number;
-  message: string;
-  error: string;
-  files: { name: string; url: string }[];
-  app_url: string;
-};
-export const submitLibraryDocumentToAuthorities = (
-  documentId: string,
-  splitFallback: "off" | "auto" = "auto",
-  projectId?: string | null,
-) => post<TableOfAuthoritiesJob>("/table-of-authorities/jobs", {
-  document_id: documentId,
-  split_fallback: splitFallback,
-  project_id: projectId || undefined,
-});
 export const addDocumentToProject = (
   projectId: string,
   documentId: string,
@@ -557,6 +542,7 @@ export interface DocumentVersion {
   id: string;
   version_number: number | null;
   source: string;
+  source_sha256?: string | null;
   created_at: string;
   filename: string | null;
   size_bytes?: number | null;
@@ -599,6 +585,19 @@ export const deleteDocumentVersion = (
 }> => remove(`/single-documents/${segment(documentId)}/versions/${segment(versionId)}`);
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
+export const uploadCourtRecordDocument = (file: File, workProductId?: string) =>
+  multipartRequest<Document>("/court-records/documents", file,
+    workProductId ? { fields: { work_product_id: workProductId } } : undefined);
+export const saveCourtRecordBuild = <State>(artifacts: Array<{
+  file: File; receipt: WorkProductBuildReceipt;
+}>) => {
+  const body = new FormData();
+  for (const { file, receipt } of artifacts) {
+    body.append("files", file);
+    body.append("receipts", JSON.stringify(receipt));
+  }
+  return apiRequest<WorkProduct<State>>("/court-records/builds", { method: "POST", body });
+};
 export const getDocument = (documentId: string) =>
   apiRequest<Document>(`/single-documents/${segment(documentId)}`);
 export const getDocumentParseStates = async (documentIds: string[]) => {
@@ -616,6 +615,27 @@ export const downloadDocument = (
   versionId?: string | null,
 ) => apiBlobRequest(
   pagePath(`/single-documents/${segment(documentId)}/file`, { version_id: versionId }),
+);
+export const downloadDocumentPdf = (documentId: string, versionId?: string | null) =>
+  apiBlobRequest(pagePath(`/single-documents/${segment(documentId)}/file`, {
+    version_id: versionId,
+    rendition: "pdf",
+  }));
+export type CourtRecordPreparation = {
+  document_id: string;
+  version_id: string;
+  source_sha256: string;
+  page_count: number;
+  parser_status: "ready" | "degraded";
+  pages: Array<{ page_number: number; text: string }>;
+};
+export const getCourtRecordPreparation = (
+  documentId: string,
+  versionId?: string | null,
+) => apiRequest<CourtRecordPreparation>(
+  pagePath(`/court-records/documents/${segment(documentId)}/preparation`, {
+    version_id: versionId,
+  }),
 );
 type DocumentEditResolution = {
   status?: "accepted" | "rejected";
@@ -688,6 +708,11 @@ export const stopChat = (chatId: string) =>
   post<{ stopped: boolean }>(`/chat/${segment(chatId)}/stop`);
 export const stopChatJob = (jobId: string) =>
   post<{ stopped: boolean }>(`/chat/jobs/${segment(jobId)}/stop`);
+export const submitChatClientToolResult = (
+  jobId: string,
+  callId: string,
+  result: unknown,
+) => post<void>(`/chat/jobs/${segment(jobId)}/tool-result`, { callId, result });
 export const streamActiveChat = (chatId: string, signal: AbortSignal) =>
   apiFetch(`/chat/${segment(chatId)}/stream`, {
     headers: { Accept: "text/event-stream" }, signal,
@@ -739,6 +764,8 @@ export const streamChat = (payload: {
   activity_detail?: "auto" | "standard" | "tools" | "trace";
   time_zone?: string;
   displayed_doc?: { document_id: string };
+  word_context?: { document_name: string };
+  work_product?: { kind: WorkProductKind; id: string; revision: number };
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;
@@ -769,6 +796,7 @@ export const updateTabularReview = (
     title?: string;
     columns_config?: ColumnConfig[];
     document_ids?: string[];
+    workflow_id?: string | null;
     project_id?: string | null;
     shared_with?: string[];
   },
@@ -791,23 +819,23 @@ export const deleteTabularReview = (reviewId: string) =>
   remove<void>(`/tabular-review/${segment(reviewId)}`);
 export const exportTabularReview = (reviewId: string) =>
   apiBlobRequest(`/tabular-review/${segment(reviewId)}/export`);
-export const streamTabularGeneration = (
+export const startTabularGeneration = (
   reviewId: string,
   options?: { model?: string; reasoningEffort?: string },
-) => streamRequest(`/tabular-review/${segment(reviewId)}/generate`, {
+) => post<{ job_ids: string[]; queued: number }>(
+  `/tabular-review/${segment(reviewId)}/generate`, {
   model: options?.model,
   reasoning_effort: options?.reasoningEffort,
 });
+export const stopTabularGeneration = (reviewId: string) =>
+  post<{ stopped: boolean }>(`/tabular-review/${segment(reviewId)}/stop`);
 export const regenerateTabularCell = (
   reviewId: string,
   documentId: string,
   columnIndex: number,
   options?: { model?: string; reasoningEffort?: string },
-): Promise<{
-  summary: string;
-  flag: "green" | "grey" | "yellow" | "red";
-  reasoning: string;
-}> => post(`/tabular-review/${segment(reviewId)}/regenerate-cell`, {
+): Promise<{ job_id: string; queued: true }> => post(
+  `/tabular-review/${segment(reviewId)}/regenerate-cell`, {
   document_id: documentId,
   column_index: columnIndex,
   model: options?.model,
@@ -817,44 +845,59 @@ export const clearTabularCells = (reviewId: string, documentIds: string[]) =>
   post<void>(`/tabular-review/${segment(reviewId)}/clear-cells`, {
     document_ids: documentIds,
   });
-export const listSystemWorkflows = (type?: Workflow["metadata"]["type"]) =>
-  apiRequest<Workflow[]>(pagePath("/workflows/system", { type }));
-export const listWorkflows = (options: PageQuery & {
-  type?: Workflow["metadata"]["type"];
-} = {}, signal?: AbortSignal) => apiRequest<Page<Workflow>>(
-  pagePath("/workflows", options), { signal },
-);
+const workflowLists = new Map<string, Promise<Workflow[]>>();
+export const listWorkflows = (options: {
+  audience?: "general" | "solicitor" | "litigator" | "all";
+  q?: string;
+} = {}, signal?: AbortSignal) => {
+  const path = pagePath("/workflows", options);
+  if (signal) return apiRequest<Workflow[]>(path, { signal });
+  const pending = workflowLists.get(path);
+  if (pending) return pending;
+  const request = apiRequest<Workflow[]>(path).catch((error) => {
+    workflowLists.delete(path);
+    throw error;
+  });
+  workflowLists.set(path, request);
+  return request;
+};
+const refreshWorkflowLists = <T>(request: Promise<T>) => request.then((result) => {
+  workflowLists.clear();
+  return result;
+});
 export const getWorkflow = (workflowId: string) =>
   apiRequest<Workflow>(`/workflows/${segment(workflowId)}`);
 export const createWorkflow = (payload: {
   metadata: {
     title: string;
-    type: "assistant" | "tabular";
+    category: string;
+    audiences: Workflow["metadata"]["audiences"];
     language?: string | null;
-    practice?: string | null;
     jurisdictions?: string[] | null;
   };
-  skill_md?: string;
-  columns_config?: ColumnConfig[];
-}) => post<Workflow>("/workflows", payload);
+  launcher: {
+    kind: "instructions";
+    variants: Array<{
+      label: string;
+      result?: string | null;
+      execution: "assistant" | "tabular";
+      skill_md?: string | null;
+      columns_config?: ColumnConfig[] | null;
+    }>;
+  };
+}) => refreshWorkflowLists(post<Workflow>("/workflows", payload));
 export const updateWorkflow = (
   workflowId: string,
   payload: {
     metadata?: Partial<Pick<
       Workflow["metadata"],
-      "title" | "practice" | "jurisdictions"
+      "title" | "category" | "audiences" | "jurisdictions"
     >> & { language?: string | null };
-    skill_md?: string;
-    columns_config?: ColumnConfig[];
+    launcher?: Parameters<typeof createWorkflow>[0]["launcher"];
   },
-) => patch<Workflow>(`/workflows/${segment(workflowId)}`, payload);
+) => refreshWorkflowLists(patch<Workflow>(`/workflows/${segment(workflowId)}`, payload));
 export const deleteWorkflow = (workflowId: string) =>
-  remove<void>(`/workflows/${segment(workflowId)}`);
-export const listHiddenWorkflows = () => apiRequest<string[]>("/workflows/hidden");
-export const hideWorkflow = (workflowId: string) =>
-  post<void>("/workflows/hidden", { workflow_id: workflowId });
-export const unhideWorkflow = (workflowId: string) =>
-  remove<void>(`/workflows/hidden/${segment(workflowId)}`);
+  refreshWorkflowLists(remove<void>(`/workflows/${segment(workflowId)}`));
 export const shareWorkflow = (
   workflowId: string,
   payload: { emails: string[]; allow_edit: boolean },
@@ -865,3 +908,87 @@ export const listWorkflowShares = (workflowId: string) =>
   }[]>(`/workflows/${segment(workflowId)}/shares`);
 export const deleteWorkflowShare = (workflowId: string, shareId: string) =>
   remove<void>(`/workflows/${segment(workflowId)}/shares/${segment(shareId)}`);
+
+export const listWorkProducts = <State>(kind: WorkProductKind, projectId?: string) =>
+  apiRequest<WorkProduct<State>[]>(pagePath("/work-products", {
+    kind,
+    project_id: projectId,
+    limit: 100,
+  }));
+export const getWorkProduct = <State>(id: string) =>
+  apiRequest<WorkProduct<State>>(`/work-products/${segment(id)}`);
+export const getWorkProductResolution = <State>(id: string) =>
+  apiRequest<WorkProductResolution<State>>(`/work-products/${segment(id)}/resolution`);
+export const createWorkProduct = <State>(input: WorkProductCreate<State>) =>
+  post<WorkProduct<State>>("/work-products", {
+    kind: input.kind,
+    title: input.title,
+    project_id: input.projectId,
+    state: input.state,
+  });
+export const updateWorkProduct = <State>(id: string, input: WorkProductPatch<State>) =>
+  patch<WorkProduct<State>>(`/work-products/${segment(id)}`, {
+    ...input,
+    project_id: input.projectId,
+    projectId: undefined,
+  });
+export const duplicateWorkProduct = <State>(id: string,
+  input: { title?: string; projectId?: string | null } = {}) =>
+  post<WorkProduct<State>>(`/work-products/${segment(id)}/duplicate`, {
+    title: input.title, project_id: input.projectId,
+  });
+export const deleteWorkProduct = (id: string) =>
+  remove<void>(`/work-products/${segment(id)}`);
+
+export const listResearchSets = (projectId?: string) =>
+  apiRequest<ResearchSetMetadata[]>(pagePath("/work-products", {
+    kind: "research-set", project_id: projectId, metadata: true, limit: 100,
+  }));
+export const getResearchSet = (id: string) =>
+  getWorkProduct<ResearchSetState>(id);
+export const createResearchSet = (input: { title: string; projectId?: string | null }) =>
+  post<ResearchSetProduct>("/work-products", {
+    kind: "research-set",
+    title: input.title,
+    project_id: input.projectId,
+  });
+export const actOnResearchSet = (id: string, revision: number, action: ResearchSetAction) =>
+  post<ResearchSetProduct>(`/work-products/${segment(id)}/research-actions`, {
+    revision,
+    action,
+  });
+export const runResearchSetQuery = (id: string,
+  input: ResearchSetQueryInput & { revision: number }) =>
+  post<ResearchSetQueryResult>(`/work-products/${segment(id)}/research-query`, input);
+export const promoteChatResearch = ({ chatId, researchSetId, ...body }: {
+  chatId: string; researchSetId: string; revision: number; includeQueries: boolean;
+}) => post<{ research_set_id: string; revision: number }>(
+  `/chat/${segment(chatId)}/research-sets/${segment(researchSetId)}/promote`, body);
+
+export const listAuthorities = (projectId?: string) =>
+  apiRequest<AuthoritiesProduct[]>(pagePath("/authorities", { projectId, limit: 100 }));
+export const getAuthorities = (id: string) =>
+  apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}`);
+export const createAuthorities = (input: {
+  source: { kind: "manual" } | { kind: "document"; documentId: string;
+    version: "latest" | { versionId: string; sha256: string } };
+  title?: string;
+  projectId?: string | null;
+}) => post<AuthoritiesProduct>("/authorities", input);
+export const uploadAuthoritiesDocument = (file: File, projectId?: string) =>
+  multipartRequest<Document>("/authorities/documents", file,
+    projectId ? { fields: { projectId } } : undefined);
+export const actOnAuthorities = (id: string, revision: number, action: AuthoritiesAction) =>
+  post<AuthoritiesProduct>(`/authorities/${segment(id)}/actions`, { revision, action });
+export const refreshAuthorities = (id: string, revision: number) =>
+  post<AuthoritiesProduct>(`/authorities/${segment(id)}/refresh`, { revision });
+export const attachAuthorityPdf = (
+  id: string, authorityId: string, revision: number, file: File,
+) => multipartRequest<AuthoritiesProduct>(
+  `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
+  { fields: { revision: String(revision) } },
+);
+export const buildAuthorities = (id: string, revision: number) =>
+  post<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
+    `/authorities/${segment(id)}/build`, { revision },
+  );

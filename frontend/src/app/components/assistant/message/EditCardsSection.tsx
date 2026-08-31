@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import type { EditAnnotation, EditResolveHandlers } from "../../shared/types";
 import { resolveEdits } from "../EditCard";
 
@@ -37,9 +37,9 @@ function BulkEditActions({
 
     return (
         <div className="flex items-center gap-2">
-            <PillButton
-                tone="black"
-                size="sm"
+            <Button
+                variant="black"
+                size="compact"
                 onClick={() => resolveAll("accept")}
                 disabled={disabled || !!busy}
             >
@@ -47,10 +47,10 @@ function BulkEditActions({
                     <Loader2 className="h-3 w-3 animate-spin" />
                 )}
                 Accept all
-            </PillButton>
-            <PillButton
-                tone="white"
-                size="sm"
+            </Button>
+            <Button
+                variant="white"
+                size="compact"
                 onClick={() => resolveAll("reject")}
                 disabled={disabled || !!busy}
             >
@@ -58,11 +58,11 @@ function BulkEditActions({
                     <Loader2 className="h-3 w-3 animate-spin" />
                 )}
                 Reject all
-            </PillButton>
+            </Button>
             {onViewClick && (
-                <PillButton
-                    tone="black"
-                    size="sm"
+                <Button
+                    variant="black"
+                    size="compact"
                     onClick={() =>
                         onViewClick(first.annotation, first.filename)
                     }
@@ -70,7 +70,7 @@ function BulkEditActions({
                     className="ml-auto"
                 >
                     View
-                </PillButton>
+                </Button>
             )}
         </div>
     );

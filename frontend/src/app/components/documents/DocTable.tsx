@@ -1,6 +1,7 @@
 import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
-    useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+    useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { AlertCircle, ChevronDown, ChevronRight, Loader2, MessageSquarePlus }
+    from "lucide-react";
 import { deleteDocument, deleteDocumentVersion, downloadDocumentsZip,
     downloadDocument, listDocumentVersions, renameDocumentVersion,
     replaceDocumentVersionFile, uploadDocumentVersion,
@@ -21,22 +22,26 @@ import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles,
 import { DOC_NAME_COL_W, treeNameCellStyle }
     from "@/app/components/projects/ProjectPageParts";
 import { formatBytes, formatDate } from "@/app/lib/utils";
-import { DocumentSidePanel } from "@/app/components/shared/DocumentSidePanel";
 import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS }
     from "@/app/components/ui/liquid-surface";
 import { TableHeaderCell, TableHeaderRow, TableScrollArea,
     TableLoadingRows, TableSelectionCheckbox, TableStickyCell, useTableSelection }
     from "@/app/components/shared/TablePrimitive";
-import { pillButtonClassName } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
+import { DocumentSidePanel, preloadDocumentViewer }
+    from "@/app/components/shared/DocumentSidePanel";
+import type { UploadActions } from "./UploadAction";
+import { DocumentWorkflowMenu } from "./DocumentWorkflowMenu";
+import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
-export interface DocTableSelectionActions {
+interface DocTableSelectionActions {
     selectedCount: number; selectedDocuments: Document[];
-    automationDocument: Document | null; hasDocumentsInFolders: boolean;
-    onAutomationDocumentChanged: () => Promise<void>;
+    workflowDocument: Document | null; hasDocumentsInFolders: boolean;
+    onWorkflowDocumentChanged: () => Promise<void>;
     onDownload: () => Promise<void>; onRemoveFromFolder: () => Promise<void>;
     onDelete: () => Promise<void>;
 }
@@ -71,6 +76,7 @@ const EMPTY_METADATA_VALUE = (
 );
 const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
+    void preloadDocumentViewer();
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
         .toLowerCase().replace(/^\./u, "");
     if (type === "pdf" || !!doc.pdf_storage_path) {
@@ -117,12 +123,6 @@ function ParseStateChip({ doc, onRetry }: { doc: Document; onRetry?: () => void 
             title={`${label} for ${doc.filename}`}
             className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
             <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />{label}</span>;
-    }
-    if (state.status === "ready" && state.phase === "ocr") {
-        return <span
-            title="Text was recovered with OCR"
-            className="ml-2 inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-            OCR complete</span>;
     }
     if (state.status === "degraded") {
         const label = state.phase === "ocr" ? "OCR · Degraded" : "Degraded";
@@ -175,6 +175,7 @@ interface DocTableOperations {
     removeDocument?: (documentId: string) => Promise<void>;
     uploadDocument: (file: File) => Promise<Document>;
     uploadDocuments: (files: File[]) => Promise<Document[]>;
+    uploadDirectory: (files: File[]) => Promise<Document[]>;
     refreshCollection: (parentFolderId?: string | null) => Promise<void>;
     refreshDocumentParseStates: (documentIds: string[]) => Promise<void>;
     /** Requeue a failed structural PDF parse (library lanes only). */
@@ -235,9 +236,10 @@ interface DocTableProps {
     loading: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
     renderAddDocumentsModal?: (open: boolean, onClose: () => void,
         onSelect: (documents: Document[]) => void) => ReactNode;
-    onAddDocumentsActionChange?: (action: (() => void) | null) => void;
+    onUploadActionsChange?: (actions: UploadActions | null) => void;
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
-    onSelectionActionsChange?: (actions: DocTableSelectionActions | null) => void;
+    onOpenSelectionInChat?: (documents: Document[]) => void;
+    openSelectionLabel?: string;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach"; selectionFirst?: boolean;
     compact?: boolean;
@@ -263,8 +265,9 @@ const PROJECT_TABLE_LOADING = (
 export function DocTable({
     scopeKey, documents, folders, loading, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
-    renderAddDocumentsModal, onAddDocumentsActionChange,
-    onCreateFolderActionChange, onSelectionActionsChange, onOwnerOnlyAction,
+    renderAddDocumentsModal, onUploadActionsChange,
+    onCreateFolderActionChange, onOpenSelectionInChat,
+    openSelectionLabel = "Open in new chat", onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
     onFolderExpanded, onLoadMore,
@@ -297,28 +300,35 @@ export function DocTable({
         pendingDocumentRemoval, pendingDeleteFolder,
     } = state;
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
+    const directoryUploadInputRef = useRef<HTMLInputElement>(null);
     const loadingRef = useRef(loading);
     const renderAddDocumentsModalRef = useRef(renderAddDocumentsModal);
     const detachesDocument = documentRemovalMode === "detach";
+    useEffect(() => {
+        const timer = window.setTimeout(() => void preloadDocumentViewer(), 500);
+        return () => window.clearTimeout(timer);
+    }, []);
     const removeDocument = operations.removeDocument ?? deleteDocument;
     const refreshCollection = operations.refreshCollection;
     const activePreparationIds = documents.flatMap(({ id, parse_state: parseState }) =>
         parseState?.status === "queued" || parseState?.status === "parsing" ? [id] : []);
     const activePreparationKey = activePreparationIds.join("\0");
+    const refreshActiveDocuments = useEffectEvent(() =>
+        operations.refreshDocumentParseStates(activePreparationIds));
     useEffect(() => {
         if (!activePreparationKey) return;
         let stopped = false;
         let timer: ReturnType<typeof setTimeout>;
         const poll = async () => {
             if (!stopped && document.visibilityState === "visible") {
-                try { await operations.refreshDocumentParseStates(activePreparationIds); }
+                try { await refreshActiveDocuments(); }
                 catch (error) { console.error("PDF preparation refresh failed", error); }
             }
             if (!stopped) timer = setTimeout(poll, 500);
         };
         timer = setTimeout(poll, 500);
         return () => { stopped = true; clearTimeout(timer); };
-    }, [activePreparationKey, operations.refreshDocumentParseStates]);
+    }, [activePreparationKey]);
     useEffect(() => {
         loadingRef.current = loading;
         renderAddDocumentsModalRef.current = renderAddDocumentsModal;
@@ -437,16 +447,18 @@ export function DocTable({
         if (loadingRef.current) return;
         set("newFolderParentId", null);
     }, []);
+    const openUploadFolder = useCallback(() => {
+        if (!loadingRef.current) directoryUploadInputRef.current?.click();
+    }, []);
     useEffect(() => {
-        onAddDocumentsActionChange?.(openAddDocuments);
+        onUploadActionsChange?.({ files: openAddDocuments, folder: openUploadFolder });
         onCreateFolderActionChange?.(openCreateFolder);
         return () => {
-            onAddDocumentsActionChange?.(null);
+            onUploadActionsChange?.(null);
             onCreateFolderActionChange?.(null);
-            onSelectionActionsChange?.(null);
         };
-    }, [onAddDocumentsActionChange, onCreateFolderActionChange,
-        onSelectionActionsChange, openAddDocuments, openCreateFolder]);
+    }, [onCreateFolderActionChange, onUploadActionsChange,
+        openAddDocuments, openCreateFolder, openUploadFolder]);
     useEffect(() => {
         set("selectedDocIds", (current) => (current.length ? [] : current));
     }, [scopeKey]);
@@ -460,9 +472,9 @@ export function DocTable({
     const foldersByParent = tree.foldersByParent;
     const selection = useTableSelection(
         filteredDocs, selectedDocIds, (ids) => set("selectedDocIds", ids));
-    const refreshParents = (...parents: (string | null | undefined)[]) =>
+    const refreshParents = useCallback((...parents: (string | null | undefined)[]) =>
         Promise.all([...new Set(parents.map((id) => id ?? null))]
-            .map(refreshCollection));
+            .map(refreshCollection)), [refreshCollection]);
     function toggleFolder(id: string) {
         if (!expandedFolderIds.has(id)) onFolderExpanded?.(id);
         set("expandedFolderIds", (prev) => {
@@ -675,10 +687,25 @@ export function DocTable({
         set("uploadingDroppedFilenames", supported.map((file) => file.name));
         try {
             await operations.uploadDocuments(supported);
-            await refreshCollection();
         } catch (err) {
             console.error("Document drop upload failed", err);
+            setWarning("upload", "Some files could not be uploaded. Try those files again.");
         } finally {
+            await Promise.resolve(refreshCollection()).catch(() => undefined);
+            set("uploadingDroppedFilenames", []);
+        }
+    }
+    async function handleDirectoryUpload(files: File[]) {
+        const supported = acceptedFiles(files);
+        if (!supported.length) return;
+        set("uploadingDroppedFilenames", supported.map((file) => file.name));
+        try {
+            await operations.uploadDirectory(supported);
+        } catch (error) {
+            console.error("Folder upload failed", error);
+            setWarning("upload", "The folder was only partly uploaded. Try the missing files again.");
+        } finally {
+            await Promise.resolve(refreshCollection()).catch(() => undefined);
             set("uploadingDroppedFilenames", []);
         }
     }
@@ -776,8 +803,8 @@ export function DocTable({
         set("selectedDocIds", [doc.id]);
         openDocument(doc);
     }
-    function handleDocumentRowClick(doc: Document) {
-        if (selectionFirst) set("selectedDocIds", [doc.id]);
+    function handleDocumentRowClick(event: React.MouseEvent<HTMLDivElement>, doc: Document) {
+        if (selectionFirst) selection.select(doc.id, event.shiftKey);
         else openDocument(doc);
     }
     function handleDocumentRowDoubleClick(event: React.MouseEvent<HTMLDivElement>,
@@ -810,7 +837,7 @@ export function DocTable({
         event.dataTransfer.effectAllowed = "move";
         event.stopPropagation();
     }
-    function handleCollectionDragOver(event: DragEvent<HTMLDivElement>) {
+    function handleCollectionDragOver(event: DragEvent<HTMLElement>) {
         if (hasFilePayload(event.dataTransfer)) {
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
@@ -821,11 +848,11 @@ export function DocTable({
             set("dragOverSurface", folderId ? null : "root");
         }
     }
-    function handleCollectionDragLeave(event: DragEvent<HTMLDivElement>) {
+    function handleCollectionDragLeave(event: DragEvent<HTMLElement>) {
         if (!event.currentTarget.contains(event.relatedTarget as Node))
             clearDragOver();
     }
-    async function handleCollectionDrop(event: DragEvent<HTMLDivElement>) {
+    async function handleCollectionDrop(event: DragEvent<HTMLElement>) {
         if (hasFilePayload(event.dataTransfer)) {
             event.preventDefault();
             void handleDropCollectionFiles(Array.from(event.dataTransfer.files));
@@ -851,12 +878,12 @@ export function DocTable({
                             className={DOCUMENT_ROW_CLASS}>
                             <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
                                 style={treeNameCellStyle(row.depth)}>
-                                <button type="button"
+                                <Button variant="white" size="compact"
                                     disabled={loadingParents.has(row.parentId)}
                                     onClick={() => onLoadMore?.(row.parentId)}
-                                    className={pillButtonClassName("white", "sm", "ml-8")}>
+                                    className="ml-8">
                                     {loadingParents.has(row.parentId) ? "Loading…" : "Load more"}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     );
@@ -888,36 +915,36 @@ export function DocTable({
                         const isExpanded = expandedFolderIds.has(folder.id);
                         const isRenaming = renamingFolderId === folder.id;
                         const isDragOver = dragOverFolderId === folder.id;
+                        const folderPrefix = <><span
+                            className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+                            {isExpanded
+                                ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                                : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
+                        </span><FolderSvgIcon open={isExpanded}
+                            className="mr-2 h-4 w-4 shrink-0" /></>;
                         return (
                             <div key={`folder-${folder.id}`}
                                 data-tree-drop-folder={folder.id}
                                 draggable={!isRenaming}
                                 onDragStart={(event) => handleFolderDragStart(event, folder.id)}
-                                onClick={() => toggleFolder(folder.id)}
-                                className={`${DOCUMENT_ROW_CLASS} cursor-pointer ${isRenaming ? "" : "select-none"} ${isDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
+                                className={`${DOCUMENT_ROW_CLASS} ${isRenaming ? "" : "select-none"} ${isDragOver ? "bg-red-50 ring-1 ring-inset ring-red-200" : `bg-app-surface ${APP_SURFACE_HOVER_CLASS}`}`}>
                                 <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
                                     style={treeNameCellStyle(row.depth)}>
-                                    <div className="flex items-center">
-                                        <span className="mr-4 flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-                                            {isExpanded
-                                                ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                                                : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
-                                        </span>
-                                        <FolderSvgIcon open={isExpanded}
-                                            className="mr-2 h-4 w-4 shrink-0" />
-                                        {isRenaming ? <InlineNameInput kind="folder"
+                                    {isRenaming ? <div className="flex items-center">
+                                        {folderPrefix}<InlineNameInput kind="folder"
                                                 value={folder.name}
                                                 onCommit={(value) =>
                                                     void handleRenameFolder(folder.id, value)}
-                                                onCancel={() => set("renamingFolderId", null)} /> : (
-                                            <span className="truncate text-sm text-gray-800">
-                                                {folder.name}</span>
-                                        )}
-                                    </div>
+                                                onCancel={() => set("renamingFolderId", null)} />
+                                    </div> : <button type="button" aria-expanded={isExpanded}
+                                        onClick={() => toggleFolder(folder.id)}
+                                        className="flex w-full cursor-pointer items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                                        {folderPrefix}<span className="truncate text-sm text-gray-800">
+                                            {folder.name}</span>
+                                    </button>}
                                 </div>
                                 {FOLDER_METADATA_CELLS}
-                                <div className="flex w-8 shrink-0 justify-end"
-                                    onClick={(event) => event.stopPropagation()}>
+                                <div className="flex w-8 shrink-0 justify-end">
                                     <RowActions
                                         onNewSubfolder={() => {
                                             set("newFolderParentId", folder.id);
@@ -954,7 +981,7 @@ export function DocTable({
                             onDragOver={(event) => handleDocumentVersionDragOver(event, doc.id)}
                             onDragLeave={handleDocumentVersionDragLeave}
                             onDrop={(event) => handleDocumentVersionDrop(event, doc)}
-                            onClick={() => handleDocumentRowClick(doc)}
+                            onClick={(event) => handleDocumentRowClick(event, doc)}
                             onDoubleClick={(event) => handleDocumentRowDoubleClick(event, doc)}
                             onKeyDown={(event) => handleDocumentRowKeyDown(event, doc)}
                             tabIndex={selectionFirst ? 0 : undefined}
@@ -971,7 +998,10 @@ export function DocTable({
                                     ) : (
                                         <TableSelectionCheckbox checked={isSelected}
                                             aria-label={`Select ${docName}`}
-                                            onChange={() => selection.toggle(doc.id)} />
+                                            onChange={(event) => selection.toggle(
+                                                doc.id,
+                                                (event.nativeEvent as MouseEvent).shiftKey,
+                                            )} />
                                     )}
                                     <span className="mr-2 shrink-0">
                                         {isError
@@ -983,16 +1013,22 @@ export function DocTable({
                                             value={docName}
                                             onCommit={(value) =>
                                                 void submitDocumentRename(doc.id, value)}
-                                            onCancel={() => set("renamingDocumentId", null)} /> : (
+                                            onCancel={() => set("renamingDocumentId", null)} />
+                                        : selectionFirst ? (
                                         <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
                                             {docName}</span>
-                                    )}
+                                        ) : <button type="button" aria-label={`Open ${docName}`}
+                                            onClick={(event) => {
+                                                event.stopPropagation(); openDocument(doc);
+                                            }} onPointerEnter={prewarm} onFocus={prewarm}
+                                            className="min-w-0 flex-1 truncate text-left text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                                            {docName}</button>}
                                     <ParseStateChip doc={doc}
                                         onRetry={operations.retryPdfParse
                                             ? () => void retryParse(doc.id)
                                             : undefined} />
                                     {selectionFirst && (
-                                        <button type="button"
+                                        <Button variant="black" size="compact"
                                             aria-label={`View ${docName}`}
                                             title={`View ${docName}`}
                                             disabled={renamingDocumentId === doc.id}
@@ -1002,9 +1038,8 @@ export function DocTable({
                                             }}
                                             onPointerEnter={prewarm}
                                             onFocus={prewarm}
-                                            className={pillButtonClassName("black", "sm",
-                                                "ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible")}>
-                                            View</button>
+                                            className="ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible">
+                                            View</Button>
                                     )}
                                 </div>
                             </div>
@@ -1051,7 +1086,7 @@ export function DocTable({
             operations.moveDocument(id, null).catch(() => {})));
         await refreshParents(null, ...[...ids].map((id) =>
             docsById.get(id)?.folder_id));
-    }, [docsById, operations, refreshCollection, selectedDocIds]);
+    }, [docsById, operations, refreshParents, selectedDocIds]);
     const requestDeleteSelectedDocs = useCallback(async () => {
         const documentsToRemove = selectedDocIds
             .map((id) => docsById.get(id))
@@ -1083,7 +1118,7 @@ export function DocTable({
         }
     }
     const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const selectedAutomationDocument =
+    const selectedWorkflowDocument =
         scopeKey !== "templates" && selectedDocIds.length === 1
             ? (docsById.get(selectedDocIds[0]) ?? null)
             : null;
@@ -1094,12 +1129,12 @@ export function DocTable({
             selectedDocuments: selectedDocIds
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
-            automationDocument: selectedAutomationDocument,
+            workflowDocument: selectedWorkflowDocument,
             hasDocumentsInFolders: selectedDocIds.some(
                 (id) => docsById.get(id)?.folder_id != null),
-            onAutomationDocumentChanged: async () => {
-                if (!selectedAutomationDocument) return;
-                await refreshDocumentVersionState(selectedAutomationDocument.id);
+            onWorkflowDocumentChanged: async () => {
+                if (!selectedWorkflowDocument) return;
+                await refreshDocumentVersionState(selectedWorkflowDocument.id);
             },
             onDownload: handleDownloadSelectedDocs,
             onRemoveFromFolder: handleRemoveSelectedFromFolder,
@@ -1107,10 +1142,22 @@ export function DocTable({
         };
     }, [docsById, handleDownloadSelectedDocs, handleRemoveSelectedFromFolder,
         refreshDocumentVersionState, requestDeleteSelectedDocs,
-        selectedAutomationDocument, selectedDocIds]);
-    useEffect(() => {
-        onSelectionActionsChange?.(selectionActions);
-    }, [onSelectionActionsChange, selectionActions]);
+        selectedWorkflowDocument, selectedDocIds]);
+    const selectionMenuItems = selectionActions ? [
+        ...(onOpenSelectionInChat ? [{
+            label: openSelectionLabel,
+            onSelect: () => onOpenSelectionInChat(selectionActions.selectedDocuments),
+        }] : []),
+        { label: "Download", onSelect: () => void selectionActions.onDownload() },
+        ...(selectionActions.hasDocumentsInFolders ? [{
+            label: "Remove from subfolder",
+            onSelect: () => void selectionActions.onRemoveFromFolder(),
+        }] : []),
+        {
+            label: detachesDocument ? "Remove" : "Delete",
+            onSelect: () => void selectionActions.onDelete(),
+        },
+    ] : [];
     const pendingDeleteDoc =
         pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
             ? pendingDocumentRemoval.documents[0]
@@ -1140,6 +1187,14 @@ export function DocTable({
                     const files = Array.from(event.target.files ?? []);
                     event.target.value = "";
                     void handleDropCollectionFiles(files);
+                }} />
+            <input ref={directoryUploadInputRef} type="file"
+                accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
+                {...{ webkitdirectory: "", directory: "" }}
+                onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.target.value = "";
+                    void handleDirectoryUpload(files);
                 }} />
             {WARNING_KINDS.map((kind) => (
                 <WarningPopup key={kind} open={!!warnings[kind]}
@@ -1173,7 +1228,55 @@ export function DocTable({
                 }}
                 onConfirm={() => void confirmDeletePendingFolder()} />
             <TableScrollArea className="document-table"
-                header={
+                header={selectionActions ? (
+                    <TableHeaderRow
+                        role="group"
+                        aria-label="Selected documents"
+                        className="!min-w-0 w-full pr-2"
+                    >
+                        <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
+                            <TableSelectionCheckbox checked={selection.allSelected}
+                                aria-label="Select loaded documents"
+                                indeterminate={selection.someSelected}
+                                onChange={selection.toggleAll} />
+                            <span className="truncate text-sm font-medium text-gray-800">
+                                {selectionActions.selectedCount} selected
+                            </span>
+                        </TableStickyCell>
+                        <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
+                            {onOpenSelectionInChat && <Button variant="white"
+                                size="normal" className="h-8 py-0"
+                                onClick={() => onOpenSelectionInChat(selectionActions.selectedDocuments)}
+                                aria-label={openSelectionLabel}
+                            >
+                                <MessageSquarePlus className="h-3.5 w-3.5" />
+                                <span className="hidden lg:inline">{openSelectionLabel}</span>
+                            </Button>}
+                            {selectionActions.workflowDocument && <DocumentWorkflowMenu
+                                document={selectionActions.workflowDocument}
+                                onDocumentChanged={selectionActions.onWorkflowDocumentChanged}
+                            />}
+                            <MoreActionsMenu
+                                label="More actions"
+                                items={selectionMenuItems.filter(({ label }) => label !== openSelectionLabel)}
+                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                            />
+                        </div>
+                        <div className="sm:hidden">
+                            {selectionActions.workflowDocument ? <DocumentWorkflowMenu
+                                document={selectionActions.workflowDocument}
+                                onDocumentChanged={selectionActions.onWorkflowDocumentChanged}
+                                compact
+                                label="Actions"
+                                actions={selectionMenuItems}
+                            /> : <MoreActionsMenu
+                                label="Actions"
+                                items={selectionMenuItems}
+                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                            />}
+                        </div>
+                    </TableHeaderRow>
+                ) : (
                     <TableHeaderRow className="!min-w-0 w-full pr-2">
                         <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
                             <TableSelectionCheckbox checked={selection.allSelected}
@@ -1187,7 +1290,7 @@ export function DocTable({
                         {DOCUMENT_METADATA_HEADERS}
                         <TableHeaderCell className="w-8" />
                     </TableHeaderRow>
-                }
+                )}
             >
                     {loading ? PROJECT_TABLE_LOADING : (
                         <div className="flex-1 flex flex-col min-h-0">
@@ -1199,14 +1302,14 @@ export function DocTable({
                                 folders.length === 0 &&
                                 newFolderParentId === undefined &&
                                 uploadingDroppedFilenames.length === 0 ? (
-                                    <div onClick={openAddDocuments}
+                                    <button type="button" onClick={openAddDocuments}
                                         onDragOver={handleCollectionDragOver}
                                         onDragLeave={handleCollectionDragLeave}
                                         onDrop={(event) => void handleCollectionDrop(event)}
-                                        className="flex-1 flex cursor-pointer flex-col items-center justify-center py-24 text-center">
+                                        className="flex w-full flex-1 cursor-pointer flex-col items-center justify-center py-24 text-center">
                                         <FolderSvgIcon className="mb-3 h-8 w-8 text-gray-700" />
                                         <p className="text-sm text-gray-400">{emptyDropLabel}</p>
-                                    </div>
+                                    </button>
                                 ) : (
                                     <div className="flex-1 flex flex-col"
                                         onDragOver={handleCollectionDragOver}

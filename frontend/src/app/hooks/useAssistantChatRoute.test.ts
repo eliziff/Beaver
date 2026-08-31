@@ -24,10 +24,10 @@ vi.mock("react-router-dom", () => ({
     useNavigate: () => mocks.replace,
 }));
 vi.mock("@/app/lib/beaverApi", () => ({
-    BeaverApiError: mocks.BeaverApiError,
     getProject: mocks.getProject,
     updateChatProject: mocks.updateChatProject,
 }));
+vi.mock("@/app/lib/apiTransport", () => ({ BeaverApiError: mocks.BeaverApiError }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({ chats: mocks.chats }),
 }));

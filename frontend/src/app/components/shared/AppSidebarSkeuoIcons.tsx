@@ -21,5 +21,4 @@ const makeIcon = (symbol: string) => (props: IconProps) => (
 export const ChatSkeuoIcon = makeIcon("✦\uFE0E");
 export const LibrarySkeuoIcon = makeIcon("▤");
 export const TabularReviewSkeuoIcon = makeIcon("▦");
-export const TableOfAuthoritiesSkeuoIcon = makeIcon("⚖\uFE0E");
 export const WorkflowSkeuoIcon = makeIcon("⎇");

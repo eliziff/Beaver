@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     hookCalls: 0,
     numPages: 3,
     pageRequests: [] as number[],
+    pdfDataLength: 0,
     pdfOptions: null as Record<string, unknown> | null,
     resize: null as ResizeObserverCallback | null,
     standardFontDataUrl: "",
@@ -91,6 +92,7 @@ vi.mock("./highlightQuote", () => {
             }) => {
                 const { data, standardFontDataUrl } = options;
                 mocks.pdfOptions = options;
+                mocks.pdfDataLength = data.byteLength;
                 mocks.standardFontDataUrl = standardFontDataUrl;
                 structuredClone(data.buffer, { transfer: [data.buffer] });
                 return {
@@ -121,6 +123,7 @@ describe("PdfView", () => {
         mocks.hookCalls = 0;
         mocks.numPages = 3;
         mocks.pageRequests = [];
+        mocks.pdfDataLength = 0;
         mocks.pdfOptions = null;
         mocks.resize = null;
         mocks.standardFontDataUrl = "";
@@ -157,6 +160,17 @@ describe("PdfView", () => {
         });
         expect(mocks.cancelled).toBeGreaterThan(0);
         expect(container.querySelector(".pdf-text-layer")).toBeNull();
+    });
+
+    it("renders provided bytes in the full viewer without detaching the artifact", async () => {
+        const bytes = new Uint8Array([1, 2, 3, 4]);
+        render(<PdfView doc={null} bytes={bytes} ariaLabel="Built court record preview" />);
+
+        expect(await screen.findByRole("region", { name: "Built court record preview" }))
+            .toBeVisible();
+        await screen.findByRole("button", { name: "Zoom in" });
+        expect(mocks.pdfDataLength).toBe(4);
+        expect(bytes).toEqual(new Uint8Array([1, 2, 3, 4]));
     });
 
     it("shows a visible error when the file is not a valid PDF", async () => {

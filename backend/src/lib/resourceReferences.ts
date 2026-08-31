@@ -1,7 +1,7 @@
 export type ResourceReference =
   | { kind: "document"; documentId: string; versionId: string }
   | { kind: "source"; provider: string; sourceId: string }
-  | { kind: "project" | "workflow" | "job"; id: string };
+  | { kind: "project" | "workflow"; id: string };
 
 export const RESOURCE_LOCATOR_KINDS = [
   "page",
@@ -20,7 +20,7 @@ export const RESOURCE_LOCATOR_KINDS = [
 const DOCUMENT_RESOURCE = "document://[^/?#]+/version/[^/?#]+";
 export const DOCUMENT_RESOURCE_PATTERN = `^${DOCUMENT_RESOURCE}$`;
 export const DOCUMENT_OR_DRAFT_PATTERN = `^(?:${DOCUMENT_RESOURCE}|draft-[1-9][0-9]*)$`;
-export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|(?:workflow|job)://[^/?#]+|draft-[1-9][0-9]*)$`;
+export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|workflow://[^/?#]+|draft-[1-9][0-9]*)$`;
 
 const segment = (value: string) => {
   if (!value) throw new Error("Resource reference segments cannot be empty");
@@ -34,7 +34,6 @@ export const resourceReference = {
     `source://${segment(provider)}/${segment(sourceId)}`,
   project: (id: string) => `project://${segment(id)}`,
   workflow: (id: string) => `workflow://${segment(id)}`,
-  job: (id: string) => `job://${segment(id)}`,
 };
 
 export function parseResourceReference(raw: string): ResourceReference | null {
@@ -56,7 +55,7 @@ export function parseResourceReference(raw: string): ResourceReference | null {
       return { kind: "source", provider: host, sourceId: path[0] };
     }
     if (
-      (scheme === "project" || scheme === "workflow" || scheme === "job") &&
+      (scheme === "project" || scheme === "workflow") &&
       path.length === 0
     ) {
       return { kind: scheme, id: host };

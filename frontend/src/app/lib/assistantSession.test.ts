@@ -45,6 +45,8 @@ function applyRaw(state: AssistantSessionState, raw: unknown) {
 }
 
 const supportedEvents: [string, Record<string, unknown>][] = [
+  ["queued turn", { type: "turn_queued", jobId: "job-1" }],
+  ["client tool", { type: "client_tool_call", callId: "call-1", name: "save", input: {} }],
   ["chat id", { type: "chat_id", chatId: "chat-1", transcriptVersion: 2 }],
   ["transcript version", { type: "transcript_version", transcriptVersion: 3 }],
   ["content final", { type: "content_final", text: "a", citations: [] }],
@@ -58,7 +60,10 @@ const supportedEvents: [string, Record<string, unknown>][] = [
   ["ask inputs", { type: "ask_inputs", items: [{ id: "q1", kind: "choice", question: "Which?", options: [{ value: "A" }] }] }],
   ["ask response", { type: "ask_inputs_response", responses: [{ id: "q1", kind: "choice", answer: "A" }] }],
   ["tool activity", { type: "tool_activity", id: "tool-1", tool: "search", label: "Searching", status: "running" }],
-  ["automation", { type: "automation_run", id: "auto-1", tool: "create_table_of_authorities", status: "running", stage: "Scanning" }],
+  ["workflow run", { type: "workflow_run", id: "run-1", tool: "create_table_of_authorities", status: "running", stage: "Scanning" }],
+  ["work-product run", { type: "workflow_run", id: "run-2", tool: "update_work_product",
+    status: "complete", stage: "Update work product", work_product: {
+      kind: "court-record", id: "draft-1", revision: 3 }, requested_action: "build" }],
   ["reader", { type: "subagent_run", id: "reader-1", task: "Read", status: "running", activities: [], citations: [] }],
   ["context usage", { type: "context_usage", used_tokens: 10, window_tokens: 100 }],
   ["compaction", { type: "compaction", status: "completed" }],
@@ -99,6 +104,60 @@ describe("assistant protocol validation", () => {
     expect(parseAssistantProtocolEvent({ type: "document_artifact", action: "created", filename: "bad.docx", document_id: "d1", version_id: "v1", version_number: 1, download_url: "https://evil.test/file" }).ok).toBe(false);
     expect(assistant(state).citations[0]).toMatchObject({ url: null });
     expect(assistant(state).artifacts).toEqual([]);
+  });
+
+  it("preserves protocol defaults, normalization, and strict nested limits", () => {
+    const workflow = parseAssistantProtocolEvent({
+      type: "workflow_run", tool: "create_table_of_authorities", job_id: " job-1 ",
+    });
+    expect(workflow).toEqual({ ok: true, event: { type: "workflow_run", run: {
+      type: "workflow_run", id: "create_table_of_authorities:job-1",
+      tool: "create_table_of_authorities", status: "unknown", stage: "Workflow",
+      job_id: "job-1",
+    } } });
+    expect(parseAssistantProtocolEvent({
+      type: "workflow_run", id: "work-1", tool: "update_work_product", status: "complete",
+      stage: "Update work product", work_product: {
+        kind: "authorities", id: "authorities-1", revision: 4 }, requested_action: "open",
+    })).toEqual({ ok: true, event: { type: "workflow_run", run: {
+      type: "workflow_run", id: "work-1", tool: "update_work_product", status: "complete",
+      stage: "Update work product", work_product: {
+        kind: "authorities", id: "authorities-1", revision: 4 }, requested_action: "open",
+    } } });
+    expect(parseAssistantProtocolEvent({
+      type: "workflow_run", id: "work-2", tool: "update_work_product", status: "complete",
+      stage: "Update work product", work_product: {
+        kind: "court-record", id: "draft-1", revision: 0 }, requested_action: "build",
+    }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({
+      type: "tool_activity", id: "a", tool: "read", label: "Read",
+      status: "cancelled",
+    })).toEqual({ ok: true, event: { type: "activity", activity: {
+      id: "a", tool: "read", label: "Read", status: "interrupted",
+    } } });
+    expect(parseAssistantProtocolEvent({
+      type: "ask_inputs", items: [{ id: "q", kind: "documents", extra: true }],
+    }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({
+      type: "ask_inputs", items: [{ id: "q", kind: "choice", question: "?",
+        options: Array.from({ length: 33 }, (_, index) => ({ value: String(index) })) }],
+    }).ok).toBe(false);
+    expect(parseAssistantProtocolEvent({
+      type: "content", text: "x".repeat(ASSISTANT_LIMITS.text + 1),
+    }).ok).toBe(false);
+  });
+
+  it("drops malformed citations and never throws on hostile event objects", () => {
+    const revoked = Proxy.revocable({}, {}); revoked.revoke();
+    expect(parseAssistantCitations([revoked.proxy, {
+      kind: "tabular", ref: 1, review_id: "r", col_index: 0, row_index: 0,
+    }])).toEqual([expect.objectContaining({
+      kind: "tabular", col_name: "", doc_name: "", quotes: [],
+    })]);
+    const hostile = {};
+    Object.defineProperty(hostile, "type", { get() { throw new Error("nope"); } });
+    expect(() => parseAssistantProtocolEvent(hostile)).not.toThrow();
+    expect(parseAssistantProtocolEvent(hostile).ok).toBe(false);
   });
 });
 

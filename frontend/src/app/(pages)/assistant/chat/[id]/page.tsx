@@ -14,6 +14,8 @@ function AssistantChat({ id }: { id: string }) {
         actions,
         chatTitle,
         chatLoaded,
+        chatModel,
+        chatReasoningEffort,
         chatProjectId: projectId,
         chatProjectName: projectName,
         changeProject,
@@ -34,6 +36,8 @@ function AssistantChat({ id }: { id: string }) {
                         projectId={projectId ?? undefined}
                         projectName={projectName}
                         useDisplayedDocumentContext={!!projectId}
+                        initialModel={chatModel}
+                        initialReasoningEffort={chatReasoningEffort}
                         onProjectClick={() => setProjectModalOpen(true)}
                     />
                 </div>

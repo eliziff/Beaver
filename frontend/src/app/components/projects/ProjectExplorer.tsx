@@ -2,7 +2,7 @@
 import { useState, type DragEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { Document, Folder } from "@/app/components/shared/types";
-import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
+import { DocumentResultRow } from "@/app/components/shared/DocumentResultRow";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
@@ -35,13 +35,16 @@ export function ProjectExplorer({
     const [editor, setEditor] = useState<Editor | null>(null);
     const [name, setName] = useState("");
     const [dragTarget, setDragTarget] = useState<string | null>();
-    const [pendingId, setPendingId] = useState<string | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<{ kind: "document" | "folder"; id: string } | null>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "complete">("idle");
     const [error, setError] = useState<string | null>(null);
     const tree = buildDocumentTree(documents, folders, expanded,
         editor?.kind === "new" ? editor.parentId : undefined, "", true);
     const detaches = documentRemovalMode === "detach";
-    const pending = documents.find(({ id }) => id === pendingId);
+    const pendingDocument = pendingDelete?.kind === "document"
+        ? documents.find(({ id }) => id === pendingDelete.id) : undefined;
+    const pendingFolder = pendingDelete?.kind === "folder"
+        ? folders.find(({ id }) => id === pendingDelete.id) : undefined;
     function toggleFolder(id: string) {
         setExpanded((current) => {
             const next = new Set(current);
@@ -84,20 +87,23 @@ export function ProjectExplorer({
                 await onMoveFolder(folderId, targetId);
         }
     }
-    async function removeDocument() {
-        if (!pendingId || !onDeleteDoc || status === "loading") return;
+    async function removePending() {
+        if (!pendingDelete || status === "loading") return;
+        const remove = pendingDelete.kind === "folder" ? onDeleteFolder : onDeleteDoc;
+        if (!remove) return;
         setStatus("loading");
         setError(null);
         try {
-            await onDeleteDoc(pendingId);
+            await remove(pendingDelete.id);
             setStatus("complete");
             window.setTimeout(() => {
-                setPendingId(null);
+                setPendingDelete(null);
                 setStatus("idle");
             }, 650);
         } catch {
             setStatus("idle");
-            setError(detaches ? "The document could not be removed from this project."
+            setError(pendingDelete.kind === "folder" ? "The folder could not be deleted."
+                : detaches ? "The document could not be removed from this project."
                 : "The document could not be deleted.");
         }
     }
@@ -169,8 +175,8 @@ export function ProjectExplorer({
                                             startEditor({ kind: "new", parentId: folder.id })}
                                         onRename={() => startEditor(
                                             { kind: "rename", folderId: folder.id }, folder.name)}
-                                        onDelete={onDeleteFolder
-                                            ? () => void onDeleteFolder(folder.id) : undefined}
+                                        onDelete={onDeleteFolder ? () =>
+                                            setPendingDelete({ kind: "folder", id: folder.id }) : undefined}
                                     />
                                 </li>
                             );
@@ -188,16 +194,13 @@ export function ProjectExplorer({
                                     document.id === selectedDocId
                                         ? "bg-gray-100" : "hover:bg-gray-50"}`}
                                 style={{ paddingLeft: 24 + row.depth * 16 }}>
-                                <button type="button" onClick={() => onDocClick(document)}
-                                    className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                                    <FileTypeIcon fileType={document.file_type} className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{document.filename}</span>
-                                    {!!document.active_version_number && (
-                                        <span className="shrink-0 text-[10px] text-gray-500">V{document.active_version_number}</span>
-                                    )}
-                                </button>
+                                <DocumentResultRow compact filename={document.filename}
+                                    fileType={document.file_type} onClick={() => onDocClick(document)}
+                                    className="min-w-0 flex-1"
+                                    trailing={document.active_version_number
+                                        ? <span className="text-[10px] text-gray-500">V{document.active_version_number}</span> : null} />
                                 {onDeleteDoc && (
-                                    <RowActions onDelete={() => setPendingId(document.id)}
+                                    <RowActions onDelete={() => setPendingDelete({ kind: "document", id: document.id })}
                                         deleteLabel={detaches
                                             ? "Remove from project" : "Delete file"} />
                                 )}
@@ -209,14 +212,16 @@ export function ProjectExplorer({
                     )}
                 </ul>
             </div>
-            <ConfirmPopup open={!!pendingId} title={detaches
-                ? "Remove from project?" : "Delete document?"}
-                message={detaches
-                    ? `Remove ${pending?.filename ?? "this document"} from this project? The Library file and its links in other projects will be kept.`
-                    : `Permanently delete ${pending?.filename ?? "this document"} and all of its versions?`}
-                confirmLabel={detaches ? "Remove" : "Delete"} confirmStatus={status} cancelLabel="Cancel"
-                onCancel={() => status !== "loading" && setPendingId(null)}
-                onConfirm={() => void removeDocument()} />
+            <ConfirmPopup open={!!pendingDelete} title={pendingDelete?.kind === "folder"
+                ? "Delete folder?" : detaches ? "Remove from project?" : "Delete document?"}
+                message={pendingDelete?.kind === "folder"
+                    ? `Permanently delete ${pendingFolder?.name ?? "this folder"} and everything inside it?`
+                    : detaches ? `Remove ${pendingDocument?.filename ?? "this document"} from this project? The Library file and its links in other projects will be kept.`
+                    : `Permanently delete ${pendingDocument?.filename ?? "this document"} and all of its versions?`}
+                confirmLabel={detaches && pendingDelete?.kind === "document" ? "Remove" : "Delete"}
+                confirmStatus={status} cancelLabel="Cancel"
+                onCancel={() => status !== "loading" && setPendingDelete(null)}
+                onConfirm={() => void removePending()} />
             <WarningPopup open={!!error} message={error} onClose={() => setError(null)} />
         </>
     );

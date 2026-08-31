@@ -14,7 +14,7 @@ import {
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import type { McpToolEvent } from "../mcp/types";
-import type { LocalAutomationEvent } from "./localAutomationEvent";
+import type { LocalWorkflowRunEvent } from "./localWorkflowRun";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import type { AskInputsEvent, EditAnnotation, ToolActivity } from "./types";
@@ -43,6 +43,7 @@ import {
   legalEvidenceRequested,
   modelEvidencePassage,
   registerLegalEvidence,
+  registerLegalResearchQueries,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
   submitLegalEvidenceAnswer,
@@ -96,7 +97,7 @@ export type AssistantEvent =
   | McpToolEvent
   | LegalEvidenceReceiptEvent
   | ReadSubagentEvent
-  | LocalAutomationEvent
+  | LocalWorkflowRunEvent
   | { type: "content"; text: string }
   | { type: "steering"; id: string; text: string }
   | {
@@ -528,6 +529,7 @@ export async function runChatTurn(options: {
       })
       .finally(() => { context.onActivity = previousActivity; });
     batch.evidence.forEach((receipt) => registerLegalEvidence(evidence, receipt));
+    registerLegalResearchQueries(evidence, batch.queryReceipts, options.model);
     for (const event of batch.events) {
       addEvent(event);
       const visible = publicAssistantEvent(event);

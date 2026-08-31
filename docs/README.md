@@ -7,6 +7,8 @@ document does not become backlog merely because it describes unfinished ideas.
 
 ## Current production contract
 
+- [Architecture](current/architecture.md) — runtime topology, canonical module
+  owners, local/cloud composition, process boundaries, and dependency rules.
 - [Background jobs](current/background-jobs.md) — implemented database queue,
   PDF preparation policy, security boundary, and remaining release gates.
 - [Tool runtime](current/tool-runtime.md) — the sole assistant/tool execution
@@ -19,29 +21,29 @@ document does not become backlog merely because it describes unfinished ideas.
   and [local subrepositories](current/local-subrepositories.md) — release and
   checkout operations.
 
-The repository [README](../README.md) is the product overview. Current
-subrepository behavior comes from the
-[legal PDF parser](../legal-pdf-parser/README.md) and
-[AuthoritiesHelper](../AuthoritiesHelper/README.md) repositories, not from old
-Beaver design notes.
+The repository [README](../README.md) is the product overview. Current parser
+behavior comes from the [legal PDF parser](../legal-pdf-parser/README.md);
+current Authorities behavior comes from `authoritiesWorkspaceApplication.ts`,
+not old Beaver design notes.
 
 ## Approved roadmap
 
 Only this section is backlog.
 
-- [Master plan](roadmap/master-plan.md) — priority, implementation status, and
-  release authority.
-- [Acceptance requirements](roadmap/acceptance.md) — detailed user-facing
-  acceptance language; it does not override master-plan status.
-- [Canonicalization and contraction](roadmap/contraction.md) — active
-  architecture and line-count reduction.
+- [Master plan](roadmap/master-plan.md) — the sole priority, status, and release
+  authority, plus the backlog that is not currently active.
+- [Application boundaries](roadmap/application-boundaries.md) — the active
+  module-by-module plan for composition, routes, DTOs, frontend clients, and
+  process gateways.
 - [Shared document structure](roadmap/document-structure.md) — exact Rust
   detector consolidation, Beaver call boundary, OCR/Luna seam, and cross-product
   cutover.
-- [Scalable collections](roadmap/collections.md) — approved collection/storage
-  work.
-- [Shared legal data and tool UI](roadmap/shared-legal-data.md) — approved
-  provider-neutral legal-data work.
+- [Document capabilities](roadmap/document-capabilities.md) — Word editing,
+  automatic citation linking, verification, benchmarks, and standalone/embedded
+  feature composition.
+- [Durable legal work products](roadmap/legal-work-products.md) — resumable
+  Court Records and Authorities drafts, exact Alberta/federal profiles, the
+  TypeScript Authorities cutover, composition, receipts, and live proof.
 
 ## Adopted decisions and research conclusions
 
@@ -70,6 +72,8 @@ not parallel implementation plans.
   [reinvention ledger](decisions/reinvention.md),
   [capability survey](decisions/capability-survey.md), and
   [upstream contributions](decisions/upstream-contributions.md).
+- Upstream tracking: [Mike sync ledger](decisions/upstream-mike.md) records the
+  semantic cursor and every have/todo/skip adaptation decision.
 - Conditional or rejected: [static-shell decision](decisions/static-shell.md)
   keeps Vite/React but rejects browser-prompt and inequivalent native-control
   substitutions; [Muse provider](decisions/muse-provider.md) remains blocked
@@ -91,7 +95,9 @@ Nothing here may be imported by production or described as shipped.
 ## Documentation rules
 
 - Add current behavior to an existing `current/` document, not a dated plan.
-- Add approved work to the master plan and at most one subsystem roadmap.
+- Add approved work to the master plan. Create one focused spoke only while the
+  work is current; when it is complete, preserve the lasting contract under
+  `current/` and delete the spoke.
 - Put a hypothesis in `experiments/`; promote its proven contract and tests,
   then delete the experimental production path.
 - Record a rejected approach in `decisions/` only when the reason prevents
