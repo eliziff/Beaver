@@ -7,7 +7,9 @@ export function formatChatMessageContent(
   let content = message.content ?? "";
   if (message.role !== "user") return content;
   if (message.workflow) {
-    content = `[Workflow: ${message.workflow.title} (id: ${message.workflow.id})]\n\n${content}`;
+    const variant = message.workflow.variant_id
+      ? `; variant: ${message.workflow.variant_id}` : "";
+    content = `[Workflow: ${message.workflow.title} (id: ${message.workflow.id}${variant})]\n\n${content}`;
   }
   if (message.files?.length) {
     const lines = message.files.map((file) => {

@@ -1,179 +1,149 @@
-# Beaver behavior contract inventory
+# Beaver behavior contracts
 
-Status: Phase 0 deletion gate
+Status: current user-visible contract
 
-Baseline: `269bd0b0`
+These are capabilities and invariants that refactors preserve. Current module
+boundaries are not contracts; neither are incidental response wording, CSS
+classes, database column names, or a particular provider SDK.
 
-This inventory names behavior that the contraction refactor must preserve. It
-does not make current files, mode branches, Supabase query chains, SQLite
-schemas, environment switches, or incidental response wording into contracts.
-Each vertical slice replaces all implementations of an operation, proves the
-listed behavior through the shared contract, and deletes the old path.
+## One application in local and cloud compositions
 
-## Application contract
+- Account-free local mode starts with anonymous identity and requires no cloud
+  service.
+- Cloud mode adds authentication, sharing, MFA, audit, private object storage,
+  and account administration.
+- Library, documents, projects, workflows, chats, tabular reviews, assistant
+  tools, document actions, and their browser behavior use the same application
+  operations and public resource semantics.
+- A deployment adapter may change persistence or identity mechanics, never the
+  ordinary product rule.
+- An unavailable cloud-only account capability fails explicitly. It does not
+  create a second local implementation.
 
-Every ordinary operation receives an authenticated `AuthContext`, applies the
-same validation and authorization rule, and returns the same status and DTO in
-local and cloud deployments. Only persistence and blob mechanics differ.
+## Growing resources
 
-| Resource | Observable operations to preserve | Current owner / split to remove |
-| --- | --- | --- |
-| Library | page/search files and templates; create, rename, move, and recursively delete folders; upload, rename, annotate, move, and delete documents; stable keyset cursors | shared `routes/library.ts`; local/cloud stores encode persistence |
-| Documents | list or fetch owned documents; upload; display/download original or requested PDF rendition; version list/create/rename/replace/delete; optimistic assistant version writes; tracked-edit accept/reject; ZIP download | shared `routes/documentRoutes.ts`; local/cloud stores encode persistence; receipt-bound local PDF display remains an explicit extension |
-| Projects/matters | page/create/read/update/delete; attach/detach/move documents; folders; people where supported; project chats; reject foreign project/document IDs | mode branches in `routes/projects.ts`, graph-store calls, and Supabase queries |
-| Workflows | system catalogue and detail; user workflow CRUD; hidden workflows; archive/open-source; sharing is an explicit cloud account extension | mode branches and separate catalogue rules in `routes/workflows.ts` |
-| Tabular reviews | page/create/read/update/delete; columns/cells; clear/generate; attached documents; chat list/read/update/delete; deterministic citations | local-store and Supabase branches plus a separate model loop in `routes/tabular.ts` |
-| Chats | page/create/read/update/delete/restore/permanent-delete; project scope; optimistic transcript version; stop; title generation; user turn, input continuation, assistant events, citations, and partial-turn recovery | JSON local store and local turn loop versus Supabase rows and `runLLMStream` |
-| Activity history | scoped chat, document, and tabular events; literal title search; bounded paging; CSV export safe from spreadsheet formulas | shared relational audit store in both modes |
-| Legal sources | provider search/fetch, native/recovered structure, exact lookup, evidence rehydration, safe links, optional local PDF artifacts | provider-specific caches, SourceDoc paths, and tool-specific result shaping |
-| User/account | shared preferences; local environment keys; cloud identity, account, authentication, keys, connectors, MFA, sharing, and export | intentionally deployment-specific administration; not an excuse for ordinary resource branches |
+Projects, workflows, tabular reviews, Library directories, and project
+directories provide:
 
-Collection contracts are common across resources:
+- bounded pages with stable deterministic ordering;
+- opaque cursors bound to the resource, normalized filters, and last row;
+- owner/scope filtering before existence or payload is revealed;
+- literal server-side search and exact-ID reads that do not scan a page;
+- the same cursor and filter behavior in local and cloud compositions; and
+- shared frontend paging/directory primitives rather than component-specific
+  whole-collection caches.
 
-- default and maximum limits are bounded;
-- ordering is stable and deterministic when primary sort values tie;
-- cursors bind resource, normalized filters, ordering, and last row;
-- a cursor from another resource or filter is rejected;
-- exact-ID reads do not scan a page;
-- searches are literal user searches, not SQL/regex fragments; and
-- every owner/scope predicate is applied before returning payload or existence
-  information.
+System workflows remain a small pinned catalogue and do not need runtime
+pagination or downloading.
 
-## Document and blob contracts
+## Documents and versions
 
-A document version is immutable identity plus authoritative bytes. Operations
-may derive `SourceDoc`, `Grid`, `DocxSession`, PDF, preview, or cache artifacts,
-but an artifact cannot replace or silently normalize its source.
+- Original document bytes and immutable versions are authoritative.
+- Each version has a stable document/version identity, monotonic version number,
+  filename, media type, size, source hash, timestamp, and provenance where
+  applicable.
+- Reads and downloads honor an explicitly requested version rather than silently
+  substituting the current one.
+- Expected-parent or stale-receipt conflicts make no write.
+- Replacing source bytes invalidates incompatible derived products.
+- Deleting one version cannot remove bytes still referenced by another.
+- PDF renditions and projections are derived, receipt-bound products. Their
+  failure never corrupts or replaces the original.
+- Evidence binds document, version, source hash, locator, and exact passage.
+- DOCX generation/editing preserves unsupported package content, records owned
+  mutations, and fails closed on unsafe boundaries.
+- Tracked edits are reviewable and their accept/reject operations are
+  conflict-safe.
 
-The durable version contract includes:
+Library and project folders preserve nested paths, reject cycles and foreign
+IDs, and apply recursive deletion only to resources owned by the authenticated
+scope.
 
-- document ID, version ID, monotonic version number, source hash, media type,
-  filename, size, timestamp, and parent/provenance where applicable;
-- one assistant turn creates at most one new version per edited document;
-- an expected-parent mismatch makes no write;
-- replacing bytes invalidates derived artifacts and assistant provenance;
-- deleting a version cannot delete bytes referenced by another version;
-- original download returns the requested version, not the current version;
-- display may create a PDF rendition on demand without changing the original;
-- rendition failure leaves native Office display/download available;
-- exact evidence binds document, version, source hash, locator, and passage;
-- tracked-edit acceptance/rejection is conflict-safe and receipt-bearing; and
-- unchanged OOXML parts and accepted/redline text pass the DOCX fidelity gates.
+## Assistant, agents, and tools
 
-The `269bd0b0` baseline deliberately stopped producing Office PDF renditions
-during writes. `GET /single-documents/:id/display` already requests the
-rendition when needed. Conversion runs outside the SQLite transaction; the
-normal four-worker backend suite is the regression check for this rule.
+- Normal chat, project chat, Word chat, read subagents, and tabular work use one
+  provider-neutral turn engine and executable tool registry.
+- Advertised tools have handlers. Unavailable tools are omitted; unknown tools
+  return bounded errors.
+- The backend reconstructs authoritative history and state from durable records
+  rather than trusting a browser-supplied transcript.
+- Turn submission uses optimistic transcript versions. Conflicts do not create
+  duplicate turns.
+- Provider/tool work is cancellable, preserves usable partial events, and
+  records one terminal outcome.
+- Tool calls and results remain exactly paired. Document mutations are
+  serialized per affected document while independent reads may proceed.
+- Legal answers expose only grounded final prose and exact citations; rejected
+  drafts are not presented as verified work.
+- Provider-internal events remain private. One bounded public event stream feeds
+  one frontend decoder and reducer.
+- Chat, subagents, and tabular review are different presentations of ordinary
+  agent jobs, not separate model loops.
 
-## Assistant turn contract
+## Legal sources and evidence
 
-Normal, project, read-subagent, and tabular assistant work must converge on one
-turn runner. The runner preserves these mechanics:
+- Providers enter through the shared search, resolve, and bounded-read plane.
+- Provider-native identifiers, structure, coverage, URLs, and provenance are
+  preserved when available.
+- Reconstructed structure fills genuine gaps but never overwrites authoritative
+  native facts.
+- Exact evidence carries the source/version identity, source hash, human locator
+  where available, passage coordinates, and safe presentation link.
+- Text-fragment and native-anchor URLs are built deterministically from verified
+  source text. Models do not author source URLs.
+- A failed external pinpoint falls back to a truthful provider anchor or the
+  internal source viewer; it never fabricates precision.
+- Quote presence, link validity, and semantic support are distinct findings.
 
-1. validate the turn and optimistic transcript version;
-2. assemble system, history, current input, file manifest, jurisdiction, and
-   prior exact evidence without preloading whole attachments;
-3. stream provider-neutral content and reasoning;
-4. execute bounded registered tool rounds with exact call/result pairing;
-5. serialize mutations per affected document while allowing independent reads;
-6. enforce project/document scope before tool execution;
-7. persist partial events on abort/error and one completed turn on success;
-8. require exact legal evidence for grounded legal output and reject invented
-   legal-source URLs; and
-9. finish with final citations, transcript version, and `[DONE]` once.
+## Durable jobs and work products
 
-Tool schemas and handlers are one definition. An advertised tool must have a
-handler; an unavailable capability is omitted, not accepted and failed later.
-Unknown tools return a bounded structured error. Provider transports remain
-replaceable and Claude-P remains a supported transport.
+- Long work uses the shared durable job queue with progress, cancellation,
+  restart recovery where supported, and usable partial results.
+- Progress reports stable job/activity identities and never requires a second
+  feature-specific run history.
+- Generated documents are saved as immutable versions or Library work products
+  with exact input versions and receipts.
+- Authorities uses one maintained browser workspace and engine in its
+  standalone and Beaver hosts.
+- A standalone/embedded capability may change file-selection and save adapters;
+  its analysis/build rules and primary UI remain singular.
 
-Current engines to delete after callers move:
+## Browser and host behavior
 
-- local `streamAnonymousChat` plus `runLocalAssistantTools`;
-- cloud/general `runLLMStream` plus `runToolCalls`;
-- tabular generation/chat loops; and
-- read-subagent orchestration that duplicates parent runner mechanics.
+- Beaver is one Vite/React Router application served from the Express origin.
+- The Word task pane mounts the normal application at its Word route and reuses
+  authentication, profile, chat, tools, jobs, and UI components.
+- Library and project directory behavior is shared.
+- Model and reasoning effort remain separate visible controls.
+- Primary actions have stable labels and placement, keyboard operation, visible
+  focus, truthful loading/progress/error states, and no reliance on color alone.
+- Changed surfaces must remain usable at 320 CSS pixels, browser zoom, reduced
+  motion, and Windows high contrast. Automated accessibility checks support but
+  do not replace keyboard and screen-reader testing.
 
-## Canonical assistant events
+## Security boundaries
 
-Tool and reasoning activity may stream immediately. Assistant prose is buffered
-until grounding succeeds, then released once with its citations in
-`content_final`. The durable `content` event and citation objects are committed
-atomically; rejected or interrupted drafts are never exposed as provisional
-assistant text.
+- Retrieved documents, OCR, provider text, fields, metadata, and summaries are
+  untrusted data. They cannot authorize tools, change system instructions, or
+  cross user/project/document scope.
+- Local paths, credentials, provider internals, and raw stack errors are not
+  exposed in public responses.
+- Upload, archive, download, subprocess, URL, and object-storage boundaries
+  validate size, type, path, ownership, and control characters.
+- Cloud service credentials stay at deployment adapters. Local files never
+  become cloud credentials.
 
-| Class | Required event behavior |
-| --- | --- |
-| lifecycle | chat ID precedes dependent events; one atomic `content_final` stops live activity before persistence finishes; transcript version precedes `[DONE]`; one terminal outcome |
-| text | no provisional prose events; accepted text and matching citations arrive together in `content_final`; durable `content` and citations commit together |
-| reasoning/activity | reasoning deltas/blocks respect requested detail; tool start carries name and optional bounded input |
-| input | `ask_inputs` pauses without a fake tool result; `ask_inputs_response` resumes the same logical turn |
-| document | read/find, created, edited, download, automation, mutation receipt, version ID/number, and annotations remain source-bound |
-| research | CourtListener, A2AJ, public source, citation, exact evidence, and provider-PDF events retain stable identities and locators |
-| subagent | admission, running/completed/error state, assignment, result, sources, and parent aggregation are durable and restart-safe |
-| error | public safe message, retained partial events, no local paths/credentials/provider internals |
+## Proof
 
-`frontend/src/app/lib/sse.ts` is the one frame decoder and
-`frontend/src/app/lib/assistantStreamEvents.ts` is the target reducer. The
-tabular chat panel and any other consumer must use those rather than parse or
-reconcile SSE independently.
+Test the smallest public outcome that protects each changed contract:
 
-## Durable state now in scope
+- application/repository contract tests for local and cloud compositions;
+- route tests for authorization, validation, status, and public payload;
+- focused turn/event/tool tests for assistant behavior;
+- exact provider/structure fixtures and applicable corpus gates;
+- DOCX package-part, accepted/redline, and render checks;
+- frontend reducer/component/browser checks for visible behavior; and
+- launcher-owned smoke for the complete local product.
 
-| State | Current local representation | Current cloud representation | Target owner |
-| --- | --- | --- | --- |
-| documents, versions, folders, legal pointers | `library.sqlite` plus `files/` | Supabase documents/version/folder tables plus R2 | application metadata DB + `BlobStore` port |
-| projects/matters and attachments | `legal-knowledge.sqlite` with reads into `library.sqlite` | Supabase project/member/folder/document tables | project tables in the application metadata contract |
-| tabular reviews/cells | `tabular.sqlite` | Supabase tabular tables | tabular tables in the application metadata contract |
-| chats/events | one JSON file per chat | Supabase chat/message rows | append-only chat/event tables in the application metadata contract |
-| provider continuation | one JSON file per chat/provider | provider fields/session state | provider-session rows owned by chat persistence |
-| derived PDF/SourceDoc/cache artifacts | files and small sidecar SQLite leases | object storage/cache where configured | versioned artifact helper; never authoritative state |
-| A2AJ, CourtListener, journal, citator corpora | separate read-only `OpenLegalData` databases | external/provider data | remain outside application metadata |
-
-Local schema consolidation must preserve the current developer data until an
-explicit conversion command is authorized. Startup verifies schema; it does
-not delete, silently migrate, or guess. Cloud service-role queries bypass RLS,
-so owner/share/scope predicates are mandatory in the adapter and real-stack
-contract tests.
-
-## Proof matrix
-
-The final `appContract(createDataPorts)` suite runs the same cases against:
-
-- temporary SQLite and a temporary blob directory on every backend change;
-- real local Supabase/Postgres and object storage in the integration lane; and
-- small in-memory/fake provider boundaries for deterministic assistant turns.
-
-Existing evidence to retain while the suite is assembled:
-
-| Behavior | Current strongest checks |
-| --- | --- |
-| local document versions, cursor paging, folders, concurrency | `lib/__tests__/localDocumentStore.test.ts` |
-| local project/document/chat continuity and isolation | `__tests__/integration/localMatter.routes.test.ts`, `routes/localChatEvidenceDurability.test.ts` |
-| local tabular and workflow HTTP behavior | `__tests__/integration/localTabular.routes.test.ts`, `localWorkflows.routes.test.ts` |
-| cloud projects, documents, chat, tabular, user routes | matching files under `__tests__/integration` |
-| real service-role/RLS/schema behavior | `__tests__/integration/stack.supabase.test.ts`, `access.supabase.test.ts` |
-| assistant transport/tool rounds and aborts | `__tests__/integration/liveToolLoop.test.ts`, chat/tool unit tests |
-| local assistant reads, edits, receipts, evidence | `lib/__tests__/localAssistantTools.test.ts` and focused chat tool tests |
-| frontend SSE reduction and retry/version behavior | `frontend/src/app/lib/assistantStreamEvents.test.ts`, `hooks/useAssistantChat.test.ts` |
-| DOCX fidelity and mutation | `lib/__tests__/docx*.test.ts` fixtures and capability conformance |
-| provider structure and exact locators | SourceDoc/provider fixture and corpus-audit tests |
-
-Tests that assert only an import, branch, mock call chain, CSS class, or exact
-non-contract copy do not block deletion. Before deleting a path, map each real
-invariant above to a shared test. A slice is incomplete if either adapter has a
-separate behavior test instead of joining the parameterized contract.
-
-## Slice gate
-
-Every contraction commit records:
-
-- contract rows affected and shared tests proving them;
-- old files/functions removed and all callers moved;
-- local and cloud adapter results where persistence changed;
-- production and total authored line deltas from `npm run measure:source`;
-- affected cold/warm timing, including first use; and
-- focused tests plus the applicable full build/test lane.
-
-No slice lands a second runtime, temporary compatibility path, feature flag,
-or adapter-specific DTO. Git is the rollback mechanism.
+Tests that merely assert an import, mock call order, implementation branch, CSS
+class, or exact incidental copy do not make that implementation durable.

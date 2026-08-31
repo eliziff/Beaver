@@ -1,5 +1,7 @@
 import {
     forwardRef,
+    lazy,
+    Suspense,
     useCallback,
     useEffect,
     useImperativeHandle,
@@ -7,27 +9,28 @@ import {
     useMemo,
     useRef,
     useState,
+    type ReactNode,
 } from "react";
 import {
     ArrowDown,
     CircleStop,
+    Loader2,
 } from "lucide-react";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
-import { automationRunKey } from "./AutomationRun";
+import { workflowRunKey } from "./WorkflowRun";
 import { ChatInput } from "./ChatInput";
 import type { ChatInputHandle } from "./ChatInput";
 import { AskInputPopup } from "./AskInputPopup";
-import {
-    AssistantSidePanel,
-    type AssistantDocumentTab,
-    type AssistantSidePanelTab,
+import type {
+    AssistantDocumentTab,
+    AssistantSidePanelTab,
 } from "./AssistantSidePanel";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
-import { DocumentAutomation, type DocumentAutomationTarget } from "@/app/components/documents/DocumentAutomation";
+import { DocumentWorkflowMenu, type DocumentWorkflowTarget } from "@/app/components/documents/DocumentWorkflowMenu";
 import type {
-    AutomationRunEvent,
+    WorkflowRunEvent,
     Citation,
     Document,
     DocumentCitation,
@@ -36,8 +39,8 @@ import type {
     EditResolveStart,
     EditResolved,
     Message,
-    Workflow,
 } from "../shared/types";
+import { workflowDocumentTab, type WorkflowSelection } from "../workflows/workflowRoutes";
 import {
     safeAssistantUrl,
     type AssistantReaderRun,
@@ -47,6 +50,7 @@ import {
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
     legalSourceLocatorFromUrl,
     normalizeLegalSourceLocator,
@@ -62,6 +66,13 @@ import {
 } from "./ReadSubagentDock";
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
+import { ChatResearchSave } from "./ChatResearchSave";
+const loadAssistantSidePanel = () => import("./AssistantSidePanel");
+const preloadAssistantSidePanel = () =>
+    void loadAssistantSidePanel().catch(() => undefined);
+const LazyAssistantSidePanel = lazy(async () => ({
+    default: (await loadAssistantSidePanel()).AssistantSidePanel,
+}));
 interface Props {
     chatId?: string | null;
     session: AssistantSessionState;
@@ -85,6 +96,12 @@ interface Props {
     };
     onCitationClick?: (citation: Citation) => boolean | void;
     citationTitle?: (citation: Citation) => string;
+    initialModel?: string | null;
+    initialReasoningEffort?: string | null;
+    editModeLabels?: { manual: string; auto: string };
+    projectFiles?: ReactNode;
+    projectFileActions?: ReactNode;
+    initialDocuments?: Document[];
 }
 export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
@@ -191,6 +208,12 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         features,
         onCitationClick,
         citationTitle,
+        initialModel,
+        initialReasoningEffort,
+        editModeLabels,
+        projectFiles,
+        projectFileActions,
+        initialDocuments,
     },
     ref,
 ) {
@@ -205,26 +228,25 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         key: readSubagentPanelStorageKey,
         ids: readStoredSubagentPanelIds(readSubagentPanelStorageKey),
     }));
-    const [readSubagentPanelLimitOpen, setReadSubagentPanelLimitOpen] =
-        useState(false);
-    const [dockOpen, setDockOpen] = useState(false);
-    const [dockActivated, setDockActivated] = useState(false);
+    const [dockOpen, setDockOpen] = useState(!!projectFiles);
+    const [dockActivated, setDockActivated] = useState(!!projectFiles);
     const setDockExpanded = useCallback((expanded: boolean) => {
         setDockOpen(expanded);
         if (expanded) setDockActivated(true);
     }, []);
-    const [activeDockTab, setActiveDockTab] = useState("sources");
+    const [activeDockTab, setActiveDockTab] = useState(
+        projectFiles ? "project-files" : "sources",
+    );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [workflowInitialId, setWorkflowInitialId] = useState<string>();
     const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
-    const workflowSelectRef = useRef<(workflow: Workflow) => void>(() => {});
-    const [automationDocument, setAutomationDocument] =
-        useState<DocumentAutomationTarget | null>(null);
+    const workflowSelectRef = useRef<(selection: WorkflowSelection) => void>(() => {});
+    const [workflowDocument, setWorkflowDocument] =
+        useState<DocumentWorkflowTarget | null>(null);
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
         null,
     );
-    const dismissedReadSubagentIds = useRef(new Set<string>());
     const previousReadSubagentCount = useRef(0);
     const editFocusKey = useRef(0);
     const [editState, setEditState] = useState(() => ({
@@ -232,6 +254,15 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         editIds: new Set<string>(),
         statuses: {} as Record<string, "accepted" | "rejected">,
     }));
+    useEffect(() => {
+        if (typeof window.requestIdleCallback === "function") {
+            const idle = window.requestIdleCallback(preloadAssistantSidePanel,
+                { timeout: 1_500 });
+            return () => window.cancelIdleCallback(idle);
+        }
+        const timeout = window.setTimeout(preloadAssistantSidePanel, 500);
+        return () => window.clearTimeout(timeout);
+    }, []);
     const closeAllTabs = useCallback(() => {
         setTabs([]);
         setActiveTabId(null);
@@ -253,6 +284,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const upsertTab = useCallback(
         (tab: AssistantSidePanelTab, activateDock = true) => {
+            preloadAssistantSidePanel();
             setTabs((prev) => {
                 const idx = prev.findIndex((current) =>
                     isDocumentTab(tab)
@@ -345,7 +377,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const lastUserIndex = messages.findLastIndex(({ role }) => role === "user");
     const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
-    const automations = messages.flatMap((message) => message.role === "assistant" ? message.automations : []);
+    const workflowRuns = messages.flatMap((message) => message.role === "assistant" ? message.workflowRuns : []);
     const latestAssistant = messages[lastAssistantIndex];
     const responseInProgress = session.run?.status === "running" &&
         !(latestAssistant?.role === "assistant" && latestAssistant.contentFinal);
@@ -356,18 +388,18 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             !latestAssistant.turnStatus
           ? "Response ready."
           : "";
-    const latestAutomation = (run: AutomationRunEvent) =>
-        automations.findLast((candidate) => automationRunKey(candidate) === automationRunKey(run)) ?? run;
-    const openAutomation = (run: AutomationRunEvent) => {
+    const latestWorkflowRun = (run: WorkflowRunEvent) =>
+        workflowRuns.findLast((candidate) => workflowRunKey(candidate) === workflowRunKey(run)) ?? run;
+    const openWorkflowRun = (run: WorkflowRunEvent) => {
         upsertTab({
-            kind: "automation",
-            id: `automation:${automationRunKey(run)}`,
+            kind: "workflow-run",
+            id: `workflow:${workflowRunKey(run)}`,
             run,
         });
     };
     const visibleTabs = tabs.map((tab) =>
-        tab.kind === "automation"
-            ? { ...tab, run: latestAutomation(tab.run) }
+        tab.kind === "workflow-run"
+            ? { ...tab, run: latestWorkflowRun(tab.run) }
             : tab,
     );
     const handleEditResolveStart = (args: EditResolveStart) => {
@@ -429,7 +461,13 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle | null>(null);
+    const attachedInitialDocuments = useRef(false);
     const [showScrollButton, setShowScrollButton] = useState(false);
+    useEffect(() => {
+        if (attachedInitialDocuments.current || !initialDocuments?.length) return;
+        attachedInitialDocuments.current = true;
+        initialDocuments.forEach((document) => chatInputRef.current?.addDoc(document));
+    }, [initialDocuments]);
     const updateScrollButton = useCallback(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
@@ -476,7 +514,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     useEffect(() => {
         onActiveDocumentChange?.(activeDocument?.documentId ?? null);
     }, [activeDocument?.documentId, onActiveDocumentChange]);
-    const openAutomations = (document?: Document) => {
+    const openDocumentWorkflows = (document?: Document) => {
         const target = document
             ? {
                   id: document.id,
@@ -492,14 +530,15 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     project_id: projectId ?? null,
                 }
               : null;
-        setAutomationDocument(target);
-        setActiveDockTab("automations");
+        setWorkflowDocument(target);
+        setActiveDockTab("workflows");
         setDockExpanded(true);
     };
     const openWorkflows = (
-        onSelect: (workflow: Workflow) => void,
+        onSelect: (selection: WorkflowSelection) => void,
         initialWorkflowId?: string,
     ) => {
+        setWorkflowDocument(null);
         workflowSelectRef.current = onSelect;
         setWorkflowInitialId(initialWorkflowId);
         setActiveDockTab("workflows");
@@ -583,7 +622,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             const next = [...current];
             for (const panel of session.readers) {
                 if (
-                    !dismissedReadSubagentIds.current.has(panel.id) &&
                     !next.includes(panel.id)
                 ) {
                     next.push(panel.id);
@@ -612,52 +650,46 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         previousReadSubagentCount.current = readSubagentPanels.length;
     }, [readSubagentPanels, readSubagents.showDock, setDockExpanded]);
     const openReadSubagentPanel = (panel: AssistantReaderRun) => {
-        dismissedReadSubagentIds.current.delete(panel.id);
         const withoutCurrent = readSubagentPanelIds.filter(
             (id) => id !== panel.id,
         );
-        if (
-            withoutCurrent.length === readSubagentPanelIds.length &&
-            readSubagentPanelIds.length >= READ_SUBAGENT_RUN_LIMIT
-        ) {
-            setReadSubagentPanelLimitOpen(true);
-            return;
-        }
-        setReadSubagentPanelIds([...withoutCurrent, panel.id]);
+        setReadSubagentPanelIds(
+            [...withoutCurrent, panel.id].slice(-READ_SUBAGENT_RUN_LIMIT),
+        );
         const slot = panel.id.match(/:(\d+)$/u)?.[1] ?? panel.id;
         setActiveAgentSlot(slot);
         setActiveDockTab("agents");
         setDockExpanded(true);
     };
-    const closeReadSubagentPanel = (id: string) => {
-        dismissedReadSubagentIds.current.add(id);
-        setReadSubagentPanelIds((current) =>
-            current.filter((panelId) => panelId !== id),
-        );
-    };
     const assistantSideGutterVisible = dockEnabled && dockOpen;
     const readerPanel = (embedded = false) =>
         tabs.length ? (
-            <AssistantSidePanel
-                embedded={embedded}
-                tabs={visibleTabs}
-                activeTabId={activeTabId}
-                projectId={projectId}
-                onActivateTab={setActiveTabId}
-                onCloseTab={closeTab}
-                onCloseAll={closeAllTabs}
-                isEditorReloading={(documentId) =>
-                    editState.docIds.has(documentId)
-                }
-                isEditReloading={(editId) => editState.editIds.has(editId)}
-                onEditResolveStart={handleEditResolveStart}
-                onEditResolved={handleEditResolved}
-                onEditError={handleEditError}
-                onWarningDismiss={(tabId) => patchTab(tabId, { warning: null })}
-                onScrollChange={(tabId, initialScrollTop) =>
-                    patchTab(tabId, { initialScrollTop })
-                }
-            />
+            <Suspense fallback={<div role="status"
+                className="grid h-full place-items-center text-gray-500">
+                <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />
+                <span className="sr-only">Loading source</span>
+            </div>}>
+                <LazyAssistantSidePanel
+                    embedded={embedded}
+                    tabs={visibleTabs}
+                    activeTabId={activeTabId}
+                    projectId={projectId}
+                    onActivateTab={setActiveTabId}
+                    onCloseTab={closeTab}
+                    onCloseAll={closeAllTabs}
+                    isEditorReloading={(documentId) =>
+                        editState.docIds.has(documentId)
+                    }
+                    isEditReloading={(editId) => editState.editIds.has(editId)}
+                    onEditResolveStart={handleEditResolveStart}
+                    onEditResolved={handleEditResolved}
+                    onEditError={handleEditError}
+                    onWarningDismiss={(tabId) => patchTab(tabId, { warning: null })}
+                    onScrollChange={(tabId, initialScrollTop) =>
+                        patchTab(tabId, { initialScrollTop })
+                    }
+                />
+            </Suspense>
         ) : null;
     const groupedAgents = new Map<string, ReadSubagentPanel[]>();
     if (readSubagents.showDock) {
@@ -669,60 +701,52 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const agentGroups: ReadSubagentGroup[] = [...groupedAgents.entries()].map(
         ([slot, panels]) => ({ id: slot, label: `Agent ${slot}`, panels }),
     );
-    const sourceContent = tabs.length ? (
-        readerPanel(true)
-    ) : activeDockTab === "sources" ? (
-        <LegalLibraryPage embedded />
-    ) : null;
-    const closeAgentGroup = (slot: string) => {
-        for (const panel of groupedAgents.get(slot) ?? []) {
-            closeReadSubagentPanel(panel.id);
-        }
-        const remaining = agentGroups.find((group) => group.id !== slot);
-        setActiveAgentSlot(remaining?.id ?? null);
-    };
+    const sourceContent = tabs.length ? readerPanel(true) : <LegalLibraryPage embedded />;
     const dockTabs: AssistantDockTab[] = [
+        ...(projectFiles ? [{
+            id: "project-files",
+            label: "Project files",
+            actions: projectFileActions,
+            content: projectFiles,
+        }] : []),
         {
             id: "library",
             label: "Library",
             content: (
                 <LibraryWorkspaceProvider>
-                    {activeDockTab === "library" && (
-                        <LibraryCollectionPage
-                            kind={libraryKind}
-                            onKindChange={setLibraryKind}
-                            onOpenInChat={(documents) => {
-                                for (const document of documents) {
-                                    chatInputRef.current?.addDoc(document);
-                                }
-                            }}
-                            embedded
-                        />
-                    )}
+                    <LibraryCollectionPage
+                        kind={libraryKind}
+                        onKindChange={setLibraryKind}
+                        onOpenInChat={(documents) => {
+                            for (const document of documents) {
+                                chatInputRef.current?.addDoc(document);
+                            }
+                        }}
+                        embedded
+                    />
                 </LibraryWorkspaceProvider>
             ),
         },
         {
             id: "workflows",
             label: "Workflows",
-            content: (
-                <AssistantWorkflowDock
-                    initialWorkflowId={workflowInitialId}
-                    onSelect={(workflow) => workflowSelectRef.current(workflow)}
-                />
-            ),
-        },
-        {
-            id: "automations",
-            label: "Automation",
-            content: automationDocument ? (
+            icon: <WorkflowSkeuoIcon className="text-base leading-none" />,
+            content: workflowDocument ? (
                 <div className="h-full overflow-y-auto">
-                    <DocumentAutomation document={automationDocument} embedded />
+                    <DocumentWorkflowMenu document={workflowDocument} embedded />
                 </div>
             ) : (
-                <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">
-                    Open a document to use its automations.
-                </div>
+                <AssistantWorkflowDock
+                    key={workflowInitialId ?? "workflows"}
+                    initialWorkflowId={workflowInitialId}
+                    onSelect={(selection) => {
+                        workflowSelectRef.current(selection);
+                        if (workflowDocumentTab(selection) === "templates") {
+                            setLibraryKind("templates");
+                            setActiveDockTab("library");
+                        }
+                    }}
+                />
             ),
         },
         {
@@ -738,7 +762,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     groups={agentGroups}
                     activeId={activeAgentSlot}
                     onActivate={setActiveAgentSlot}
-                    onClose={closeAgentGroup}
                     onCitationClick={openCitation}
                 />
             ),
@@ -758,9 +781,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 {responseAnnouncement}
             </div>
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
-                {onProjectClick && (
-                    <div className="flex h-9 shrink-0 items-center justify-center border-b border-gray-100 px-4">
-                        <button
+                {(onProjectClick || layout === "page" && chatId) && (
+                    <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4">
+                        {onProjectClick ? <button
                             type="button"
                             onClick={onProjectClick}
                             aria-label={
@@ -774,7 +797,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             <span className="truncate">
                                 {projectName ?? "Add to project"}
                             </span>
-                        </button>
+                        </button> : <span />}
+                        {layout === "page" && chatId && <ChatResearchSave
+                            chatId={chatId} projectId={projectId} />}
                     </div>
                 )}
                 <div
@@ -814,7 +839,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                             }
                                             onCitationClick={openCitation}
                                             citationTitle={citationTitle}
-                                            onAutomationClick={openAutomation}
+                                            onWorkflowRunClick={openWorkflowRun}
                                             onReaderClick={
                                                 readSubagents.showDock
                                                     ? (readerId) => {
@@ -935,11 +960,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             }
                             showContextTools={contextToolsEnabled}
                             rows={layout === "panel" ? 2 : 1}
-                            automationsAvailable={dockEnabled && !!activeDocument}
-                            onOpenAutomations={dockEnabled ? openAutomations : undefined}
+                            documentWorkflowsAvailable={dockEnabled && !!activeDocument}
+                            onRunDocumentWorkflow={dockEnabled ? openDocumentWorkflows : undefined}
                             onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}
+                            initialModel={initialModel}
+                            initialReasoningEffort={initialReasoningEffort}
+                            editModeLabels={editModeLabels}
                             restoreDraft={
                                 rejectedTurn?.options?.askInputsResponse
                                     ? null
@@ -987,12 +1015,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                           }
                         : undefined
                 }
-            />
-            <WarningPopup
-                open={readSubagentPanelLimitOpen}
-                title="The recent-run view is full"
-                message="Close the reading-agent history before opening an older run."
-                onClose={() => setReadSubagentPanelLimitOpen(false)}
             />
         </div>
     );

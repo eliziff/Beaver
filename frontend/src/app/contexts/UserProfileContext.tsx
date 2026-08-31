@@ -4,60 +4,37 @@ import { useAuth } from "./AuthContext";
 import { isLocalMode } from "@/app/lib/authMode";
 import {
   getUserProfile,
-  isMfaRequiredError,
   saveApiKey,
   updateUserMfaOnLogin,
   updateUserProfile,
   type ApiKeyProvider,
   type ApiKeyState,
-  type DraftingStyleSettings,
   type UserProfile as ApiProfile,
 } from "@/app/lib/beaverApi";
-import { DEFAULT_DRAFTING_STYLE } from "@/app/lib/draftingStyle";
+import { isMfaRequiredError } from "@/app/lib/authApi";
 
 type Profile = Omit<ApiProfile, "apiKeyStatus"> & { apiKeys: ApiKeyState };
+type ProfilePatch = Parameters<typeof updateUserProfile>[0];
 type Context = {
   profile: Profile | null;
   loading: boolean;
-  updateProfile: (value: Pick<Profile, "displayName" | "organisation">) => Promise<boolean>;
-  updateModelPreference: (field: "titleModel" | "tabularModel", value: string) => Promise<boolean>;
+  updateProfile: (value: ProfilePatch) => Promise<boolean>;
   updateMfaOnLogin: (enabled: boolean) => Promise<boolean>;
-  updateLegalResearchUs: (enabled: boolean) => Promise<boolean>;
-  updateDraftingStyle: (settings: DraftingStyleSettings) => Promise<boolean>;
   updateApiKey: (provider: ApiKeyProvider, value: string | null) => Promise<boolean>;
-  reloadProfile: () => Promise<void>;
 };
 
-const providers: ApiKeyProvider[] = [
-  "claude", "gemini", "openai", "deepseek", "openrouter", "meta", "courtlistener",
-];
 const UserProfileContext = createContext<Context | null>(null);
+
+function normalizeApiKeys(status: ApiProfile["apiKeyStatus"]): ApiKeyState {
+  return Object.fromEntries(Object.entries(status.sources).map(([provider, source]) => [
+    provider,
+    { configured: status[provider as ApiKeyProvider], source },
+  ])) as ApiKeyState;
+}
 
 function normalize(data: ApiProfile): Profile {
   const { apiKeyStatus, ...profile } = data;
-  return {
-    ...profile,
-    mfaOnLogin: profile.mfaOnLogin === true,
-    draftingStyle: profile.draftingStyle ?? DEFAULT_DRAFTING_STYLE,
-    apiKeys: Object.fromEntries(providers.map((provider) => [provider, {
-      configured: !!apiKeyStatus?.[provider],
-      source: apiKeyStatus?.sources?.[provider] ?? (apiKeyStatus?.[provider] ? "user" : null),
-    }])) as ApiKeyState,
-  };
-}
-
-function fallback(): Profile {
-  return normalize({
-    displayName: null,
-    organisation: null,
-    tier: "Free",
-    titleModel: "gemini-3.1-flash-lite-preview",
-    tabularModel: "gemini-3-flash-preview",
-    mfaOnLogin: false,
-    legalResearchUs: true,
-    draftingStyle: DEFAULT_DRAFTING_STYLE,
-    apiKeyStatus: {} as ApiProfile["apiKeyStatus"],
-  });
+  return { ...profile, apiKeys: normalizeApiKeys(apiKeyStatus) };
 }
 
 export function UserProfileProvider({ children }: { children: ReactNode }) {
@@ -67,11 +44,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [loadedUser, setLoadedUser] = useState<string | null>(null);
   const request = useRef(0);
   const userId = user?.id ?? null;
-  const needed = !isLocalMode || /^(\/assistant|\/projects|\/account\/api-keys)/.test(pathname);
+  const needed = !isLocalMode || /^(\/assistant|\/projects|\/workflows|\/table-of-authorities|\/court-records|\/library|\/account|\/onboarding|\/word)/.test(pathname);
 
   const load = useCallback(async (id: string) => {
     const sequence = ++request.current;
-    const next = await getUserProfile().then(normalize).catch(fallback);
+    const next = await getUserProfile().then(normalize).catch(() => null);
     if (sequence === request.current) {
       setProfile(next);
       setLoadedUser(id);
@@ -102,20 +79,17 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
   const value: Context = {
     profile,
-    loading: !isLocalMode && (authLoading || (!!userId && userId !== loadedUser)),
+    loading: authLoading || (!!userId && needed && userId !== loadedUser),
     updateProfile: (next) => mutate(() => updateUserProfile(next), true),
-    updateModelPreference: (field, value) => mutate(() => updateUserProfile({ [field]: value })),
     updateMfaOnLogin: (enabled) => mutate(() => updateUserMfaOnLogin(enabled), true),
-    updateLegalResearchUs: (enabled) => mutate(() => updateUserProfile({ legalResearchUs: enabled })),
-    updateDraftingStyle: (draftingStyle) => mutate(() => updateUserProfile({ draftingStyle })),
     updateApiKey: async (provider, value) => {
       if (!user) return false;
       const key = value?.trim() || null;
       try {
-        await saveApiKey(provider, key);
+        const status = await saveApiKey(provider, key);
         setProfile((current) => current ? {
           ...current,
-          apiKeys: { ...current.apiKeys, [provider]: { configured: !!key, source: key ? "user" : null } },
+          apiKeys: normalizeApiKeys(status),
         } : null);
         return true;
       } catch (error) {
@@ -123,7 +97,6 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    reloadProfile: async () => { if (userId) await load(userId); },
   };
   return <UserProfileContext.Provider value={value}>{children}</UserProfileContext.Provider>;
 }

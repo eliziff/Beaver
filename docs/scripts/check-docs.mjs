@@ -55,6 +55,19 @@ const markdown = [
 ].filter(existsSync);
 
 const linkPattern = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+["'][^)]*)?\)/g;
+const roadmapDirectory = path.join(docs, "roadmap");
+const roadmapHub = path.join(roadmapDirectory, "master-plan.md");
+const roadmapTargets = new Set([...readFileSync(roadmapHub, "utf8").matchAll(linkPattern)]
+  .map((match) => match[1].split(/[?#]/, 1)[0])
+  .filter((target) => target && !/^(?:[a-z]+:|#)/i.test(target))
+  .map((target) => path.resolve(path.dirname(roadmapHub), decodeURIComponent(target))));
+for (const entry of readdirSync(roadmapDirectory, { withFileTypes: true })) {
+  const file = path.join(roadmapDirectory, entry.name);
+  if (entry.isFile() && entry.name.endsWith(".md") && file !== roadmapHub &&
+      !roadmapTargets.has(file)) {
+    errors.push(`roadmap spoke missing from master-plan hub: ${relative(file)}`);
+  }
+}
 for (const file of markdown) {
   const text = readFileSync(file, "utf8");
   for (const match of text.matchAll(linkPattern)) {

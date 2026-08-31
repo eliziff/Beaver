@@ -64,20 +64,12 @@ bounded provider.
 
 ### Reviewable tables and books of authorities
 
-[AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) supplies the
-single Authorities engine and workspace used both inside Beaver and in its
-standalone launcher. Beaver hosts the workspace itself and talks to the Python
-handlers through a private process channel rather than launching another web
-server. It deterministically finds citation occurrences in DOCX or PDF input,
-lets the user correct authority and pinpoint spans, resolves sources through
-shared legal data, and builds reviewable tables or tabbed books of authorities.
-Scanned authorities retain their original page images; OCR and passage marking
-are explicit, reviewable choices.
-
-The parser and Authorities application consume the same versioned legal
-grammar corpus as Beaver. The corpus is checked for schema, vector, manifest,
-and bundled-copy drift so citation grammar is not independently reimplemented
-in three places.
+Beaver's TypeScript Authorities work-product application creates resumable,
+version-bound drafts from DOCX or PDF input, resolves sources through shared
+legal data, supports manual CanLII PDF handoff, and builds reviewable tables or
+tabbed books. Citation and document structure come from the shared native legal
+structure and PDF primitives; generated files and receipts use Beaver's normal
+document storage in both local and cloud mode.
 
 ### Deterministic document work
 
@@ -118,7 +110,7 @@ the same ports without requiring an account or cloud service.
 
 ## Clone and install
 
-Clone the two public submodules with Beaver:
+Clone the public submodules with Beaver:
 
 ```powershell
 git clone --recurse-submodules https://github.com/eliziff/Beaver.git
@@ -135,9 +127,6 @@ npm ci --prefix backend
 npm ci --prefix frontend
 cargo build --manifest-path legal-pdf-parser\Cargo.toml --release --locked `
   --features full,fast-allocator
-python -m venv AuthoritiesHelper\.venv
-.\AuthoritiesHelper\.venv\Scripts\python -m pip install `
-  -r AuthoritiesHelper\requirements.lock.txt
 ```
 
 For Codex subscription access:
@@ -157,9 +146,9 @@ and local document operations do not require a cloud account.
 ```powershell
 npm run build --prefix backend
 npm run build --prefix frontend
-.\scripts\mike.ps1 doctor -WithTableOfAuthorities
-.\scripts\mike.ps1 start -WithTableOfAuthorities
-.\scripts\mike.ps1 smoke -WithTableOfAuthorities
+.\scripts\mike.ps1 doctor
+.\scripts\mike.ps1 start
+.\scripts\mike.ps1 smoke
 ```
 
 Open <http://127.0.0.1:3000>. Stop only launcher-owned processes with:
@@ -179,7 +168,7 @@ npm test --prefix backend
 npm test --prefix frontend
 npm run build --prefix backend
 npm run build --prefix frontend
-.\scripts\mike.ps1 smoke -WithTableOfAuthorities
+.\scripts\mike.ps1 smoke
 ```
 
 High-fidelity parser, SourceDoc, DOCX, and authorities changes have additional
@@ -191,7 +180,7 @@ corpus or byte-identity gates documented beside those subsystems.
 - [Current architecture](docs/current/architecture.md)
 - [Background jobs](docs/current/background-jobs.md)
 - [Master plan](docs/roadmap/master-plan.md)
-- [Architecture and contraction roadmap](docs/roadmap/contraction.md)
+- [Application-boundaries roadmap](docs/roadmap/application-boundaries.md)
 - [Local subrepositories](docs/current/local-subrepositories.md)
 
 ## Licenses

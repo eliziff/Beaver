@@ -14,14 +14,14 @@ const allow = (...groups) => new Set(groups.flatMap(([base, names, extension = "
   names.split(" ").map((name) => `${base}/${name}.${extension}`)));
 const modeFiles = allow(
   ["backend/src", "api index runtime runtimeConfig server"],
-  ["backend/src/lib", "draftingStyleStore localMode relationalDatabase tableOfAuthorities userSettings"],
-  ["backend/src", "middleware/auth routes/user"],
+  ["backend/src/lib", "localMode relationalDatabase"],
+  ["backend/src", "middleware/auth"],
   ["frontend/src/app", "(pages)/account/layout (pages)/layout (pages)/projects/[id]/assistant/chat/[chatId]/page components/documents/DocumentAutomation components/projects/ProjectDocumentsView components/projects/ProjectWorkspace components/settings/ApiKeySettings components/settings/AppSettingsModal components/shared/AppSidebar components/workflows/WorkflowDetailPage contexts/AuthContext contexts/UserProfileContext", "tsx"],
   ["frontend/src/app/lib", "authMode beaverApi"], ["frontend/src", "main", "tsx"],
 );
 const adapterFiles = allow(
-  ["backend/src", "runtime middleware/auth routes/user"],
-  ["backend/src/lib", "access audit draftingStyleStore filesystemObjectStorage jobQueue pdfJobs postgresChatFeatures providerSessionStore relationalChatRepository relationalDatabase relationalDocumentRepository relationalLibraryRepository relationalProjectRepository relationalRepositorySupport relationalTabularRepository relationalWorkflowRepository storage supabase userApiKeys userDataCleanup userDataExport userLookup userSettings"],
+  ["backend/src", "runtime middleware/auth routes/auth"],
+  ["backend/src/lib", "access audit authSession filesystemObjectStorage jobQueue pdfJobs providerSessionStore relationalChatRepository relationalDatabase relationalDocumentRepository relationalLibraryRepository relationalProjectRepository relationalRepositorySupport relationalTabularRepository relationalUserPreferencesRepository relationalWorkflowRepository relationalWorkProductRepository storage supabase supabaseUserAccount userApiKeys userDataCleanup userDataExport userLookup"],
   ["backend/src/lib/mcp", "oauth servers types"],
   ["frontend/src/app", "(pages)/account/security/page components/account/AuthPage components/popups/MfaVerificationPopup contexts/AuthContext", "tsx"],
   ["frontend/src/app/lib", "beaverApi supabase"],
@@ -30,7 +30,7 @@ const adapterFiles = allow(
 function deploymentAdapter(specifier) {
   const normalized = specifier.replaceAll("\\", "/");
   const leaf = normalized.split("/").at(-1)?.replace(/\.[cm]?[jt]sx?$/u, "");
-  return ["authMode", "filesystemObjectStorage", "localMode", "relationalDatabase",
+  return ["authMode", "authSession", "filesystemObjectStorage", "localMode", "relationalDatabase",
     "runtimeConfig", "supabase"].includes(leaf ?? "") ||
     /^relational[A-Z].*Repository(?:Support)?$/u.test(leaf ?? "") || normalized === "postgres" ||
     normalized === "@supabase/supabase-js" || normalized.startsWith("@aws-sdk/");

@@ -10,6 +10,8 @@ import {
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
 import type { ModelCatalog } from "@/app/lib/beaverApi";
+import { Switch } from "@/app/components/ui/switch";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
 export function SubagentSettings() {
     const [preferences, savePreferences] = useAssistantPreferences();
@@ -54,17 +56,14 @@ export function SubagentSettings() {
             <AccountSection className="divide-y divide-gray-200 p-0">
                 <label className="grid min-w-0 gap-2 px-4 py-3 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
                     <span className="font-medium">Agent mode</span>
-                    <select
-                        value={preference.mode}
-                        onChange={(event) =>
-                            update({ mode: event.currentTarget.value as typeof preference.mode })
-                        }
-                        className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                    >
-                        <option value="none">None</option>
-                        <option value="beaver">Beaver</option>
-                        <option value="native">Native Codex</option>
-                    </select>
+                    <ModalSelect
+                        id="reading-agent-mode" value={preference.mode} placeholder={null}
+                        onChange={(mode) => update({ mode: mode as typeof preference.mode })}
+                        options={[
+                            { value: "none", label: "None" },
+                            { value: "beaver", label: "Beaver" },
+                            { value: "native", label: "Native Codex" },
+                        ]} />
                 </label>
                 <div className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end">
                     <div className="min-w-0">
@@ -94,17 +93,8 @@ export function SubagentSettings() {
                         </span>
                     </span>
                     <span className="relative grid h-11 w-12 shrink-0 place-items-center">
-                        <input
-                            type="checkbox"
-                            role="switch"
-                            checked={preference.showDock}
-                            onChange={(event) =>
-                                update({ showDock: event.currentTarget.checked })
-                            }
-                            className="peer sr-only"
-                        />
-                        <span className="h-6 w-10 rounded-full bg-gray-300 transition-colors peer-checked:bg-gray-900 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gray-900" />
-                        <span className="pointer-events-none absolute left-2 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
+                        <Switch checked={preference.showDock} size="lg" tone="dock"
+                            onChange={(showDock) => update({ showDock })} />
                     </span>
                 </label>
                 <p

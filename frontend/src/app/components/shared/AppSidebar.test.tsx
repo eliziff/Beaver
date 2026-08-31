@@ -12,19 +12,17 @@ import { AppSidebar } from "./AppSidebar";
 const mocks = vi.hoisted(() => ({
   pathname: "/assistant/chat/assistant-chat",
   localMode: true,
-  profile: null as { displayName: string; tier: string } | null,
+  profile: null as { displayName: string } | null,
   loadChats: vi.fn(),
   deleteChat: vi.fn(),
   replace: vi.fn(),
   updateChatProject: vi.fn(),
-  onAuthoritiesNavigate: vi.fn(),
 }));
 function sidebar(mobileOpen: boolean, onToggle = vi.fn()) {
   return (
     <AppSidebar
       mobileOpen={mobileOpen}
       onToggle={onToggle}
-      onAuthoritiesNavigate={mocks.onAuthoritiesNavigate}
     />
   );
 }
@@ -274,40 +272,6 @@ describe("AppSidebar", () => {
     opener.remove();
   });
 
-  it("keeps primary navigation fixed when navigating to Authorities", () => {
-    const onToggle = vi.fn();
-    const { rerender } = render(sidebar(false, onToggle));
-    const labelsBefore = within(
-      screen.getByRole("navigation", { name: "Primary" }),
-    )
-      .getAllByRole("link")
-      .map((link) => link.textContent);
-
-    const authorities = screen.getByRole("link", { name: "Authorities" });
-    expect(authorities).toHaveAttribute("href", "/table-of-authorities");
-    fireEvent.click(authorities);
-    expect(mocks.onAuthoritiesNavigate).toHaveBeenCalledOnce();
-    expect(onToggle).not.toHaveBeenCalled();
-
-    mocks.pathname = "/table-of-authorities";
-    rerender(sidebar(false, onToggle));
-
-    const labelsAfter = within(
-      screen.getByRole("navigation", { name: "Primary" }),
-    )
-      .getAllByRole("link")
-      .map((link) => link.textContent);
-    expect(labelsAfter).toEqual(labelsBefore);
-    expect(
-      screen.getByRole("link", { name: "Authorities" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.queryByRole("region", { name: "Assistant history" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("complementary")).toHaveClass("lg:w-64");
-    expect(screen.getByRole("complementary")).not.toHaveClass("md:w-14");
-  });
-
   it("moves an Assistant chat through the shared project chooser", async () => {
     const moved = vi.fn();
     window.addEventListener("beaver:chat-project-moved", moved);
@@ -415,15 +379,15 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("exposes local tools and read-only starter workflows", () => {
+  it("uses Workflows as the only workflow discovery destination", () => {
     render(sidebar(false));
 
     expect(
-      screen.getByRole("link", { name: "Tabular Review" }),
-    ).toBeInTheDocument();
-    expect(
       screen.getByRole("link", { name: "Workflows" }),
     ).toHaveAttribute("href", "/workflows");
+    expect(screen.queryByRole("link", { name: "Authorities" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Court Records" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Tabular Review" })).toBeNull();
     expect(screen.getByRole("button", { name: "Recycling bin" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "API keys" })).toBeNull();

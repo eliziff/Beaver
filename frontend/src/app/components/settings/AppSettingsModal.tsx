@@ -1,14 +1,10 @@
 "use client";
 
 import { Link } from "react-router-dom";
-import {
-    useId,
-    useRef,
-    useState,
-    type KeyboardEvent,
-    type ReactNode,
-} from "react";
+import { useState, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
+import { Tabs } from "@/app/components/ui/tabs";
 import { ApiKeySettings } from "./ApiKeySettings";
 import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 import { SubagentSettings } from "./SubagentSettings";
@@ -18,9 +14,11 @@ import { useAssistantPreferences } from "@/app/components/assistant/assistantPre
 import { EditModeSettings } from "./EditModeSettings";
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
 import { DisplaySettings } from "./DisplaySettings";
+import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
 
 const TABS = ["General", "Display", "Drafting", "Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
+const TAB_OPTIONS = TABS.map((value) => ({ value, label: value }));
 
 export function AppSettingsModal({
     open,
@@ -31,25 +29,6 @@ export function AppSettingsModal({
 }) {
     const [preferences, savePreferences] = useAssistantPreferences();
     const [selectedTab, setSelectedTab] = useState<SettingsTab>("General");
-    const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-    const idPrefix = useId();
-
-    const selectTab = (index: number) => {
-        const nextIndex = (index + TABS.length) % TABS.length;
-        setSelectedTab(TABS[nextIndex]);
-        tabRefs.current[nextIndex]?.focus();
-    };
-    const handleTabKeyDown = (
-        event: KeyboardEvent<HTMLButtonElement>,
-        index: number,
-    ) => {
-        if (event.key === "ArrowRight") selectTab(index + 1);
-        else if (event.key === "ArrowLeft") selectTab(index - 1);
-        else if (event.key === "Home") selectTab(0);
-        else if (event.key === "End") selectTab(TABS.length - 1);
-        else return;
-        event.preventDefault();
-    };
 
     const panels: Record<SettingsTab, ReactNode> = {
         General: (
@@ -64,6 +43,14 @@ export function AppSettingsModal({
                     </p>
                     <AccountSection className="p-4">
                         <JurisdictionPreferenceEditor />
+                    </AccountSection>
+                </section>
+                <section>
+                    <h2 className="mb-3 text-base font-semibold text-gray-900">
+                        File locations
+                    </h2>
+                    <AccountSection>
+                        <WorkflowFileTargetSettings />
                     </AccountSection>
                 </section>
             </div>
@@ -85,23 +72,18 @@ export function AppSettingsModal({
                                 Auto shows available model thinking summaries without exposing tool arguments.
                             </span>
                         </span>
-                        <select
-                            value={preferences.activityDetail}
-                            onChange={(event) =>
-                                savePreferences({ activityDetail:
-                                    event.currentTarget.value as
-                                        | "auto"
-                                        | "standard"
-                                        | "tools"
-                                        | "trace" })
-                            }
-                            className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                        >
-                            <option value="auto">Auto</option>
-                            <option value="standard">Standard</option>
-                            <option value="tools">Tool calls</option>
-                            <option value="trace">Full trace</option>
-                        </select>
+                        <ModalSelect
+                            id="assistant-activity-detail" value={preferences.activityDetail}
+                            onChange={(activityDetail) => savePreferences({
+                                activityDetail: activityDetail as typeof preferences.activityDetail,
+                            })} placeholder={null}
+                            className="w-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                            options={[
+                                { value: "auto", label: "Auto" },
+                                { value: "standard", label: "Standard" },
+                                { value: "tools", label: "Tool calls" },
+                                { value: "trace", label: "Full trace" },
+                            ]} />
                     </label>
                 </AccountSection>
             </section>
@@ -141,53 +123,18 @@ export function AppSettingsModal({
                 ) : undefined
             }
         >
-            <div
-                role="tablist"
-                aria-label="Settings sections"
-                className="sticky top-0 z-10 grid shrink-0 grid-cols-2 gap-1 border-b border-gray-200 bg-white pb-2 sm:grid-cols-5"
-            >
-                {TABS.map((tab, index) => {
-                    const selected = tab === selectedTab;
-                    return (
-                        <button
-                            key={tab}
-                            ref={(node) => {
-                                tabRefs.current[index] = node;
-                            }}
-                            type="button"
-                            role="tab"
-                            id={`${idPrefix}-tab-${index}`}
-                            aria-selected={selected}
-                            aria-controls={`${idPrefix}-panel-${index}`}
-                            tabIndex={selected ? 0 : -1}
-                            onClick={() => setSelectedTab(tab)}
-                            onKeyDown={(event) =>
-                                handleTabKeyDown(event, index)
-                            }
-                            className={`min-h-10 rounded-md border px-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 ${
-                                selected
-                                    ? "border-gray-300 bg-gray-100 text-gray-950"
-                                    : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                            }`}
-                        >
-                            {tab}
-                        </button>
-                    );
-                })}
-            </div>
-            {TABS.map((tab, index) => (
+            <Tabs value={selectedTab} onValueChange={setSelectedTab}
+                options={TAB_OPTIONS} ariaLabel="Settings sections" variant="settings">
+            {TABS.map((tab) => (
                 <div
                     key={tab}
-                    role="tabpanel"
-                    id={`${idPrefix}-panel-${index}`}
-                    aria-labelledby={`${idPrefix}-tab-${index}`}
-                    tabIndex={0}
                     hidden={tab !== selectedTab}
                     className="min-w-0 py-4 focus-visible:outline-none"
                 >
                     {panels[tab]}
                 </div>
             ))}
+            </Tabs>
         </Modal>
     );
 }

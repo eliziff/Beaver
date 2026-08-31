@@ -8,7 +8,8 @@ import {
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
 import type { AskInputsEvent } from "./types";
-import type { LegalEvidenceReceipt, RegisteredEvidence } from "./legalEvidence";
+import type { LegalEvidenceReceipt, PendingLegalResearchQueryReceipt,
+  RegisteredEvidence } from "./legalEvidence";
 import type { ReadSubagentRegion } from "./readSubagents";
 import type { AssistantEvent } from "./turnEngine";
 
@@ -22,6 +23,7 @@ export type BeaverOutcome = {
   metadata?: Omit<NormalizedToolResult, "tool_use_id" | "content" | "terminal">;
   events?: AssistantEvent[];
   evidence?: LegalEvidenceReceipt[];
+  queryReceipts?: PendingLegalResearchQueryReceipt[];
   evidenceSources?: Map<string, Omit<RegisteredEvidence, "receipt">>;
   activityCitations?: Record<string, unknown>[];
   pause?: AskInputsEvent;
@@ -50,6 +52,7 @@ export type ToolBatch = {
   mutated: boolean;
   events: AssistantEvent[];
   evidence: LegalEvidenceReceipt[];
+  queryReceipts: PendingLegalResearchQueryReceipt[];
 };
 
 const validator = new AjvJsonSchemaValidator();
@@ -212,6 +215,7 @@ export class TurnToolRegistry<Context> {
       mutated: outcomes.some(({ mutated }) => mutated === true),
       events: outcomes.flatMap(({ events }) => events ?? []),
       evidence: outcomes.flatMap(({ evidence }) => evidence ?? []),
+      queryReceipts: outcomes.flatMap(({ queryReceipts }) => queryReceipts ?? []),
     };
   }
 

@@ -1,16 +1,5 @@
 import { normalizeQuoteText, strippedToOriginal } from "./quoteText";
-
-let pdfjsLib: typeof import("pdfjs-dist") | null = null;
-
-export async function getPdfJs() {
-    if (pdfjsLib) return pdfjsLib;
-    pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-    ).toString();
-    return pdfjsLib;
-}
+export { getPdfJs } from "@/app/lib/pdfJs";
 
 export const STANDARD_FONT_DATA_URL = new URL(
     "/pdfjs-standard-fonts/",

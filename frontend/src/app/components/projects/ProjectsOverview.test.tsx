@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
 
 import type { Project } from "@/app/components/shared/types";
 import { ProjectsOverview } from "./ProjectsOverview";
@@ -28,6 +29,7 @@ const createdProject: Project = {
 
 vi.mock("react-router-dom", () => ({
     useNavigate: () => push,
+    Link: ({ to, ...props }: { to: string } & ComponentProps<"a">) => <a href={to} {...props} />,
 }));
 
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -107,8 +109,14 @@ describe("ProjectsOverview", () => {
             await screen.findByRole("searchbox", { name: "Search projects" }),
         ).toBeVisible();
         expect(screen.getByRole("button", {
-            name: "Create project +",
+            name: "New project",
         })).toBeVisible();
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", { name: "Boolean search help" }));
+        expect(screen.getByRole("tooltip")).toHaveTextContent("AND or a space finds all terms");
+        fireEvent.keyDown(screen.getByRole("button", { name: "Boolean search help" }),
+            { key: "Escape" });
+        expect(screen.queryByRole("tooltip")).toBeNull();
         expect(await screen.findByText("No projects")).toBeVisible();
     });
 
@@ -122,22 +130,23 @@ describe("ProjectsOverview", () => {
             .not.toBeInTheDocument();
     });
 
-    it("keeps the action slot mounted and deletes without a one-item menu", async () => {
+    it("replaces the table header with actions only while selected", async () => {
         listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
         render(<ProjectsOverview />);
-        const slot = screen.getByLabelText("Selected project actions");
 
-        expect(slot).not.toBeNull();
         await screen.findByText(createdProject.name);
+        expect(screen.queryByText("1 selected")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Open in new chat" })).toBeNull();
         fireEvent.click(screen.getAllByRole("checkbox")[1]);
 
-        expect(screen.getByLabelText("Selected project actions")).toBe(slot);
-        expect(
-            screen.queryByRole("combobox", { name: "Actions" }),
-        ).not.toBeInTheDocument();
-        fireEvent.click(
-            screen.getByRole("button", { name: "Delete selected" }),
-        );
+        expect(screen.getByText("1 selected")).toBeVisible();
+        expect(screen.getByRole("button", { name: "Open in new chat" })).toBeVisible();
+        fireEvent.click(screen.getByRole("button", {
+            name: "More actions for selected projects",
+        }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+        expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete project?");
+        fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
         await waitFor(() =>
             expect(deleteProject).toHaveBeenCalledWith(createdProject.id),
@@ -149,7 +158,7 @@ describe("ProjectsOverview", () => {
         render(<ProjectsOverview />);
 
         await user.click(
-            await screen.findByRole("button", { name: "Create project +" }),
+            await screen.findByRole("button", { name: "New project" }),
         );
         await user.click(
             screen.getByRole("button", { name: "Complete project creation" }),
@@ -165,5 +174,28 @@ describe("ProjectsOverview", () => {
         expect(await screen.findByText("New appeal")).toBeVisible();
         expect(screen.getByText(formattedDate)).toBeVisible();
         expect(push).toHaveBeenCalledWith("/projects/project-new");
+    });
+
+    it("keeps and identifies projects whose deletion fails", async () => {
+        const failedProject = { ...createdProject, id: "project-failed", name: "Failed appeal" };
+        listProjects.mockResolvedValue({ items: [createdProject, failedProject], next_cursor: null });
+        deleteProject.mockImplementation((id) => id === failedProject.id
+            ? Promise.reject(new Error("offline"))
+            : Promise.resolve());
+        const user = userEvent.setup();
+        render(<ProjectsOverview />);
+
+        await screen.findByText(createdProject.name);
+        const checkboxes = screen.getAllByRole("checkbox");
+        await user.click(checkboxes[1]);
+        await user.click(checkboxes[2]);
+        await user.click(screen.getByRole("button", { name: "More actions for selected projects" }));
+        await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+        await user.click(screen.getByRole("button", { name: "Delete" }));
+
+        expect(await screen.findByText("Some projects were not deleted")).toBeVisible();
+        expect(screen.queryByText(createdProject.name)).toBeNull();
+        expect(screen.getByText(failedProject.name)).toBeVisible();
+        expect(screen.getByRole("alertdialog")).toHaveTextContent(failedProject.id);
     });
 });

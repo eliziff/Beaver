@@ -143,6 +143,25 @@ describe("shared document application", () => {
     expect((await objects.list()).keys).toEqual([]);
   });
 
+  it("rejects output bytes that do not match their build receipt before storing them", async () => {
+    const objects = createFilesystemObjectStorage(root);
+    const state = memoryRepository();
+    const documents = createDocumentApplication(state.repository, objects);
+    const scope = { userId: "receipt-owner" };
+    const created = await documents.create(scope, {
+      filename: "Record.docx", fileType: "docx", bytes: await docx("first"),
+    });
+    const before = (await objects.list()).keys;
+    await expect(documents.addVersion(scope, created.id, {
+      filename: "Record.docx", fileType: "docx", bytes: await docx("second"),
+      expectedSha256: "0".repeat(64),
+    })).rejects.toMatchObject({ status: 409 });
+    expect((await documents.read(scope, created.id, null, false))?.version.id)
+      .toBe(created.current_version_id);
+    expect((await objects.list()).keys).toEqual(before);
+    await documents.deleteDocument(scope, created.id);
+  });
+
   it("keeps local and cloud lifecycle outcomes identical", async () => {
     const outcomes = [];
     for (const mode of modes()) {

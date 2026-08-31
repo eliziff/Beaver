@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch } from "../lib/beaverApi";
+import { apiFetch } from "../lib/apiTransport";
 
 export type DocumentFile = {
   type: "pdf" | "spreadsheet" | "docx" | "text";
@@ -98,7 +98,7 @@ export function useDocumentFile(
     return () => {
       live = false;
     };
-  }, [documentId, key, original, revision, versionId]);
+  }, [current.result, documentId, key, original, revision, versionId]);
 
   return {
     result: current.result,

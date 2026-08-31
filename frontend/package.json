@@ -6,15 +6,15 @@
     "scripts": {
         "dev": "vite --host 127.0.0.1 --port 3000",
         "prebuild": "node scripts/guard-live-build.mjs",
-        "build": "tsc --noEmit && vite build",
+        "build": "tsc --noEmit && vite build && node scripts/standalone-bundle-boundary.mjs",
         "start": "vite preview --host 127.0.0.1 --port 3000",
         "lint": "eslint",
         "test": "vitest run && node --test scripts/guard-live-build.test.mjs scripts/transport-boundary.test.mjs",
         "preview": "vite preview --host 127.0.0.1 --port 3000"
     },
     "dependencies": {
-        "@supabase/supabase-js": "^2.81.1",
         "lucide-react": "^0.553.0",
+        "pdf-lib": "^1.17.1",
         "pdfjs-dist": "^4.10.38",
         "react": "19.2.0",
         "react-dom": "19.2.0",
@@ -22,8 +22,7 @@
         "react-router-dom": "^7.18.2",
         "remark-gfm": "^4.0.1",
         "remend": "^1.3.0",
-        "tailwind-merge": "^3.4.0",
-        "zod": "^4.3.6"
+        "tailwind-merge": "^3.4.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",

@@ -29,6 +29,8 @@ export const localAssistantToolRegistry = (
     documents: localDocuments,
     library: localLibraryStore,
     projects: localProjects,
+    workProducts: {} as never,
+    authorities: {} as never,
     scope: "main",
     resolveArtifact: () => undefined,
     artifactFor: () => "",
@@ -60,6 +62,7 @@ export const runLocalAssistantTools = async (
       ...(outcome.terminal && { terminal: true }),
       ...(outcome.events?.length && { events: outcome.events }),
       ...(outcome.evidence?.length && { evidence: outcome.evidence }),
+      ...(outcome.queryReceipts?.length && { queryReceipts: outcome.queryReceipts }),
     };
   });
 };

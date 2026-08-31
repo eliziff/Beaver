@@ -58,20 +58,6 @@ describe("MfaLoginGate", () => {
         mocks.signOut.mockReset();
     });
 
-    it("bypasses MFA in local mode without loading the cloud check", () => {
-        mocks.auth.user = { id: "00000000-0000-0000-0000-000000000001" };
-        mocks.profile.value = { mfaOnLogin: false };
-
-        render(
-            <MfaLoginGate>
-                <p>Protected content</p>
-            </MfaLoginGate>,
-        );
-
-        expect(screen.getByText("Protected content")).toBeInTheDocument();
-        expect(mocks.needsMfa).not.toHaveBeenCalled();
-    });
-
     it("stays fail-closed while the profile loads", () => {
         mocks.profile.loading = true;
 

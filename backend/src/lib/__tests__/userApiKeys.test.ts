@@ -1,25 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
     getEnvironmentApiKeyStatus,
-    normalizeApiKeyProvider,
     hasEnvApiKey,
 } from "../userApiKeys";
-
-describe("normalizeApiKeyProvider", () => {
-    it("returns each supported provider unchanged", () => {
-        for (const provider of ["claude", "openai", "gemini", "deepseek"]) {
-            expect(normalizeApiKeyProvider(provider)).toBe(provider);
-        }
-    });
-
-    it("returns null for unknown provider strings", () => {
-        expect(normalizeApiKeyProvider("unknown")).toBeNull();
-        expect(normalizeApiKeyProvider("")).toBeNull();
-        expect(normalizeApiKeyProvider("Claude")).toBeNull();
-        expect(normalizeApiKeyProvider("OPENAI")).toBeNull();
-    });
-});
-
 describe("hasEnvApiKey", () => {
     const envVars = [
         "ANTHROPIC_API_KEY",
@@ -29,6 +12,7 @@ describe("hasEnvApiKey", () => {
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_OCR_KEY",
         "OPENROUTER_API_KEY",
+        "OPENCODE_GO_API_KEY",
         "COURTLISTENER_API_TOKEN",
     ];
 
@@ -90,6 +74,7 @@ describe("hasEnvApiKey", () => {
             openai: false,
             deepseek: true,
             openrouter: false,
+            "opencode-go": false,
             meta: false,
             courtlistener: false,
             sources: {
@@ -98,6 +83,7 @@ describe("hasEnvApiKey", () => {
                 openai: null,
                 deepseek: "env",
                 openrouter: null,
+                "opencode-go": null,
                 meta: null,
                 courtlistener: null,
             },

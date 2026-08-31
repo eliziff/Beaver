@@ -3,6 +3,7 @@ import { abortChatTurnForDeletion } from "./chatTurns";
 import { normalizeDocumentFilename } from "./normalize";
 import { deleteFolderDocuments, validateFolderMove } from "./folderApplication";
 import { ApplicationError, notFound as missing, type ApplicationScope } from "./applicationError";
+import { deterministicUuid } from "./hash";
 
 export type ProjectScope = ApplicationScope;
 export type ProjectRecord = Record<string, unknown> & { id: string };
@@ -33,7 +34,7 @@ export type ProjectRepository = {
   remove(scope: ProjectScope, projectId: string): Promise<string[] | null>;
   folder(scope: ProjectScope, projectId: string, folderId: string): Promise<ProjectFolder | null>;
   createFolder(scope: ProjectScope, projectId: string, input: {
-    name: string; parentFolderId: string | null;
+    name: string; parentFolderId: string | null; stableId?: string;
   }): Promise<ProjectFolder | null>;
   updateFolder(scope: ProjectScope, projectId: string, folderId: string, input: {
     name?: string; parentFolderId?: string | null }): Promise<ProjectFolder | null>;
@@ -55,7 +56,10 @@ export type ProjectStore = {
     Promise<{ document: ProjectRecord; created: boolean }>;
   renameDocument(scope: ProjectScope, projectId: string, id: string,
     filename: unknown): Promise<ProjectRecord>;
+  getFolder: ProjectRepository["folder"];
   createFolder: ProjectRepository["createFolder"];
+  ensureRootFolder(scope: ProjectScope, projectId: string, name: string,
+    key: string): Promise<ProjectFolder>;
   updateFolder: ProjectRepository["updateFolder"];
   deleteFolder(scope: ProjectScope, projectId: string, id: string): Promise<void>;
   moveDocument(scope: ProjectScope, projectId: string, id: string,
@@ -165,12 +169,19 @@ export function createProjectStore(
       )) throw missing("Document not found");
       return { ...current, filename };
     },
+    getFolder: (scope, projectId, folderId) =>
+      repository.folder(scope, projectId, folderId),
     async createFolder(scope, projectId, input) {
       if (input.parentFolderId) {
         await folder(scope, projectId, input.parentFolderId, "Parent folder not found");
       }
       return await repository.createFolder(scope, projectId, input)
         ?? Promise.reject(missing("Parent folder not found"));
+    },
+    async ensureRootFolder(scope, projectId, name, key) {
+      return await repository.createFolder(scope, projectId, { name, parentFolderId: null,
+        stableId: deterministicUuid(`workflow-folder\0project\0${projectId}\0${key}`) })
+        ?? Promise.reject(missing("Project not found"));
     },
     async updateFolder(scope, projectId, folderId, input) {
       await folder(scope, projectId, folderId);

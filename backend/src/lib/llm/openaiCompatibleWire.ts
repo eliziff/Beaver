@@ -35,6 +35,7 @@ type CompatibleWireConfig = {
   model: string;
   provider: string;
   maxTokens: number;
+  imageInput?: boolean;
   headers?: Record<string, string>;
   request?: Record<string, unknown>;
   prepareMessages?: (messages: CompatibleMessage[], tools: Tool[]) => void;
@@ -50,15 +51,27 @@ const wireTools = (tools: Tool[]) => tools.map((tool) => ({
   },
 }));
 
-function messages(source: LlmMessage[], system: string): CompatibleMessage[] {
-  if (source.some((message) => message.images?.length)) {
+function messages(
+  source: LlmMessage[],
+  system: string,
+  imageInput: boolean,
+): CompatibleMessage[] {
+  if (!imageInput && source.some((message) => message.images?.length)) {
     throw new Error("This provider does not support image input.");
   }
   return [
     ...(system ? [{ role: "system" as const, content: system }] : []),
     ...source.map((message): CompatibleMessage => ({
       role: message.role,
-      content: message.content,
+      content: message.role === "user" && message.images?.length
+        ? [
+            { type: "text", text: message.content },
+            ...message.images.map((image) => ({
+              type: "image_url",
+              image_url: { url: `data:${image.mimeType};base64,${image.data}` },
+            })),
+          ]
+        : message.content,
     })),
   ];
 }
@@ -79,7 +92,7 @@ export function createCompatibleWireAdapter(
   params: StreamChatParams,
   config: CompatibleWireConfig,
 ): ProviderAdapter {
-  const initial = messages(params.messages, params.systemPrompt);
+  const initial = messages(params.messages, params.systemPrompt, config.imageInput === true);
   const client = openAI.then((OpenAI) => new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,

@@ -26,6 +26,7 @@ import {
   type ProviderPdfAttachment,
 } from "../lib/providerPdfLibraryBridge";
 import { structureNative, type NativeDocument } from "../lib/structureNative";
+import { searchFts5 } from "../lib/searchQuery";
 
 function text(value: unknown, name: string, maximum = 500) {
   const result = typeof value === "string" ? value.trim() : "";
@@ -210,7 +211,8 @@ router.get("/search", asyncRoute(async (req, res) => {
     : selected === "hansard" ? 10 : 12;
   const type = searchType[selected];
   const query = {
-    text: text(req.query.query, "query"),
+    text: searchFts5(text(req.query.query, "query")),
+    syntax: "fts5" as const,
     kinds: [type.kind],
     providers: [type.provider],
     searchType: req.query.search_type === "name" ? "name" as const : "full_text" as const,

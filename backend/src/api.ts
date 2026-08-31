@@ -10,6 +10,7 @@ import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
 import { sha256 } from "./lib/hash";
 import { concurrentRequests } from "./lib/requestConcurrency";
 import { safeErrorLog } from "./lib/safeError";
+import { publicOrigin } from "./lib/publicOrigin";
 
 export const api = express();
 
@@ -69,6 +70,7 @@ const exportLimiter = makeLimiter("EXPORT", 10, 1, "HOURS",
 const dataDeleteLimiter = makeLimiter("DATA_DELETE", 20, 1, "HOURS",
   "Too many data deletion requests. Please try again later.");
 const lookupLimiter = makeLimiter("LOOKUP", 60, 1, "HOURS");
+const authLimiter = makeLimiter("AUTH", 60, 15, "MINUTES", undefined, false);
 const workSlot = concurrentRequests(8, "The service is busy. Try again shortly.");
 const jsonBody = express.json({ limit: "2mb" });
 
@@ -87,8 +89,13 @@ for (const path of ["/chat", "/chat/:chatId/compact", "/chat/:chatId/generate-ti
   api.post(path, chatLimiter, workSlot);
 api.post("/chat/create", chatCreateLimiter);
 for (const path of ["/single-documents", "/library/:kind/documents",
-  "/single-documents/:documentId/versions", "/projects/:projectId/documents"])
+  "/single-documents/:documentId/versions", "/projects/:projectId/documents",
+  "/court-records/documents", "/court-records/documents/:documentId/versions",
+  "/court-records/docx-rendition",
+  "/authorities-runtime/import", "/authorities-runtime/refresh", "/authorities-runtime/build",
+  "/authorities/documents", "/authorities/:id/attachments/:authorityId"])
   api.post(path, uploadLimiter);
+api.post("/court-records/docx-rendition", workSlot);
 api.put("/single-documents/:documentId/versions/:versionId/file", uploadLimiter);
 for (const path of ["/user/export", "/user/chats/export",
   "/user/tabular-reviews/export", "/tabular-review/:reviewId/export",
@@ -100,23 +107,27 @@ for (const path of ["/user/account", "/user/chats", "/user/projects",
 api.get("/user/lookup", lookupLimiter);
 for (const path of ["/user/mcp-connectors/:connectorId/oauth/start",
   "/user/mcp-connectors/:connectorId/refresh-tools", "/sources",
+  "/work-products/:id/research-query",
   "/library/:kind/documents/:documentId/actions/retry-pdf-parse",
-  "/table-of-authorities/jobs"])
+  "/authorities", "/authorities/:id/actions",
+  "/authorities-runtime/import", "/authorities-runtime/refresh",
+  "/authorities-runtime/action", "/authorities-runtime/build",
+  "/authorities/:id/refresh", "/authorities/:id/build"])
   api.post(path, lookupLimiter, workSlot);
 for (const path of ["/sources/coverage", "/sources/search", "/sources/document",
-  "/sources/:referenceId/document"]) api.get(path, lookupLimiter, workSlot);
+  "/sources/:referenceId/document", "/court-records/documents/:documentId/preparation"])
+  api.get(path, lookupLimiter, workSlot);
 
-api.use(
-  "/table-of-authorities/workspace",
-  lookupLimiter,
-  workSlot,
-);
-api.use(
-  "/table-of-authorities",
-  lazyRouter(async () => (await import("./routes/tableOfAuthorities"))
-    .createTableOfAuthoritiesRouter(await runtime.documents())),
-);
+if (runtime.mode === "local") api.use("/authorities-runtime/action",
+  express.json({ limit: "100mb" }));
 api.use(jsonBody);
+
+if (runtime.mode === "cloud") api.use(
+  "/auth",
+  authLimiter,
+  lazyRouter(() => import("./routes/auth").then((mod) =>
+    mod.createAuthRouter(publicOrigin()))),
+);
 
 api.use(
   "/chat",
@@ -165,6 +176,21 @@ api.use(
   }),
 );
 api.use(
+  "/court-records",
+  lazyRouter(async () => (await import("./routes/courtRecords"))
+    .createCourtRecordsRouter(await runtime.courtRecords())),
+);
+if (runtime.mode === "local") api.use(
+  "/authorities-runtime",
+  lazyRouter(async () => (await import("./routes/authoritiesRuntime"))
+    .createAuthoritiesRuntimeRouter()),
+);
+api.use(
+  "/authorities",
+  lazyRouter(async () => (await import("./routes/authorities"))
+    .createAuthoritiesRouter(await runtime.authoritiesWorkspace())),
+);
+api.use(
   "/tabular-review",
   lazyRouter(async () => {
     const { createTabularRouter } = await import("./routes/tabular");
@@ -180,15 +206,19 @@ api.use(
     return createWorkflowsRouter(workflows.repository, workflows.collaboration);
   }),
 );
+api.use(
+  "/work-products",
+  lazyRouter(async () => (await import("./routes/workProducts"))
+    .createWorkProductsRouter(await runtime.workProducts())),
+);
 api.use("/audit", lazyRouter(async () => (await import("./routes/audit"))
   .createAuditRouter(await runtime.audit())));
-const userRouter = lazyRouter(() =>
-  import("./routes/user").then((mod) => mod.userRouter),
-);
-api.use("/user", userRouter);
+api.use("/user", lazyRouter(async () =>
+  (await import("./routes/user")).createUserRouter(await runtime.user())));
 api.use(
   "/models",
-  lazyRouter(() => import("./routes/models").then((mod) => mod.modelRouter)),
+  lazyRouter(async () =>
+    (await import("./routes/models")).createModelsRouter(await runtime.user())),
 );
 api.get("/config", (_req, res) => {
   res.json(publicRuntimeConfig());

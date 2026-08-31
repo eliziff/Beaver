@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
@@ -27,7 +28,7 @@ vi.mock("@/app/lib/beaverApi", () => ({
     streamChatJob: mocks.streamChatJob,
     streamActiveChat: vi.fn().mockRejectedValue(new Error("observer unavailable")),
     generateChatTitle: mocks.generateChatTitle,
-    listSystemWorkflows: vi.fn().mockResolvedValue([]),
+    listWorkflows: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     useChatHistoryContext: () => ({
@@ -40,6 +41,9 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
 vi.mock("@/app/contexts/SidebarContext", () => ({
     useSidebar: () => ({ setSidebarOpen: vi.fn() }),
 }));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+    useUserProfile: () => ({ profile: null }),
+}));
 vi.mock("./UserMessage", () => ({ UserMessage: () => null }));
 vi.mock("./AssistantMessage", () => ({
     AssistantMessage: ({ isStreaming }: { isStreaming?: boolean }) => (
@@ -48,8 +52,10 @@ vi.mock("./AssistantMessage", () => ({
 }));
 vi.mock("./AskInputPopup", () => ({ AskInputPopup: () => null }));
 vi.mock("./AssistantSidePanel", () => ({ AssistantSidePanel: () => null }));
-vi.mock("./AssistantWorkflowModal", () => ({
-    AssistantWorkflowModal: () => null,
+vi.mock("@/app/components/legal/LegalLibrary", () => ({ LegalLibraryPage: () => null }));
+vi.mock("@/app/components/library/LibraryWorkspace", () => ({
+    LibraryWorkspaceProvider: ({ children }: { children: ReactNode }) => children,
+    LibraryCollectionPage: () => null,
 }));
 vi.mock("./ChatInput", async () => {
     const React = await import("react");

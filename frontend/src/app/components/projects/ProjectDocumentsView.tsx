@@ -2,32 +2,25 @@ import {
     useCallback,
     useState,
 } from "react";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
-import {
-    DocTable,
-    type DocTableSelectionActions,
-} from "@/app/components/documents/DocTable";
-import { DocumentAutomation } from "@/app/components/documents/DocumentAutomation";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
-import { ActionMenu } from "@/app/components/ui/action-menu";
+import { DocTable } from "@/app/components/documents/DocTable";
+import { DirectoryActions, type UploadActions } from "@/app/components/documents/UploadAction";
 import { projectBreadcrumbLabel } from "./ProjectPageParts";
-import { ProjectSectionToolbar, useProjectWorkspace } from "./ProjectWorkspace";
+import { ProjectSectionTabs, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
 export function ProjectDocumentsView() {
     const {
         projectId,
         project,
         search,
-        setAddDocumentsHeaderAction,
         setOwnerOnlyAction,
+        createChat,
     } = useProjectWorkspace();
     const projectLoading = project === undefined;
     const [createFolderAction, setCreateFolderAction] = useState<
         (() => void) | null
     >(null);
-    const [selectionActions, setSelectionActions] =
-        useState<DocTableSelectionActions | null>(null);
+    const [uploadActions, setUploadActions] = useState<UploadActions | null>(null);
     const files = useProjectFiles();
     const { documents, folders, operations } = files;
     const handleCreateFolderActionChange = useCallback(
@@ -36,66 +29,15 @@ export function ProjectDocumentsView() {
         },
         [],
     );
-    const toolbarActions = (
-        <div className="flex items-center gap-1.5">
-            <DocumentAutomation
-                document={selectionActions?.automationDocument ?? null}
-                showWhenUnavailable
-                onDocumentChanged={
-                    selectionActions?.onAutomationDocumentChanged
-                }
-            />
-            <span className="inline-flex h-8 w-[5.5rem]">
-                {selectionActions && (
-                    <ActionMenu
-                        label="Actions"
-                        items={[
-                            {
-                                label: "Download",
-                                onSelect: () =>
-                                    void selectionActions.onDownload(),
-                            },
-                            ...(selectionActions.hasDocumentsInFolders
-                                ? [
-                                      {
-                                          label: "Remove from subfolder",
-                                          onSelect: () =>
-                                              void selectionActions.onRemoveFromFolder(),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                label: "Remove",
-                                onSelect: () => void selectionActions.onDelete(),
-                            },
-                        ]}
-                        className="w-full"
-                        triggerClassName="h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-sm font-medium text-gray-800 hover:bg-gray-100 hover:text-gray-950"
-                    >
-                        Actions
-                        <span aria-hidden="true">&#9662;</span>
-                    </ActionMenu>
-                )}
-            </span>
-            <TabPillButton
-                onClick={createFolderAction ?? undefined}
-                disabled={!createFolderAction || projectLoading}
-            >
-                <FolderSvgIcon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Folder</span>
-            </TabPillButton>
-        </div>
+    const handleUploadActionsChange = useCallback(
+        (actions: UploadActions | null) => setUploadActions(actions), [],
     );
-    if (!projectLoading && !project) {
-        return (
-            <div className="flex h-full items-center justify-center">
-                <p className="text-gray-400">Project not found</p>
-            </div>
-        );
-    }
+    const toolbarActions = project !== null
+        ? <DirectoryActions actions={uploadActions} busy={projectLoading}
+            onCreateFolder={createFolderAction} />
+        : null;
     return (
-        <>
-            <ProjectSectionToolbar actions={toolbarActions} />
+        <ProjectSectionTabs actions={toolbarActions}>
             <DocTable
                 scopeKey={projectId}
                 documents={documents}
@@ -103,9 +45,11 @@ export function ProjectDocumentsView() {
                 loading={projectLoading || files.loading}
                 search={search}
                 operations={operations}
-                onAddDocumentsActionChange={setAddDocumentsHeaderAction}
+                onUploadActionsChange={handleUploadActionsChange}
                 onCreateFolderActionChange={handleCreateFolderActionChange}
-                onSelectionActionsChange={setSelectionActions}
+                onOpenSelectionInChat={(documents) => {
+                    void createChat(documents);
+                }}
                 renderAddDocumentsModal={(open, onClose, onSelect) =>
                     project ? (
                         <AddDocumentsModal
@@ -128,6 +72,6 @@ export function ProjectDocumentsView() {
                 onFolderExpanded={files.onFolderExpanded}
                 onLoadMore={files.onLoadMore}
             />
-        </>
+        </ProjectSectionTabs>
     );
 }

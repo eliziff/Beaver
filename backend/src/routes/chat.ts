@@ -10,11 +10,14 @@ import { CODEX_THREAD_ID } from "../lib/llm/codex";
 import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord } from "../lib/value";
+import { ApplicationError } from "../lib/applicationError";
+import { researchSetPromotionBodySchema } from "../lib/chat/researchSetChat";
 
 const text = (value: unknown, max = 20_000) => {
   const parsed = typeof value === "string" ? value.trim() : "";
   return parsed.length <= max ? parsed : "";
 };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 type Handler = (req: Request, res: Response, scope: ChatScope) => Promise<unknown>;
 function route(handler: Handler) {
   return asyncRoute(async (req, res) => {
@@ -33,6 +36,12 @@ function route(handler: Handler) {
           ...(error.currentVersion !== undefined
             ? { current_version: error.currentVersion } : {}),
           detail: error.message,
+        });
+      }
+      if (error instanceof ApplicationError) {
+        return void res.status(error.status).json({
+          detail: error.message,
+          ...(error.details ?? {}),
         });
       }
       console.error("[chat] operation failed", safeErrorLog(error));
@@ -158,6 +167,20 @@ export function createChatRouter(
     res.json({ stopped: await turns.cancelJob(scope, req.params.jobId) });
   }));
 
+  router.post("/jobs/:jobId/tool-result", route(async (req, res, scope) => {
+    const callId = text(req.body?.callId, 100);
+    if (!UUID.test(callId)) {
+      return void res.status(400).json({ detail: "callId must be a UUID" });
+    }
+    if (Buffer.byteLength(JSON.stringify(req.body?.result ?? null)) > 100 * 1024) {
+      return void res.status(413).json({ detail: "Tool result is too large" });
+    }
+    if (!await turns.clientResult(scope, req.params.jobId, callId, req.body?.result)) {
+      return void res.status(404).json({ detail: "Response is no longer running" });
+    }
+    res.status(204).send();
+  }));
+
   router.get("/jobs/:jobId/stream", route(async (req, res, scope) => {
     if (!await turns.job(scope, req.params.jobId)) {
       return void res.status(404).json({ detail: "Response not found" });
@@ -209,6 +232,21 @@ export function createChatRouter(
     } finally {
       if (claimedChatId) finishChatTurn(claimedChatId, controller);
     }
+  }));
+
+  router.post("/:chatId/research-sets/:researchSetId/promote", route(async (
+    req, res, scope,
+  ) => {
+    const parsed = researchSetPromotionBodySchema.safeParse(req.body);
+    if (!parsed.success) return void res.status(400).json({
+      detail: parsed.error.issues[0]?.message ?? "Invalid research selection",
+    });
+    const product = await application.promoteResearchSet(scope, {
+      chatId: req.params.chatId,
+      researchSetId: req.params.researchSetId,
+      ...parsed.data,
+    });
+    res.json({ research_set_id: product.id, revision: product.revision });
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {

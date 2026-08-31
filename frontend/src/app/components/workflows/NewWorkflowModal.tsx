@@ -1,330 +1,142 @@
 import { useRef, useState } from "react";
-import { MessageSquare, Table2, Upload } from "lucide-react";
+import { ChevronDown, MessageSquare, Table2, Upload } from "lucide-react";
 import { createWorkflow, updateWorkflow } from "@/app/lib/beaverApi";
-import type { Workflow } from "../shared/types";
-import { PRACTICE_OPTIONS } from "./practices";
+import type { Workflow, WorkflowAudience } from "../shared/types";
 import { Modal } from "../modals/Modal";
-import { ModalFieldLabel } from "../modals/ModalFieldLabel";
+import { FormField } from "../modals/ModalFieldLabel";
 import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalTextInput } from "../modals/ModalTextInput";
-const DEFAULT_LANGUAGE = "English";
-const DEFAULT_PRACTICE = "General Transactions";
-const DEFAULT_JURISDICTION = "General";
-const LANGUAGE_OPTIONS =
-    "English|Chinese|Spanish|French|German|Japanese|Korean|Portuguese|Italian|Dutch|Arabic|Hebrew|Persian|Urdu|Hindi|Bengali|Tamil|Telugu|Indonesian|Malay|Filipino|Vietnamese|Thai|Burmese|Khmer|Lao|Russian|Ukrainian|Turkish|Polish|Czech|Romanian|Greek|Danish|Finnish|Norwegian|Swedish|Afrikaans|Swahili".split("|");
-const JURISDICTION_OPTIONS =
-    "General|United States|England and Wales|European Union|Singapore|Hong Kong|Australia|Canada|India|Malaysia|Indonesia|Philippines|Thailand|Vietnam|Japan|South Korea|China|Taiwan|Germany|France|Netherlands|Ireland|Scotland|Luxembourg|Switzerland|Cayman Islands|British Virgin Islands|United Arab Emirates|Saudi Arabia|Brazil|Mexico".split("|");
-const US_STATE_OPTIONS =
-    "Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|District of Columbia".split("|");
-const CANADA_PROVINCE_OPTIONS =
-    "Alberta|British Columbia|Manitoba|New Brunswick|Newfoundland and Labrador|Northwest Territories|Nova Scotia|Nunavut|Ontario|Prince Edward Island|Quebec|Saskatchewan|Yukon".split("|");
-const JURISDICTION_SUGGESTIONS = [
-    ...JURISDICTION_OPTIONS,
-    ...US_STATE_OPTIONS,
-    ...CANADA_PROVINCE_OPTIONS,
-];
-const PRACTICE_SUGGESTIONS = PRACTICE_OPTIONS.filter(
-    (option) => option !== "Other",
-);
-const NEW_WORKFLOW = {
-    title: "",
-    type: "assistant" as const,
-    language: DEFAULT_LANGUAGE,
-    practice: DEFAULT_PRACTICE,
-    jurisdiction: DEFAULT_JURISDICTION,
-};
+import { ModalTextarea } from "../modals/ModalTextarea";
+import { Button } from "../ui/button";
+import { WORKFLOW_CATEGORIES } from "./workflowCatalog";
+
 interface Props {
-    open: boolean;
-    onClose: () => void;
-    onCreated: (workflow: Workflow) => void;
-    editWorkflow?: Workflow;
-    readOnly?: boolean;
-    onUpdated?: (workflow: Workflow) => void;
+    open: boolean; onClose: () => void; editWorkflow?: Workflow;
+    onCreated?: (workflow: Workflow) => void; onUpdated?: (workflow: Workflow) => void;
 }
-export function NewWorkflowModal({
-    open,
-    ...props
-}: Props) {
-    if (!open) return null;
-    return (
-        <OpenNewWorkflowModal
-            key={props.editWorkflow?.id ?? "new"}
-            open={open}
-            {...props}
-        />
-    );
+
+export function NewWorkflowModal({ open, ...props }: Props) {
+    return open ? <OpenNewWorkflowModal key={props.editWorkflow?.id ?? "new"} {...props} /> : null;
 }
-function OpenNewWorkflowModal({
-    open,
-    onClose,
-    onCreated,
-    editWorkflow,
-    readOnly = false,
-    onUpdated,
-}: Props) {
-    const defaults = editWorkflow
-        ? {
-              title: editWorkflow.metadata.title,
-              type: editWorkflow.metadata.type,
-              language: editWorkflow.metadata.language ?? DEFAULT_LANGUAGE,
-              practice: editWorkflow.metadata.practice ?? DEFAULT_PRACTICE,
-              jurisdiction:
-                  editWorkflow.metadata.jurisdictions?.join(", ") ||
-                  DEFAULT_JURISDICTION,
-          }
-        : NEW_WORKFLOW;
-    const [type, setType] = useState(defaults.type);
+
+function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: Omit<Props, "open">) {
+    const current = editWorkflow?.launcher.kind === "instructions"
+        ? editWorkflow.launcher.variants[0] : undefined;
+    const [execution, setExecution] = useState(current?.execution ?? "assistant");
+    const [audiences, setAudiences] = useState<WorkflowAudience[]>(editWorkflow?.metadata.audiences ?? ["general"]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [importedSkillName, setImportedSkillName] = useState<string | null>(
-        null,
-    );
-    const [markdownImportError, setMarkdownImportError] = useState("");
-    const importedSkillMdRef = useRef("");
-    const markdownInputRef = useRef<HTMLInputElement>(null);
-    const isEditing = !!editWorkflow;
-    const viewOnly = isEditing && readOnly;
-    const formId = "workflow-modal-form";
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-        if (viewOnly) return;
-        const form = new FormData(e.currentTarget);
+    const [skillName, setSkillName] = useState<string>();
+    const [instructions, setInstructions] = useState(current?.skill_md ?? "");
+    const fileInput = useRef<HTMLInputElement>(null);
+    const audienceField = useRef<HTMLFieldSetElement>(null);
+    const instructionsField = useRef<HTMLTextAreaElement>(null);
+    const formId = "workflow-details-form";
+    async function submit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
         const title = String(form.get("title") ?? "").trim();
+        const category = String(form.get("category") ?? "");
         const language = String(form.get("language") ?? "").trim();
-        const practice = String(form.get("practice") ?? "").trim();
-        const jurisdictions = String(form.get("jurisdiction") ?? "")
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean);
-        if (!title) return;
-        setLoading(true);
-        setError("");
+        const jurisdictions = String(form.get("jurisdictions") ?? "").split(",")
+            .map((item) => item.trim()).filter(Boolean);
+        if (execution === "assistant" && !instructions.trim()) {
+            setError("Write instructions for this workflow.");
+            requestAnimationFrame(() => instructionsField.current?.focus()); return;
+        }
+        if (!audiences.length) {
+            setError("Choose at least one audience.");
+            requestAnimationFrame(() => audienceField.current?.focus()); return;
+        }
+        const launcher = { kind: "instructions" as const, variants: [{
+            label: title, execution,
+            result: current?.result ?? (execution === "assistant" ? "Written response" : "Review table"),
+            skill_md: execution === "assistant" ? instructions.trim() : null,
+            columns_config: execution === "tabular" ? current?.columns_config ?? [] : null }] };
+        setLoading(true); setError("");
         try {
-            if (isEditing && editWorkflow) {
-                const updated = await updateWorkflow(editWorkflow.id, {
-                    metadata: {
-                        title,
-                        language: language || null,
-                        practice: practice || null,
-                        jurisdictions: jurisdictions.length
-                            ? jurisdictions
-                            : null,
-                    },
-                });
-                onUpdated?.(updated);
-            } else {
-                const createPayload: Parameters<typeof createWorkflow>[0] = {
-                    metadata: {
-                        title,
-                        type,
-                        language: language || null,
-                        practice: practice || null,
-                        jurisdictions: jurisdictions.length
-                            ? jurisdictions
-                            : null,
-                    },
-                };
-                if (type === "assistant" && importedSkillMdRef.current) {
-                    createPayload.skill_md = importedSkillMdRef.current;
-                }
-                const workflow = await createWorkflow(createPayload);
-                onCreated(workflow);
-            }
+            const metadata = { title, category, audiences, language: language || null,
+                jurisdictions: jurisdictions.length ? jurisdictions : null };
+            if (editWorkflow) onUpdated?.(await updateWorkflow(editWorkflow.id, { metadata, launcher }));
+            else onCreated?.(await createWorkflow({ metadata, launcher }));
             onClose();
-        } catch (err: unknown) {
-            setError((err as Error).message || `Failed to ${isEditing ? "update" : "create"} workflow`);
-        } finally {
-            setLoading(false);
-        }
+        } catch (reason) {
+            setError((reason as Error).message || "Unable to save workflow.");
+        } finally { setLoading(false); }
     }
-    async function handleMarkdownImport(
-        e: React.ChangeEvent<HTMLInputElement>,
-    ) {
-        const file = e.target.files?.[0];
-        setMarkdownImportError("");
+    async function importMarkdown(file?: File) {
         if (!file) return;
-        const normalizedName = file.name.toLowerCase();
-        if (
-            !normalizedName.endsWith(".md") &&
-            !normalizedName.endsWith(".markdown")
-        ) {
-            importedSkillMdRef.current = "";
-            setImportedSkillName(null);
-            setMarkdownImportError("Choose a .md or .markdown file.");
-            e.target.value = "";
-            return;
-        }
-        try {
-            importedSkillMdRef.current = await file.text();
-            setImportedSkillName(file.name);
-        } catch {
-            importedSkillMdRef.current = "";
-            setImportedSkillName(null);
-            setMarkdownImportError("Could not read that markdown file.");
-            e.target.value = "";
-        }
+        if (!/\.(?:md|markdown)$/iu.test(file.name)) { setError("Choose a Markdown file."); return; }
+        try { setInstructions(await file.text()); setSkillName(file.name); setError(""); }
+        catch { setError("Unable to read that file."); }
     }
-    return (
-        <Modal
-            open={open}
-            onClose={onClose}
-            breadcrumbs={[
-                "Workflows",
-                isEditing ? "View and Edit details" : "New workflow",
-            ]}
-            primaryAction={
-                viewOnly
-                    ? undefined
-                    : {
-                          label: loading
-                              ? isEditing
-                                  ? "Saving…"
-                                  : "Creating…"
-                              : isEditing
-                                ? "Save changes"
-                                : "Create workflow",
-                          type: "submit",
-                          form: formId,
-                          disabled: loading,
-                      }
-            }
-            secondaryAction={
-                !isEditing && type === "assistant"
-                      ? {
-                          label: importedSkillName ? (
-                              <span
-                                  className="max-w-40 truncate"
-                                  title={importedSkillName}
-                              >
-                                  {importedSkillName}
-                              </span>
-                          ) : (
-                              "Upload markdown"
-                          ),
-                          icon: <Upload className="h-3.5 w-3.5" />,
-                          onClick: () => markdownInputRef.current?.click(),
-                          disabled: loading,
-                      }
-                    : undefined
-            }
-        >
-            <form
-                id={formId}
-                onSubmit={handleSubmit}
-                className="flex min-h-0 flex-1 flex-col pb-5"
-            >
-                <div className="space-y-6">
-                    <div>
-                        <ModalFieldLabel htmlFor="workflow-title">
-                            Title
-                        </ModalFieldLabel>
-                        <ModalTextInput
-                            id="workflow-title"
-                            name="title"
-                            type="text"
-                            defaultValue={defaults.title}
-                            placeholder="Add workflow name"
-                            variant="minimal"
-                            disabled={viewOnly}
-                            required
-                            autoFocus={!viewOnly}
-                        />
+    function toggleAudience(audience: WorkflowAudience) {
+        setAudiences((items) => items.includes(audience)
+            ? items.filter((item) => item !== audience) : [...items, audience]);
+    }
+    return <Modal open onClose={onClose} className="!h-fit max-h-[calc(100dvh-2rem)]"
+            breadcrumbs={["Workflows", editWorkflow ? "Edit workflow" : "New workflow"]}
+            primaryAction={{ label: loading ? "Saving…" : editWorkflow ? "Save changes" : "Create workflow",
+                type: "submit", form: formId, disabled: loading }}>
+            <form id={formId} onSubmit={submit} className="space-y-5 pb-4">
+                <input ref={fileInput} type="file" accept=".md,.markdown" hidden
+                    onChange={(event) => void importMarkdown(event.currentTarget.files?.[0])} />
+                <FormField label="Title" htmlFor="workflow-title">
+                    <ModalTextInput id="workflow-title" name="title" required autoFocus
+                        defaultValue={editWorkflow?.metadata.title} />
+                </FormField>
+                {!editWorkflow && <div>
+                    <p className="mb-2 text-sm font-medium text-gray-700">Opens in</p>
+                    <ModalSegmentedToggle value={execution} onChange={setExecution} options={[
+                        { value: "assistant", label: "Assistant", icon: MessageSquare },
+                        { value: "tabular", label: "Table", icon: Table2 }]} />
+                </div>}
+                {execution === "assistant" && <FormField label="Instructions" htmlFor="workflow-instructions">
+                    <ModalTextarea ref={instructionsField} id="workflow-instructions"
+                        required rows={5} aria-describedby={error ? "workflow-form-error" : undefined}
+                        value={instructions} onChange={(event) => setInstructions(event.currentTarget.value)} />
+                </FormField>}
+                <label className="block text-sm font-medium text-gray-700">Category
+                    <select name="category" required
+                        defaultValue={editWorkflow?.metadata.category ?? WORKFLOW_CATEGORIES[0][0]}
+                        className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                        {WORKFLOW_CATEGORIES.map(([value, label]) => <option key={value}
+                            value={value}>{label}</option>)}
+                    </select>
+                </label>
+                <fieldset ref={audienceField} tabIndex={-1}
+                    aria-describedby={error ? "workflow-form-error" : undefined}>
+                    <legend className="mb-2 text-sm font-medium text-gray-700">Audience</legend>
+                    <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2">
+                        {(["general", "solicitor", "litigator"] as const).map((audience) => <label
+                            key={audience} className="flex min-h-10 cursor-pointer items-center gap-2 text-sm capitalize text-gray-700">
+                            <input type="checkbox" checked={audiences.includes(audience)}
+                                onChange={() => toggleAudience(audience)} />{audience}
+                        </label>)}
                     </div>
-                    {!isEditing && (
-                        <div>
-                            <ModalFieldLabel as="p">Type</ModalFieldLabel>
-                            <ModalSegmentedToggle
-                                value={type}
-                                onChange={setType}
-                                options={[
-                                    {
-                                        value: "assistant",
-                                        label: "Assistant",
-                                        icon: MessageSquare,
-                                    },
-                                    {
-                                        value: "tabular",
-                                        label: "Tabular",
-                                        icon: Table2,
-                                    },
-                                ]}
-                            />
-                        </div>
-                    )}
-                    <div className="grid gap-5 md:grid-cols-2">
-                        <DatalistField
-                            id="workflow-language"
-                            name="language"
-                            label="Language"
-                            defaultValue={defaults.language}
-                            options={LANGUAGE_OPTIONS}
-                            disabled={viewOnly}
-                        />
-                        <DatalistField
-                            id="workflow-practice"
-                            name="practice"
-                            label="Practice area"
-                            defaultValue={defaults.practice}
-                            options={PRACTICE_SUGGESTIONS}
-                            disabled={viewOnly}
-                        />
+                </fieldset>
+                <details className="group">
+                    <summary className="flex min-h-10 cursor-pointer list-none items-center text-sm font-medium text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                        <span className="flex-1">More options</span>
+                        <ChevronDown aria-hidden="true" className="h-4 w-4 text-gray-400 group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-5 pt-3">
+                    <FormField label="Language" htmlFor="workflow-language">
+                        <ModalTextInput id="workflow-language" name="language"
+                            defaultValue={editWorkflow?.metadata.language ?? "English"} />
+                    </FormField>
+                    <FormField label="Jurisdictions" htmlFor="workflow-jurisdictions">
+                        <ModalTextInput id="workflow-jurisdictions" name="jurisdictions"
+                            defaultValue={editWorkflow?.metadata.jurisdictions?.join(", ") ?? "General"} />
+                    </FormField>
+                    {execution === "assistant" && <Button variant="white" size="compact"
+                        type="button" disabled={loading} onClick={() => fileInput.current?.click()}>
+                        <Upload aria-hidden="true" className="h-4 w-4" />
+                        {skillName ?? (current?.skill_md ? "Replace Markdown" : "Add Markdown")}
+                    </Button>}
                     </div>
-                    <DatalistField
-                        id="workflow-jurisdiction"
-                        name="jurisdiction"
-                        label="Jurisdiction"
-                        defaultValue={defaults.jurisdiction}
-                        options={JURISDICTION_SUGGESTIONS}
-                        disabled={viewOnly}
-                    />
-                    {(error || markdownImportError) && (
-                        <p className="text-sm text-red-500">
-                            {error || markdownImportError}
-                        </p>
-                    )}
-                </div>
-                <input
-                    ref={markdownInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".md,.markdown,text/markdown,text/x-markdown,text/plain"
-                    onChange={handleMarkdownImport}
-                />
+                </details>
+                {error && <p id="workflow-form-error" role="alert" className="text-sm text-red-700">{error}</p>}
             </form>
-        </Modal>
-    );
-}
-function DatalistField({
-    id,
-    name,
-    label,
-    defaultValue,
-    options,
-    disabled,
-}: {
-    id: string;
-    name: string;
-    label: string;
-    defaultValue: string;
-    options: string[];
-    disabled: boolean;
-}) {
-    return (
-        <div>
-            <ModalFieldLabel htmlFor={id}>{label}</ModalFieldLabel>
-            <ModalTextInput
-                id={id}
-                name={name}
-                list={`${id}-options`}
-                defaultValue={defaultValue}
-                disabled={disabled}
-                required
-            />
-            <datalist id={`${id}-options`}>
-                {options.map((option) => (
-                    <option key={option} value={option} />
-                ))}
-            </datalist>
-        </div>
-    );
+        </Modal>;
 }

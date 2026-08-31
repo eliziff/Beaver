@@ -65,36 +65,10 @@ describe("GET /config", () => {
         expect(res.body).toEqual({
             mode: "cloud",
             capabilities: { connectors: true },
-            supabaseUrl: "https://supabase.test.local",
-            supabasePublishableKey: "test-publishable-key",
         });
+        expect(JSON.stringify(res.body)).not.toContain("test-publishable-key");
         expect(JSON.stringify(res.body)).not.toContain("test-service-key");
         expect(res.headers["cache-control"]?.split(",").map((value) => value.trim())).toContain("no-store");
-    });
-});
-
-describe("requireAuth middleware", () => {
-    it("rejects requests with no Authorization header (401)", async () => {
-        const res = await request(api).get("/chat");
-        expect(res.status).toBe(401);
-        expect(res.body).toHaveProperty("detail");
-    });
-
-    it("rejects requests with a non-Bearer Authorization header (401)", async () => {
-        const res = await request(api)
-            .get("/chat")
-            .set("Authorization", "Basic dXNlcjpwYXNz");
-        expect(res.status).toBe(401);
-    });
-
-    it("rejects requests with an invalid Bearer token (401)", async () => {
-        // The mocked createClient().auth.getUser returns { user: null } for
-        // any token — simulating an expired/invalid token.
-        const res = await request(api)
-            .get("/chat")
-            .set("Authorization", "Bearer invalid-token");
-        expect(res.status).toBe(401);
-        expect(res.body.detail).toMatch(/invalid|expired/i);
     });
 });
 

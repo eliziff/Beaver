@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import type {
     AskInputsEvent,
     AskInputsResponseEvent,
@@ -129,7 +129,7 @@ export function AskInputPopup({
                     data-ask-input-panel
                     className="group h-10 overflow-hidden rounded-xl border border-gray-300 bg-white open:h-[min(28rem,70dvh)]"
                 >
-                    <summary role="button" className={`flex h-10 cursor-pointer list-none items-center gap-2 px-4 font-sans text-sm text-gray-800 hover:bg-gray-100 [&::-webkit-details-marker]:hidden ${multi ? "pr-32" : "pr-12"}`}>
+                    <summary className={`flex h-10 cursor-pointer list-none items-center gap-2 px-4 font-sans text-sm text-gray-800 hover:bg-gray-100 [&::-webkit-details-marker]:hidden ${multi ? "pr-32" : "pr-12"}`}>
                         <ChevronDown className="h-3.5 w-3.5 shrink-0 -rotate-90 group-open:rotate-0" />
                         <span className="truncate">
                             {event.items.length === 1 ? "1 question" : `Question ${ui.active + 1} of ${event.items.length}`}
@@ -189,14 +189,14 @@ export function AskInputPopup({
                                 <button type="button" onClick={toggleSkip} className="min-h-9 px-2 font-sans text-sm text-gray-600 hover:text-gray-900">
                                     {ui.resolved[item.id] === "skipped" ? "Answer instead" : "Decline to answer"}
                                 </button>
-                                <PillButton
-                                    tone="black"
+                                <Button
+                                    variant="black"
                                     type="submit"
                                     disabled={!!ui.resolved[item.id] || (item.kind === "documents" && !docsFor(item.id).length)}
                                     className="h-9 px-4 font-sans text-sm"
                                 >
                                     {ui.resolved[item.id] === "answered" ? "Confirmed" : "Confirm"}
-                                </PillButton>
+                                </Button>
                             </footer>
                         )}
                     </form>

@@ -19,6 +19,7 @@ const fixtureExtensions = new Set([
   ".csv", ".json", ".md", ".txt", ".xml", ".yaml", ".yml",
 ]);
 const appRoots = ["backend/src", "frontend/src"];
+const designTarget = 68_400;
 const relocatedFeatureFiles = [
   "backend/experiments/passage-retrieval/retrievalRerank.ts",
   "backend/experiments/passage-retrieval/passageRetrieval.ts",
@@ -75,6 +76,10 @@ function authoredReceiptFromCounts(names, lineCount) {
     areas,
     production,
     tests,
+    experiments,
+    tooling,
+    vendor,
+    generated,
     productionAndTests: production + tests,
     // Count every source line in the repository-level total.  Categorising
     // vendor/generated code remains useful, but moving maintained code there
@@ -251,6 +256,10 @@ const wholeProject = {
   repositories: projectRepositories,
   production: projectMetric("production"),
   tests: projectMetric("tests"),
+  experiments: projectMetric("experiments"),
+  tooling: projectMetric("tooling"),
+  vendor: projectMetric("vendor"),
+  generated: projectMetric("generated"),
   productionAndTests: projectMetric("productionAndTests"),
   authored: projectMetric("authored"),
 };
@@ -279,11 +288,11 @@ const report = {
   current: { ...current, files: undefined },
   pinnedUpstream: { ...pinned, files: undefined },
   deltaToUpstream: current.production - pinned.production,
-  designTarget: 70_000,
-  deltaToDesignTarget: current.production - 70_000,
+  designTarget,
+  deltaToDesignTarget: current.production - designTarget,
   relocatedFeatureLines,
   honestProduction,
-  honestDeltaToDesignTarget: honestProduction - 70_000,
+  honestDeltaToDesignTarget: honestProduction - designTarget,
   experiments,
   dependencies,
   subrepos,
@@ -348,11 +357,11 @@ console.table({
   "Beaver production": { lines: current.production },
   "Pinned upstream production": { lines: pinned.production },
   "Excess over upstream": { lines: report.deltaToUpstream },
-  "Excess over 70k target": { lines: report.deltaToDesignTarget },
+  "Excess over Phase 1 target": { lines: report.deltaToDesignTarget },
   "Beaver production + tests": { lines: current.total },
   "Intact features moved to experiments": { lines: relocatedFeatureLines },
   "Honest production": { lines: honestProduction },
-  "Honest excess over 70k target": { lines: report.honestDeltaToDesignTarget },
+  "Honest excess over Phase 1 target": { lines: report.honestDeltaToDesignTarget },
 });
 console.log("\nDependencies");
 console.table(dependencies);
@@ -366,6 +375,10 @@ console.log("\nWhole project (root plus every locked subrepository)");
 console.table(Object.fromEntries(Object.entries(projectRepositories).map(([name, value]) => [name, {
   production: value.production,
   tests: value.tests,
+  experiments: value.experiments,
+  tooling: value.tooling,
+  vendor: value.vendor,
+  generated: value.generated,
   productionAndTests: value.productionAndTests,
   authored: value.authored,
 }])));

@@ -8,8 +8,16 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import AppShell from "./layout";
 
+const profile = vi.hoisted(() => ({ authorities: true }));
+
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({ authLoading: false, isAuthenticated: true }),
+}));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+    useUserProfile: () => ({
+        loading: false,
+        profile: { features: { authorities: profile.authorities } },
+    }),
 }));
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/runtimeConfig", () => ({
@@ -24,8 +32,8 @@ vi.mock("@/app/components/shared/AppSidebar", () => ({
 vi.mock("@/app/components/shared/KeyboardShortcuts", () => ({
     KeyboardShortcuts: () => null,
 }));
-vi.mock("@/app/components/assistant/AutomationRun", () => ({
-    AssistantAutomationActivity: () => null,
+vi.mock("@/app/components/assistant/WorkflowRun", () => ({
+    AssistantWorkflowActivity: () => null,
 }));
 
 const children: RouteObject[] = [
@@ -45,6 +53,7 @@ const children: RouteObject[] = [
         element: <p>History</p>,
     },
     { path: "assistant", element: <p>Assistant route</p> },
+    { path: "table-of-authorities", element: <p>Authorities route</p> },
 ];
 
 function renderPath(path: string) {
@@ -75,5 +84,14 @@ describe("local route access", () => {
         renderPath("/account/connectors");
         expect(screen.getByText("Unavailable in this deployment")).toBeVisible();
         expect(screen.queryByText("Connector settings")).not.toBeInTheDocument();
+    });
+
+    it("does not mount a disabled Authorities workspace", () => {
+        profile.authorities = false;
+        renderPath("/table-of-authorities");
+
+        expect(screen.getByText("Authorities disabled")).toBeVisible();
+        expect(screen.queryByText("Authorities route")).not.toBeInTheDocument();
+        profile.authorities = true;
     });
 });

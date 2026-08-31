@@ -3,6 +3,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { TabularCell, TabularColumn, TabularRepository, TabularReview, WriteResult } from "./tabularStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, missingProfileEmail, now, one, projectAccess, replaceMembers, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
+import { searchFilter } from "./searchQuery";
 
 const tabularReview = (scope: ApplicationScope, row: Row): TabularReview => {
   const documents = decode<string[]>(row.document_ids, []);
@@ -59,7 +60,7 @@ export const tabularRepository: TabularRepository = {
         : options.scope === "standalone" ? sql`AND r.project_id IS NULL` : sql.raw("");
     const result = await rows(sql`SELECT r.* FROM tabular_reviews r
       WHERE ${reviewAccess(scope)} ${project}
-      ${options.q ? sql`AND lower(COALESCE(r.title,'')) LIKE ${`%${options.q.toLowerCase()}%`}`
+      ${options.q ? sql`AND ${searchFilter(sql`lower(COALESCE(r.title,''))`, options.q)}`
         : sql.raw("")}
       ${options.after ? sql`AND (r.created_at<${options.after[0]} OR
         (r.created_at=${options.after[0]} AND r.id<${options.after[1]}))` : sql.raw("")}
@@ -103,8 +104,9 @@ export const tabularRepository: TabularRepository = {
       email: null, display_name: null }, members: shared.map((value) => ({
         email: value, display_name: null })) };
     const profiles = await rows<{ user_id: string; email: string | null;
-      display_name: string | null }>(sql`SELECT user_id,email,display_name FROM user_profiles
-      WHERE user_id=${review.user_id} OR lower(email) IN(${shared.length
+      display_name: string | null }>(sql`SELECT p.user_id,p.email,u.display_name
+      FROM user_profiles p LEFT JOIN user_preferences u ON u.user_id=p.user_id
+      WHERE p.user_id=${review.user_id} OR lower(p.email) IN(${shared.length
         ? sql.join(shared) : sql.raw("NULL")})`, db);
     const owner = profiles.find(({ user_id }) => user_id === review.user_id);
     const byEmail = new Map(profiles.flatMap((profile) => profile.email
@@ -126,11 +128,12 @@ export const tabularRepository: TabularRepository = {
       const projectId = input.projectId === undefined ? current.project_id : input.projectId;
       const columns = input.columns ?? current.columns_config;
       const documentIds = input.documentIds ?? current.document_ids;
+      const workflowId = input.workflowId === undefined ? current.workflow_id : input.workflowId;
       const shared = input.sharedWith ?? current.shared_with;
       const updated = nextVersion(expected);
       if (!await changes(sql`UPDATE tabular_reviews SET title=${title},project_id=${projectId},
         columns_config=${encode(columns)},document_ids=${encode(documentIds)},
-        shared_with=${encode(shared)},updated_at=${updated}
+        workflow_id=${workflowId},shared_with=${encode(shared)},updated_at=${updated}
         WHERE id=${id} AND updated_at=${expected}`, tx)) {
         const latest = await findReview(scope, id, false, tx);
         return latest ? { status: "conflict", value: latest } : { status: "missing" };
@@ -160,7 +163,8 @@ export const tabularRepository: TabularRepository = {
     const changed = await changes(sql`UPDATE tabular_cells SET content=${input.content
       ? encode(input.content) : null},status=${input.status},updated_at=${now()}
       WHERE review_id=${input.reviewId} AND document_id=${input.documentId}
-        AND column_index=${input.columnIndex} AND status=${input.expected.status} AND ${expected}`, db);
+        AND column_index=${input.columnIndex} AND status=${input.expected.status}
+        AND ${expected}`, db);
     const value = await findCell(scope, input.reviewId, input.documentId, input.columnIndex, db);
     return changed && value ? { status: "committed", value }
       : value ? { status: "conflict", value } : { status: "missing" };

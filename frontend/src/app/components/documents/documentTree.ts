@@ -29,8 +29,7 @@ export function buildDocumentTree(documents: Document[], folders: DocumentTreeFo
         if (siblings) siblings.push(document); else docsByParent.set(parent, [document]);
     }
     const query = search.trim().toLocaleLowerCase();
-    const visibleDocuments = query ? documents.filter(({ filename }) =>
-        filename.toLocaleLowerCase().includes(query)) : documents;
+    const visibleDocuments = documents;
     const rows: DocumentTreeRow[] = [];
     function append(parentId: string | null, depth: number) {
         const addDocuments = () => {

@@ -50,30 +50,43 @@ function messages(source: LlmMessage[], nativeCompaction: boolean): Message[] {
   }));
 }
 
-function failure(event: Record<string, unknown>): string | null {
+function failure(event: Record<string, unknown>, provider: string): string | null {
   const error = event.error as Record<string, unknown> | undefined;
   if (event.type !== "error" || !error) return null;
   const message = typeof error.message === "string" && error.message.trim()
-    ? error.message.trim() : "Claude stream failed.";
+    ? error.message.trim() : `${provider} stream failed.`;
   return typeof error.type === "string" && error.type.trim()
-    ? `Claude error (${error.type}): ${message}` : `Claude error: ${message}`;
+    ? `${provider} error (${error.type}): ${message}` : `${provider} error: ${message}`;
 }
 
-function providerError(error: unknown): Error {
-  if (error instanceof Error && error.message.startsWith("Claude error")) return error;
-  return new Error(`Claude error: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+function providerError(error: unknown, provider: string): Error {
+  if (error instanceof Error && error.message.startsWith(`${provider} error`)) return error;
+  return new Error(`${provider} error: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 }
+
+type AnthropicWireConfig = {
+  baseURL?: string;
+  model?: string;
+  provider?: string;
+  adaptiveThinking?: boolean;
+};
 
 export function createAnthropicWireAdapter(
   params: StreamChatParams,
   apiKey: string,
   nativeCompaction: boolean,
+  config: AnthropicWireConfig = {},
 ): ProviderAdapter {
+  const provider = config.provider ?? "Claude";
   const client = anthropic.then((Anthropic) =>
-    new Anthropic({ apiKey, baseURL: "https://api.anthropic.com", maxRetries: 0 }));
+    new Anthropic({
+      apiKey,
+      baseURL: config.baseURL ?? "https://api.anthropic.com",
+      maxRetries: 0,
+    }));
   const initial = messages(params.messages, nativeCompaction);
   return {
-    provider: "claude",
+    provider,
     async *events(step: ProviderStep): AsyncIterable<ProviderEvent> {
       const state = step.iteration ? step.checkpoint as State | undefined : { messages: initial };
       if (!state) throw new Error("Claude did not return continuation state");
@@ -92,13 +105,13 @@ export function createAnthropicWireAdapter(
         });
       }
       const body = {
-        model: params.model,
+        model: config.model ?? params.model,
         system: params.systemPrompt,
         messages: requestMessages,
         tools: tools(step.tools),
         max_tokens: params.maxTokens ?? 16_384,
         stream: true,
-        ...(params.enableThinking
+        ...(params.enableThinking && config.adaptiveThinking !== false
           ? { thinking: { type: "adaptive" }, output_config: { effort: "high" } }
           : {}),
       };
@@ -121,7 +134,7 @@ export function createAnthropicWireAdapter(
               maxRetries: 0,
             });
       } catch (error) {
-        throw providerError(error);
+        throw providerError(error, provider);
       }
 
       const blocks = new Map<number, Block>();
@@ -133,7 +146,7 @@ export function createAnthropicWireAdapter(
       try {
         for await (const raw of stream) {
           const event = raw as Record<string, unknown>;
-          const message = failure(event);
+          const message = failure(event, provider);
           if (message) throw new Error(message);
           const index = typeof event.index === "number" ? event.index : -1;
           if (event.type === "message_start") {
@@ -204,7 +217,7 @@ export function createAnthropicWireAdapter(
           }
         }
       } catch (error) {
-        throw providerError(error);
+        throw providerError(error, provider);
       }
 
       const reported: NormalizedLlmUsage = {

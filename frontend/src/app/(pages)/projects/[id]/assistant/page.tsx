@@ -3,18 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { deleteChat, renameChat } from "@/app/lib/beaverApi";
 import { ProjectAssistantTable } from "@/app/components/projects/ProjectAssistantTable";
 import {
-    ProjectSectionToolbar,
+    ProjectSectionTabs,
     useProjectWorkspace,
 } from "@/app/components/projects/ProjectWorkspace";
 import type { Chat } from "@/app/components/shared/types";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { Button } from "@/app/components/ui/button";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
+import { Loader2, Plus } from "lucide-react";
 export default function ProjectAssistantPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const {
         createChat,
+        creatingChat,
         ensureProjectChats,
         projectChats,
         projectId,
@@ -27,7 +29,8 @@ export default function ProjectAssistantPage() {
     const [renameChatValue, setRenameChatValue] = useState("");
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
     const [deleteBusy, setDeleteBusy] = useState(false);
-    const chats = projectChats ?? [];    const loading = projectChats === null;
+    const chats = projectChats ?? [];
+    const loading = projectChats === null;
     useEffect(() => {
         void ensureProjectChats();
     }, [ensureProjectChats]);
@@ -85,40 +88,40 @@ export default function ProjectAssistantPage() {
     }
     return (
         <>
-            <ProjectSectionToolbar
+            <ProjectSectionTabs
                 actions={
-                    <TabPillButton
-                        onClick={handleDeleteSelectedChats}
-                        disabled={selectedChatIds.length === 0}
-                        className={`w-28 text-red-700 ${
-                            selectedChatIds.length === 0 ? "invisible" : ""
-                        }`}
+                    <Button variant="white" size="normal" className="h-8 py-0"
+                        onClick={() => void createChat()}
+                        disabled={creatingChat}
                     >
-                        Delete selected
-                    </TabPillButton>
+                        {creatingChat ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Plus className="h-3.5 w-3.5" />}
+                        Create chat
+                    </Button>
                 }
-            />
-            <ProjectAssistantTable
-                chats={chats}
-                filteredChats={filteredChats}
-                selectedChatIds={selectedChatIds}
-                renamingChatId={renamingChatId}
-                renameChatValue={renameChatValue}
-                currentUserId={user?.id}
-                loading={loading}
-                onCreateChat={() => void createChat()}
-                onOpenChat={(chatId) =>
-                    navigate(
-                        `/projects/${projectId}/assistant/chat/${chatId}`,
-                    )
-                }
-                onDeleteChat={handleDeleteChatRow}
-                onOwnerOnlyAction={setOwnerOnlyAction}
-                submitChatRename={submitChatRename}
-                setSelectedChatIds={setSelectedChatIds}
-                setRenamingChatId={setRenamingChatId}
-                setRenameChatValue={setRenameChatValue}
-            />
+            >
+                <ProjectAssistantTable
+                    chats={chats}
+                    filteredChats={filteredChats}
+                    selectedChatIds={selectedChatIds}
+                    renamingChatId={renamingChatId}
+                    renameChatValue={renameChatValue}
+                    currentUserId={user?.id}
+                    loading={loading}
+                    onOpenChat={(chatId) =>
+                        navigate(
+                            `/projects/${projectId}/assistant/chat/${chatId}`,
+                        )
+                    }
+                    onDeleteChat={handleDeleteChatRow}
+                    onDeleteSelected={handleDeleteSelectedChats}
+                    onOwnerOnlyAction={setOwnerOnlyAction}
+                    submitChatRename={submitChatRename}
+                    setSelectedChatIds={setSelectedChatIds}
+                    setRenamingChatId={setRenamingChatId}
+                    setRenameChatValue={setRenameChatValue}
+                />
+            </ProjectSectionTabs>
             <ChatDeleteWarning
                 open={pendingDeleteIds.length > 0}
                 count={pendingDeleteIds.length}

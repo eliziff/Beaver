@@ -37,10 +37,12 @@ describe("local app", () => {
     expect((await request(api).get("/user/api-keys")).status).toBe(200);
     const profile = await request(api).get("/user/profile");
     expect(profile.status).toBe(200);
-    expect(profile.body).toMatchObject({ mfaOnLogin: false, tier: "Free" });
+    expect(profile.body).toMatchObject({ mfaOnLogin: false });
     expect(profile.body).toHaveProperty("draftingStyle");
-    expect((await request(api).patch("/user/profile")
-      .send({ displayName: "Not an account" })).status).toBe(501);
+    const updated = await request(api).patch("/user/profile")
+      .send({ displayName: "Local profile" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.displayName).toBe("Local profile");
     const response = await request(api).get("/user/mcp-connectors");
     expect(response.status).toBe(404);
   });

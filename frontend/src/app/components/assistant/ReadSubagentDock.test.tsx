@@ -45,7 +45,6 @@ it("opens agent citations externally in a new tab", async () => {
     render(
         <ReadSubagentDock
             panels={[completedPanel]}
-            onClose={vi.fn()}
             onCitationClick={onCitationClick}
             embedded
         />,
@@ -66,7 +65,6 @@ it("shows live reading activity", async () => {
     render(
         <ReadSubagentDock
             panels={[runningPanel]}
-            onClose={vi.fn()}
             onCitationClick={vi.fn()}
             embedded
         />,

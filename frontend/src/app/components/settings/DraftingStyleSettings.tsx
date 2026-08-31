@@ -9,6 +9,7 @@ import {
     type DraftingStyleSettings as DraftingSettings,
 } from "@/app/lib/beaverApi";
 import { DEFAULT_DRAFTING_STYLE } from "@/app/lib/draftingStyle";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
 const DOCUMENTS: { value: DraftingDocumentType; label: string }[] = [
     { value: "memo", label: "Memo" },
@@ -22,12 +23,18 @@ const CITATIONS: { value: DraftingCitationPlacement; label: string }[] = [
     { value: "inline", label: "Inline" },
     { value: "none", label: "Do not show citations" },
 ];
+const SOURCE_LINKS = [{ value: "true", label: "Add links" },
+    { value: "false", label: "Do not add links" }];
+const HEADING_NUMBERING = [
+    { value: "auto", label: "Automatic" },
+    { value: "true", label: "Number headings" },
+    { value: "false", label: "Do not number" }];
 
 const fieldClass =
     "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:bg-gray-100 disabled:text-gray-500";
 
 export function DraftingStyleSettings() {
-    const { profile, loading, updateDraftingStyle } = useUserProfile();
+    const { profile, loading, updateProfile } = useUserProfile();
     const [draft, setDraft] = useState<DraftingSettings | null>(null);
     const [status, setStatus] = useState("");
     const settings = draft ?? profile?.draftingStyle ?? DEFAULT_DRAFTING_STYLE;
@@ -35,7 +42,7 @@ export function DraftingStyleSettings() {
     const save = async (next: DraftingSettings) => {
         setDraft(next);
         setStatus("Saving…");
-        const saved = await updateDraftingStyle(next);
+        const saved = await updateProfile({ draftingStyle: next });
         setStatus(saved ? "Saved" : "Could not save drafting style");
         if (saved) setDraft(null);
     };
@@ -83,53 +90,41 @@ export function DraftingStyleSettings() {
                             <span className="text-sm font-semibold text-gray-900">{document.label}</span>
                             <label className="space-y-1 text-sm text-gray-900">
                                 <span className="block font-medium sm:sr-only">Citation placement</span>
-                                <select
-                                    aria-label={`${document.label} citation placement`}
-                                    value={style.citationPlacement}
-                                    disabled={disabled}
-                                    onChange={(event) => void updateDocument(document.value, {
-                                        citationPlacement: event.currentTarget.value as DraftingCitationPlacement,
+                                <ModalSelect
+                                    id={`${document.value}-citation-placement`}
+                                    ariaLabel={`${document.label} citation placement`}
+                                    value={style.citationPlacement} disabled={disabled}
+                                    onChange={(citationPlacement) => void updateDocument(document.value, {
+                                        citationPlacement: citationPlacement as DraftingCitationPlacement,
                                     })}
-                                    className={fieldClass}
-                                >
-                                    {citationOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                    ))}
-                                </select>
+                                    className={fieldClass} placeholder={null}
+                                    options={citationOptions} />
                             </label>
                             <label className="space-y-1 text-sm text-gray-900">
                                 <span className="block font-medium sm:sr-only">Source links</span>
-                                <select
-                                    aria-label={`${document.label} source links`}
-                                    value={String(style.citationHyperlinks)}
-                                    disabled={disabled}
-                                    onChange={(event) => void updateDocument(document.value, {
-                                        citationHyperlinks: event.currentTarget.value === "true",
+                                <ModalSelect
+                                    id={`${document.value}-source-links`}
+                                    ariaLabel={`${document.label} source links`}
+                                    value={String(style.citationHyperlinks)} disabled={disabled}
+                                    onChange={(value) => void updateDocument(document.value, {
+                                        citationHyperlinks: value === "true",
                                     })}
-                                    className={fieldClass}
-                                >
-                                    <option value="true">Add links</option>
-                                    <option value="false">Do not add links</option>
-                                </select>
+                                    className={fieldClass} placeholder={null}
+                                    options={SOURCE_LINKS} />
                             </label>
                             <label className="space-y-1 text-sm text-gray-900">
                                 <span className="block font-medium sm:sr-only">Heading numbering</span>
-                                <select
-                                    aria-label={`${document.label} heading numbering`}
-                                    value={String(style.numberHeadings)}
-                                    disabled={disabled}
-                                    onChange={(event) => {
-                                        const value = event.currentTarget.value;
+                                <ModalSelect
+                                    id={`${document.value}-heading-numbering`}
+                                    ariaLabel={`${document.label} heading numbering`}
+                                    value={String(style.numberHeadings)} disabled={disabled}
+                                    onChange={(value) => {
                                         void updateDocument(document.value, {
                                             numberHeadings: value === "auto" ? "auto" : value === "true",
                                         });
                                     }}
-                                    className={fieldClass}
-                                >
-                                    <option value="auto">Automatic</option>
-                                    <option value="true">Number headings</option>
-                                    <option value="false">Do not number</option>
-                                </select>
+                                    className={fieldClass} placeholder={null}
+                                    options={HEADING_NUMBERING} />
                             </label>
                         </div>
                     );

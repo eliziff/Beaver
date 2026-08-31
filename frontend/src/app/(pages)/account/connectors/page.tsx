@@ -8,7 +8,6 @@ import {
 } from "@/app/components/account/NewMcpModal";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import {
-    BeaverApiError,
     createMcpConnector,
     deleteMcpConnector,
     getMcpConnector,
@@ -19,9 +18,10 @@ import {
     type McpConnectorSummary,
     updateMcpConnector,
 } from "@/app/lib/beaverApi";
+import { BeaverApiError } from "@/app/lib/apiTransport";
 import { accountGlassPrimaryButtonClassName } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
-import { AccountToggle } from "../AccountToggle";
+import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
 const emptyAddDraft: McpConnectorDraft = {
     name: "",
@@ -415,7 +415,7 @@ export default function ConnectorsPage() {
                                             {connector.serverUrl}
                                         </p>
                                     </button>
-                                    <AccountToggle
+                                    <Switch
                                         checked={connector.enabled}
                                         disabled={loading}
                                         loading={loading}
@@ -424,6 +424,7 @@ export default function ConnectorsPage() {
                                                 ? "Enabled"
                                                 : "Disabled"
                                         }
+                                        ariaLabel={`${connector.name} enabled`}
                                         onChange={(enabled) =>
                                             void handleConnectorEnabled(
                                                 connector.id,

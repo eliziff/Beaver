@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LegalLibraryPage } from "./LegalLibrary";
 
 const api = vi.hoisted(() => ({
-    deleteLegalSource: vi.fn(),
+    actOnResearchSet: vi.fn(),
+    createResearchSet: vi.fn(),
     getLegalSourceCoverage: vi.fn(),
-    listLegalLibrary: vi.fn(),
-    saveLegalSource: vi.fn(),
+    listResearchSets: vi.fn(),
     searchLegalSources: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@/app/lib/beaverApi", async (original) => ({
 describe("LegalLibraryPage search", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        api.listLegalLibrary.mockResolvedValue([]);
+        api.listResearchSets.mockResolvedValue([]);
         api.getLegalSourceCoverage.mockResolvedValue([
             {
                 docType: "laws",
@@ -106,5 +106,41 @@ describe("LegalLibraryPage search", () => {
         await screen.findByText("Privacy Act");
         expect(screen.queryByRole("link", { name: "View original source" }))
             .not.toBeInTheDocument();
+    });
+
+    it("lazily creates personal saved research when the first result is saved", async () => {
+        const empty = {
+            id: "set-1", kind: "research-set", title: "Saved research",
+            projectId: null, revision: 0, outputs: {},
+            createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
+            state: { schemaVersion: "beaver.research-set.v1", labels: {}, sources: {},
+                evidence: {}, queries: {}, memo: "", audit: [] },
+        };
+        api.createResearchSet.mockResolvedValue(empty);
+        api.actOnResearchSet.mockResolvedValue({ ...empty, revision: 1 });
+        api.searchLegalSources.mockImplementation(({ docType }) => Promise.resolve(
+            docType === "cases" ? [{
+                provider: "a2aj", doc_type: "cases", source_id: "2024-scc-1",
+                dataset: "SCC", citation: "2024 SCC 1", name: "Example v Test",
+                date: "2024-01-01", url: "https://example.test", snippet: null,
+            }] : [],
+        ));
+        render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
+        fireEvent.change(screen.getByPlaceholderText(
+            "Search cases, legislation, journals, and Hansard",
+        ), { target: { value: "example" } });
+        fireEvent.click(screen.getByRole("button", { name: "Search" }));
+        await screen.findByText("Example v Test");
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(api.createResearchSet).toHaveBeenCalledWith({
+            title: "Saved research",
+        }));
+        expect(api.actOnResearchSet).toHaveBeenCalledWith("set-1", 0, {
+            type: "source",
+            reference: expect.objectContaining({
+                provider: "a2aj", id: "2024-scc-1", kind: "case",
+            }),
+        });
     });
 });

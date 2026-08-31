@@ -105,10 +105,10 @@ try {
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }
     Invoke-Step 'Production browser smoke' {
-        & $Mike start -WithTableOfAuthorities -NoBrowser
+        & $Mike start -NoBrowser
         if (-not $?) { throw 'Could not start the production surface.' }
         $script:SurfaceStarted = $true
-        & $Mike smoke -Full -WithTableOfAuthorities
+        & $Mike smoke -Full
         if (-not $?) { throw 'Production browser smoke failed.' }
     }
     Invoke-Step 'Live Luna low tool loop' {
@@ -145,7 +145,7 @@ catch {
 finally {
     try {
         if (-not $script:SurfaceStarted) {
-            & $Mike start -WithTableOfAuthorities -NoBrowser
+            & $Mike start -NoBrowser
             if (-not $?) { Write-Warning 'FullSweep could not restore the production surface.' }
         }
     }

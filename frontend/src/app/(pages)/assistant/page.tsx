@@ -1,4 +1,14 @@
-import { useState } from "react";import { useNavigate } from "react-router-dom";import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";import { InitialView } from "@/app/components/assistant/InitialView";import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch";import type { Message } from "@/app/components/shared/types";export default function AssistantPage() {    const navigate = useNavigate();
+import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { InitialView } from "@/app/components/assistant/InitialView";
+import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch";
+import type { Message } from "@/app/components/shared/types";
+import type { AssistantWorkflowLaunch } from "@/app/components/workflows/workflowRoutes";
+import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+
+export default function AssistantPage() {
+    const navigate = useNavigate();
+    const { state } = useLocation();
     const { saveChat, stagePendingChatMessage } = useChatHistoryContext();
     const [initialDocuments] = useState(takeNewChatDocuments);
     async function handleInitialSubmit(message: Message) {
@@ -8,5 +18,7 @@ import { useState } from "react";import { useNavigate } from "react-router-dom";
         stagePendingChatMessage(chatId, message);
         navigate(`/assistant/chat/${chatId}`);
     }
-    return <InitialView initialDocuments={initialDocuments} onSubmit={(message) => void handleInitialSubmit(message)} />;
+    return <InitialView initialDocuments={initialDocuments}
+        initialWorkflow={(state as AssistantWorkflowLaunch | null) ?? undefined}
+        onSubmit={(message) => void handleInitialSubmit(message)} />;
 }

@@ -4,6 +4,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { AssistantEvent } from "./chat/turnEngine";
 import { encodeJson, sql, type RelationalDatabase } from "./relational";
 import { safeErrorLog } from "./safeError";
+import { searchFilter } from "./searchQuery";
 
 export type AuditStatus = "completed" | "cancelled" | "failed";
 export type AuditEventInput = {
@@ -17,9 +18,6 @@ export type AuditQuery = {
   from?: string; to?: string; sortBy: "created_at" | "user_email" | "title" | "model";
   sortDirection: "asc" | "desc"; page: number; limit: number;
 };
-
-export const escapeLikePattern = (value: string) =>
-  value.replace(/\\/gu, "\\\\").replace(/%/gu, "\\%").replace(/_/gu, "\\_");
 
 const valueRows = (events: readonly AuditEventInput[]) => sql.join(events.map((event) => sql`(
   ${randomUUID()},${event.userId},${event.userEmail ?? null},${event.action},
@@ -62,8 +60,8 @@ export function createAuditStore(db: RelationalDatabase) {
       if (query.action) where = sql`${where} AND a.action=${query.action}`;
       if (query.status) where = sql`${where} AND a.status=${query.status}`;
       if (query.surface) where = sql`${where} AND a.surface=${query.surface}`;
-      if (query.q) where = sql`${where} AND lower(COALESCE(a.title,'')) LIKE
-        ${`%${escapeLikePattern(query.q.toLowerCase())}%`} ESCAPE '\\'`;
+      if (query.q) where = sql`${where} AND ${searchFilter(
+        sql`lower(COALESCE(a.title,''))`, query.q)}`;
       if (query.from) where = sql`${where} AND a.created_at>=${query.from}`;
       if (query.to) where = sql`${where} AND a.created_at<=${query.to}T23:59:59.999Z`;
       const order = sql.raw(`a.${query.sortBy} ${query.sortDirection} NULLS LAST,a.id ${query.sortDirection}`);

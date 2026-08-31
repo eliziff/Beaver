@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy } from "lucide-react";
-import { getSupabase } from "@/app/lib/supabase";
 import { Button } from "@/app/components/ui/button";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+import { useAuth } from "@/app/contexts/AuthContext";
 import { Modal } from "@/app/components/modals/Modal";
 import { VerificationCodeInput } from "@/app/components/popups/MfaVerificationPopup";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
@@ -10,8 +10,17 @@ import {
     accountGlassPrimaryButtonClassName,
 } from "../accountStyles";
 import { AccountSection } from "../AccountSection";
-import { AccountToggle } from "../AccountToggle";
+import { Switch } from "@/app/components/ui/switch";
 import { errorMessage } from "@/app/lib/utils";
+import {
+    challengeMfa,
+    enrollMfa,
+    getMfaAssurance,
+    listMfaFactors,
+    unenrollMfa,
+    verifyMfa,
+    updateAuthPassword,
+} from "@/app/lib/authApi";
 type Enrollment = {
     factorId: string;
     challengeId: string;
@@ -33,7 +42,7 @@ const emptySetup: SetupState = {
     keyCopied: false,
 };
 export default function SecurityPage() {
-    const [mfaClient] = useState(() => getSupabase().auth.mfa);
+    const { user } = useAuth();
     const { profile, updateMfaOnLogin } = useUserProfile();
     const [mfa, setMfa] = useState<MfaState | null>(null);
     const [setup, setSetup] = useState<SetupState | null>(null);
@@ -42,6 +51,8 @@ export default function SecurityPage() {
         "setup" | "verify" | "unenroll" | "login" | null
     >(null);
     const { runMfa, mfaPopup } = useMfaAction();
+    const [passwordStatus, setPasswordStatus] = useState<string | null>(null);
+    const [savingPassword, setSavingPassword] = useState(false);
     const factorId = mfa?.factorId ?? null;
     const enrollment = setup?.enrollment ?? null;
     const verificationCode = setup?.verificationCode ?? "";
@@ -54,21 +65,19 @@ export default function SecurityPage() {
         );
     const refreshMfaState = useCallback(async () => {
         setStatus(null);
-        const [factorResult, aalResult] = await Promise.all([
-            mfaClient.listFactors(),
-            mfaClient.getAuthenticatorAssuranceLevel(),
-        ]);
-        setStatus(
-            aalResult.error?.message ?? factorResult.error?.message ?? null,
-        );
-        setMfa({
-            factorId: factorResult.error
-                ? null
-                : (factorResult.data.totp?.[0]?.id ?? null),
-            sessionVerified:
-                !aalResult.error && aalResult.data.currentLevel === "aal2",
-        });
-    }, [mfaClient]);
+        try {
+            const [factors, assurance] = await Promise.all([
+                listMfaFactors(), getMfaAssurance(),
+            ]);
+            setMfa({
+                factorId: factors.totp?.[0]?.id ?? null,
+                sessionVerified: assurance.currentLevel === "aal2",
+            });
+        } catch (caught) {
+            setStatus(errorMessage(caught, "Authenticator status could not be loaded."));
+            setMfa({ factorId: null, sessionVerified: false });
+        }
+    }, []);
     useEffect(() => {
         void refreshMfaState();
     }, [refreshMfaState]);
@@ -76,32 +85,19 @@ export default function SecurityPage() {
         setBusyAction("setup");
         setStatus(null);
         try {
-            let { data, error } = await mfaClient.enroll({
-                factorType: "totp",
-                friendlyName: "Beaver",
-            });
-            if (
-                error?.message
-                    .toLowerCase()
-                    .includes("a factor with the friendly name")
-            ) {
-                const retry = await mfaClient.enroll({
-                    factorType: "totp",
-                    friendlyName: `Beaver ${Date.now()}`,
-                });
-                data = retry.data;
-                error = retry.error;
+            let data;
+            try {
+                data = await enrollMfa("Beaver");
+            } catch (caught) {
+                if (!(caught instanceof Error) ||
+                    !caught.message.toLowerCase().includes("friendly name")) throw caught;
+                data = await enrollMfa(`Beaver ${Date.now()}`);
             }
-            if (error) throw error;
-            if (!data) throw new Error("Failed to start MFA setup.");
-            const challenge = await mfaClient.challenge({
-                factorId: data.id,
-            });
-            if (challenge.error) throw challenge.error;
+            const challenge = await challengeMfa(data.id);
             updateSetup({
                 enrollment: {
                     factorId: data.id,
-                    challengeId: challenge.data.id,
+                    challengeId: challenge.id,
                     qrCode: data.totp.qr_code,
                     secret: data.totp.secret,
                 },
@@ -118,9 +114,7 @@ export default function SecurityPage() {
         if (busy) return;
         setSetup(next);
         if (!enrollment) return;
-        await mfaClient
-            .unenroll({ factorId: enrollment.factorId })
-            .catch(() => null);
+        await unenrollMfa(enrollment.factorId).catch(() => null);
         await refreshMfaState();
     }
     async function verifyEnrollment() {
@@ -128,12 +122,11 @@ export default function SecurityPage() {
         setBusyAction("verify");
         setStatus(null);
         try {
-            const { error } = await mfaClient.verify({
-                factorId: enrollment.factorId,
-                challengeId: enrollment.challengeId,
-                code: verificationCode.trim(),
-            });
-            if (error) throw error;
+            await verifyMfa(
+                enrollment.factorId,
+                enrollment.challengeId,
+                verificationCode.trim(),
+            );
             setSetup(null);
             setStatus("MFA enabled.");
             await refreshMfaState();
@@ -154,11 +147,8 @@ export default function SecurityPage() {
         await runMfa(
             async () => {
                 setBusyAction("unenroll");
-                const { error } = await mfaClient.unenroll({
-                    factorId,
-                });
+                await unenrollMfa(factorId);
                 setBusyAction(null);
-                if (error) throw error;
                 if (profile?.mfaOnLogin) void updateMfaOnLogin(false);
                 await refreshMfaState();
             },
@@ -206,8 +196,61 @@ export default function SecurityPage() {
     const hasVerifiedFactor = !!factorId;
     const sessionVerified = mfa?.sessionVerified ?? false;
     const loginMfaEnabled = profile?.mfaOnLogin === true;
+    async function savePassword(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = new FormData(form);
+        const selected = String(values.get("password") ?? "");
+        if (selected !== values.get("confirmPassword")) {
+            setPasswordStatus("Passwords do not match.");
+            return;
+        }
+        setPasswordStatus(null);
+        await runMfa(async () => {
+            setSavingPassword(true);
+            try {
+                await updateAuthPassword(selected);
+                form.reset();
+                setPasswordStatus(user?.createdWithGoogle
+                    ? "Password set. You can now use Google or email to sign in."
+                    : "Password updated.");
+            } finally {
+                setSavingPassword(false);
+            }
+        }, {
+            onError: (caught) => setPasswordStatus(errorMessage(
+                caught, "Password could not be updated.",
+            )),
+        });
+    }
     return (
         <div className="space-y-8">
+            <AccountSection heading={user?.createdWithGoogle ? "Set a password" : "Password"} className="p-4">
+                <form className="space-y-4" onSubmit={(event) => void savePassword(event)}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <label htmlFor="security-password" className="text-sm font-medium text-gray-700">
+                            New password
+                            <input id="security-password" name="password" type="password"
+                                autoComplete="new-password" minLength={12} required
+                                className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" />
+                        </label>
+                        <label htmlFor="security-password-confirm" className="text-sm font-medium text-gray-700">
+                            Confirm password
+                            <input id="security-password-confirm" name="confirmPassword" type="password"
+                                autoComplete="new-password" minLength={12} required
+                                className="mt-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" />
+                        </label>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                        <p className={`text-xs ${passwordStatus?.includes("could not") || passwordStatus?.includes("match") ? "text-red-700" : "text-gray-500"}`} aria-live="polite">
+                            {passwordStatus || "Use at least 12 characters."}
+                        </p>
+                        <Button type="submit" disabled={savingPassword}>
+                            {savingPassword ? "Saving…" : "Save password"}
+                        </Button>
+                    </div>
+                </form>
+            </AccountSection>
             <AccountSection heading="Multi-Factor Authentication">
                     {mfa === null ? (
                         <div className="h-36 p-4" aria-hidden>
@@ -267,8 +310,9 @@ export default function SecurityPage() {
                                                 login.
                                             </p>
                                         </div>
-                                        <AccountToggle
+                                        <Switch
                                             checked={loginMfaEnabled}
+                                            ariaLabel="Require login verification"
                                             disabled={savingLoginPreference}
                                             loading={savingLoginPreference}
                                             size="md"

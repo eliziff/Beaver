@@ -53,9 +53,7 @@ it("collapses the question body", async () => {
     render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
 
     screen.getByRole("radio", { name: "A client" });
-    await userEvent.click(
-        screen.getByRole("button", { name: "1 question" }),
-    );
+    await userEvent.click(screen.getByText("1 question").closest("summary")!);
     expect(document.querySelector("[data-ask-input-panel]")).not.toHaveAttribute(
         "open",
     );

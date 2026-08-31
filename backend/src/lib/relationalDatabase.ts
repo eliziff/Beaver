@@ -86,6 +86,7 @@ const processState = globalThis as typeof globalThis & {
   __beaverLocalDatabase?: { native?: DatabaseSync; relational?: LocalDatabase };
 };
 const localState = processState.__beaverLocalDatabase ??= {};
+const LOCAL_SCHEMA_VERSION = 9;
 
 function openLocalDatabase() {
   const filename = path.join(mikeLocalDataHome(), "application.sqlite");
@@ -96,28 +97,14 @@ function openLocalDatabase() {
     database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
     const version = Number((database.prepare("PRAGMA user_version").get() as
       { user_version: number }).user_version);
-    if (version < 0 || version > 5) throw new Error(
+    if (version !== 0 && version !== LOCAL_SCHEMA_VERSION) throw new Error(
       `Unsupported local database schema ${version}; use a fresh local data directory`,
     );
     const schema = readFileSync(path.resolve(__dirname, "../../schema.sql"), "utf8");
     const core = /-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u.exec(schema)?.[1];
     if (!core) throw new Error("backend/schema.sql is missing the Beaver core schema");
     database.exec(core);
-    if (version < 2) {
-      const columns = database.prepare("PRAGMA table_info(document_versions)").all() as
-        { name: string }[];
-      if (!columns.some(({ name }) => name === "pdf_profile")) {
-        database.exec("ALTER TABLE document_versions ADD COLUMN pdf_profile jsonb");
-      }
-    }
-    if (version < 3) {
-      const columns = database.prepare("PRAGMA table_info(application_jobs)").all() as
-        { name: string }[];
-      if (!columns.some(({ name }) => name === "cancel_requested_at")) {
-        database.exec("ALTER TABLE application_jobs ADD COLUMN cancel_requested_at text");
-      }
-    }
-    database.exec("PRAGMA user_version=5");
+    database.exec(`PRAGMA user_version=${LOCAL_SCHEMA_VERSION}`);
     return database;
   } catch (error) {
     database.close();

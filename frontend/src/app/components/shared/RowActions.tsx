@@ -1,5 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
-import { ActionMenu, type ActionMenuItem } from "@/app/components/ui/action-menu";
+import { MoreActionsMenu, type MoreActionsMenuItem } from "@/app/components/shared/MoreActionsMenu";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 interface Props {
     label?: string;
@@ -17,6 +16,7 @@ interface Props {
     newSubfolderLabel?: string;
     renameLabel?: string;
     deleteLabel?: string;
+    toolbar?: boolean;
 }
 export function RowActions({
     label = "More actions",
@@ -34,8 +34,9 @@ export function RowActions({
     newSubfolderLabel = "New subfolder",
     renameLabel = "Rename",
     deleteLabel = "Delete",
+    toolbar = false,
 }: Props) {
-    const items: ActionMenuItem[] = [];
+    const items: MoreActionsMenuItem[] = [];
     const add = (
         label: string,
         onSelect?: () => void,
@@ -53,12 +54,12 @@ export function RowActions({
     add("Deactivate", onHide);
     add(deleteLabel, onDelete, deleting || deleteDisabled);
     return (
-        <ActionMenu
+        <MoreActionsMenu
             label={label}
             items={items}
-            triggerClassName={`h-6 w-6 items-center justify-center rounded text-gray-700 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`}
-        >
-            <MoreHorizontal className="h-4 w-4" />
-        </ActionMenu>
+            triggerClassName={toolbar
+                ? "h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                : `h-6 w-6 items-center justify-center rounded text-gray-700 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`}
+        />
     );
 }

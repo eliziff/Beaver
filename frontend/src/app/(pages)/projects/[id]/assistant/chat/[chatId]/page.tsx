@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Upload } from "lucide-react";
 import { ChatView, type ChatViewHandle } from "@/app/components/assistant/ChatView";
+import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 import { ChatDeleteWarning } from "@/app/components/assistant/ChatDeleteWarning";
 import { Modal } from "@/app/components/modals/Modal";
@@ -9,6 +9,7 @@ import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { BeaverIcon } from "@/app/components/chat/beaver-icon";
 import { ProjectExplorer } from "@/app/components/projects/ProjectExplorer";
+import { UploadAction, type UploadActions } from "@/app/components/documents/UploadAction";
 import { DOCUMENT_DRAG_TYPE } from "@/app/components/documents/documentTree";
 import { useProjectFiles } from "@/app/components/projects/useProjectFiles";
 import { useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
@@ -36,7 +37,6 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
   const history = useChatHistoryContext();
   const route = useAssistantChatRoute({ chatId, projectId });
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
-  const [explorerOpen, setExplorerOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -44,9 +44,13 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [chatActionBusy, setChatActionBusy] = useState(false);
   const [chatActionError, setChatActionError] = useState<string | null>(null);
+  const [initialDocuments] = useState(takeNewChatDocuments);
   const uploadInput = useRef<HTMLInputElement>(null);
+  const directoryUploadInput = useRef<HTMLInputElement>(null);
   const chat = useRef<ChatViewHandle>(null);
   const { messages } = route.state;
+  const { refreshProject } = workspace;
+  const refreshProjectFiles = files.operations.refreshCollection;
   const username = profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
   const documentRevision = messages.flatMap((message) =>
     message.role === "assistant" ? message.artifacts.map(({ versionId }) => versionId) : [],
@@ -54,8 +58,12 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
 
   useEffect(() => setSidebarOpen(false), [setSidebarOpen]);
   useEffect(() => {
-    if (documentRevision) void workspace.refreshProject().catch(() => undefined);
-  }, [documentRevision, workspace.refreshProject]);
+    if (!documentRevision) return;
+    void Promise.all([
+      refreshProject().catch(() => undefined),
+      refreshProjectFiles(null).catch(() => undefined),
+    ]);
+  }, [documentRevision, refreshProject, refreshProjectFiles]);
 
   function requireOwner(action: string) {
     if (!route.chatOwnerId || !user?.id || route.chatOwnerId === user.id) return true;
@@ -91,20 +99,73 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
     }
   }
 
-  async function upload(uploaded: File[]) {
+  async function upload(uploaded: File[], directory = false) {
     if (!uploaded.length) return;
-    setUploading(true);
+    setUploading(true); setChatActionError(null);
     try {
-      await files.uploadFiles(uploaded);
+      if (directory) await files.uploadDirectory(uploaded);
+      else await files.uploadFiles(uploaded);
     } catch (error) {
       console.error("Upload failed", error);
+      setChatActionError("Some files could not be uploaded. Try those files again.");
     } finally {
       setUploading(false);
       if (uploadInput.current) uploadInput.current.value = "";
+      if (directoryUploadInput.current) directoryUploadInput.current.value = "";
     }
   }
 
   const projectPath = `/projects/${projectId}/assistant`;
+  const uploadActions: UploadActions = {
+    files: () => uploadInput.current?.click(),
+    folder: () => directoryUploadInput.current?.click(),
+  };
+  const projectFiles = (
+    <div
+      className="flex h-full min-h-0 flex-col bg-white"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        void upload(Array.from(event.dataTransfer.files));
+      }}
+    >
+      <input
+        ref={uploadInput}
+        type="file"
+        accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+        multiple
+        className="hidden"
+        onChange={(event) => void upload(Array.from(event.currentTarget.files ?? []))}
+      />
+      <input
+        ref={directoryUploadInput}
+        type="file"
+        accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
+        multiple
+        className="hidden"
+        {...{ webkitdirectory: "", directory: "" }}
+        onChange={(event) => void upload(
+          Array.from(event.currentTarget.files ?? []), true,
+        )}
+      />
+      <ProjectExplorer
+        documents={files.documents}
+        folders={files.folders}
+        selectedDocId={selectedDocument}
+        onDocClick={(document) => chat.current?.openDocument(document)}
+        onCreateFolder={files.createFolder}
+        onRenameFolder={files.renameFolder}
+        onDeleteFolder={files.deleteFolder}
+        onDeleteDoc={async (documentId) => {
+          await files.deleteDocument(documentId);
+          chat.current?.closeDocument(documentId);
+        }}
+        documentRemovalMode="detach"
+        onMoveDoc={files.moveDocument}
+        onMoveFolder={files.moveFolder}
+      />
+    </div>
+  );
   return (
     <div className="flex h-full flex-col">
       <PageHeader
@@ -143,73 +204,16 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
         ]}
       />
       <div className="relative flex min-h-0 flex-1 overflow-hidden border-t">
-        <aside
-          id="project-chat-explorer"
-          className={`absolute inset-y-0 left-0 z-40 w-64 flex-col border-r bg-white shadow-lg ${explorerOpen ? "flex" : "hidden"} md:relative md:z-auto md:flex md:shadow-none`}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            void upload(Array.from(event.dataTransfer.files));
-          }}
-        >
-          <header className="flex h-10 items-center justify-between border-b px-3 text-xs">
-            Explorer
-            <span className="flex gap-1">
-              <input
-                ref={uploadInput}
-                type="file"
-                accept=".pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.ppt"
-                multiple
-                className="hidden"
-                onChange={(event) => void upload(Array.from(event.currentTarget.files ?? []))}
-              />
-              <button type="button" disabled={uploading} onClick={() => uploadInput.current?.click()} aria-label="Upload documents" className="rounded p-1">
-                {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
-              </button>
-              <button type="button" onClick={() => setExplorerOpen(false)} aria-label="Close explorer" className="rounded px-1 text-lg md:hidden">×</button>
-            </span>
-          </header>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <ProjectExplorer
-              documents={workspace.project?.documents ?? []}
-              folders={workspace.project?.folders ?? []}
-              selectedDocId={selectedDocument}
-              onDocClick={(document) => {
-                chat.current?.openDocument(document);
-                setExplorerOpen(false);
-              }}
-              onCreateFolder={files.createFolder}
-              onRenameFolder={files.renameFolder}
-              onDeleteFolder={files.deleteFolder}
-              onDeleteDoc={async (id) => {
-                await files.deleteDocument(id);
-                chat.current?.closeDocument(id);
-              }}
-              documentRemovalMode="detach"
-              onMoveDoc={files.moveDocument}
-              onMoveFolder={files.moveFolder}
-            />
-          </div>
-        </aside>
         <main
           className="relative min-w-0 flex-1"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
             const id = event.dataTransfer.getData(DOCUMENT_DRAG_TYPE);
-            const document = workspace.project?.documents?.find((item) => item.id === id);
+            const document = files.documents.find((item) => item.id === id);
             if (document) chat.current?.attachDocument(document);
           }}
         >
-          <button
-            type="button"
-            aria-controls="project-chat-explorer"
-            aria-expanded={explorerOpen}
-            onClick={() => setExplorerOpen(true)}
-            className="absolute left-2 top-2 z-20 flex h-8 items-center gap-1 rounded border bg-white px-2 text-xs md:hidden"
-          >
-            <FolderSvgIcon className="size-3.5" /> Files
-          </button>
           <ChatView
             ref={chat}
             chatId={chatId}
@@ -221,8 +225,14 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             projectId={projectId}
             projectName={workspace.project?.name}
             projectCmNumber={workspace.project?.cm_number}
+            initialModel={route.chatModel}
+            initialReasoningEffort={route.chatReasoningEffort}
+            initialDocuments={initialDocuments}
             useDisplayedDocumentContext
             onActiveDocumentChange={setSelectedDocument}
+            projectFiles={projectFiles}
+            projectFileActions={<UploadAction actions={uploadActions}
+              busy={uploading} compact />}
           />
           {!route.chatLoaded ? (
             <p role="status" className="absolute inset-0 z-40 grid place-items-center bg-white text-sm text-gray-500">Loading conversation…</p>

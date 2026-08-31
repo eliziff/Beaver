@@ -21,8 +21,10 @@ function port(overrides: Partial<TabularRepository> = {}): TabularRepository {
       display_name: null }, members: [] })),
     missingRecipient: vi.fn(async () => null),
     update: vi.fn(async (_scope, _id, _version, input) => ({ status: "committed",
-      value: { ...review, title: input.title ?? review.title } })),
+      value: { ...review, title: input.title ?? review.title,
+        workflow_id: input.workflowId ?? review.workflow_id } })),
     delete: vi.fn(async () => ({ status: "committed", value: null })),
+    deleteAll: vi.fn(async () => 0),
     setCell: vi.fn(async (_scope, input) => ({ status: "committed", value: {
       ...cell, status: input.status, content: input.content } })),
     recordGeneration: vi.fn(async () => {}),
@@ -36,15 +38,16 @@ const documentStore = (bytes = Buffer.from("Governing law: Alberta")) => ({
       created_at: null, filename: "lease.txt" } })),
 }) as unknown as DocumentStore;
 const settings = async () => ({ title_model: "codex:gpt-5.6", tabular_model: "codex:gpt-5.6",
-  api_keys: {} as UserApiKeys }) as Awaited<ReturnType<
-    typeof import("../userSettings").getUserModelSettings>>;
+  last_selected_chat_model: null, last_selected_reasoning_effort: null,
+  legal_research_us: true, api_keys: {} as UserApiKeys });
 const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {
   it("maps committed, conflict, and missing writes explicitly", async () => {
     const committed = createTabularApplication(port(), documentStore(), projects, { settings });
-    await expect(committed.update(scope, "review", { title: "Changed" }))
-      .resolves.toMatchObject({ title: "Changed" });
+    await expect(committed.update(scope, "review", {
+      title: "Changed", workflow_id: "document-review",
+    })).resolves.toMatchObject({ title: "Changed", workflow_id: "document-review" });
 
     const conflict = createTabularApplication(port({ update: vi.fn(async () =>
       ({ status: "conflict", value: review })) }), documentStore(), projects, { settings });
@@ -88,9 +91,8 @@ describe("TabularApplication", () => {
     const runTurn = vi.fn() as unknown as typeof import("../chat/turnEngine").runChatTurn;
     const app = createTabularApplication(port(),
       documentStore(Buffer.alloc(25 * 1024 * 1024 + 1)), projects, { settings, runTurn });
-    await expect(app.regenerate(scope, "review", {
-      document_id: "document", column_index: 0,
-    })).rejects.toMatchObject({ status: 413 });
+    await expect(app.runAgent(scope, { reviewId: "review", documentId: "document",
+      columnIndex: 0, model: "codex:gpt-5.6" })).rejects.toMatchObject({ status: 413 });
     expect(runTurn).not.toHaveBeenCalled();
   });
 });

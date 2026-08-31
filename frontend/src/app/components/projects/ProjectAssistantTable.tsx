@@ -1,22 +1,18 @@
 import { type Dispatch, type SetStateAction } from "react";
-import { Plus } from "lucide-react";
 import { RowActions } from "@/app/components/shared/RowActions";
 import {
-    SkeletonLine,
     TableBody,
     TableCell,
     TableEmptyState,
     TableHeaderCell,
-    TableHeaderRow,
+    TableLoadingRows,
     TablePrimaryCell,
     TableRow,
     TableScrollArea,
-    TableSelectionPlaceholder,
+    TableSelectionHeader,
     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS,
-    TableStickyCell,
+    useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
-import { CheckboxControl } from "@/app/components/ui/checkbox";
-import { PillButton } from "@/app/components/ui/pill-button";
 import { ChatSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import type { Chat } from "@/app/components/shared/types";
 import { formatDate } from "@/app/lib/utils";
@@ -28,9 +24,9 @@ export function ProjectAssistantTable({
     renamingChatId,
     renameChatValue,
     currentUserId,
-    onCreateChat,
     onOpenChat,
     onDeleteChat,
+    onDeleteSelected,
     onOwnerOnlyAction,
     submitChatRename,
     setSelectedChatIds,
@@ -44,9 +40,9 @@ export function ProjectAssistantTable({
     renamingChatId: string | null;
     renameChatValue: string;
     currentUserId?: string | null;
-    onCreateChat: () => void;
     onOpenChat: (chatId: string) => void;
     onDeleteChat: (chat: Chat) => Promise<void> | void;
+    onDeleteSelected: () => void;
     onOwnerOnlyAction: (action: string) => void;
     submitChatRename: (chatId: string) => Promise<void> | void;
     setSelectedChatIds: Dispatch<SetStateAction<string[]>>;
@@ -54,85 +50,62 @@ export function ProjectAssistantTable({
     setRenameChatValue: Dispatch<SetStateAction<string>>;
     loading?: boolean;
 }) {
-    const allVisibleChatsSelected =
-        filteredChats.length > 0 &&
-        filteredChats.every((chat) => selectedChatIds.includes(chat.id));
-    const someVisibleChatsSelected =
-        !allVisibleChatsSelected &&
-        filteredChats.some((chat) => selectedChatIds.includes(chat.id));
+    const selection = useTableSelection(
+        filteredChats, selectedChatIds, setSelectedChatIds);
     return (
         <TableScrollArea
-            header={
-                <TableHeaderRow className="pr-8 md:pr-8">
-                    <TableStickyCell
-                        header
-                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    >
-                        {loading ? (
-                            <TableSelectionPlaceholder />
-                        ) : (
-                            <CheckboxControl
-                                checked={allVisibleChatsSelected}
-                                ref={(el) => {
-                                    if (el)
-                                        el.indeterminate =
-                                            someVisibleChatsSelected;
-                                }}
-                                onChange={() => {
-                                    if (allVisibleChatsSelected)
-                                        setSelectedChatIds([]);
-                                    else
-                                        setSelectedChatIds(
-                                            filteredChats.map((c) => c.id),
-                                        );
-                                }}
-                                className="-ml-2 mr-1"
-                            />
-                        )}
-                        <span className="mr-1">Chats</span>
-                    </TableStickyCell>
+            header={<TableSelectionHeader className="pr-8 md:pr-8"
+                widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                selection={selection}
+                selectionLabel="Select loaded chats"
+                loading={loading}
+                label={selectedChatIds.length
+                    ? <span className="text-sm font-medium text-gray-800">
+                        {selectedChatIds.length} selected
+                    </span>
+                    : "Chats"}>
+                {selectedChatIds.length ? (
+                    <RowActions toolbar label="Actions" onDelete={onDeleteSelected} />
+                ) : (
+                <>
                     <TableHeaderCell className="ml-auto hidden w-28 sm:flex md:w-32">
-                        <div className="flex items-center gap-1">
-                            <span>Creator</span>
-                        </div>
+                        Creator
                     </TableHeaderCell>
                     <TableHeaderCell className="hidden w-28 sm:flex md:w-32">
-                        <div className="flex items-center gap-1">
-                            <span>Created</span>
-                        </div>
+                        Created
                     </TableHeaderCell>
                     <TableHeaderCell className="w-7 sm:w-8" />
-                </TableHeaderRow>
-            }
+                </>
+            )}
+            </TableSelectionHeader>}
         >
             {loading ? (
-                <ProjectAssistantLoadingRows />
+                <TableLoadingRows count={LOADING_TITLE_WIDTHS.length}
+                    rowClassName="pr-8 md:pr-8"
+                    primaryWidthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
+                    primaryLineClassName={(index) => `h-3.5 ${LOADING_TITLE_WIDTHS[index]}`}
+                    columns={[
+                        { className: "ml-auto hidden w-28 sm:block md:w-32", lineClassName: "w-16" },
+                        { className: "hidden w-28 sm:block md:w-32", lineClassName: "w-16" },
+                        { className: "w-7 sm:w-8" },
+                    ]} />
             ) : chats.length === 0 ? (
                 <TableEmptyState>
                     <ChatSkeuoIcon className="mb-4 h-8 w-8" />
                     <p className="text-2xl font-medium font-serif text-gray-900">
-                        Assistant
+                        No chats yet
                     </p>
                     <p className="mt-1 text-xs text-gray-400 max-w-xs">
                         Ask questions and get answers grounded in the documents
                         in this project.
                     </p>
-                    <PillButton
-                        tone="black"
-                        size="sm"
-                        onClick={onCreateChat}
-                        className="mt-4 px-3"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        Create
-                    </PillButton>
                 </TableEmptyState>
             ) : (
                 <TableBody>
                     {filteredChats.map((chat) => (
                         <TableRow
                             key={chat.id}
-                            selected={selectedChatIds.includes(chat.id)}
+                            selected={selection.selected.has(chat.id)}
                             onClick={() => {
                                 if (renamingChatId === chat.id) return;
                                 onOpenChat(chat.id);
@@ -143,15 +116,15 @@ export function ProjectAssistantTable({
                                 widthClassName={
                                     TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS
                                 }
-                                selected={selectedChatIds.includes(chat.id)}
-                                onSelectionChange={() =>
-                                    setSelectedChatIds((prev) =>
-                                        prev.includes(chat.id)
-                                            ? prev.filter((x) => x !== chat.id)
-                                            : [...prev, chat.id],
-                                    )
-                                }
-                                label={chat.title ?? "Untitled Chat"}
+                                selected={selection.selected.has(chat.id)}
+                                onSelectionChange={() => selection.toggle(chat.id)}
+                                label={renamingChatId === chat.id
+                                    ? chat.title ?? "Untitled Chat"
+                                    : <button type="button"
+                                        onClick={(event) => { event.stopPropagation(); onOpenChat(chat.id); }}
+                                        className="w-full truncate rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                                        {chat.title ?? "Untitled Chat"}
+                                    </button>}
                                 editing={renamingChatId === chat.id}
                                 editValue={renameChatValue}
                                 onEditValueChange={setRenameChatValue}
@@ -193,36 +166,5 @@ export function ProjectAssistantTable({
                 </TableBody>
             )}
         </TableScrollArea>
-    );
-}
-function ProjectAssistantLoadingRows() {
-    return (
-        <TableBody>
-            {LOADING_TITLE_WIDTHS.map((width) => (
-                <TableRow
-                    key={width}
-                    interactive={false}
-                    className="pr-8 md:pr-8"
-                >
-                    <TableStickyCell
-                        widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
-                    >
-                        <div className="flex min-w-0 items-center">
-                            <TableSelectionPlaceholder />
-                            <SkeletonLine
-                                className={`h-3.5 ${width}`}
-                            />
-                        </div>
-                    </TableStickyCell>
-                    <TableCell className="ml-auto hidden w-28 sm:block md:w-32">
-                        <SkeletonLine className="w-16" />
-                    </TableCell>
-                    <TableCell className="hidden w-28 sm:block md:w-32">
-                        <SkeletonLine className="w-16" />
-                    </TableCell>
-                    <TableCell className="w-7 sm:w-8" />
-                </TableRow>
-            ))}
-        </TableBody>
     );
 }

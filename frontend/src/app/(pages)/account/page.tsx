@@ -194,11 +194,6 @@ export default function AccountPage() {
                         </div>
                     </form>
             </AccountSection>
-            <AccountSection heading="Usage Plan" className="p-4">
-                <p className="text-base font-medium text-gray-500 capitalize">
-                    {profile?.tier || "Free"}
-                </p>
-            </AccountSection>
             <Button
                 variant="outline"
                 onClick={handleLogout}

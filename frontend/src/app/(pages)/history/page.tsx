@@ -13,6 +13,7 @@ import {
   TableStickyCell,
 } from "@/app/components/shared/TablePrimitive";
 import { downloadBlob } from "@/app/lib/download";
+import { SearchBar } from "@/app/components/ui/search-bar";
 import {
   exportAuditHistory,
   getAuditHistory,
@@ -105,12 +106,8 @@ export default function HistoryPage() {
       >
         <label className="flex min-w-52 flex-1 flex-col gap-1 text-xs text-gray-600">
           Search titles
-          <input
-            className={controlClass}
-            type="search"
-            value={draft.q ?? ""}
-            onChange={(event) => setDraft({ ...draft, q: event.target.value })}
-          />
+          <SearchBar value={draft.q ?? ""} booleanSearch
+            onValueChange={(q) => setDraft({ ...draft, q })} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-600">
           Action

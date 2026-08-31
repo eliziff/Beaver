@@ -15,7 +15,7 @@ import {
     Wrench,
 } from "lucide-react";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
-import { apiBlobRequest } from "@/app/lib/beaverApi";
+import { apiBlobRequest } from "@/app/lib/apiTransport";
 import { downloadBlob } from "@/app/lib/download";
 import { RESPONSE_GLASS_SURFACE, withoutMarkdownNode } from "./messageStyles";
 import {

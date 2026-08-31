@@ -23,12 +23,14 @@ function scalarCoordinates(text: string, offsets: number[]) {
 
 async function compile(input: Request) {
   const document = await structureNative().deriveDocumentStructure({
-    kind: "a2aj",
+    kind: "provider_text",
     input: {
+      provider: "a2aj",
       citation: input.citation,
       source_kind: "cases",
       text: input.text,
       dataset: input.dataset ?? undefined,
+      require_report_start: input.dataset?.toUpperCase() === "SCC",
     },
   });
   const blocks = structureNative().documentAnchors(document)

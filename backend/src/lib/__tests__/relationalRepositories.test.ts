@@ -87,8 +87,17 @@ describe("SQLite relational repository contract", () => {
       progress=${JSON.stringify({ phase: "ocr", pages: [5] })} WHERE document_version_id=${versionId}`);
     await expect(state()).resolves.toEqual({ status: "parsing", phase: "ocr", pages: [5] });
     await database.query(sql`UPDATE application_jobs SET status='succeeded',
-      result=${JSON.stringify({ status: "ready" })} WHERE document_version_id=${versionId}`);
-    await expect(state()).resolves.toEqual({ status: "ready", phase: "ocr", pages: [5] });
+      result=${JSON.stringify({ status: "ready", pageCount: 3,
+        pagesNeedingOcr: [], ocrRoutedPages: [] })}
+      WHERE document_version_id=${versionId}`);
+    await expect(state()).resolves.toEqual({ status: "ready", page_count: 3 });
+    await database.query(sql`UPDATE application_jobs SET status='succeeded',
+      result=${JSON.stringify({ status: "ready", pageCount: 3,
+        pagesNeedingOcr: [], ocrRoutedPages: [0, 2] })}
+      WHERE document_version_id=${versionId}`);
+    await expect(state()).resolves.toEqual({
+      status: "ready", phase: "ocr", pages: [1, 3], page_count: 3,
+    });
     await database.query(sql`UPDATE application_jobs SET status='failed'
       WHERE document_version_id=${versionId}`);
     await expect(state()).resolves.toEqual({
@@ -99,5 +108,33 @@ describe("SQLite relational repository contract", () => {
     await expect(state()).resolves.toEqual({
       status: "cancelled", phase: "ocr", pages: [5], error: "PDF processing was cancelled",
     });
+  });
+
+  it("terminally flags a password-protected PDF with an actionable state", async () => {
+    vi.doMock("../structureNative", () => ({ structureNative: () => ({
+      preparePdfDocument: async () => { throw new Error("PDF extraction failed: PDF is encrypted"); },
+    }) }));
+    const [{ createDocumentApplication }, { documentRepository }, objects,
+      queue, { pdfJobHandlers }, { relationalDatabase, sql }] = await Promise.all([
+      import("../documentApplication"), import("../relationalDocumentRepository"),
+      import("../filesystemObjectStorage"), import("../jobQueue"), import("../pdfJobs"),
+      import("../relationalDatabase"),
+    ]);
+    const documents = createDocumentApplication(documentRepository,
+      objects.filesystemDocumentObjects());
+    const worker = queue.startJobWorker(pdfJobHandlers(documents));
+    try {
+      const document = await documents.create(owner, {
+        filename: "locked.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nlocked"),
+      });
+      await vi.waitFor(async () => expect((await documents.metadata(owner, document.id))?.parse_state)
+        .toEqual({ status: "failed", phase: "extracting", pages: [],
+          error: "PDF is password-protected. Remove its password, then upload it again." }),
+      { timeout: 3_000, interval: 10 });
+      await expect((await relationalDatabase()).query(sql`SELECT attempts,last_error FROM
+        application_jobs WHERE document_id=${document.id}`)).resolves.toMatchObject({
+        rows: [{ attempts: 1, last_error: "PdfEncrypted" }],
+      });
+    } finally { await worker.stop(); }
   });
 });

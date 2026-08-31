@@ -61,6 +61,8 @@ def screen_case(
         text,
         alternate_citation=alternate or None,
         dataset=dataset or None,
+        provider="a2aj",
+        require_report_start=dataset.upper() == "SCC",
     )
     claim = {
         "kind": document.kind,
@@ -244,6 +246,7 @@ def scan_laws(con, per_set: int) -> dict:
                     alternate_citation=alternate or None,
                     dataset=name,
                     name=instrument or None,
+                    provider="a2aj",
                 )
                 found = {
                     label[3:]

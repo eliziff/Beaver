@@ -14,6 +14,7 @@ export interface ModelOption {
         | "OpenAI"
         | "DeepSeek"
         | "Meta"
+        | "OpenCode Go"
         | "Codex"
         | "Desktop";
     available?: boolean;

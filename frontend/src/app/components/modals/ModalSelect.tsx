@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { SearchBar } from "@/app/components/ui/search-bar";
 import { cn } from "@/app/lib/utils";
 import { Modal } from "./Modal";
 type ModalSelectOption =
@@ -13,7 +14,7 @@ interface ModalSelectProps {
     value: string;
     options: readonly ModalSelectOption[];
     onChange: (value: string) => void;
-    placeholder?: string;
+    placeholder?: string | null;
     disabled?: boolean;
     className?: string;
     searchable?: boolean;
@@ -43,7 +44,7 @@ export function ModalSelect({
                     type="button"
                     disabled={disabled}
                     onClick={() => setOpen(true)}
-                    title={selected?.label ?? placeholder}
+                    title={selected?.label ?? placeholder ?? undefined}
                     aria-label={ariaLabel}
                     aria-haspopup="dialog"
                     aria-expanded={open}
@@ -79,14 +80,14 @@ export function ModalSelect({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             disabled={disabled}
-            title={selected?.label ?? placeholder}
+            title={selected?.label ?? placeholder ?? undefined}
             aria-label={ariaLabel}
             className={cn(
                 "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-600 disabled:cursor-not-allowed disabled:opacity-60",
                 className,
             )}
         >
-            {!normalizedOptions.some((option) => option.value === "") && (
+            {placeholder !== null && !normalizedOptions.some((option) => option.value === "") && (
                 <option value="" disabled>
                     {placeholder}
                 </option>
@@ -155,17 +156,11 @@ export function SearchableChoiceModal({
             size="sm"
             className="!h-[min(20rem,calc(100dvh-2rem))]"
         >
-            {searchable && <label className="flex h-10 shrink-0 items-center gap-2 border-y border-gray-200 px-2">
-                <Search
-                    aria-hidden="true"
-                    className="h-4 w-4 shrink-0 text-gray-500"
-                />
-                <span className="sr-only">{searchLabel}</span>
-                <input
+            {searchable && (
+                <SearchBar
                     ref={searchRef}
-                    type="search"
                     value={query}
-                    onChange={(event) => setQuery(event.currentTarget.value)}
+                    onValueChange={setQuery}
                     onKeyDown={(event) => {
                         if (event.key === "Enter" && visible[0]) {
                             event.preventDefault();
@@ -173,9 +168,11 @@ export function SearchableChoiceModal({
                         }
                     }}
                     placeholder={searchLabel}
-                    className="h-full min-w-0 flex-1 bg-white text-sm outline-none"
+                    aria-label={searchLabel}
+                    clearable={false}
+                    className="h-10 shrink-0 rounded-none border-x-0 border-gray-200 px-2"
                 />
-            </label>}
+            )}
             <div
                 role="group"
                 aria-label={title}

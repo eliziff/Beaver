@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { Document, Folder, LibraryFolder, Project } from "./types";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { FolderSvgIcon } from "./FolderSvgIcon";
-import { TabPillButton } from "@/app/components/ui/tab-pill-button";
+import { Tabs } from "@/app/components/ui/tabs";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
 import { buildDocumentTree } from "@/app/components/documents/documentTree";
 import { directoryResource, listProjects } from "@/app/lib/beaverApi";
 import { usePagedDirectory } from "@/app/hooks/usePagedDirectory";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
+import { SearchBar } from "@/app/components/ui/search-bar";
 
 export type DirectoryTab = "files" | "templates" | "projects";
 const TABS: [DirectoryTab, string][] = [
@@ -92,37 +93,13 @@ export function FileDirectory({ documents = EMPTY, projectId,
     }
     const loading = externalLoading || !!directory?.loading;
     const projectList = showTabs && activeTab === "projects" && !selectedProjectId;
-
-    return <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <div className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-gray-700 focus-within:border-gray-500">
-            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
-            <input
-                autoFocus
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.currentTarget.value)}
-                placeholder="Search files"
-                aria-label="Search files"
-                className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {search && <button type="button" onClick={() => setSearch("")}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                aria-label="Clear search">
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>}
-        </div>
-        <div className="flex min-h-8 items-center justify-between gap-3">
-            {showTabs ? <div className="flex gap-1.5">{TABS.map(([value, label]) =>
-                <TabPillButton key={value} active={value === activeTab} onClick={() => {
-                    setTab(value); setSelectedProjectId(""); setExpanded(new Set());
-                }}>{label}</TabPillButton>)}</div> : <span />}
-            {!!selected.size && <span className="text-xs text-gray-500">{selected.size} selected</span>}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
+    const listing = <div className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
             {projectList ? <>
                 {projects.loading && !projects.items.length && <Skeleton />}
                 {projects.items.filter(({ id }) => id !== excludeProjectId).map((item) =>
-                    <button type="button" key={item.id} onClick={() => setSelectedProjectId(item.id)}
+                    <button type="button" key={item.id} onClick={() => {
+                        setSelectedProjectId(item.id); setSearch("");
+                    }}
                         className={`flex min-h-10 w-full items-center gap-2 rounded px-2 text-left text-sm ${APP_SURFACE_HOVER_CLASS}`}>
                         <FolderSvgIcon className="h-4 w-4" /><span className="truncate">{item.name}</span>
                         <ChevronRight className="ml-auto h-4 w-4" />
@@ -131,7 +108,9 @@ export function FileDirectory({ documents = EMPTY, projectId,
                 {!projects.loading && !projects.items.length && <Empty query={query} />}
             </> : loading && !tree.rows.length ? <Skeleton /> : tree.rows.length || uploadingFilenames.length ? <>
                 {showTabs && activeTab === "projects" && selectedProjectId &&
-                    <button type="button" onClick={() => setSelectedProjectId("")}
+                    <button type="button" onClick={() => {
+                        setSelectedProjectId(""); setSearch("");
+                    }}
                         className="mb-1 min-h-9 px-2 text-sm text-gray-600 hover:text-gray-900">← Projects</button>}
                 {uploadingFilenames.map((name) => <div key={name}
                     className="flex h-10 items-center gap-2 px-2 text-sm text-gray-500">
@@ -160,7 +139,25 @@ export function FileDirectory({ documents = EMPTY, projectId,
                         <span className="min-w-0 flex-1 truncate">{doc.filename}</span></label>;
                 })}
             </> : <Empty query={query} />}
-        </div>
+        </div>;
+
+    return <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <SearchBar autoFocus value={search} onValueChange={setSearch} booleanSearch
+            placeholder="Search files" aria-label="Search files" />
+        {showTabs ? <Tabs value={activeTab} variant="quiet" ariaLabel="File source"
+            options={TABS.map(([value, label]) => ({ value, label }))}
+            onValueChange={(value) => {
+                setTab(value as DirectoryTab); setSelectedProjectId(""); setExpanded(new Set());
+            }} actions={selected.size ? <span className="text-xs text-gray-500">
+                {selected.size} selected
+            </span> : null} className="min-h-0 flex-1">
+            {listing}
+        </Tabs> : <>
+            {!!selected.size && <span className="text-end text-xs text-gray-500">
+                {selected.size} selected
+            </span>}
+            {listing}
+        </>}
     </div>;
 }
 

@@ -1,5 +1,4 @@
 import {
-  act,
   fireEvent,
   render,
   screen,
@@ -12,7 +11,6 @@ import type { Document } from "@/app/components/shared/types";
 import {
   DocTable,
   type DocTableFolder,
-  type DocTableSelectionActions,
 } from "./DocTable";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -47,9 +45,14 @@ function chooseAction(label: string) {
   fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
 
+function chooseSelectedAction(label: string) {
+  const header = screen.getByRole("group", { name: "Selected documents" });
+  fireEvent.click(within(header).getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: label }));
+}
+
 function Harness({
   removeDocument,
-  onActions,
   documentRemovalMode = "detach",
   initialDocuments = [document],
   initialFolders = [],
@@ -57,7 +60,6 @@ function Harness({
   onOwnerOnlyAction,
 }: {
   removeDocument: (documentId: string) => Promise<void>;
-  onActions?: (actions: DocTableSelectionActions | null) => void;
   documentRemovalMode?: "delete" | "detach";
   initialDocuments?: Document[];
   initialFolders?: DocTableFolder[];
@@ -87,7 +89,6 @@ function Harness({
         moveDocument: vi.fn(),
         renameDocument: vi.fn(),
       }}
-      onSelectionActionsChange={onActions}
       onOwnerOnlyAction={onOwnerOnlyAction}
       documentRemovalMode={documentRemovalMode}
     />
@@ -102,22 +103,9 @@ function selectDocument(filename: string) {
 describe("DocTable document removal", () => {
   it("requires confirmation before detaching a selected document", async () => {
     const removeDocument = vi.fn(async () => {});
-    let actions: DocTableSelectionActions | null = null;
-
-    render(
-      <Harness
-        removeDocument={removeDocument}
-        onActions={(next) => {
-          actions = next;
-        }}
-      />,
-    );
+    render(<Harness removeDocument={removeDocument} />);
     fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    await waitFor(() => expect(actions).not.toBeNull());
-
-    await act(async () => {
-      await actions!.onDelete();
-    });
+    chooseSelectedAction("Remove");
     expect(removeDocument).not.toHaveBeenCalled();
     expect(screen.getByText("Remove from project?")).toBeInTheDocument();
 
@@ -163,21 +151,10 @@ describe("DocTable document removal", () => {
     const removeDocument = vi.fn(async () => {
       throw new Error("offline");
     });
-    let actions: DocTableSelectionActions | null = null;
-    render(
-      <Harness
-        removeDocument={removeDocument}
-        onActions={(next) => {
-          actions = next;
-        }}
-      />,
-    );
+    render(<Harness removeDocument={removeDocument} />);
 
     fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    await waitFor(() => expect(actions).not.toBeNull());
-    await act(async () => {
-      await actions!.onDelete();
-    });
+    chooseSelectedAction("Remove");
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     expect(
@@ -192,23 +169,17 @@ describe("DocTable document removal", () => {
     const removeDocument = vi.fn(async (documentId: string) => {
       if (documentId === secondDocument.id) throw new Error("offline");
     });
-    let actions: DocTableSelectionActions | null = null;
     render(
       <Harness
         removeDocument={removeDocument}
         initialDocuments={[document, secondDocument]}
-        onActions={(next) => {
-          actions = next;
-        }}
       />,
     );
 
     selectDocument(document.filename);
     selectDocument(secondDocument.filename);
-    await waitFor(() => expect(actions?.selectedCount).toBe(2));
-    await act(async () => {
-      await actions!.onDelete();
-    });
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    chooseSelectedAction("Remove");
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(removeDocument).toHaveBeenCalledTimes(2));
@@ -219,23 +190,16 @@ describe("DocTable document removal", () => {
   it("does not remove a selected document owned by another user", async () => {
     const removeDocument = vi.fn(async () => {});
     const onOwnerOnlyAction = vi.fn();
-    let actions: DocTableSelectionActions | null = null;
     render(
       <Harness
         removeDocument={removeDocument}
         initialDocuments={[{ ...document, user_id: "other-user" }]}
-        onActions={(next) => {
-          actions = next;
-        }}
         onOwnerOnlyAction={onOwnerOnlyAction}
       />,
     );
 
     selectDocument(document.filename);
-    await waitFor(() => expect(actions).not.toBeNull());
-    await act(async () => {
-      await actions!.onDelete();
-    });
+    chooseSelectedAction("Remove");
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
     await waitFor(() =>
@@ -247,7 +211,7 @@ describe("DocTable document removal", () => {
     expect(screen.getByText(document.filename)).toBeInTheDocument();
   });
 
-  it("renders nested search results through the normal document row", () => {
+  it("renders server-filtered Boolean results through normal document rows", () => {
     const folder: DocTableFolder = {
       id: "folder-1",
       project_id: "matter-1",
@@ -269,16 +233,16 @@ describe("DocTable document removal", () => {
         removeDocument={vi.fn(async () => {})}
         initialDocuments={[document, nestedDocument]}
         initialFolders={[folder]}
-        search="memo"
+        search="memo OR brief"
       />,
     );
 
     expect(screen.getByText("Memo.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("Brief.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText("Brief.pdf")).toBeInTheDocument();
     expect(screen.queryByText("Research")).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "More actions" }),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 
   it("keeps the folder row action for creating a focused subfolder", () => {

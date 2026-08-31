@@ -3,15 +3,19 @@ import type { ApplicationScope } from "./applicationError";
 import type { CreateWorkflowRepository, WorkflowAccess, WorkflowCollaboration, WorkflowRecord } from "./workflowRepository";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, email, missingProfileEmail, now, one, rows, type Row } from "./relationalRepositorySupport";
+import { workflowVisibleTo, type WorkflowAudience } from "./systemWorkflows";
 
 const workflowRecord = (row: Row): WorkflowRecord => ({ ...row, id: String(row.id),
   user_id: typeof row.user_id === "string" ? row.user_id : null,
-  title: String(row.title), type: row.type === "tabular" ? "tabular" : "assistant",
+  title: String(row.title), execution: row.execution === "tabular" ? "tabular" : "assistant",
+  variant_label: String(row.variant_label),
+  variant_result: typeof row.variant_result === "string" ? row.variant_result : null,
   prompt_md: typeof row.prompt_md === "string" ? row.prompt_md : null,
   columns_config: decode(row.columns_config, null),
   language: typeof row.language === "string" ? row.language : null,
   version: typeof row.version === "string" ? row.version : null,
-  practice: typeof row.practice === "string" ? row.practice : null,
+  category: String(row.category) as WorkflowRecord["category"],
+  audiences: decode<WorkflowAudience[]>(row.audiences, []),
   jurisdictions: decode(row.jurisdictions, null), contributors: decode(row.contributors, null),
   created_at: String(row.created_at) });
 async function workflowAccess(scope: ApplicationScope, id: string,
@@ -30,38 +34,26 @@ async function workflowAccess(scope: ApplicationScope, id: string,
 }
 
 export const workflowRepository: CreateWorkflowRepository = (scope) => ({
-  async page(options) {
-    const result = await rows(sql`SELECT w.* FROM workflows w WHERE
+  async list(options) {
+    const result = (await rows(sql`SELECT w.* FROM workflows w WHERE
       (w.user_id=${scope.userId} OR EXISTS(SELECT 1 FROM workflow_shares s
         WHERE s.workflow_id=w.id AND s.shared_with_email=${email(scope)}))
-      ${options.type ? sql`AND w.type=${options.type}` : sql.raw("")}
-      ${options.q ? sql`AND lower(w.title) LIKE ${`%${options.q.toLowerCase()}%`}` : sql.raw("")}
-      ${options.after ? sql`AND (w.created_at<${options.after[0]} OR
-        (w.created_at=${options.after[0]} AND w.id<${options.after[1]}))` : sql.raw("")}
-      ORDER BY w.created_at DESC,w.id DESC LIMIT ${options.limit + 1}`);
-    const items = result.slice(0, options.limit).map(workflowRecord), last = items.at(-1);
-    return { items, nextAfter: result.length > options.limit && last
-      ? [last.created_at, last.id] : null };
-  },
-  async hidden() {
-    return (await rows<{ workflow_id: string }>(sql`SELECT workflow_id FROM hidden_workflows
-      WHERE user_id=${scope.userId}`)).map(({ workflow_id }) => workflow_id);
-  },
-  async hide(id) {
-    await changes(sql`INSERT INTO hidden_workflows(user_id,workflow_id,created_at)
-      VALUES(${scope.userId},${id},${now()}) ON CONFLICT(user_id,workflow_id) DO NOTHING`);
-  },
-  async unhide(id) {
-    await changes(sql`DELETE FROM hidden_workflows WHERE user_id=${scope.userId}
-      AND workflow_id=${id}`);
+      ORDER BY w.created_at DESC,w.id DESC`)).map(workflowRecord);
+    return result.filter((workflow) =>
+      (!options.q || [workflow.title, workflow.variant_label, workflow.variant_result ?? ""]
+        .some((value) => value.toLocaleLowerCase().includes(options.q))) &&
+      workflowVisibleTo(workflow.audiences, options.audience));
   },
   async create(input) {
     const id = randomUUID(), created = now();
-    await changes(sql`INSERT INTO workflows(id,user_id,title,type,prompt_md,columns_config,
-      language,version,practice,jurisdictions,contributors,created_at,updated_at)
-      VALUES(${id},${scope.userId},${input.title},${input.type},${input.promptMd},
+    await changes(sql`INSERT INTO workflows(id,user_id,title,execution,variant_label,variant_result,
+      prompt_md,columns_config,
+      language,version,category,audiences,jurisdictions,contributors,created_at,updated_at)
+      VALUES(${id},${scope.userId},${input.title},${input.execution},${input.variantLabel},
+      ${input.variantResult},${input.promptMd},
       ${input.columns === null ? null : encode(input.columns)},${input.language},${null},
-      ${input.practice},${input.jurisdictions === null ? null : encode(input.jurisdictions)},
+      ${input.category},${encode(input.audiences)},
+      ${input.jurisdictions === null ? null : encode(input.jurisdictions)},
       ${null},${created},${created})`);
     return (await workflowAccess(scope, id))!.workflow;
   },
@@ -71,12 +63,16 @@ export const workflowRepository: CreateWorkflowRepository = (scope) => ({
     if (!current?.allowEdit) return null;
     const value = current.workflow;
     await changes(sql`UPDATE workflows SET title=${input.title ?? value.title},
+      execution=${input.execution ?? value.execution},
+      variant_label=${input.variantLabel ?? value.variant_label},
+      variant_result=${input.variantResult === undefined ? value.variant_result : input.variantResult},
       prompt_md=${input.promptMd === undefined ? value.prompt_md : input.promptMd},
       columns_config=${input.columns === undefined
         ? value.columns_config === null ? null : encode(value.columns_config)
         : input.columns === null ? null : encode(input.columns)},
       language=${input.language === undefined ? value.language : input.language},
-      practice=${input.practice === undefined ? value.practice : input.practice},
+      category=${input.category ?? value.category},
+      audiences=${input.audiences === undefined ? encode(value.audiences) : encode(input.audiences)},
       jurisdictions=${input.jurisdictions === undefined
         ? value.jurisdictions === null ? null : encode(value.jurisdictions)
         : input.jurisdictions === null ? null : encode(input.jurisdictions)},
@@ -84,21 +80,16 @@ export const workflowRepository: CreateWorkflowRepository = (scope) => ({
     return workflowAccess(scope, id);
   },
   async remove(id) {
-    const db = await relationalDatabase();
-    return db.transaction(async (tx) => {
-      const removed = await changes(sql`DELETE FROM workflows WHERE id=${id}
-        AND user_id=${scope.userId}`, tx) > 0;
-      if (removed) await changes(sql`DELETE FROM hidden_workflows WHERE workflow_id=${id}`, tx);
-      return removed;
-    });
+    return await changes(sql`DELETE FROM workflows WHERE id=${id}
+      AND user_id=${scope.userId}`) > 0;
   },
   async assistants() {
-    const values = await rows(sql`SELECT w.* FROM workflows w WHERE w.type='assistant'
+    const values = await rows(sql`SELECT w.* FROM workflows w WHERE w.execution='assistant'
       AND (w.user_id=${scope.userId} OR EXISTS(SELECT 1 FROM workflow_shares s
         WHERE s.workflow_id=w.id AND s.shared_with_email=${email(scope)}))`);
     return new Map(values.flatMap((row) => {
       const workflow = workflowRecord(row);
-      return workflow.prompt_md ? [[workflow.id, { title: workflow.title,
+      return workflow.prompt_md ? [[workflow.id, { workflow_id: workflow.id, title: workflow.title,
         skill_md: workflow.prompt_md }] as const] : [];
     }));
   },
@@ -137,12 +128,15 @@ export const workflowCollaboration: WorkflowCollaboration = {
   async submit(scope, workflow, input) {
     const db = await relationalDatabase();
     const profile = db.engine === "postgres" ? await one<{ display_name: string | null }>(
-      sql`SELECT display_name FROM user_profiles WHERE user_id=${scope.userId}`, db) : null;
+      sql`SELECT display_name FROM user_preferences WHERE user_id=${scope.userId}`, db) : null;
     const created = now(), pending = await one<{ id: string }>(sql`SELECT id
       FROM workflow_open_source_submissions WHERE workflow_id=${workflow.id}
         AND submitted_by_user_id=${scope.userId} AND status='pending' LIMIT 1`, db);
     const snapshot = encode({ workflow_id: workflow.id, metadata: input.metadata,
-      skill_md: workflow.prompt_md, columns_config: workflow.columns_config,
+      launcher: { kind: "instructions", variants: [{ id: workflow.id,
+        label: workflow.variant_label, result: workflow.variant_result,
+        execution: workflow.execution, skill_md: workflow.prompt_md,
+        columns_config: workflow.columns_config }] },
       contributor_mode: input.contributorMode, created_at: workflow.created_at });
     if (pending) {
       await changes(sql`UPDATE workflow_open_source_submissions SET

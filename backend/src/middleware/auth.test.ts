@@ -100,7 +100,7 @@ describe("auth boundary", () => {
   it("fails closed without returning assurance-provider details", async () => {
     state.assuranceError = new Error("service secret abcdefghi");
     const res = response(), next = vi.fn() as NextFunction;
-    Object.assign(res.locals, { token: "token", userId: "user-1" });
+    Object.assign(res.locals, { token: "token", userId: "user-1", authClient: db });
     await requireMfaIfEnrolled(request(), res, next);
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ detail: "MFA verification failed" });
@@ -110,7 +110,7 @@ describe("auth boundary", () => {
   it("fails closed on an unexpected assurance response", async () => {
     state.assurance = { currentLevel: "aal1", nextLevel: undefined as never };
     const res = response(), next = vi.fn() as NextFunction;
-    Object.assign(res.locals, { token: "token", userId: "user-1" });
+    Object.assign(res.locals, { token: "token", userId: "user-1", authClient: db });
     await requireMfaIfEnrolled(request(), res, next);
     expect(res.statusCode).toBe(403);
     expect(next).not.toHaveBeenCalled();

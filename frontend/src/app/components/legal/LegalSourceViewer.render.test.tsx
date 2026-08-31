@@ -25,6 +25,7 @@ vi.mock("react-router-dom", () => ({
 }));
 import {
     LegalSourceViewer,
+    legalPassageTargetFromSelection,
     legalSourceViewerActions,
 } from "./LegalSourceViewer";
 import { LegalLibrarySourcePage } from "./LegalLibrary";
@@ -43,6 +44,10 @@ function viewerPayload(): LegalSourceViewerPayload {
         provider: "a2aj",
         reference: {
             docType: "cases",
+            provider: "a2aj",
+            id: "2099-scc-1",
+            kind: "case",
+            sourceSha256: "a".repeat(64),
             citation: "2099 SCC 1",
             language: "en",
             dataset: "SCC",
@@ -109,6 +114,25 @@ describe("legal source reader", () => {
         render(<LegalSourceViewer citation="2099 SCC 1" docType="cases" />);
         expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
             .toBeInTheDocument();
+    });
+
+    it("captures a selected passage as an anchored text quote", () => {
+        const root = document.createElement("div");
+        root.innerHTML = '<section data-legal-block="par12" data-locator-kind="paragraph" data-locator-value="par12">Before <span>the exact holding</span> after</section>';
+        document.body.append(root);
+        const text = root.querySelector("span")!.firstChild!;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        expect(legalPassageTargetFromSelection(root, selection)).toEqual({
+            locator: { kind: "paragraph", value: "par12" },
+            quote: "the exact holding",
+        });
+        root.remove();
+        selection.removeAllRanges();
     });
 
     it("renders continuous semantic content without paragraph navigation", async () => {

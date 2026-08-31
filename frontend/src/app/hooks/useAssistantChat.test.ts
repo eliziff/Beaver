@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   claimPendingChatMessage: vi.fn(),
   generateChatTitle: vi.fn(),
   renameChat: vi.fn(),
+  profile: null as null | Record<string, unknown>,
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -59,6 +60,9 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
     claimPendingChatMessage: mocks.claimPendingChatMessage,
     renameChat: mocks.renameChat,
   }),
+}));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+  useUserProfile: () => ({ profile: mocks.profile }),
 }));
 
 function streamResponse(events: unknown[]) {
@@ -97,6 +101,7 @@ function byteSplitStreamResponse(events: unknown[]) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.profile = null;
   localStorage.clear();
   mocks.loadChats.mockResolvedValue(undefined);
   mocks.generateChatTitle.mockResolvedValue({ title: "Generated title" });
@@ -194,9 +199,9 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("sends the standing jurisdiction preference with the turn", async () => {
-    updateAssistantPreferences({ jurisdiction: {
+    mocks.profile = { jurisdictionPreference: {
       mode: "presume", jurisdictions: ["ca-ab", "us-ny"],
-    } });
+    } };
     mocks.streamChat.mockResolvedValueOnce(completedTurn());
     const { result } = renderHook(() =>
       useAssistantChat({ chatId: "chat-1" }),
@@ -220,6 +225,36 @@ describe("useAssistantChat local transcript boundary", () => {
         },
       }),
     );
+  });
+
+  it("sends the active Court Record as typed turn scope", async () => {
+    mocks.streamChat.mockResolvedValueOnce(completedTurn());
+    const workProduct = { kind: "court-record" as const,
+      id: "00000000-0000-4000-8000-000000000001", revision: 3 };
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1", workProduct }),
+    );
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "Connect the book" });
+    });
+    expect(mocks.streamChat).toHaveBeenCalledWith(expect.objectContaining({
+      work_product: workProduct,
+    }));
+  });
+
+  it("passes saved research by work-product reference, not duplicated source text", async () => {
+    mocks.streamChat.mockResolvedValueOnce(completedTurn());
+    const workProduct = { kind: "research-set" as const,
+      id: "00000000-0000-4000-8000-000000000002", revision: 7 };
+    const { result } = renderHook(() =>
+      useAssistantChat({ chatId: "chat-1", workProduct }),
+    );
+    await act(async () => {
+      await result.current.handleChat({ role: "user", content: "Synthesize the saved passages" });
+    });
+    expect(mocks.streamChat).toHaveBeenCalledWith(expect.objectContaining({
+      work_product: workProduct,
+    }));
   });
 
   it("sends the selected subagent mode with the turn", async () => {
@@ -541,8 +576,10 @@ describe("useAssistantChat local transcript boundary", () => {
   });
 
   it("keeps structured ask-input selections for an exact retry", async () => {
-    localStorage.setItem("beaver.selectedModel", "codex:gpt-5.6-terra");
-    localStorage.setItem("beaver.reasoningEffort", "high");
+    mocks.profile = {
+      lastSelectedChatModel: "codex:gpt-5.6-terra",
+      lastSelectedReasoningEffort: "high",
+    };
     mocks.streamChat
       .mockResolvedValueOnce(
         new Response(
@@ -1137,7 +1174,7 @@ describe("useAssistantChat local transcript boundary", () => {
     });
   });
 
-  it("keeps streamed Automation receipts intact", async () => {
+  it("keeps streamed workflow receipts intact", async () => {
     mocks.streamChat.mockResolvedValue(
       streamResponse([
         {
@@ -1146,7 +1183,7 @@ describe("useAssistantChat local transcript boundary", () => {
           transcriptVersion: 1,
         },
         {
-          type: "automation_run",
+          type: "workflow_run",
           id: "call-1",
           tool: "create_table_of_authorities",
           job_id: "a".repeat(32),
@@ -1155,7 +1192,7 @@ describe("useAssistantChat local transcript boundary", () => {
           progress: 100,
           counts: [{ label: "Outputs", value: 1 }],
           outputs: [{ name: "Book.pdf", url: "/download/book" }],
-          app_url: "/table-of-authorities?job=abc",
+          app_url: "/table-of-authorities?draft=abc",
         },
         { type: "content_final", text: "The book is ready.", citations: [] },
         { type: "transcript_version", transcriptVersion: 2 },
@@ -1172,10 +1209,10 @@ describe("useAssistantChat local transcript boundary", () => {
       });
     });
 
-    const automationMessage = result.current.messages.at(-1);
-    expect(automationMessage?.role === "assistant" ? automationMessage.automations : []).toContainEqual(
+    const workflowMessage = result.current.messages.at(-1);
+    expect(workflowMessage?.role === "assistant" ? workflowMessage.workflowRuns : []).toContainEqual(
       expect.objectContaining({
-        type: "automation_run",
+        type: "workflow_run",
         id: "call-1",
         stage: "Build",
         status: "complete",

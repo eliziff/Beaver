@@ -422,6 +422,25 @@ export const A2AJ_CANLII_COURT_ROUTES: Record<string, string> = {
   YTTLRB: "yt/yttlrb",
 };
 
+function resolvedCanliiCaseUrl(
+  citations: Array<string | null | undefined>,
+  language: "en" | "fr",
+  expectedCourt?: string,
+) {
+  for (const match of structureNative().providerCitationsInText(
+    citations.filter(Boolean).join("\n;\n"))) {
+    if (match.family !== "neutral" || !match.year || !match.court || !match.number) continue;
+    const court = match.court.toUpperCase();
+    if (expectedCourt && court !== expectedCourt) continue;
+    const route = A2AJ_CANLII_COURT_ROUTES[court];
+    if (!route) continue;
+    const slugCourt = court === "CANLII" ? "canlii" : match.court.toLowerCase();
+    const slug = `${match.year}${slugCourt}${match.number}`;
+    return `https://www.canlii.org/${language}/${route}/doc/${match.year}/${slug}/${slug}.html`;
+  }
+  return null;
+}
+
 export function buildCanliiCaseUrl({
   dataset,
   citations,
@@ -432,16 +451,28 @@ export function buildCanliiCaseUrl({
   language: "en" | "fr";
 }) {
   const expectedCourt = dataset.trim().toUpperCase();
-  const route = A2AJ_CANLII_COURT_ROUTES[expectedCourt];
-  if (!route) return null;
+  return A2AJ_CANLII_COURT_ROUTES[expectedCourt]
+    ? resolvedCanliiCaseUrl(citations, language, expectedCourt)
+    : null;
+}
 
-  for (const match of structureNative().providerCitationsInText(
-    citations.filter(Boolean).join("\n;\n"))) {
-    if (match.family !== "neutral" || !match.year || !match.court || !match.number ||
-        match.court.toUpperCase() !== expectedCourt) continue;
-    const slugCourt = expectedCourt === "CANLII" ? "canlii" : match.court.toLowerCase();
-    const slug = `${match.year}${slugCourt}${match.number}`;
-    return `https://www.canlii.org/${language}/${route}/doc/${match.year}/${slug}/${slug}.html`;
-  }
-  return null;
+export function buildCanliiCaseUrlFromCitation(
+  citations: Array<string | null | undefined>,
+  language: "en" | "fr" = "en",
+) {
+  return resolvedCanliiCaseUrl(citations, language);
+}
+
+/** Returns only the exact PDF sibling of a canonical CanLII decision page. */
+export function buildCanliiPdfUrl(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl);
+    if (url.protocol !== "https:" || url.hostname !== "www.canlii.org" || url.port ||
+        url.username || url.password || url.search || url.hash) return null;
+    const match = /^\/(?:en|fr)\/(?:[A-Za-z0-9-]+\/){1,2}doc\/(\d{4})\/([a-z0-9-]+)\/\2\.html$/u
+      .exec(url.pathname);
+    if (!match || !match[2].startsWith(match[1])) return null;
+    url.pathname = url.pathname.replace(/\.html$/u, ".pdf");
+    return url.href;
+  } catch { return null; }
 }

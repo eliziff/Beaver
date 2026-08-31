@@ -15,7 +15,9 @@ import {
   legalEvidenceReceiptEvent,
   legalEvidenceRequested,
   priorLegalEvidenceReceipts,
+  priorLegalResearchQueryReceipts,
   registerLegalEvidence,
+  registerLegalResearchQueries,
   registerPriorLegalEvidence,
   renderLegalEvidenceAnswer,
   restorePriorLegalEvidence,
@@ -73,6 +75,33 @@ describe("production legal evidence", () => {
     const event = legalEvidenceReceiptEvent(state)!;
     expect(event.status).toBe("passed");
     expect(priorLegalEvidenceReceipts([event])).toEqual([evidence]);
+  });
+
+  it("persists a query-only turn as an auditable research receipt", () => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalResearchQueries(state, [{
+      call_id: "call_1",
+      tool: "search_sources",
+      executed_at: "2026-08-30T12:00:00.000Z",
+      executor_version: "legal-source-search-v1",
+      input: { query: "standard of review", limit: 10 },
+      results: [{ rank: 1, resource: "source://a2aj/cases/scc/2019-scc-65" }],
+    }], "test-model");
+
+    const event = legalEvidenceReceiptEvent(state)!;
+    expect(event).toMatchObject({
+      schema_version: 7,
+      status: "passed",
+      evidence: [],
+      queries: [expect.objectContaining({
+        call_id: "call_1",
+        model: "test-model",
+        tool: "search_sources",
+      })],
+    });
+    expect(priorLegalResearchQueryReceipts([event])).toEqual(event.queries);
+    expect(priorLegalResearchQueryReceipts([{ ...event, status: "failed" }]))
+      .toEqual(event.queries);
   });
 
   it("strips DOCX citation-handle markers that leak into chat claims", () => {
@@ -227,12 +256,14 @@ describe("production legal evidence", () => {
       "Delay in seeking child support requires a distinct final proposition.",
     ].join("\n");
     const native = await structureNative().deriveDocumentStructure({
-      kind: "a2aj",
+      kind: "provider_text",
       input: {
+        provider: "a2aj",
         citation: "2006 SCC 37",
         source_kind: "cases",
         text,
         dataset: "SCC",
+        require_report_start: true,
         url: "https://www.canlii.org/en/ca/scc/doc/2006/2006scc37/2006scc37.html",
       },
     });

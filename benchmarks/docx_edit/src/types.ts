@@ -1,13 +1,12 @@
 /**
  * docx-edit-bench data model.
  *
- * Tasks are DATA (tasks.jsonl). Nothing here knows about any particular tool
- * surface: a surface is named in a run's configuration, not in a task.
+ * Tasks are data (tasks.jsonl). The checker knows nothing about the engine or
+ * tool surface that produced an output.
  */
 
 export const TASK_SCHEMA = "mike.docx-edit.task.v1";
 export const MANIFEST_SCHEMA = "mike.docx-edit.manifest.v1";
-export const RECEIPT_SCHEMA = "mike.docx-edit.receipt.v1";
 export const BENCH_VERSION = "docx-edit-bench-v2";
 
 /**

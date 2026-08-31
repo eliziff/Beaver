@@ -8,6 +8,7 @@ import {
   type VerifiedPdfEvidence,
 } from "../legalSourcePresentation";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
+import { normalizeWhitespace } from "../text";
 import {
   structureNative,
   type NativeDocument,
@@ -39,6 +40,12 @@ export type A2AJCompiledDocument = Omit<A2AJDocument, "text" | "sectionMap"> & {
   native: NativeDocument;
 };
 
+export function stableA2AJSourceId(source: Pick<A2AJDocument,
+  "dataset" | "citation" | "language">) {
+  return ["a2aj", source.language, source.dataset.trim().toLowerCase(),
+    normalizeWhitespace(source.citation).toLowerCase()].join(":");
+}
+
 const BASE_URL = "https://api.a2aj.ca";
 const JURISDICTIONS = {
   FED: "Federal", AB: "Alberta", BC: "British Columbia", MB: "Manitoba",
@@ -61,14 +68,16 @@ async function deriveA2AJDocument(
   scope: { kind: "complete" | "excerpt"; excerptOf?: string } = { kind: "complete" },
 ) {
   const result = await structureNative().deriveDocumentStructure({
-    kind: "a2aj",
+    kind: "provider_text",
     input: {
+      provider: "a2aj",
       citation: input.citation,
       source_kind: input.docType,
       text: input.text,
       ...(input.id ? { id: input.id } : {}),
       ...(input.url ? { url: input.url } : {}),
       ...(input.dataset ? { dataset: input.dataset } : {}),
+      require_report_start: input.docType === "cases" && input.dataset?.toUpperCase() === "SCC",
       ...(input.name ? { name: input.name } : {}),
       ...(input.alternateCitation ? { alternate_citation: input.alternateCitation } : {}),
       ...(input.sectionMap ? { section_map: Object.entries(input.sectionMap) } : {}),
@@ -440,8 +449,10 @@ async function viewer(args: {
     );
     const payload = {
       schemaVersion: "mike.legal-source.v1" as const, provider: "a2aj" as const,
-      reference: { docType, citation: found.citation, language: found.language,
-        dataset: found.dataset || null },
+      reference: { provider: "a2aj" as const, id: found.citation,
+        kind: docType === "laws" ? "legislation" as const : "case" as const,
+        docType, citation: found.citation, language: found.language,
+        dataset: found.dataset || null, sourceSha256: viewer.documentRevision },
       metadata: {
         title: found.name || found.citation, citation: found.citation,
         alternateCitation: found.alternateCitation, date: found.date, dataset: found.dataset,

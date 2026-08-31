@@ -1,0 +1,643 @@
+{
+  "schema_version": 1,
+  "manifest": "docs/decisions/court-output-preset-receipts.json",
+  "manifest_verified_on": "2026-08-31",
+  "updated_at": "2026-08-31T14:15:34.237Z",
+  "results": [
+    {
+      "id": "ab-affidavit-exhibit-example",
+      "url": "https://albertacourts.ca/cj/areas-of-law/civil/claims/court-prep/exhibits",
+      "final_url": "https://albertacourts.ca/cj/areas-of-law/civil/claims/court-prep/exhibits",
+      "checked_at": "2026-08-30T20:05:42.718Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 118232,
+      "sha256": "9be752ffe9e3df95af40f82a9f57a06d9fbe188e9abe1c78176a36a0218e0942",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "This is Exhibit",
+          "Print Name and Expiry Date"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.361Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-appeal-requirements",
+      "url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "final_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "checked_at": "2026-08-30T20:05:44.888Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 56310,
+      "sha256": "b36a2e4e4f39dfaa59512cb27e1d1e7d652592d64850a919a57e0689b05bbaeb",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "Appeal Record Requirements",
+          "sample Table of Contents"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.423Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-authorities-guide",
+      "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
+      "final_url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
+      "checked_at": "2026-08-30T20:05:43.960Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 230714,
+      "sha256": "af7e9305873a0a0ac7a1785eb2539c67fc17ae25427129f789e5226c87d60045",
+      "etag": null,
+      "last_modified": "Fri, 12 Jan 2024 21:03:25 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.404Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-consolidated-directions",
+      "url": "https://albertacourts.ca/docs/default-source/ca/consolidated-practice-directions.pdf?sfvrsn=a286ab80_22",
+      "final_url": "https://albertacourts.ca/docs/default-source/ca/consolidated-practice-directions.pdf?sfvrsn=a286ab80_22",
+      "checked_at": "2026-08-30T20:44:52.799Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 256603,
+      "sha256": "a73da88934c85c03f4d98f6f15b87f94025414a73d7e134ac6ff8b3a244d38a3",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.424Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-electronic-format",
+      "url": "https://cams.albertacourts.ca/public-portal/files/electronicFilingFormatRequirements.pdf",
+      "final_url": "https://cams.albertacourts.ca/public-portal/files/electronicFilingFormatRequirements.pdf",
+      "checked_at": "2026-08-30T20:05:44.003Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 156195,
+      "sha256": "9ce664dd5cd81c7ee0487fecf17ce280e51b765f0264be1b9fb13013c16cb785",
+      "etag": "\"ad5c9faf6f67d61:0\"",
+      "last_modified": "Fri, 31 Jul 2020 19:20:43 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.418Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.114:443"
+    },
+    {
+      "id": "ab-ca-filing-hub",
+      "url": "https://www.albertacourts.ca/ca/registry/filing",
+      "final_url": "https://www.albertacourts.ca/ca/registry/filing",
+      "checked_at": "2026-08-30T20:05:44.181Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 112666,
+      "sha256": "3bcd21dd71a3088040ecb2e61da6d428ce7b6277cdbf4bca7e3581f6b758cd59",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "AP-5",
+          "Appeal Record"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.421Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-sample-extracts",
+      "url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedExtracts.pdf",
+      "final_url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedExtracts.pdf",
+      "checked_at": "2026-08-30T20:05:45.061Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 1041029,
+      "sha256": "9abe9d27d71a650cc0254c291157f3ef39db90eab76bfc65392c7d7010d050ca",
+      "reference_sha256": "9abe9d27d71a650cc0254c291157f3ef39db90eab76bfc65392c7d7010d050ca",
+      "reference_status": "matched",
+      "etag": "\"364f2daeb63d91:0\"",
+      "last_modified": "Fri, 31 Mar 2023 16:14:22 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.429Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.114:443"
+    },
+    {
+      "id": "ab-ca-sample-record",
+      "url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedAppealRecord.pdf",
+      "final_url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedAppealRecord.pdf",
+      "checked_at": "2026-08-30T20:05:45.032Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 1092736,
+      "sha256": "d18f236e344b62afdc4209075892aaf97d192dca660915c074ced0ae41ace59a",
+      "reference_sha256": "d18f236e344b62afdc4209075892aaf97d192dca660915c074ced0ae41ace59a",
+      "reference_status": "matched",
+      "etag": "\"c93bd189f263d91:0\"",
+      "last_modified": "Fri, 31 Mar 2023 17:02:12 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.427Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.114:443"
+    },
+    {
+      "id": "ab-kb-citation-guidelines",
+      "url": "https://albertacourts.ca/kb/resources/citation-guidelines",
+      "final_url": "https://albertacourts.ca/kb/resources/citation-guidelines",
+      "checked_at": "2026-08-30T20:05:43.741Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 110909,
+      "sha256": "f172cb9b5499a93834060c3585b0a20cc1897914c866706087df6028d2fa8f5b",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "Book of Authorities",
+          "Avoid duplicating authorities"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.398Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-commercial-pn1",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-commercial-practice-note-1---commercial-chambers.pdf?sfvrsn=adea3b82_6",
+      "final_url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-commercial-practice-note-1---commercial-chambers.pdf?sfvrsn=adea3b82_6",
+      "checked_at": "2026-08-30T20:05:43.420Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 633237,
+      "sha256": "1e9769d707196f83898dbbb810ed882e9db5430ffdd4e3bc2ecba83ff1b4773a",
+      "etag": null,
+      "last_modified": "Fri, 31 Jan 2025 18:31:36 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.392Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-cpn1",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-civil-practice-note-1---justice-and-applications-judges%27-chambers.pdf?sfvrsn=a9ea3b82_4",
+      "final_url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-civil-practice-note-1---justice-and-applications-judges%27-chambers.pdf?sfvrsn=a9ea3b82_4",
+      "checked_at": "2026-08-30T20:05:43.381Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 132296,
+      "sha256": "e9211f8bd2a4c33d1aa29bd35c831b785c029ed2850813822e1f2cc1ef9d43ea",
+      "etag": null,
+      "last_modified": "Wed, 10 Jul 2024 17:28:02 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.389Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-digital-guidelines",
+      "url": "https://albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload",
+      "final_url": "https://albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload",
+      "checked_at": "2026-08-30T20:05:43.190Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 107817,
+      "sha256": "94f9895e17dfa30c50136410195aa8b139ed25e8c032c9c0e7f4561e78c9d227",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "searchable",
+          "100MB",
+          "bookmarked"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.387Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-digital-orders-2026",
+      "url": "https://www3.albertacourts.ca/kb/resources/announcements/digital-orders-for-applications-judges-matters-in-KB-FDS-civil-chambers",
+      "final_url": "https://www3.albertacourts.ca/kb/resources/announcements/digital-orders-for-applications-judges-matters-in-KB-FDS-civil-chambers",
+      "checked_at": "2026-08-31T00:08:10.109Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 107466,
+      "sha256": "abb69567055bcc50627cd0f75ff1d9936f5ff06cf0afc5ab703cb82e2d405af2",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "September 15, 2026",
+          "Applications Judge Desk Applications",
+          "PDF order upload will no longer be accepted"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "id": "ab-kb-fds-2026",
+      "url": "https://albertacourts.ca/kb/resources/announcements/KB-filing-digital-service-civil-and-chambers-to-include-applications-judges-chambers-applications",
+      "final_url": "https://albertacourts.ca/kb/resources/announcements/KB-filing-digital-service-civil-and-chambers-to-include-applications-judges-chambers-applications",
+      "checked_at": "2026-08-30T20:05:43.506Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 109457,
+      "sha256": "cdc857cc7329137dc32b42750769f70a889b5cb32a2799c9ce00ea2bbe136cf0",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "proposed",
+          "supporting",
+          "Applications Judge"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.395Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-form-49",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/lesaform-%2849%29.docx?sfvrsn=2ea6ad80_2",
+      "final_url": "https://www.albertacourts.ca/docs/default-source/qb/lesaform-%2849%29.docx?sfvrsn=2ea6ad80_2",
+      "checked_at": "2026-08-30T20:05:43.069Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "byte_count": 18035,
+      "sha256": "c725863a3f94d20990b561b2a046243b8f8afd08f88f0338e953c369b59a7d24",
+      "reference_sha256": "c725863a3f94d20990b561b2a046243b8f8afd08f88f0338e953c369b59a7d24",
+      "reference_status": "matched",
+      "etag": null,
+      "last_modified": "Wed, 22 Feb 2023 20:24:08 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.384Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-general-pn1",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/general-practice-notes/kb-general-practice-note-1-english.pdf?sfvrsn=a6227c82_16",
+      "final_url": "https://www.albertacourts.ca/docs/default-source/qb/general-practice-notes/kb-general-practice-note-1-english.pdf?sfvrsn=a6227c82_16",
+      "checked_at": "2026-08-30T20:05:43.920Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 129492,
+      "sha256": "4e08475f2a62309249f6a167bbfdcfd446ae256d1ea45e63911af1579d03b222",
+      "etag": null,
+      "last_modified": "Mon, 12 Dec 2022 19:11:04 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.401Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-rules-part-13-14",
+      "url": "https://www.canlii.org/en/ab/laws/regu/alta-reg-124-2010/",
+      "checked_at": "2026-08-30T22:55:20.320Z",
+      "status": "manual_only",
+      "detail": "No automated request was made."
+    },
+    {
+      "id": "canlii-terms",
+      "url": "https://www.canlii.org/info/terms.html",
+      "checked_at": "2026-08-31T14:15:34.225Z",
+      "status": "manual_only",
+      "detail": "No automated request was made."
+    },
+    {
+      "id": "fc-action-guide",
+      "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/Federal%20Court%20-%20How%20to%20file%20an%20Action.pdf",
+      "final_url": "https://www.fct-cf.ca/Content/assets/pdf/base/Federal%20Court%20-%20How%20to%20file%20an%20Action.pdf",
+      "checked_at": "2026-08-30T20:10:27.033Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 191926,
+      "sha256": "0de28fd899d596f197c884c0d074cf7320acc88db12135ad93fa1f131723d80c",
+      "etag": "\"1018b7211958d91:0\"",
+      "last_modified": "Thu, 16 Mar 2023 15:08:14 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.647Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fc-efiling",
+      "url": "https://www.fct-cf.gc.ca/en/pages/online-access/e-filing",
+      "final_url": "https://www.fct-cf.ca/en/pages/online-access/e-filing",
+      "checked_at": "2026-08-30T20:09:51.705Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 121720,
+      "sha256": "374b41d4708f501b30cbecfecd4233f871be961ab4181c5c38b8a622754c4528",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "100 MB",
+          "500",
+          "bookmark"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.571Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fc-practice-guidelines-2025",
+      "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/2025-06-20__Amended-Consolidated-General-Practice-Guidelines.pdf",
+      "final_url": "https://www.fct-cf.ca/Content/assets/pdf/base/2025-06-20__Amended-Consolidated-General-Practice-Guidelines.pdf",
+      "checked_at": "2026-08-30T20:09:33.549Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 145553,
+      "sha256": "b7c74ce98e38fd274fc7366f997d4dce153750d5ced87b1dd858f86a2ae80d0c",
+      "etag": "\"716af89a3f94dc1:0\"",
+      "last_modified": "Mon, 02 Feb 2026 12:29:41 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.568Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fc-rules",
+      "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
+      "final_url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
+      "checked_at": "2026-08-30T20:05:45.154Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html",
+      "byte_count": 1099651,
+      "sha256": "b900c552c51047e6987699c12604807473d49cb63226a6c6e4f1ffcb83b46e33",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "Trial Record",
+          "Motion Record",
+          "Appeal Books",
+          "FORM 344"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.464Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": ""
+    },
+    {
+      "id": "fc-sample-motion-record",
+      "url": "https://www.fct-cf.gc.ca/content/assets/pdf/base/Sample%20Document%201%20%28MR%20-%20Constitutional%29.pdf",
+      "final_url": "https://www.fct-cf.ca/content/assets/pdf/base/Sample%20Document%201%20(MR%20-%20Constitutional).pdf",
+      "checked_at": "2026-08-30T20:10:19.306Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 602795,
+      "sha256": "87fb799cc1e879d3e7970433feb3422ea317f49a95ddcea768fc5cd3ad9bd4b9",
+      "reference_sha256": "87fb799cc1e879d3e7970433feb3422ea317f49a95ddcea768fc5cd3ad9bd4b9",
+      "reference_status": "matched",
+      "etag": "\"1fc54c49b919d61:0\"",
+      "last_modified": "Thu, 23 Apr 2020 21:51:04 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.645Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fca-consolidated-direction-2026",
+      "url": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court/consolidated-practice-direction",
+      "final_url": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court/consolidated-practice-direction",
+      "checked_at": "2026-08-30T20:06:08.437Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 57878,
+      "sha256": "2663931efe14bf8f35fe4e1ac3f66049dc605a3f47af847591ea9220e0c92e35",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "July 9, 2026",
+          "proof of service",
+          "Condensed books and compendia"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.634Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fca-efiling-guide",
+      "url": "https://efiling.fca-caf.gc.ca/en/online-access/guide",
+      "final_url": "https://efiling.fca-caf.gc.ca/en/online-access/guide",
+      "checked_at": "2026-08-30T20:06:08.103Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 75117,
+      "sha256": "5e544d69421ccc713ee2c8f49eb93c2606c0a6a91e72adbb552b775ae28d8364",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "bookmark",
+          "searchable",
+          "100 MB"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.583Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.70:443"
+    },
+    {
+      "id": "fca-example-appeal-book-agreement",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-an-agreement-as-to-contents-of-appeal-book-1.pdf",
+      "final_url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-an-agreement-as-to-contents-of-appeal-book-1.pdf",
+      "checked_at": "2026-08-30T20:11:25.948Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 392669,
+      "sha256": "865efcb6cf6750d9fcfa034c9957acc42bc775c6deae029841c323b352d95d45",
+      "reference_sha256": "865efcb6cf6750d9fcfa034c9957acc42bc775c6deae029841c323b352d95d45",
+      "reference_status": "matched",
+      "etag": "\"6c12f28974afd91:0\"",
+      "last_modified": "Wed, 05 Jul 2023 19:11:44 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.640Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fca-example-written-representations",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-Written-Representations.pdf",
+      "final_url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-Written-Representations.pdf",
+      "checked_at": "2026-08-30T20:06:40.509Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 197150,
+      "sha256": "2597da285f00acdee850bd3ed62e214b6f49df5eb43743fc8535eb20e85d4387",
+      "reference_sha256": "2597da285f00acdee850bd3ed62e214b6f49df5eb43743fc8535eb20e85d4387",
+      "reference_status": "matched",
+      "etag": "\"4421e8e182f7d91:0\"",
+      "last_modified": "Thu, 05 Oct 2023 11:55:49 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.642Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fca-examples",
+      "url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",
+      "final_url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",
+      "checked_at": "2026-08-30T20:12:06.436Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 13519,
+      "sha256": "c88f45269433827a768f3a4f74c9ef84f7fbdb0e8f252220fec59d66790ceb59",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "Agreement on content of appeal book",
+          ".DOCX",
+          "Written representations"
+        ],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.638Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    },
+    {
+      "id": "fca-leave-guide",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Motions_for_leave_to_appeal_to_the_Federal_Court_of_Appeal.pdf",
+      "final_url": "https://www.fca-caf.ca/Content/assets/pdf/base/Motions_for_leave_to_appeal_to_the_Federal_Court_of_Appeal.pdf",
+      "checked_at": "2026-08-30T20:11:50.521Z",
+      "status": "not_modified",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 19937,
+      "sha256": "5264d998477a21b67baa97301b8afd1122c97450daf535f36132a433e609af72",
+      "etag": "\"b962fb4c97adb1:0\"",
+      "last_modified": "Thu, 19 Sep 2024 13:24:48 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      },
+      "last_attempt_at": "2026-08-30T22:55:20.636Z",
+      "last_attempt_status": "error",
+      "last_attempt_detail": "connect EACCES 198.103.145.67:443"
+    }
+  ]
+}

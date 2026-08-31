@@ -2,12 +2,17 @@ import { assistantTools } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
 import type { TabularCellStore, WorkflowStore } from "./types";
+import type { DraftingStyleSettings } from "../draftingStyle";
 import type { EditMode } from "../docxTrackedChanges";
 import type { DocumentStore } from "../documentStore";
 import type { LibraryStore } from "../libraryStore";
 import type { ProjectStore } from "../projectStore";
 import { resourceReference } from "../resourceReferences";
 import type { ReadSubagentAssignment } from "./readSubagents";
+import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
+import type { CourtRecordsApplication } from "../courtRecordsApplication";
+import type { FeaturePreferences } from "../userPreferences";
+import type { WorkProductApplication } from "../workProductApplication";
 
 function state() {
   return {
@@ -26,6 +31,21 @@ export function createChatToolRunner(options: {
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
+  workProducts: Pick<WorkProductApplication,
+    "create" | "get" | "resolve" | "applyResearchSetAction">;
+  model?: string;
+  chatId?: string;
+  researchSetId?: string;
+  researchSetRevision?: number;
+  authorities: Pick<AuthoritiesWorkspaceApplication,
+    "importDraft" | "refresh" | "build" | "addReceipts">;
+  authoritiesId?: string;
+  authoritiesRevision?: number;
+  courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
+  courtRecordId?: string;
+  courtRecordRevision?: number;
+  productFeatures?: FeaturePreferences;
+  draftingStyle?: DraftingStyleSettings;
   workflows?: WorkflowStore;
   entries?: BeaverTool<ChatToolContext>[];
   includeResearchTools: boolean;
@@ -38,6 +58,11 @@ export function createChatToolRunner(options: {
   const artifactByDocument = new Map<string, string>();
   let artifactNumber = 0;
   let mutationCommitted = false;
+  const commitMutation = () => {
+    if (mutationCommitted) return;
+    mutationCommitted = true;
+    options.onMutationCommitted();
+  };
 
   const artifactFor = (documentId: string, versionId: string) => {
     const existing = artifactByDocument.get(documentId);
@@ -65,16 +90,26 @@ export function createChatToolRunner(options: {
         resolveArtifact: (value) => artifacts.get(value),
         artifactFor,
         onMutationCommitted() {
-          if (scope === "main" && !mutationCommitted) {
-            mutationCommitted = true;
-            options.onMutationCommitted();
-          }
+          if (scope === "main") commitMutation();
         },
         userEmail: options.userEmail,
         ...turnState,
         documents: options.documents,
         library: options.library,
         projects: options.projects,
+        workProducts: options.workProducts,
+        model: options.model,
+        chatId: options.chatId,
+        researchSetId: options.researchSetId,
+        researchSetRevision: options.researchSetRevision,
+        authorities: options.authorities,
+        authoritiesId: options.authoritiesId,
+        authoritiesRevision: options.authoritiesRevision,
+        courtRecords: options.courtRecords,
+        courtRecordId: options.courtRecordId,
+        courtRecordRevision: options.courtRecordRevision,
+        productFeatures: options.productFeatures,
+        draftingStyle: options.draftingStyle,
         workflows: options.workflows,
         allowedDocumentIds: options.allowedDocumentIds,
         matterId: options.projectId,
@@ -88,6 +123,7 @@ export function createChatToolRunner(options: {
 
   return {
     createTools,
+    commitMutation,
     mutationCommitted: () => mutationCommitted,
   };
 }
