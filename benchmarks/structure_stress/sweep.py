@@ -245,6 +245,8 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             text,
             alternate_citation=metadata.get("alternate_citation") or None,
             dataset=metadata.get("dataset") or doc_id.split(":", 1)[0],
+            provider="a2aj",
+            require_report_start=(metadata.get("dataset") or doc_id.split(":", 1)[0]).upper() == "SCC",
         )
         structure = {
             "kind": document.kind,
@@ -280,6 +282,7 @@ def scan_doc(job: tuple[str, str, str, dict]) -> dict:
             alternate_citation=metadata.get("alternate_citation") or None,
             dataset=metadata.get("dataset") or doc_id.split(":", 1)[0],
             name=metadata.get("name") or None,
+            provider="a2aj",
         )
         record["source_doc_ms"] = round(
             (time.perf_counter() - structure_started) * 1000, 3

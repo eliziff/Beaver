@@ -8,6 +8,8 @@ const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
   title: typeof row.title === "string" ? row.title : null,
+  model: typeof row.model === "string" ? row.model : null,
+  reasoning_effort: typeof row.reasoning_effort === "string" ? row.reasoning_effort : null,
   transcript_version: Number(row.transcript_version ?? 0) });
 const chatMessage = (row: Row, content?: unknown[]): ChatMessageRecord => ({ ...row, id: String(row.id),
   chat_id: String(row.chat_id), ...(row.turn_id ? { turn_id: String(row.turn_id) } : {}),
@@ -87,11 +89,10 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
       : current.transcript_version;
     if (expected !== current.transcript_version)
       return { status: "conflict", currentVersion: current.transcript_version };
-    let prior: Row | null = null;
     if (mutation.kind === "append") {
-      prior = await one(sql`SELECT content FROM chat_messages WHERE id=${mutation.messageId}
+      const message = await one(sql`SELECT id FROM chat_messages WHERE id=${mutation.messageId}
         AND chat_id=${id} AND role='assistant'`, tx);
-      if (!prior) return { status: "missing" };
+      if (!message) return { status: "missing" };
     }
     const version = current.transcript_version + 1, created = now();
     if (!await changes(sql`UPDATE chats SET updated_at=${created},transcript_version=${version}
@@ -101,16 +102,9 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
       const existing = (await tx.query<{ ordinal: number }>(sql`SELECT ordinal
         FROM chat_message_events WHERE message_id=${mutation.messageId}
         ORDER BY ordinal DESC LIMIT 1`)).rows[0];
-      let sequence = existing ? Number(existing.ordinal) + 1 : 0;
-      if (!existing) {
-        const legacy = decode<unknown[]>(prior!.content, []);
-        await syncMessageEvents(tx, mutation.messageId, legacy);
-        sequence = legacy.length;
-      }
+      const sequence = existing ? Number(existing.ordinal) + 1 : 0;
       await tx.query(sql`INSERT INTO chat_message_events(message_id,ordinal,event,created_at)
         VALUES(${mutation.messageId},${sequence},${encode(mutation.event)},${created})`);
-      await tx.query(sql`UPDATE chat_messages SET content=${encode([])}
-        WHERE id=${mutation.messageId} AND chat_id=${id}`);
     } else {
       const { userMessage, assistantMessage } = mutation.turn;
       if (userMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
@@ -179,6 +173,9 @@ export const chatRepository: CreateChatRepository = (scope) => ({
     if (!current) return null;
     await changes(sql`UPDATE chats SET title=${input.title ?? current.title},
       project_id=${input.projectId === undefined ? current.project_id : input.projectId},
+      model=${input.model === undefined ? current.model : input.model},
+      reasoning_effort=${input.reasoningEffort === undefined
+        ? current.reasoning_effort : input.reasoningEffort},
       updated_at=${now()} WHERE id=${id} AND user_id=${scope.userId} AND deleted_at IS NULL`);
     return findChat(scope, id, false, true);
   },

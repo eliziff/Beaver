@@ -1,350 +1,158 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Building2, ChevronDown, FileCheck2, FilePenLine, Files, FolderSearch,
+    Handshake, Info, LayoutTemplate, ListChecks, MessageSquare, Play, Scale,
+    SearchCheck, Table2, Workflow as WorkflowIcon, type LucideIcon } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import type { ColumnConfig, Workflow } from "../shared/types";
-import {
-    formatIcon,
-    formatIconClassName,
-    formatLabel,
-} from "../tabular/columnFormat";
-import { TAG_COLORS } from "../tabular/pillUtils";
-import {
-    APP_SURFACE_ACTIVE_CLASS,
-    APP_SURFACE_HOVER_CLASS,
-} from "@/app/components/ui/liquid-surface";
-type MobilePickerPane = "list" | "details";
-interface WorkflowPickerContentProps {
-    workflows: Workflow[];
-    selected: Workflow | null;
-    onSelect: (workflow: Workflow | null) => void;
-    search: string;
+import { Tabs } from "@/app/components/ui/tabs";
+import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
+import type { Workflow, WorkflowVariant } from "../shared/types";
+import { AUDIENCE_TABS, groupWorkflows, type AudienceFilter } from "./workflowCatalog";
+
+interface Props {
+    workflows: Workflow[]; search: string; audience: AudienceFilter;
+    onSelect: (workflow: Workflow, variant?: WorkflowVariant) => void;
     onSearchChange: (value: string) => void;
-    loading?: boolean;
-    hasMore?: boolean;
-    onLoadMore?: () => void;
-    disabledWorkflow?: (workflow: Workflow) => boolean;
-    singlePane?: boolean;
+    onAudienceChange: (audience: AudienceFilter) => void;
+    loading?: boolean; execution?: WorkflowVariant["execution"]; initialWorkflowId?: string;
+    disabledItem?: (workflow: Workflow, variant?: WorkflowVariant) => boolean;
+    workflowAction?: (workflow: Workflow) => ReactNode;
 }
-export function WorkflowPickerContent({
-    workflows,
-    selected,
-    onSelect,
-    search,
-    onSearchChange,
-    loading = false,
-    hasMore = false,
-    onLoadMore,
-    disabledWorkflow,
-    singlePane = false,
-}: WorkflowPickerContentProps) {
-    const selectedRowRef = useRef<HTMLButtonElement>(null);
-    const selectedId = selected?.id ?? null;
-    const [mobilePaneState, setMobilePaneState] = useState<{
-        selectedId: string | null;
-        pane: MobilePickerPane;
-    }>({
-        selectedId,
-        pane: selected ? "details" : "list",
-    });
-    const mobilePane =
-        mobilePaneState.selectedId === selectedId
-            ? mobilePaneState.pane
-            : selected
-              ? "details"
-              : "list";
-    const setMobilePane = (pane: MobilePickerPane) => {
-        setMobilePaneState({ selectedId, pane });
-    };
+
+export function WorkflowPickerContent({ workflows, onSelect, search,
+    onSearchChange, audience, onAudienceChange, loading = false, execution,
+    initialWorkflowId, disabledItem, workflowAction }: Props) {
+    const listRef = useRef<HTMLDivElement>(null);
+    const query = search.trim();
+    const groups = groupWorkflows(workflows, query, execution);
+    const count = groups.reduce((total, { items }) => total + items.length, 0);
+    const [details, setDetails] = useState<string | null>(null);
     useEffect(() => {
-        if (selectedRowRef.current) {
-            selectedRowRef.current.scrollIntoView({ block: "nearest" });
-        }
-    }, [selected?.id]);
-    const normalizedSearch = search.trim().toLowerCase();
-    const filteredWorkflows = normalizedSearch
-        ? workflows.filter((workflow) =>
-              [
-                  workflow.metadata.title,
-                  workflow.metadata.description ?? "",
-                  workflow.metadata.practice ?? "",
-                  workflow.is_system ? "System" : "Custom",
-              ]
-                  .join(" ")
-                  .toLowerCase()
-                  .includes(normalizedSearch),
-          )
-        : workflows;
-    const handleSelectWorkflow = (workflow: Workflow | null) => {
-        onSelect(workflow);
-        setMobilePane(workflow ? "details" : "list");
+        if (loading || !initialWorkflowId) return;
+        const frame = requestAnimationFrame(() => {
+            const target = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>(
+                "[data-workflow-id]") ?? []).find(({ dataset }) =>
+                    dataset.workflowId === initialWorkflowId);
+            target?.scrollIntoView({ block: "nearest" });
+            target?.focus();
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [initialWorkflowId, loading]);
+
+    const row = ({ workflow, variants, label }: (typeof groups)[number]["items"][number]) => {
+        const launchers = variants.length ? variants : [undefined];
+        const key = `${workflow.id}:${launchers.map((variant) =>
+            variant?.id ?? workflow.launcher.kind).join(":")}`;
+        const description = workflow.metadata.description?.trim();
+        const jurisdictions = (workflow.metadata.jurisdictions ?? []).filter(
+            (item) => item.toLowerCase() !== "general");
+        const language = workflow.metadata.language?.toLowerCase() !== "english"
+            ? workflow.metadata.language : null;
+        const hasDetails = Boolean(description || jurisdictions.length || language);
+        const launch = (variant?: WorkflowVariant, compact = false) => {
+            const [destination, DestinationIcon] = workflowDestination(workflow, variant);
+            return <button key={variant?.id ?? workflow.launcher.kind} type="button"
+                disabled={disabledItem?.(workflow, variant)} data-workflow-id={workflow.id}
+                data-workflow-variant-id={variant?.id}
+                aria-label={`Start ${label} in ${destination}`}
+                onClick={() => onSelect(workflow, variant)}
+                className={compact
+                    ? "flex min-h-8 shrink-0 items-center gap-1 rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45"
+                    : `flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45 ${APP_SURFACE_HOVER_CLASS}`}>
+                {compact ? <><DestinationIcon className="size-3.5" aria-hidden="true" />
+                    {destination}</> : <>
+                    <Play className="size-3.5 shrink-0 text-gray-500" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-gray-500">
+                        <DestinationIcon className="size-3.5" aria-hidden="true" />
+                        {destination}
+                    </span>
+                </>}
+            </button>;
+        };
+        return <div key={key} className="min-w-0 border-b border-gray-100 last:border-b-0">
+            <div className="flex min-w-0 items-center gap-1">
+                {launchers.length === 1 ? launch(launchers[0])
+                    : <div className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm font-medium text-gray-800">
+                        <Play className="size-3.5 shrink-0 text-gray-500" aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">{label}</span>
+                        {launchers.map((variant) => launch(variant, true))}
+                    </div>}
+                {hasDetails && <button type="button" aria-label={`Details for ${label}`}
+                    aria-expanded={details === key} aria-controls={`${key}-details`}
+                    onClick={() => setDetails((current) => current === key ? null : key)}
+                    className="grid size-9 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                    <Info className="size-4" aria-hidden="true" />
+                </button>}
+                {workflowAction?.(workflow)}
+            </div>
+            {hasDetails && details === key && <div id={`${key}-details`}
+                className="space-y-0.5 pb-2 ps-8 pe-2 text-xs leading-5 text-gray-600">
+                {description && <p>{description}</p>}
+                {!!jurisdictions.length && <p>Jurisdictions: {jurisdictions.join(", ")}</p>}
+                {language && <p>Language: {language}</p>}
+            </div>}
+        </div>;
     };
-    const handleClearPreview = () => {
-        onSelect(null);
-        setMobilePane("list");
-    };
-    return (
-        <div
-            className={`flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-visible ${singlePane ? "" : "md:flex-row"}`}
-        >
-            {!singlePane || mobilePane !== "details" || !selected ? (
-                <div
-                    className={`min-h-0 min-w-0 flex-1 flex-col overflow-visible ${singlePane ? "" : "md:w-64 md:flex-none md:shrink-0"} ${
-                        mobilePane === "details" && selected
-                            ? "hidden md:flex"
-                            : "flex"
-                    }`}
-                >
-                <SearchBar
-                    value={search}
-                    onValueChange={onSearchChange}
-                    placeholder="Search workflows..."
-                />
-                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-sm pt-2">
-                    {loading ? (
-                        <div className="space-y-px">
-                            {[60, 45, 75, 50, 65, 40, 55].map(
-                                (width, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5"
-                                    >
-                                        <div
-                                            className="h-3 rounded bg-gray-100"
-                                            style={{ width: `${width}%` }}
-                                        />
-                                        <div className="h-3 w-10 shrink-0 rounded bg-gray-100" />
-                                    </div>
-                                ),
-                            )}
+    return <Tabs value={audience} onValueChange={(value) =>
+        onAudienceChange(value as AudienceFilter)}
+        options={AUDIENCE_TABS.map(({ id, label }) => ({ value: id, label }))}
+        ariaLabel="Workflow audience" variant="segmented" className="min-w-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col pt-3">
+            <SearchBar value={search} onValueChange={onSearchChange}
+                placeholder="Search workflows" aria-label="Search workflows" />
+            <div ref={listRef} className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
+                <p role="status" className="sr-only">{loading
+                    ? "Loading workflows" : `${count} workflow choices`}</p>
+                {loading ? <WorkflowSkeleton /> : groups.length ? groups.map((group) =>
+                    group.branch ? <WorkflowBranch key={`${audience}:${query}:${group.label}`}
+                        label={group.label} initiallyOpen={Boolean(query) || group.items.some(
+                            ({ workflow }) => workflow.id === initialWorkflowId)}>
+                        <div className="ms-3 border-s-2 border-gray-200 py-1 ps-2">
+                            {group.items.map(row)}
                         </div>
-                    ) : filteredWorkflows.length === 0 ? (
-                        <p className="py-8 text-center text-sm text-gray-400">
-                            {search ? "No matches found" : "No workflows found"}
-                        </p>
-                    ) : (
-                        <div className="space-y-px">
-                            {filteredWorkflows.map((workflow) => {
-                                const disabled =
-                                    disabledWorkflow?.(workflow) ?? false;
-                                const isSelected = selected?.id === workflow.id;
-                                return (
-                                    <button
-                                        key={workflow.id}
-                                        ref={isSelected ? selectedRowRef : null}
-                                        type="button"
-                                        disabled={disabled}
-                                        onClick={() =>
-                                            handleSelectWorkflow(
-                                                isSelected ? null : workflow,
-                                            )
-                                        }
-                                        className={`flex min-w-0 w-full items-start gap-3 rounded-md px-3 py-2.5 text-left text-xs ${
-                                            isSelected
-                                                ? `${APP_SURFACE_ACTIVE_CLASS} text-gray-900`
-                                                : APP_SURFACE_HOVER_CLASS
-                                        } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
-                                    >
-                                        <span className="min-w-0 flex-1">
-                                            <span
-                                                className={`block truncate ${
-                                                    isSelected
-                                                        ? "font-medium text-gray-900"
-                                                        : "text-gray-700"
-                                                }`}
-                                            >
-                                                {workflow.metadata.title}
-                                            </span>
-                                            {workflow.metadata.description ? (
-                                                <span className="mt-0.5 line-clamp-2 block leading-4 text-gray-500">
-                                                    {workflow.metadata.description}
-                                                </span>
-                                            ) : null}
-                                            {workflow.metadata.practice ? (
-                                                <span className="mt-1 block truncate text-[11px] text-gray-400">
-                                                    {workflow.metadata.practice}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                        <span className="shrink-0 pt-0.5 text-xs text-gray-400">
-                                            {workflow.is_system
-                                                ? "System"
-                                                : "Custom"}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                            {hasMore && (
-                                <button
-                                    type="button"
-                                    onClick={onLoadMore}
-                                    className="min-h-10 w-full rounded-md px-3 text-xs text-gray-600 hover:bg-gray-100"
-                                >
-                                    Load more
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-                </div>
-            ) : null}
-            {selected ? (
-                <WorkflowPreview
-                    workflow={selected}
-                    onClear={handleClearPreview}
-                    className={
-                        mobilePane === "details"
-                            ? "flex"
-                            : singlePane
-                              ? "hidden"
-                              : "hidden md:flex"
-                    }
-                />
-            ) : singlePane ? null : (
-                <div className="hidden min-w-0 flex-1 md:block" />
-            )}
-        </div>
-    );
-}
-function WorkflowPreview({
-    workflow,
-    onClear,
-    className = "flex",
-}: {
-    workflow: Workflow;
-    onClear: () => void;
-    className?: string;
-}) {
-    const showColumns = workflow.metadata.type === "tabular";
-    const prompt = workflow.skill_md ?? "_No prompt defined._";
-    const preview = prompt.replace(/^\s{0,3}#{1,6}\s+[^\n]+(?:\n+|$)/, "").trimStart() || prompt;
-    return (
-        <div
-            className={`${className} min-h-0 min-w-0 flex-1 flex-col overflow-visible`}
-        >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
-                <div className="flex h-9 shrink-0 items-center justify-between px-3">
-                    <p className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
-                        {workflow.metadata.title}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={onClear}
-                        aria-label="Close preview"
-                        className={`rounded-md p-1 text-gray-400 hover:text-gray-600 ${APP_SURFACE_HOVER_CLASS}`}
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-                    {workflow.metadata.description ? (
-                        <p className="px-3 pb-2 text-xs leading-5 text-gray-500">
-                            {workflow.metadata.description}
-                        </p>
-                    ) : null}
-                    {showColumns ? (
-                        <WorkflowColumnPreview
-                            columns={workflow.columns_config ?? []}
-                        />
-                    ) : (
-                        <div className="min-w-0 flex-1 overflow-x-hidden break-words rounded-md px-3 py-3 font-serif text-sm leading-relaxed text-gray-600">
-                            <WorkflowPromptMarkdown content={preview} />
-                        </div>
-                    )}
-                </div>
+                    </WorkflowBranch> : <div key={group.label}
+                        data-workflow-category={group.label}>{row(group.items[0])}</div>,
+                ) : <p className="py-10 text-center text-sm text-gray-500">{query
+                    ? "No workflows match your search." : "No workflows are available."}</p>}
             </div>
         </div>
-    );
+    </Tabs>;
 }
-function WorkflowPromptMarkdown({ content }: { content: string }) {
-    return (
-        <div className="[&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_h1]:mb-1 [&_h1]:mt-4 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-gray-900 [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-gray-900 [&_h3]:mb-0.5 [&_h3]:mt-2 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-gray-900 [&_p]:mb-2 [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_pre]:whitespace-pre-wrap [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:border [&_table]:border-gray-200 [&_table]:text-xs [&_tr]:border-b [&_tr]:border-gray-100 [&_th]:break-words [&_th]:bg-gray-50 [&_th]:px-3 [&_th]:py-2 [&_td]:break-words [&_td]:px-3 [&_td]:py-2 [&_strong]:font-semibold [&_strong]:text-gray-800 [&_em]:italic">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
-            </ReactMarkdown>
-        </div>
-    );
+
+function workflowDestination(workflow: Workflow, variant?: WorkflowVariant): readonly [string, LucideIcon] {
+    if (workflow.launcher.kind === "court_records") return ["Court Records", Files];
+    if (workflow.launcher.kind === "authorities") return ["Authorities", Scale];
+    return variant?.execution === "tabular"
+        ? ["Table", Table2] : ["Chat", MessageSquare];
 }
-function WorkflowColumnPreview({ columns }: { columns: ColumnConfig[] }) {
-    const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-    const sortedColumns = [...columns].sort((a, b) => a.index - b.index);
-    return (
-        <div className="min-w-0 flex-1 space-y-px rounded-sm">
-            {sortedColumns.length === 0 ? (
-                <p className="px-4 py-6 text-center text-xs text-gray-400">
-                    No columns defined
-                </p>
-            ) : (
-                sortedColumns.map((column) => {
-                    const isExpanded = expandedIndex === column.index;
-                    const FormatIcon = formatIcon(column.format ?? "text");
-                    return (
-                        <div key={column.index} className="rounded-md">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setExpandedIndex(
-                                        isExpanded ? null : column.index,
-                                    )
-                                }
-                                className={`flex min-w-0 w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs ${
-                                    isExpanded
-                                        ? APP_SURFACE_ACTIVE_CLASS
-                                        : APP_SURFACE_HOVER_CLASS
-                                }`}
-                            >
-                                <FormatIcon
-                                    className={`h-3.5 w-3.5 shrink-0 ${formatIconClassName(column.format ?? "text")}`}
-                                />
-                                <span className="min-w-0 flex-1 truncate text-gray-800">
-                                    {column.name}
-                                </span>
-                                <span className="max-w-24 shrink-0 truncate text-gray-400">
-                                    {formatLabel(column.format ?? "text")}
-                                </span>
-                                <ChevronDown
-                                    className={`h-3 w-3 shrink-0 text-gray-300 ${isExpanded ? "rotate-180" : ""}`}
-                                />
-                            </button>
-                            {isExpanded ? (
-                                <div className="mt-1 min-w-0 space-y-3 overflow-x-hidden break-words rounded-md bg-white/60 px-4 py-3 font-serif text-sm leading-relaxed text-gray-600">
-                                    {column.tags && column.tags.length > 0 ? (
-                                        <div>
-                                            <p className="mb-1.5 font-sans text-[11px] font-medium text-gray-600">
-                                                Tags
-                                            </p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {column.tags.map(
-                                                    (tag, tagIdx) => (
-                                                        <span
-                                                            key={tag}
-                                                            className={`inline-block rounded-full px-1.5 py-0.5 font-sans text-[10px] ${TAG_COLORS[tagIdx % TAG_COLORS.length]}`}
-                                                        >
-                                                            {tag}
-                                                        </span>
-                                                    ),
-                                                )}
-                                            </div>
-                                        </div>
-                                    ) : null}
-                                    <div>
-                                        <p className="mb-1 font-sans text-[11px] font-medium text-gray-600">
-                                            Prompt
-                                        </p>
-                                        <WorkflowPromptMarkdown
-                                            content={
-                                                column.prompt ||
-                                                "_No prompt defined._"
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })
-            )}
-        </div>
-    );
+
+const WorkflowSkeleton = () => <div aria-hidden="true" className="space-y-1">
+    {[1, 2, 3, 4, 5].map((item) =>
+        <div key={item} className="h-10 animate-pulse rounded-md bg-gray-100" />)}
+</div>;
+
+function WorkflowBranch({ label, initiallyOpen, children }: {
+    label: string; initiallyOpen: boolean; children: ReactNode;
+}) {
+    const [open, setOpen] = useState(initiallyOpen);
+    const Icon = CATEGORY_ICONS[label] ?? WorkflowIcon;
+    return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="group"
+        data-workflow-category={label}>
+        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+            <Icon aria-hidden="true" className="size-4 shrink-0 text-gray-500" />
+            <span className="min-w-0 flex-1">{label}</span>
+            <ChevronDown aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-gray-400 group-open:rotate-180" />
+        </summary>
+        {children}
+    </details>;
 }
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+    "Drafting": FilePenLine, "Review & compare": FileCheck2,
+    "Research & verify": SearchCheck, "Templates": LayoutTemplate,
+    "Agreements": Handshake, "Due diligence": ListChecks,
+    "Transactions & closing": ListChecks, "Corporate approvals": Building2,
+    "Written submissions": FilePenLine, "Evidence & discovery": FolderSearch,
+    "Court materials": Scale,
+};

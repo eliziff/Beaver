@@ -83,13 +83,15 @@ describe("user data cleanup", () => {
         { id: "shared-r", user_id: "u2", shared_with: ["u1@example.com"] },
       ],
       chats: [{ id: "mine-c", user_id: "u1" }], project_subfolders: [],
-      hidden_workflows: [], workflow_open_source_submissions: [],
+      workflow_open_source_submissions: [],
       workflow_shares: [
         { id: "by", shared_by_user_id: "u1", shared_with_email: "x@example.com" },
         { id: "to", shared_by_user_id: "u2", shared_with_email: "u1@example.com" },
         { id: "keep", shared_by_user_id: "u2", shared_with_email: "keep@example.com" },
       ],
       workflows: [{ id: "mine-w", user_id: "u1" }, { id: "other-w", user_id: "u2" }],
+      work_products: [{ id: "mine-d", user_id: "u1" },
+        { id: "other-d", user_id: "u2" }],
       audit_events: [], object_cleanup: [],
     });
     await deleteUserAccountData(db, documents, "u1", " U1@Example.com ");
@@ -101,5 +103,6 @@ describe("user data cleanup", () => {
     expect(tables.projects[0].shared_with).toEqual(["keep@example.com"]);
     expect(ids(tables.workflow_shares)).toEqual(["keep"]);
     expect(ids(tables.workflows)).toEqual(["other-w"]);
+    expect(ids(tables.work_products)).toEqual(["other-d"]);
   });
 });

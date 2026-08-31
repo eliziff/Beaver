@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { ChevronLeft, Loader2, Plus, Search } from "lucide-react";
+import { ChevronLeft, Loader2, Plus } from "lucide-react";
+import { SearchBar } from "@/app/components/ui/search-bar";
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -28,6 +29,7 @@ type SearchAction = {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    booleanSearch?: boolean;
 };
 type NewAction = {
     type: "new";
@@ -64,10 +66,11 @@ export function PageHeader({
     );
     const disabled =
         loading || !!breadcrumbs?.some((breadcrumb) => breadcrumb.loading);
+    const stackActions = (items?.length ?? 0) > 4;
     return (
         <div
             className={cn(
-                "mx-4 flex min-h-[max(76px,4.625rem)] min-w-0 flex-col items-stretch justify-between gap-4 pb-4 pt-5.5 md:mx-6 md:flex-row md:items-center",
+                "mx-4 flex min-h-14 min-w-0 flex-row flex-wrap items-center justify-between gap-3 py-2 md:mx-6 lg:min-h-[max(76px,4.625rem)] lg:flex-nowrap lg:gap-4 lg:pb-4 lg:pt-5.5",
                 shrink && "shrink-0",
             )}
         >
@@ -77,12 +80,16 @@ export function PageHeader({
                 children
             )}
             {!!items?.length && (
-                <div className="flex min-w-0 items-center justify-end gap-2 md:shrink-0">
+                <div className={cn(
+                    "flex min-w-0 items-center justify-end gap-2 md:shrink-0",
+                    stackActions && "w-full flex-wrap sm:w-auto sm:flex-nowrap",
+                )}>
                     {items.map((action, index) => (
                         <Action
                             key={index}
                             action={action}
                             disabled={disabled}
+                            stackOnMobile={stackActions}
                         />
                     ))}
                 </div>
@@ -94,33 +101,22 @@ export function PageHeader({
 function Action({
     action,
     disabled,
+    stackOnMobile,
 }: {
     action: PageHeaderAction;
     disabled: boolean;
+    stackOnMobile: boolean;
 }) {
     if (action.type === "search") {
-        return (
-            <label
-                className={cn(
-                    CONTROL,
-                    APP_SURFACE_ACTIVE_CLASS,
-                    "w-36 min-w-0 max-w-[calc(100vw-6.5rem)] flex-1 cursor-text justify-start gap-2 px-3 text-gray-700 hover:text-gray-700 sm:w-72 sm:flex-none",
-                    disabled && "opacity-60",
-                )}
-            >
-                <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                <input
-                    data-page-search
-                    aria-keyshortcuts="/"
-                    disabled={disabled}
-                    type="search"
-                    placeholder={action.placeholder ?? "Search\u2026"}
-                    value={action.value}
-                    onChange={(event) => action.onChange(event.target.value)}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
-                />
-            </label>
-        );
+        return <SearchBar data-page-search aria-keyshortcuts="/"
+            aria-label={action.placeholder ?? "Search"}
+            disabled={disabled} placeholder={action.placeholder ?? "Search\u2026"}
+            value={action.value} onValueChange={action.onChange}
+            booleanSearch={action.booleanSearch}
+            wrapperClassName={cn(APP_SURFACE_ACTIVE_CLASS,
+                stackOnMobile
+                    ? "w-full max-w-none flex-none sm:w-64"
+                    : "w-36 max-w-[calc(100vw-6.5rem)] flex-1 sm:w-64 sm:flex-none")} />;
     }
     if (action.type === "custom") {
         return (
@@ -249,14 +245,16 @@ function Breadcrumb({
                 : "text-gray-500"),
     );
     return (
-        <span
+        <div
             className={cn(
                 "min-w-0 items-center gap-1.5",
-                current ? "flex flex-1" : "hidden max-w-40 sm:flex",
+                current
+                    ? "flex flex-1"
+                    : "hidden max-w-40 font-sans text-sm sm:flex",
             )}
         >
             {current ? (
-                <span className={className}>{content}</span>
+                <h1 className={className}>{content}</h1>
             ) : item.onClick ? (
                 <button onClick={item.onClick} className={className}>
                     {content}
@@ -267,6 +265,6 @@ function Breadcrumb({
             {!current && (
                 <span className="shrink-0 text-gray-300">{"\u203A"}</span>
             )}
-        </span>
+        </div>
     );
 }

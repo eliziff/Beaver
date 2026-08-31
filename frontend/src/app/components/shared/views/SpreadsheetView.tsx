@@ -4,6 +4,7 @@ import {
     getSpreadsheetProjection,
     type SpreadsheetProjection,
 } from "@/app/lib/beaverApi";
+import { TabList } from "@/app/components/ui/tabs";
 
 const COLUMN_HEADER = 28;
 const ROW_HEADER = 48;
@@ -307,28 +308,11 @@ export function SpreadsheetView({
                         highlight={parseRange(target?.cell)}
                     />
                     {projection!.sheets.length > 1 && (
-                        <div
-                            role="tablist"
-                            aria-label="Sheets"
-                            className="flex h-9 shrink-0 items-stretch overflow-x-auto border-t border-gray-300 bg-gray-100"
-                        >
-                            {projection!.sheets.map((item, index) => (
-                                <button
-                                    key={item.name}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={index === sheetIndex}
-                                    onClick={() => setSheetIndex(index)}
-                                    className={`shrink-0 border-r border-gray-300 px-4 text-xs ${
-                                        index === sheetIndex
-                                            ? "bg-white font-semibold text-gray-900"
-                                            : "text-gray-600 hover:bg-gray-50"
-                                    }`}
-                                >
-                                    {item.name}
-                                </button>
-                            ))}
-                        </div>
+                        <TabList value={String(sheetIndex)}
+                            onValueChange={(value) => setSheetIndex(Number(value))}
+                            options={projection!.sheets.map((item, index) => ({
+                                value: String(index), label: item.name,
+                            }))} ariaLabel="Sheets" variant="sheets" />
                     )}
                 </>
             )}

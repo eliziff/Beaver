@@ -20,25 +20,29 @@ export function useProjectFiles() {
         }, signal),
         search, [resource, search], project != null,
     );
+    const { reload: reloadDirectory, replaceDocumentParseStates } = directory;
     const folders = directory.folders as Folder[];
     const reload = (...parents: (string | null | undefined)[]) => Promise.all(
-        [...new Set(parents.map((id) => id ?? null))].map(directory.reload),
+        [...new Set(parents.map((id) => id ?? null))].map(reloadDirectory),
     );
     const operations = useMemo(() => ({
         ...resource,
         removeDocument: (id: string) => removeProjectDocument(projectId, id),
-        refreshCollection: directory.reload,
+        refreshCollection: reloadDirectory,
         refreshDocumentParseStates: async (documentIds: string[]) =>
-            directory.replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
-    }), [directory.reload, directory.replaceDocumentParseStates, projectId, resource]);
+            replaceDocumentParseStates(await getDocumentParseStates(documentIds)),
+    }), [projectId, reloadDirectory, replaceDocumentParseStates, resource]);
     return {
         documents: directory.documents,
         folders,
         operations,
         uploadFiles: async (files: File[]) => {
-            const added = await operations.uploadDocuments(files);
-            await reload(null);
-            return added;
+            try { return await operations.uploadDocuments(files); }
+            finally { await reload(null).catch(() => undefined); }
+        },
+        uploadDirectory: async (files: File[]) => {
+            try { await operations.uploadDirectory(files); }
+            finally { await reload(null).catch(() => undefined); }
         },
         createFolder: async (parent: string | null, name: string) => {
             await operations.createFolder(name, parent); await reload(parent);

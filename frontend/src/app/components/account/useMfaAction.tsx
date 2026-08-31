@@ -3,7 +3,7 @@ import {
     MfaVerificationPopup,
     needsMfaVerification,
 } from "@/app/components/popups/MfaVerificationPopup";
-import { isMfaRequiredError } from "@/app/lib/beaverApi";
+import { isMfaRequiredError } from "@/app/lib/authApi";
 
 type MfaActionOptions = {
     title?: string;

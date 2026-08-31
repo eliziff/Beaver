@@ -43,6 +43,7 @@ export interface Document {
   created_at: string | null;
   updated_at?: string | null;
   current_version_id?: string | null;
+  source_sha256?: string | null;
   active_version_number?: number | null;
 }
 export interface Chat {
@@ -51,6 +52,8 @@ export interface Chat {
   user_id: string;
   transcript_version?: number;
   turn_in_progress?: boolean;
+  model?: string | null;
+  reasoning_effort?: string | null;
   creator_display_name?: string | null;
   title: string | null;
   created_at: string;
@@ -97,13 +100,14 @@ export interface EditResolveHandlers {
   onResolved?: (args: EditResolved) => void;
   onError?: (args: EditResolveError) => void;
 }
-export type AutomationToolName =
+export type WorkflowOperationName =
   | "create_table_of_authorities"
+  | "update_work_product"
   | "fix_docx_supras";
-export type AutomationRunEvent = {
-  type: "automation_run";
+export type WorkflowRunEvent = {
+  type: "workflow_run";
   id: string;
-  tool: AutomationToolName;
+  tool: WorkflowOperationName;
   status: string;
   stage: string;
   progress?: number;
@@ -114,6 +118,12 @@ export type AutomationRunEvent = {
   app_url?: string;
   job_id?: string;
   version_number?: number | null;
+  work_product?: {
+    kind: "court-record" | "authorities" | "research-set";
+    id: string;
+    revision: number;
+  };
+  requested_action?: "open" | "refresh" | "build";
 };
 export type AskInputsEvent = {
   type: "ask_inputs";
@@ -151,7 +161,7 @@ export interface Message {
   role: "user";
   content: string;
   files?: { filename: string; document_id: string }[];
-  workflow?: { id: string; title: string };
+  workflow?: { id: string; variant_id?: string; title: string };
   model?: string;
   reasoningEffort?: string;
   editMode?: "manual" | "auto";
@@ -351,9 +361,12 @@ export interface TabularReview {
   user_id: string;
   title: string | null;
   columns_config: ColumnConfig[] | null;
+  workflow_id?: string | null;
   shared_with?: string[];
   is_owner?: boolean;
+  is_running?: boolean;
   created_at: string;
+  updated_at?: string;
   document_count?: number;
   project_name?: string | null;
 }
@@ -368,13 +381,27 @@ export interface TabularCell {
   } | null;
   status: "pending" | "generating" | "done" | "error";
 }
+export type WorkflowAudience = "general" | "solicitor" | "litigator";
+export interface WorkflowVariant {
+  id: string;
+  label: string;
+  result: string | null;
+  execution: "assistant" | "tabular";
+  skill_md: string | null;
+  columns_config: ColumnConfig[] | null;
+}
+export type WorkflowLauncher =
+  | { kind: "instructions"; variants: WorkflowVariant[] }
+  | { kind: "authorities" }
+  | { kind: "court_records" };
 export interface Workflow {
   id: string;
   user_id: string | null;
   metadata: {
     title: string;
     description: string | null;
-    type: "assistant" | "tabular";
+    category: string;
+    audiences: WorkflowAudience[];
     contributors: {
       name: string;
       organisation: string | null;
@@ -383,12 +410,11 @@ export interface Workflow {
     }[];
     language: string;
     version: string | null;
-    practice: string | null;
     jurisdictions: string[] | null;
   };
-  skill_md: string | null;
-  columns_config: ColumnConfig[] | null;
+  launcher: WorkflowLauncher;
   is_system: boolean;
+  created_at: string;
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;

@@ -1,4 +1,5 @@
-import { useLayoutEffect, useState, useSyncExternalStore } from "react";import {
+import { useLayoutEffect, useState, useSyncExternalStore } from "react";
+import {
     type ApiKeyState,
     type ModelCatalog,
 } from "@/app/lib/beaverApi";
@@ -75,6 +76,10 @@ function useModelCatalog(): ModelCatalog | null {
     );
 }
 function fallbackDynamicLabel(modelId: string): string | null {
+    if (modelId.startsWith("opencode-go/")) {
+        const slug = modelId.slice("opencode-go/".length).trim();
+        return slug ? `${slug} · OpenCode Go` : null;
+    }
     const prefix = ["claude-p:", "codex:", "ollama:"].find((candidate) =>
         modelId.startsWith(candidate),
     );
@@ -124,6 +129,13 @@ export function ModelToggle({
             group: "Desktop",
         }),
     );
+    const openCodeGoModels: ModelOption[] = (catalog?.openCodeGo?.models ?? []).map(
+        (model) => ({
+            id: `opencode-go/${model.id}`,
+            label: model.displayName,
+            group: "OpenCode Go",
+        }),
+    );
     const desktopModels = catalog?.ollama
         ? catalogDesktopModels.map((model) => ({
               ...model,
@@ -139,15 +151,16 @@ export function ModelToggle({
             ...model,
             id: `claude-p:${model.id}`,
             label: `${model.label} · subscription`,
-            group: "Anthropic subscription" as const,
+            group: "Anthropic subscription",
         }));
     const allModels = [
         ...desktopModels,
         ...dynamicModels,
+        ...openCodeGoModels,
         ...models,
         ...subscriptionModels,
     ];
-    const selected = allModels.find((m) => m.id === value);
+    const selected = allModels.find((model) => model.id === value);
     const selectedLabel =
         selected?.label ?? fallbackDynamicLabel(value) ?? "Model";
     const selectedGroup =
@@ -158,8 +171,10 @@ export function ModelToggle({
               ? "Desktop"
               : value.startsWith("claude-p:")
                 ? "Anthropic subscription"
-              : models[0]?.group ?? "Codex");
-    const visibleModels = allModels.some((model) => model.id === value)
+                : value.startsWith("opencode-go/")
+                  ? "OpenCode Go"
+                  : models[0]?.group ?? "Codex");
+    const visibleModels = selected
         ? allModels
         : [
               {
@@ -223,23 +238,25 @@ function selectedReasoningEffort(
     );
     const isMuseSpark = model.includes("muse-spark-");
     const defaultCodexReasoning = model.endsWith("gpt-5.6-sol") ? "low"
-        : model.endsWith("gpt-5.3-codex-spark") ? "high" : "medium";
+        : model.endsWith("gpt-5.3-codex-spark")
+          ? "high"
+          : "medium";
     return (
         value && (
             efforts.some((level) => level.effort === value) ||
             (!selectedModel && model.startsWith("codex:"))
         )
             ? value
-            : (model.startsWith("codex:") && !selectedModel
-            ? defaultCodexReasoning
-            : model.startsWith("deepseek-")
-            ? "high"
-            : selectedDesktopModel?.supportsThinking
-              ? "off"
-            : isMuseSpark
-                  ? "medium"
-                  : (selectedModel?.defaultReasoningLevel ??
-                    efforts[0]?.effort))
+            : model.startsWith("codex:") && !selectedModel
+              ? defaultCodexReasoning
+              : model.startsWith("deepseek-")
+                ? "high"
+                : selectedDesktopModel?.supportsThinking
+                  ? "off"
+                  : isMuseSpark
+                    ? "medium"
+                    : (selectedModel?.defaultReasoningLevel ??
+                      efforts[0]?.effort)
     );
 }
 interface ReasoningEffortToggleProps {
@@ -266,7 +283,37 @@ export function ReasoningEffortToggle({
             onChange(selectedEffort);
         }
     }, [onChange, selectedEffort, supported, value]);
-    return (        <label className="reasoning-effort-toggle flex h-8 shrink-0 items-center rounded-md border border-gray-300 bg-white px-2">            <select                value={selectedEffort ?? ""}                disabled={!supported}                onChange={(event) => onChange(event.currentTarget.value)}                title="Choose reasoning effort"                aria-label={                    supported                        ? `Reasoning effort: ${selectedEffort}`                        : "Reasoning effort unavailable"                }                className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"            >                {supported ? (                    efforts.map((level) => (                        <option key={level.effort} value={level.effort}>                            {level.effort}                        </option>                    ))                ) : (                    <option>                        {model.startsWith("codex:") && !catalog                            ? "Loading"                            : "Automatic"}                    </option>                )}            </select>        </label>    );}
+    return (
+        <label className="reasoning-effort-toggle flex h-8 shrink-0 items-center rounded-md border border-gray-300 bg-white px-2">
+            <select
+                value={selectedEffort ?? ""}
+                disabled={!supported}
+                onChange={(event) => onChange(event.currentTarget.value)}
+                title="Choose reasoning effort"
+                aria-label={
+                    supported
+                        ? `Reasoning effort: ${selectedEffort}`
+                        : "Reasoning effort unavailable"
+                }
+                className="h-full min-w-0 flex-1 cursor-pointer bg-white text-sm capitalize text-gray-700"
+            >
+                {supported ? (
+                    efforts.map((level) => (
+                        <option key={level.effort} value={level.effort}>
+                            {level.effort}
+                        </option>
+                    ))
+                ) : (
+                    <option>
+                        {model.startsWith("codex:") && !catalog
+                            ? "Loading"
+                            : "Automatic"}
+                    </option>
+                )}
+            </select>
+        </label>
+    );
+}
 
 export function ModelEffortToggle({
     model,
@@ -299,9 +346,7 @@ export function ModelEffortToggle({
         <>
             <ModelToggle
                 value={model}
-                onChange={(next) => {
-                    onModelChange(next);
-                }}
+                onChange={onModelChange}
                 apiKeys={apiKeys}
                 className="chat-input-model-toggle"
                 detail={selectedEffort ?? "Automatic"}

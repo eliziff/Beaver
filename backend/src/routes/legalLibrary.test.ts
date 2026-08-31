@@ -74,7 +74,8 @@ describe("legal Library viewer responses", () => {
 
     expect(response.status).toBe(200);
     expect(searchLegalSources).toHaveBeenCalledWith(expect.objectContaining({
-      text: "registered",
+      text: '"registered"',
+      syntax: "fts5",
       kinds: ["journal"],
       providers: ["journal"],
       author: "Example Author",

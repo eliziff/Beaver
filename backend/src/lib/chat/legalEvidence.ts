@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import {
   a2ajLegalSourceProvider,
+  stableA2AJSourceId,
   type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../legalSourceLinks";
 import {
   readLegalSourcePassage,
+  type LegalSourcePassage,
   type LegalSourceReference,
 } from "../legalSourceRegistry";
 import { type Tool } from "../llm";
@@ -89,6 +91,18 @@ export type LegalEvidenceReceipt = {
   };
 };
 
+export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): LegalSourceReference | null {
+  const reference = receipt.source_reference;
+  const kind = receipt.source_class === "commentary"
+    ? receipt.provider === "journal" ? "journal"
+      : receipt.provider === "hansard" ? "hansard" : null
+    : receipt.source_class;
+  return reference && kind ? { provider: receipt.provider, id: reference.id,
+    ...(reference.part ? { part: reference.part } : {}), kind,
+    title: receipt.name, citation: receipt.citation, date: receipt.version,
+    collection: receipt.dataset, language: receipt.language, url: receipt.external_url } : null;
+}
+
 export type RegisteredEvidence = {
   receipt: LegalEvidenceReceipt;
   document?: A2AJCompiledDocument;
@@ -102,11 +116,31 @@ export type GroundedLegalClaim = {
   evidence_ids: string[];
 };
 
+export type LegalResearchQueryReceipt = {
+  query_id: string;
+  call_id: string;
+  tool: "search_sources" | "Read";
+  executed_at: string;
+  model: string;
+  executor_version: "legal-source-search-v1" | "legal-source-pattern-v1";
+  input: Record<string, unknown>;
+  results: Array<
+    | { rank: number; resource: string }
+    | { rank: number; evidence_id: string }
+  >;
+};
+
+export type PendingLegalResearchQueryReceipt = Omit<
+  LegalResearchQueryReceipt,
+  "query_id" | "model"
+>;
+
 export type LegalEvidenceTurnState = {
   mode: LegalEvidenceMode | null;
   evidence: Map<string, RegisteredEvidence>;
   priorEvidenceIds: Set<string>;
   documentEvidenceIds: Set<string>;
+  queries: Map<string, LegalResearchQueryReceipt>;
   answer: GroundedLegalClaim[] | null;
   attempted: boolean;
   failure: string | null;
@@ -120,6 +154,7 @@ export function createLegalEvidenceTurnState(
     evidence: new Map(),
     priorEvidenceIds: new Set(),
     documentEvidenceIds: new Set(),
+    queries: new Map(),
     answer: null,
     attempted: false,
     failure: null,
@@ -128,6 +163,29 @@ export function createLegalEvidenceTurnState(
 
 function sha256(value: string) {
   return `sha256:${crypto.createHash("sha256").update(value).digest("hex")}`;
+}
+
+export function registerLegalResearchQueries(
+  state: LegalEvidenceTurnState,
+  receipts: readonly PendingLegalResearchQueryReceipt[],
+  model: string,
+) {
+  for (const receipt of receipts) {
+    const identity = JSON.stringify([
+      receipt.call_id,
+      receipt.tool,
+      receipt.executor_version,
+      receipt.input,
+      receipt.results,
+    ]);
+    const value: LegalResearchQueryReceipt = {
+      query_id: `q_${crypto.createHash("sha256").update(identity)
+        .digest("base64url").slice(0, 18)}`,
+      ...receipt,
+      model,
+    };
+    state.queries.set(value.query_id, value);
+  }
 }
 
 function withEvidenceId(
@@ -163,19 +221,6 @@ function passageEvidence({ sourceText, sourceSha256, spanText = sourceText, lang
     span_text: spanText, language });
 }
 
-function stableA2AJSourceId(source: {
-  dataset: string;
-  citation: string;
-  language: "en" | "fr";
-}) {
-  return [
-    "a2aj",
-    source.language,
-    source.dataset.trim().toLowerCase(),
-    normalizeWhitespace(source.citation).toLowerCase(),
-  ].join(":");
-}
-
 export function createA2AJPassageEvidence(args: {
   citation: string;
   name: string | null;
@@ -188,6 +233,7 @@ export function createA2AJPassageEvidence(args: {
   end: number;
   externalUrl: string | null;
   sourceClass: LegalSourceClass;
+  sourceReference?: Pick<LegalSourceReference, "id" | "part">;
   blockId?: string;
   locator?: LegalEvidenceReceipt["locator"];
 }): LegalEvidenceReceipt {
@@ -200,6 +246,8 @@ export function createA2AJPassageEvidence(args: {
     jurisdiction: "CA",
     source_class: args.sourceClass,
     stable_source_id: stableA2AJSourceId(args),
+    ...(args.sourceReference ? { source_reference: { id: args.sourceReference.id,
+      ...(args.sourceReference.part ? { part: args.sourceReference.part } : {}) } } : {}),
     sourceText: args.sourceText,
     sourceSha256: args.sourceSha256,
     block_id: args.blockId ?? `chars:${args.start}-${args.end}`,
@@ -266,7 +314,7 @@ function createDirectSourceEvidence(
   });
 }
 
-export const createCourtlistenerEvidence = (args: DirectSourceEvidenceArgs) =>
+const createCourtlistenerEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("courtlistener", args);
 export const createTnaEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("tna", args);
@@ -274,7 +322,7 @@ export const createGovUkEmploymentTribunalEvidence = (args: DirectSourceEvidence
   createDirectSourceEvidence("govuk-et", args);
 export const createGovInfoEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("govinfo", args);
-export const createHansardEvidence = (args: DirectSourceEvidenceArgs) =>
+const createHansardEvidence = (args: DirectSourceEvidenceArgs) =>
   createDirectSourceEvidence("hansard", args);
 
 export function createLibraryEvidence(args: {
@@ -466,6 +514,63 @@ export function createPublicJournalPassageEvidence(
   return createJournalEvidence(args);
 }
 
+export type LegalEvidenceSpan = { text: string; start: number; end: number;
+  blockId?: string; locator?: LegalEvidenceReceipt["locator"] };
+
+export function legalSourceEvidence(passage: LegalSourcePassage,
+  span?: LegalEvidenceSpan): LegalEvidenceReceipt | undefined {
+  if (passage.source.provider === "a2aj") {
+    const native = object(passage.native), block = passage.blockArtifact;
+    if (typeof native?.citation === "string" && typeof native.dataset === "string" &&
+        (native.language === "en" || native.language === "fr")) {
+      const selected = span ?? (block ? { text: block.text, start: block.start, end: block.end,
+        blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
+        ...(["paragraph", "page", "section", "footnote"].includes(block.kind)
+          ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
+            label: block.label } } : {}) } : null);
+      return selected ? createA2AJPassageEvidence({ citation: native.citation,
+        name: typeof native.name === "string" ? native.name : null, dataset: native.dataset,
+        language: native.language,
+        sourceSha256: structureNative().documentRevision(passage.documentArtifact),
+        spanText: selected.text, start: selected.start, end: selected.end,
+        externalUrl: typeof native.url === "string" ? native.url : null,
+        sourceClass: passage.source.kind === "legislation" ? "legislation" : "case",
+        sourceReference: passage.source, blockId: selected.blockId, locator: selected.locator,
+      }) : undefined;
+    }
+  }
+  if (!span && passage.role === "document") return undefined;
+  if (passage.source.provider === "journal") return createPublicJournalPassageEvidence({
+    citation: passage.source.citation ?? passage.source.id, name: passage.source.title ?? null,
+    date: passage.source.date ?? null, url: passage.source.url ?? null,
+    text: span?.text ?? passage.text,
+    sourceSha256: structureNative().documentRevision(passage.documentArtifact),
+    articleId: passage.source.id, language: passage.source.language,
+    locatorKind: span?.locator?.kind ?? passage.locator.requested?.kind ?? "document",
+    locatorLabel: span?.locator?.label ?? passage.locator.label,
+  });
+  const sourceClass = passage.source.kind === "legislation" ? "legislation"
+    : passage.source.kind === "case" ? "case" : "commentary";
+  const jurisdiction = passage.source.provider === "courtlistener" ||
+      passage.source.provider === "govinfo" ? "US"
+    : passage.source.provider === "tna" || passage.source.provider === "govuk-et" ? "UK" : "CA-ON";
+  const createEvidence = { courtlistener: createCourtlistenerEvidence, tna: createTnaEvidence,
+    "govuk-et": createGovUkEmploymentTribunalEvidence, govinfo: createGovInfoEvidence,
+    hansard: createHansardEvidence }[passage.source.provider];
+  if (!createEvidence) return undefined;
+  return createEvidence({ jurisdiction, sourceClass,
+    stableSourceId: [passage.source.id, passage.source.part ?? ""].join(":"),
+    sourceReference: passage.source,
+    sourceSha256: structureNative().documentRevision(passage.documentArtifact),
+    spanText: span?.text ?? passage.text, citation: passage.source.citation ?? passage.source.id,
+    name: passage.source.title, dataset: passage.source.collection ?? passage.source.provider,
+    language: passage.source.language, version: passage.source.date, externalUrl: passage.source.url,
+    locatorKind: span?.locator?.kind ??
+      (span ? "document" : passage.locator.requested?.kind ?? "document"),
+    locatorLabel: span?.locator?.label ??
+      (span ? `characters ${span.start + 1}–${span.end}` : passage.locator.label) });
+}
+
 export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
   receipt: LegalEvidenceReceipt | undefined,
@@ -501,6 +606,25 @@ function storedReceipt(value: unknown): LegalEvidenceReceipt | null {
     : null;
 }
 
+function storedQueryReceipt(value: unknown): LegalResearchQueryReceipt | null {
+  const row = object(value);
+  if (!row || typeof row.query_id !== "string" || !row.query_id.startsWith("q_") ||
+      typeof row.call_id !== "string" ||
+      (row.tool !== "search_sources" && row.tool !== "Read") ||
+      typeof row.executed_at !== "string" || Number.isNaN(Date.parse(row.executed_at)) ||
+      typeof row.model !== "string" || !row.model ||
+      (row.executor_version !== "legal-source-search-v1" &&
+        row.executor_version !== "legal-source-pattern-v1") ||
+      !object(row.input) || !Array.isArray(row.results) || row.results.length > 100) return null;
+  const valid = row.results.every((value, index) => {
+    const result = object(value);
+    return result && result.rank === index + 1 &&
+      (typeof result.resource === "string" && result.resource.startsWith("source://") ||
+        typeof result.evidence_id === "string" && result.evidence_id.startsWith("e_"));
+  });
+  return valid ? row as unknown as LegalResearchQueryReceipt : null;
+}
+
 export function priorLegalEvidenceReceipts(events: readonly unknown[]) {
   const receipts = new Map<string, LegalEvidenceReceipt>();
   for (const value of events) {
@@ -514,6 +638,24 @@ export function priorLegalEvidenceReceipts(events: readonly unknown[]) {
     for (const value of source.evidence) {
       const receipt = storedReceipt(value);
       if (receipt) receipts.set(receipt.evidence_id, receipt);
+    }
+  }
+  return [...receipts.values()];
+}
+
+export function priorLegalResearchQueryReceipts(events: readonly unknown[]) {
+  const receipts = new Map<string, LegalResearchQueryReceipt>();
+  for (const value of events) {
+    const event = object(value);
+    const source = event?.type === "legal_evidence_receipt"
+      ? event
+      : event?.type === "subagent_run" && event.status === "completed"
+        ? object(event.grounding)
+        : null;
+    if (!source || !Array.isArray(source.queries)) continue;
+    for (const value of source.queries) {
+      const receipt = storedQueryReceipt(value);
+      if (receipt) receipts.set(receipt.query_id, receipt);
     }
   }
   return [...receipts.values()];
@@ -540,24 +682,7 @@ export async function restorePriorLegalEvidence(
     Promise<Omit<RegisteredEvidence, "receipt"> | null>
   >();
   const restoreSource = (receipt: LegalEvidenceReceipt) => {
-    const reference = receipt.source_reference;
-    const kind = receipt.source_class === "commentary"
-      ? receipt.provider === "journal" ? "journal" : null
-      : receipt.source_class;
-    const providerSource: LegalSourceReference | null = reference && kind
-      ? {
-          provider: receipt.provider,
-          id: reference.id,
-          ...(reference.part ? { part: reference.part } : {}),
-          kind,
-          title: receipt.name,
-          citation: receipt.citation,
-          date: receipt.version,
-          collection: receipt.dataset,
-          language: receipt.language,
-          url: receipt.external_url,
-        }
-      : null;
+    const providerSource = legalEvidenceSourceReference(receipt);
     if (receipt.provider !== "a2aj" && !providerSource) {
       return Promise.resolve(null);
     }
@@ -874,7 +999,7 @@ export function legalEvidenceCitationEntries(
 
 export type LegalEvidenceReceiptEvent = {
   type: "legal_evidence_receipt";
-  schema_version: 6;
+  schema_version: 7;
   mode: LegalEvidenceMode | null;
   status: "passed" | "failed";
   verification: {
@@ -891,6 +1016,7 @@ export type LegalEvidenceReceiptEvent = {
     evidence_status: "not_run";
   }>;
   evidence: LegalEvidenceReceipt[];
+  queries: LegalResearchQueryReceipt[];
   bounces: [];
   failure: string | null;
 };
@@ -904,11 +1030,12 @@ export function legalEvidenceReceiptEvent(
     ...state.documentEvidenceIds,
     ...[...state.evidence.keys()].filter((id) => !state.priorEvidenceIds.has(id)),
   ]);
-  if (!state.attempted && !ids.size) return null;
-  const passed = !state.failure && Boolean(state.answer || ids.size);
+  const queries = [...state.queries.values()];
+  if (!state.attempted && !ids.size && !queries.length) return null;
+  const passed = !state.failure && Boolean(state.answer || ids.size || queries.length);
   return {
     type: "legal_evidence_receipt",
-    schema_version: 6,
+    schema_version: 7,
     mode: state.mode,
     status: passed ? "passed" : "failed",
     verification: {
@@ -929,6 +1056,7 @@ export function legalEvidenceReceiptEvent(
       const receipt = state.evidence.get(id)?.receipt;
       return receipt ? [receipt] : [];
     }),
+    queries,
     bounces: [],
     failure: state.failure,
   };

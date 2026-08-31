@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Project, TabularReview } from "@/app/components/shared/types";
 import { TabularReviewsTable } from "./TabularReviewsTable";
@@ -35,19 +35,36 @@ const project: Project = {
 const handlers = {
     setSelectedReviewIds: vi.fn(),
     reviewHref: (item: TabularReview) => `/tabular-reviews/${item.id}`,
-    onCreateReview: vi.fn(),
     onOpenDetails: vi.fn(),
     onDeleteReview: vi.fn(),
+    onDeleteSelected: vi.fn(),
 };
 
 describe("TabularReviewsTable", () => {
+    it("selects visible reviews and runs their bulk action", () => {
+        const setSelectedReviewIds = vi.fn();
+        const onDeleteSelected = vi.fn();
+        const props = { ...handlers, setSelectedReviewIds, onDeleteSelected,
+            reviews: [review], filteredReviews: [review] };
+        const { rerender } = render(
+            <TabularReviewsTable {...props} selectedReviewIds={[]} />,
+        );
+
+        fireEvent.click(screen.getByRole("checkbox", { name: "Select loaded reviews" }));
+        expect(setSelectedReviewIds).toHaveBeenCalledWith([review.id]);
+
+        rerender(<TabularReviewsTable {...props} selectedReviewIds={[review.id]} />);
+        fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+        expect(onDeleteSelected).toHaveBeenCalledOnce();
+    });
+
     it("adds project data only to the global view", () => {
         const { rerender } = render(
             <TabularReviewsTable
                 reviews={[]}
                 filteredReviews={[]}
                 selectedReviewIds={[]}
-                creatingReview={false}
                 loading
                 {...handlers}
             />,
@@ -60,7 +77,6 @@ describe("TabularReviewsTable", () => {
                 reviews={[]}
                 filteredReviews={[]}
                 selectedReviewIds={[]}
-                creatingReview={false}
                 loading
                 projects={[project]}
                 {...handlers}
@@ -74,7 +90,6 @@ describe("TabularReviewsTable", () => {
                 reviews={[review]}
                 filteredReviews={[review]}
                 selectedReviewIds={[]}
-                creatingReview={false}
                 projects={[project]}
                 {...handlers}
             />,

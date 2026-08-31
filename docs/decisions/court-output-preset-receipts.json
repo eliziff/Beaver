@@ -1,0 +1,390 @@
+{
+  "schema_version": 2,
+  "verified_on": "2026-08-31",
+  "purpose": "Auditable official-source receipts for the Authorities and Court Record Builder presets. The presets encode filing mechanics; they do not decide what proceeding or document a legal professional should use.",
+  "audit_method": "Conditionally GET only the listed official URLs, retain final URL, ETag, Last-Modified, byte count and SHA-256, and compare HTML markers. A stable_parent_url is retained for manual rediscovery when a deep link moves. Never crawl beyond the listed URLs.",
+  "canlii_policy": "CanLII URLs are manual_only. The audit command makes no request to CanLII, just as the Authorities download handoff makes no programmatic CanLII request.",
+  "sources": [
+    {
+      "id": "canlii-terms",
+      "profiles": ["authorities-handoff"],
+      "kind": "usage-policy",
+      "url": "https://www.canlii.org/info/terms.html",
+      "stable_parent_url": "https://www.canlii.org/info/faq.html",
+      "locator": "Terms section 5.1(3) and FAQ 5.1: ordinary links are permitted; systematic downloading is prohibited",
+      "expected_markers": ["Systematic downloading", "hypertext link"],
+      "manual_verified_on": "2026-08-31",
+      "manual_verified_version": "CanLII Terms last updated 2026-06-03",
+      "automated_access": "manual_only"
+    },
+    {
+      "id": "ab-rules-part-13-14",
+      "profiles": [
+        "ab-kb-affidavit-exhibits",
+        "ab-ca-appeal-record",
+        "ab-ca-extracts-appellant",
+        "ab-ca-extracts-respondent",
+        "ab-ca-extracts-intervener",
+        "ab-ca-condensed-book"
+      ],
+      "kind": "rule",
+      "url": "https://www.canlii.org/en/ab/laws/regu/alta-reg-124-2010/",
+      "stable_parent_url": "https://kings-printer.alberta.ca/570.cfm?frm_isbn=9780779846934&search_by=link",
+      "locator": "Rules 13.19, 13.21 and Part 14, including Rules 14.16–14.29",
+      "expected_markers": ["Identification of exhibits", "25 or more pages", "consecutively numbered"],
+      "automated_access": "manual_only"
+    },
+    {
+      "id": "ab-affidavit-exhibit-example",
+      "profiles": ["ab-kb-affidavit-exhibits"],
+      "kind": "official-example",
+      "url": "https://albertacourts.ca/cj/areas-of-law/civil/claims/court-prep/exhibits",
+      "locator": "Exhibits Attached to an Affidavit",
+      "expected_markers": ["This is Exhibit", "Print Name and Expiry Date"]
+    },
+    {
+      "id": "ab-kb-form-49",
+      "profiles": ["ab-kb-affidavit-exhibits"],
+      "kind": "official-example",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/lesaform-%2849%29.docx?sfvrsn=2ea6ad80_2",
+      "stable_parent_url": "https://www.albertacourts.ca/kb/areas-of-law/civil/forms/word-forms",
+      "locator": "Affidavit (Generic), Form 49, CTS3819, Rule 13.19 — official editable Word form",
+      "reference_sha256": "c725863a3f94d20990b561b2a046243b8f8afd08f88f0338e953c369b59a7d24",
+      "expected_markers": []
+    },
+    {
+      "id": "ab-kb-digital-guidelines",
+      "profiles": [
+        "ab-kb-affidavit-exhibits",
+        "ab-kb-chambers-justice-applicant-set",
+        "ab-kb-chambers-justice-respondent-set",
+        "ab-kb-chambers-applications-judge-applicant-set",
+        "ab-kb-chambers-applications-judge-respondent-set",
+        "ab-kb-desk-justice-application-set",
+        "ab-kb-desk-applications-judge-application-set",
+        "ab-kb-special-application-applicant-set",
+        "ab-kb-special-application-respondent-set",
+        "ab-kb-review-appeal-applicant-set",
+        "ab-kb-review-appeal-respondent-set",
+        "ab-kb-commercial-applicant-set",
+        "ab-kb-commercial-respondent-set",
+        "ab-kb-commercial-compendium"
+      ],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/kb/court-operations-schedules/guidelines-for-documents-filed-by-email-or-digital-upload",
+      "locator": "PDF, OCR, bookmarks, separate-file, open-source hyperlink and 100MB requirements",
+      "expected_markers": ["searchable", "100MB", "bookmarked"]
+    },
+    {
+      "id": "ab-kb-cpn1",
+      "profiles": [
+        "ab-kb-chambers-justice-applicant-set",
+        "ab-kb-chambers-justice-respondent-set",
+        "ab-kb-chambers-applications-judge-applicant-set",
+        "ab-kb-chambers-applications-judge-respondent-set",
+        "ab-kb-desk-justice-application-set",
+        "ab-kb-desk-applications-judge-application-set",
+        "ab-kb-special-application-applicant-set",
+        "ab-kb-special-application-respondent-set",
+        "ab-kb-review-appeal-applicant-set",
+        "ab-kb-review-appeal-respondent-set"
+      ],
+      "kind": "practice-direction",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-civil-practice-note-1---justice-and-applications-judges%27-chambers.pdf?sfvrsn=a9ea3b82_4",
+      "stable_parent_url": "https://www.albertacourts.ca/kb/areas-of-law/civil/practice-notes",
+      "locator": "Special Applications, desk applications, judicial reviews and civil appeals",
+      "expected_markers": ["Special Application", "Application Form", "authorities"]
+    },
+    {
+      "id": "ab-kb-commercial-pn1",
+      "profiles": [
+        "ab-kb-commercial-applicant-set",
+        "ab-kb-commercial-respondent-set",
+        "ab-kb-commercial-compendium"
+      ],
+      "kind": "practice-direction",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/effective-july-2-2024---revised-commercial-practice-note-1---commercial-chambers.pdf?sfvrsn=adea3b82_6",
+      "stable_parent_url": "https://www.albertacourts.ca/kb/areas-of-law/commercial/practice-notes",
+      "locator": "Paragraphs 13–15 and 24–29",
+      "expected_markers": ["35 pages", "hyperlink", "compendium"]
+    },
+    {
+      "id": "ab-kb-fds-2026",
+      "profiles": [
+        "ab-kb-chambers-applications-judge-applicant-set",
+        "ab-kb-chambers-applications-judge-respondent-set"
+      ],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/kb/resources/announcements/KB-filing-digital-service-civil-and-chambers-to-include-applications-judges-chambers-applications",
+      "stable_parent_url": "https://www.albertacourts.ca/kb/court-operations-schedules/kb-justice-digital-services",
+      "locator": "Applications Judge chambers filing set and mandatory proposed order",
+      "expected_markers": ["proposed", "supporting", "Applications Judge"]
+    },
+    {
+      "id": "ab-kb-digital-orders-2026",
+      "profiles": [
+        "ab-kb-chambers-applications-judge-applicant-set",
+        "ab-kb-chambers-applications-judge-respondent-set",
+        "ab-kb-desk-applications-judge-application-set"
+      ],
+      "kind": "court-guidance",
+      "url": "https://www3.albertacourts.ca/kb/resources/announcements/digital-orders-for-applications-judges-matters-in-KB-FDS-civil-chambers",
+      "stable_parent_url": "https://www.albertacourts.ca/kb/resources/announcements",
+      "locator": "Use of Digital Orders for Applications Judges Matters in FDS — effective September 15, 2026",
+      "effective_from": "2026-09-15",
+      "expected_markers": [
+        "September 15, 2026",
+        "Applications Judge Desk Applications",
+        "PDF order upload will no longer be accepted"
+      ]
+    },
+    {
+      "id": "ab-kb-citation-guidelines",
+      "profiles": ["authorities-handoff"],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/kb/resources/citation-guidelines",
+      "locator": "Citation Guidelines",
+      "expected_markers": ["Book of Authorities", "Avoid duplicating authorities"]
+    },
+    {
+      "id": "ab-kb-general-pn1",
+      "profiles": ["authorities-handoff"],
+      "kind": "practice-direction",
+      "url": "https://www.albertacourts.ca/docs/default-source/qb/general-practice-notes/kb-general-practice-note-1-english.pdf?sfvrsn=a6227c82_16",
+      "locator": "Citation of Authorities",
+      "expected_markers": ["Citation", "Authorities"]
+    },
+    {
+      "id": "ab-ca-authorities-guide",
+      "profiles": ["authorities-handoff"],
+      "kind": "court-guidance",
+      "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing",
+      "locator": "Finding and Providing Authorities, pages 1–2",
+      "expected_markers": ["Table of Authorities", "hyperlink"]
+    },
+    {
+      "id": "ab-ca-electronic-format",
+      "profiles": [
+        "ab-ca-appeal-record",
+        "ab-ca-extracts-appellant",
+        "ab-ca-extracts-respondent",
+        "ab-ca-extracts-intervener",
+        "ab-ca-condensed-book"
+      ],
+      "kind": "court-guidance",
+      "url": "https://cams.albertacourts.ca/public-portal/files/electronicFilingFormatRequirements.pdf",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing",
+      "locator": "Cover colours, upper-right pagination, bookmarks and hyperlinks",
+      "expected_markers": ["bookmarks", "100 MB", "page number"]
+    },
+    {
+      "id": "ab-ca-filing-hub",
+      "profiles": [
+        "ab-ca-appeal-record",
+        "ab-ca-extracts-appellant",
+        "ab-ca-extracts-respondent",
+        "ab-ca-extracts-intervener",
+        "ab-ca-condensed-book"
+      ],
+      "kind": "court-guidance",
+      "url": "https://www.albertacourts.ca/ca/registry/filing",
+      "locator": "Form AP-5 and current civil filing forms",
+      "expected_markers": ["AP-5", "Appeal Record"]
+    },
+    {
+      "id": "ab-ca-appeal-requirements",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "court-guidance",
+      "url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Appeal-record requirements, check/return forms and sample civil tables of contents",
+      "expected_markers": ["Appeal Record Requirements", "sample Table of Contents"]
+    },
+    {
+      "id": "ab-ca-consolidated-directions",
+      "profiles": ["ab-ca-appeal-record", "ab-ca-condensed-book"],
+      "kind": "practice-direction",
+      "url": "https://albertacourts.ca/docs/default-source/ca/consolidated-practice-directions.pdf?sfvrsn=a286ab80_22",
+      "locator": "Part B — Transcripts and Part G — Condensed Books",
+      "expected_markers": ["Part 3", "Condensed Books", "Form AP-5"]
+    },
+    {
+      "id": "ab-ca-sample-record",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "official-example",
+      "url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedAppealRecord.pdf",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Form AP-5 cover and appeal-record layout",
+      "reference_sha256": "d18f236e344b62afdc4209075892aaf97d192dca660915c074ced0ae41ace59a",
+      "expected_markers": ["APPEAL RECORD", "AP-5"]
+    },
+    {
+      "id": "ab-ca-sample-extracts",
+      "profiles": [
+        "ab-ca-extracts-appellant",
+        "ab-ca-extracts-respondent",
+        "ab-ca-extracts-intervener"
+      ],
+      "kind": "official-example",
+      "url": "https://cams.albertacourts.ca/public-portal/files/sampleFormattedExtracts.pdf",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Form AP-5 extracts cover and table of contents",
+      "reference_sha256": "9abe9d27d71a650cc0254c291157f3ef39db90eab76bfc65392c7d7010d050ca",
+      "expected_markers": ["EXTRACTS", "AP-5"]
+    },
+    {
+      "id": "fc-rules",
+      "profiles": [
+        "fc-affidavit-exhibits",
+        "fca-affidavit-exhibits",
+        "fc-motion-record-moving",
+        "fca-motion-record-moving",
+        "fc-motion-record-responding",
+        "fca-motion-record-responding",
+        "fc-application-record-applicant",
+        "fca-application-record-applicant",
+        "fc-application-record-respondent",
+        "fca-application-record-respondent",
+        "fca-appeal-book",
+        "fca-condensed-book",
+        "fc-trial-record",
+        "fca-leave-motion-record",
+        "fca-leave-response-set"
+      ],
+      "kind": "rule",
+      "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
+      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 and 364–366",
+      "expected_markers": ["Trial Record", "Motion Record", "Appeal Books", "FORM 344"]
+    },
+    {
+      "id": "fc-practice-guidelines-2025",
+      "profiles": [
+        "fc-affidavit-exhibits",
+        "fc-motion-record-moving",
+        "fc-motion-record-responding",
+        "fc-application-record-applicant",
+        "fc-application-record-respondent",
+        "fc-trial-record"
+      ],
+      "kind": "practice-direction",
+      "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/2025-06-20__Amended-Consolidated-General-Practice-Guidelines.pdf",
+      "stable_parent_url": "https://www.fct-cf.gc.ca/en/pages/law-and-practice/practice-guidelines",
+      "locator": "Paragraphs 19(d)–(h) and 83–84",
+      "expected_markers": ["Book of Authorities", "hyperlinked", "highlighted"]
+    },
+    {
+      "id": "fc-efiling",
+      "profiles": [
+        "fc-affidavit-exhibits",
+        "fc-motion-record-moving",
+        "fc-motion-record-responding",
+        "fc-application-record-applicant",
+        "fc-application-record-respondent",
+        "fc-trial-record"
+      ],
+      "kind": "court-guidance",
+      "url": "https://www.fct-cf.gc.ca/en/pages/online-access/e-filing",
+      "locator": "Searchability, bookmarks, proof of service, 100 MB and 500-page limits",
+      "expected_markers": ["100 MB", "500", "bookmark"]
+    },
+    {
+      "id": "fca-efiling-guide",
+      "profiles": [
+        "fca-affidavit-exhibits",
+        "fca-motion-record-moving",
+        "fca-motion-record-responding",
+        "fca-application-record-applicant",
+        "fca-application-record-respondent",
+        "fca-appeal-book",
+        "fca-condensed-book",
+        "fca-leave-motion-record",
+        "fca-leave-response-set",
+        "fca-informal-motion-letter",
+        "fca-compendium"
+      ],
+      "kind": "court-guidance",
+      "url": "https://efiling.fca-caf.gc.ca/en/online-access/guide",
+      "locator": "Continuous numbering, OCR, bookmarks, links, cover colours and file size",
+      "expected_markers": ["bookmark", "searchable", "100 MB"]
+    },
+    {
+      "id": "fca-consolidated-direction-2026",
+      "profiles": [
+        "fca-affidavit-exhibits",
+        "fca-motion-record-moving",
+        "fca-motion-record-responding",
+        "fca-application-record-applicant",
+        "fca-application-record-respondent",
+        "fca-appeal-book",
+        "fca-condensed-book",
+        "fca-leave-motion-record",
+        "fca-leave-response-set",
+        "fca-informal-motion-letter",
+        "fca-compendium"
+      ],
+      "kind": "practice-direction",
+      "url": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court/consolidated-practice-direction",
+      "locator": "Paragraphs 8–11, 24.2, 33.1–33.3 and 59–64",
+      "expected_markers": ["July 9, 2026", "proof of service", "Condensed books and compendia"]
+    },
+    {
+      "id": "fca-leave-guide",
+      "profiles": ["fca-leave-motion-record", "fca-leave-response-set"],
+      "kind": "court-guidance",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Motions_for_leave_to_appeal_to_the_Federal_Court_of_Appeal.pdf",
+      "stable_parent_url": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court",
+      "locator": "Rules 352–356 leave-motion process",
+      "expected_markers": ["Rule 353", "Rule 354", "motion record"]
+    },
+    {
+      "id": "fca-examples",
+      "profiles": [
+        "fca-appeal-book",
+        "fca-motion-record-moving",
+        "fca-motion-record-responding"
+      ],
+      "kind": "official-example-index",
+      "url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",
+      "locator": "Official PDF and DOCX examples for appeal-book agreements, memoranda and written representations",
+      "expected_markers": ["Agreement on content of appeal book", ".DOCX", "Written representations"]
+    },
+    {
+      "id": "fca-example-appeal-book-agreement",
+      "profiles": ["fca-appeal-book"],
+      "kind": "official-example",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-an-agreement-as-to-contents-of-appeal-book-1.pdf",
+      "stable_parent_url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",
+      "locator": "Form 66 heading, party alignment and appeal-book contents schedule",
+      "reference_sha256": "865efcb6cf6750d9fcfa034c9957acc42bc775c6deae029841c323b352d95d45",
+      "expected_markers": []
+    },
+    {
+      "id": "fca-example-written-representations",
+      "profiles": ["fca-motion-record-moving", "fca-motion-record-responding"],
+      "kind": "official-example",
+      "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-Written-Representations.pdf",
+      "stable_parent_url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",
+      "locator": "Form 66 heading, 12-point type, margins and table-of-contents treatment",
+      "reference_sha256": "2597da285f00acdee850bd3ed62e214b6f49df5eb43743fc8535eb20e85d4387",
+      "expected_markers": []
+    },
+    {
+      "id": "fc-sample-motion-record",
+      "profiles": ["fc-motion-record-moving", "fc-motion-record-responding"],
+      "kind": "official-example",
+      "url": "https://www.fct-cf.gc.ca/content/assets/pdf/base/Sample%20Document%201%20%28MR%20-%20Constitutional%29.pdf",
+      "locator": "Official motion-record cover and index",
+      "reference_sha256": "87fb799cc1e879d3e7970433feb3422ea317f49a95ddcea768fc5cd3ad9bd4b9",
+      "expected_markers": ["MOTION RECORD", "INDEX"]
+    },
+    {
+      "id": "fc-action-guide",
+      "profiles": ["fc-trial-record"],
+      "kind": "court-guidance",
+      "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/Federal%20Court%20-%20How%20to%20file%20an%20Action.pdf",
+      "stable_parent_url": "https://www.fct-cf.gc.ca/en/pages/representing-yourself/practice-guides/how-to-file-an-action",
+      "locator": "Trial record overview under Rules 268–269",
+      "expected_markers": ["Trial record", "pleadings", "orders and directions"]
+    }
+  ]
+}

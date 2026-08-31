@@ -21,6 +21,8 @@ describe("cloud public runtime configuration", () => {
 
   it("keeps loopback HTTP available for local Supabase development", () => {
     vi.stubEnv("SUPABASE_URL", "http://127.0.0.1:54321");
-    expect(publicRuntimeConfig().supabaseUrl).toBe("http://127.0.0.1:54321");
+    expect(publicRuntimeConfig()).toEqual({
+      mode: "cloud", capabilities: { connectors: true },
+    });
   });
 });

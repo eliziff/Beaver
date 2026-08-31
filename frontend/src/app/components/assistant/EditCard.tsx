@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { resolveDocumentEdits } from "@/app/lib/beaverApi";
-import { PillButton } from "@/app/components/ui/pill-button";
+import { Button } from "@/app/components/ui/button";
 import type { EditAnnotation, EditResolveHandlers } from "../shared/types";
 
 type EditVerb = "accept" | "reject";
@@ -245,31 +245,31 @@ export function EditCard({
                 </p>
             ) : (
                 <div className="mt-3 flex gap-2">
-                    <PillButton
-                        tone="black"
-                        size="sm"
+                    <Button
+                        variant="black"
+                        size="compact"
                         onClick={() => resolve("accept")}
                         disabled={disabled}
                     >
                         Accept
-                    </PillButton>
-                    <PillButton
-                        tone="white"
-                        size="sm"
+                    </Button>
+                    <Button
+                        variant="white"
+                        size="compact"
                         onClick={() => resolve("reject")}
                         disabled={disabled}
                     >
                         Reject
-                    </PillButton>
+                    </Button>
                     {onViewClick && (
-                        <PillButton
-                            tone="black"
-                            size="sm"
+                        <Button
+                            variant="black"
+                            size="compact"
                             onClick={() => onViewClick(annotation)}
                             className="ml-auto"
                         >
                             View
-                        </PillButton>
+                        </Button>
                     )}
                 </div>
             )}

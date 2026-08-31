@@ -8,6 +8,7 @@ import {
     restoreChat,
 } from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
+import { CollectionState } from "@/app/components/shared/CollectionState";
 const RETENTION_DAYS = 30;
 function daysRemaining(chat: Chat) {
     const deleted = Date.parse(chat.deleted_at ?? "");
@@ -86,17 +87,11 @@ export function RecyclingBinModal({
                 </p>
                 <div className="min-h-0 flex-1 overflow-y-auto border-y border-gray-200">
                     {chats === null ? (
-                        <p className="px-1 py-5 text-sm text-gray-500">
-                            Loading…
-                        </p>
+                        <CollectionState loading>Loading…</CollectionState>
                     ) : chats === "error" ? (
-                        <p className="px-1 py-5 text-sm text-red-700">
-                            Could not load deleted chats.
-                        </p>
+                        <CollectionState error>Could not load deleted chats.</CollectionState>
                     ) : chats.length === 0 ? (
-                        <p className="px-1 py-5 text-sm text-gray-500">
-                            The Recycling bin is empty.
-                        </p>
+                        <CollectionState>The Recycling bin is empty.</CollectionState>
                     ) : (
                         <ul className="divide-y divide-gray-200">
                             {chats.map((chat) => (

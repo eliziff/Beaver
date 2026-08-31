@@ -10,27 +10,28 @@ import {
   streamActiveChat,
   streamChat,
   streamChatJob,
+  submitChatClientToolResult,
 } from "@/app/lib/beaverApi";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import type { Chat, Message } from "@/app/components/shared/types";
 import {
   ASSISTANT_GENERIC_ERROR,
   assistantSessionReducer,
   createAssistantSessionState,
   type AssistantTurnOptions,
+  type ProtocolEvent,
 } from "@/app/lib/assistantSession";
 import {
   AssistantProtocolError,
   readAssistantEventStream,
 } from "@/app/lib/assistantStream";
 import {
-  readSelectedModel,
-  readSelectedReasoningEffort,
-} from "./useSelectedModel";
-import {
   jurisdictionPreferenceForChat,
   readAssistantPreferences,
 } from "@/app/components/assistant/assistantPreferences";
+import { DEFAULT_MODEL_ID } from "@/app/components/assistant/ModelToggle";
+import type { WorkProductKind } from "@/app/lib/workProducts";
 
 interface UseAssistantChatOptions {
   chatId?: string;
@@ -38,6 +39,12 @@ interface UseAssistantChatOptions {
   tabularReviewId?: string;
   onChatIdChange?: (chatId: string) => void;
   onTitleChange?: (chatId: string, title: string) => void;
+  stayInPlace?: boolean;
+  workProduct?: { kind: WorkProductKind; id: string; revision: number };
+  wordClient?: {
+    context(): Promise<{ document_name: string }>;
+    execute(call: Extract<ProtocolEvent, { type: "client_tool_call" }>): Promise<unknown>;
+  };
 }
 
 export type AssistantChatLoad =
@@ -71,8 +78,12 @@ export function useAssistantChat({
   tabularReviewId,
   onChatIdChange,
   onTitleChange,
+  stayInPlace = false,
+  workProduct,
+  wordClient,
 }: UseAssistantChatOptions = {}) {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { profile } = useUserProfile();
   const {
     claimPendingChatMessage,
     peekPendingChatMessage,
@@ -106,6 +117,7 @@ export function useAssistantChat({
   const pollGenerationRef = useRef(0);
   const activeStreamRef = useRef<AbortController | null>(null);
   const transportRef = useRef<{ runId: string; controller: AbortController } | null>(null);
+  const clientToolResultsRef = useRef(new Map<string, Promise<unknown>>());
 
   useEffect(() => () => {
     pollGenerationRef.current += 1;
@@ -247,7 +259,10 @@ export function useAssistantChat({
       if (!current.chatId || current.run) return null;
       dispatch({ type: "compaction_changed", status: "running" });
       try {
-        const result = await compactChat(current.chatId, message.model ?? readSelectedModel());
+        const result = await compactChat(
+          current.chatId,
+          message.model ?? profile?.lastSelectedChatModel ?? DEFAULT_MODEL_ID,
+        );
         if (Number.isSafeInteger(result.transcriptVersion)) {
           dispatch({ type: "transcript_version_changed", transcriptVersion: result.transcriptVersion! });
         }
@@ -294,6 +309,19 @@ export function useAssistantChat({
         expectedChatId: current.chatId,
         onEvent: (event, eventChatId) => {
           if (event.type === "turn_queued") queuedJobId = event.jobId;
+          if (event.type === "client_tool_call" && queuedJobId && wordClient) {
+            let result = clientToolResultsRef.current.get(event.callId);
+            if (!result) {
+              result = wordClient.execute(event).catch((error) => ({
+                error: error instanceof Error
+                  ? error.message.slice(0, 500) : "The Word tool failed.",
+              }));
+              clientToolResultsRef.current.set(event.callId, result);
+            }
+            void result.then((value) => submitChatClientToolResult(
+              queuedJobId!, event.callId, value,
+            )).catch(() => undefined);
+          }
           if (event.type === "chat_id" && event.chatId !== current.chatId) {
             if (replaying) {
               replaying = false;
@@ -314,7 +342,7 @@ export function useAssistantChat({
       if (finalChatId && finalChatId !== current.chatId) {
         if (current.chatId) replaceChatId(current.chatId, finalChatId,
           message.content.trim().slice(0, 120) || "New Chat");
-        if (!tabularReviewId) {
+        if (!tabularReviewId && !stayInPlace) {
           const base = projectId ? `/projects/${projectId}/assistant/chat` : "/assistant/chat";
           navigate(`${base}/${finalChatId}`, { replace: true });
         }
@@ -334,9 +362,10 @@ export function useAssistantChat({
       return streamedChatId ?? null;
     };
     try {
-      const model = message.model ?? readSelectedModel();
+      const model = message.model ?? profile?.lastSelectedChatModel ?? DEFAULT_MODEL_ID;
       const preferences = readAssistantPreferences();
       const readSubagents = preferences.readSubagents;
+      const wordContext = wordClient ? await wordClient.context() : undefined;
       const response = await streamChat({
         current_turn: turnOptions?.askInputsResponse
           ? {
@@ -360,9 +389,12 @@ export function useAssistantChat({
         project_id: projectId,
         tabular_review_id: tabularReviewId,
         model,
-        reasoning_effort: message.reasoningEffort ?? readSelectedReasoningEffort(),
+        reasoning_effort: message.reasoningEffort ??
+          profile?.lastSelectedReasoningEffort ?? undefined,
         edit_mode: message.editMode ?? "manual",
-        jurisdiction_preference: jurisdictionPreferenceForChat(preferences.jurisdiction),
+        jurisdiction_preference: jurisdictionPreferenceForChat(
+          profile?.jurisdictionPreference ?? { mode: "ask", jurisdictions: [] },
+        ),
         subagent_mode: readSubagents.mode === "native" && !model.startsWith("codex:") ? "none" : readSubagents.mode,
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
@@ -371,6 +403,8 @@ export function useAssistantChat({
         displayed_doc: turnOptions?.displayedDoc
           ? { document_id: turnOptions.displayedDoc.documentId }
           : undefined,
+        word_context: wordContext,
+        work_product: workProduct,
         signal: controller.signal,
       });
       if (!response.ok) {

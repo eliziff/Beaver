@@ -27,18 +27,18 @@ describe("ProjectChoiceList", () => {
             />,
         );
 
-        const selected = screen.getByRole("option", { name: /Appeal/ });
-        const unselected = screen.getByRole("option", { name: /Acquisition/ });
-        expect(selected).toHaveAttribute("aria-selected", "true");
-        expect(unselected).toHaveAttribute("aria-selected", "false");
+        const selected = screen.getByRole("button", { name: /Appeal/ });
+        const unselected = screen.getByRole("button", { name: /Acquisition/ });
+        expect(selected).toHaveAttribute("aria-pressed", "true");
+        expect(unselected).toHaveAttribute("aria-pressed", "false");
 
         fireEvent.change(screen.getByRole("searchbox"), {
             target: { value: "acq" },
         });
         expect(
-            screen.queryByRole("option", { name: /Appeal/ }),
+            screen.queryByRole("button", { name: /Appeal/ }),
         ).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole("option", { name: /Acquisition/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Acquisition/ }));
         expect(onChange).toHaveBeenCalledWith("project-2");
     });
 });

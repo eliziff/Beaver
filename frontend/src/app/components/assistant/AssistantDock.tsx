@@ -1,17 +1,16 @@
-"use client";
-
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { Tabs } from "@/app/components/ui/tabs";
 
 export type AssistantDockTab = {
     id: string;
     label: string;
+    icon?: ReactNode;
+    actions?: ReactNode;
     content: ReactNode;
 };
-
-const subscribeToClient = () => () => {};
 
 export function AssistantDock({
     tabs,
@@ -32,10 +31,12 @@ export function AssistantDock({
     inspectorOpen?: boolean;
     onCloseInspector?: () => void;
 }) {
-    const [width, setWidth] = useState(560);
-    const mounted = useSyncExternalStore(subscribeToClient, () => true, () => false);
+    const [width, setWidth] = useState(480);
     const resizeStart = useRef<{ x: number; width: number } | null>(null);
+    const dock = useRef<HTMLElement>(null);
+    const changeExpanded = useRef(onExpandedChange);
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+    changeExpanded.current = onExpandedChange;
 
     useEffect(() => {
         const resize = (event: PointerEvent) => {
@@ -64,9 +65,45 @@ export function AssistantDock({
         };
     }, []);
 
+    useEffect(() => {
+        const panel = dock.current;
+        if (!expanded || !panel || !window.matchMedia?.("(max-width: 767px)").matches) return;
+        const parent = panel.parentElement;
+        const previousFocus = document.activeElement as HTMLElement | null;
+        const siblings = parent ? [...parent.children].filter((node) => node !== panel) as HTMLElement[] : [];
+        const previousOverflow = parent?.style.overflow ?? "";
+        const previousState = siblings.map((node) => ({
+            node, inert: node.inert, hidden: node.getAttribute("aria-hidden"),
+        }));
+        siblings.forEach((node) => { node.inert = true; node.setAttribute("aria-hidden", "true"); });
+        if (parent) parent.style.overflow = "hidden";
+        const controls = () => [...panel.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])',
+        )].filter((node) => node.getAttribute("role") !== "separator" && !node.closest('[aria-hidden="true"]'));
+        (panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? controls()[0] ?? panel).focus();
+        const trapFocus = (event: KeyboardEvent) => {
+            if (event.key === "Escape") { event.preventDefault(); changeExpanded.current(false); return; }
+            if (event.key !== "Tab") return;
+            const items = controls();
+            const first = items[0], last = items.at(-1);
+            if (!first || !last) return;
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        };
+        panel.addEventListener("keydown", trapFocus);
+        return () => {
+            panel.removeEventListener("keydown", trapFocus);
+            previousState.forEach(({ node, inert, hidden }) => {
+                node.inert = inert;
+                if (hidden === null) node.removeAttribute("aria-hidden"); else node.setAttribute("aria-hidden", hidden);
+            });
+            if (parent) parent.style.overflow = previousOverflow;
+            previousFocus?.focus();
+        };
+    }, [expanded]);
+
     if (!active) return null;
     if (!expanded) {
-        if (!mounted) return null;
         return createPortal(
             <button
                 type="button"
@@ -80,19 +117,15 @@ export function AssistantDock({
         );
     }
     const showingInspector = active.id !== "sources" && inspectorOpen;
-    const moveTabFocus = (current: number, offset: number) => {
-        const next = (current + offset + tabs.length) % tabs.length;
-        onActivateTab(tabs[next].id);
-        document.getElementById(`assistant-dock-tab-${tabs[next].id}`)?.focus();
-    };
-
     return (
         <aside
+            ref={dock}
+            tabIndex={-1}
             data-assistant-dock
             aria-label="Assistant dock"
             className={cn(
-                "relative z-40 flex h-full w-1/2 min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
-                "md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:rounded-2xl",
+                "absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
+                "md:relative md:inset-auto md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:rounded-2xl",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >
@@ -121,74 +154,27 @@ export function AssistantDock({
                 }}
                 className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none md:block"
             />
-            <header className="flex min-h-12 shrink-0 items-start gap-2 border-b border-gray-200 px-2 py-1.5 lg:items-center">
-                <div
-                    role="tablist"
-                    aria-label="Assistant panels"
-                    className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
-                >
-                    {tabs.map((tab, index) => {
-                        const selected = tab.id === active.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                id={`assistant-dock-tab-${tab.id}`}
-                                type="button"
-                                role="tab"
-                                aria-selected={selected}
-                                aria-controls={`assistant-dock-panel-${tab.id}`}
-                                tabIndex={selected ? 0 : -1}
-                                onClick={() => onActivateTab(tab.id)}
-                                onKeyDown={(event) => {
-                                    if (event.key === "ArrowRight") moveTabFocus(index, 1);
-                                    else if (event.key === "ArrowLeft") moveTabFocus(index, -1);
-                                    else if (event.key === "Home") moveTabFocus(index, -index);
-                                    else if (event.key === "End") moveTabFocus(index, tabs.length - index - 1);
-                                    else return;
-                                    event.preventDefault();
-                                }}
-                                className={cn(
-                                    "h-9 max-w-40 shrink-0 truncate rounded-md px-3 py-1.5 text-center text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-current",
-                                    selected
-                                        ? "bg-gray-900 text-white"
-                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-950",
-                                )}
-                            >
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </div>
-                <div className="flex shrink-0 items-center gap-1 pe-1">
-                    <button
-                        type="button"
-                        onClick={() => onExpandedChange(false)}
-                        className="grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                        aria-label="Collapse assistant dock"
-                    >
-                        <PanelRightClose className="size-4" aria-hidden="true" />
-                    </button>
-                </div>
-            </header>
-            <div
-                className={cn(
-                    "relative min-h-0 flex-1 overflow-hidden",
-                    showingInspector &&
-                        "grid grid-rows-[minmax(0,2fr)_minmax(0,3fr)]",
-                )}
+            <Tabs
+                value={active.id}
+                onValueChange={onActivateTab}
+                options={tabs.map(({ id, label, icon }) => ({ value: id, label:
+                    <span className="flex min-w-0 items-center justify-center gap-1.5">
+                        {icon && <span className="hidden sm:inline-flex">{icon}</span>}
+                        <span className="truncate">{label}</span>
+                    </span> }))}
+                ariaLabel="Assistant panels"
+                variant="dock" actions={active.actions} className="h-full"
             >
-                <div
-                    className={cn(
+                <div className={cn(
+                    "relative min-h-0 flex-1 overflow-hidden",
+                    showingInspector && "grid grid-rows-[minmax(0,2fr)_minmax(0,3fr)]",
+                )}>
+                    <div className={cn(
                         "relative min-h-0 overflow-hidden",
                         showingInspector ? "" : "absolute inset-0",
-                    )}
-                >
-                    {tabs.map((tab) => (
-                        <div
+                    )}>
+                        {tabs.map((tab) => <div
                             key={tab.id}
-                            id={`assistant-dock-panel-${tab.id}`}
-                            role="tabpanel"
-                            aria-labelledby={`assistant-dock-tab-${tab.id}`}
                             aria-hidden={tab.id !== active.id}
                             className={cn(
                                 "absolute inset-0 flex flex-col overflow-hidden",
@@ -196,13 +182,10 @@ export function AssistantDock({
                             )}
                         >
                             {tab.content}
-                        </div>
-                    ))}
-                </div>
-                {showingInspector && <div
-                    id="assistant-dock-source-inspector"
-                    role="tabpanel"
-                    aria-labelledby="assistant-dock-tab-sources"
+                        </div>)}
+                    </div>
+                    {showingInspector && <section
+                    aria-label="Sources"
                     className="flex min-h-0 flex-col overflow-hidden border-t border-gray-300"
                 >
                     <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 bg-gray-50 ps-3 pe-2">
@@ -217,8 +200,17 @@ export function AssistantDock({
                         </button>
                     </div>
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{inspectorContent}</div>
-                </div>}
-            </div>
+                </section>}
+                </div>
+            </Tabs>
+            <button
+                type="button"
+                onClick={() => onExpandedChange(false)}
+                className="absolute end-2 top-1.5 z-10 grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                aria-label="Collapse assistant dock"
+            >
+                <PanelRightClose className="size-4" aria-hidden="true" />
+            </button>
         </aside>
     );
 }

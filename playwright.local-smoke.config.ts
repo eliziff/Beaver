@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // This lane never starts or reuses a development server. Run it only through
-// `scripts/mike.ps1 smoke -Full -WithTableOfAuthorities`, after that launcher
+// `scripts/mike.ps1 smoke -Full`, after that launcher
 // has proved ownership of the production listeners.
 export default defineConfig({
     testDir: "./smoke",

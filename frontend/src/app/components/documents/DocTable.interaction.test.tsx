@@ -5,7 +5,6 @@ import type { Document } from "@/app/components/shared/types";
 import {
     DocTable,
     type DocTableFolder,
-    type DocTableSelectionActions,
 } from "./DocTable";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "./documentTree";
 
@@ -16,6 +15,7 @@ vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
 const sidePanelRender = vi.hoisted(() => vi.fn());
 vi.mock("@/app/components/shared/DocumentSidePanel", () => ({
+    preloadDocumentViewer: vi.fn(() => Promise.resolve()),
     DocumentSidePanel: ({ doc }: { doc: Document | null }) => {
         sidePanelRender();
         return doc ? (
@@ -51,9 +51,10 @@ function Harness({
     selectionFirst = true,
     initialDocuments = [document],
     initialFolders = [],
-    onActions,
     onCreateFolderActionChange,
     uploadDocument = async () => document,
+    uploadDocuments = (files) => Promise.all(files.map((file) => uploadDocument(file))),
+    refreshCollection = vi.fn(),
     moveDocument = async () => document,
     renameDocument = async (_documentId, filename) => ({
         ...document,
@@ -64,9 +65,10 @@ function Harness({
     selectionFirst?: boolean;
     initialDocuments?: Document[];
     initialFolders?: DocTableFolder[];
-    onActions?: (actions: DocTableSelectionActions | null) => void;
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
     uploadDocument?: (file: File) => Promise<Document>;
+    uploadDocuments?: (files: File[]) => Promise<Document[]>;
+    refreshCollection?: () => Promise<void> | void;
     moveDocument?: (
         documentId: string,
         folderId: string | null,
@@ -86,10 +88,8 @@ function Harness({
             search={search}
             operations={{
                 uploadDocument,
-                uploadDocuments: (files) => Promise.all(
-                    files.map((file) => uploadDocument(file)),
-                ),
-                refreshCollection: vi.fn(),
+                uploadDocuments,
+                refreshCollection: async () => { await refreshCollection(); },
                 refreshDocumentParseStates: vi.fn(),
                 createFolder: vi.fn(),
                 renameFolder: vi.fn(),
@@ -99,7 +99,6 @@ function Harness({
                 renameDocument,
             }}
             selectionFirst={selectionFirst}
-            onSelectionActionsChange={onActions}
             onCreateFolderActionChange={onCreateFolderActionChange}
         />
     );
@@ -176,6 +175,20 @@ describe("DocTable Library interactions", () => {
         });
 
         await waitFor(() => expect(latestUpload).toHaveBeenCalledWith(file));
+    });
+
+    it("refreshes successful siblings and warns when a batch upload is partial", async () => {
+        const refreshCollection = vi.fn();
+        render(<Harness initialDocuments={[]}
+            uploadDocuments={vi.fn().mockRejectedValue(new Error("one failed"))}
+            refreshCollection={refreshCollection} />);
+        const file = new File(["brief"], "Brief.pdf", { type: "application/pdf" });
+        const dropTarget = screen.getByText(/Drop PDF, Word/).parentElement!;
+
+        fireEvent.drop(dropTarget, { dataTransfer: { types: ["Files"], files: [file] } });
+
+        expect(await screen.findByText(/Some files could not be uploaded/)).toBeVisible();
+        expect(refreshCollection).toHaveBeenCalled();
     });
 
     it("creates the first folder from an empty collection", async () => {
@@ -337,19 +350,19 @@ describe("DocTable Library interactions", () => {
         expect(screen.queryByTestId("document-view")).not.toBeInTheDocument();
     });
 
-    it("opens on double-click", () => {
+    it("opens on double-click", async () => {
         render(<Harness />);
         const row = documentRow();
 
         fireEvent.doubleClick(row);
 
         expect(row).toHaveAttribute("aria-selected", "true");
-        expect(screen.getByTestId("document-view")).toHaveTextContent(
+        expect(await screen.findByTestId("document-view")).toHaveTextContent(
             "Brief.pdf",
         );
     });
 
-    it("opens from the visible View action", () => {
+    it("opens from the visible View action", async () => {
         render(<Harness />);
 
         fireEvent.click(
@@ -357,19 +370,19 @@ describe("DocTable Library interactions", () => {
         );
 
         expect(documentRow()).toHaveAttribute("aria-selected", "true");
-        expect(screen.getByTestId("document-view")).toHaveTextContent(
+        expect(await screen.findByTestId("document-view")).toHaveTextContent(
             "Brief.pdf",
         );
     });
 
-    it("opens the selected row with Enter", () => {
+    it("opens the selected row with Enter", async () => {
         render(<Harness />);
         const row = documentRow();
         fireEvent.click(row);
 
         fireEvent.keyDown(row, { key: "Enter" });
 
-        expect(screen.getByTestId("document-view")).toHaveTextContent(
+        expect(await screen.findByTestId("document-view")).toHaveTextContent(
             "Brief.pdf",
         );
     });
@@ -387,7 +400,7 @@ describe("DocTable Library interactions", () => {
         expect(screen.queryByTestId("document-view")).not.toBeInTheDocument();
     });
 
-    it("preserves the shared table's default click-to-open behavior", () => {
+    it("preserves the shared table's default click-to-open behavior", async () => {
         render(<Harness selectionFirst={false} />);
 
         fireEvent.click(documentRow());
@@ -395,57 +408,49 @@ describe("DocTable Library interactions", () => {
         expect(
             screen.queryByRole("button", { name: "View Brief.pdf" }),
         ).not.toBeInTheDocument();
-        expect(screen.getByTestId("document-view")).toHaveTextContent(
+        expect(await screen.findByTestId("document-view")).toHaveTextContent(
             "Brief.pdf",
         );
     });
 
-    it("exposes one selected DOCX to the toolbar without row or header controls", async () => {
-        let actions: DocTableSelectionActions | null = null;
+    it("puts contextual workflows in the selection header", async () => {
         render(
             <Harness
                 initialDocuments={[document, wordDocument]}
-                onActions={(next) => {
-                    actions = next;
-                }}
             />,
         );
 
         expect(
-            screen.queryByRole("button", { name: "Automation" }),
+            screen.queryByRole("button", { name: "Workflows" }),
         ).toBeNull();
         expect(
             within(rowFor("Brief.pdf")).queryByRole("button", {
-                name: "Automation",
+                name: "Workflows",
             }),
         ).toBeNull();
         expect(
             within(rowFor("Submissions.docx")).queryByRole("button", {
-                name: "Automation",
+                name: "Workflows",
             }),
         ).toBeNull();
 
         fireEvent.click(rowFor("Submissions.docx"));
-        await waitFor(() =>
-            expect(actions?.automationDocument).toBe(wordDocument),
-        );
+        expect(screen.getByText("1 selected")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
 
         fireEvent.click(
             within(rowFor("Brief.pdf")).getByRole("checkbox"),
         );
-        await waitFor(() =>
-            expect(actions?.automationDocument).toBeNull(),
-        );
+        expect(screen.getByText("2 selected")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Workflows" })).toBeNull();
 
         fireEvent.click(rowFor("Submissions.docx"));
-        await waitFor(() =>
-            expect(actions?.automationDocument).toBe(wordDocument),
-        );
+        expect(screen.getByText("1 selected")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
 
         fireEvent.click(rowFor("Brief.pdf"));
-        await waitFor(() =>
-            expect(actions?.automationDocument).toBe(document),
-        );
+        expect(screen.getByText("1 selected")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
     });
 
     it.each([1440, 390])(
@@ -562,7 +567,7 @@ describe("structural parse state", () => {
         expect(screen.queryByText("Parse failed")).toBeNull();
     });
 
-    it("labels active and completed OCR preparation", () => {
+    it("shows active OCR and only surfaces completed OCR when action is needed", () => {
         const queued = render(<ParseHarness state={parseState("queued")} />);
         expect(screen.getByText("Queued")).toBeInTheDocument();
         queued.unmount();
@@ -574,7 +579,7 @@ describe("structural parse state", () => {
         const ready = render(
             <ParseHarness state={parseState("ready", { phase: "ocr", pages: [5] })} />,
         );
-        expect(screen.getByText("OCR complete")).toBeInTheDocument();
+        expect(screen.queryByText(/OCR/u)).toBeNull();
         ready.unmount();
         render(<ParseHarness state={parseState("degraded", { phase: "ocr" })} />);
         expect(screen.getByText("OCR · Degraded")).toBeInTheDocument();

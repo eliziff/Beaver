@@ -9,7 +9,8 @@ import type { ColumnConfig, Document, TabularCell } from "../shared/types";
 import { isDocxFilename, isSpreadsheetFilename } from "../shared/types";
 import type { ParsedCitation } from "./citation-utils";
 import { parseTabularMarkdown, TabularMarkdown } from "./TabularMarkdown";
-import { DocumentViewer } from "../shared/views/DocumentViewer";import { FileTypeIcon } from "../shared/FileTypeIcon";
+import { DocumentViewer } from "../shared/views/DocumentViewer";
+import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { CitationQuotesHeader } from "../assistant/CitationQuotesHeader";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
@@ -86,12 +87,27 @@ export function TRSidePanel({
                 handleOutsidePointerDown,
             );
     }, [onClose]);
-    function handleCitationOpen(citation: TRPanelCitation) {
-        setDocCitation(citation);
+    function handleCitationOpen(
+        citation: ParsedCitation,
+        citationRef: number,
+    ) {
+        setDocCitation({ ...citation, citationRef });
         setDocumentPaneOpen(true);
     }
     const summary = parseTabularMarkdown(cell.content?.summary || "—");
     const reasoning = parseTabularMarkdown(cell.content?.reasoning ?? "");
+    const documentKind =
+        (["docx", "doc"].includes((doc.file_type ?? "").toLowerCase()) ||
+            isDocxFilename(doc.filename)) &&
+        !doc.pdf_storage_path
+            ? "docx"
+            : isSpreadsheetFilename(doc.filename)
+              ? "spreadsheet"
+              : "pdf";
+    const citationLocation = docCitation
+        ? formatCitationLocation(docCitation)
+        : "";
+    const citationText = `${doc.filename}, ${citationLocation}`;
     return (
         <div
             ref={panelRef}
@@ -128,21 +144,41 @@ export function TRSidePanel({
                                     {
                                         id: citationKey(cell.id, docCitation),
                                         quote: docCitation.quote,
-                                        inlineDetail:
-                                            formatCitationLocation(docCitation),
-                                        citationText: `${doc.filename}, ${formatCitationLocation(docCitation)}`,
+                                        inlineDetail: citationLocation,
+                                        citationText,
                                     },
                                 ]}
-                                activeQuoteId={citationKey(
-                                    cell.id,
-                                    docCitation,
-                                )}
+                                activeQuoteId={citationKey(cell.id, docCitation)}
                                 citationRef={docCitation.citationRef}
-                                citationText={`${doc.filename}, ${formatCitationLocation(docCitation)}`}
+                                citationText={citationText}
                             />
                         </div>
                     )}
-                    <DocumentViewer                        documentId={doc.id}                        kind={                            (["docx", "doc"].includes((doc.file_type ?? "").toLowerCase()) || isDocxFilename(doc.filename ?? "")) && !doc.pdf_storage_path                                ? "docx"                                : isSpreadsheetFilename(doc.filename ?? "")                                  ? "spreadsheet"                                  : "pdf"                        }                        quotes={                            docCitation                                ? [                                      {                                          page: docCitation.page,                                          quote: docCitation.quote,                                      },                                  ]                                : undefined                        }                        highlightCells={                            docCitation?.sheet || docCitation?.cell                                ? [                                      {                                          sheet: docCitation.sheet,                                          cell: docCitation.cell,                                      },                                  ]                                : undefined                        }                    />                </div>
+                    <DocumentViewer
+                        documentId={doc.id}
+                        kind={documentKind}
+                        quotes={
+                            docCitation
+                                ? [
+                                      {
+                                          page: docCitation.page,
+                                          quote: docCitation.quote,
+                                      },
+                                  ]
+                                : undefined
+                        }
+                        highlightCells={
+                            docCitation?.sheet || docCitation?.cell
+                                ? [
+                                      {
+                                          sheet: docCitation.sheet,
+                                          cell: docCitation.cell,
+                                      },
+                                  ]
+                                : undefined
+                        }
+                    />
+                </div>
             )}
             <div
                 className={cn(
@@ -247,12 +283,7 @@ export function TRSidePanel({
                             <div className="text-xs leading-relaxed text-slate-600">
                                 <TabularMarkdown
                                     parsed={summary}
-                                    onCitationClick={(citation, citationRef) =>
-                                        handleCitationOpen({
-                                            ...citation,
-                                            citationRef,
-                                        })
-                                    }
+                                    onCitationClick={handleCitationOpen}
                                     column={column}
                                 />
                             </div>
@@ -265,15 +296,7 @@ export function TRSidePanel({
                                 <div className="text-xs leading-relaxed text-slate-600">
                                     <TabularMarkdown
                                         parsed={reasoning}
-                                        onCitationClick={(
-                                            citation,
-                                            citationRef,
-                                        ) =>
-                                            handleCitationOpen({
-                                                ...citation,
-                                                citationRef,
-                                            })
-                                        }
+                                        onCitationClick={handleCitationOpen}
                                         citationOffset={
                                             summary.citations.length
                                         }

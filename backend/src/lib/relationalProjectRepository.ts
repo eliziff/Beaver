@@ -3,6 +3,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, email, missingProfileEmail, now, one, projectAccess, replaceMembers, rows, type Row } from "./relationalRepositorySupport";
+import { searchFilter } from "./searchQuery";
 
 const projectRecord = (scope: ApplicationScope, row: Row): ProjectRecord => ({
   id: String(row.id), user_id: String(row.user_id), name: String(row.name),
@@ -35,8 +36,7 @@ export const projectRepository: ProjectRepository = {
         SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.email=${email(scope)})`
         : projectAccess(scope);
     const result = await rows(sql`SELECT p.* FROM projects p WHERE ${access}
-      ${options.q ? sql`AND lower(p.name||' '||COALESCE(p.cm_number,'')||' '||
-        COALESCE(p.practice,'')) LIKE ${`%${options.q.toLowerCase()}%`}` : sql.raw("")}
+      ${options.q ? sql`AND ${searchFilter(sql`lower(p.name||' '||COALESCE(p.cm_number,'')||' '||COALESCE(p.practice,''))`, options.q)}` : sql.raw("")}
       ${options.after ? sql`AND (p.created_at<${options.after[0]} OR
         (p.created_at=${options.after[0]} AND p.id<${options.after[1]}))` : sql.raw("")}
       ORDER BY p.created_at DESC,p.id DESC LIMIT ${options.limit + 1}`);
@@ -67,7 +67,7 @@ export const projectRepository: ProjectRepository = {
     const directory = options.q ? sql`SELECT 'document' kind,id,1 bucket,
         lower(filename) sort_name,NULL name,NULL parent_folder_id,NULL created_at,NULL updated_at
       FROM documents WHERE project_id=${projectId}
-        AND lower(filename) LIKE ${`%${options.q.toLowerCase()}%`}`
+        AND ${searchFilter(sql`lower(filename)`, options.q)}`
       : sql`SELECT * FROM (SELECT 'folder' kind,id,0 bucket,lower(name) sort_name,
           name,parent_folder_id,created_at,updated_at FROM project_subfolders
         WHERE project_id=${projectId} AND COALESCE(parent_folder_id,'')=${options.parentFolderId ?? ""}
@@ -91,8 +91,9 @@ export const projectRepository: ProjectRepository = {
       email: null, display_name: null }, members: shared.map((value) => ({
         email: value, display_name: null })) };
     const profiles = await rows<{ user_id: string; email: string | null;
-      display_name: string | null }>(sql`SELECT user_id,email,display_name FROM user_profiles
-      WHERE user_id=${String(project.user_id)} OR lower(email) IN(${shared.length
+      display_name: string | null }>(sql`SELECT p.user_id,p.email,u.display_name
+      FROM user_profiles p LEFT JOIN user_preferences u ON u.user_id=p.user_id
+      WHERE p.user_id=${String(project.user_id)} OR lower(p.email) IN(${shared.length
         ? sql.join(shared) : sql.raw("NULL")})`, db);
     const owner = profiles.find(({ user_id }) => user_id === project.user_id);
     const byEmail = new Map(profiles.flatMap((profile) => profile.email
@@ -133,10 +134,11 @@ export const projectRepository: ProjectRepository = {
     return db.transaction(async (tx) => {
       if (!await findProject(scope, projectId, false, tx) || input.parentFolderId &&
         !await findProjectFolder(scope, projectId, input.parentFolderId, tx)) return null;
-      const id = randomUUID(), created = now();
+      const id = input.stableId ?? randomUUID(), created = now();
       await changes(sql`INSERT INTO project_subfolders(id,user_id,project_id,name,
         parent_folder_id,created_at,updated_at) VALUES(${id},${scope.userId},${projectId},
-        ${input.name},${input.parentFolderId},${created},${created})`, tx);
+        ${input.name},${input.parentFolderId},${created},${created})
+        ON CONFLICT(id) DO NOTHING`, tx);
       return findProjectFolder(scope, projectId, id, tx);
     });
   },

@@ -191,6 +191,8 @@ def main() -> int:
             text[:sweep.MAX_DOC_CHARS],
             alternate_citation=metadata.get("alternate_citation") or None,
             dataset=metadata.get("dataset") or None,
+            provider="a2aj",
+            require_report_start=str(metadata.get("dataset") or "").upper() == "SCC",
         )
     case_structure_s = time.perf_counter() - t0
     t0 = time.perf_counter()
@@ -202,6 +204,7 @@ def main() -> int:
             alternate_citation=metadata.get("alternate_citation") or None,
             dataset=metadata.get("dataset") or None,
             name=metadata.get("name") or None,
+            provider="a2aj",
         )
     law_structure_s = time.perf_counter() - t0
     case_mb = sum(len(j[2]) for j in case_jobs) / 1e6

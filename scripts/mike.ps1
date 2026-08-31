@@ -3,8 +3,8 @@ param(
     [Parameter(Position = 0)]
     [ValidateSet('start', 'stop', 'status', 'doctor', 'smoke', 'self-test')]
     [string]$Action = 'status',
-    [switch]$WithTableOfAuthorities,
     [switch]$Full,
+    [switch]$WithTableOfAuthorities,
     [switch]$NoBrowser,
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 90
@@ -14,7 +14,6 @@ $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Backend = Join-Path $Repo 'backend'
 $Frontend = Join-Path $Repo 'frontend'
-$Toa = Join-Path $Repo 'AuthoritiesHelper'
 $StateRoot = Join-Path $env:LOCALAPPDATA 'OpenLegalProducts\MikeCanada'
 $StateFile = Join-Path $StateRoot 'lifecycle.json'
 $SupervisorStateFile = Join-Path $StateRoot 'supervisor.json'
@@ -189,21 +188,6 @@ function Get-Node {
         throw "Unsupported Node.js version '$version'. Install Node.js 22.13 or newer."
     }
     return $node
-}
-
-function Get-Python {
-    $python = Resolve-Application @('python.exe', 'python')
-    if (-not $python) {
-        throw 'Python is missing. Table of Authorities requires Python 3.10 or newer.'
-    }
-    $version = Get-CommandVersion $python @('--version')
-    $match = [regex]::Match([string]$version, '(\d+)\.(\d+)\.(\d+)')
-    if (-not $match.Success -or
-        [int]$match.Groups[1].Value -lt 3 -or
-        ([int]$match.Groups[1].Value -eq 3 -and [int]$match.Groups[2].Value -lt 10)) {
-        throw "Unsupported Python version '$version'. Install Python 3.10 or newer."
-    }
-    return $python
 }
 
 function Resolve-LegalStructureNative {
@@ -453,31 +437,6 @@ function Invoke-Doctor {
             $failed = $true
         }
     }
-    if ($WithTableOfAuthorities) {
-        try {
-            $python = Get-Python
-            Write-Host "Python: $(Get-CommandVersion $python @('--version')) ($python)"
-            $runtimeReport = & $python (Join-Path $Toa 'bootstrap.py') --check 2>$null |
-                Out-String | ConvertFrom-Json
-            if ($runtimeReport.managed.ok) {
-                Write-Host 'Table of Authorities managed runtime: ready'
-            }
-            elseif ($runtimeReport.current.ok) {
-                Write-Host 'Table of Authorities dependencies: available; managed runtime will be created on first start'
-            }
-            else {
-                Write-Host 'Table of Authorities dependencies: managed runtime will be installed on first start'
-            }
-        }
-        catch {
-            Write-Host "ERROR: $($_.Exception.Message)"
-            $failed = $true
-        }
-        if (-not (Test-Path -LiteralPath (Join-Path $Toa 'bootstrap.py') -PathType Leaf)) {
-            Write-Host "Table of Authorities: MISSING bootstrap.py"
-            $failed = $true
-        }
-    }
     $authMode = Get-ConfigValue 'AUTH_MODE'
     $missingSupabase = @(
         'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_PUBLISHABLE_KEY', 'DATABASE_URL' |
@@ -524,7 +483,6 @@ function Start-Stack {
     $node = Get-Node
     $codex = Resolve-Codex -Optional
     $legalStructureNative = Resolve-LegalStructureNative
-    if ($WithTableOfAuthorities) { [void](Get-Python) }
     Assert-PortsFree
 
     $state = [pscustomobject]@{
@@ -586,20 +544,17 @@ function Start-Stack {
 }
 
 function Invoke-Smoke {
-    if ($Full -and -not $WithTableOfAuthorities) {
-        throw 'Full smoke requires -WithTableOfAuthorities.'
-    }
     $state = Read-State
     foreach ($service in $Services) {
         if (-not (Test-LauncherOwnedListener $state $service.Name $service.Port)) {
-            $start = '.\scripts\mike.ps1 start' +
-                $(if ($WithTableOfAuthorities) { ' -WithTableOfAuthorities' } else { '' })
-            throw "Smoke requires launcher-owned $($service.Name); $(Format-PortOwners $service.Port). Run: $start"
+            throw "Smoke requires launcher-owned $($service.Name); $(Format-PortOwners $service.Port). Run: .\scripts\mike.ps1 start"
         }
     }
     $checks = @(
         [pscustomobject]@{ Name = 'beaver'; Url = 'http://127.0.0.1:3000/api/health' },
         [pscustomobject]@{ Name = 'app'; Url = 'http://127.0.0.1:3000/' },
+        [pscustomobject]@{ Name = 'Authorities'; Url = 'http://127.0.0.1:3000/table-of-authorities' },
+        [pscustomobject]@{ Name = 'Authorities drafts'; Url = 'http://127.0.0.1:3000/api/authorities' },
         [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3000/api/library/files' }
     )
     if ($state.codex) {
@@ -611,17 +566,13 @@ function Invoke-Smoke {
     else {
         Write-Host 'SKIP Codex model catalog: Codex is not installed; another provider may be used.'
     }
-    if ($WithTableOfAuthorities) {
-        $checks += [pscustomobject]@{ Name = 'Authorities workspace'; Url = 'http://127.0.0.1:3000/authorities-helper/' }
-        $checks += [pscustomobject]@{ Name = 'Authorities plugin'; Url = 'http://127.0.0.1:3000/api/table-of-authorities/workspace/status' }
-    }
     foreach ($check in $checks) {
         try {
             $response = Invoke-WebRequest -Uri $check.Url -UseBasicParsing -TimeoutSec 20
             if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 400) {
                 throw "HTTP $($response.StatusCode)"
             }
-            if ($check.Name -notin @('app', 'Authorities workspace')) {
+            if ($check.Name -notin @('app', 'Authorities')) {
                 $payload = $response.Content | ConvertFrom-Json
                 if ($check.Name -eq 'beaver' -and $payload.ok -ne $true) {
                     throw 'health response did not contain ok=true'
@@ -634,15 +585,22 @@ function Invoke-Smoke {
                 # 'Model catalog' has no payload gate: the endpoint degrades
                 # honestly to source 'unavailable' with an empty list, which the
                 # UI already handles. Reaching valid JSON proves auth and the route.
-                if ($check.Name -eq 'Authorities plugin' -and
-                    ($payload.ok -ne $true -or $payload.service -ne 'authorities-helper')) {
-                    throw 'Authorities plugin status was unhealthy'
-                }
             }
             Write-Host "PASS $($check.Name): $($check.Url)"
         }
         catch {
             throw "FAIL $($check.Name): $($check.Url) - $($_.Exception.Message)"
+        }
+    }
+    if ($WithTableOfAuthorities) {
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $python) {
+            throw 'Authorities smoke requires Python and ChromeDriver.'
+        }
+        & $python.Source (Join-Path $Repo 'scripts\test-authorities-browser.py') `
+            '--url' 'http://127.0.0.1:3000/table-of-authorities'
+        if ($LASTEXITCODE -ne 0) {
+            throw "Authorities browser smoke failed with exit code $LASTEXITCODE."
         }
     }
     if ($Full) {

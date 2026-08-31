@@ -3,7 +3,9 @@ import { Upload, User, X } from "lucide-react";
 import { addDocumentToProject, createProject, directoryResource, uploadDocumentsSettled,
     type UserLookupResult } from "@/app/lib/beaverApi";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { Modal, MODAL_INPUT_CLASS, MODAL_LABEL_CLASS } from "../modals/Modal";
+import { Modal } from "../modals/Modal";
+import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
+import { ModalTextInput } from "../modals/ModalTextInput";
 import { AddUserInput } from "../shared/AddUserInput";
 import { FileDirectory } from "../shared/FileDirectory";
 import type { Document, Project } from "../shared/types";
@@ -88,7 +90,8 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     }
     const loading = status === "loading";
     return <Modal open onClose={onClose}
-        breadcrumbs={["Projects", "New project", step === "details" ? "Details" : "Add Documents"]}
+        className={step === "details" ? "!h-fit max-h-[calc(100dvh-2rem)]" : undefined}
+        breadcrumbs={["Projects", step === "details" ? "New project" : "Add documents"]}
         secondaryAction={step === "documents" ? { label: `Upload${files.length ? ` (${files.length})` : ""}`,
             icon: <Upload className="h-3.5 w-3.5" />, onClick: () => fileInput.current?.click(),
             disabled: loading } : undefined}
@@ -99,23 +102,16 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
         <input ref={fileInput} type="file" multiple className="hidden" onChange={addFiles} />
         <form id={formId} onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
             <div hidden={step !== "details"} className="space-y-6">
-                <div>
-                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-name">Project name</label>
-                    <input className={MODAL_INPUT_CLASS} id="new-project-name" name="name"
-                        placeholder="Add project name" required autoFocus />
-                </div>
-                <div>
-                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-cm-number">CM number</label>
-                    <input className={`${MODAL_INPUT_CLASS} text-xl text-gray-600`}
-                        id="new-project-cm-number" name="cmNumber" placeholder="Add a CM number…" />
-                </div>
-                <div>
-                    <label className={MODAL_LABEL_CLASS} htmlFor="new-project-practice">Practice</label>
-                    <ProjectPracticeField id="new-project-practice" value={practice}
-                        onChange={setPractice} />
-                </div>
-                <div className="space-y-2">
-                    <p className={MODAL_LABEL_CLASS}>Share with</p>
+                <FormField label="Project name" htmlFor="new-project-name">
+                    <ModalTextInput name="name" placeholder="Add project name" required autoFocus />
+                </FormField>
+                <FormField label="CM number" htmlFor="new-project-cm-number">
+                    <ModalTextInput name="cmNumber" placeholder="Optional" />
+                </FormField>
+                <FormField label="Practice" htmlFor="new-project-practice">
+                    <ProjectPracticeField id="new-project-practice" value={practice} onChange={setPractice} />
+                </FormField>
+                <FieldGroup legend="Share with">
                     <AddUserInput placeholder="Add colleagues by email..." validateEmail={validateUser}
                         onAdd={(user) => setUsers((current) => [...current,
                             { ...user, email: user.email.trim().toLowerCase() }])} />
@@ -138,7 +134,7 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
                             </button>
                         </li>)}
                     </ul>}
-                </div>
+                </FieldGroup>
             </div>
             {step === "documents" && <div className="flex min-h-0 flex-1 flex-col">
                 <FileDirectory selectedDocuments={documents}

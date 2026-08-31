@@ -11,10 +11,10 @@ export type Provider =
   | "openai"
   | "deepseek"
   | "openrouter"
+  | "opencode-go"
   | "meta"
   | "codex"
-  | "ollama"
-  | "ox-gateway";
+  | "ollama";
 
 export type ProviderContextCheckpoint =
   | { provider: "claude"; content: string; block: Record<string, unknown> }
@@ -141,6 +141,7 @@ export type UserApiKeys = {
   openai?: string | null;
   deepseek?: string | null;
   openrouter?: string | null;
+  "opencode-go"?: string | null;
   meta?: string | null;
   courtlistener?: string | null;
   codex?: string | null;

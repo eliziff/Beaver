@@ -1,6 +1,8 @@
 import type { LibraryKind } from "./normalize";
 import type { EditDiffSegment } from "./docxTrackedChanges";
 import type { ApplicationScope } from "./applicationError";
+import type { WorkProductBuildReceipt } from "./workProduct";
+import type { AuthorityCitationLedger } from "./authoritiesDomain";
 
 export type DocumentScope = ApplicationScope;
 export type LegalPdfOcrProvider = "kraken-lite" | "tesseract";
@@ -55,7 +57,8 @@ export type DocumentVersion = Record<string, unknown> & { id: string; version_nu
   deleted_at?: string | null; source_sha256: string };
 export type DocumentProjectionSource = Readonly<{
   documentId: string; versionId: string; fileType: string; sourceSha256: string;
-  pdfProfile?: PdfProfileSelection; readBytes: () => Buffer | Promise<Buffer>;
+  pdfProfile?: PdfProfileSelection; provenance?: DocumentProvenance;
+  readBytes: () => Buffer | Promise<Buffer>;
 }>;
 export type DocumentContent = { bytes: Buffer; version: DocumentVersion; filename: string;
   fileType: string; hasPdfRendition: boolean; pdfProfile?: PdfProfileSelection };
@@ -66,13 +69,17 @@ export type AssistantEdit = { changeId: string; delWId?: string; insWId?: string
   reason?: string; diff: EditDiffSegment[] };
 export type StoredAssistantEdit = AssistantEdit & { id: string;
   status: "pending" | "accepted" | "rejected" };
-export type DocumentProvenance = { schemaVersion: 1; actor: "assistant";
+export type AssistantDocumentProvenance = { schemaVersion: 1; actor: "assistant";
   action: "created" | "revised"; parentVersionId?: string; changeCount?: number;
   trackedEdits?: StoredAssistantEdit[]; generation?: {
     rendererVersion: "beaver.docx-markdown.v2"; markdownSha256: string;
     fieldValuesSha256: string; sourceRegistrySha256: string; evidenceBindings: Array<{
       id: string; evidenceIds: string[]; sourceSha256s: string[]; locators: string[];
-      mainUrls: string[]; pinpointUrls: string[] }> } };
+      mainUrls: string[]; pinpointUrls: string[] }>;
+    authorityLedger?: Omit<AuthorityCitationLedger, "document"> } };
+export type DocumentProvenance = AssistantDocumentProvenance |
+  { schemaVersion: 1; actor: "work-product"; action: "built";
+    receipt: WorkProductBuildReceipt };
 export type CommitAssistantVersionResult = { status: "committed"; version: DocumentVersion;
   edits: StoredAssistantEdit[] } | { status: "conflict" | "missing" };
 export type CopyVersionResult = { status: "created"; version: DocumentVersion }
@@ -87,7 +94,7 @@ export type ResolveEditResult = { status: "missing" | "invalid" }
   | { status: "conflict"; editStatus: string }
   | { status: "resolved" | "unchanged"; editStatus: string; versionId: string | null;
       versionNumber: number | null; downloadUrl: string | null };
-export type DocumentFile = { filename: string; fileType: string } & (
+export type DocumentFile = { filename: string; fileType: string; expectedSha256?: string } & (
   { bytes: Buffer } | { path: string; sizeBytes: number }
 );
 
@@ -119,7 +126,8 @@ export type DocumentStore = {
     disposition: "inline" | "attachment"): Promise<DocumentDownload | null>;
   versions(scope: DocumentScope, id: string): Promise<{ current_version_id: string | null;
     versions: DocumentVersion[] } | null>;
-  addVersion(scope: DocumentScope, id: string, file: DocumentFile): Promise<DocumentVersion | null>;
+  addVersion(scope: DocumentScope, id: string,
+    file: DocumentFile & { provenance?: DocumentProvenance }): Promise<DocumentVersion | null>;
   commitAssistantVersion(scope: DocumentScope, id: string, input: { sourceVersionId: string;
     turnVersionId?: string; parentVersionId: string; filename: string; bytes: Buffer;
     edits: AssistantEdit[]; status: StoredAssistantEdit["status"] }):

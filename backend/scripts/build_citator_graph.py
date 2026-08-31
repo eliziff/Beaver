@@ -34,19 +34,18 @@ only when there is no English text, so one judgment's two language versions
 never double-count the same citation.
 
 PORTED GRAMMAR, NOT INVENTED: the citation anchors, case-name capture, and
-node-identity key are faithful ports of the proven reference implementations
-(kept read-only, never imported at runtime):
+node-identity key are faithful ports of the preserved reference implementations:
   - anchor regexes / span dedupe / name + pinpoint capture:
-      AuthoritiesHelper/toa_maker.py (_NEUTRAL_RE, _CANLII_RE,
+      AuthoritiesHelper preservation commit 84469a3, toa_maker.py
+      (_NEUTRAL_RE, _CANLII_RE,
       _REPORTER_RE, _STATUTE_RE, _JOURNAL_RE, _URL_RE, _anchor_spans,
       _CASE_LEFT_RE, _case_name_start, _PAR_RE et al.)
   - node identity key:
       ALR-Quote-Verifier/local_a2aj.py (_citation_lookup_key) - the exact
       key space of the corpus lookup index (lookup.duckdb), so graph keys
       and corpus identity agree.
-scripts/citator-oracle-diff.py proves the ports against the originals over a
-real corpus slice. Host paragraphs come directly from Beaver's shipping
-legal-structure engine; this builder contains no paragraph grammar.
+Host paragraphs come directly from Beaver's shipping legal-structure engine;
+this builder contains no paragraph grammar.
 
 NODE IDENTITY / NORMALIZATION: cited_key = citation_lookup_key(anchor text):
 NFKC, en/em dashes to "-", digit-boundary "." "-" "/" become the words
@@ -111,7 +110,8 @@ from legal_structure_client import paragraph_blocks
 
 # ---------------------------------------------------------------------------
 # Citation anchor grammar - ported verbatim from
-# AuthoritiesHelper/toa_maker.py (its module docstring calls the
+# AuthoritiesHelper preservation commit 84469a3, toa_maker.py (its module
+# docstring calls the
 # patterns "routing evidence, not a claim that every capitalized number in
 # prose is a legal authority"). All six patterns participate in overlap
 # dedupe exactly as in the original _anchor_spans, so a statute or URL span
@@ -769,7 +769,7 @@ def build(args: argparse.Namespace) -> None:
             "normalization": (
                 "citation_lookup_key port of ALR-Quote-Verifier local_a2aj"
                 "._citation_lookup_key; anchors ported from "
-                "AuthoritiesHelper toa_maker.py; host paragraphs from "
+                "AuthoritiesHelper 84469a3 toa_maker.py; host paragraphs from "
                 "legal-structure"
             ),
             "paragraph_compiler": "legal-structure",

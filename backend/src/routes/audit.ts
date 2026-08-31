@@ -1,11 +1,10 @@
 import { Router, type Response } from "express";
 
-import { type AuditQuery, type AuditStore, escapeLikePattern } from "../lib/audit";
+import { type AuditQuery, type AuditStore } from "../lib/audit";
 import { asyncRoute } from "../lib/asyncRoute";
 import { downloadHeaders } from "../lib/storage";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 
-export { escapeLikePattern };
 const PAGE_SIZE = 50, EXPORT_LIMIT = 2_000, MAX_PAGE = 100_000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
 const SORT_FIELDS = ["created_at", "user_email", "title", "model"] as const;

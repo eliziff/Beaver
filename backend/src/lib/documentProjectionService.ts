@@ -204,6 +204,8 @@ function preparedSummary(result: PdfPreparationSummary, expectedSha256?: string,
     cacheKey: result.cacheKey,
     pageCount: result.pageCount,
     projectionPageCount: result.projectionPageCount,
+    pagesNeedingOcr: result.pagesNeedingOcr,
+    ocrRoutedPages: result.ocrRoutedPages,
   };
 }
 
@@ -215,17 +217,22 @@ function validProjectionId(value: string) {
 function safeParserError(error: unknown) {
   const stderr = isJsonRecord(error) && typeof error.stderr === "string" ? error.stderr : "";
   const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
+  const safe = (detail: string, name = "Error") =>
+    Object.assign(new Error(detail, { cause: error }), { name });
+  if (/PDF is encrypted|password (?:is )?required|incorrect password/iu.test(message))
+    return safe("PDF is password-protected. Remove its password, then upload it again.",
+      "PdfEncrypted");
   if (/invalid file trailer|couldn't parse input|PDF parsing failed|source bytes are invalid/iu.test(message))
-    return "PDF is invalid or corrupt";
-  if (/timed out|ETIMEDOUT/iu.test(message)) return "PDF structural parsing timed out";
-  if (/Tesseract/iu.test(message)) return "Tesseract OCR could not start";
+    return safe("PDF is invalid or corrupt");
+  if (/timed out|ETIMEDOUT/iu.test(message)) return safe("PDF structural parsing timed out");
+  if (/Tesseract/iu.test(message)) return safe("Tesseract OCR could not start");
   if (/Kraken|LEGALPDF_KRAKEN|ONNX/iu.test(message))
-    return "Kraken-lite OCR could not start; check its local runtime assets";
+    return safe("Kraken-lite OCR could not start; check its local runtime assets");
   if (/layout|PPdoc|OpenVINO/iu.test(message))
-    return "PDF layout analysis could not start; check its local runtime assets";
+    return safe("PDF layout analysis could not start; check its local runtime assets");
   if (/source changed/iu.test(message))
-    return "PDF source changed after preparation began";
-  return "PDF structural parser failed";
+    return safe("PDF source changed after preparation began");
+  return safe("PDF structural parser failed");
 }
 
 function profileFor(
@@ -305,7 +312,7 @@ async function withPdfRequest<T>(
     return result;
   } catch (error) {
     if (input.signal?.aborted) throw error;
-    throw new Error(safeParserError(error), { cause: error });
+    throw safeParserError(error);
   }
 }
 

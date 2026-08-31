@@ -3,7 +3,6 @@
   "baselineCommit": "5d29906341d17239e5e36a5442ca665f5f2a12f0",
   "baselineSubrepos": {
     "OpenLegalData": "adeb597c82a2dfe8c8ba58cc62d6a13e87200a4a",
-    "AuthoritiesHelper": "9d002632ea77c4349ab459c73f83281cbfddc170",
     "legal-pdf-parser": "db82486dc0f075a07f553e4131d251dcb091a596",
     "legal-browser-ocr": "ec48ad76c181cb7ad10ca3091a7314660848de36",
     "mike-workflows": "b45b1ba83691ab6e504c35146da0cea8e0dcbb91"

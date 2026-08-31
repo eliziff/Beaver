@@ -84,8 +84,8 @@ export async function buildUserAccountExport(db: Db, userId: string,
     .order("provider", { ascending: true }), "provider, created_at, updated_at")
     .then((rows) => rows.map(({ provider, created_at, updated_at }) =>
       ({ provider, has_key: true, created_at, updated_at })));
-  const [profile, apiKeys, projects, standaloneDocuments, workflows,
-    workflowOpenSourceSubmissions, hiddenWorkflows, workflowSharesByUser,
+  const [profile, apiKeys, projects, standaloneDocuments, workflows, workProducts,
+    workflowOpenSourceSubmissions, workflowSharesByUser,
     workflowSharesWithUser, assistantChats, tabularReviews, sharedProjects,
     sharedTabularReviews, auditEvents, preferences] = await Promise.all([
     read.all("user_profiles", (query) => query.eq("user_id", userId)),
@@ -93,9 +93,9 @@ export async function buildUserAccountExport(db: Db, userId: string,
     read.all("documents", (query) => query.eq("user_id", userId)
       .is("project_id", null).order("created_at", { ascending: true })),
     owned("workflows"),
+    owned("work_products", "updated_at"),
     read.all("workflow_open_source_submissions", (query) =>
       query.eq("submitted_by_user_id", userId).order("submitted_at", { ascending: true })),
-    owned("hidden_workflows"),
     read.all("workflow_shares", (query) => query.eq("shared_by_user_id", userId)
       .order("created_at", { ascending: true })),
     userEmail ? read.all("workflow_shares", (query) =>
@@ -117,9 +117,9 @@ export async function buildUserAccountExport(db: Db, userId: string,
   ]);
   return { ...exportHeader(userId, userEmail), profile, api_keys: apiKeys, projects,
     project_subfolders: folders, documents, document_versions: versions,
-    document_edits: edits, workflows,
+    document_edits: edits, workflows, work_products: workProducts,
     workflow_open_source_submissions: workflowOpenSourceSubmissions,
-    hidden_workflows: hiddenWorkflows, workflow_shares_by_user: workflowSharesByUser,
+    workflow_shares_by_user: workflowSharesByUser,
     workflow_shares_with_user: workflowSharesWithUser, chats: assistantChats,
     tabular_reviews: tabularReviews, tabular_cells: tabularCells,
     shared_access: { projects: sharedProjects, tabular_reviews: sharedTabularReviews },

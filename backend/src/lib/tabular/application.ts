@@ -6,7 +6,7 @@ import type { ProjectStore } from "../projectStore";
 import { throwIfAborted } from "../llm/abort";
 import { providerForModel, type Provider, type UserApiKeys } from "../llm";
 import { pageRequest, pageResponse } from "../pagination";
-import { getUserModelSettings } from "../userSettings";
+import type { UserModelSettings } from "../userApplication";
 import {
   type TabularCell,
   type TabularCellContent,
@@ -16,6 +16,7 @@ import {
   type WriteResult,
 } from "../tabularStore";
 import { ApplicationError, reject as fail } from "../applicationError";
+import type { TabularAgents } from "./agents";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_DOCUMENT_CHARS = 120_000;
@@ -61,6 +62,7 @@ export const tabularDtos = {
   update: z.object({
     title: z.string().trim().max(300).nullable().optional(),
     document_ids: ids.optional(), columns_config: columns.optional(),
+    workflow_id: id.nullable().optional(),
     project_id: projectId.nullable().optional(),
     shared_with: z.array(z.string().trim().toLowerCase().email().max(320)).max(100)
       .transform((value) => [...new Set(value)]).optional(),
@@ -89,13 +91,10 @@ export const tabularDtos = {
   generate: z.object(modelOptions).strict().default({}),
 };
 
-type Settings = Awaited<ReturnType<typeof getUserModelSettings>>;
-type Emit = (event: { type: "cell_update"; document_id: string;
-  column_index: number; content: TabularCellContent | null;
-  status: TabularCell["status"] }) => void;
 type Dependencies = {
+  agents?: TabularAgents;
   runTurn?: typeof runChatTurn;
-  settings?: (userId: string) => Promise<Settings>;
+  settings: (userId: string) => Promise<UserModelSettings>;
 };
 
 const value = <T>(result: WriteResult<T>, noun: string) => {
@@ -105,13 +104,10 @@ const value = <T>(result: WriteResult<T>, noun: string) => {
 };
 const providerLabel = (provider: Provider) => ({ claude: "Anthropic", openai: "OpenAI",
   deepseek: "DeepSeek", openrouter: "OpenRouter", meta: "Meta", codex: "Codex",
-  "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini",
-  "ox-gateway": "Ox Alpha gateway" })[provider];
+  "opencode-go": "OpenCode Go",
+  "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini" })[provider];
 const modelKey = (model: string, apiKeys: UserApiKeys) => {
   const provider = providerForModel(model);
-  if (provider === "ox-gateway") {
-    throw new ApplicationError(422, "Ox Alpha gateway models are experiment-only.");
-  }
   if (provider === "codex" || provider === "claude-p" || provider === "ollama") return;
   if (apiKeys[provider]?.trim()) return;
   throw new ApplicationError(422,
@@ -153,10 +149,16 @@ export function createTabularApplication(
   store: TabularRepository,
   documents: DocumentStore,
   projects: ProjectStore,
-  dependencies: Dependencies = {},
+  dependencies: Dependencies,
 ) {
   const turn = dependencies.runTurn ?? runChatTurn;
-  const settings = dependencies.settings ?? getUserModelSettings;
+  const settings = dependencies.settings;
+  const running = (review: { id: string; user_id: string }) =>
+    dependencies.agents?.active(review.id, review.user_id) ?? Promise.resolve(false);
+  const assertIdle = async (review: { id: string; user_id: string }) => {
+    if (await running(review)) throw new ApplicationError(
+      409, "Stop the running review first.", { code: "review_running" });
+  };
   const placement = async (scope: TabularScope, ids: string[], projectId: string | null) => {
     if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
     const unique = [...new Set(ids)], values = await Promise.all(
@@ -262,17 +264,17 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
   async function generateDocument(scope: TabularScope,
     item: Awaited<ReturnType<typeof document>>, config: TabularColumn[],
     cells: Map<string, TabularCell>, model: string, apiKeys: UserApiKeys,
-    reasoningEffort: string | undefined, emit: Emit, signal?: AbortSignal) {
+    reasoningEffort: string | undefined, signal?: AbortSignal, force = false) {
     const pending = config.filter((column) => {
       const existing = cells.get(`${item.id}:${column.index}`);
-      return existing?.status !== "done" || !existing.content;
+      return force || existing?.status !== "done" || !existing.content;
     });
+    if (!pending.length) return;
     for (const column of pending) {
       const key = `${item.id}:${column.index}`, current = cells.get(key);
       if (!current) return fail(404, "Cell not found");
       const changed = await cellWrite(scope, current, "generating", null);
-      cells.set(key, changed); emit({ type: "cell_update", document_id: item.id,
-        column_index: column.index, content: null, status: "generating" });
+      cells.set(key, changed);
     }
     let received: Set<number>;
     try {
@@ -280,14 +282,16 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         columns: pending, signal, accept: async (index, result) => {
           const key = `${item.id}:${index}`, current = cells.get(key)!;
           const changed = await cellWrite(scope, current, "done", result);
-          cells.set(key, changed); emit({ type: "cell_update", document_id: item.id,
-            column_index: index, content: result, status: "done" });
+          cells.set(key, changed);
         } });
     } catch (error) {
       for (const column of pending) {
         const key = `${item.id}:${column.index}`, current = cells.get(key)!;
         if (current.status !== "generating") continue;
-        const changed = await cellWrite(scope, current, "error", null).catch(() => null);
+        const changed = await cellWrite(
+          scope, current, signal?.aborted ? "pending" : "error", null,
+        )
+          .catch(() => null);
         if (changed) cells.set(key, changed);
       }
       throw error;
@@ -295,12 +299,38 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
     for (const column of pending) if (!received.has(column.index)) {
       const key = `${item.id}:${column.index}`, current = cells.get(key)!;
       const changed = await cellWrite(scope, current, "error", null);
-      cells.set(key, changed); emit({ type: "cell_update", document_id: item.id,
-        column_index: column.index, content: null, status: "error" });
+      cells.set(key, changed);
     }
   }
 
+  async function runAgent(scope: TabularScope, input: {
+    reviewId: string; documentId: string; model?: string;
+    reasoningEffort?: string; columnIndex?: number;
+  }, signal?: AbortSignal) {
+    const detail = await store.detail(scope, input.reviewId);
+    if (!detail) return fail(404, "Review not found");
+    if (!detail.review.document_ids.includes(input.documentId))
+      return fail(404, "Document not found");
+    const config = input.columnIndex === undefined
+      ? detail.review.columns_config
+      : detail.review.columns_config.filter(({ index }) => index === input.columnIndex);
+    if (!config.length) return fail(400,
+      input.columnIndex === undefined ? "No columns configured" : "Column not found");
+    const user = await settings(scope.userId);
+    const model = input.model ?? user.tabular_model;
+    modelKey(model, user.api_keys);
+    const cells = new Map(detail.cells.map((cell) =>
+      [`${cell.document_id}:${cell.column_index}`, cell]));
+    await generateDocument(scope, await document(scope, input.documentId, signal),
+      config, cells, model, user.api_keys, input.reasoningEffort, signal,
+      input.columnIndex !== undefined);
+    return input.columnIndex === undefined
+      ? null
+      : cells.get(`${input.documentId}:${input.columnIndex}`)?.content ?? null;
+  }
+
   return {
+    runAgent,
     async list(scope: TabularScope, input: z.infer<typeof tabularDtos.list>) {
       const q = input.q?.toLocaleLowerCase() ?? "", projectId = input.project_id ?? null;
       if (projectId && !await projects.get(scope, projectId)) fail(404, "Project not found");
@@ -326,7 +356,9 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       if (!detail) return fail(404, "Review not found");
       const loaded = await Promise.all(detail.review.document_ids.map((id) =>
         documents.metadata(scope, id)));
-      return { ...detail, documents: loaded.flatMap((document) => document ? [document] : []) };
+      return { ...detail, review: { ...detail.review,
+        is_running: await running(detail.review) },
+      documents: loaded.flatMap((document) => document ? [document] : []) };
     },
     async export(scope: TabularScope, reviewId: string) {
       const detail = await store.detail(scope, reviewId);
@@ -365,6 +397,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
         return fail(400, "You cannot share a tabular review with yourself.");
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
+      await assertIdle(current.review);
       if (!current.review.is_owner && input.columns_config !== undefined)
         return fail(403, "Only the review owner can change columns");
       if (!current.review.is_owner && input.shared_with !== undefined)
@@ -385,6 +418,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.project_id !== undefined ? { projectId: input.project_id } : {}),
           ...(input.columns_config !== undefined ? { columns: input.columns_config } : {}),
+          ...(input.workflow_id !== undefined ? { workflowId: input.workflow_id } : {}),
           ...(nextDocuments ? { documentIds: nextDocuments } : {}),
           ...(input.shared_with !== undefined ? { sharedWith: input.shared_with } : {}),
         }), "Review");
@@ -392,6 +426,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
     async remove(scope: TabularScope, reviewId: string) {
       const current = await store.detail(scope, reviewId);
       if (!current || !current.review.is_owner) return fail(404, "Review not found");
+      await assertIdle(current.review);
       value(await store.delete(scope, reviewId, current.review.updated_at), "Review");
     },
     deleteAll: (scope: TabularScope) => store.deleteAll(scope),
@@ -399,6 +434,7 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       input: z.infer<typeof tabularDtos.clear>) {
       const detail = await store.detail(scope, reviewId);
       if (!detail) return fail(404, "Review not found");
+      await assertIdle(detail.review);
       const allowed = new Set(detail.review.document_ids);
       if (input.document_ids.some((documentId) => !allowed.has(documentId)))
         return fail(404, "Document not found");
@@ -426,58 +462,59 @@ Process columns in order. Cite factual claims as [[page:N||quote:verbatim excerp
       return fail(502, "LLM returned an invalid prompt");
     },
     async regenerate(scope: TabularScope, reviewId: string,
-      input: z.infer<typeof tabularDtos.regenerate>, signal?: AbortSignal) {
+      input: z.infer<typeof tabularDtos.regenerate>) {
       const detail = await store.detail(scope, reviewId);
       if (!detail) return fail(404, "Review not found");
-      const config = detail.review.columns_config.find(({ index }) => index === input.column_index);
-      if (!config) return fail(400, "Column not found");
+      await assertIdle(detail.review);
       if (!detail.review.document_ids.includes(input.document_id))
         return fail(404, "Document not found");
+      if (!detail.review.columns_config.some(({ index }) => index === input.column_index))
+        return fail(400, "Column not found");
+      if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
       const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
       modelKey(model, user.api_keys);
-      const current = detail.cells.find((cell) => cell.document_id === input.document_id &&
-        cell.column_index === input.column_index);
-      if (!current) return fail(404, "Cell not found");
-      const item = await document(scope, input.document_id, signal);
-      let active = await cellWrite(scope, current, "generating", null), result: TabularCellContent | null = null;
-      let received: Set<number>;
-      try {
-        received = await extract({ model, apiKeys: user.api_keys,
-          reasoningEffort: input.reasoning_effort, document: item, columns: [config], signal,
-          accept: async (_index, content) => { result = content;
-            active = await cellWrite(scope, active, "done", content); } });
-      } catch (error) {
-        if (active.status === "generating")
-          await cellWrite(scope, active, "error", null).catch(() => undefined);
-        throw error;
-      }
-      if (!received.size) { await cellWrite(scope, active, "error", null); return fail(500, "Generation failed"); }
-      return result!;
+      const [job] = await dependencies.agents.enqueue(scope, {
+        reviewId, ownerId: detail.review.user_id,
+        assignments: [{ documentId: input.document_id, columnIndex: input.column_index }],
+        model, reasoningEffort: input.reasoning_effort,
+      });
+      if (!job.created) throw new ApplicationError(
+        409, "This tabular review is already running.", { code: "review_running" });
+      return { job_id: job.id, queued: true };
     },
     async generate(scope: TabularScope, reviewId: string,
-      input: z.infer<typeof tabularDtos.generate>, signal?: AbortSignal) {
+      input: z.infer<typeof tabularDtos.generate>) {
       const detail = await store.detail(scope, reviewId);
       if (!detail) return fail(404, "Review not found");
+      await assertIdle(detail.review);
       if (!detail.review.columns_config.length) return fail(400, "No columns configured");
+      if (!detail.review.document_ids.length) return fail(400, "No documents configured");
+      if (!dependencies.agents) return fail(503, "Tabular agents are unavailable");
       const user = await settings(scope.userId), model = input.model ?? user.tabular_model;
       modelKey(model, user.api_keys);
-      return { run: async (emit: Emit) => {
-        const cells = new Map(detail.cells.map((cell) =>
-          [`${cell.document_id}:${cell.column_index}`, cell]));
-        let failed = true;
-        try {
-          for (const documentId of detail.review.document_ids) {
-            throwIfAborted(signal);
-            await generateDocument(scope, await document(scope, documentId, signal),
-              detail.review.columns_config, cells, model, user.api_keys,
-              input.reasoning_effort, emit, signal);
-          }
-          failed = false;
-        } finally {
-          await store.recordGeneration(scope, { reviewId, title: detail.review.title,
-            projectId: detail.review.project_id, model, failed }).catch(() => undefined);
-        }
-      } };
+      const pending = new Set(detail.cells.filter((cell) =>
+        cell.status !== "done" || !cell.content).map((cell) => cell.document_id));
+      const jobs = await dependencies.agents.enqueue(scope, {
+        reviewId, ownerId: detail.review.user_id,
+        assignments: detail.review.document_ids.filter((id) => pending.has(id))
+          .map((documentId) => ({ documentId })),
+        model, reasoningEffort: input.reasoning_effort,
+      });
+      if (jobs.length && !jobs.some(({ created }) => created)) throw new ApplicationError(
+        409, "This tabular review is already running.", { code: "review_running" });
+      if (jobs.some(({ created }) => created)) await store.recordGeneration(scope, {
+        reviewId, title: detail.review.title, projectId: detail.review.project_id,
+        model, failed: false,
+      }).catch(() => undefined);
+      return { job_ids: jobs.map(({ id }) => id),
+        queued: jobs.filter(({ created }) => created).length };
+    },
+    async stop(scope: TabularScope, reviewId: string) {
+      const detail = await store.detail(scope, reviewId);
+      if (!detail) return fail(404, "Review not found");
+      return { stopped: await dependencies.agents?.cancel(
+        reviewId, detail.review.user_id,
+      ) ?? false };
     },
   };
 }

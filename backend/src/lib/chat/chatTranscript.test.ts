@@ -32,7 +32,7 @@ describe("projectChatTranscript", () => {
             { filename: "", document_id: "ignored" },
             { filename: "orphan.pdf", document_id: "" },
           ],
-          workflow: { id: "workflow-1", title: "Review" },
+          workflow: { id: "workflow-1", variant_id: "variant-1", title: "Review" },
         }),
         message("assistant", [
           { type: "content", text: "Answer" },
@@ -46,7 +46,7 @@ describe("projectChatTranscript", () => {
         files: [
           { filename: "Evidence.png", document_id: "document-1" },
         ],
-        workflow: { id: "workflow-1", title: "Review" },
+        workflow: { id: "workflow-1", variant_id: "variant-1", title: "Review" },
       },
       { role: "assistant", content: "Answer" },
     ]);

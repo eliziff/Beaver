@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { LibraryFolder, LibraryRepository, LibraryScope } from "./libraryStore";
 import { relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { changes, now, one, rows, type Row } from "./relationalRepositorySupport";
+import { searchFilter } from "./searchQuery";
 
 const libraryFolder = (row: Row): LibraryFolder => ({ ...row,
   id: String(row.id), name: String(row.name), parent_folder_id: row.parent_folder_id ?? null });
@@ -19,7 +20,7 @@ export const libraryRepository: LibraryRepository = {
       ? sql`SELECT 'document' kind,id,1 bucket,lower(filename) sort_name,NULL name,
           NULL parent_folder_id,NULL created_at,NULL updated_at FROM documents
         WHERE user_id=${scope.userId} AND project_id IS NULL AND library_kind=${scope.kind}
-          ${options.q ? sql`AND lower(filename) LIKE ${`%${options.q}%`}` : sql.raw("")}`
+          ${options.q ? sql`AND ${searchFilter(sql`lower(filename)`, options.q)}` : sql.raw("")}`
       : sql`SELECT * FROM (SELECT 'folder' kind,id,0 bucket,lower(name) sort_name,name,
           parent_folder_id,created_at,updated_at FROM library_folders
         WHERE user_id=${scope.userId} AND library_kind=${scope.kind}
@@ -37,14 +38,14 @@ export const libraryRepository: LibraryRepository = {
       ? [Number(last.bucket), String(last.sort_name), String(last.id)] : null };
   },
   folder: findLibraryFolder,
-  async createFolder(scope, name, parentId) {
+  async createFolder(scope, name, parentId, stableId) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
       if (parentId && !await findLibraryFolder(scope, parentId, tx)) return null;
-      const id = randomUUID(), created = now();
+      const id = stableId ?? randomUUID(), created = now();
       await changes(sql`INSERT INTO library_folders(id,user_id,library_kind,name,
         parent_folder_id,created_at,updated_at) VALUES(${id},${scope.userId},${scope.kind},
-        ${name},${parentId},${created},${created})`, tx);
+        ${name},${parentId},${created},${created}) ON CONFLICT(id) DO NOTHING`, tx);
       return findLibraryFolder(scope, id, tx);
     });
   },

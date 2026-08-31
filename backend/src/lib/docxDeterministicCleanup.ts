@@ -74,7 +74,7 @@ export async function fixDocumentSupras(
   };
 }
 
-export async function inspectDocxAutomation(
+export async function inspectDocxWorkflowCapabilities(
   documents: DocumentStore,
   userId: string,
   documentId: string,
@@ -82,7 +82,7 @@ export async function inspectDocxAutomation(
   const file = await documents.read({ userId }, documentId, null, false);
   if (!file) throw new Error("Document not found");
   if (file.fileType.toLowerCase() !== "docx") {
-    throw new Error("Document automation currently requires a DOCX document");
+    throw new Error("Document workflows currently require a DOCX document");
   }
   return {
     supra_references: await structureNative().hasDocxSupraReferences(file.bytes),

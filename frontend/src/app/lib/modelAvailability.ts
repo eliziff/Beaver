@@ -6,6 +6,7 @@ export type ModelProvider =
     | "openai"
     | "deepseek"
     | "openrouter"
+    | "opencode-go"
     | "meta"
     | "claude-p"
     | "codex"
@@ -16,6 +17,7 @@ export function getModelProvider(modelId: string): ModelProvider | null {
         return "codex";
     }
     if (modelId.startsWith("ollama:")) return "ollama";
+    if (modelId.startsWith("opencode-go/")) return "opencode-go";
     // Muse Spark ships on two transports; the bare id is the direct one and
     // the `meta/` slug is OpenRouter, so the group alone cannot decide.
     if (modelId.startsWith("muse-spark-")) return "meta";
@@ -48,6 +50,7 @@ export function providerLabel(provider: ModelProvider): string {
     if (provider === "openai") return "OpenAI";
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "openrouter") return "OpenRouter";
+    if (provider === "opencode-go") return "OpenCode Go";
     if (provider === "meta") return "Meta";
     if (provider === "claude-p") return "Anthropic subscription";
     if (provider === "codex") return "Codex";
@@ -62,6 +65,7 @@ function modelGroupToProvider(
     if (group === "OpenAI") return "openai";
     if (group === "DeepSeek") return "deepseek";
     if (group === "Meta") return "openrouter";
+    if (group === "OpenCode Go") return "opencode-go";
     if (group === "Codex") return "codex";
     if (group === "Desktop") return "ollama";
     return "gemini";

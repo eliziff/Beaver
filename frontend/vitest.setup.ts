@@ -17,3 +17,13 @@ if (!HTMLDialogElement.prototype.showModal) {
         this.open = false;
     };
 }
+
+const readBlob = <T>(blob: Blob, method: "readAsArrayBuffer" | "readAsText") =>
+    new Promise<T>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onload = () => resolve(reader.result as T);
+        reader[method](blob);
+    });
+Blob.prototype.arrayBuffer ??= function () { return readBlob(this, "readAsArrayBuffer"); };
+Blob.prototype.text ??= function () { return readBlob(this, "readAsText"); };

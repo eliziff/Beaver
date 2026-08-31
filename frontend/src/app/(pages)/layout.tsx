@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useState } from "react";
 import {
     Navigate,
     Outlet,
@@ -6,24 +6,19 @@ import {
     useMatches,
 } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
-import { AssistantAutomationActivity } from "@/app/components/assistant/AutomationRun";
+import { AssistantWorkflowActivity } from "@/app/components/assistant/WorkflowRun";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { KeyboardShortcuts } from "@/app/components/shared/KeyboardShortcuts";
-import { AuthoritiesLoadingFrame } from "@/app/components/shared/TableOfAuthoritiesFrame";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { isLocalMode } from "@/app/lib/authMode";
 import { getRuntimeConfig } from "@/app/lib/runtimeConfig";
 
-const TableOfAuthoritiesHost = lazy(() =>
-    import("@/app/components/shared/TableOfAuthoritiesHost").then((module) => ({
-        default: module.TableOfAuthoritiesHost,
-    })),
-);
-
 export default function AppShell() {
     const { isAuthenticated, authLoading } = useAuth();
+    const { profile, loading: profileLoading } = useUserProfile();
     const { pathname } = useLocation();
     const access = useMatches().reduce<{
         cloudOnly?: boolean;
@@ -38,29 +33,25 @@ export default function AppShell() {
     const authoritiesActive = pathname === "/table-of-authorities";
     const capabilityUnavailable = access.capability &&
         !getRuntimeConfig().capabilities[access.capability];
+    const authoritiesLoading = authoritiesActive && profileLoading;
     const unavailable = isLocalMode && access.cloudOnly
         ? ["Unavailable in local mode", "This feature is not available locally yet."]
         : capabilityUnavailable
           ? ["Unavailable in this deployment",
               "This feature is disabled by the server administrator."]
+          : authoritiesActive && !profile
+            ? ["Authorities unavailable",
+                "Your settings could not be loaded. Try again."]
+          : authoritiesActive && profile?.features.authorities === false
+            ? ["Authorities disabled",
+                "Turn on Authorities in Settings to use this workflow."]
           : null;
-    const [authoritiesVisited, setAuthoritiesVisited] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const authoritiesMounted = authoritiesActive || authoritiesVisited;
-
-    useEffect(() => {
-        if (authoritiesActive) setAuthoritiesVisited(true);
-    }, [authoritiesActive]);
 
     if (!authLoading && !isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
     const toggleSidebar = () => setMobileSidebarOpen((open) => !open);
-    const prepareAuthorities = () => {
-        if (authoritiesActive) return;
-        void import("@/app/components/shared/TableOfAuthoritiesHost");
-    };
-
     return (
         <ChatHistoryProvider>
             <KeyboardShortcuts />
@@ -84,7 +75,6 @@ export default function AppShell() {
                         <AppSidebar
                             mobileOpen={mobileSidebarOpen}
                             onToggle={toggleSidebar}
-                            onAuthoritiesNavigate={prepareAuthorities}
                         />
                         <div
                             inert={mobileSidebarOpen}
@@ -109,7 +99,7 @@ export default function AppShell() {
                                         <p className="m-auto px-6 text-sm text-gray-500" role="status">
                                             Loading…
                                         </p>
-                                    ) : unavailable ? (
+                                    ) : unavailable && !authoritiesLoading ? (
                                         <div className="m-auto px-6 text-center">
                                             <h1 className="font-serif text-2xl font-medium text-gray-900">
                                                 {unavailable[0]}
@@ -118,33 +108,20 @@ export default function AppShell() {
                                                 {unavailable[1]}
                                             </p>
                                         </div>
-                                    ) : (
-                                        <Outlet />
-                                    )}
+                                    ) : <>
+                                        <div className={authoritiesLoading ? "hidden" : "contents"}>
+                                            <Outlet />
+                                        </div>
+                                        {authoritiesLoading && <p className="m-auto px-6 text-sm text-gray-500" role="status">
+                                            Loading authorities
+                                        </p>}
+                                    </>}
                                 </main>
-                                {authoritiesMounted && (
-                                    <Suspense
-                                        fallback={authoritiesActive ? <AuthoritiesLoadingFrame /> : null}
-                                    >
-                                        <TableOfAuthoritiesHost
-                                            active={
-                                                authoritiesActive &&
-                                                !authLoading &&
-                                                isAuthenticated
-                                            }
-                                            enabled={
-                                                !authLoading &&
-                                                isAuthenticated &&
-                                                authoritiesMounted
-                                            }
-                                        />
-                                    </Suspense>
-                                )}
                             </div>
                         </div>
                     </div>
                 </div>
-                <AssistantAutomationActivity />
+                <AssistantWorkflowActivity />
             </SidebarContext.Provider>
         </ChatHistoryProvider>
     );

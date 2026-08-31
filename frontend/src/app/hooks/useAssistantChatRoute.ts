@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    BeaverApiError,
     getProject,
     updateChatProject,
 } from "@/app/lib/beaverApi";
+import { BeaverApiError } from "@/app/lib/apiTransport";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAssistantChat } from "./useAssistantChat";
 
@@ -83,6 +83,8 @@ export function useAssistantChatRoute({
         chatLoaded: assistant.chatLoad.status === "loaded",
         chatTitle: historyTitle ?? loadedChat?.title ?? null,
         chatOwnerId: loadedChat?.user_id ?? null,
+        chatModel: loadedChat?.model ?? null,
+        chatReasoningEffort: loadedChat?.reasoning_effort ?? null,
         chatProjectId: projectId ??
             (movedProject ? movedProject.id : loadedChat?.project_id) ?? null,
         chatProjectName: projectId ? null : movedProject?.name ?? null,

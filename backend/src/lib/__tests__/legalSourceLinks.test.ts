@@ -18,8 +18,11 @@ async function nativeDocument(
 ): Promise<A2AJCompiledDocument> {
   const docType = url.includes("/laws/") ? "laws" as const : "cases" as const;
   const native = await structureNative().deriveDocumentStructure({
-    kind: "a2aj",
-    input: { citation, source_kind: docType, text, dataset, url },
+    kind: "provider_text",
+    input: {
+      provider: "a2aj", citation, source_kind: docType, text, dataset, url,
+      require_report_start: docType === "cases" && dataset.toUpperCase() === "SCC",
+    },
   });
   return {
     docType,
@@ -69,8 +72,9 @@ describe("verified legal-source links", () => {
       "(c) the area described in appendix A to the Sahtu Agreement; " +
       '( région désignée ) " Tłı̨chǫ Agreement" means the Land Claims';
     const documentText = await structureNative().deriveDocumentStructure({
-      kind: "a2aj",
+      kind: "provider_text",
       input: {
+        provider: "a2aj",
         citation: "SNWT 2014, c 17",
         source_kind: "laws",
         text,

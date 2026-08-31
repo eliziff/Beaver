@@ -338,33 +338,19 @@ count. Durable contract coverage may grow, but duplicated
 implementation-presence tests should be deleted. If the implementation cannot
 clear the hard gate, stop and redesign rather than waive it.
 
-### Follow-on: whole-repo contraction
+### Follow-on: application boundaries
 
-The later 5,000- and 10,000-line targets measure simplification of the same
-product, not feature removal. Beaver's deterministic-analysis, working-set,
-source-exposure, and virtual-TOC work is future product work: if it is not
-production-ready, move it with its checks to `experiments/`, but report the
-move separately and do not count it as architectural savings. Likewise
-preserve the A2AJ passage lane, every legal-source provider, and the DOCX
-comparison/editing fidelity kernels.
+The source contraction is complete enough to stop using line count as the next
+design target. The remaining maintainability work is narrower: route all
+features through their application operations, confine deployment selection to
+composition, and remove repeated public event/resource shapes. Current module
+ownership is recorded in [Architecture](architecture.md); unfinished file-level
+work is in the
+[application-boundaries plan](../roadmap/application-boundaries.md).
 
-The next approved same-capability tranches are specified in
-[`beaver-canonicalization-and-contraction-plan.md`](../roadmap/contraction.md):
-
-- one host-agnostic legal-source core consumed by chat, DOCX citation linking,
-  and Legal Library, deleting their repeated provider/resolver/result facades;
-- one local application-metadata database for documents, chats, and projects,
-  while Supabase remains the cloud persistence adapter; and
-- later independent active-subsystem contractions selected from the measured
-  whole-repo inventory, rather than forcing the tool runtime to supply an
-  arbitrary global line target.
-
-The legal-source contraction is gated on routing TNA, GovUK Employment
-Tribunal, GovInfo, CourtListener, A2AJ, journals, and Hansard through the one
-`search_sources -> Read` contract with exact citation/docket fixtures. It is
-not acceptable to delete a facade until the unified path proves the provider
-capability, canonical URL, source hash, locator, ambiguity behavior, and
-evidence receipt in local and cloud compositions.
+The tool runtime itself changes only when that work exposes a real duplicate
+turn, event, tool, or evidence path. Preserve the one provider-neutral engine,
+exact-name registry, legal-source plane, and document fidelity kernels.
 
 ## Delivery sequence
 
@@ -427,7 +413,7 @@ npm test --prefix backend
 npm test --prefix frontend
 npm run build --prefix backend
 npm run build --prefix frontend
-.\scripts\mike.ps1 smoke -WithTableOfAuthorities
+.\scripts\mike.ps1 smoke
 ```
 
 No metered provider run is authorized by this plan. Deterministic fixtures and

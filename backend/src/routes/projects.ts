@@ -81,8 +81,7 @@ export function createProjectsRouter(
     handler(req, res, applicationScope(res)));
 
   router.get("/", route(async (req, res, scope) => {
-    const q = typeof req.query.q === "string"
-      ? req.query.q.trim().toLocaleLowerCase() : "";
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const filter = req.query.scope === "mine" ||
       req.query.scope === "shared-with-me" ? req.query.scope : "all";
     const filters = { q, scope: filter };
@@ -107,8 +106,7 @@ export function createProjectsRouter(
 
   router.get("/:projectId/directory", route(async (req, res, scope) => {
     const { projectId } = req.params;
-    const q = typeof req.query.q === "string"
-      ? req.query.q.trim().toLocaleLowerCase() : "";
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const parentFolderId = nullableId(req.query.parent_id, "parent_id");
     if (q && parentFolderId) reject(400, "q and parent_id cannot be used together");
     const filters = { project_id: projectId, q, parent_id: q ? null : parentFolderId };
@@ -200,6 +198,7 @@ export function createProjectsRouter(
       res.status(201).json(await documents.create(scope, {
         ...uploadedDocument(file),
         projectId: req.params.projectId,
+        folderId: nullableId(req.body?.folder_id, "folder_id"),
       }));
     }),
   );
@@ -216,6 +215,11 @@ export function createProjectsRouter(
       name: requiredText(body.name, "name", 200),
       parentFolderId: nullableId(body.parent_folder_id, "parent_folder_id"),
     }));
+  }));
+
+  router.get("/:projectId/folders/:folderId", route(async (req, res, scope) => {
+    res.json(await store.getFolder(scope, req.params.projectId, req.params.folderId) ??
+      reject(404, "Folder not found"));
   }));
 
   router.patch("/:projectId/folders/:folderId", route(

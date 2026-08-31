@@ -125,7 +125,6 @@ afterEach(async () => {
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.AUTH_MODE;
-  vi.doUnmock("../tableOfAuthorities");
   vi.doUnmock("../convert");
   vi.doUnmock("../draftingStyleStore");
   vi.doUnmock("../chat/tools/sourceSearchTools");
@@ -266,12 +265,6 @@ describe("local assistant tools", () => {
   it("creates a DOCX directly even when other Library documents are unread", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-create-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    vi.doMock("../draftingStyleStore", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("../draftingStyleStore")>()),
-      getDraftingStyleSettings: vi.fn(async () => (
-        await import("../draftingStyle")
-      ).DEFAULT_DRAFTING_STYLE),
-    }));
     const store = await import("./support/localDocumentFixtures");
     await store.createLocalDocument({
       userId: "local-user",
@@ -339,12 +332,6 @@ describe("local assistant tools", () => {
   it("rejects unmarked evidence copying before Write persists a DOCX", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-grounded-write-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    vi.doMock("../draftingStyleStore", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("../draftingStyleStore")>()),
-      getDraftingStyleSettings: vi.fn(async () => (
-        await import("../draftingStyle")
-      ).DEFAULT_DRAFTING_STYLE),
-    }));
     const {
       createTnaEvidence,
       createLegalEvidenceTurnState,
@@ -849,92 +836,183 @@ describe("local assistant tools", () => {
     expect(response.content).not.toContain("ENOENT");
   });
 
-  it("submits owned Word and PDF Library versions to the ToA bridge", async () => {
+  it("creates an Authorities draft with a latest Library binding", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const jobId = "a".repeat(32);
-    const submit = vi.fn().mockResolvedValue({
-      id: jobId,
-      state: "running",
-      operation: "detection",
-      progress: 0,
-      message: "Starting detection",
-      error: "",
-      has_review: false,
-      split_fallback: "auto",
-      files: [],
-      app_url: `/table-of-authorities?job=${jobId}`,
-    });
-    vi.doMock("../tableOfAuthorities", () => ({
-      submitTableOfAuthoritiesDocument: submit,
-      getTableOfAuthoritiesJob: vi.fn(),
-    }));
     const store = await import("./support/localDocumentFixtures");
-    const ownedBytes = await zipDocumentBytes("owned-docx-bytes");
     const document = await store.createLocalDocument({
       userId: "local-user",
       kind: "file",
       filename: "factum.docx",
-      bytes: ownedBytes,
+      bytes: await nativeTableBytes(),
     });
+    const importDraft = vi.fn(async () => ({ id: "draft-1", kind: "authorities",
+      projectId: null, revision: 1 }));
+    const authorities = { importDraft } as never;
     const tools = await import("./support/localAssistantTools");
 
     const [response] = await tools.runLocalAssistantTools("local-user", [
       {
         id: "call-toa",
-        name: "document_operation",
+        name: "update_work_product",
         input: {
-          action: "table_of_authorities",
+          action: "create",
+          kind: "authorities",
           document_id: `document://${document.id}/version/${document.current_version_id}`,
-          split_fallback: "auto",
         },
       },
-    ]);
+    ], { authorities });
 
-    expect(submit).toHaveBeenCalledOnce();
-    expect(submit.mock.calls[0][0]).toMatchObject({
-      filename: "factum.docx",
-      splitFallback: "auto",
-    });
-    expect(submit.mock.calls[0][0].bytes).toEqual(ownedBytes);
-    expect(JSON.parse(response.content)).toMatchObject({
+    const payload = JSON.parse(response.content) as Record<string, string>;
+    expect(payload).toMatchObject({
       ok: true,
-      document_id: document.id,
-      version_id: document.current_version_id,
-      job: {
-        id: jobId,
-      },
+      work_product: { id: "draft-1", kind: "authorities", revision: 1 },
+    });
+    expect(payload).not.toHaveProperty("job");
+    expect(response.events).toEqual([expect.objectContaining({
+      status: "complete",
+      tool: "update_work_product",
+      work_product: { id: "draft-1", kind: "authorities", revision: 1 },
+    })]);
+    expect(importDraft).toHaveBeenCalledWith({ userId: "local-user" }, {
+      source: { kind: "document", documentId: document.id, version: "latest" },
+      projectId: null,
+    });
+  });
+
+  it("uses the canonical nested action for model-authored research", async () => {
+    const { createResearchSetState } = await import("../researchSet");
+    const state = createResearchSetState({ kind: "human", id: "local-user" }, "Research");
+    const product = { id: "10000000-0000-4000-8000-000000000001",
+      kind: "research-set" as const, title: "Research", projectId: null, revision: 1,
+      state, outputs: {}, createdAt: "now", updatedAt: "now" };
+    const applyResearchSetAction = vi.fn(async () => ({ ...product, revision: 2 }));
+    const tools = await import("./support/localAssistantTools");
+
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "call-research", name: "update_work_product", input: { action: "update",
+        kind: "research-set", research_action: { type: "memo", markdown: "# Finding" } },
+    }], { model: "test-model", chatId: "chat-1", researchSetId: product.id,
+      researchSetRevision: 1, workProducts: { get: vi.fn(async () => product),
+        applyResearchSetAction } as never });
+
+    expect(applyResearchSetAction).toHaveBeenCalledWith(expect.anything(), product.id,
+      { revision: 1, action: { type: "memo", markdown: "# Finding" } },
+      { kind: "model", id: "test-model", origin: { type: "chat", chatId: "chat-1",
+        callId: "call-research" } });
+    expect(response.mutated).toBe(true);
+  });
+
+  it("creates or updates Authorities from exact grounded receipts without reading documents", async () => {
+    const {
+      createLegalEvidenceTurnState,
+      createTnaEvidence,
+      registerLegalEvidence,
+    } = await import("../chat/legalEvidence");
+    const sourceText = "First grounded passage. Second grounded passage.";
+    const receipt = (spanText: string, locatorLabel: string) => createTnaEvidence({
+      jurisdiction: "CA",
+      sourceClass: "case",
+      stableSourceId: "2016-scc-27",
+      sourceText,
+      spanText,
+      citation: "2016 SCC 27",
+      name: "R v Jordan",
+      dataset: "fixture",
+      version: "2016-07-08",
+      locatorKind: "paragraph",
+      locatorLabel,
+    });
+    const receipts = [receipt("First grounded passage.", "par1"),
+      receipt("Second grounded passage.", "par2")];
+    const state = createLegalEvidenceTurnState();
+    receipts.forEach((item) => registerLegalEvidence(state, item));
+    const importDraft = vi.fn(async () => ({ id: "grounded-draft", kind: "authorities",
+      projectId: "project-1", revision: 1 }));
+    const active = { id: "active-draft", kind: "authorities", projectId: null,
+      revision: 3 };
+    const addReceipts = vi.fn(async () => ({ ...active, revision: 4 }));
+    const authorities = { importDraft, addReceipts } as never;
+    const read = vi.fn(() => { throw new Error("documents must not be read"); });
+    const tools = await import("./support/localAssistantTools");
+
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "grounded-authorities",
+      name: "update_work_product",
+      input: { action: "create", kind: "authorities",
+        evidence_ids: receipts.map(({ evidence_id }) => evidence_id) },
+    }], {
+      legalEvidence: state,
+      matterId: "project-1",
+      authorities,
+      documents: { read } as never,
     });
 
-    const pdf = await store.createLocalDocument({
+    expect(importDraft).toHaveBeenCalledWith(expect.objectContaining({
       userId: "local-user",
-      kind: "file",
-      filename: "factum.pdf",
-      bytes: await readFile(path.resolve(process.cwd(), "../e2e/fixtures/test.pdf")),
+    }), {
+      source: { kind: "receipts", seeds: [{
+        authorityKey: "2016scc27",
+        receipts,
+      }] },
+      projectId: "project-1", title: undefined,
     });
-    const [pdfResponse] = await tools.runLocalAssistantTools("local-user", [
-      {
-        id: "call-toa-pdf",
-        name: "document_operation",
-        input: {
-          action: "table_of_authorities",
-          document_id: `document://${pdf.id}/version/${pdf.current_version_id}`,
-          split_fallback: "off",
-        },
-      },
-    ]);
+    expect(importDraft.mock.calls[0][1].source.seeds[0].receipts[0]).toBe(receipts[0]);
+    expect(read).not.toHaveBeenCalled();
+    expect(JSON.parse(response.content)).toEqual({ ok: true,
+      work_product: { id: "grounded-draft", kind: "authorities", revision: 1 } });
+    expect(response.events).toEqual([expect.objectContaining({
+      type: "workflow_run",
+      status: "complete",
+      tool: "update_work_product",
+      work_product: { id: "grounded-draft", kind: "authorities", revision: 1 },
+    })]);
 
-    expect(submit).toHaveBeenCalledTimes(2);
-    expect(submit.mock.calls[1][0]).toMatchObject({
-      filename: "factum.pdf",
-      splitFallback: "off",
+    const [updated] = await tools.runLocalAssistantTools("local-user", [{
+      id: "update-grounded-authorities",
+      name: "update_work_product",
+      input: { action: "update", kind: "authorities",
+        evidence_ids: receipts.map(({ evidence_id }) => evidence_id) },
+    }], {
+      legalEvidence: state, authorities, documents: { read } as never,
+      authoritiesId: "active-draft", authoritiesRevision: 3,
+      workProducts: { get: vi.fn(async () => active) } as never,
     });
-    expect(submit.mock.calls[1][0].bytes.subarray(0, 8).toString()).toBe("%PDF-1.4");
-    expect(JSON.parse(pdfResponse.content)).toMatchObject({
-      ok: true,
-      document_id: pdf.id,
-      version_id: pdf.current_version_id,
+    expect(addReceipts).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "local-user",
+    }), "active-draft", 3, [{ authorityKey: "2016scc27", receipts }]);
+    expect(JSON.parse(updated.content)).toEqual({ ok: true,
+      work_product: { id: "active-draft", kind: "authorities", revision: 4 } });
+    expect(updated.events).toEqual([expect.objectContaining({
+      status: "complete", tool: "update_work_product",
+      work_product: { id: "active-draft", kind: "authorities", revision: 4 },
+    })]);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty and unknown grounded evidence IDs", async () => {
+    const { createLegalEvidenceTurnState } = await import("../chat/legalEvidence");
+    const importDraft = vi.fn();
+    const tools = await import("./support/localAssistantTools");
+    const responses = await tools.runLocalAssistantTools("local-user", [{
+      id: "empty-authorities",
+      name: "update_work_product",
+      input: { action: "create", kind: "authorities", evidence_ids: [" "] },
+    }, {
+      id: "unknown-authorities",
+      name: "update_work_product",
+      input: { action: "create", kind: "authorities", evidence_ids: ["e_missing"] },
+    }], {
+      legalEvidence: createLegalEvidenceTurnState(),
+      authorities: { importDraft } as never,
+      documents: {} as never,
     });
+
+    expect(responses.map(({ content }) => JSON.parse(content).error)).toEqual([
+      "At least one evidence ID is required",
+      "Unknown evidence ID: e_missing",
+    ]);
+    expect(importDraft).not.toHaveBeenCalled();
   });
 
   it("keeps A2AJ link provenance private while returning evidence receipts", async () => {
@@ -1034,6 +1112,17 @@ describe("local assistant tools", () => {
     expect(receipt?.locator).toEqual({ kind: "paragraph", label: "par3" });
     expect(receipt?.span_text).toBe(text.split("\n")[2]);
     expect(entry).toBeDefined();
+    expect(response.queryReceipts).toEqual([expect.objectContaining({
+      call_id: "call-pattern",
+      tool: "Read",
+      executor_version: "legal-source-pattern-v1",
+      input: expect.objectContaining({
+        pattern: "distinctive governing principle",
+        max_results: 20,
+        context_chars: 40,
+      }),
+      results: [{ rank: 1, evidence_id: receipt?.evidence_id }],
+    })]);
     const { presentLegalEvidence } = await import("../chat/citationPresentation");
     expect(presentLegalEvidence(entry!).passageUrl)
       .toContain("https://example.test/case-3#:~:text=");

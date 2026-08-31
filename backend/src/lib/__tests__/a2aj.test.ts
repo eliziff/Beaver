@@ -357,9 +357,13 @@ describe("A2AJ client", () => {
     expect(first?.payload).toMatchObject({
       schemaVersion: "mike.legal-source.v1",
       reference: {
+        provider: "a2aj",
+        id: "2099 SCC 2",
+        kind: "case",
         docType: "cases",
         citation: "2099 SCC 2",
         dataset: "SCC",
+        sourceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       },
       metadata: {
         url: "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do",

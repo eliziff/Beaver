@@ -1,7 +1,5 @@
-"use client";
-
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown, CircleStop, LoaderCircle, X } from "lucide-react";
+import { ChevronDown, CircleStop, LoaderCircle } from "lucide-react";
 import type { AssistantReaderRun } from "@/app/lib/assistantSession";
 import type { Citation } from "../shared/types";
 import { ActivityDisclosure, ActivityRow } from "./message/EventBlocks";
@@ -10,13 +8,11 @@ import { CitationPillMarkdown } from "./message/MarkdownContent";
 export type ReadSubagentPanel = AssistantReaderRun;
 export function ReadSubagentDock({
     panels,
-    onClose,
     onCitationClick,
     idPrefix = "reading-agent",
     embedded = false,
 }: {
     panels: ReadSubagentPanel[];
-    onClose: (id: string) => void;
     onCitationClick?: (citation: Citation) => void;
     idPrefix?: string;
     embedded?: boolean;
@@ -57,9 +53,6 @@ export function ReadSubagentDock({
                     >
                         <ChevronDown aria-hidden="true" className={`size-3.5 shrink-0 text-gray-500 ${collapsed ? "-rotate-90" : ""}`} />
                         <h2 id={`${idPrefix}-title`} className="truncate text-sm font-medium text-gray-900">Reading agents</h2>
-                    </button>
-                    <button type="button" onClick={() => panels.forEach(({ id }) => onClose(id))} aria-label="Close reading agents" className="grid size-10 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
-                        <X className="size-4" />
                     </button>
                 </header>
             ) : <h2 id={`${idPrefix}-title`} className="sr-only">Reading agent</h2>}

@@ -1,6 +1,6 @@
 "use client";
 
-import { AccountToggle } from "@/app/(pages)/account/AccountToggle";
+import { Switch } from "@/app/components/ui/switch";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 
 export function DisplaySettings() {
@@ -13,7 +13,7 @@ export function DisplaySettings() {
                     Show the context window meter below the message field.
                 </p>
             </div>
-            <AccountToggle
+            <Switch
                 checked={preferences.showContextUsage}
                 onChange={(showContextUsage) => savePreferences({ showContextUsage })}
                 size="md"

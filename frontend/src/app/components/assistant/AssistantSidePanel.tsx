@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
-    AutomationRunEvent,
+    WorkflowRunEvent,
     Citation,
     EditAnnotation,
     EditResolveHandlers,
@@ -12,11 +12,12 @@ import {
 } from "@/app/components/legal/LegalSourceViewer";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
-import { AutomationRunPanel } from "./AutomationRun";
+import { WorkflowRunPanel } from "./WorkflowRun";
+import { Tabs } from "@/app/components/ui/tabs";
 import {
-    DocumentAutomation,
-    type DocumentAutomationTarget,
-} from "@/app/components/documents/DocumentAutomation";
+    DocumentWorkflowMenu,
+    type DocumentWorkflowTarget,
+} from "@/app/components/documents/DocumentWorkflowMenu";
 type CommonTab = {
     id: string;
     documentId: string;
@@ -37,22 +38,22 @@ type EditTab = CommonTab & {
     focusKey: number;
     changeNumber?: number;
 };
-type AutomationTab = {
-    kind: "automation";
+type WorkflowRunTab = {
+    kind: "workflow-run";
     id: string;
-    run: AutomationRunEvent;
+    run: WorkflowRunEvent;
 };
-type AutomationMenuTab = {
-    kind: "automation-menu";
+type DocumentWorkflowTab = {
+    kind: "document-workflows";
     id: string;
-    document: DocumentAutomationTarget;
+    document: DocumentWorkflowTarget;
 };
 export type AssistantDocumentTab = DocumentTab | CitationTab | EditTab;
 export type AssistantSidePanelTab =
     | AssistantDocumentTab
     | LegalSourceTab
-    | AutomationTab
-    | AutomationMenuTab;
+    | WorkflowRunTab
+    | DocumentWorkflowTab;
 interface Props {
     tabs: AssistantSidePanelTab[];
     activeTabId: string | null;
@@ -87,6 +88,22 @@ export function AssistantSidePanel({
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     if (!active) return null;
+    const options = tabs.map((tab) => {
+        const title = tab.kind === "document-workflows" ? "Workflows"
+            : tab.kind === "workflow-run" ? "Workflow"
+            : tab.kind === "legal" ? tab.name || tab.citation : tab.filename;
+        const showVersion = "documentId" in tab && Number.isFinite(tab.versionNumber) &&
+            (tab.versionNumber ?? 0) > (tab.kind === "edit" ? 0 : 1);
+        return { value: tab.id, onClose: () => onCloseTab(tab.id),
+            closeLabel: `Close ${title}`, label: <span title={title}
+                className="flex min-w-0 items-center gap-1.5 text-left">
+                <span className="min-w-0 flex-1 truncate">{title}</span>
+                {showVersion && <span
+                    className="shrink-0 rounded border border-gray-300 bg-white px-1 py-px text-[9px] text-gray-600">
+                    V{tab.versionNumber}
+                </span>}
+            </span> };
+    });
     return (
         <div
             className={cn(
@@ -97,96 +114,30 @@ export function AssistantSidePanel({
                 "overflow-hidden",
             )}
         >
-            <div className="flex items-start gap-2 border-b border-gray-300 bg-gray-100 p-2">
-                <div
-                    role="tablist"
-                    aria-label="Open sources"
-                    className="flex max-h-20 min-w-0 flex-1 flex-wrap gap-1 overflow-y-auto"
-                >
-                    {tabs.map((tab) => {
-                        const isActive = tab.id === active.id;
-                        const showVersionBadge =
-                            "documentId" in tab &&
-                            Number.isFinite(tab.versionNumber) &&
-                            (tab.versionNumber ?? 0) >
-                                (tab.kind === "edit" ? 0 : 1);
-                        const title = tab.kind === "automation-menu" ? "Automations"
-                            : tab.kind === "automation" ? "Automation"
-                            : tab.kind === "legal" ? tab.name || tab.citation
-                            : tab.filename;
-                        return (
-                            <div
-                                key={tab.id}
-                                className={cn(
-                                    "group flex h-8 w-40 flex-none select-none items-center rounded-md border",
-                                    isActive
-                                        ? "border-gray-400 bg-white text-gray-900"
-                                        : "border-transparent bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-white",
-                                )}
-                            >
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={isActive}
-                                    aria-controls={`source-panel-${tab.id}`}
-                                    onClick={() => onActivateTab(tab.id)}
-                                    className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch px-2 text-left"
-                                    title={title}
-                                >
-                                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                        {title}
-                                    </span>
-                                    {showVersionBadge && (
-                                        <span
-                                            className={cn(
-                                                "inline-flex shrink-0 items-center rounded border px-1 py-px text-[9px] font-medium",
-                                                isActive
-                                                    ? "border-gray-200 bg-white text-gray-600"
-                                                    : "border-gray-300 bg-white/70 text-gray-500",
-                                            )}
-                                        >
-                                            V{tab.versionNumber}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onCloseTab(tab.id);
-                                    }}
-                                    className="shrink-0 rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
-                                    aria-label={`Close ${title}`}
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
-                <button
+            <Tabs value={active.id} onValueChange={onActivateTab} options={options}
+                ariaLabel="Open sources" variant="quiet" className="h-full"
+                actions={<button type="button"
                     onClick={onCloseAll}
-                    className="shrink-0 rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                    className="grid size-8 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-200 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900"
                     title="Close panel"
                     aria-label="Close panel"
                 >
                     <X className="h-4 w-4" />
-                </button>
-            </div>
+                </button>}>
             <div className="flex-1 min-h-0 relative">
                 {tabs.map((tab) => {
                     const isActive = tab.id === active.id;
                     const body = (() => {
-                        if (tab.kind === "automation-menu") {
+                        if (tab.kind === "document-workflows") {
                             return (
-                                <DocumentAutomation
+                                <DocumentWorkflowMenu
                                     document={tab.document}
                                     embedded
                                 />
                             );
                         }
-                        if (tab.kind === "automation") {
-                            return <AutomationRunPanel run={tab.run} />;
+                        if (tab.kind === "workflow-run") {
+                            return <WorkflowRunPanel run={tab.run} />;
                         }
                         if (tab.kind === "legal") {
                             return <LegalSourceViewer {...tab} compact />;
@@ -233,12 +184,10 @@ export function AssistantSidePanel({
                     return (
                         <div
                             key={tab.id}
-                            id={`source-panel-${tab.id}`}
-                            role="tabpanel"
                             className={cn(
                                 "absolute inset-0",
-                                tab.kind === "automation" ||
-                                tab.kind === "automation-menu"
+                                tab.kind === "workflow-run" ||
+                                tab.kind === "document-workflows"
                                     ? "overflow-y-auto"
                                     : "flex flex-col",
                                 !isActive && "invisible pointer-events-none",
@@ -250,6 +199,7 @@ export function AssistantSidePanel({
                     );
                 })}
             </div>
+            </Tabs>
         </div>
     );
 }

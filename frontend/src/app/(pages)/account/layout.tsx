@@ -4,6 +4,7 @@ import { accountTabButtonClassName } from "./accountStyles";
 
 const TABS = [
     { label: "General", href: "/account" },
+    { label: "Personalisation", href: "/account/personalisation" },
     { label: "Features", href: "/account/features" },
     { label: "Privacy & data", href: "/account/privacy-data" },
     { label: "Security", href: "/account/security" },
@@ -17,7 +18,7 @@ export default function AccountLayout() {
     const { pathname } = useLocation();
     const tabs = TABS.filter(({ href }) =>
         (href !== "/account/connectors" || connectorsEnabled) &&
-        (!isLocalMode || ["/account/features", "/account/api-keys", "/account/connectors"].includes(href))
+        (!isLocalMode || ["/account/personalisation", "/account/features", "/account/api-keys", "/account/connectors"].includes(href))
     );
     const activeTab =
         tabs.find(({ href }) =>
@@ -27,7 +28,7 @@ export default function AccountLayout() {
 
     return (
         <div className="flex h-full flex-col overflow-y-auto">
-            <header className="mx-auto flex h-16 w-full max-w-5xl shrink-0 items-end px-6 pb-2 md:h-24 md:pb-4">
+            <header className="mx-auto -mt-14 flex h-16 w-full max-w-5xl shrink-0 items-end pe-6 ps-16 pb-2 md:h-24 md:pb-4 lg:mt-0 lg:px-6">
                 <h1 className="font-eb-garamond text-4xl font-medium">
                     Settings
                 </h1>

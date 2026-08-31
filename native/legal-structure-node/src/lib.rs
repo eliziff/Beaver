@@ -1,12 +1,12 @@
 use legal_structure::{
-    a2aj_document_structure, analyze_instrument, analyze_native_markup,
-    caselaw_citation_lookup_key, citation_lookup_key, classify_citator_excerpt,
-    document_fingerprint, docx_structure_lint, grounded_prose_errors, has_citation_in_text,
-    journal_document_structure, journal_text_document_structure, marked_quote_spans,
-    provider_citations_in_text, quote_repair_suggestion, text_fragment_plan,
-    utf16_prefix_ceil, A2ajInput,
-    AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery,
-    DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, VisibleEvidenceText,
+    analyze_instrument, analyze_native_markup, caselaw_citation_lookup_key, citation_lookup_key,
+    citation_occurrences_in_text, classify_citator_excerpt, document_fingerprint,
+    docx_structure_lint, grounded_prose_errors, has_citation_in_text, journal_document_structure,
+    journal_text_document_structure, marked_quote_spans, provider_citations_in_text,
+    provider_text_document_structure, quote_repair_suggestion, text_fragment_plan,
+    utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin,
+    DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput,
+    ProviderTextInput, VisibleEvidenceText,
 };
 #[cfg(feature = "legalpdf")]
 use napi::bindgen_prelude::Buffer;
@@ -29,8 +29,8 @@ enum StructureRequest {
         table_cells: Vec<AuthoritativeTableCell>,
         reconstruct_lineation: bool,
     },
-    A2aj {
-        input: A2ajInput,
+    ProviderText {
+        input: ProviderTextInput,
     },
     NativeMarkup {
         input: NativeMarkupInput,
@@ -115,7 +115,9 @@ fn analyze_request(request: StructureRequest) -> napi::Result<NativeDocument> {
             reconstruct_lineation,
         } => analyze_instrument(text, id, &table_cells, reconstruct_lineation)
             .map_err(native_error)?,
-        StructureRequest::A2aj { input } => a2aj_document_structure(input).map_err(native_error)?,
+        StructureRequest::ProviderText { input } => {
+            provider_text_document_structure(input).map_err(native_error)?
+        }
         StructureRequest::NativeMarkup { input } => {
             analyze_native_markup(input).map_err(native_error)?
         }
@@ -221,6 +223,10 @@ mod legalpdf_exports {
         bytes: Buffer,
         drafting: bool,
         limit: Option<u32>,
+    }
+
+    pub struct DocxAuthorityTextUnitsTask {
+        bytes: Buffer,
     }
 
     #[napi(object)]
@@ -393,6 +399,25 @@ mod legalpdf_exports {
         })
     }
 
+    impl Task for DocxAuthorityTextUnitsTask {
+        type Output = Vec<serde_json::Value>;
+        type JsValue = Unknown<'static>;
+
+        fn compute(&mut self) -> napi::Result<Self::Output> {
+            legalpdf::docx_to_toa_text_units(&self.bytes)
+                .map_err(|error| Error::from_reason(error.to_string()))
+        }
+
+        fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
+            js_value(env, &output)
+        }
+    }
+
+    #[napi(js_name = "docxAuthorityTextUnits")]
+    pub fn docx_authority_text_units_node(bytes: Buffer) -> AsyncTask<DocxAuthorityTextUnitsTask> {
+        AsyncTask::new(DocxAuthorityTextUnitsTask { bytes })
+    }
+
     pub struct DerivePdfDocumentTask {
         bytes: Buffer,
         request: legalpdf::PdfRequest,
@@ -504,6 +529,19 @@ mod legalpdf_exports {
             return Err(Error::from_reason("PDF summary requires a PDF document"));
         };
         js_value(env, &legalpdf::pdf_document_summary(document))
+    }
+
+    #[napi(js_name = "pdfAuthorityTextUnits")]
+    pub fn pdf_authority_text_units_node(
+        env: Env,
+        document: &External<NativeDocument>,
+    ) -> napi::Result<Unknown<'static>> {
+        let NativeProduct::Pdf(document) = &document.product else {
+            return Err(Error::from_reason(
+                "PDF authority text units require a PDF document",
+            ));
+        };
+        js_value(env, &document.authority_text_units())
     }
 }
 
@@ -649,6 +687,11 @@ pub fn citation_lookup_keys_node(texts: Vec<String>) -> Vec<String> {
 #[napi(js_name = "providerCitationsInText")]
 pub fn provider_citations_in_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
     js_value(env, &provider_citations_in_text(&text))
+}
+
+#[napi(js_name = "citationOccurrencesInText")]
+pub fn citation_occurrences_in_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &citation_occurrences_in_text(&text))
 }
 
 #[napi(js_name = "caselawCitationLookupKey")]

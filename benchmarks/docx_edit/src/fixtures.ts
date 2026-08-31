@@ -11,15 +11,13 @@
  *    reusing the shapes in backend/src/lib/__tests__/fixtures/docx-pathologies.
  *    They carry the features synthetic corpora almost never have:
  *    auto-numbering that lives in numbering.xml and not in the text, tables,
- *    footnotes and endnotes, headers and footers, tracked changes and
+ *    footnotes, headers and footers, tracked changes and
  *    comments already in the file, parallel English and French, and the
  *    quote/dash/spacing/hyphenation damage an OCR pass leaves behind.
  *
  * IDENTITY. DOCX bytes are not reproducible across runs (the packager stamps
- * times into core.xml), so a fixture's identity in the manifest is the
- * sha256 of its EXTRACTED BODY TEXT — the only plane the checks and the tool
- * surface both see. `bytes_sha256` is recorded for a single build and is
- * informational.
+ * times into core.xml), so a fixture's stable manifest identity is the
+ * sha256 of its extracted body text, the plane the semantic checker scores.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -462,17 +460,16 @@ const ocrArbitralAward: FixtureSpec = {
 };
 
 /**
- * A factum with footnotes, endnotes, hyperlinks and running heads. Its
- * point in this set is a NEGATIVE one that the benchmark records rather
- * than hides: footnote text is not on the body text plane, so it is neither
- * readable nor editable through the surface under test.
+ * A factum with footnotes and running heads. Its point in this set is a
+ * NEGATIVE one that the benchmark records rather than hides: footnote text is
+ * outside the accepted body projection scored here.
  */
 const laurierFactum: FixtureSpec = {
   id: "laurier-factum",
   filename: "Laurier Factum (Part III).docx",
   family: "pathology",
   character:
-    "footnotes and endnotes off the body plane, running heads, body paragraphs whose wording repeats across headings and argument",
+    "footnotes off the body plane, running heads, body paragraphs whose wording repeats across headings and argument",
   build: () =>
     Packer.toBuffer(
       new Document({
@@ -596,7 +593,7 @@ export async function fixtureBytes(id: FixtureId): Promise<Buffer> {
   return bytes;
 }
 
-/** The only plane the checks and the tool surface both see. */
+/** The body plane scored by the task checks. */
 export async function fixtureText(id: FixtureId): Promise<string> {
   const cached = textCache.get(id);
   if (cached !== undefined) return cached;

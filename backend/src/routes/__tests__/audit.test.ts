@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { csvCell, escapeLikePattern, parseQuery } from "../audit";
+import { csvCell, parseQuery } from "../audit";
 
 describe("audit query helpers", () => {
   it("clamps pages and rejects invalid dates and sort fields", () => {
@@ -16,10 +16,7 @@ describe("audit query helpers", () => {
     expect(parseQuery({ sort_by: "action" }, 50).ok).toBe(false);
   });
 
-  it("escapes title filters and spreadsheet formulas", () => {
-    expect(escapeLikePattern("50%_off\\today")).toBe(
-      "50\\%\\_off\\\\today",
-    );
+  it("escapes spreadsheet formulas", () => {
     expect(csvCell('=HYPERLINK("bad")')).toBe(
       '"\'=HYPERLINK(""bad"")"',
     );

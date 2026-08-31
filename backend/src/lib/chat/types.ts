@@ -1,7 +1,11 @@
 import type { LlmImage, LlmMessage } from "../llm/types";
 import type { EditDiffSegment } from "../docxTrackedChanges";
 
-export type WorkflowStore = Map<string, { title: string; skill_md: string }>;
+export type WorkflowStore = Map<string, {
+  workflow_id: string;
+  title: string;
+  skill_md: string;
+}>;
 
 export type DocIndex = Record<
   string,
@@ -29,7 +33,7 @@ export type ChatMessage = {
   role: string;
   content: string | null;
   files?: { filename: string; document_id: string }[];
-  workflow?: { id: string; title: string };
+  workflow?: { id: string; variant_id?: string; title: string };
   /** Resolved server-side from file references; never accepted as raw client bytes. */
   images?: LlmImage[];
   /** Internal provider continuation metadata; never accepted from the browser. */

@@ -4,7 +4,9 @@ import { abortChatTurnForDeletion } from "./chatTurns";
 export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {
   id: string; user_id: string; project_id: string | null;
-  tabular_review_id: string | null; title: string | null; transcript_version: number; };
+  tabular_review_id: string | null; title: string | null;
+  model: string | null; reasoning_effort: string | null;
+  transcript_version: number; };
 export type ChatMessageRecord = Record<string, unknown> & {
   id: string; chat_id: string; turn_id?: string; role: "user" | "assistant";
   content: unknown; files?: unknown; workflow?: unknown; citations?: unknown;
@@ -24,7 +26,12 @@ export class ChatStoreError extends Error {
 
 export type ChatListOptions = { projectId?: string; tabularReviewId?: string; limit?: number };
 export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null };
-export type ChatUpdateInput = { title?: string; projectId?: string | null };
+export type ChatUpdateInput = {
+  title?: string;
+  projectId?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+};
 export type ChatDetail = { chat: ChatRecord; messages: ChatMessageRecord[] };
 export type ChatStore = {
   list(scope: ChatScope, options: ChatListOptions): Promise<ChatRecord[]>; deleted(scope: ChatScope): Promise<ChatRecord[]>;

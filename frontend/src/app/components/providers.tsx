@@ -1,11 +1,18 @@
+import type { ComponentType, ReactNode } from "react";
 import { AuthProvider } from "@/app/contexts/AuthContext";
 import { UserProfileProvider } from "@/app/contexts/UserProfileContext";
-import { MfaLoginGate } from "@/app/components/shared/MfaLoginGate";
-export function Providers({ children }: { children: React.ReactNode }) {
+
+export type LoginGate = ComponentType<{ children: ReactNode }>;
+
+export function Providers({ children, LoginGate }: {
+    children: ReactNode;
+    LoginGate?: LoginGate;
+}) {
+    const content = LoginGate ? <LoginGate>{children}</LoginGate> : children;
     return (
         <AuthProvider>
             <UserProfileProvider>
-                <MfaLoginGate>{children}</MfaLoginGate>
+                {content}
             </UserProfileProvider>
         </AuthProvider>
     );

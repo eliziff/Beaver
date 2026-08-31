@@ -20,31 +20,21 @@ afterEach(async () => {
 });
 
 describe("local relational database", () => {
-  it("upgrades the version-one document schema without losing its rows", async () => {
+  it("rejects old schemas instead of carrying migration machinery", async () => {
     const filename = path.join(directory, "application.sqlite");
     const legacy = new DatabaseSync(filename);
-    legacy.exec(`CREATE TABLE document_versions (
-      id text primary key, document_id text not null, version_number integer not null,
-      source text not null, created_at text not null, filename text not null,
-      file_type text not null, size_bytes integer not null, page_count integer,
-      source_sha256 text not null, storage_path text not null, pdf_storage_path text,
-      cleanup_paths jsonb not null default '[]', provenance jsonb
-    );
-    INSERT INTO document_versions VALUES (
-      'version','document',1,'upload','now','record.pdf','pdf',4,1,
-      '${"a".repeat(64)}','record',NULL,'[]',NULL
-    );
-    PRAGMA user_version=1;`);
+    legacy.exec("PRAGMA user_version=6");
     legacy.close();
 
-    const database = (await store()).localDatabaseSync();
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 5 });
-    expect(database.prepare("SELECT id,pdf_profile FROM document_versions").all())
-      .toEqual([{ id: "version", pdf_profile: null }]);
+    const module = await store();
+    expect(() => module.localDatabaseSync()).toThrow(
+      "Unsupported local database schema 6; use a fresh local data directory",
+    );
   });
 
   it("uses one configured file and reopens committed state", async () => {
     let module = await store(), database = module.localDatabaseSync();
+    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 9 });
     expect(database.prepare("PRAGMA database_list").all()).toEqual([
       expect.objectContaining({ name: "main", file: path.join(directory, "application.sqlite") }),
     ]);

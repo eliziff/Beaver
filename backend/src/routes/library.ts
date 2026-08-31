@@ -15,7 +15,7 @@ import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { enqueuePdfReprocess } from "../lib/pdfJobs";
 import {
   fixDocumentSupras,
-  inspectDocxAutomation,
+  inspectDocxWorkflowCapabilities,
 } from "../lib/docxDeterministicCleanup";
 
 function nullableId(value: unknown, name: string): string | null {
@@ -63,9 +63,7 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
   router.use(requireAuth);
 
   router.get("/:kind", libraryRoute(async (req, res, scope) => {
-    const q = typeof req.query.q === "string"
-      ? req.query.q.trim().toLocaleLowerCase()
-      : "";
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const parentFolderId = nullableId(req.query.parent_id, "parent_id");
     if (q && parentFolderId) reject(400, "q and parent_id cannot be used together");
     const filters = { kind: scope.kind, q, parent_id: q ? null : parentFolderId };
@@ -92,6 +90,7 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
       res.status(201).json(await documents.create(scope, {
         ...uploadedDocument(file),
         libraryKind: scope.kind,
+        folderId: nullableId(req.body?.folder_id, "folder_id"),
       }));
     }),
   );
@@ -108,6 +107,10 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     const folder = await store.createFolder(scope, name, parentFolderId);
     if (!folder) reject(404, "Parent folder not found");
     res.status(201).json(folder);
+  }));
+
+  router.get("/:kind/folders/:folderId", libraryRoute(async (req, res, scope) => {
+    res.json(await store.folder(scope, req.params.folderId) ?? reject(404, "Folder not found"));
   }));
 
   router.patch(
@@ -181,10 +184,10 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
 
   docxAction(router, documents, "/:kind/documents/:documentId/actions/fix-supras",
     "Supra cleanup", fixDocumentSupras);
-  router.get("/:kind/documents/:documentId/automation", libraryRoute(async (req, res, scope) => {
-    if (scope.kind !== "file") reject(400, "Document automation applies to Library files");
+  router.get("/:kind/documents/:documentId/workflow-capabilities", libraryRoute(async (req, res, scope) => {
+    if (scope.kind !== "file") reject(400, "Document workflows apply to Library files");
     try {
-      res.json(await inspectDocxAutomation(documents, scope.userId, req.params.documentId));
+      res.json(await inspectDocxWorkflowCapabilities(documents, scope.userId, req.params.documentId));
     } catch (error) {
       const missing = error instanceof Error && error.message === "Document not found";
       reject(missing ? 404 : 400, missing ? "Document not found" : "DOCX inspection failed");

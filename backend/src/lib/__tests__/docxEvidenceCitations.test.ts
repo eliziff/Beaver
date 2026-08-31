@@ -6,7 +6,8 @@ import {
   registerLegalEvidence,
   type LegalEvidenceReceipt,
 } from "../chat/legalEvidence";
-import { resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
+import { createDocxAuthorityLedger,
+  resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import { WRITE_TOOL } from "../chat/tools/toolSchemas";
 
 function receipt(
@@ -109,5 +110,50 @@ describe("DOCX evidence citations", () => {
       citation: "Model-authored text",
       handles: ["mike-evidence:v1:forged"],
     }])).toThrow("unsupported fields");
+  });
+
+  it("records exact rendered citation markers without reparsing them later", async () => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
+      source_sha256: "a".repeat(64),
+    }));
+    const resolved = resolveDocxEvidenceCitations(state, [{
+      id: "rule", evidence_ids: ["e_paragraph_5"],
+    }]);
+    const unit = { key: "body:0", kind: "body" as const, ordinal: 0,
+      footnote_id: null, page_numbers: [], footnote_refs: [],
+      text: "The rule applies. Example v State, 2026 SCC 1 at para 5." };
+    const ledger = await createDocxAuthorityLedger(state,
+      "The rule applies.[@rule]", Buffer.from("docx"), resolved, "inline", {
+        citationLookupKey: () => "case:2026scc1",
+        docxAuthorityTextUnits: async () => [unit],
+      });
+
+    expect(ledger).toMatchObject({
+      schemaVersion: "beaver.authority-ledger.v1",
+      seeds: [{ key: "case:2026scc1", evidenceIds: ["e_paragraph_5"] }],
+      occurrences: [{ markerId: "rule", authorityKey: "case:2026scc1",
+        unit: { id: "body:0", text: unit.text },
+        text: "Example v State, 2026 SCC 1 at para 5", displayedForm: "full",
+        evidenceIds: ["e_paragraph_5"] }],
+    });
+  });
+
+  it("omits the ledger when rendered citation text is ambiguous", async () => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", {
+      source_sha256: "a".repeat(64),
+    }));
+    const resolved = resolveDocxEvidenceCitations(state, [{
+      id: "rule", evidence_ids: ["e_paragraph_5"],
+    }]);
+    const citation = "Example v State, 2026 SCC 1 at para 5";
+    expect(await createDocxAuthorityLedger(state, "Text.[@rule]", Buffer.from("docx"),
+      resolved, "inline", {
+        citationLookupKey: () => "case:2026scc1",
+        docxAuthorityTextUnits: async () => [{ key: "body:0", kind: "body",
+          ordinal: 0, footnote_id: null, page_numbers: [], footnote_refs: [],
+          text: `${citation}. Repeated ${citation}.` }],
+      })).toBeUndefined();
   });
 });

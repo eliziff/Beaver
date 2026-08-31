@@ -362,6 +362,12 @@ describe("local journal articles", () => {
     );
     expect(url).toContain("#page=2:~:text=");
     expect(url?.match(/text=/gu)).toHaveLength(2);
+    expect((await journal.viewer("7"))?.payload.reference).toMatchObject({
+      provider: "journal",
+      id: "7",
+      kind: "journal",
+      sourceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
   });
 
   it("keeps journal URLs private from the model and attaches them to citations", async () => {

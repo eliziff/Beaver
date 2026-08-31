@@ -79,9 +79,7 @@ export function createDocumentsRouter(
   router.use(requireAuth);
 
   router.get("/", asyncRoute(async (req, res) => {
-    const q = typeof req.query.q === "string"
-      ? req.query.q.trim().toLocaleLowerCase()
-      : "";
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const filters = { q };
     const { after, limit } = pageRequest<[number, string, string]>(
       req.query,

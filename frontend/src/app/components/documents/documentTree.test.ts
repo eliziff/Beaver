@@ -39,24 +39,18 @@ describe("documentTree", () => {
             row.kind === "document" && row.document.id === "child")?.depth).toBe(1);
     });
 
-    it("returns flat document matches for search", () => {
+    it("flattens server-filtered Boolean search results", () => {
         const result = buildDocumentTree(
             [file("one", "Factum.pdf", "a"), file("two", "Order.docx")],
             [folder("a", "Appeal")],
             new Set(),
             undefined,
-            "FACT",
+            "fact OR order",
         );
 
-        expect(result.visibleDocuments.map(({ id }) => id)).toEqual(["one"]);
-        expect(result.rows).toEqual([
-            {
-                kind: "document",
-                document: expect.objectContaining({ id: "one" }),
-                parentId: null,
-                depth: 0,
-            },
-        ]);
+        expect(result.visibleDocuments.map(({ id }) => id)).toEqual(["one", "two"]);
+        expect(result.rows.map((row) => row.kind === "document" && row.document.id))
+            .toEqual(["one", "two"]);
     });
 
     it("finds folder descendants and rejects ancestry cycles", () => {

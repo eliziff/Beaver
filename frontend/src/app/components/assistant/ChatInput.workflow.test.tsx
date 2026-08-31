@@ -27,10 +27,12 @@ vi.mock("../modals/AddDocumentsModal", () => ({
         onClose: () => void;
         onSelect: (documents: Document[]) => void;
         primaryLabel?: string;
+        initialTab?: string;
     }) =>
         props.open ? (
             <button
                 type="button"
+                data-initial-tab={props.initialTab}
                 onClick={() => {
                     props.onSelect([selectedDocument]);
                     props.onClose();
@@ -40,8 +42,8 @@ vi.mock("../modals/AddDocumentsModal", () => ({
             </button>
         ) : null,
 }));
-vi.mock("./AssistantWorkflowModal", () => ({
-    AssistantWorkflowModal: () => null,
+vi.mock("../workflows/WorkflowPickerModal", () => ({
+    WorkflowPickerModal: () => null,
 }));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
     ApiKeyMissingPopup: () => null,
@@ -96,6 +98,48 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 beforeEach(() => window.localStorage.clear());
 
 describe("ChatInput workflow document selection", () => {
+    it("selects a dock workflow without opening a competing document modal", async () => {
+        render(
+            <ChatInput
+                onSubmit={vi.fn()}
+                onCancel={vi.fn()}
+                isLoading={false}
+                onOpenWorkflows={(onSelect) => onSelect({
+                    workflow: {
+                        id: "templates",
+                        user_id: null,
+                        metadata: {
+                            title: "Templates",
+                            description: "Draft from an existing template.",
+                            category: "Templates",
+                            audiences: ["general"],
+                            contributors: [],
+                            language: "en",
+                            version: null,
+                            jurisdictions: null,
+                        },
+                        launcher: { kind: "instructions", variants: [] },
+                        is_system: true,
+                        created_at: "2026-08-30T00:00:00Z",
+                    },
+                    variant: {
+                        id: "builtin-draft-from-template",
+                        label: "Draft from template",
+                        result: null,
+                        execution: "assistant",
+                        skill_md: "Draft from the selected template.",
+                        columns_config: null,
+                    },
+                })}
+            />,
+        );
+
+        await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
+        expect(screen.queryByRole("button", { name: "Use document" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Remove Templates" }))
+            .toBeInTheDocument();
+    });
+
     it("hides Auto Mode until enabled and preserves the selected mode", async () => {
         const initial = render(<WorkflowHarness onSubmit={vi.fn()} />);
         expect(screen.queryByRole("group", { name: "Editing mode" })).toBeNull();

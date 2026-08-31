@@ -94,7 +94,7 @@ describe("McpConnectorFields", () => {
                 onToolEnabled={onToolEnabled}
             />,
         );
-        fireEvent.click(screen.getByRole("switch", { name: "Find cases" }));
+        fireEvent.click(screen.getByRole("switch", { name: "Find cases enabled" }));
         expect(onToolEnabled).toHaveBeenCalledWith(
             "connector-1",
             "tool-1",

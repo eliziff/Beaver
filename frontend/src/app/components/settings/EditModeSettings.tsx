@@ -1,7 +1,7 @@
 "use client";
 
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
-import { AccountToggle } from "@/app/(pages)/account/AccountToggle";
+import { Switch } from "@/app/components/ui/switch";
 
 export function EditModeSettings() {
     const [preferences, savePreferences] = useAssistantPreferences();
@@ -16,7 +16,7 @@ export function EditModeSettings() {
                     default.
                 </p>
             </div>
-            <AccountToggle
+            <Switch
                 checked={preferences.showAutoMode}
                 onChange={(showAutoMode) => savePreferences({ showAutoMode })}
                 size="md"

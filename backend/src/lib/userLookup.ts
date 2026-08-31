@@ -1,21 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { UserPreferencesRepository } from "./userPreferences";
 
 type Db = SupabaseClient<any, "public", any>;
 
 export const normalizeEmail = (value: unknown) =>
     typeof value === "string" ? value.trim().toLowerCase() : "";
 
-export async function findProfileUserByEmail(db: Db, email: string) {
+export async function findProfileUserByEmail(
+    db: Db,
+    email: string,
+    preferences: Pick<UserPreferencesRepository, "get">,
+) {
     const normalized = normalizeEmail(email);
     if (!normalized) return null;
 
     const { data, error } = await db.from("user_profiles")
-        .select("user_id, email, display_name").eq("email", normalized).maybeSingle();
+        .select("user_id, email").eq("email", normalized).maybeSingle();
     if (error) throw error;
     if (!data) return null;
 
-    const name = typeof data.display_name === "string" ? data.display_name.trim() : "";
-    return { id: data.user_id as string, email: normalized, display_name: name || null };
+    const userPreferences = await preferences.get(data.user_id as string);
+    return {
+        id: data.user_id as string,
+        email: normalized,
+        display_name: userPreferences.displayName,
+    };
 }
 
 export async function syncProfileIdentity(db: Db, userId: string,

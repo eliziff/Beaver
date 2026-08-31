@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -13,12 +14,19 @@ import {
 } from "@/app/components/shared/views/highlightDocxQuote";
 import {
   getDirectLegalSourceDocument,
+  getResearchSet,
   getLegalSourceDocument,
+  actOnResearchSet,
   type LegalDocumentType,
   type LegalSourceViewerPayload,
 } from "@/app/lib/beaverApi";
-import { safeAssistantUrl } from "@/app/lib/assistantSession";
+import type {
+  ResearchLocator,
+  ResearchSetProduct,
+} from "@/app/lib/researchSets";
+import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { formatLongDate } from "@/app/lib/utils";
+import { ResearchLabelCircle } from "./ResearchLabelCircle";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
@@ -51,13 +59,9 @@ export type LegalSourceViewerProps = {
   citationRef?: number;
   compact?: boolean;
   initialLocator?: string | null;
+  researchSetId?: string | null;
+  researchSourceId?: string | null;
 };
-
-export function legalSourceKindLabel(docType?: LegalDocumentType) {
-  if (docType === "laws") return "Legislation";
-  if (docType === "articles") return "Journal article";
-  return "Decision";
-}
 
 function legalSourceAnchorId(label: string) {
   return `legal-${label.replace(/[^a-z0-9_.-]+/giu, "-")}`;
@@ -204,6 +208,34 @@ function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
   root.scrollTop += targetBox.top - rootBox.top - (top ? 16 : 32);
 }
 
+type SelectionTarget = { locator: ResearchLocator; quote: string };
+
+function sectionForNode(node: Node, root: HTMLElement) {
+  const element = node instanceof Element ? node : node.parentElement;
+  const section = element?.closest<HTMLElement>("section[data-legal-block]") ?? null;
+  return section && root.contains(section) ? section : null;
+}
+
+export function legalPassageTargetFromSelection(
+  root: HTMLElement,
+  selection: Selection | null,
+): SelectionTarget | null {
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  const start = sectionForNode(range.startContainer, root);
+  const end = sectionForNode(range.endContainer, root);
+  const kind = start?.dataset.locatorKind as ResearchLocator["kind"] | undefined;
+  const value = start?.dataset.locatorValue;
+  const endValue = end?.dataset.locatorValue;
+  if (!start || !end || !kind || !value) return null;
+  const quote = selection.toString().replace(/\s+/gu, " ").trim();
+  if (!quote) return null;
+  return {
+    locator: { kind, value, ...(endValue && endValue !== value ? { endValue } : {}) },
+    quote,
+  };
+}
+
 export function LegalSourceViewer({
   referenceId,
   provider = "a2aj",
@@ -216,6 +248,8 @@ export function LegalSourceViewer({
   citationRef,
   compact = false,
   initialLocator,
+  researchSetId,
+  researchSourceId,
 }: LegalSourceViewerProps) {
   const sourceKey = [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
   const [result, setResult] = useState<[string, LegalSourceViewerPayload | Error]>();
@@ -223,6 +257,9 @@ export function LegalSourceViewer({
   const payload = current && !(current instanceof Error) ? current : null;
   const error = current instanceof Error ? current.message : null;
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const [selectedPassage, setSelectedPassage] = useState<SelectionTarget | null>(null);
+  const [researchProduct, setResearchProduct] = useState<ResearchSetProduct | null>(null);
+  const [researchBusy, setResearchBusy] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const locator = normalizeLegalSourceLocator(initialLocator);
 
@@ -243,7 +280,23 @@ export function LegalSourceViewer({
     return () => { live = false; };
   }, [citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey]);
 
+  useEffect(() => {
+    if (!researchSetId) { setResearchProduct(null); return; }
+    let live = true;
+    setResearchProduct(null);
+    void getResearchSet(researchSetId).then((product) => { if (live) setResearchProduct(product); })
+      .catch(() => { if (live) setResearchProduct(null); });
+    return () => { live = false; };
+  }, [researchSetId]);
   const slices = payload?.slices ?? [];
+  const researchSource = researchProduct && researchSourceId
+    ? researchProduct.state.sources[researchSourceId] : null;
+  const savedPassages = useMemo(() => researchProduct && researchSourceId
+    ? Object.values(researchProduct.state.evidence)
+      .filter(({ sourceId: id }) => id === researchSourceId) : [],
+  [researchProduct, researchSourceId]);
+  const savedBlocks = useMemo(() => new Set(savedPassages.map(({ receipt }) => receipt.locator.label)),
+    [savedPassages]);
   useLayoutEffect(() => {
     if (!root.current || !payload) return;
     clearDocxQuoteHighlights(root.current);
@@ -279,6 +332,21 @@ export function LegalSourceViewer({
     id: `legal-quote-${index}`,
     quote: quote.quote,
   }));
+  function readPassageSelection() {
+    if (!root.current) return;
+    setSelectedPassage(legalPassageTargetFromSelection(root.current, window.getSelection()));
+  }
+
+  async function saveSelectedPassage() {
+    if (!researchProduct || !researchSourceId || !selectedPassage || !payload) return;
+    setResearchBusy(true);
+    try {
+      setResearchProduct(await actOnResearchSet(researchProduct.id, researchProduct.revision, {
+        type: "passage", sourceId: researchSourceId,
+        locator: selectedPassage.locator, quote: selectedPassage.quote }));
+      window.getSelection()?.removeAllRanges(); setSelectedPassage(null);
+    } finally { setResearchBusy(false); }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -309,6 +377,20 @@ export function LegalSourceViewer({
           </p>}
         </div>
       </header>
+      {researchProduct && researchSource && <div className="shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-2 sm:px-8">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 text-xs text-gray-600">
+          <span className="font-medium text-gray-800">{researchProduct.title}</span>
+          <ResearchLabelCircle labels={researchProduct.state.labels}
+            labelIds={researchSource.labelIds} size="sm" />
+          <span className="tabular-nums">{savedPassages.length} saved {savedPassages.length === 1 ? "passage" : "passages"}</span>
+          <span className="ms-auto">{selectedPassage ? `${selectedPassage.quote.length} characters selected` : "Select text to save an exact passage"}</span>
+          <button type="button" disabled={!selectedPassage || researchBusy}
+            onClick={() => void saveSelectedPassage()}
+            className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 font-medium text-white hover:bg-gray-800 disabled:cursor-default disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+            Save passage
+          </button>
+        </div>
+      </div>}
       {!!quoteItems.length && !compact && (
         <div className="shrink-0 py-2">
           <CitationQuotesHeader
@@ -325,7 +407,8 @@ export function LegalSourceViewer({
       {payload?.truncated && <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
         This unusually long source is displayed through the first five million characters.
       </p>}
-      <div ref={root} className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
+      <div ref={root} onPointerUp={readPassageSelection} onKeyUp={readPassageSelection}
+        className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
         <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
             {slices.map((slice) => {
               const page = slice.primary?.kind === "page"
@@ -334,11 +417,17 @@ export function LegalSourceViewer({
               const marker = slice.primary?.kind !== "page" && slice.primary
                 ? locatorLabel(slice.primary.label)
                 : null;
+              const selectionAnchor = slice.primary ?? slice.anchors.find(({ kind }) =>
+                kind === "paragraph" || kind === "section" || kind === "page" || kind === "footnote");
+              const saved = selectionAnchor ? savedBlocks.has(selectionAnchor.label) : false;
               return (
                 <section
                   key={`${slice.start}:${slice.end}`}
                   id={slice.primary ? legalSourceAnchorId(slice.primary.label) : undefined}
-                  className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
+                  data-legal-block={selectionAnchor?.label}
+                  data-locator-kind={selectionAnchor?.kind}
+                  data-locator-value={selectionAnchor?.label}
+                  className={`scroll-mt-4 ${saved ? "rounded-sm bg-amber-50/60 outline outline-1 outline-amber-200" : ""} ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
                   style={{
                     contentVisibility: locator ? "visible" : "auto",
                     containIntrinsicSize: "auto 150px",

@@ -92,6 +92,8 @@ def main() -> int:
                     text or "",
                     alternate_citation=alternate or None,
                     dataset=court,
+                    provider="a2aj",
+                    require_report_start=court.upper() == "SCC",
                 )
                 structure = {
                     "kind": document.kind,

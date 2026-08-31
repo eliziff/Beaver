@@ -2,6 +2,7 @@ import type { DocumentStore } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
+  PermanentJobError,
   type ApplicationJob,
   type JobHandler,
 } from "./jobQueue";
@@ -41,6 +42,18 @@ function reprocessPayload(job: ApplicationJob) {
   return { ...base, ocrProvider, layout };
 }
 
+async function preparePdf(
+  input: Parameters<typeof documentProjectionService.preparePdf>[0],
+) {
+  try { return await documentProjectionService.preparePdf(input); }
+  catch (error) {
+    if (!(error instanceof Error) || error.name !== "PdfEncrypted") throw error;
+    const permanent = new PermanentJobError(error.message, { cause: error });
+    permanent.name = error.name;
+    throw permanent;
+  }
+}
+
 export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHandler> {
   const run: JobHandler = async (job, context) => {
     const { documentId, documentVersionId } = job;
@@ -55,7 +68,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
-    const summary = await documentProjectionService.preparePdf({
+    const summary = await preparePdf({
       documentId,
       versionId: documentVersionId,
       bytes: content.bytes,
@@ -70,7 +83,9 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
         status: summary.status },
     })) return { skipped: "source-unavailable" };
-    return { status: summary.status, pageCount: summary.pageCount };
+    return { status: summary.status, pageCount: summary.pageCount,
+      pagesNeedingOcr: summary.pagesNeedingOcr,
+      ocrRoutedPages: summary.ocrRoutedPages };
   };
   const reprocess: JobHandler = async (job, context) => {
     if (!job.documentId || !job.documentVersionId) throw new Error("InvalidPdfJob");
@@ -82,7 +97,7 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
-    const summary = await documentProjectionService.preparePdf({
+    const summary = await preparePdf({
       documentId: job.documentId,
       versionId: job.documentVersionId,
       bytes: content.bytes,
@@ -99,7 +114,9 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
         status: summary.status },
     })) return { skipped: "source-unavailable" };
-    return { status: summary.status, pageCount: summary.pageCount };
+    return { status: summary.status, pageCount: summary.pageCount,
+      pagesNeedingOcr: summary.pagesNeedingOcr,
+      ocrRoutedPages: summary.ocrRoutedPages };
   };
   return { "pdf.prepare": run, "pdf.reprocess": reprocess };
 }

@@ -3,18 +3,16 @@ import {
     useState,
 } from "react";
 import { Loader2 } from "lucide-react";
-import { getSupabase } from "@/app/lib/supabase";
+import {
+    challengeAndVerifyMfa,
+    getMfaAssurance,
+    listMfaFactors,
+    type MfaFactor,
+} from "@/app/lib/authApi";
 import { Modal } from "../modals/Modal";
 import { ModalSelect } from "../modals/ModalSelect";
-type MfaFactor = {
-    id: string;
-    friendly_name?: string | null;
-    factor_type: string;
-};
 export async function needsMfaVerification() {
-    const { data, error } =
-        await getSupabase().auth.mfa.getAuthenticatorAssuranceLevel();
-    if (error) throw error;
+    const data = await getMfaAssurance();
     return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
 interface MfaVerificationPopupProps {
@@ -49,17 +47,17 @@ export function MfaVerificationPopup({
             setLoading(true);
             setError(null);
             setCode("");
-            const { data, error: listError } =
-                await getSupabase().auth.mfa.listFactors();
-            if (cancelled) return;
-            if (listError) {
-                setError(listError.message);
-                setFactors([]);
-                setSelectedFactorId("");
-            } else {
-                const verified = (data.totp ?? []) as MfaFactor[];
+            try {
+                const data = await listMfaFactors();
+                if (cancelled) return;
+                const verified = data.totp ?? [];
                 setFactors(verified);
                 setSelectedFactorId(verified[0]?.id ?? "");
+            } catch (caught) {
+                if (cancelled) return;
+                setError(caught instanceof Error ? caught.message : "Authenticator methods could not be loaded.");
+                setFactors([]);
+                setSelectedFactorId("");
             }
             setLoading(false);
         }
@@ -72,18 +70,15 @@ export function MfaVerificationPopup({
         if (!canVerify) return;
         setVerifying(true);
         setError(null);
-        const { error: verifyError } =
-            await getSupabase().auth.mfa.challengeAndVerify({
-                factorId: selectedFactorId,
-                code: code.trim(),
-            });
-        setVerifying(false);
-        if (verifyError) {
-            setError(verifyError.message);
-            return;
+        try {
+            await challengeAndVerifyMfa(selectedFactorId, code.trim());
+            setCode("");
+            onVerified();
+        } catch (caught) {
+            setError(caught instanceof Error ? caught.message : "The code could not be verified.");
+        } finally {
+            setVerifying(false);
         }
-        setCode("");
-        onVerified();
     }
     if (!open) return null;
     return (

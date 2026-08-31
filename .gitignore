@@ -36,6 +36,16 @@ experiments/instrument_lineation_parity/cache/
 backend/experiments/**/results/
 backend/experiments/**/receipts/
 
+# Downloaded court specimens and local visual proof stay outside Git. Source
+# URLs, hashes, and durable findings belong in the adjacent receipts/README.
+/research/**/*.pdf
+/research/**/*.html
+/results/
+
+# Iterative model-authored treatment gold is raw experiment output. The
+# reviewed canonical gold.jsonl and selection manifests remain tracked.
+/backend/experiments/a2aj-case-treatment/gold/gold-*.jsonl
+
 # User-supplied benchmark documents and derived local manifests can contain
 # privileged or otherwise non-redistributable material.  Keep the harness in
 # git, but never commit the private corpus.

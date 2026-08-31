@@ -1,17 +1,24 @@
 import type { ApplicationScope } from "./applicationError";
 import type { WorkflowStore } from "./chat/types";
+import type {
+  WorkflowAudience,
+  WorkflowCategory,
+  WorkflowExecution,
+} from "./systemWorkflows";
 
-export type WorkflowType = "assistant" | "tabular";
 export type WorkflowRecord = Record<string, unknown> & {
   id: string;
   user_id: string | null;
   title: string;
-  type: WorkflowType;
+  execution: WorkflowExecution;
+  variant_label: string;
+  variant_result: string | null;
   prompt_md: string | null;
   columns_config: unknown[] | null;
   language: string | null;
   version: string | null;
-  practice: string | null;
+  category: WorkflowCategory;
+  audiences: WorkflowAudience[];
   jurisdictions: string[] | null;
   contributors: unknown;
   created_at: string;
@@ -24,37 +31,30 @@ export type WorkflowAccess = {
 };
 export type WorkflowValues = {
   title: string;
-  type: WorkflowType;
+  execution: WorkflowExecution;
+  variantLabel: string;
+  variantResult: string | null;
   promptMd: string | null;
   columns: unknown[] | null;
   language: string | null;
-  practice: string | null;
+  category: WorkflowCategory;
+  audiences: WorkflowAudience[];
   jurisdictions: string[] | null;
 };
-export type WorkflowUpdate = Partial<Omit<WorkflowValues, "type">>;
-export type WorkflowPageOptions = {
+export type WorkflowUpdate = Partial<WorkflowValues>;
+export type WorkflowListOptions = {
   q: string;
-  type: WorkflowType | null;
-  limit: number;
-  after: [string, string] | null;
+  audience: WorkflowAudience | "all";
 };
 export type WorkflowRepository = {
-  page(options: WorkflowPageOptions): Promise<{
-    items: WorkflowRecord[];
-    nextAfter: [string, string] | null;
-  }>;
-  hidden(): Promise<string[]>;
-  hide(workflowId: string): Promise<void>;
-  unhide(workflowId: string): Promise<void>;
+  list(options: WorkflowListOptions): Promise<WorkflowRecord[]>;
   create(input: WorkflowValues): Promise<WorkflowRecord>;
   get(workflowId: string): Promise<WorkflowAccess | null>;
   update(workflowId: string, input: WorkflowUpdate): Promise<WorkflowAccess | null>;
   remove(workflowId: string): Promise<boolean>;
   assistants(): Promise<WorkflowStore>;
 };
-export type CreateWorkflowRepository = (
-  scope: ApplicationScope,
-) => WorkflowRepository;
+export type CreateWorkflowRepository = (scope: ApplicationScope) => WorkflowRepository;
 
 export type WorkflowShare = {
   id: string;

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Check, Copy, Minimize2 } from "lucide-react";
 import {
-    type AutomationRunEvent,
+    type WorkflowRunEvent,
     type Citation,
     type EditAnnotation,
     type EditResolveHandlers,
@@ -18,7 +18,7 @@ import {
 } from "./message/citationUtils";
 import { MarkdownContent } from "./message/MarkdownContent";
 import { EditCardsSection } from "./message/EditCardsSection";
-import { AutomationRunButton, automationRunKey } from "./AutomationRun";
+import { WorkflowRunButton, workflowRunKey } from "./WorkflowRun";
 import { ActivityDisclosure, ActivityRow, DocDownloadBlock } from "./message/EventBlocks";
 
 interface Props {
@@ -27,7 +27,7 @@ interface Props {
     onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
     showCopyAction?: boolean;
-    onAutomationClick?: (run: AutomationRunEvent) => void;
+    onWorkflowRunClick?: (run: WorkflowRunEvent) => void;
     onReaderClick?: (readerId: string) => void;
     minHeight?: string;
     onEditViewClick?: (ann: EditAnnotation, filename: string, changeNumber?: number) => void;
@@ -51,7 +51,7 @@ export function AssistantMessage({
     onCitationClick,
     citationTitle,
     showCopyAction = true,
-    onAutomationClick,
+    onWorkflowRunClick,
     onReaderClick,
     minHeight = "0px",
     onEditViewClick,
@@ -238,10 +238,10 @@ export function AssistantMessage({
     return (
         <div style={{ minHeight }} className="w-full max-w-[46rem]">
             <div className="relative mt-2 w-full font-inter">
-                {(message.contextCompacted || message.activities.length || message.automations.length || dialogue.length || edits.length || isStreaming) ? (
+                {(message.contextCompacted || message.activities.length || message.workflowRuns.length || dialogue.length || edits.length || isStreaming) ? (
                     <div className="flex flex-col gap-4">
-                        {message.automations.map((run) => (
-                            <AutomationRunButton key={automationRunKey(run)} run={run} onOpen={onAutomationClick ?? (() => undefined)} />
+                        {message.workflowRuns.map((run) => (
+                            <WorkflowRunButton key={workflowRunKey(run)} run={run} onOpen={onWorkflowRunClick ?? (() => undefined)} />
                         ))}
                         {message.contextCompacted && (
                             <div role="status" className="flex items-center gap-2 px-1 font-serif text-sm text-gray-500">
@@ -263,7 +263,7 @@ export function AssistantMessage({
                                     />
                                 ))}
                             </ActivityDisclosure>
-                        ) : isStreaming && !message.automations.length ? (
+                        ) : isStreaming && !message.workflowRuns.length ? (
                             <ActivityDisclosure isStreaming label="Thinking" />
                         ) : null}
                         {dialogue.map((block, index) =>

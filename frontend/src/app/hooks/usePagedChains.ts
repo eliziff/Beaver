@@ -18,8 +18,8 @@ export function usePagedChains<T>(
     const controller = new AbortController();
     requests.current.set(key, controller);
     setChains((current) => ({ ...current, [key]: {
-      items: append ? current[key]?.items ?? [] : [],
-      nextCursor: append ? current[key]?.nextCursor ?? null : null,
+      items: current[key]?.items ?? [],
+      nextCursor: current[key]?.nextCursor ?? null,
       loading: true, error: null,
     } }));
     try {

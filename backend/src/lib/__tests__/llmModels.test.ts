@@ -15,6 +15,7 @@ import {
     OPENAI_MAIN_MODELS,
     OPENAI_MID_MODELS,
     isSupportedModel,
+    openCodeGoProtocol,
     providerForModel,
     resolveModel,
     resolveRequestedModel,
@@ -115,6 +116,16 @@ describe("model catalog", () => {
             "gpt-3.5-turbo",
             DEFAULT_MAIN_MODEL,
         )).toThrow(/Unsupported model id/u);
+    });
+
+    it("accepts only OpenCode Go models with a known wire protocol", () => {
+        expect([
+            openCodeGoProtocol("opencode-go/gpt-5.6-luna"),
+            openCodeGoProtocol("opencode-go/glm-5.3"),
+            openCodeGoProtocol("opencode-go/qwen3.8-max"),
+        ]).toEqual(["responses", "chat", "messages"]);
+        expect(providerForModel("opencode-go/glm-5.3")).toBe("opencode-go");
+        expect(isSupportedModel("opencode-go/future-model")).toBe(false);
     });
 
     it("uses native compaction only where the transport can resume it", () => {

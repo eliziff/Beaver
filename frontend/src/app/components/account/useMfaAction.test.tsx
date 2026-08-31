@@ -17,7 +17,7 @@ vi.mock("@/app/components/popups/MfaVerificationPopup", () => ({
         onVerified: () => void;
     }) => open && <button onClick={onVerified}>Verify</button>,
 }));
-vi.mock("@/app/lib/beaverApi", () => ({
+vi.mock("@/app/lib/authApi", () => ({
     isMfaRequiredError: mocks.isMfaError,
 }));
 

@@ -25,6 +25,8 @@ async function streamProvider(
     case "openrouter":
     case "meta":
       return (await import("./openai")).streamResponses(params, provider);
+    case "opencode-go":
+      return (await import("./openCodeGo")).streamOpenCodeGo(params);
     case "codex":
       return (await import("./codex")).streamCodex(params);
     case "claude-p":
@@ -33,8 +35,6 @@ async function streamProvider(
       return (await import("./ollamaApi")).streamOllama(params);
     case "gemini":
       return (await import("./gemini")).streamGemini(params);
-    case "ox-gateway":
-      throw new Error("Ox Alpha gateway models are experiment-only.");
   }
 }
 

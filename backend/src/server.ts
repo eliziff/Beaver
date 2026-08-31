@@ -1,21 +1,25 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import helmet from "helmet";
 import { api } from "./api";
 import { publicRuntimeConfig, trustedProxyHops } from "./runtimeConfig";
 import { publicOrigin } from "./lib/publicOrigin";
+import { wordManifest } from "./lib/wordManifest";
 
 const frontend = path.resolve(__dirname, "../../frontend/dist");
-const authoritiesWeb = path.resolve(__dirname, "../../AuthoritiesHelper/web");
 const config = publicRuntimeConfig();
 const cloudOrigin = config.mode === "cloud" ? publicOrigin() : null;
 const connectSrc = ["'self'"];
-if (config.mode === "cloud") {
-  const supabase = new URL(config.supabaseUrl);
-  connectSrc.push(supabase.origin);
-  supabase.protocol = supabase.protocol === "https:" ? "wss:" : "ws:";
-  connectSrc.push(supabase.origin);
+let appHtml: string | undefined;
+
+function sendApp(_req: express.Request, res: express.Response) {
+  appHtml ??= readFileSync(path.join(frontend, "index.html"), "utf8").replace(
+    "__BEAVER_RUNTIME_CONFIG__",
+    encodeURIComponent(JSON.stringify(config)),
+  );
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(appHtml);
 }
 
 export const server = express();
@@ -37,10 +41,10 @@ server.use(helmet({
       fontSrc: ["'self'", "data:"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
-      frameSrc: ["'self'"],
+      frameSrc: ["'self'", "blob:"],
       imgSrc: ["'self'", "data:", "blob:"],
       objectSrc: ["'none'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://appsforoffice.microsoft.com"],
       styleSrc: ["'self'"],
       styleSrcAttr: ["'unsafe-inline'"],
       // DOCX documents define their own paragraph, numbering, and page styles.
@@ -67,7 +71,10 @@ server.use((req, res, next) => {
   }
   const oauthCallback = req.method === "GET" &&
     config.capabilities.connectors && req.path === "/api/user/mcp-connectors/oauth/callback";
-  if (!oauthCallback && req.get("sec-fetch-site") === "cross-site") {
+  const allowedCrossSitePage = req.method === "GET" &&
+    ["/auth/callback", "/word.html", "/word-manifest.xml"].includes(req.path);
+  if (!oauthCallback && !allowedCrossSitePage &&
+      req.get("sec-fetch-site") === "cross-site") {
     res.status(403).send("Cross-site requests are not allowed");
     return;
   }
@@ -84,30 +91,38 @@ server.use((req, res, next) => {
   }
   next();
 });
-server.use("/authorities-helper", express.static(authoritiesWeb, {
-  dotfiles: "deny",
-  index: "index.html",
-  setHeaders: (res) => {
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader(
-      "Content-Security-Policy",
-      "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; " +
-      "style-src 'self'; script-src 'self'; img-src 'self' data: blob:; " +
-      "connect-src 'self'; frame-ancestors 'self'",
-    );
-  },
-}));
 server.use("/api", api);
 server.use("/api", (_req, res) => res.status(404).json({ detail: "Not found" }));
+server.get("/word-manifest.xml", (req, res) => {
+  try {
+    const configured = process.env.PUBLIC_ORIGIN?.trim();
+    const origin = cloudOrigin ?? (configured?.startsWith("https://")
+      ? publicOrigin() : new URL(`${req.protocol}://${req.get("host")}`).origin);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", 'attachment; filename="beaver-word.xml"');
+    res.type("application/xml").send(wordManifest(origin));
+  } catch (error) {
+    res.status(400).type("text/plain").send(
+      error instanceof Error ? error.message : "Word manifest unavailable",
+    );
+  }
+});
+server.get(["/", "/index.html"], sendApp);
 server.use(express.static(frontend, {
   dotfiles: "deny",
   index: false,
-  setHeaders: (res, file) => res.setHeader(
-    "Cache-Control",
-    file.includes(`${path.sep}assets${path.sep}`)
-      ? "public, max-age=31536000, immutable"
-      : "no-cache",
-  ),
+  setHeaders: (res, file) => {
+    res.setHeader("Cache-Control", file.includes(`${path.sep}assets${path.sep}`)
+      ? "public, max-age=31536000, immutable" : "no-cache");
+    if (path.basename(file) === "word.html") {
+      const csp = String(res.getHeader("Content-Security-Policy") ?? "");
+      res.setHeader("Content-Security-Policy", csp.replace(
+        "frame-ancestors 'none'",
+        "frame-ancestors 'self' https://*.office.com https://*.officeapps.live.com https://*.microsoft365.com",
+      ));
+      res.removeHeader("X-Frame-Options");
+    }
+  },
 }));
 server.get("*", (req, res, next) => {
   if (
@@ -116,8 +131,7 @@ server.get("*", (req, res, next) => {
     ) ||
     !req.accepts("html")
   ) return next();
-  res.setHeader("Cache-Control", "no-store");
-  res.sendFile(path.join(frontend, "index.html"));
+  sendApp(req, res);
 });
 
 export function assertFrontendBuild() {

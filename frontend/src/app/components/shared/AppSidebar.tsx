@@ -1,12 +1,20 @@
-import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from "react";import { BookOpenText, History, PanelLeft, Settings, Trash2 } from "lucide-react";
-import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
+import { BookOpenText, History, PanelLeft, Settings, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BeaverIcon } from "@/app/components/chat/beaver-icon";import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
+import { updateChatProject } from "@/app/lib/beaverApi";
+import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+import { BeaverIcon } from "@/app/components/chat/beaver-icon";
+import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
   LibrarySkeuoIcon,
-  TableOfAuthoritiesSkeuoIcon,
-  TabularReviewSkeuoIcon,
   WorkflowSkeuoIcon,
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -15,23 +23,32 @@ import {
   APP_SURFACE_ACTIVE_CLASS,
   APP_SURFACE_HOVER_CLASS,
 } from "@/app/components/ui/liquid-surface";
-const loadRecyclingBinModal = () =>  import("@/app/components/assistant/RecyclingBinModal").then(    (module) => module.RecyclingBinModal,  );const loadSettingsModal = () =>  import("@/app/components/settings/AppSettingsModal").then(    (module) => module.AppSettingsModal,  );const RecyclingBinModal = lazy(async () => ({  default: await loadRecyclingBinModal(),}));const AppSettingsModal = lazy(async () => ({  default: await loadSettingsModal(),}));const SelectAssistantProjectModal = lazy(() =>  import("@/app/components/assistant/SelectAssistantProjectModal").then(    (module) => ({ default: module.SelectAssistantProjectModal }),  ),);import { updateChatProject } from "@/app/lib/beaverApi";
 import type { Chat } from "@/app/components/shared/types";
+
+const loadRecyclingBinModal = () =>
+  import("@/app/components/assistant/RecyclingBinModal").then(
+    ({ RecyclingBinModal }) => RecyclingBinModal,
+  );
+const loadSettingsModal = () =>
+  import("@/app/components/settings/AppSettingsModal").then(
+    ({ AppSettingsModal }) => AppSettingsModal,
+  );
+const RecyclingBinModal = lazy(async () => ({
+  default: await loadRecyclingBinModal(),
+}));
+const AppSettingsModal = lazy(async () => ({
+  default: await loadSettingsModal(),
+}));
+const SelectAssistantProjectModal = lazy(() =>
+  import("@/app/components/assistant/SelectAssistantProjectModal").then(
+    ({ SelectAssistantProjectModal }) => ({ default: SelectAssistantProjectModal }),
+  ),
+);
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: ChatSkeuoIcon },
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
   { href: "/sources", label: "Sources", icon: BookOpenText },
-  {
-    href: "/table-of-authorities",
-    label: "Authorities",
-    icon: TableOfAuthoritiesSkeuoIcon,
-  },
-  {
-    href: "/tabular-reviews",
-    label: "Tabular Review",
-    icon: TabularReviewSkeuoIcon,
-  },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
   { href: "/history", label: "History", icon: History },
 ];
@@ -41,12 +58,10 @@ const CHAT_DRAG_TYPE = "application/x-beaver-chat-ids";
 interface AppSidebarProps {
   mobileOpen: boolean;
   onToggle: () => void;
-  onAuthoritiesNavigate: () => void;
 }
 export function AppSidebar({
   mobileOpen,
   onToggle,
-  onAuthoritiesNavigate,
 }: AppSidebarProps) {
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -276,12 +291,7 @@ export function AppSidebar({
               <div key={href} className="px-2.5 py-0.5">
                 <Link
                   to={href}
-                  onClick={() => {
-                    if (href === "/table-of-authorities") {
-                      onAuthoritiesNavigate?.();
-                    }
-                    if (mobileOpen) onToggle();
-                  }}
+                  onClick={mobileOpen ? onToggle : undefined}
                   title={label}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
@@ -448,7 +458,11 @@ export function AppSidebar({
           </section>
         )}
         <div className="mt-auto border-t border-gray-300 p-1">
-          <button            type="button"            onPointerEnter={() => void loadSettingsModal()}            onClick={() => {              setSettingsOpen(true);
+          <button
+            type="button"
+            onPointerEnter={() => void loadSettingsModal()}
+            onClick={() => {
+              setSettingsOpen(true);
               if (mobileOpen) onToggle();
             }}
             className={cn(
@@ -461,6 +475,31 @@ export function AppSidebar({
           </button>
         </div>
       </aside>
-      <Suspense fallback={null}>        {chatProjectTarget && (          <SelectAssistantProjectModal            open            onClose={() => setChatProjectTarget(null)}            chatTitle={chatProjectTarget.title}            currentLocation="Assistant"            currentProjectId={chatProjectTarget.project_id}            onSelectProject={moveChatToProject}          />        )}        {recyclingOpen && (          <RecyclingBinModal            open            onClose={() => setRecyclingOpen(false)}            onRestored={loadChats}          />        )}        {settingsOpen && (          <AppSettingsModal open onClose={() => setSettingsOpen(false)} />        )}      </Suspense>    </>
+      <Suspense fallback={null}>
+        {chatProjectTarget && (
+          <SelectAssistantProjectModal
+            open
+            onClose={() => setChatProjectTarget(null)}
+            chatTitle={chatProjectTarget.title}
+            currentLocation="Assistant"
+            currentProjectId={chatProjectTarget.project_id}
+            onSelectProject={moveChatToProject}
+          />
+        )}
+        {recyclingOpen && (
+          <RecyclingBinModal
+            open
+            onClose={() => setRecyclingOpen(false)}
+            onRestored={loadChats}
+          />
+        )}
+        {settingsOpen && (
+          <AppSettingsModal
+            open
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+      </Suspense>
+    </>
   );
 }

@@ -11,25 +11,41 @@ const MAX_UPLOAD_SIZE_MB = Math.round(
   MAX_UPLOAD_SIZE_BYTES / (1024 * 1024),
 );
 const uploadSlot = concurrentRequests(4, "The upload service is busy. Try again shortly.");
-const stagedUpload = multer({
-  storage: multer.diskStorage({ destination: tmpdir() }),
-  limits: {
-    fileSize: MAX_UPLOAD_SIZE_BYTES,
-    files: 1,
-    fields: 10,
-    parts: 11,
-    fieldNameSize: 100,
-    fieldSize: 1024 * 1024,
-  },
-});
-
 export function singleFileUpload(fieldName: string): RequestHandler {
+  return stagedFiles(stagedUpload(1).single(fieldName));
+}
+
+export function multipleFileUpload(fieldName: string, maxFiles: number): RequestHandler {
+  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 100) {
+    throw new Error("maxFiles must be between 1 and 100");
+  }
+  return stagedFiles(stagedUpload(maxFiles).array(fieldName, maxFiles));
+}
+
+function stagedUpload(maxFiles: number) {
+  return multer({
+    storage: multer.diskStorage({ destination: tmpdir() }),
+    limits: {
+      fileSize: MAX_UPLOAD_SIZE_BYTES,
+      files: maxFiles,
+      fields: maxFiles === 1 ? 10 : maxFiles + 10,
+      parts: maxFiles === 1 ? 11 : maxFiles * 2 + 10,
+      fieldNameSize: 100,
+      fieldSize: 1024 * 1024,
+    },
+  });
+}
+
+function stagedFiles(upload: RequestHandler): RequestHandler {
   return (req, res, next) => uploadSlot(req, res, () => {
     try {
-      stagedUpload.single(fieldName)(req, res, (err) => {
+      upload(req, res, (err) => {
         if (!err) {
-          if (req.file) {
-            const cleanup = () => void unlink(req.file!.path).catch(() => undefined);
+          const files = [req.file, ...(Array.isArray(req.files) ? req.files : [])]
+            .filter((file): file is Express.Multer.File => Boolean(file));
+          if (files.length) {
+            const cleanup = () => void Promise.all(files.map(({ path }) =>
+              unlink(path).catch(() => undefined)));
             res.once("finish", cleanup).once("close", cleanup);
           }
           next();

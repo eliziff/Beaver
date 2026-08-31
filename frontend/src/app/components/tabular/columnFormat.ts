@@ -15,9 +15,3 @@ export const FORMAT_OPTIONS: Array<{ value: ColumnFormat; label: string; icon: L
 export function formatLabel(format: ColumnFormat): string {
     return FORMAT_OPTIONS.find((o) => o.value === format)?.label ?? "Text";
 }
-export function formatIcon(format: ColumnFormat): LucideIcon {
-    return FORMAT_OPTIONS.find((o) => o.value === format)?.icon ?? AlignLeft;
-}
-export function formatIconClassName(format: ColumnFormat): string {
-    return FORMAT_OPTIONS.find((o) => o.value === format)?.iconClassName ?? "text-sky-500";
-}

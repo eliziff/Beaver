@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import { usePagedDirectory } from "./usePagedDirectory";
@@ -21,5 +21,27 @@ describe("usePagedDirectory", () => {
 
         expect(result.current.documents).toBe(documents);
         expect(result.current.reload).toBe(reload);
+    });
+
+    it("keeps existing rows visible while the same directory refreshes", async () => {
+        const first = { id: "document-1" } as Document;
+        let finishRefresh!: (page: { items: never[]; next_cursor: null }) => void;
+        const refresh = new Promise<{ items: never[]; next_cursor: null }>((resolve) => {
+            finishRefresh = resolve;
+        });
+        const load = vi.fn()
+            .mockResolvedValueOnce({
+                items: [{ kind: "document" as const, document: first }],
+                next_cursor: null,
+            })
+            .mockReturnValueOnce(refresh);
+        const { result } = renderHook(() => usePagedDirectory(load, "", []));
+        await waitFor(() => expect(result.current.documents).toEqual([first]));
+
+        act(() => { void result.current.reload(); });
+
+        expect(result.current.documents).toEqual([first]);
+        await act(async () => finishRefresh({ items: [], next_cursor: null }));
+        await waitFor(() => expect(result.current.documents).toEqual([]));
     });
 });

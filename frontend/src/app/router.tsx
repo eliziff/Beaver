@@ -1,14 +1,17 @@
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import {
   createBrowserRouter,
   Navigate,
   RouterProvider,
+  useMatch,
   useParams,
   type RouteObject,
 } from "react-router-dom";
 import AppShell from "@/app/(pages)/layout";
 import RouteError from "@/app/error";
 import Root from "@/app/layout";
+import type { LoginGate } from "@/app/components/providers";
+import { CollectionState } from "@/app/components/shared/CollectionState";
 
 type PageModule = { default: ComponentType };
 type LazyRoute = NonNullable<RouteObject["lazy"]>;
@@ -28,22 +31,26 @@ const route = (
   extra: { handle?: unknown; children?: RouteObject[] } = {},
 ): RouteObject => ({ path, lazy, ...extra });
 
-const libraryPage = (kind: "files" | "templates"): LazyRoute => async () => {
-  const { LibraryCollectionPage } = await import(
+const libraryPage: LazyRoute = async () => {
+  const { LibraryCollectionPage, LibraryWorkspaceProvider } = await import(
     "@/app/components/library/LibraryWorkspace"
   );
-  return { Component: () => <LibraryCollectionPage kind={kind} /> };
+  function LibraryPage() {
+    const kind = useMatch("/library/templates") ? "templates" : "files";
+    return <LibraryWorkspaceProvider>
+      <LibraryCollectionPage kind={kind} />
+    </LibraryWorkspaceProvider>;
+  }
+  return { Component: LibraryPage };
 };
-const workflowPage = (
-  workflowType: "assistant" | "tabular",
-): LazyRoute => async () => {
+const workflowPage: LazyRoute = async () => {
   const { WorkflowDetailPage } = await import(
     "@/app/components/workflows/WorkflowDetailPage"
   );
   return {
     Component: () => {
       const { id = "" } = useParams<{ id: string }>();
-      return <WorkflowDetailPage id={id} workflowType={workflowType} />;
+      return <WorkflowDetailPage id={id} />;
     },
   };
 };
@@ -110,8 +117,7 @@ const appRoutes: RouteObject[] = [
     () => import("@/app/components/workflows/WorkflowList"),
     "WorkflowList",
   )),
-  route("workflows/assistant/:id", workflowPage("assistant")),
-  route("workflows/tabular-review/:id", workflowPage("tabular")),
+  route("workflows/:id", workflowPage),
   route("tabular-reviews", page(() => import("@/app/(pages)/tabular-reviews/page"))),
   route("tabular-reviews/:id", reviewPage(false)),
   route("sources", namedPage(
@@ -120,14 +126,9 @@ const appRoutes: RouteObject[] = [
   )),
   route("sources/view", page(() => import("@/app/(pages)/sources/view/page"))),
   route("sources/:id", sourcePage),
-  { path: "table-of-authorities", Component: () => null },
-  {
-    path: "library",
-    children: [
-      { index: true, lazy: libraryPage("files") },
-      route("templates", libraryPage("templates")),
-    ],
-  },
+  route("court-records", page(() => import("@/app/(pages)/court-records/page"))),
+  route("table-of-authorities", page(() => import("@/app/(pages)/table-of-authorities/page"))),
+  route("library/templates?", libraryPage),
   route("account", page(() => import("@/app/(pages)/account/layout")), {
     children: [
       {
@@ -136,6 +137,10 @@ const appRoutes: RouteObject[] = [
         lazy: page(() => import("@/app/(pages)/account/page")),
       },
       route("features", page(() => import("@/app/(pages)/account/features/page"))),
+      route("personalisation", namedPage(
+        () => import("@/app/components/account/PersonalisationPage"),
+        "PersonalisationSettingsPage",
+      )),
       route(
         "privacy-data",
         page(() => import("@/app/(pages)/account/privacy-data/page")),
@@ -164,23 +169,44 @@ const appRoutes: RouteObject[] = [
   }),
 ];
 
-const routes: RouteObject[] = [{
-  Component: Root,
+function routes(LoginGate?: LoginGate): RouteObject[] {
+  const RootWithProviders = () => <Root LoginGate={LoginGate} />;
+  return [{
+  Component: RootWithProviders,
   ErrorBoundary: RouteError,
-  HydrateFallback: () => (
-    <p className="m-auto p-6 text-sm text-gray-500" role="status">Loading…</p>
-  ),
+  HydrateFallback: () => <CollectionState loading className="m-auto min-h-0 p-6">Loading…</CollectionState>,
   children: [
     { index: true, element: <Navigate to="/assistant" replace /> },
     route("login", page(() => import("@/app/login/page"))),
     route("signup", page(() => import("@/app/signup/page"))),
+    route("signup/check-email", namedPage(
+      () => import("@/app/components/account/AuthFlowPages"), "CheckEmailPage",
+    )),
+    route("auth/callback", namedPage(
+      () => import("@/app/components/account/AuthFlowPages"), "AuthCallbackPage",
+    )),
+    route("forgot-password", namedPage(
+      () => import("@/app/components/account/AuthFlowPages"), "ForgotPasswordPage",
+    )),
+    route("reset-password", namedPage(
+      () => import("@/app/components/account/AuthFlowPages"), "ResetPasswordPage",
+    )),
+    route("onboarding", namedPage(
+      () => import("@/app/components/account/PersonalisationPage"), "OnboardingPage",
+    )),
+    route("word", namedPage(
+      () => import("@/app/components/word/WordPage"), "WordPage",
+    )),
+    route("word.html", namedPage(
+      () => import("@/app/components/word/WordPage"), "WordPage",
+    )),
     { Component: AppShell, children: appRoutes },
     route("*", page(() => import("@/app/not-found"))),
   ],
 }];
+}
 
-const router = createBrowserRouter(routes);
-
-export function Router() {
+export function Router({ LoginGate }: { LoginGate?: LoginGate }) {
+  const [router] = useState(() => createBrowserRouter(routes(LoginGate)));
   return <RouterProvider router={router} />;
 }

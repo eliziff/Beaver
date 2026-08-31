@@ -411,7 +411,10 @@ describe("account-free matter routes", () => {
           current_turn: {
             kind: "message",
             content: "Use this document.",
-            workflow: { id: "builtin-extract-key-terms" },
+            workflow: {
+              id: "document-review",
+              variant_id: "builtin-extract-key-terms",
+            },
             files: [
               {
                 document_id: source.body.id,
@@ -422,7 +425,7 @@ describe("account-free matter routes", () => {
 
     expect((await turn(0)).status).toBe(200);
     expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
-      "[Workflow: Extract Key Terms (id: builtin-extract-key-terms)]",
+      "[Workflow: Document Review (id: document-review; variant: builtin-extract-key-terms)]",
     );
     expect((await turn(2)).status).toBe(200);
     expect(pageDocuments((await request(api).get(

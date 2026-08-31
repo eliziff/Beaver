@@ -4,11 +4,8 @@ import type { Document } from "@/app/components/shared/types";
 import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { DocumentSidePanel } from "./DocumentSidePanel";
 
-vi.mock("@/app/components/shared/views/PdfView", () => ({
-  PdfView: () => <div>PDF preview</div>,
-}));
-vi.mock("@/app/components/shared/views/DocxView", () => ({
-  DocxView: ({
+vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
+  DocumentViewer: ({
     versionId,
     preferPdfRendition,
     refetchKey,
@@ -26,9 +23,6 @@ vi.mock("@/app/components/shared/views/DocxView", () => ({
       Word preview
     </div>
   ),
-}));
-vi.mock("@/app/components/shared/views/SpreadsheetView", () => ({
-  SpreadsheetView: () => <div>Spreadsheet preview</div>,
 }));
 
 const document: Document = {

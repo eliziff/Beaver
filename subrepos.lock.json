@@ -4,14 +4,9 @@
   "repositories": {
     "OpenLegalData": {
       "branch": "main",
-      "commit": "adeb597c82a2dfe8c8ba58cc62d6a13e87200a4a",
+      "commit": "46c29e10365d1075afc97515b50e4738cbbc72d0",
       "bundle": "subrepos/OpenLegalData.bundle",
       "remote": null
-    },
-    "AuthoritiesHelper": {
-      "branch": "main",
-      "bundle": null,
-      "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
     },
     "legal-structure": {
       "branch": "main",
