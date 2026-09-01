@@ -183,6 +183,43 @@ describe("provider PDF projection bridge", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("finds a valid publisher PDF through ranked pages without requesting CanLII", async () => {
+    const source = "https://publisher.example/decision/1";
+    const bytes = Buffer.from("%PDF-1.7 publisher original");
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      if (url === source) return new Response(`
+        <a href="https://www.canlii.org/en/ca/scc/doc/2001/2001scc1/2001scc1.pdf">Download PDF</a>
+        <a href="/bad.pdf">Download PDF</a>
+        <a href="/article/view/1">View article</a>`, {
+        status: 200, headers: { "Content-Type": "text/html" },
+      });
+      if (url === "https://publisher.example/bad.pdf") {
+        return pdfResponse(Buffer.from("not a PDF"));
+      }
+      if (url === "https://publisher.example/article/view/1") return new Response(
+        '<a href="/official.pdf">PDF</a>',
+        { status: 200, headers: { "Content-Type": "text/html" } },
+      );
+      if (url === "https://publisher.example/official.pdf") return pdfResponse(bytes);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const bridge = await import("../providerPdfLibraryBridge");
+
+    await expect(bridge.downloadProviderOriginalPdf({
+      provider: "a2aj", identity: "a2aj:en:test:2001 scc 1", sourceUrl: source,
+      filename: "Decision.pdf", title: "Decision",
+    })).resolves.toEqual({ bytes, sourceSha256: digest(bytes),
+      url: "https://publisher.example/official.pdf" });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      source,
+      "https://publisher.example/bad.pdf",
+      "https://publisher.example/article/view/1",
+      "https://publisher.example/official.pdf",
+    ]);
+  });
+
   it("fails closed when a source digest is spliced onto another request", async () => {
     const firstBytes = Buffer.from("%PDF-1.4 first");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(firstBytes)));

@@ -9,6 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/supervisor.js",
+    "start:authorities": "node dist/authoritiesStandalone.js",
+    "dev:authorities": "tsx src/authoritiesStandalone.ts",
     "import:a2aj-bulk": "python scripts/import_a2aj_bulk.py",
     "fetch:courtlistener-bulk": "python scripts/fetch_courtlistener_bulk.py",
     "import:courtlistener-bulk": "python scripts/import_courtlistener_bulk.py",

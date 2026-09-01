@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { structureNative } from "../structureNative";
+import { pdfPassageGeometry, structureNative } from "../structureNative";
 
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -15,8 +15,11 @@ async function sourceDocx() {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-function sourcePdf() {
-  const stream = "BT /F1 12 Tf 72 720 Td (Body) Tj ET";
+function sourcePdf(text: string | string[] = "Body exact quote appears here") {
+  const lines = Array.isArray(text) ? text : [text];
+  const stream = `BT /F1 12 Tf 72 720 Td ${lines
+    .map((line, index) => `(${line}) Tj${index + 1 < lines.length ? " 0 -14 Td" : ""}`)
+    .join(" ")} ET`;
   const objects = [
     "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
     "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
@@ -57,5 +60,54 @@ describe("native authority text units", () => {
     const pdfUnits = native.pdfAuthorityTextUnits(pdf);
     expect(pdfUnits.map(({ text }) => text).join("\n")).toContain("Body");
     expect(pdfUnits.find(({ text }) => text.includes("Body"))?.page_numbers).toEqual([1]);
+
+    const geometry = await pdfPassageGeometry(pdf, sourcePdf(), [{
+      id: "p1", locatorKind: "paragraph", locator: "1",
+      exactQuotes: ["exact quote appears here"],
+    }]);
+    expect(geometry).toMatchObject({
+      schemaVersion: "legalpdf.passage-geometry.v1",
+      sourceSha256: native.pdfDocumentSummary(pdf).sha256,
+      coordinateOrigin: "top_left",
+      rotationApplied: true,
+      targets: [{
+        id: "p1", locatorKind: "paragraph", locator: "1", status: "found",
+        pages: [{ pageNumber: 1, width: 612, height: 792, source: "native" }],
+        quotes: [{ text: "exact quote appears here", status: "found", pageNumber: 1 }],
+      }],
+    });
+    expect(geometry.targets[0].pages[0].passageRects).toHaveLength(1);
+    expect(geometry.targets[0].quotes[0].rects.length).toBeGreaterThan(0);
+
+    const numberedBytes = sourcePdf("[29] The governing framework is stated here.");
+    const numberedPdf = await native.derivePdfDocument(numberedBytes, {});
+    expect(await pdfPassageGeometry(numberedPdf, numberedBytes, [{
+      id: "p29", locatorKind: "paragraph", locator: "29",
+    }])).toMatchObject({ targets: [{ id: "p29", status: "found",
+      pages: [{ pageNumber: 1, source: "native", passageRects: [expect.any(Array)] }] }] });
+
+    const shiftedBytes = sourcePdf(["[29] Exact numbered paragraph",
+      ...Array.from({ length: 29 }, (_, index) => `Structural paragraph ${index + 1}`)]);
+    const shiftedPdf = await native.derivePdfDocument(shiftedBytes, {});
+    expect(await pdfPassageGeometry(shiftedPdf, shiftedBytes, [{
+      id: "shifted", locatorKind: "paragraph", locator: "29",
+      exactQuotes: ["Exact numbered paragraph"],
+    }])).toMatchObject({ targets: [{ id: "shifted", status: "found",
+      quotes: [{ status: "found" }] }] });
+
+    const changed = Buffer.from(sourcePdf().toString().replace("Body", "Bady"));
+    await expect(pdfPassageGeometry(pdf, changed, [{
+      id: "p1", locatorKind: "paragraph", locator: "1",
+    }])).rejects.toThrow("source changed");
+
+    const weakBytes = sourcePdf("x");
+    const weakPdf = await native.derivePdfDocument(weakBytes, {});
+    expect(native.pdfDocumentSummary(weakPdf).pagesNeedingOcr).toEqual([0]);
+    expect(await pdfPassageGeometry(weakPdf, weakBytes, [{
+      id: "page1", locatorKind: "page", locator: "1",
+    }])).toMatchObject({ targets: [{
+      id: "page1", locatorKind: "page", locator: "1", status: "unavailable",
+      pages: [{ pageNumber: 1, width: 612, height: 792, source: "unavailable" }],
+    }] });
   });
 });

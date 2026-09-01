@@ -15,13 +15,18 @@ import type {
   WorkProductBuildReceipt,
   WorkProductCreate,
   WorkProductKind,
+  WorkProductMetadata,
   WorkProductPatch,
   WorkProductResolution,
 } from "@/app/lib/workProducts";
 import type {
   AuthoritiesAction,
+  AuthoritiesBuildSettings,
   AuthoritiesBuildReceipt,
+  AuthoritiesDiscrepancy,
+  AuthoritiesOutputMode,
   AuthoritiesProduct,
+  AuthoritiesProfileId,
 } from "@/app/authorities/types";
 import type {
   ResearchSetAction,
@@ -929,6 +934,10 @@ export const listWorkProducts = <State>(kind: WorkProductKind, projectId?: strin
     project_id: projectId,
     limit: 100,
   }));
+export const listWorkProductMetadata = (kind: WorkProductKind, projectId?: string) =>
+  apiRequest<WorkProductMetadata[]>(pagePath("/work-products", {
+    kind, project_id: projectId, limit: 100, metadata: true,
+  }));
 export const getWorkProduct = <State>(id: string) =>
   apiRequest<WorkProduct<State>>(`/work-products/${segment(id)}`);
 export const getWorkProductResolution = <State>(id: string) =>
@@ -988,6 +997,8 @@ export const createAuthorities = (input: {
     version: "latest" | { versionId: string; sha256: string } };
   title?: string;
   projectId?: string | null;
+  settings?: Partial<AuthoritiesBuildSettings> & { profileId?: AuthoritiesProfileId;
+    outputMode?: AuthoritiesOutputMode; insertIntoDocument?: boolean };
 }) => post<AuthoritiesProduct>("/authorities", input);
 export const uploadAuthoritiesDocument = (file: File, projectId?: string) =>
   multipartRequest<Document>("/authorities/documents", file,
@@ -996,13 +1007,31 @@ export const actOnAuthorities = (id: string, revision: number, action: Authoriti
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/actions`, { revision, action });
 export const refreshAuthorities = (id: string, revision: number) =>
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/refresh`, { revision });
+export const prepareAuthoritiesSources = (id: string, revision: number, signal?: AbortSignal) =>
+  apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/sources`,
+    { ...mutationInit("POST", { revision }), signal });
+export const refreshAuthoritiesInput = (id: string, role: string, revision: number) =>
+  post<AuthoritiesProduct>(
+    `/authorities/${segment(id)}/inputs/${segment(role)}/refresh`, { revision });
+export const reviewAuthorities = (id: string, signal?: AbortSignal) =>
+  apiRequest<AuthoritiesDiscrepancy[]>(
+    `/authorities/${segment(id)}/discrepancies`, { ...mutationInit("POST", {}), signal });
+export const replaceAuthoritiesSource = (id: string, revision: number, file: File) =>
+  multipartRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/source`, file,
+    { fields: { revision: String(revision) } });
 export const attachAuthorityPdf = (
   id: string, authorityId: string, revision: number, file: File,
 ) => multipartRequest<AuthoritiesProduct>(
   `/authorities/${segment(id)}/attachments/${segment(authorityId)}`, file,
   { fields: { revision: String(revision) } },
 );
-export const buildAuthorities = (id: string, revision: number) =>
-  post<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
-    `/authorities/${segment(id)}/build`, { revision },
+export const attachAuthoritiesBookPdf = (id: string, revision: number,
+  slot: "cover" | "index" | "supplemental", file: File) =>
+  multipartRequest<AuthoritiesProduct>(
+    `/authorities/${segment(id)}/book-parts/${slot}`, file,
+    { fields: { revision: String(revision) } },
+  );
+export const buildAuthorities = (id: string, revision: number, signal?: AbortSignal) =>
+  apiRequest<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
+    `/authorities/${segment(id)}/build`, { ...mutationInit("POST", { revision }), signal },
   );

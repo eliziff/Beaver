@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getWorkProduct: vi.fn(),
   getWorkProductResolution: vi.fn(),
   refreshAuthorities: vi.fn(),
+  prepareAuthoritiesSources: vi.fn(),
   buildAuthorities: vi.fn(),
   listWorkProducts: vi.fn(),
   directoryResource: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("@/app/lib/beaverApi", async (original) => ({
   getWorkProduct: mocks.getWorkProduct,
   getWorkProductResolution: mocks.getWorkProductResolution,
   refreshAuthorities: mocks.refreshAuthorities,
+  prepareAuthoritiesSources: mocks.prepareAuthoritiesSources,
   buildAuthorities: mocks.buildAuthorities,
   listWorkProducts: mocks.listWorkProducts,
   directoryResource: mocks.directoryResource,
@@ -90,6 +92,9 @@ beforeEach(() => {
     mocks.product = { ...mocks.product as WorkProduct, revision: 3 };
     return mocks.product;
   });
+  mocks.prepareAuthoritiesSources.mockImplementation(async () => ({
+    ...mocks.product as WorkProduct, state: { authorities: {}, bindings: {} },
+  }));
   mocks.buildAuthorities.mockImplementation(async () => {
     const current = mocks.product as WorkProduct;
     mocks.product = { ...current, revision: current.revision + 1,
@@ -176,6 +181,7 @@ describe("nested Court Record inputs", () => {
     await expect(beaverCourtRecordsHost.resolveInput(binding, progress)).resolves.toMatchObject({
       status: "ready", prepared: { origin: { versionId: "version-2", sourceSha256: hash("b") } },
     });
+    expect(mocks.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 2);
     expect(mocks.buildAuthorities).toHaveBeenCalledWith("authorities-1", 2);
     expect(mocks.refreshAuthorities).not.toHaveBeenCalled();
     expect(progress).toHaveBeenCalledWith("Building Appeal authorities");
@@ -190,6 +196,7 @@ describe("nested Court Record inputs", () => {
 
     await beaverCourtRecordsHost.resolveInput(binding);
     expect(mocks.refreshAuthorities).toHaveBeenCalledWith("authorities-1", 2);
+    expect(mocks.prepareAuthoritiesSources).toHaveBeenCalledWith("authorities-1", 3);
     expect(mocks.buildAuthorities).toHaveBeenCalledWith("authorities-1", 3);
 
     mocks.freshness = "stale";

@@ -3,9 +3,11 @@ import { getDocumentParseStates } from "./beaverApi";
 export async function waitForPdfPreparation(
   documentId: string,
   progress?: (message: string) => void,
+  signal?: AbortSignal,
 ) {
   const started = Date.now();
   while (Date.now() - started < 10 * 60_000) {
+    signal?.throwIfAborted();
     const state = (await getDocumentParseStates([documentId]))[0]?.parse_state;
     if (state?.status === "ready" || state?.status === "degraded") return;
     if (state?.status === "failed" || state?.status === "cancelled") {

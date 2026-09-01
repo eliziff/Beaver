@@ -132,16 +132,13 @@
 .tab-list::-webkit-scrollbar {
     display: none;
 }
-.authorities-citations { order: 1; }
-.authorities-sources { order: 2; }
-.authorities-build { order: 3; }
 .authorities-review-list { border-bottom-width: 1px; max-height: 12rem; }
-@container (min-width: 52rem) {
-    .authorities-review { grid-template-columns: 16rem minmax(0, 1fr); }
+@container (min-width: 40rem) {
+    .authorities-review { grid-template-columns: 15rem minmax(0, 1fr); }
     .authorities-review-list {
         border-bottom-width: 0;
         border-inline-end-width: 1px;
-        max-height: 32rem;
+        max-height: none;
     }
 }
 @container (min-width: 64rem) {
@@ -150,18 +147,6 @@
     }
     .court-record-build-panel {
         align-self: start;
-        position: sticky;
-        top: 1rem;
-    }
-    .authorities-layout {
-        grid-template-columns: minmax(0, 1fr) 21rem;
-    }
-    .authorities-citations { grid-column: 1; grid-row: 1; }
-    .authorities-sources { grid-column: 1; grid-row: 2; }
-    .authorities-build {
-        align-self: start;
-        grid-column: 2;
-        grid-row: 1 / span 2;
         position: sticky;
         top: 1rem;
     }

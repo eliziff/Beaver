@@ -66,7 +66,7 @@ describe("Court Records assistant composition", () => {
     expect(assistantMock.options.at(-1)).toMatchObject({ projectId: "matter-1",
       workProduct: { kind: "court-record", id: "record-1", revision: 1 } });
     expect(screen.getByRole("region", { name: "Court record builder" })).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Assistant conversation: 0" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Assistant conversation: 0" }));
     expect(screen.getByRole("button", { name: "Assistant conversation: 1" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Close assistant" }));
     expect(screen.getByText("Assistant conversation: 1")).not.toBeVisible();

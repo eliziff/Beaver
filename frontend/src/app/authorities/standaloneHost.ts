@@ -1,18 +1,13 @@
 import {
-  bindStandaloneFile, canRetainLocalFiles, pickRetainedFiles, readStandaloneOutput,
-  relinkStandaloneFile, resolveStandaloneFile, saveStandaloneArtifacts,
-  standaloneWorkProducts,
+  bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
+  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readStandaloneOutput,
+  relinkStandaloneFile, resolveStandaloneFile, retainStandaloneFile, saveStandaloneArtifacts,
+  standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/apiTransport";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesDraft } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
-
-function emptyDraft(): AuthoritiesDraft {
-  return { schemaVersion: "beaver.authorities-draft.v1", import: { kind: "manual" },
-    bindings: {}, outputMode: "both", insertIntoDocument: false,
-    units: [], occurrences: {}, authorities: {}, authorityOrder: [] };
-}
 
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
@@ -28,7 +23,7 @@ async function resolveExact(input: WorkProductInput) {
 async function findSourceIssues(state: AuthoritiesDraft) {
   const entries = await Promise.all(Object.entries(state.bindings).map(async ([role, input]) => {
     if (input.kind !== "local-file") return null;
-    const result = await resolveStandaloneFile(input);
+    const result = await inspectStandaloneFile(input);
     const issue: AuthoritiesSourceIssue | null = result.status === "changed"
       ? { status: "changed" } : result.status === "missing" ? result : null;
     return issue ? [role, issue] as const : null;
@@ -47,26 +42,58 @@ async function currentProduct(id: string, revision: number) {
   return product;
 }
 
-async function runtimeResponse(path: string, body: BodyInit, json = false) {
+async function runtimeResponse(path: string, body: BodyInit, json = false,
+  signal?: AbortSignal) {
   return apiResponse(`/authorities-runtime/${path}`, {
-    method: "POST", body, ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
+    method: "POST", body, signal,
+    ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
   });
 }
-async function runtime<T>(path: string, body: BodyInit, json = false) {
-  return await (await runtimeResponse(path, body, json)).json() as T;
+async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal) {
+  const response = await runtimeResponse(path, body, json, signal);
+  if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
+    return await response.json() as AuthoritiesDraft;
+  }
+  const form = await response.formData();
+  const state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
+  const attachments = JSON.parse(String(form.get("attachments"))) as Array<{
+    part: string; authorityId: string; filename: string; sourceSha256: string;
+  }>;
+  for (const item of attachments) {
+    signal?.throwIfAborted();
+    const source = state.authorities[item.authorityId]?.source, part = form.get(item.part);
+    if (source?.kind !== "attached" || source.filename !== item.filename ||
+        !(part instanceof File) ||
+        !/^[a-f0-9]{64}$/u.test(item.sourceSha256)) {
+      throw new Error("An automatic authority source was invalid.");
+    }
+    const file = new File([await part.arrayBuffer()], item.filename,
+      { type: "application/pdf", lastModified: 0 });
+    const binding = await retainStandaloneFile(file);
+    if (binding.lastSeen.sha256 !== item.sourceSha256 ||
+        source.sourceSha256 !== item.sourceSha256) {
+      throw new Error(`The downloaded bytes do not match ${item.filename}.`);
+    }
+    state.bindings[source.bindingRole] = binding;
+  }
+  return state;
 }
 
-async function refreshImported(state: AuthoritiesDraft, file: File) {
+async function refreshImported(state: AuthoritiesDraft, file: File, replace = false) {
   const form = new FormData(); form.append("draft", JSON.stringify(state));
   form.append("file", file, file.name); form.append("modified", String(file.lastModified));
-  return runtime<AuthoritiesDraft>("refresh", form);
+  if (replace) form.append("replace", "true");
+  return runtimeDraft("refresh", form);
 }
+const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-";
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
-  mode: "standalone",
   drafts: standaloneWorkProducts,
-  async create({ source, title }) {
-    const state = emptyDraft();
+  async create({ source, title, settings }) {
+    if (source.kind === "document") {
+      throw new Error("Choose a local PDF or Word document in the standalone app.");
+    }
+    let state: AuthoritiesDraft;
     if (source.kind === "file") {
       const binding = await bindStandaloneFile(source.selected.file, source.selected.input);
       const extension = source.selected.file.name
@@ -74,16 +101,22 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
       const form = new FormData(); form.append("file", source.selected.file);
       form.append("modified", String(source.selected.file.lastModified));
-      Object.assign(state, await runtime<AuthoritiesDraft>("import", form));
+      if (settings) form.append("settings", JSON.stringify(settings));
+      state = await runtimeDraft("import", form);
       state.bindings.source = binding;
-    }
+    } else state = await runtimeDraft("create", JSON.stringify({ settings }), true);
     return standaloneWorkProducts.create<AuthoritiesDraft>({ kind: "authorities", title, state });
   },
   async act(id, revision, action: AuthoritiesAction) {
     const product = await currentProduct(id, revision);
-    const state = await runtime<AuthoritiesDraft>("action",
+    const state = await runtimeDraft("action",
       JSON.stringify({ draft: product.state, action }), true);
     return save(id, revision, state);
+  },
+  async review(id, signal) {
+    const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
+    return runtimeResponse("discrepancies", JSON.stringify({ draft: product.state }), true, signal)
+      .then((response) => response.json());
   },
   async refresh(id, revision) {
     const product = await currentProduct(id, revision);
@@ -96,38 +129,76 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const state = structuredClone(product.state); state.bindings[role] = resolved.input;
     return save(id, revision, await refreshImported(state, resolved.file));
   },
+  async prepareSources(selected, signal) {
+    signal?.throwIfAborted();
+    const product = await currentProduct(selected.id, selected.revision);
+    const prepared = await runtimeDraft("sources",
+      JSON.stringify({ draft: product.state }), true, signal);
+    signal?.throwIfAborted();
+    return JSON.stringify(prepared) === JSON.stringify(product.state)
+      ? product : save(product.id, product.revision, prepared);
+  },
   async attach(id, authorityId, revision, selected) {
-    if (await selected.file.slice(0, 5).text() !== "%PDF-") throw new Error("Add a valid PDF.");
+    if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
     const product = await currentProduct(id, revision);
     const state = structuredClone(product.state), authority = state.authorities[authorityId];
     if (!authority) throw new Error("This authority no longer exists.");
-    const role = `authority:${authorityId}`;
     const binding = await bindStandaloneFile(selected.file, selected.input);
     const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl : null;
-    if (authority.source.kind === "attached") delete state.bindings[authority.source.bindingRole];
+    const role = authority.source.kind === "attached" ? authority.source.bindingRole
+      : `authority:${crypto.randomUUID()}`;
     state.bindings[role] = binding;
     authority.source = { kind: "attached", bindingRole: role, filename: selected.file.name,
-      sourceSha256: binding.lastSeen.sha256!, sourceUrl };
+      sourceSha256: binding.lastSeen.sha256!, sourceUrl, origin: "manual" };
     return save(id, revision, state);
   },
-  async build(selected) {
+  async attachBookPdf(id, revision, slot, selected) {
+    if (!await validPdf(selected.file)) throw new Error("Add a valid PDF.");
+    const product = await currentProduct(id, revision);
+    const previous = new Set(product.state.bookParts.supplements.map(({ id }) => id));
+    const binding = await bindStandaloneFile(selected.file, selected.input);
+    const form = new FormData(); form.append("draft", JSON.stringify(product.state));
+    form.append("slot", slot); form.append("file", selected.file, selected.file.name);
+    form.append("modified", String(selected.file.lastModified));
+    const state = await runtimeDraft("book-part", form);
+    const part = slot === "supplemental"
+      ? state.bookParts.supplements.find(({ id: partId }) => !previous.has(partId))
+      : state.bookParts[slot];
+    if (!part || part.sourceSha256 !== binding.lastSeen.sha256)
+      throw new Error("The selected PDF changed while it was being added.");
+    state.bindings[part.bindingRole] = binding;
+    return save(id, revision, state);
+  },
+  async build(selected, progress, signal) {
+    signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
+    const filingPdfs = product.state.insertIntoDocument &&
+      product.state.settings.profileId === "ab-court-of-appeal" &&
+      product.state.import.kind === "document" && product.state.import.fileType === "pdf";
     const roles = [
-      ...(product.state.outputMode === "table" ? [] :
+      ...(product.state.outputMode === "table" && !filingPdfs ? [] :
         Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
           !excluded && source.kind === "attached" ? [source.bindingRole] : [])),
       ...(product.state.insertIntoDocument && product.state.import.kind === "document"
         ? [product.state.import.bindingRole] : []),
+      ...(product.state.outputMode === "table" ? [] : [product.state.bookParts.cover,
+        product.state.bookParts.index, ...product.state.bookParts.supplements]
+        .flatMap((part) => part ? [part.bindingRole] : [])),
     ];
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
     form.append("id", product.id); form.append("revision", String(product.revision));
     form.append("title", product.title);
+    progress?.("Preparing sources");
     for (const role of roles) {
+      signal?.throwIfAborted();
       const file = await resolveExact(product.state.bindings[role]);
+      signal?.throwIfAborted();
       form.append("files", file, file.name);
     }
     form.append("roles", JSON.stringify(roles));
-    const response = await (await runtimeResponse("build", form)).formData();
+    progress?.("Building outputs");
+    const response = await (await runtimeResponse("build", form, false, signal)).formData();
+    signal?.throwIfAborted();
     const receipt = JSON.parse(String(response.get("receipt")));
     const artifacts = await Promise.all(Object.entries(receipt.outputs).map(async ([role, output]) => {
       const file = response.get(role), detail = output as {
@@ -135,50 +206,70 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       if (!(file instanceof File)) throw new Error(`The ${role} output is missing.`);
       return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
     }));
+    progress?.("Saving outputs");
     const saved = await saveStandaloneArtifacts(product, artifacts.map((artifact) =>
       ({ ...artifact, receipt })));
-    return { product: saved, receipt };
+    let notice: string | null;
+    try { notice = await writeStandaloneArtifactsToOutputFolder(artifacts.map((artifact) =>
+      ({ ...artifact, receipt }))); }
+    catch { notice = "Built files are ready to download; the output folder could not be used."; }
+    return { product: saved, receipt, ...(notice ? { notice } : {}) };
   },
   download: async (documentId, versionId) => {
     const saved = await readStandaloneOutputByDocument(documentId, versionId);
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },
-  ...(canRetainLocalFiles() ? {
-    async pickFiles(multiple: boolean) {
-      return pickRetainedFiles(multiple);
-    },
-    sourceIssues: (draft) => findSourceIssues(draft.state),
-    async relinkSource(id: string, role: string, revision: number) {
-      const product = await currentProduct(id, revision);
-      const binding = product.state.bindings[role];
-      if (binding?.kind !== "local-file") throw new Error("This source cannot be relinked.");
-      const resolved = await relinkStandaloneFile(binding, true);
-      if (resolved.status === "missing") throw new Error("Choose the source file to relink it.");
-      if (resolved.input.kind !== "local-file") throw new Error("This source cannot be relinked.");
-      const state = structuredClone(product.state), current = resolved.input.lastSeen;
-      const imported = state.import.kind === "document" && state.import.bindingRole === role
-        ? state.import : null;
-      const authority = Object.values(state.authorities).find(({ source }) =>
-        source.kind === "attached" && source.bindingRole === role);
-      if (!imported && !authority) throw new Error("This source no longer exists.");
-      if (imported) {
-        const extension = resolved.file.name.split(".").at(-1)?.toLowerCase();
-        if (extension !== imported.fileType) throw new Error(
-          `Choose a ${imported.fileType === "pdf" ? "PDF" : "Word document"}.`,
-        );
-        imported.filename = resolved.file.name;
-      } else if (authority?.source.kind === "attached") {
-        if (await resolved.file.slice(0, 5).text() !== "%PDF-")
-          throw new Error("Choose a valid PDF.");
-        authority.source.filename = resolved.file.name;
-        authority.source.sourceSha256 = current.sha256!;
-      }
-      const input = { ...resolved.input, lastSeen: current };
-      state.bindings[role] = input;
-      return save(id, revision, imported
-        ? await refreshImported(state, resolved.file) : state);
-    },
-  } : {}),
+  sourceIssues: (draft) => findSourceIssues(draft.state),
+  pickFiles: ({ multiple, accept }) => pickRetainedFiles(multiple, accept),
+  async relinkSource(id, role, revision) {
+    const product = await currentProduct(id, revision);
+    const binding = product.state.bindings[role];
+    if (binding?.kind !== "local-file") throw new Error("This source cannot be relinked.");
+    const state = structuredClone(product.state);
+    const imported = state.import.kind === "document" && state.import.bindingRole === role
+      ? state.import : null;
+    const authority = Object.values(state.authorities).find(({ source }) =>
+      source.kind === "attached" && source.bindingRole === role);
+    const bookPdf = [state.bookParts.cover, state.bookParts.index,
+      ...state.bookParts.supplements].find((part) => part?.bindingRole === role);
+    const boundPdf = authority?.source.kind === "attached" ? authority.source : bookPdf;
+    const resolved = await relinkStandaloneFile(binding, true, authority || bookPdf ? "pdf" : "source");
+    if (resolved.status === "missing") throw new Error("Choose the source file to relink it.");
+    if (resolved.input.kind !== "local-file") throw new Error("This source cannot be relinked.");
+    const current = resolved.input.lastSeen;
+    if (!imported && !boundPdf) throw new Error("This source no longer exists.");
+    if (imported) {
+      const extension = resolved.file.name.split(".").at(-1)?.toLowerCase();
+      if (extension !== imported.fileType) throw new Error(
+        `Choose a ${imported.fileType === "pdf" ? "PDF" : "Word document"}.`,
+      );
+      imported.filename = resolved.file.name;
+    } else if (boundPdf) {
+      if (!await validPdf(resolved.file)) throw new Error("Choose a valid PDF.");
+      boundPdf.filename = resolved.file.name;
+      boundPdf.sourceSha256 = current.sha256!;
+    }
+    state.bindings[role] = { ...resolved.input, lastSeen: current };
+    return save(id, revision, imported
+      ? await refreshImported(state, resolved.file) : state);
+  },
+  async replaceSource(id, revision, selected) {
+    const product = await currentProduct(id, revision);
+    if (product.state.import.kind !== "document") {
+      throw new Error("Only an imported document can be replaced.");
+    }
+    const extension = selected.file.name.split(".").at(-1)?.toLowerCase();
+    if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
+    const binding = await bindStandaloneFile(selected.file, selected.input);
+    const state = await refreshImported(product.state, selected.file, true);
+    state.bindings[state.import.kind === "document" ? state.import.bindingRole : "source"] = binding;
+    return save(id, revision, state);
+  },
+  outputFolder: {
+    get: getStandaloneOutputFolder,
+    choose: chooseStandaloneOutputFolder,
+    clear: clearStandaloneOutputFolder,
+  },
 };
 
 async function readStandaloneOutputByDocument(documentId: string, versionId: string) {

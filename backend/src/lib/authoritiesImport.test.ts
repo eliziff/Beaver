@@ -3,7 +3,9 @@ import { createAuthoritiesImporter, importStandaloneAuthoritiesFile } from "./au
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
+import { structureNative } from "./structureNative";
 import { Document, Packer, Paragraph } from "docx";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
 const scope = { userId: "user-1" };
 
@@ -19,16 +21,71 @@ const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
 describe("authorities import application", () => {
   it("runs standalone DOCX bytes through the installed Rust runtime", async () => {
     const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
-      new Paragraph("Example v Example, 2024 ABKB 123 at para 7."),
+      new Paragraph("Example v Example, 2024 ABKB 123 at para 7 [Example]."),
+      new Paragraph("Ibid at para 9."),
+      new Paragraph("Example, supra at para 11."),
     ] }] }));
     const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes, modified: 1 });
+      fileType: "docx", bytes, modified: 1, sourceMode: "manual-originals" });
     expect(state.authorityOrder).toHaveLength(1);
     expect(state.authorities[state.authorityOrder[0]].citation).toBe("2024 ABKB 123");
     expect(state.authorities[state.authorityOrder[0]].source).toMatchObject({
       kind: "pending-canlii",
       pdfUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf",
     });
+    expect(Object.values(state.occurrences).filter(({ kind }) => kind === "reference"))
+      .toMatchObject([
+        { citation: "Ibid", text: "Ibid at para 9", authoritySpan: { text: "Ibid" },
+          pinpointSpan: { text: "9" }, sourceTextSha256: sha256("Ibid at para 9."),
+          localOrdinal: 0, authorityId: state.authorityOrder[0], reviewed: true,
+          reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } },
+        { citation: "supra", text: "supra at para 11", authoritySpan: { text: "supra" },
+          pinpointSpan: { text: "11" }, authorityId: state.authorityOrder[0], reviewed: true,
+          reference: { kind: "supra", targetAuthorityId: state.authorityOrder[0] } },
+      ]);
+  });
+
+  it("finds ordinary references through a real PDF projection", async () => {
+    const pdf = await PDFDocument.create(), page = pdf.addPage(),
+      font = await pdf.embedFont(StandardFonts.Helvetica);
+    page.drawText("R v Grant, 2009 SCC 32", { x: 50, y: 700, font, size: 12 });
+    page.drawText("Ibid at para 7.", { x: 50, y: 680, font, size: 12 });
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.pdf",
+      fileType: "pdf", bytes: Buffer.from(await pdf.save()), modified: 1 });
+    const reference = Object.values(state.occurrences).find(({ kind }) => kind === "reference");
+    expect(state.authorityOrder).toHaveLength(1);
+    expect(reference).toMatchObject({ citation: "Ibid", authorityId: state.authorityOrder[0],
+      reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } });
+  });
+
+  it("links supra notes only when their native reference target is unambiguous", async () => {
+    const runtime = structureNative();
+    const text = [
+      "R v Smith, 2020 SCC 1; R v Smith, 2020 SCC 2.",
+      "Gamma v Delta, 2021 SCC 3.",
+      "R v Smith, supra note 1 at para 4.",
+      "Gamma v Delta, supra note 2 at para 5.",
+    ];
+    const units = text.map((value, index) => ({ key: `footnote:${index + 1}`,
+      kind: "footnote" as const, ordinal: index + 1, footnote_id: index + 1,
+      page_numbers: [], text: value, footnote_refs: [] }));
+    const native = {
+      docxAuthorityTextUnits: vi.fn(), pdfAuthorityTextUnits: vi.fn(() => units),
+      citationOccurrencesInText: (value: string) => runtime.citationOccurrencesInText(value),
+      authorityReferencesInText: (value: string) => runtime.authorityReferencesInText(value),
+      citationLookupKey: (value: string) => runtime.citationLookupKey(value),
+    };
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.pdf",
+      fileType: "pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF"), modified: 1 },
+    { read: vi.fn(async () => ({})) as never }, native);
+    const references = Object.values(state.occurrences)
+      .filter(({ kind }) => kind === "reference");
+
+    expect(references[0]).toMatchObject({ citation: "supra note 1", authorityId: null,
+      reference: null, reviewed: false, pinpointSpan: { text: "4" } });
+    expect(state.units[2].occurrenceIds).toContain(references[0].id);
+    expect(references[1]).toMatchObject({ citation: "supra note 2", reviewed: true,
+      reference: { kind: "supra", targetAuthorityId: references[1].authorityId } });
   });
 
   it("imports standalone bytes through the same Rust occurrence scan", async () => {
@@ -37,6 +94,7 @@ describe("authorities import application", () => {
       kind: "body" as const, ordinal: 0, footnote_id: null, page_numbers: [1],
       text: citation, footnote_refs: [] }]), pdfAuthorityTextUnits: vi.fn(),
       citationLookupKey: vi.fn(() => "2024-abca-1"), citationLookupKeys: vi.fn(),
+      authorityReferencesInText: vi.fn(() => []),
       citationOccurrencesInText: vi.fn(() => [{
         text: citation, start: 0, end: citation.length,
         styledCitation: { text: citation, start: 0, end: citation.length },
@@ -48,8 +106,7 @@ describe("authorities import application", () => {
     expect(state).toMatchObject({ import: { filename: "Brief.docx", snapshot: null },
       bindings: { source: { kind: "local-file", lastSeen: { modified: 42 } } },
       authorityOrder: ["2024-abca-1"], authorities: { "2024-abca-1": {
-        source: { kind: "pending-canlii",
-          pdfUrl: "https://www.canlii.org/en/ab/abca/doc/2024/2024abca1/2024abca1.pdf" },
+        source: { kind: "unresolved" },
       } } });
     expect(native.docxAuthorityTextUnits).toHaveBeenCalledWith(bytes);
     expect(native.citationOccurrencesInText).toHaveBeenCalledWith(citation);
@@ -73,6 +130,7 @@ describe("authorities import application", () => {
       pdfAuthorityTextUnits: vi.fn(() => { throw new Error("PDF parser must not run"); }),
       citationLookupKey: vi.fn(() => "2016-scc-27"),
       citationLookupKeys: vi.fn(),
+      authorityReferencesInText: vi.fn(() => []),
       citationOccurrencesInText: vi.fn((unit: string) => unit === body ? [{
         text, start, end,
         styledCitation: { text: "R. v. Jordan, 2016 SCC 27", start,
@@ -106,6 +164,10 @@ describe("authorities import application", () => {
     expect(state.units[0].pageNumbers).toEqual([]);
     expect(state.occurrences["body:0:0"]).toMatchObject({
       unitId: "body:0", start, end, text,
+      authoritySpan: { start, end: coreStart + core.length,
+        text: body.slice(start, coreStart + core.length) },
+      coreSpan: { start: coreStart, end: coreStart + core.length, text: core },
+      pinpointSpan: { start: end - 1, end, text: "7" },
       sourceTextSha256: sha256(body), localOrdinal: 0,
       pinpoints: [{ kind: "paragraph", text: "7" }],
     });
@@ -214,7 +276,8 @@ describe("authorities import application", () => {
     const native = {
       docxAuthorityTextUnits: vi.fn(() => { throw new Error("DOCX parser must not run"); }),
       pdfAuthorityTextUnits,
-      citationOccurrencesInText: vi.fn(() => []), citationLookupKey: vi.fn(),
+      citationOccurrencesInText: vi.fn(() => []),
+      authorityReferencesInText: vi.fn(() => []), citationLookupKey: vi.fn(),
     };
     const read = vi.fn(async () => projection);
     const importer = createAuthoritiesImporter(documents, { read: read as never }, native as never);

@@ -1,12 +1,12 @@
 use legal_structure::{
-    analyze_instrument, analyze_native_markup, caselaw_citation_lookup_key, citation_lookup_key,
-    citation_occurrences_in_text, classify_citator_excerpt, document_fingerprint,
-    docx_structure_lint, grounded_prose_errors, has_citation_in_text, journal_document_structure,
-    journal_text_document_structure, marked_quote_spans, provider_citations_in_text,
-    provider_text_document_structure, quote_repair_suggestion, text_fragment_plan,
-    utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentKind, DocumentOrigin,
-    DocumentQuery, DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput,
-    ProviderTextInput, VisibleEvidenceText,
+    analyze_instrument, analyze_native_markup, authority_references_in_text,
+    caselaw_citation_lookup_key, citation_lookup_key, citation_occurrences_in_text,
+    classify_citator_excerpt, document_fingerprint, docx_structure_lint, grounded_prose_errors,
+    has_citation_in_text, journal_document_structure, journal_text_document_structure,
+    marked_quote_spans, provider_citations_in_text, provider_text_document_structure,
+    quote_repair_suggestion, text_fragment_plan, utf16_prefix_ceil, AuthoritativeTableCell,
+    DocumentFingerprint, DocumentKind, DocumentOrigin, DocumentQuery, DocumentStructure,
+    FollowDirection, JournalPageLabel, NativeMarkupInput, ProviderTextInput, VisibleEvidenceText,
 };
 #[cfg(feature = "legalpdf")]
 use napi::bindgen_prelude::Buffer;
@@ -212,6 +212,7 @@ pub fn derive_document_fingerprint_node(
 #[cfg(feature = "legalpdf")]
 mod legalpdf_exports {
     use super::*;
+    use std::collections::HashSet;
 
     pub struct DeriveDocxDocumentTask {
         bytes: Buffer,
@@ -543,6 +544,227 @@ mod legalpdf_exports {
         };
         js_value(env, &document.authority_text_units())
     }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct PassageTarget {
+        id: String,
+        locator_kind: String,
+        locator: String,
+    }
+
+    struct PassagePlan {
+        id: String,
+        page: bool,
+        status: legalpdf::PdfLookupStatus,
+        pages: Vec<u32>,
+        lines: Vec<String>,
+        fallback_markers: Vec<String>,
+    }
+
+    fn starts_with_exact_marker(text: &str, marker: &str) -> bool {
+        text.trim_start()
+            .strip_prefix(marker)
+            .is_some_and(|rest| rest.chars().next().is_none_or(char::is_whitespace))
+    }
+
+    pub struct PdfPassagePagesTask {
+        bytes: Buffer,
+        summary: legalpdf::PdfSummary,
+        plans: Option<Vec<PassagePlan>>,
+    }
+
+    impl Task for PdfPassagePagesTask {
+        type Output = serde_json::Value;
+        type JsValue = Unknown<'static>;
+
+        fn compute(&mut self) -> napi::Result<Self::Output> {
+            let pdf = legal_pdf_extraction::extract_pdf(&self.bytes, None, None)
+                .map_err(|error| Error::from_reason(error.to_string()))?;
+            let unavailable = pdf
+                .metadata
+                .pages_needing_ocr
+                .iter()
+                .copied()
+                .chain(pdf.metadata.ocr_routed_pages.iter().copied())
+                .collect::<HashSet<_>>();
+            let targets = self
+                .plans
+                .take()
+                .unwrap()
+                .into_iter()
+                .map(|plan| {
+                    let mut selected = plan
+                        .lines
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<HashSet<_>>();
+                    let hits = pdf
+                        .pages
+                        .iter()
+                        .flat_map(|page| page.lines.iter())
+                        .filter_map(|line| {
+                            plan.fallback_markers
+                                .iter()
+                                .position(|marker| starts_with_exact_marker(&line.text, marker))
+                                .map(|marker| (marker, line))
+                        })
+                        .collect::<Vec<_>>();
+                    let counts = (0..plan.fallback_markers.len())
+                        .map(|marker| hits.iter().filter(|(index, _)| *index == marker).count())
+                        .collect::<Vec<_>>();
+                    let exact = !counts.is_empty() && counts.iter().all(|count| *count == 1);
+                    let ambiguous = counts.iter().any(|count| *count > 1);
+                    if exact {
+                        selected.clear();
+                        selected.extend(hits.iter().map(|(_, line)| line.id.as_str()));
+                    } else if ambiguous {
+                        selected.clear();
+                    }
+                    let status = if exact {
+                        legalpdf::PdfLookupStatus::Found
+                    } else if ambiguous {
+                        legalpdf::PdfLookupStatus::Ambiguous
+                    } else {
+                        plan.status
+                    };
+                    let selected_pages = pdf
+                        .pages
+                        .iter()
+                        .filter(|page| {
+                            page.lines
+                                .iter()
+                                .any(|line| selected.contains(line.id.as_str()))
+                        })
+                        .map(|page| page.number)
+                        .collect::<HashSet<_>>();
+                    let pages = pdf
+                        .pages
+                        .iter()
+                        .filter(|page| {
+                            (!exact && !ambiguous && plan.pages.contains(&page.number))
+                                || selected_pages.contains(&page.number)
+                        })
+                        .map(|page| {
+                            let available =
+                                page.source == "native" && !unavailable.contains(&page.index);
+                            let lines = page
+                                .lines
+                                .iter()
+                                .filter(|line| {
+                                    (plan.page && selected.is_empty())
+                                        || selected.contains(line.id.as_str())
+                                })
+                                .collect::<Vec<_>>();
+                            serde_json::json!({
+                                "pageNumber": page.number,
+                                "width": page.width,
+                                "height": page.height,
+                                "source": if available { "native" } else { "unavailable" },
+                                "lines": if available { lines.iter().map(|line| serde_json::json!({
+                                    "id": line.id,
+                                    "rect": line.bbox,
+                                    "words": line.words.iter().map(|word| serde_json::json!({
+                                        "text": word.text, "rect": word.bbox
+                                    })).collect::<Vec<_>>()
+                                })).collect::<Vec<_>>() } else { Vec::new() }
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    serde_json::json!({ "id": plan.id, "status": status, "pages": pages })
+                })
+                .collect::<Vec<_>>();
+            Ok(serde_json::json!({
+                "schemaVersion": "legalpdf.passage-pages.v1",
+                "sourceSha256": self.summary.sha256,
+                "parserVersion": self.summary.parser_version,
+                "coordinateSpace": "visible_crop_box",
+                "coordinateOrigin": "top_left",
+                "rotationApplied": true,
+                "targets": targets,
+            }))
+        }
+
+        fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
+            js_value(env, &output)
+        }
+    }
+
+    #[napi(js_name = "pdfPassageGeometryPages")]
+    pub fn pdf_passage_geometry_pages_node(
+        env: Env,
+        native: &External<NativeDocument>,
+        bytes: Buffer,
+        targets: Unknown<'_>,
+    ) -> napi::Result<AsyncTask<PdfPassagePagesTask>> {
+        let NativeProduct::Pdf(document) = &native.product else {
+            return Err(Error::from_reason(
+                "PDF passage geometry requires a PDF document",
+            ));
+        };
+        let targets: Vec<PassageTarget> = env.from_js_value(targets)?;
+        let plans = targets
+            .into_iter()
+            .map(|target| {
+                let lookup = document.lookup(&legalpdf::PdfLookupRequest::new(
+                    &target.locator_kind,
+                    &target.locator,
+                ));
+                let lines = lookup
+                    .matches
+                    .iter()
+                    .filter_map(|id| {
+                        document
+                            .structure()
+                            .nodes
+                            .iter()
+                            .find(|node| &node.id == id)
+                    })
+                    .flat_map(|node| node.line_ids.iter().cloned())
+                    .collect();
+                let mut pages = lookup
+                    .units
+                    .iter()
+                    .flat_map(|unit| unit.page_numbers.iter().copied())
+                    .collect::<Vec<_>>();
+                if pages.is_empty() && target.locator_kind == "page" {
+                    pages.extend(
+                        legal_pdf_support::parse_ordinal("page", &target.locator)
+                            .filter(|page| *page <= document.page_count())
+                            .map(|page| page as u32),
+                    );
+                }
+                let fallback_markers = if target.locator_kind == "paragraph" {
+                    let range = legal_pdf_support::numeric_range("paragraph", &target.locator)
+                        .or_else(|| {
+                            legal_pdf_support::parse_ordinal("paragraph", &target.locator)
+                                .map(|number| (number, number))
+                        });
+                    range
+                        .filter(|(start, end)| start <= end && end - start < 100)
+                        .map(|(start, end)| (start..=end).map(|number| format!("[{number}]")))
+                        .into_iter()
+                        .flatten()
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                PassagePlan {
+                    id: target.id,
+                    page: target.locator_kind == "page",
+                    status: lookup.status,
+                    pages,
+                    lines,
+                    fallback_markers,
+                }
+            })
+            .collect();
+        Ok(AsyncTask::new(PdfPassagePagesTask {
+            bytes,
+            summary: document.summary().clone(),
+            plans: Some(plans),
+        }))
+    }
 }
 
 #[napi(js_name = "docxStructureLint")]
@@ -692,6 +914,11 @@ pub fn provider_citations_in_text_node(env: Env, text: String) -> napi::Result<U
 #[napi(js_name = "citationOccurrencesInText")]
 pub fn citation_occurrences_in_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
     js_value(env, &citation_occurrences_in_text(&text))
+}
+
+#[napi(js_name = "authorityReferencesInText")]
+pub fn authority_references_in_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &authority_references_in_text(&text))
 }
 
 #[napi(js_name = "caselawCitationLookupKey")]

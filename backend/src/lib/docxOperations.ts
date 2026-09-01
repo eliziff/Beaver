@@ -274,6 +274,8 @@ export type DocxAuthorityMark = {
   shortName: string;
   category: 1 | 2 | 3 | 5;
 };
+export type DocxTableDelivery = "native-marks" | "native-append" | "linked-append";
+export type DocxLinkedAuthority = { label: string; url: string | null };
 
 function walk(root: XNode | XNode[], visit: (node: XNode) => boolean | void) {
   const pending = (Array.isArray(root) ? root : [root]).slice().reverse();
@@ -363,11 +365,40 @@ function insertField(root: XNode, offset: number, instruction: string) {
 const fieldText = (value: string) => value.replace(/\s+/gu, " ").trim()
   .replace(/["\\]/gu, "'");
 
-/** Copies a reviewed DOCX, marks its citations, and adds a native Word TOA at the end. */
-export async function addNativeTableOfAuthorities(
+function linkedTable(entries: readonly DocxLinkedAuthority[]) {
+  const run = (value: string, linked = false) => makeEl("w:r", [
+    ...(linked ? [makeEl("w:rPr", [makeEl("w:color", [], { "w:val": "0563C1" }),
+      makeEl("w:u", [], { "w:val": "single" })])] : []),
+    makeEl("w:t", [makeText(value)], /^\s|\s$/u.test(value)
+      ? { "xml:space": "preserve" } : {}),
+  ]);
+  const link = (value: string | null) => {
+    try {
+      const parsed = new URL(value ?? "");
+      return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : null;
+    } catch { return null; }
+  };
+  return [
+    makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
+    makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
+      run("TABLE OF AUTHORITIES")]),
+    ...entries.map(({ label, url }, index) => {
+      const href = link(url), children = [run(`${index + 1}. `)];
+      children.push(href ? makeEl("w:fldSimple", [run(label, true)], {
+        "w:instr": ` HYPERLINK "${href}" `,
+      }) : run(label));
+      return makeEl("w:p", children);
+    }),
+  ];
+}
+
+/** Applies the selected Word-native or static linked Authorities delivery. */
+export async function applyTableOfAuthorities(
   bytes: Buffer,
   units: ReadonlyArray<{ id: string; text: string }>,
   marks: readonly DocxAuthorityMark[],
+  delivery: DocxTableDelivery,
+  linked: readonly DocxLinkedAuthority[] = [],
 ) {
   const session = await openDocxSession(bytes);
   const document = await session.document();
@@ -385,21 +416,24 @@ export async function addNativeTableOfAuthorities(
       throw new Error(`Reviewed text no longer matches ${unit.id}.`);
     }
   }
-  for (const mark of [...marks].sort((left, right) =>
-    right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
-    const target = targets.get(mark.unitId);
-    if (!target) throw new Error(`Reviewed Word location is missing: ${mark.unitId}.`);
-    insertField(target, mark.offset,
-      ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
+  if (delivery !== "linked-append") {
+    for (const mark of [...marks].sort((left, right) =>
+      right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
+      const target = targets.get(mark.unitId);
+      if (!target) throw new Error(`Reviewed Word location is missing: ${mark.unitId}.`);
+      insertField(target, mark.offset,
+        ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
+    }
   }
   const body = document.body, children = elChildren(body);
   const section = children.findIndex((node) => elName(node) === "w:sectPr");
-  children.splice(section < 0 ? children.length : section, 0,
+  const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
       makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
     makeEl("w:p", fieldRuns(' TOA \\h \\e "\\t" ', false)),
-  );
+  ] : delivery === "linked-append" ? linkedTable(linked) : [];
+  children.splice(section < 0 ? children.length : section, 0, ...appended);
   session.writeDocument(document.tree);
   if (footnotes) session.write("word/footnotes.xml",
     ensureXmlDeclaration(createBuilder().build(footnotes)));
@@ -413,3 +447,10 @@ export async function addNativeTableOfAuthorities(
   }
   return session.save();
 }
+
+/** Existing native-append primitive retained for direct callers. */
+export const addNativeTableOfAuthorities = (
+  bytes: Buffer,
+  units: ReadonlyArray<{ id: string; text: string }>,
+  marks: readonly DocxAuthorityMark[],
+) => applyTableOfAuthorities(bytes, units, marks, "native-append");

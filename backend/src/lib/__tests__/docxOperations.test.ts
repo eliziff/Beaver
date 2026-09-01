@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { renderMarkdownDocx } from "../chat/tools/documentOps";
 import {
   applyDocxBodyEdit,
+  applyTableOfAuthorities,
   addNativeTableOfAuthorities,
   inspectDocxBody,
   previewDocxBodyEdit,
@@ -112,6 +113,39 @@ describe("exact DOCX body operation receipt", () => {
 });
 
 describe("native Word Table of Authorities output", () => {
+  it("supports mark-only and static linked append without conflating their structures",
+    async () => {
+    const body = "R v Grant, 2009 SCC 32";
+    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+      new Paragraph({ children: [new TextRun(body)] }),
+    ] }] }));
+    const mark = { unitId: "body:0", offset: body.length, longName: body,
+      shortName: "R v Grant", category: 1 as const };
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
+      [mark], "native-marks");
+    const markedXml = await (await JSZip.loadAsync(marked))
+      .file("word/document.xml")!.async("string");
+    expect(markedXml).toContain(" TA \\l");
+    expect(markedXml).not.toContain(" TOA \\h");
+    expect(markedXml).not.toContain("Table of Authorities");
+
+    const linked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
+      [mark], "linked-append", [
+        { label: body, url: "https://decisions.example.test/grant?a=1&b=2" },
+        { label: "Unlinked authority", url: null },
+      ]);
+    const linkedXml = await (await JSZip.loadAsync(linked))
+      .file("word/document.xml")!.async("string");
+    expect(linkedXml).not.toContain(" TA \\l");
+    expect(linkedXml).toContain("TABLE OF AUTHORITIES");
+    expect(linkedXml).toContain("R v Grant, 2009 SCC 32");
+    expect(linkedXml).toContain("HYPERLINK &quot;https://decisions.example.test/grant?a=1&amp;b=2&quot;");
+    expect(linkedXml).toContain("Unlinked authority");
+    expect(linkedXml).not.toContain("copy required");
+    expect(linkedXml.indexOf("TABLE OF AUTHORITIES")).toBeLessThan(
+      linkedXml.indexOf("w:sectPr"));
+  });
+
   it("marks body and footnote citations and appends one updateable TOA before sectPr", async () => {
     const body = "R v Grant, 2009 SCC 32";
     const footnote = "Federal Courts Act, RSC 1985, c F-7";

@@ -4,13 +4,17 @@ import {
   type InputResolution,
   type WorkProduct,
   type WorkProductInput,
+  type WorkProductMetadata,
   type WorkProductStore,
 } from "./workProducts";
 
 const DATABASE = "beaver-work-products";
 const DRAFTS = "drafts";
+const METADATA = "metadata";
 const HANDLES = "fileHandles";
+const FILES = "files";
 const OUTPUTS = "outputs";
+const OUTPUT_FOLDER = "preference:authorities-output-folder";
 const MAX_UNCLAIMED_HANDLES = 64;
 const UNCLAIMED_HANDLE_MAX_AGE = 24 * 60 * 60 * 1_000;
 
@@ -35,10 +39,15 @@ type StoredOutput = Omit<StandaloneArtifact, "bytes"> & {
   bytes: ArrayBuffer;
   createdAt: string;
 };
-type StoredHandle = { id: string; handle: FileSystemFileHandle; createdAt: number };
+type StoredHandle = {
+  id: string;
+  handle: FileSystemFileHandle | FileSystemDirectoryHandle;
+  createdAt: number;
+};
+type StoredFile = { id: string; mimeType: string; bytes: ArrayBuffer };
 type LocalFileInput = Extract<WorkProductInput, { kind: "local-file" }>;
+const storedFileId = (sha256: string) => `stored:${sha256}`;
 
-const sessionFiles = new Map<string, File>();
 const selectedInputs = new WeakMap<File, LocalFileInput>();
 
 export const standaloneWorkProducts: WorkProductStore = {
@@ -47,6 +56,11 @@ export const standaloneWorkProducts: WorkProductStore = {
     return drafts.filter((draft) => draft.kind === kind &&
       (projectId === undefined || draft.projectId === projectId))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) as never;
+  },
+  async listMetadata(kind, projectId) {
+    return (await all<WorkProductMetadata>(METADATA)).filter((draft) => draft.kind === kind &&
+      (projectId === undefined || draft.projectId === projectId))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   },
   async get(id) {
     const draft = await read<WorkProduct>(DRAFTS, id);
@@ -65,16 +79,23 @@ export const standaloneWorkProducts: WorkProductStore = {
       createdAt: now,
       updatedAt: now,
     };
-    const database = await openDatabase(), transaction = database.transaction(DRAFTS, "readwrite");
+    const database = await openDatabase(), transaction = database.transaction(
+      [DRAFTS, METADATA, FILES], "readwrite",
+    );
     const store = transaction.objectStore(DRAFTS);
-    assertDependencies(draft.id, draft.state, await request<WorkProduct[]>(store.getAll()));
+    const current = await request<WorkProduct[]>(store.getAll());
+    assertDependencies(draft.id, draft.state, current);
     store.add(draft);
+    transaction.objectStore(METADATA).add(draftMetadata(draft));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [...current, draft]);
     await completed(transaction);
     return draft as never;
   },
   async update(id, patch) {
     const database = await openDatabase();
-    const transaction = database.transaction([DRAFTS, HANDLES], "readwrite");
+    const transaction = database.transaction(
+      [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
+    );
     const store = transaction.objectStore(DRAFTS);
     const drafts = await request<WorkProduct[]>(store.getAll());
     const current = drafts.find((draft) => draft.id === id);
@@ -83,24 +104,35 @@ export const standaloneWorkProducts: WorkProductStore = {
     if (patch.outputs !== undefined) {
       throw new Error("Standalone outputs must be saved with their built artifacts.");
     }
+    const invalidatesOutput = patch.title !== undefined || patch.state !== undefined;
     const next: WorkProduct = {
       ...current,
       title: patch.title === undefined ? current.title : draftTitle(patch.title),
       projectId: patch.projectId === undefined ? current.projectId : patch.projectId,
       state: patch.state === undefined ? current.state : patch.state,
+      outputs: invalidatesOutput ? {} : current.outputs,
       revision: current.revision + 1,
       updatedAt: new Date().toISOString(),
     };
     assertDependencies(id, next.state, drafts);
     store.put(next);
+    transaction.objectStore(METADATA).put(draftMetadata(next));
+    if (invalidatesOutput) for (const output of Object.values(current.outputs)) {
+      transaction.objectStore(OUTPUTS).delete(output.versionId);
+    }
     await cleanupHandles(transaction.objectStore(HANDLES), [
       ...drafts.filter((draft) => draft.id !== id), next,
     ], handleIds(current));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [
+      ...drafts.filter((draft) => draft.id !== id), next,
+    ]);
     await completed(transaction);
     return next as never;
   },
   async duplicate(id, input = {}) {
-    const database = await openDatabase(), transaction = database.transaction(DRAFTS, "readwrite");
+    const database = await openDatabase(), transaction = database.transaction(
+      [DRAFTS, METADATA, FILES], "readwrite",
+    );
     const store = transaction.objectStore(DRAFTS), drafts =
       await request<WorkProduct[]>(store.getAll());
     const source = drafts.find((draft) => draft.id === id);
@@ -112,12 +144,16 @@ export const standaloneWorkProducts: WorkProductStore = {
       revision: 1, state: structuredClone(source.state), outputs: {}, createdAt: now, updatedAt: now,
     };
     store.add(copy);
+    transaction.objectStore(METADATA).add(draftMetadata(copy));
+    await cleanupStoredFiles(transaction.objectStore(FILES), [...drafts, copy]);
     await completed(transaction);
     return copy as never;
   },
   async remove(id) {
     const database = await openDatabase();
-    const transaction = database.transaction([DRAFTS, HANDLES, OUTPUTS], "readwrite");
+    const transaction = database.transaction(
+      [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
+    );
     const store = transaction.objectStore(DRAFTS), outputStore = transaction.objectStore(OUTPUTS);
     const [drafts, outputs] = await Promise.all([
       request<WorkProduct[]>(store.getAll()), request<StoredOutput[]>(outputStore.getAll()),
@@ -125,9 +161,12 @@ export const standaloneWorkProducts: WorkProductStore = {
     const current = drafts.find((draft) => draft.id === id);
     if (!current) throw new Error("This draft no longer exists.");
     store.delete(id);
+    transaction.objectStore(METADATA).delete(id);
     for (const output of outputs) if (output.workProductId === id) outputStore.delete(output.id);
     await cleanupHandles(transaction.objectStore(HANDLES),
       drafts.filter((draft) => draft.id !== id), handleIds(current));
+    await cleanupStoredFiles(transaction.objectStore(FILES),
+      drafts.filter((draft) => draft.id !== id));
     await completed(transaction);
   },
 };
@@ -151,7 +190,7 @@ export async function saveStandaloneArtifacts<State>(
     return { ...artifact, role };
   }));
   const database = await openDatabase();
-  const transaction = database.transaction([DRAFTS, OUTPUTS], "readwrite");
+  const transaction = database.transaction([DRAFTS, METADATA, OUTPUTS], "readwrite");
   const drafts = transaction.objectStore(DRAFTS), outputs = transaction.objectStore(OUTPUTS);
   const current = await request<WorkProduct<State> | undefined>(drafts.get(product.id));
   if (!current) throw new Error("This draft no longer exists.");
@@ -174,6 +213,7 @@ export async function saveStandaloneArtifacts<State>(
   const next: WorkProduct<State> = { ...current, outputs: saved,
     revision: current.revision + 1, updatedAt: now };
   drafts.put(next);
+  transaction.objectStore(METADATA).put(draftMetadata(next));
   await completed(transaction);
   return next;
 }
@@ -246,11 +286,19 @@ async function cleanupHandles(store: IDBObjectStore, drafts: WorkProduct[],
   removed = new Set<string>(), maximum = MAX_UNCLAIMED_HANDLES) {
   const used = new Set(drafts.flatMap((draft) => [...handleIds(draft)]));
   const unclaimed = (await request<StoredHandle[]>(store.getAll()))
-    .filter(({ id }) => !used.has(id)).sort((left, right) => right.createdAt - left.createdAt);
+    .filter(({ id }) => id !== OUTPUT_FOLDER && !used.has(id))
+    .sort((left, right) => right.createdAt - left.createdAt);
   const cutoff = Date.now() - UNCLAIMED_HANDLE_MAX_AGE;
   unclaimed.forEach((item, index) => {
     if (removed.has(item.id) || item.createdAt < cutoff || index >= maximum) store.delete(item.id);
   });
+}
+
+async function cleanupStoredFiles(store: IDBObjectStore, drafts: WorkProduct[]) {
+  const used = new Set(drafts.flatMap((draft) => [...handleIds(draft)]));
+  for (const id of await request<IDBValidKey[]>(store.getAllKeys())) {
+    if (typeof id === "string" && !used.has(id)) store.delete(id);
+  }
 }
 
 type PickerWindow = Window & typeof globalThis & {
@@ -258,30 +306,83 @@ type PickerWindow = Window & typeof globalThis & {
     multiple?: boolean;
     types?: Array<{ description: string; accept: Record<string, string[]> }>;
   }) => Promise<FileSystemFileHandle[]>;
+  showDirectoryPicker?: (options?: { id?: string; mode?: "read" | "readwrite" }) =>
+    Promise<FileSystemDirectoryHandle>;
 };
-type PermissionFileHandle = FileSystemFileHandle & {
-  queryPermission?(options: { mode: "read" }): Promise<PermissionState>;
-  requestPermission?(options: { mode: "read" }): Promise<PermissionState>;
+type PermissionHandle = FileSystemHandle & {
+  queryPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
+  requestPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
 };
 
-export function canRetainLocalFiles() {
-  return typeof window !== "undefined" &&
-    typeof (window as PickerWindow).showOpenFilePicker === "function";
+async function outputFolder() {
+  const saved = await read<StoredHandle>(HANDLES, OUTPUT_FOLDER);
+  return saved?.handle.kind === "directory" ? saved.handle : null;
 }
 
-export async function pickRetainedFiles(multiple: boolean): Promise<Array<{
+export async function getStandaloneOutputFolder() {
+  try {
+    const handle = await outputFolder(), query = (handle as PermissionHandle | null)?.queryPermission;
+    return handle && (!query || await query.call(handle, { mode: "readwrite" }) === "granted")
+      ? handle.name : null;
+  } catch { return null; }
+}
+
+export async function chooseStandaloneOutputFolder() {
+  const picker = typeof window === "undefined" ? undefined
+    : (window as PickerWindow).showDirectoryPicker;
+  if (!picker) return null;
+  try {
+    const handle = await picker({ id: "authorities-output", mode: "readwrite" });
+    const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
+    transaction.objectStore(HANDLES).put({ id: OUTPUT_FOLDER, handle,
+      createdAt: Date.now() } satisfies StoredHandle);
+    await completed(transaction);
+    return handle.name;
+  } catch { return getStandaloneOutputFolder(); }
+}
+
+export async function clearStandaloneOutputFolder() {
+  const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
+  transaction.objectStore(HANDLES).delete(OUTPUT_FOLDER);
+  await completed(transaction);
+}
+
+export async function writeStandaloneArtifactsToOutputFolder(artifacts: StandaloneArtifact[]) {
+  try {
+    const handle = await outputFolder();
+    if (!handle) return null;
+    const query = (handle as PermissionHandle).queryPermission;
+    if (query && await query.call(handle, { mode: "readwrite" }) !== "granted") {
+      return "Built files are ready to download; the output folder could not be used.";
+    }
+    for (const artifact of artifacts) {
+      const writable = await (await unusedFile(handle, artifact.filename)).createWritable();
+      await writable.write(artifact.bytes.slice().buffer as ArrayBuffer); await writable.close();
+    }
+    return null;
+  } catch { return "Built files are ready to download; the output folder could not be used."; }
+}
+
+export function canRetainLocalFiles() {
+  return typeof document !== "undefined";
+}
+
+export async function pickRetainedFiles(multiple: boolean, accept: "source" | "pdf" = "source"):
+Promise<Array<{
   file: File; input: LocalFileInput;
 }>> {
-  const picker = (window as PickerWindow).showOpenFilePicker;
-  if (!picker) return [];
+  const picker = typeof window === "undefined" ? undefined
+    : (window as PickerWindow).showOpenFilePicker;
+  if (!picker) return Promise.all((await pickInputFiles(multiple, accept)).map(async (file) => ({
+    file, input: await retainStandaloneFile(file),
+  })));
   const handles = await picker({
     multiple,
     types: [{
-      description: "PDF or Word document",
-      accept: {
-        "application/pdf": [".pdf"],
+      description: accept === "pdf" ? "PDF" : "PDF or Word document",
+      accept: { "application/pdf": [".pdf"], ...(accept === "source" ? {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      },
+      } : {}) },
     }],
   });
   const selected = await Promise.all(handles.map(async (handle) => ({
@@ -302,27 +403,51 @@ export async function pickRetainedFiles(multiple: boolean): Promise<Array<{
   });
 }
 
+function pickInputFiles(multiple: boolean, accept: "source" | "pdf") {
+  if (typeof document === "undefined") return Promise.resolve<File[]>([]);
+  return new Promise<File[]>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file"; input.multiple = multiple;
+    input.accept = accept === "pdf" ? ".pdf" : ".pdf,.docx";
+    input.addEventListener("change", () => resolve([...(input.files ?? [])]), { once: true });
+    input.addEventListener("cancel", () => resolve([]), { once: true });
+    input.click();
+  });
+}
+
 export async function bindStandaloneFile(file: File, input?: WorkProductInput) {
   const retained = input?.kind === "local-file" ? input : selectedInputs.get(file);
   if (retained?.lastSeen.sha256 && retained.lastSeen.name === file.name &&
       retained.lastSeen.size === file.size && retained.lastSeen.modified === file.lastModified) {
     selectedInputs.set(file, retained);
-    return retained;
+    return retained.handleId.startsWith("stored:") ? retainStandaloneFile(file) : retained;
   }
+  if (!retained) return retainStandaloneFile(file);
   const binding: LocalFileInput = {
-    kind: "local-file",
-    handleId: retained?.handleId ?? `session:${crypto.randomUUID()}`,
+    kind: "local-file", handleId: retained.handleId,
     lastSeen: await snapshotFile(file),
   };
-  if (!retained) sessionFiles.set(binding.handleId, file);
+  selectedInputs.set(file, binding);
+  return binding;
+}
+
+/** Retains generated/downloaded bytes without pretending they have a user filesystem handle. */
+export async function retainStandaloneFile(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer()), sha256 = await digestBytes(bytes);
+  const id = storedFileId(sha256), database = await openDatabase();
+  const transaction = database.transaction(FILES, "readwrite");
+  transaction.objectStore(FILES).put({ id, mimeType: file.type,
+    bytes: bytes.slice().buffer } satisfies StoredFile);
+  await completed(transaction);
+  const binding = { kind: "local-file", handleId: id,
+    lastSeen: { name: file.name, size: file.size, modified: file.lastModified, sha256 } } as const;
   selectedInputs.set(file, binding);
   return binding;
 }
 
 export async function resolveStandaloneFile(input: WorkProductInput, verifyContents = false) {
   if (input.kind !== "local-file") return { status: "missing" as const, reason: "unavailable" as const };
-  const cached = sessionFiles.get(input.handleId);
-  const result = cached ? { status: "ready" as const, file: cached, input }
+  const result = input.handleId.startsWith("stored:") ? await resolveStoredFile(input)
     : await resolveLocalFile(input);
   if (result.status === "missing") return result;
   const metadata = fileSnapshot(result.file), previous = input.lastSeen;
@@ -337,25 +462,44 @@ export async function resolveStandaloneFile(input: WorkProductInput, verifyConte
     input: resolvedInput };
 }
 
-export async function relinkStandaloneFile(input: WorkProductInput, verifyContents = false) {
+/** Checks retained-file availability without loading content-addressed bytes from IndexedDB. */
+export async function inspectStandaloneFile(input: WorkProductInput) {
+  if (input.kind !== "local-file") return { status: "missing" as const,
+    reason: "unavailable" as const };
+  if (input.handleId.startsWith("stored:")) return await exists(FILES, input.handleId)
+    ? { status: "ready" as const } : { status: "missing" as const, reason: "deleted" as const };
+  const result = await resolveLocalFile(input);
+  return result.status === "missing" ? result : { status: result.status };
+}
+
+async function resolveStoredFile(input: LocalFileInput): Promise<InputResolution> {
+  const saved = await read<StoredFile>(FILES, input.handleId);
+  if (!saved) return { status: "missing", reason: "deleted" };
+  const file = new File([saved.bytes.slice(0)], input.lastSeen.name,
+    { type: saved.mimeType, lastModified: input.lastSeen.modified });
+  return { status: file.size === input.lastSeen.size ? "ready" : "changed", file, input };
+}
+
+export async function relinkStandaloneFile(input: WorkProductInput, verifyContents = false,
+  accept: "source" | "pdf" = "source") {
   const current = await resolveStandaloneFile(input, verifyContents);
   if (current.status !== "missing") return current;
-  const replacement = await relinkLocalFile(input);
+  const replacement = await relinkLocalFile(input, accept);
   if (replacement.status === "missing") return replacement;
   return resolveStandaloneFile(replacement.input, verifyContents);
 }
 
 async function resolveLocalFile(input: WorkProductInput): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
-  const saved = await read<{ id: string; handle: FileSystemFileHandle }>(HANDLES, input.handleId);
-  if (!saved) return { status: "missing", reason: "deleted" };
+  const saved = await read<StoredHandle>(HANDLES, input.handleId);
+  if (!saved || saved.handle.kind !== "file") return { status: "missing", reason: "deleted" };
   return resolveRetainedFile(saved.handle, input);
 }
 
 export async function resolveRetainedFile(handle: FileSystemFileHandle,
   input: Extract<WorkProductInput, { kind: "local-file" }>): Promise<InputResolution> {
   try {
-    const query = (handle as PermissionFileHandle).queryPermission;
+    const query = (handle as PermissionHandle).queryPermission;
     if (query && await query.call(handle, { mode: "read" }) !== "granted") {
       return { status: "missing", reason: "permission" };
     }
@@ -375,22 +519,26 @@ export async function resolveRetainedFile(handle: FileSystemFileHandle,
   }
 }
 
-async function relinkLocalFile(input: WorkProductInput): Promise<InputResolution> {
+async function relinkLocalFile(input: WorkProductInput,
+  accept: "source" | "pdf"): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
   const existing = await read<StoredHandle>(HANDLES, input.handleId);
-  const requestPermission = existing && (existing.handle as PermissionFileHandle).requestPermission;
-  if (existing && requestPermission) {
+  const requestPermission = existing?.handle.kind === "file" &&
+    (existing.handle as PermissionHandle).requestPermission;
+  if (existing?.handle.kind === "file" && requestPermission) {
     try {
       if (await requestPermission.call(existing.handle, { mode: "read" }) === "granted") {
         return resolveRetainedFile(existing.handle, input);
       }
     } catch { /* The replacement picker remains available. */ }
   }
-  const picked = await pickRetainedFiles(false);
+  const picked = await pickRetainedFiles(false, accept);
   const replacement = picked[0];
   if (!replacement) return { status: "missing", reason: "unavailable" };
+  if (input.handleId.startsWith("stored:")) return { status: "ready",
+    file: replacement.file, input: replacement.input };
   const saved = await read<StoredHandle>(HANDLES, replacement.input.handleId);
-  if (!saved) return { status: "missing", reason: "unavailable" };
+  if (!saved || saved.handle.kind !== "file") return { status: "missing", reason: "unavailable" };
   const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
   const store = transaction.objectStore(HANDLES);
   store.put({ id: input.handleId, handle: saved.handle, createdAt: saved.createdAt });
@@ -401,22 +549,53 @@ async function relinkLocalFile(input: WorkProductInput): Promise<InputResolution
   return { status: "ready", file: replacement.file, input: relinked };
 }
 
-let database: Promise<IDBDatabase> | undefined;
+let database: Promise<IDBDatabase> | undefined, persistenceRequested = false;
 
 function openDatabase() {
+  if (!persistenceRequested && typeof navigator !== "undefined") {
+    persistenceRequested = true;
+    void navigator.storage?.persist?.().catch(() => false);
+  }
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const opening = indexedDB.open(DATABASE, 2);
+    const opening = indexedDB.open(DATABASE, 4);
     opening.onupgradeneeded = () => {
-      for (const name of Array.from(opening.result.objectStoreNames)) {
-        opening.result.deleteObjectStore(name);
+      const names = opening.result.objectStoreNames;
+      const migrate = names.contains(DRAFTS) && !names.contains(METADATA);
+      for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS]) {
+        if (!names.contains(name)) opening.result.createObjectStore(name, { keyPath: "id" });
       }
-      opening.result.createObjectStore(DRAFTS, { keyPath: "id" });
-      opening.result.createObjectStore(HANDLES, { keyPath: "id" });
-      opening.result.createObjectStore(OUTPUTS, { keyPath: "id" });
+      if (migrate) {
+        const metadata = opening.transaction!.objectStore(METADATA);
+        const cursor = opening.transaction!.objectStore(DRAFTS).openCursor();
+        cursor.onsuccess = () => {
+          if (!cursor.result) return;
+          metadata.put(draftMetadata(cursor.result.value as WorkProduct));
+          cursor.result.continue();
+        };
+      }
     };
     opening.onsuccess = () => resolve(opening.result);
     opening.onerror = () => reject(opening.error);
   });
+}
+
+function draftMetadata({ state: _state, outputs: _outputs, ...metadata }: WorkProduct) {
+  return metadata;
+}
+
+async function unusedFile(directory: FileSystemDirectoryHandle, filename: string) {
+  const dot = filename.lastIndexOf("."), stem = dot > 0 ? filename.slice(0, dot) : filename;
+  const extension = dot > 0 ? filename.slice(dot) : "";
+  for (let index = 1; ; index += 1) {
+    const candidate = index === 1 ? filename : `${stem} (${index})${extension}`;
+    try { await directory.getFileHandle(candidate); }
+    catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        return directory.getFileHandle(candidate, { create: true });
+      }
+      throw error;
+    }
+  }
 }
 
 async function all<T>(storeName: string): Promise<T[]> {
@@ -427,6 +606,11 @@ async function all<T>(storeName: string): Promise<T[]> {
 async function read<T>(storeName: string, key: IDBValidKey): Promise<T | undefined> {
   const db = await openDatabase();
   return request<T | undefined>(db.transaction(storeName).objectStore(storeName).get(key));
+}
+
+async function exists(storeName: string, key: IDBValidKey) {
+  const db = await openDatabase();
+  return await request(db.transaction(storeName).objectStore(storeName).getKey(key)) !== undefined;
 }
 
 function request<T>(value: IDBRequest<T>) {

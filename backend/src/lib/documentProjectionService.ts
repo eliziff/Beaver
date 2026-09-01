@@ -12,8 +12,10 @@ import {
 import { projectionDirectory } from "./documentProjection";
 import { spreadsheetToLLMStructure, spreadsheetToLLMText } from "./spreadsheet";
 import {
+  pdfPassageGeometry as nativePdfPassageGeometry,
   structureNative,
   type NativeDocument,
+  type NativePdfPassageTarget,
   type PdfPreparationSummary,
 } from "./structureNative";
 import {
@@ -617,6 +619,17 @@ async function lookupPdf(
   });
 }
 
+async function pdfPassageGeometry(
+  readBytes: () => Buffer | Promise<Buffer>,
+  targets: NativePdfPassageTarget[],
+  reference: ProjectionReference,
+  options: PdfSourceOptions = {},
+) {
+  const bytes = await readBytes();
+  const prepared = await preparedForSource(() => bytes, reference, options);
+  return nativePdfPassageGeometry(prepared.document, bytes, targets);
+}
+
 async function preparedForEvidence(
   handle: string,
   expected: ProjectionReference,
@@ -660,6 +673,7 @@ export const documentProjectionService = Object.freeze({
   text,
   preparePdf,
   lookupPdf,
+  pdfPassageGeometry,
   rehydratePdfEvidence: rehydrateEvidence,
   verifyPdfEvidence: verifyEvidence,
 });

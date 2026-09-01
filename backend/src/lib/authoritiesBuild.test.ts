@@ -1,11 +1,12 @@
 import JSZip from "jszip";
 import { Document as WordDocument, Packer, Paragraph, TextRun } from "docx";
-import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber,
-  PDFRawStream, StandardFonts } from "pdf-lib";
+import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
+  PDFNumber, PDFRawStream, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
-import { buildAuthorities } from "./authoritiesBuild";
-import { createAuthoritiesDraft, type AuthoritiesDraft,
+import { authoritiesTextRoles, authorityPassageRequests, authorityPassageTargets,
+  buildAuthorities } from "./authoritiesBuild";
+import { createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
 
@@ -28,14 +29,20 @@ function pageContent(document: PDFDocument, page: ReturnType<PDFDocument["getPag
   }).join("\n");
 }
 
+const pageHasRgb = (content: string, wanted: readonly number[]) =>
+  [...content.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) rg/gu)].some((match) =>
+    wanted.every((value, index) => Math.abs(Number(match[index + 1]) - value) < .000_01));
+
 function attached(
   id: string, kind: AuthorityIdentity["kind"], citation: string, name: string,
   bindingRole: string, bytes: Uint8Array,
 ): AuthorityIdentity {
   return { id, key: `${kind}:${id}`, kind, citation, name, displayName: null,
+    tabLabel: null,
     evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
     source: { kind: "attached", bindingRole,
-      filename: `${id}.pdf`, sourceSha256: sha256(bytes), sourceUrl: null } };
+      filename: `${id}.pdf`, sourceSha256: sha256(bytes), sourceUrl: null,
+      origin: "manual" } };
 }
 
 function draft(
@@ -47,22 +54,29 @@ function draft(
     "Federal Courts Act", "source:fca", legislationPdf);
   const commentary: AuthorityIdentity = { id: "article", key: "commentary:article",
     kind: "commentary", citation: "(2024) 10 Legal Rev 1", name: "Useful article",
-    displayName: null, evidenceIds: ["receipt-commentary"],
+    displayName: null, tabLabel: null, evidenceIds: ["receipt-commentary"],
     locators: [{ kind: "page", label: "8" }], excluded: true,
     sourceIdentity: { provider: "journal", stableSourceId: "article-1",
       sourceSha256: "a".repeat(64), version: "2024-01",
       externalUrl: "https://example.test/article" }, source: { kind: "resolved" } };
   const occurrences = {
     grant: { id: "grant", unitId: "body:1", start: 0, end: 11, text: "2009 SCC 32",
+      authoritySpan: { start: 0, end: 11, text: "2009 SCC 32" },
+      coreSpan: { start: 0, end: 11, text: "2009 SCC 32" }, pinpointSpan: null,
       kind: "case" as const, citation: "2009 SCC 32", authorityId: "grant", reference: null,
       pinpoints: [{ kind: "paragraph" as const, text: "12" }], evidenceIds: ["evidence-1"],
       sourceTextSha256: "body-sha", localOrdinal: 0, reviewed: true },
     fca: { id: "fca", unitId: "footnote:7", start: 0, end: 17,
       text: "RSC 1985, c F-7", kind: "legislation" as const,
+      authoritySpan: { start: 0, end: 17, text: "RSC 1985, c F-7" },
+      coreSpan: { start: 0, end: 17, text: "RSC 1985, c F-7" }, pinpointSpan: null,
       citation: "RSC 1985, c F-7", authorityId: "fca", reference: null, pinpoints: [],
       evidenceIds: [], sourceTextSha256: "footnote-sha", localOrdinal: 0, reviewed: true },
-    article: { id: "article", unitId: "body:2", start: 0, end: 27,
+    article: { id: "article", unitId: "body:2", start: 0, end: 26,
       text: "(2024) 10 Legal Rev 1 note", kind: "commentary" as const,
+      authoritySpan: { start: 0, end: 21, text: "(2024) 10 Legal Rev 1" },
+      coreSpan: { start: 0, end: 21, text: "(2024) 10 Legal Rev 1" },
+      pinpointSpan: { start: 22, end: 26, text: "note" },
       citation: "(2024) 10 Legal Rev 1", authorityId: "article", reference: null,
       pinpoints: [{ kind: "page" as const, text: "8" }], evidenceIds: [],
       sourceTextSha256: "article-text-sha", localOrdinal: 0, reviewed: true },
@@ -73,7 +87,9 @@ function draft(
       filename: "Brief.docx", fileType: "docx",
       snapshot: { documentId: "brief-document", versionId: "brief-v2",
         sha256: "9".repeat(64) } } : { kind: "manual" },
-    outputMode: "both", insertIntoDocument: false, ledger: null,
+    outputMode: "both", settings: createAuthoritiesDraft({ kind: "manual" }).settings,
+    bookParts: { cover: null, index: null, supplements: [] },
+    insertIntoDocument: false, ledger: null,
     bindings: {
       "source:grant": { kind: "local-file", handleId: "grant-handle",
         lastSeen: { name: "grant.pdf", size: casePdf.length, modified: 10,
@@ -101,17 +117,190 @@ function draft(
 }
 
 describe("Authorities output builder", () => {
+  it("does not parse manual PDFs that have no cited passage to mark", async () => {
+    const pdf = await sourcePdf("Uncited", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    expect([...authoritiesTextRoles(state)]).toEqual([]);
+    state.authorities.item.locators = [{ kind: "paragraph", label: "12" }];
+    expect([...authoritiesTextRoles(state)]).toEqual(["item"]);
+  });
+
+  it("binds exact body quotations only to the authority pinpoint in that footnote", async () => {
+    const pdf = await sourcePdf("Quoted", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    const quote = "This exact passage governs the result";
+    state.units = [{ id: "body", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [[4, quote.length + 2]], pageNumbers: [2], text: `\u201c${quote}\u201d`,
+      occurrenceIds: [] },
+    { id: "footnote:4", kind: "footnote", ordinal: 1, footnoteId: 4,
+      footnoteRefs: [], pageNumbers: [2], text: "2024 SCC 1 at para 12",
+      occurrenceIds: ["cite"] }];
+    state.occurrences.cite = { id: "cite", unitId: "footnote:4", start: 0, end: 23,
+      text: "2024 SCC 1 at para 12", authoritySpan: { start: 0, end: 10, text: "2024 SCC 1" },
+      coreSpan: { start: 0, end: 10, text: "2024 SCC 1" },
+      pinpointSpan: { start: 14, end: 23, text: "at para 12" }, kind: "case",
+      citation: "2024 SCC 1", authorityId: "item", reference: null,
+      pinpoints: [{ kind: "paragraph", text: "12" }], evidenceIds: [],
+      sourceTextSha256: sha256("2024 SCC 1 at para 12"), localOrdinal: 0, reviewed: true };
+    expect(authorityPassageRequests(state, "item")).toEqual([{
+      locators: [{ kind: "paragraph", label: "12" }], exactQuotes: [quote],
+    }]);
+    expect(authorityPassageTargets(state, "item")).toEqual([{
+      id: "passage:1", locatorKind: "paragraph", locator: "12", exactQuotes: [quote],
+    }]);
+    expect([...authoritiesTextRoles(state)]).toEqual(["item"]);
+    state.occurrences.cite.pinpoints = [{ kind: "page", text: "1" }];
+    state.settings.passageMarking = "text";
+    expect([...authoritiesTextRoles(state)]).toEqual(["item"]);
+  });
+
+  it("marks a cited PDF page without extracting its text", async () => {
+    const pdf = await sourcePdf("Page pinpoint", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorities.item.locators = [{ kind: "page", label: "1" }];
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    expect([...authoritiesTextRoles(state)]).toEqual([]);
+    const result = await buildAuthorities({ draft: state, title: "Page pinpoint",
+      workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf } } });
+    const source = await PDFDocument.load(pdf), book = await PDFDocument.load(result.artifacts.book!.bytes);
+    expect(pageContent(book, book.getPage(2))).not.toBe(pageContent(source, source.getPage(0)));
+  });
+
+  it("renders each passage-marking style from exact PDF geometry", async () => {
+    const pdf = await sourcePdf("Passage", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
+    state.authorities.item.locators = [{ kind: "paragraph", label: "1" }];
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    const passageGeometry = {
+      schemaVersion: "legalpdf.passage-geometry.v1" as const,
+      sourceSha256: sha256(pdf), parserVersion: "test",
+      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
+      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
+        locatorKind: "paragraph" as const, locator: "1",
+        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
+          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
+        quotes: [{ text: "exact words", status: "found" as const, pageNumber: 1,
+          rects: [[70, 65, 170, 78] as [number, number, number, number]] }] }],
+    };
+    const rectangles = async (style: AuthoritiesDraft["settings"]["passageMarking"]) => {
+      const marked = structuredClone(state); marked.settings.passageMarking = style;
+      const built = await buildAuthorities({ draft: marked, title: style,
+        workProduct: { id: style, revision: 1 },
+        sources: { item: { bytes: pdf, passageGeometry } } });
+      const book = await PDFDocument.load(built.artifacts.book!.bytes);
+      return pageContent(book, book.getPage(2)).match(/\nh\nf(?:\n|$)/gu)?.length ?? 0;
+    };
+    expect(await rectangles("none")).toBe(0);
+    expect(await rectangles("sidelined")).toBe(1);
+    expect(await rectangles("paragraph")).toBe(1);
+    expect(await rectangles("text")).toBe(1);
+    expect(await rectangles("margin")).toBe(2);
+    const marked = structuredClone(state); marked.settings.passageMarking = "margin";
+    const markedBook = await PDFDocument.load((await buildAuthorities({ draft: marked,
+      title: "Marked", workProduct: { id: "marked", revision: 1 },
+      sources: { item: { bytes: pdf, passageGeometry } } })).artifacts.book!.bytes);
+    const outline = markedBook.catalog.lookup(PDFName.of("Outlines"), PDFDict)
+      .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
+      .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict)
+      .lookup(PDFName.of("First"), PDFDict);
+    expect(outline.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("para 1");
+    expect(String(outline.lookup(PDFName.of("Dest"), PDFArray).get(0)))
+      .toBe(String(markedBook.getPage(2).ref));
+  });
+
+  it("stops before emitting artifacts when the build is cancelled", async () => {
+    const controller = new AbortController(); controller.abort();
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "table");
+    await expect(buildAuthorities({ draft: state, title: "Cancelled",
+      workProduct: { id: "cancelled", revision: 1 }, signal: controller.signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("keeps first-reference table order independent from a manually ordered book", async () => {
+    const zPdf = await sourcePdf("Zulu", [[400, 500]]);
+    const aPdf = await sourcePdf("Alpha", [[400, 500]]);
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "both");
+    const zulu = attached("zulu", "case", "2024 ABKB 2", "Zulu v Test", "z", zPdf);
+    const alpha = attached("alpha", "case", "2024 ABKB 1", "Alpha v Test", "a", aPdf);
+    Object.assign(state, {
+      settings: { ...state.settings, tableOrder: "first-reference" },
+      bindings: {
+        z: { kind: "local-file", handleId: "z", lastSeen: { name: "zulu.pdf",
+          size: zPdf.length, modified: 1, sha256: sha256(zPdf) } },
+        a: { kind: "local-file", handleId: "a", lastSeen: { name: "alpha.pdf",
+          size: aPdf.length, modified: 1, sha256: sha256(aPdf) } },
+      },
+      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+        footnoteRefs: [], pageNumbers: [1], text: "Zulu Alpha",
+        occurrenceIds: ["zulu-cite", "alpha-cite"] }],
+      occurrences: {
+        "zulu-cite": { id: "zulu-cite", unitId: "body:0", start: 0, end: 4,
+          text: "Zulu", authoritySpan: { start: 0, end: 4, text: "Zulu" },
+          coreSpan: { start: 0, end: 4, text: "Zulu" }, pinpointSpan: null,
+          kind: "case", citation: zulu.citation, authorityId: zulu.id, reference: null,
+          pinpoints: [], evidenceIds: [], sourceTextSha256: "unit", localOrdinal: 0,
+          reviewed: true },
+        "alpha-cite": { id: "alpha-cite", unitId: "body:0", start: 5, end: 10,
+          text: "Alpha", authoritySpan: { start: 5, end: 10, text: "Alpha" },
+          coreSpan: { start: 5, end: 10, text: "Alpha" }, pinpointSpan: null,
+          kind: "case", citation: alpha.citation, authorityId: alpha.id, reference: null,
+          pinpoints: [], evidenceIds: [], sourceTextSha256: "unit", localOrdinal: 1,
+          reviewed: true },
+      }, authorities: { zulu, alpha }, authorityOrder: ["zulu", "alpha"],
+    });
+    const input = { draft: state, title: "Order", workProduct: { id: "order", revision: 1 },
+      sources: { z: { bytes: zPdf }, a: { bytes: aPdf } } };
+    const automatic = await buildAuthorities(input);
+    expect(automatic.receipt.authorities.map(({ id }) => id)).toEqual(["zulu", "alpha"]);
+    const xml = await (await JSZip.loadAsync(automatic.artifacts.table!.bytes))
+      .file("word/document.xml")!.async("string");
+    expect(xml.indexOf("Zulu v Test")).toBeLessThan(xml.indexOf("Alpha v Test"));
+
+    const manual = structuredClone(state);
+    manual.outputMode = "book";
+    manual.settings.sourceMode = "manual-originals";
+    manual.authorities.zulu.tabLabel = "A-9";
+    manual.authorities.zulu.displayName = "Custom Zulu title";
+    const preserved = await buildAuthorities({ ...input, draft: manual });
+    expect(preserved.receipt.authorities.map(({ id, name, tab }) => [id, name, tab]))
+      .toEqual([["zulu", "Custom Zulu title", "A-9"],
+        ["alpha", "Alpha v Test, 2024 ABKB 1", "Tab 2"]]);
+    manual.authorities.alpha.tabLabel = "A-9";
+    await expect(buildAuthorities({ ...input, draft: manual }))
+      .rejects.toThrow("Book tab labels must be unique");
+  });
+
   it("builds an inspectable grouped DOCX and indexed, linked, bookmarked PDF book", async () => {
     const casePdf = await sourcePdf("Grant", [[400, 500]]);
     const legislationPdf = await sourcePdf("Act", [[500, 600], [500, 600]]);
     const input = { draft: draft(casePdf, legislationPdf, true),
       title: "Appeal Brief", workProduct: { id: "authorities-1", revision: 4 },
       sources: { "source:grant": { bytes: casePdf,
+        pageTextByPage: ["[12] Recognized scanned decision"],
         ocrTextByPage: ["Recognized scanned decision"] },
         "source:fca": { bytes: legislationPdf }, source: { resolved: {
           kind: "document", documentId: "brief-document", versionId: "brief-v2",
           filename: "Brief.docx", sha256: "9".repeat(64),
         } } } } satisfies Parameters<typeof buildAuthorities>[0];
+    input.draft.settings.scannedPdfPolicy = "full";
     const result = await buildAuthorities(input);
 
     expect(Object.keys(result.artifacts).sort()).toEqual(["book", "table"]);
@@ -148,6 +337,7 @@ describe("Authorities output builder", () => {
           documentId: "law-document",
           version: { versionId: "law-v3", sha256: sha256(legislationPdf) } } }),
       ]) });
+    expect(result.receipt.authorities.map(({ id }) => id)).toEqual(["grant", "fca", "article"]);
     for (const role of ["table", "book"] as const) {
       expect(result.receipt.outputs[role]?.sha256).toBe(result.artifacts[role]?.sha256);
     }
@@ -184,6 +374,34 @@ describe("Authorities output builder", () => {
     const outlines = book.catalog.lookup(PDFName.of("Outlines"), PDFDict);
     expect(outlines.lookup(PDFName.of("Count"), PDFNumber).asNumber()).toBeGreaterThan(4);
     expect(book.catalog.get(PDFName.of("PageMode"))).toEqual(PDFName.of("UseOutlines"));
+    expect(book.catalog.has(PDFName.of("PageLabels"))).toBe(true);
+
+    const citedOnly = structuredClone(input);
+    citedOnly.draft.settings.scannedPdfPolicy = "cited-pages";
+    citedOnly.sources["source:grant"].pageTextByPage = ["[12] Recognized cited passage"];
+    citedOnly.sources["source:grant"].ocrTextByPage = ["[12] Recognized cited passage"];
+    const citedBook = await PDFDocument.load((await buildAuthorities(citedOnly)).artifacts.book!.bytes);
+    expect(pageContent(citedBook, citedBook.getPage(2)).toUpperCase()).toContain(
+      Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
+    );
+    const originalScan = structuredClone(citedOnly);
+    originalScan.draft.settings.scannedPdfPolicy = "page-margin";
+    originalScan.sources["source:grant"].ocrTextByPage = [];
+    const originalBook = await PDFDocument.load(
+      (await buildAuthorities(originalScan)).artifacts.book!.bytes,
+    );
+    expect(pageContent(originalBook, originalBook.getPage(2)).toUpperCase()).not.toContain(
+      Buffer.from("[12] Recognized cited passage", "latin1").toString("hex").toUpperCase(),
+    );
+    const noMarks = structuredClone(originalScan);
+    noMarks.draft.settings.passageMarking = "none";
+    const unmarkedBook = await PDFDocument.load(
+      (await buildAuthorities(noMarks)).artifacts.book!.bytes,
+    );
+    const unmarked = pageContent(unmarkedBook, unmarkedBook.getPage(2));
+    const originalSource = await PDFDocument.load(casePdf);
+    expect(unmarked).toBe(pageContent(originalSource, originalSource.getPage(0)));
+    expect(unmarked).not.toBe(pageContent(originalBook, originalBook.getPage(2)));
 
     const rebuilt = await buildAuthorities(input);
     expect(rebuilt.artifacts.book?.sha256).toBe(result.artifacts.book?.sha256);
@@ -210,6 +428,9 @@ describe("Authorities output builder", () => {
       workProduct: { id: "authorities-2", revision: 1 } });
     expect(Object.keys(table.artifacts)).toEqual(["table"]);
     expect(table.artifacts.table?.filename).toBe("Unsafe- name.table-of-authorities.docx");
+    expect((await buildAuthorities({ draft: tableDraft, title: "CON",
+      workProduct: { id: "authorities-2", revision: 1 } })).artifacts.table?.filename)
+      .toBe("_CON.table-of-authorities.docx");
 
     const bookDraft = { ...tableDraft, outputMode: "book" as const };
     await expect(buildAuthorities({ draft: bookDraft, title: "Book",
@@ -224,6 +445,364 @@ describe("Authorities output builder", () => {
       workProduct: { id: "authorities-2", revision: 3 },
       sources: { "source:grant": { bytes: casePdf }, "source:fca": { bytes: invalid } } }))
       .rejects.toThrow("Attached PDF could not be opened for Federal Courts Act, RSC 1985, c F-7");
+  });
+
+  it("uses bound front matter and supplemental PDFs without breaking navigation", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const legislationPdf = await sourcePdf("Act", [[500, 600], [500, 600]]);
+    const cover = await sourcePdf("Cover", [[300, 400], [301, 401]]);
+    const index = await sourcePdf("Index", [[310, 410], [311, 411]]);
+    const appendix = await sourcePdf("Appendix", [[700, 710]]);
+    const binding = (name: string, bytes: Uint8Array) => ({ kind: "local-file" as const,
+      handleId: `${name}-handle`, lastSeen: { name: `${name}.pdf`, size: bytes.length,
+        modified: 1, sha256: sha256(bytes) } });
+    const part = (name: string, bytes: Uint8Array) => ({ bindingRole: `book:${name}`,
+      filename: `${name}.pdf`, sourceSha256: sha256(bytes) });
+    let state = draft(casePdf, legislationPdf); state.outputMode = "book";
+    state = reduceAuthoritiesDraft(state, { type: "set-book-part", slot: "cover",
+      pdf: part("cover", cover), binding: binding("cover", cover) });
+    state = reduceAuthoritiesDraft(state, { type: "set-book-part", slot: "index",
+      pdf: part("index", index), binding: binding("index", index) });
+    state = reduceAuthoritiesDraft(state, { type: "set-book-supplement", supplement: {
+      id: "appendix", ...part("appendix", appendix), title: "Procedural appendix",
+      tab: "Appendix A",
+    }, binding: binding("appendix", appendix) });
+    const sources = { "source:grant": { bytes: casePdf },
+      "source:fca": { bytes: legislationPdf }, "book:cover": { bytes: cover },
+      "book:index": { bytes: index }, "book:appendix": { bytes: appendix } };
+    const result = await buildAuthorities({ draft: state, title: "Custom book",
+      workProduct: { id: "custom-book", revision: 1 }, sources });
+    const book = await PDFDocument.load(result.artifacts.book!.bytes);
+    expect(book.getTitle()).toBe("Custom book");
+    expect(book.getPageCount()).toBe(8);
+    expect(book.getPage(0).getSize()).toEqual({ width: 300, height: 400 });
+    expect(book.getPage(2).getSize()).toEqual({ width: 310, height: 410 });
+    expect(book.getPage(4).getSize()).toEqual({ width: 500, height: 600 });
+    expect(book.getPage(6).getSize()).toEqual({ width: 400, height: 500 });
+    expect(book.getPage(7).getSize()).toEqual({ width: 700, height: 710 });
+    expect(result.artifacts.book!.receipt.inputs.map(({ role }) => role))
+      .toEqual(expect.arrayContaining(["book:cover", "book:index", "book:appendix"]));
+
+    const labels = book.catalog.lookup(PDFName.of("PageLabels"), PDFDict)
+      .lookup(PDFName.of("Nums"), PDFArray);
+    expect(labels.lookup(0, PDFNumber).asNumber()).toBe(0);
+    expect(labels.lookup(1, PDFDict).lookup(PDFName.of("St"), PDFNumber).asNumber()).toBe(1);
+    const outlines = book.catalog.lookup(PDFName.of("Outlines"), PDFDict);
+    const root = outlines.lookup(PDFName.of("First"), PDFDict);
+    const toc = root.lookup(PDFName.of("Next"), PDFDict);
+    expect(String(toc.lookup(PDFName.of("Dest"), PDFArray).get(0)))
+      .toBe(String(book.getPage(2).ref));
+    const authorities = toc.lookup(PDFName.of("Next"), PDFDict);
+    expect(authorities.lookup(PDFName.of("Title"), PDFHexString).decodeText())
+      .toBe("Authorities");
+    const firstAuthority = authorities.lookup(PDFName.of("First"), PDFDict);
+    expect(firstAuthority.lookup(PDFName.of("Title"), PDFHexString).decodeText())
+      .toContain("Federal Courts Act");
+    expect(firstAuthority.lookup(PDFName.of("Next"), PDFDict)
+      .lookup(PDFName.of("Title"), PDFHexString).decodeText()).toContain("R v Grant");
+    const documents = authorities.lookup(PDFName.of("Next"), PDFDict);
+    expect(documents.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("Documents");
+    expect(String(documents.lookup(PDFName.of("Dest"), PDFArray).get(0)))
+      .toBe(String(book.getPage(7).ref));
+
+    state = reduceAuthoritiesDraft(state, { type: "clear-book-part", slot: "index" });
+    const generated = await PDFDocument.load((await buildAuthorities({ draft: state,
+      title: "Generated index", workProduct: { id: "custom-book", revision: 2 }, sources }))
+      .artifacts.book!.bytes);
+    const annots = generated.getPage(2).node.lookup(PDFName.of("Annots"), PDFArray);
+    expect(annots.size()).toBe(3);
+    expect(annots.asArray().map((ref) => String(generated.context.lookup(ref, PDFDict)
+      .lookup(PDFName.of("Dest"), PDFArray).get(0))))
+      .toEqual([3, 5, 6].map((page) => String(generated.getPage(page).ref)));
+  });
+
+  it("keeps missing authorities in the table and either placeholders or omits them from the book", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const legislationPdf = await sourcePdf("Act", [[500, 600]]);
+    const articlePdf = await sourcePdf("Article", [[450, 550]]);
+    const state = draft(casePdf, legislationPdf);
+    delete state.bindings["source:fca"];
+    state.authorities.fca.source = { kind: "unresolved" };
+    state.authorities.article.excluded = false;
+    state.authorities.article.source = { kind: "attached", bindingRole: "source:article",
+      filename: "article.pdf", sourceSha256: sha256(articlePdf), sourceUrl: null,
+      origin: "manual" };
+    state.bindings["source:article"] = { kind: "local-file", handleId: "article",
+      lastSeen: { name: "article.pdf", size: articlePdf.length, modified: 1,
+        sha256: sha256(articlePdf) } };
+    const sources = { "source:grant": { bytes: casePdf },
+      "source:article": { bytes: articlePdf } };
+    const placeholder = await buildAuthorities({ draft: state, title: "Missing source",
+      workProduct: { id: "missing-source", revision: 1 }, sources });
+    const placeholderBook = await PDFDocument.load(placeholder.artifacts.book!.bytes);
+    expect(placeholderBook.getPageCount()).toBe(5);
+    expect(placeholderBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(3);
+    expect(pageContent(placeholderBook, placeholderBook.getPage(3)).toUpperCase()).toContain(
+      Buffer.from("Source PDF unavailable", "latin1").toString("hex").toUpperCase(),
+    );
+    expect(placeholder.receipt.authorities.find(({ id }) => id === "article")?.tab).toBe("Tab 1");
+    const placeholderTable = await (await JSZip.loadAsync(placeholder.artifacts.table!.bytes))
+      .file("word/document.xml")!.async("string");
+    expect(placeholderTable).toContain("Federal Courts Act");
+
+    const omitted = structuredClone(state); omitted.settings.missingSourcePolicy = "omit";
+    const omitResult = await buildAuthorities({ draft: omitted, title: "Omitted source",
+      workProduct: { id: "missing-source", revision: 2 }, sources });
+    const omitBook = await PDFDocument.load(omitResult.artifacts.book!.bytes);
+    expect(omitBook.getPageCount()).toBe(4);
+    expect(omitBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
+    expect(omitBook.getPage(3).getSize()).toEqual({ width: 400, height: 500 });
+    expect(omitResult.receipt.authorities.find(({ id }) => id === "fca")?.tab)
+      .toBe("Not reproduced");
+    expect(omitResult.receipt.authorities.find(({ id }) => id === "article")?.tab).toBe("Tab 1");
+  });
+
+  it("enforces current Alberta source delivery instead of emitting court placeholders", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const legislationPdf = await sourcePdf("Act", [[500, 600]]);
+    const sources = { "source:grant": { bytes: casePdf },
+      "source:fca": { bytes: legislationPdf } };
+    const kingsBench = reduceAuthoritiesDraft(draft(casePdf, legislationPdf),
+      { type: "set-profile", profileId: "ab-court-of-kings-bench" });
+    kingsBench.authorities.fca.source = { kind: "unresolved" };
+    delete kingsBench.bindings["source:fca"];
+    await expect(buildAuthorities({ draft: kingsBench, title: "King's Bench book",
+      workProduct: { id: "abkb-book", revision: 1 }, sources }))
+      .rejects.toThrow(/Attach a complete PDF.*Federal Courts Act.*Alberta King's Bench/u);
+
+    const appeal = reduceAuthoritiesDraft(draft(casePdf, legislationPdf),
+      { type: "set-profile", profileId: "ab-court-of-appeal" });
+    await expect(buildAuthorities({ draft: appeal, title: "Appeal factum",
+      workProduct: { id: "abca-table", revision: 1 } }))
+      .rejects.toThrow(/publicly accessible source link or PDF.*R v Grant/u);
+    if (appeal.authorities.grant.source.kind !== "attached" ||
+        appeal.authorities.fca.source.kind !== "attached") throw new Error("invalid fixture");
+    appeal.authorities.grant.source.sourceUrl = "https://decisions.scc-csc.ca/example";
+    appeal.authorities.fca.source.sourceUrl = "https://laws-lois.justice.gc.ca/example";
+    const result = await buildAuthorities({ draft: appeal, title: "Appeal factum",
+      workProduct: { id: "abca-table", revision: 2 } });
+    expect(Object.keys(result.artifacts)).toEqual(["table"]);
+    const zip = await JSZip.loadAsync(result.artifacts.table!.bytes);
+    const xml = await zip.file("word/document.xml")!.async("string");
+    const rels = await zip.file("word/_rels/document.xml.rels")!.async("string");
+    expect(xml.indexOf("R v Grant")).toBeLessThan(xml.indexOf("Federal Courts Act"));
+    expect(rels).toContain(appeal.authorities.grant.source.sourceUrl);
+    expect(rels).toContain(appeal.authorities.fca.source.sourceUrl);
+    expect(rels).toContain("https://example.test/article");
+
+    const filingPdf = await sourcePdf("Appeal factum", [[612, 792], [612, 792]]);
+    const filingSha = sha256(filingPdf), withFiling = draft(casePdf, legislationPdf);
+    withFiling.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf",
+      fileType: "pdf", snapshot: { documentId: "factum", versionId: "v1",
+        sha256: filingSha } };
+    withFiling.bindings.source = { kind: "document", documentId: "factum",
+      version: { versionId: "v1", sha256: filingSha } };
+    const filingDraft = reduceAuthoritiesDraft(withFiling,
+      { type: "set-profile", profileId: "ab-court-of-appeal" });
+    if (filingDraft.authorities.grant.source.kind !== "attached")
+      throw new Error("invalid fixture");
+    filingDraft.authorities.grant.source.sourceUrl = "https://decisions.scc-csc.ca/grant";
+    const filingResult = await buildAuthorities({ draft: filingDraft, title: "Appeal factum",
+      workProduct: { id: "abca-filing", revision: 1 }, sources: {
+        source: { bytes: filingPdf }, "source:grant": { bytes: casePdf },
+        "source:fca": { bytes: legislationPdf },
+      } });
+    expect(Object.keys(filingResult.artifacts).sort()).toEqual(["annotated-document", "table"]);
+    expect(filingResult.artifacts["annotated-document"]).toMatchObject({
+      filename: "Appeal factum.with-table-of-authorities.pdf", mimeType: "application/pdf",
+      pageCount: 4, receipt: { steps: ["Appended the linked Table of Authorities",
+        "Appended unlinked authority PDFs with bookmarks"] },
+    });
+    const filing = await PDFDocument.load(filingResult.artifacts["annotated-document"]!.bytes);
+    const tablePage = filing.getPage(2);
+    const annotations = tablePage.node.lookup(PDFName.of("Annots"), PDFArray).asArray()
+      .map((ref) => filing.context.lookup(ref, PDFDict));
+    expect(annotations.some((annotation) => annotation.has(PDFName.of("A")))).toBe(true);
+    expect(annotations.some((annotation) => annotation.has(PDFName.of("Dest")))).toBe(true);
+    const outlines = filing.catalog.lookup(PDFName.of("Outlines"), PDFDict);
+    const first = outlines.lookup(PDFName.of("First"), PDFDict);
+    expect(first.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("Filing document");
+    expect(filing.catalog.lookup(PDFName.of("PageMode"), PDFName).asString())
+      .toBe("/UseOutlines");
+
+    filingDraft.authorities.fca.source.sourceUrl = "https://laws-lois.justice.gc.ca/example";
+    const linkedFiling = await buildAuthorities({ draft: filingDraft, title: "Appeal factum",
+      workProduct: { id: "abca-filing", revision: 2 }, sources: {
+        source: { bytes: filingPdf }, "source:grant": { bytes: casePdf },
+        "source:fca": { bytes: legislationPdf },
+      } });
+    expect(linkedFiling.artifacts["annotated-document"]?.receipt.steps)
+      .toEqual(["Appended the linked Table of Authorities"]);
+
+    filingDraft.authorities.fca.source = { kind: "unresolved" };
+    delete filingDraft.bindings["source:fca"];
+    await expect(buildAuthorities({ draft: filingDraft, title: "Appeal factum",
+      workProduct: { id: "abca-filing", revision: 2 }, sources: { source: { bytes: filingPdf } } }))
+      .rejects.toThrow(/publicly accessible source link or PDF.*Federal Courts Act/u);
+  });
+
+  it("makes Federal books continuously numbered, externally linked, and complete", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const legislationPdf = await sourcePdf("Act", [[500, 600]]);
+    let state = reduceAuthoritiesDraft(draft(casePdf, legislationPdf),
+      { type: "set-profile", profileId: "federal-court-of-appeal" });
+    if (state.authorities.grant.source.kind !== "attached") throw new Error("missing fixture source");
+    state.authorities.grant.source.sourceUrl = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/7799/index.do";
+    const sources = { "source:grant": { bytes: casePdf },
+      "source:fca": { bytes: legislationPdf } };
+    const result = await buildAuthorities({ draft: state, title: "Federal book",
+      workProduct: { id: "federal-book", revision: 1 }, sources });
+    const book = await PDFDocument.load(result.artifacts.book!.bytes);
+    book.getPages().forEach((page) => expect(pageContent(book, page)).toContain("Tj"));
+    expect(pageHasRgb(pageContent(book, book.getPage(0)), [128 / 255, 0, 32 / 255])).toBe(false);
+    const annotations = book.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray);
+    const external = annotations.asArray().map((ref) => book.context.lookup(ref, PDFDict))
+      .find((annotation) => annotation.has(PDFName.of("A")));
+    expect(external?.lookup(PDFName.of("A"), PDFDict)
+      .lookup(PDFName.of("URI"), PDFHexString).decodeText())
+      .toBe(state.authorities.grant.source.sourceUrl);
+
+    state.authorities.fca.source = { kind: "unresolved" };
+    delete state.bindings["source:fca"];
+    await expect(buildAuthorities({ draft: state, title: "Incomplete Federal book",
+      workProduct: { id: "federal-book", revision: 2 }, sources }))
+      .rejects.toThrow(/Attach a complete PDF.*Federal Courts Act/u);
+  });
+
+  it("uses mapped, marked case extracts only for Federal paper books", async () => {
+    const decision = await sourcePdf("Decision", Array.from({ length: 9 }, () =>
+      [400, 500] as [number, number]));
+    const texts = ["Headnote", "[1] Reasons", "[2] omitted", "[3] omitted",
+      "[9] preceding", "[10] cited", "[11] following", "[12] omitted", "[13] omitted"];
+    const sourceUrl = "https://www.canlii.org/en/ca/scc/doc/2024/2024scc1/2024scc1.html";
+    const geometry = { schemaVersion: "legalpdf.passage-geometry.v1" as const,
+      sourceSha256: sha256(decision), parserVersion: "test",
+      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
+      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
+        locatorKind: "paragraph" as const, locator: "10",
+        pages: [{ pageNumber: 6, width: 400, height: 500, source: "native" as const,
+          passageRects: [[40, 40, 300, 90] as [number, number, number, number]] }], quotes: [] }] };
+    const encoded = (value: string) => Buffer.from(value, "latin1").toString("hex").toUpperCase();
+    for (const profileId of ["federal-court", "federal-court-of-appeal"] as const) {
+      let state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+      state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test",
+        "source:item", decision);
+      state.authorities.item.locators = [{ kind: "paragraph", label: "10" }];
+      if (state.authorities.item.source.kind !== "attached") throw new Error("fixture");
+      state.authorities.item.source.sourceUrl = sourceUrl;
+      state.authorityOrder = ["item"];
+      state.bindings["source:item"] = { kind: "local-file", handleId: "item", lastSeen: {
+        name: "item.pdf", size: decision.length, modified: 1, sha256: sha256(decision) } };
+      state = reduceAuthoritiesDraft(state, { type: "set-profile", profileId });
+      state = reduceAuthoritiesDraft(state, { type: "set-settings",
+        settings: { filingMedium: "paper" } });
+      const built = await buildAuthorities({ draft: state, title: "Paper authorities",
+        workProduct: { id: profileId, revision: 1 }, sources: { "source:item": {
+          bytes: decision, pageTextByPage: texts, passageGeometry: geometry } } });
+      const book = await PDFDocument.load(built.artifacts.book!.bytes);
+      expect(book.getPageCount()).toBe(profileId === "federal-court" ? 7 : 8);
+      [1, 2, 5, 6, 7].forEach((sourcePage, index) => {
+        const content = pageContent(book, book.getPage(index + 2)).toUpperCase();
+        expect(content).toContain(encoded(`Decision page ${sourcePage}`));
+        expect(content).toContain(encoded("FREE PUBLIC DATABASE: www.canlii.org"));
+      });
+      const databaseLink = book.getPage(2).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
+        .map((ref) => book.context.lookup(ref, PDFDict)).find((item) => item.has(PDFName.of("A")))!
+        .lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFHexString).decodeText();
+      expect(databaseLink).toBe(sourceUrl);
+      expect(pageHasRgb(pageContent(book, book.getPage(5)), [.75, .08, .08])).toBe(true);
+      const authorityOutline = book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
+        .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
+        .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict);
+      const passage = authorityOutline.lookup(PDFName.of("First"), PDFDict);
+      expect(String(passage.lookup(PDFName.of("Dest"), PDFArray).get(0)))
+        .toBe(String(book.getPage(5).ref));
+    }
+  });
+
+  it("keeps complete reasons outside the Federal paper-extract case", async () => {
+    const decision = await sourcePdf("Full decision", Array.from({ length: 4 }, () =>
+      [400, 500] as [number, number]));
+    for (const filingMedium of ["electronic", "paper"] as const) {
+      let state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+      state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test",
+        "source:item", decision);
+      state.authorities.item.locators = [{ kind: "paragraph", label: "10" }];
+      if (state.authorities.item.source.kind !== "attached") throw new Error("fixture");
+      state.authorities.item.source.sourceUrl = filingMedium === "electronic"
+        ? "https://www.canlii.org/en/ca/scc/doc/2024/2024scc1/2024scc1.html" : null;
+      state.authorityOrder = ["item"];
+      state.bindings["source:item"] = { kind: "local-file", handleId: "item", lastSeen: {
+        name: "item.pdf", size: decision.length, modified: 1, sha256: sha256(decision) } };
+      state = reduceAuthoritiesDraft(state, { type: "set-profile", profileId: "federal-court" });
+      state = reduceAuthoritiesDraft(state, { type: "set-settings", settings: { filingMedium } });
+      const built = await buildAuthorities({ draft: state, title: "Full authorities",
+        workProduct: { id: `full-${filingMedium}`, revision: 1 }, sources: { "source:item": {
+          bytes: decision, pageTextByPage: ["Headnote", "[1] Reasons", "[10] cited", "[11]"] } } });
+      expect((await PDFDocument.load(built.artifacts.book!.bytes)).getPageCount()).toBe(6);
+    }
+  });
+
+  it("identifies Federal book filers and colours only paper appeal covers", async () => {
+    const casePdf = await sourcePdf("Grant", [[400, 500]]);
+    const legislationPdf = await sourcePdf("Act", [[500, 600]]);
+    const sources = { "source:grant": { bytes: casePdf },
+      "source:fca": { bytes: legislationPdf } };
+    const colours = {
+      joint: [128 / 255, 0, 32 / 255], appellant: [245 / 255, 245 / 255, 220 / 255],
+      respondent: [169 / 255, 209 / 255, 142 / 255],
+      intervener: [159 / 255, 197 / 255, 220 / 255],
+    } as const;
+    for (const bookRole of Object.keys(colours) as Array<keyof typeof colours>) {
+      let state = reduceAuthoritiesDraft(draft(casePdf, legislationPdf),
+        { type: "set-profile", profileId: "federal-court-of-appeal" });
+      state = reduceAuthoritiesDraft(state, { type: "set-settings",
+        settings: { filingMedium: "paper", bookRole } });
+      const result = await buildAuthorities({ draft: state, title: "Federal appeal book",
+        workProduct: { id: `paper-${bookRole}`, revision: 1 }, sources });
+      const book = await PDFDocument.load(result.artifacts.book!.bytes);
+      const cover = pageContent(book, book.getPage(0));
+      const back = pageContent(book, book.getPage(book.getPageCount() - 1));
+      const line = bookRole === "joint" ? "Filed jointly"
+        : `Filed by ${bookRole[0].toUpperCase()}${bookRole.slice(1)}`;
+      expect(cover.toUpperCase()).toContain(Buffer.from(line, "latin1").toString("hex").toUpperCase());
+      expect(pageHasRgb(cover, colours[bookRole])).toBe(true);
+      expect(pageHasRgb(back, colours[bookRole])).toBe(true);
+    }
+
+    let federal = reduceAuthoritiesDraft(draft(casePdf, legislationPdf),
+      { type: "set-profile", profileId: "federal-court" });
+    federal = reduceAuthoritiesDraft(federal, { type: "set-settings",
+      settings: { filingMedium: "paper", bookRole: "respondent" } });
+    const result = await buildAuthorities({ draft: federal, title: "Federal Court book",
+      workProduct: { id: "paper-federal", revision: 1 }, sources });
+    const federalBook = await PDFDocument.load(result.artifacts.book!.bytes);
+    const cover = pageContent(federalBook, federalBook.getPage(0));
+    expect(cover.toUpperCase()).toContain(
+      Buffer.from("Filed by Respondent", "latin1").toString("hex").toUpperCase());
+    expect(Object.values(colours).some((colour) => pageHasRgb(cover, colour))).toBe(false);
+  });
+
+  it("applies the 500-page electronic limit only to the Federal Court", async () => {
+    const pdf = await sourcePdf("Long authority",
+      Array.from({ length: 499 }, () => [400, 500] as [number, number]));
+    const base = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    base.authorities.long = attached("long", "case", "2026 SCC 1", "R v Long",
+      "source:long", pdf);
+    base.authorityOrder = ["long"];
+    base.bindings["source:long"] = { kind: "local-file", handleId: "long", lastSeen: {
+      name: "long.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
+    } };
+    const input = { title: "Long Federal book", sources: { "source:long": { bytes: pdf } } };
+    const court = reduceAuthoritiesDraft(base,
+      { type: "set-profile", profileId: "federal-court" });
+    await expect(buildAuthorities({ ...input, draft: court,
+      workProduct: { id: "long-fc", revision: 1 } })).rejects.toThrow("exceeds 500 pages");
+    const appeal = reduceAuthoritiesDraft(base,
+      { type: "set-profile", profileId: "federal-court-of-appeal" });
+    const built = await buildAuthorities({ ...input, draft: appeal,
+      workProduct: { id: "long-fca", revision: 1 } });
+    expect((await PDFDocument.load(built.artifacts.book!.bytes)).getPageCount()).toBe(501);
   });
 
   it("emits a versionable copy of an imported DOCX with native TA and TOA fields", async () => {
@@ -242,10 +821,12 @@ describe("Authorities output builder", () => {
         footnoteRefs: [], pageNumbers: [], text: citation, occurrenceIds: ["grant:0"] }],
       occurrences: { "grant:0": { id: "grant:0", unitId: "body:0", start: 0,
         end: citation.length, text: citation, kind: "case", citation,
+        authoritySpan: { start: 0, end: citation.length, text: citation },
+        coreSpan: { start: 0, end: citation.length, text: citation }, pinpointSpan: null,
         authorityId: "grant", reference: null, pinpoints: [], evidenceIds: [],
         sourceTextSha256: sha256(citation), localOrdinal: 0, reviewed: true } },
       authorities: { grant: { id: "grant", key: "grant", kind: "case", citation,
-        name: "R v Grant", displayName: null, evidenceIds: [], locators: [],
+        name: "R v Grant", displayName: null, tabLabel: null, evidenceIds: [], locators: [],
         sourceIdentity: null,
         excluded: false, source: { kind: "unresolved" } } }, authorityOrder: ["grant"] });
     const result = await buildAuthorities({ draft: direct, title: "Factum",
@@ -267,14 +848,46 @@ describe("Authorities output builder", () => {
     expect(result.receipt.outputs["annotated-document"]?.sha256)
       .toBe(result.artifacts["annotated-document"]?.sha256);
 
-    direct.occurrences["grant:0"].reviewed = false;
-    const unchecked = await buildAuthorities({ draft: direct, title: "Factum",
+    const linked = structuredClone(direct);
+    linked.settings.tableDelivery = "linked-append";
+    linked.settings.tableOrder = "first-reference";
+    linked.authorities.grant.displayName = "Grant (custom)";
+    linked.authorities.grant.source = { kind: "pending-canlii", authorityKey: "grant",
+      pageUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.html",
+      pdfUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.pdf" };
+    const linkedResult = await buildAuthorities({ draft: linked, title: "Factum",
       workProduct: { id: "authorities-docx", revision: 3 }, sources: { source: {
         bytes: source, resolved: { kind: "document", documentId: "factum",
           versionId: "v3", filename: "Factum.docx", sha256: digest },
       } } });
-    const uncheckedXml = await (await JSZip.loadAsync(
-      unchecked.artifacts["annotated-document"]!.bytes)).file("word/document.xml")!.async("string");
-    expect(uncheckedXml).not.toContain(" TA \\l ");
+    const linkedXml = await (await JSZip.loadAsync(
+      linkedResult.artifacts["annotated-document"]!.bytes))
+      .file("word/document.xml")!.async("string");
+    const linkedTableZip = await JSZip.loadAsync(linkedResult.artifacts.table!.bytes);
+    const linkedTableXml = await linkedTableZip.file("word/document.xml")!.async("string");
+    const linkedTableRels = await linkedTableZip.file("word/_rels/document.xml.rels")!
+      .async("string");
+    expect(linkedXml).toContain("TABLE OF AUTHORITIES");
+    expect(linkedXml).toContain("Grant (custom)");
+    expect(linkedXml).not.toContain("Grant (custom), R v Grant");
+    expect(linkedXml).toContain("HYPERLINK &quot;https://www.canlii.org/");
+    expect(linkedXml).not.toContain(" TA \\l ");
+    expect(linkedTableXml).toContain("w:hyperlink");
+    expect(linkedTableRels).toContain("https://www.canlii.org/");
+    expect(linkedTableXml).toContain("1. ");
+    expect(linkedTableXml).not.toContain("Cited at");
+    expect(linkedTableXml).not.toContain("Open source");
+    expect(linkedResult.artifacts["annotated-document"]?.receipt.steps)
+      .toEqual(["Appended the linked Table of Authorities to the Word document"]);
+
+    direct.occurrences["grant:0"].reviewed = false;
+    const unconfirmed = await buildAuthorities({ draft: direct, title: "Factum",
+      workProduct: { id: "authorities-docx", revision: 3 }, sources: { source: {
+        bytes: source, resolved: { kind: "document", documentId: "factum",
+          versionId: "v3", filename: "Factum.docx", sha256: digest },
+      } } });
+    const unconfirmedXml = await (await JSZip.loadAsync(
+      unconfirmed.artifacts["annotated-document"]!.bytes)).file("word/document.xml")!.async("string");
+    expect(unconfirmedXml).toContain(" TA \\l ");
   });
 });
