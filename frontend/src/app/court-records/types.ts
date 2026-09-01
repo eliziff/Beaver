@@ -105,7 +105,6 @@ export interface CoverDefinition {
   fields: CoverField[];
   partyStyles?: PartyStyle[];
   filingGroupId?: string;
-  note?: string;
 }
 
 export interface DocumentKind {
@@ -121,6 +120,9 @@ export interface DocumentKind {
   acceptedFormats?: CourtSourceFormat[];
   generated?: "fca-form-344-certificate";
   descriptionOnly?: boolean;
+  defaultDescription?: string;
+  allowUnavailableNote?: boolean;
+  separateFile?: boolean;
 }
 
 export interface TechnicalRequirements {
@@ -173,6 +175,7 @@ export interface CourtProfile {
   effective: EffectivePeriod;
   cover: CoverDefinition;
   documentKinds: DocumentKind[];
+  oneOf?: Array<{ slots: string[]; label: string }>;
   technical: TechnicalRequirements;
   minimumDocuments?: number;
   sourceIds: string[];

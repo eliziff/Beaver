@@ -32,7 +32,7 @@ export function createChatToolRunner(options: {
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "resolve" | "applyResearchSetAction">;
+    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
   model?: string;
   chatId?: string;
   researchSetId?: string;

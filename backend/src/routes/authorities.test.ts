@@ -59,6 +59,12 @@ describe("Authorities HTTP boundary", () => {
       type: "merge-occurrence", occurrenceId: "occurrence-2",
     } }).expect(200);
     await request(app).post("/authorities/draft-1/actions").send({ revision: 1, action: {
+      type: "set-reviewed", occurrenceId: "occurrence-2", reviewed: true,
+    } }).expect(200);
+    expect(application.act).toHaveBeenLastCalledWith(expect.anything(), "draft-1", 1, {
+      type: "set-reviewed", occurrenceId: "occurrence-2", reviewed: true,
+    });
+    await request(app).post("/authorities/draft-1/actions").send({ revision: 1, action: {
       type: "set-document-output", enabled: true,
     } }).expect(200);
     expect(application.act).toHaveBeenLastCalledWith(expect.anything(), "draft-1", 1, {

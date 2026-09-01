@@ -15,8 +15,8 @@ vi.mock("../../lib/supabase", async (importOriginal) => ({
 }));
 
 const canonicalIds = [
-  "drafting", "document-review", "document-comparison", "legal-research",
-  "quote-checking", "templates", "agreement-work", "due-diligence",
+  "drafting", "document-review", "legal-research", "quote-checking",
+  "agreement-work", "due-diligence",
   "transaction-management", "corporate-approvals", "submission-drafting",
   "evidence-review", "court-records", "authorities",
 ];
@@ -59,7 +59,7 @@ afterEach(async () => {
 }, 30_000);
 
 describe("account-free workflow catalogue", () => {
-  it("lists 14 canonical workflows while preserving every existing recipe as a variant", async () => {
+  it("lists 12 canonical workflows while preserving every existing recipe as a variant", async () => {
     const api = await loadApi();
     const [all, general, solicitor, litigator, search] = await Promise.all([
       request(api).get("/workflows?audience=all"),
@@ -71,19 +71,28 @@ describe("account-free workflow catalogue", () => {
 
     expect(all.status).toBe(200);
     expect(all.body.map(({ id }: { id: string }) => id)).toEqual(canonicalIds);
-    expect(general.body).toHaveLength(6);
-    expect(solicitor.body).toHaveLength(10);
-    expect(litigator.body).toHaveLength(10);
+    expect(general.body).toHaveLength(4);
+    expect(solicitor.body).toHaveLength(8);
+    expect(litigator.body).toHaveLength(8);
     expect(search.body.map(({ id }: { id: string }) => id)).toEqual(["agreement-work"]);
     expect(all.body.flatMap(({ launcher }: { launcher: { variants?: object[] } }) =>
       launcher.variants ?? []).every((variant: object) => !("skill_md" in variant))).toBe(true);
     expect(all.body.some(({ launcher }: { launcher: { variants?: { columns_config?: unknown[] }[] } }) =>
       launcher.variants?.some(({ columns_config }) => columns_config?.length))).toBe(true);
-    const variantIds = all.body.flatMap(({ launcher }: {
-      launcher: { kind: string; variants?: { id: string }[] };
-    }) => launcher.variants?.map(({ id }) => id) ?? []);
+    const variants = all.body.flatMap(({ launcher }: {
+      launcher: { kind: string; variants?: { id: string; result: string | null }[] };
+    }) => launcher.variants ?? []);
+    const variantIds = variants.map(({ id }: { id: string }) => id);
     expect(variantIds).toEqual(expect.arrayContaining(preservedRecipeIds));
     expect(new Set(variantIds).size).toBe(variantIds.length);
+    expect(variants.every(({ result }: { result: string | null }) => result?.trim() &&
+      !["Written review", "Review table"].includes(result))).toBe(true);
+    expect(all.body.find(({ id }: { id: string }) => id === "drafting").launcher.variants
+      .map(({ id }: { id: string }) => id)).toEqual(expect.arrayContaining([
+        "builtin-create-template", "builtin-draft-from-template",
+      ]));
+    expect(all.body.find(({ id }: { id: string }) => id === "document-review").launcher.variants
+      .map(({ id }: { id: string }) => id)).toContain("builtin-compare-documents");
     expect(all.body.find(({ id }: { id: string }) => id === "authorities").launcher)
       .toEqual({ kind: "authorities" });
     expect(all.body.find(({ id }: { id: string }) => id === "court-records").launcher)

@@ -93,13 +93,19 @@ describe("SQLite and filesystem document adapters", () => {
     ))?.bytes.toString()).toBe("record");
   });
 
-  it("keeps workflow files in the selected folder", async () => {
+  it("contains direct Court Records and Authorities PDFs in their durable targets", async () => {
     root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
     process.env.MIKE_LOCAL_DATA_DIR = root;
     process.env.AUTH_MODE = "local";
     const store = await localStores(), scope = { userId: "local-user" };
-    const first = await store.workflowFiles.create(scope, "court-records", {
-      filename: "Record.txt", fileType: "txt", bytes: Buffer.from("record"),
+    const [{ createCourtRecordsApplication }, { createAuthoritiesWorkspaceApplication }] =
+      await Promise.all([import("../courtRecordsApplication"),
+        import("../authoritiesWorkspaceApplication")]);
+    const courtRecords = createCourtRecordsApplication(
+      store.documents, store.workflowFiles, {} as never,
+    );
+    const first = await courtRecords.saveFile(scope, {
+      filename: "Record.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nrecord"),
     });
     const defaults = await store.preferences.get(scope.userId);
     expect(defaults.workflowFileTargets["court-records"]).toBeNull();
@@ -116,23 +122,30 @@ describe("SQLite and filesystem document adapters", () => {
       ...defaults.workflowFileTargets,
       authorities: { kind: "project", projectId: project.id, folderId: folder!.id },
     } });
-    const second = await store.workflowFiles.create(scope, "authorities", {
-      filename: "Book.txt", fileType: "txt", bytes: Buffer.from("book"),
+
+    const authorities = createAuthoritiesWorkspaceApplication(
+      store.documents, {} as never, store.workflowFiles,
+    );
+    const second = await authorities.saveFile(scope, {
+      filename: "Book.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nbook"),
     });
     expect(second).toMatchObject({ project_id: project.id, folder_id: folder!.id });
 
-    const projectRecord = await store.workflowFiles.create(scope, "court-records", {
-      filename: "Project record.txt", fileType: "txt", bytes: Buffer.from("record"),
-    }, { projectId: project.id });
-    expect(projectRecord).toMatchObject({ project_id: project.id });
-    const directory = await store.projects.directory(scope, project.id, {
-      q: "", parentFolderId: null, limit: 100, after: null,
-    });
-    expect(directory.items).toContainEqual(expect.objectContaining({
-      kind: "folder", folder: expect.objectContaining({
-        id: projectRecord.folder_id, name: "Court Records",
-      }),
-    }));
+    const [{ enqueuePdfPreparation }, { relationalDatabase, sql }] = await Promise.all([
+      import("../pdfJobs"), import("../relationalDatabase"),
+    ]);
+    await enqueuePdfPreparation({ userId: scope.userId,
+      documentId: second.id, versionId: second.current_version_id,
+      sourceSha256: second.source_sha256 });
+    await expect((await relationalDatabase()).query(sql`SELECT d.id,
+      COUNT(DISTINCT v.id) versions,COUNT(DISTINCT j.id) jobs,MIN(j.kind) kind
+      FROM documents d JOIN document_versions v ON v.document_id=d.id
+      JOIN application_jobs j ON j.document_version_id=v.id
+      WHERE d.id IN(${first.id},${second.id}) GROUP BY d.id ORDER BY d.id`))
+      .resolves.toMatchObject({ rows: [
+        { versions: 1, jobs: 1, kind: "pdf.prepare" },
+        { versions: 1, jobs: 1, kind: "pdf.prepare" },
+      ] });
   });
 
   it("keeps exact work-product receipts on stable output document versions", async () => {

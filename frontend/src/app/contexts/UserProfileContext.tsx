@@ -44,7 +44,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [loadedUser, setLoadedUser] = useState<string | null>(null);
   const request = useRef(0);
   const userId = user?.id ?? null;
-  const needed = !isLocalMode || /^(\/assistant|\/projects|\/workflows|\/table-of-authorities|\/court-records|\/library|\/account|\/onboarding|\/word)/.test(pathname);
+  const needed = !isLocalMode || /^(\/assistant|\/projects|\/workflows|\/table-of-authorities|\/court-records|\/account|\/onboarding|\/word)/.test(pathname);
 
   const load = useCallback(async (id: string) => {
     const sequence = ++request.current;

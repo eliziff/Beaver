@@ -76,6 +76,7 @@ export type AuthoritiesAction =
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
+  | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
       reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null }
   | { type: "begin-canlii-handoff"; authorityId: string }

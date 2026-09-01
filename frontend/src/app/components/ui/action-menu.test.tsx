@@ -12,6 +12,7 @@ describe("ActionMenu", () => {
         );
         const trigger = screen.getByRole("button", { name: "Actions" });
         fireEvent.click(trigger);
+        expect(screen.getByRole("menu")).toHaveAttribute("data-shortcut-layer");
         fireEvent.click(screen.getByRole("menuitem", { name: "Download" }));
         fireEvent.click(trigger);
         fireEvent.click(screen.getByRole("menuitem", { name: "Download" }));

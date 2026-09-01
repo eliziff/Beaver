@@ -27,8 +27,8 @@ import type {
     AssistantSidePanelTab,
 } from "./AssistantSidePanel";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
-import { AssistantWorkflowDock } from "./AssistantWorkflowDock";
-import { DocumentWorkflowMenu, type DocumentWorkflowTarget } from "@/app/components/documents/DocumentWorkflowMenu";
+import { ContextualWorkflowPicker,
+    type WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type {
     WorkflowRunEvent,
     Citation,
@@ -40,7 +40,8 @@ import type {
     EditResolved,
     Message,
 } from "../shared/types";
-import { workflowDocumentTab, type WorkflowSelection } from "../workflows/workflowRoutes";
+import { workflowDocumentTab, workflowMessage,
+    type AssistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
 import {
     safeAssistantUrl,
     type AssistantReaderRun,
@@ -102,6 +103,8 @@ interface Props {
     projectFiles?: ReactNode;
     projectFileActions?: ReactNode;
     initialDocuments?: Document[];
+    initialWorkflow?: AssistantWorkflowLaunch;
+    sendDisabled?: boolean;
 }
 export interface ChatViewHandle {
     attachDocument: (document: Document) => void;
@@ -214,6 +217,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         projectFiles,
         projectFileActions,
         initialDocuments,
+        initialWorkflow,
+        sendDisabled,
     },
     ref,
 ) {
@@ -228,22 +233,24 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         key: readSubagentPanelStorageKey,
         ids: readStoredSubagentPanelIds(readSubagentPanelStorageKey),
     }));
-    const [dockOpen, setDockOpen] = useState(!!projectFiles);
-    const [dockActivated, setDockActivated] = useState(!!projectFiles);
+    const [dockOpen, setDockOpen] = useState(!!projectFiles || !!initialWorkflow);
+    const [dockActivated, setDockActivated] = useState(!!projectFiles || !!initialWorkflow);
     const setDockExpanded = useCallback((expanded: boolean) => {
         setDockOpen(expanded);
         if (expanded) setDockActivated(true);
     }, []);
     const [activeDockTab, setActiveDockTab] = useState(
-        projectFiles ? "project-files" : "sources",
+        initialWorkflow ? "workflows" : projectFiles ? "project-files" : "sources",
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [workflowInitialId, setWorkflowInitialId] = useState<string>();
+    const [workflowInitialId, setWorkflowInitialId] = useState(
+        initialWorkflow?.workflow.id,
+    );
     const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
-    const workflowSelectRef = useRef<(selection: WorkflowSelection) => void>(() => {});
-    const [workflowDocument, setWorkflowDocument] =
-        useState<DocumentWorkflowTarget | null>(null);
+    const [workflowDocuments, setWorkflowDocuments] = useState<WorkflowDocument[]>(
+        initialDocuments ?? [],
+    );
     const [hiddenAskInputKey, setHiddenAskInputKey] = useState<string | null>(
         null,
     );
@@ -462,12 +469,25 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const latestUserMessageRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle | null>(null);
     const attachedInitialDocuments = useRef(false);
+    const startedInitialWorkflow = useRef(false);
     const [showScrollButton, setShowScrollButton] = useState(false);
     useEffect(() => {
         if (attachedInitialDocuments.current || !initialDocuments?.length) return;
         attachedInitialDocuments.current = true;
         initialDocuments.forEach((document) => chatInputRef.current?.addDoc(document));
     }, [initialDocuments]);
+    useEffect(() => {
+        if (startedInitialWorkflow.current || !initialWorkflow) return;
+        startedInitialWorkflow.current = true;
+        const tab = initialWorkflow.documentTab;
+        const hasDocument = tab === "templates"
+            ? initialDocuments?.some(({ library_kind }) => library_kind === "template")
+            : !!initialDocuments?.length;
+        chatInputRef.current?.startWorkflowDocumentSelection(
+            initialWorkflow.workflow, undefined,
+            { initialDocumentTab: tab, openDocumentPicker: !hasDocument },
+        );
+    }, [initialDocuments, initialWorkflow]);
     const updateScrollButton = useCallback(() => {
         const c = messagesContainerRef.current;
         if (!c) return;
@@ -514,35 +534,28 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     useEffect(() => {
         onActiveDocumentChange?.(activeDocument?.documentId ?? null);
     }, [activeDocument?.documentId, onActiveDocumentChange]);
-    const openDocumentWorkflows = (document?: Document) => {
-        const target = document
-            ? {
-                  id: document.id,
-                  filename: document.filename,
-                  file_type: document.file_type,
-                  library_kind: document.library_kind,
-                  project_id: document.project_id,
-              }
-            : activeDocument
-              ? {
-                    id: activeDocument.documentId,
-                    filename: activeDocument.filename,
-                    project_id: projectId ?? null,
-                }
-              : null;
-        setWorkflowDocument(target);
-        setActiveDockTab("workflows");
-        setDockExpanded(true);
-    };
     const openWorkflows = (
-        onSelect: (selection: WorkflowSelection) => void,
         initialWorkflowId?: string,
+        documents: WorkflowDocument[] = [],
     ) => {
-        setWorkflowDocument(null);
-        workflowSelectRef.current = onSelect;
+        for (const document of documents) chatInputRef.current?.addDoc({
+            id: document.id, filename: document.filename,
+            project_id: document.project_id ?? null,
+            file_type: document.file_type ?? null,
+            library_kind: document.library_kind,
+            pdf_storage_path: null, size_bytes: null, page_count: null, created_at: null,
+        });
+        setWorkflowDocuments(documents);
         setWorkflowInitialId(initialWorkflowId);
         setActiveDockTab("workflows");
         setDockExpanded(true);
+    };
+    const selectWorkflow = (selection: WorkflowSelection) => {
+        const tab = workflowDocumentTab(selection);
+        chatInputRef.current?.startWorkflowDocumentSelection(
+            workflowMessage(selection), undefined,
+            { initialDocumentTab: tab },
+        );
     };
     useImperativeHandle(
         ref,
@@ -677,6 +690,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     onActivateTab={setActiveTabId}
                     onCloseTab={closeTab}
                     onCloseAll={closeAllTabs}
+                    onOpenWorkflows={(documents) => openWorkflows(undefined, documents)}
                     isEditorReloading={(documentId) =>
                         editState.docIds.has(documentId)
                     }
@@ -717,6 +731,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     <LibraryCollectionPage
                         kind={libraryKind}
                         onKindChange={setLibraryKind}
+                        onOpenWorkflows={(documents) => openWorkflows(undefined, documents)}
                         onOpenInChat={(documents) => {
                             for (const document of documents) {
                                 chatInputRef.current?.addDoc(document);
@@ -731,23 +746,9 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
             id: "workflows",
             label: "Workflows",
             icon: <WorkflowSkeuoIcon className="text-base leading-none" />,
-            content: workflowDocument ? (
-                <div className="h-full overflow-y-auto">
-                    <DocumentWorkflowMenu document={workflowDocument} embedded />
-                </div>
-            ) : (
-                <AssistantWorkflowDock
-                    key={workflowInitialId ?? "workflows"}
-                    initialWorkflowId={workflowInitialId}
-                    onSelect={(selection) => {
-                        workflowSelectRef.current(selection);
-                        if (workflowDocumentTab(selection) === "templates") {
-                            setLibraryKind("templates");
-                            setActiveDockTab("library");
-                        }
-                    }}
-                />
-            ),
+            content: <ContextualWorkflowPicker documents={workflowDocuments}
+                initialWorkflowId={workflowInitialId}
+                onAssistantSelect={selectWorkflow} className="p-3" />,
         },
         {
             id: "sources",
@@ -808,7 +809,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     style={{ scrollbarGutter: "stable both-edges" }}
                 >
                     <div
-                        className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-12" : "px-6 pt-6 md:px-8 md:pt-8"} ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
+                        className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${assistantSideGutterVisible ? "ms-auto me-0 max-w-5xl md:max-lg:pe-2" : "mx-auto max-w-4xl"}`}
                         style={{
                             paddingBottom: DEFAULT_ASSISTANT_BOTTOM_PADDING,
                         }}
@@ -949,6 +950,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 cancel();
                             }}
                             isLoading={isResponseLoading || !!activeInput}
+                            disabled={sendDisabled}
                             contextUsage={
                                 session.contextUsage || session.compaction === "running"
                                     ? {
@@ -960,8 +962,6 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                             }
                             showContextTools={contextToolsEnabled}
                             rows={layout === "panel" ? 2 : 1}
-                            documentWorkflowsAvailable={dockEnabled && !!activeDocument}
-                            onRunDocumentWorkflow={dockEnabled ? openDocumentWorkflows : undefined}
                             onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
                             projectName={projectName ?? undefined}
                             projectCmNumber={projectCmNumber}

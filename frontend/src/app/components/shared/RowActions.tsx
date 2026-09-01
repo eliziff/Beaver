@@ -6,7 +6,7 @@ interface Props {
     onHide?: () => void;
     onUnhide?: () => void;
     onDownload?: () => void;
-    onRemoveFromFolder?: () => void;
+    onMove?: () => void;
     onUploadNewVersion?: () => void;
     onNewSubfolder?: () => void;
     deleting?: boolean;
@@ -24,7 +24,7 @@ export function RowActions({
     onHide,
     onUnhide,
     onDownload,
-    onRemoveFromFolder,
+    onMove,
     onUploadNewVersion,
     onNewSubfolder,
     deleting,
@@ -49,7 +49,7 @@ export function RowActions({
     add("Edit details", onEditDetails);
     add("Download", onDownload);
     add("Upload new version", onUploadNewVersion);
-    add("Remove from subfolder", onRemoveFromFolder);
+    add("Move…", onMove);
     add("Activate", onUnhide);
     add("Deactivate", onHide);
     add(deleteLabel, onDelete, deleting || deleteDisabled);

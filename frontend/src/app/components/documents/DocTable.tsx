@@ -11,6 +11,7 @@ import type { Document, Folder as ProjectFolder, LibraryFolder }
     from "@/app/components/shared/types";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { FolderBrowser, type FolderList } from "@/app/components/shared/FolderBrowser";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
@@ -32,17 +33,18 @@ import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 import { DocumentSidePanel, preloadDocumentViewer }
     from "@/app/components/shared/DocumentSidePanel";
 import type { UploadActions } from "./UploadAction";
-import { DocumentWorkflowMenu } from "./DocumentWorkflowMenu";
+import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
+import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
+import { Modal } from "@/app/components/modals/Modal";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
 interface DocTableSelectionActions {
     selectedCount: number; selectedDocuments: Document[];
-    workflowDocument: Document | null; hasDocumentsInFolders: boolean;
     onWorkflowDocumentChanged: () => Promise<void>;
-    onDownload: () => Promise<void>; onRemoveFromFolder: () => Promise<void>;
+    onDownload: () => Promise<void>; onMove: () => void;
     onDelete: () => Promise<void>;
 }
 const DOCUMENT_ROW_CLASS =
@@ -172,6 +174,7 @@ function DocumentMetadataCells({ doc, onOpen }: { doc: Document; onOpen: () => v
     ));
 }
 interface DocTableOperations {
+    list: FolderList;
     removeDocument?: (documentId: string) => Promise<void>;
     uploadDocument: (file: File) => Promise<Document>;
     uploadDocuments: (files: File[]) => Promise<Document[]>;
@@ -189,6 +192,7 @@ interface DocTableOperations {
 }
 type PendingDocumentRemoval = { documents: Document[]; fromSelection: boolean; deleting: boolean };
 type PendingFolderDeletion = { folder: DocTableFolder; deleting: boolean };
+type PendingMove = { documentIds: string[] } | { folderId: string };
 type DocTableState = {
     addDocsOpen: boolean; viewingDoc: Document | null; viewingDocVersionId: string | null;
     selectedDocIds: string[];
@@ -202,6 +206,7 @@ type DocTableState = {
     warnings: Record<(typeof WARNING_KINDS)[number], string | null>;
     pendingDocumentRemoval: PendingDocumentRemoval | null;
     pendingDeleteFolder: PendingFolderDeletion | null;
+    pendingMove: PendingMove | null;
 };
 const emphasis = (value: ReactNode) =>
     <span className="font-medium text-gray-950">{value}</span>;
@@ -231,6 +236,40 @@ function documentRemovalMessage(pending: PendingDocumentRemoval | null,
           : <>Delete {name}? This will delete the document and all of its versions.</>}
     </p></div>;
 }
+function MoveDialog({ title, list, rootLabel, disabledIds, canMove, onClose, onMove }: {
+    title: string; list: FolderList; rootLabel: string; disabledIds?: Set<string>;
+    canMove: (destinationId: string | null) => boolean;
+    onClose: () => void; onMove: (destinationId: string | null) => Promise<void>;
+}) {
+    const [destination, setDestination] = useState<ProjectFolder | null>(null);
+    const [moving, setMoving] = useState(false), [error, setError] = useState("");
+    const destinationId = destination?.id ?? null;
+    async function move() {
+        if (moving || !canMove(destinationId)) return;
+        setMoving(true); setError("");
+        try { await onMove(destinationId); }
+        catch (reason) {
+            console.error("move failed", reason);
+            setError(reason instanceof Error ? reason.message : "This item could not be moved.");
+            setMoving(false);
+        }
+    }
+    const close = () => { if (!moving) onClose(); };
+    return <Modal open onClose={close} breadcrumbs={["Move", title]}
+        size="md" className="!h-[min(32rem,calc(100dvh-2rem))]"
+        footerStatus={<span role="status" aria-live="polite"
+            className={error ? "text-sm text-red-700" : "text-sm text-gray-500"}>
+            {error || `Destination: ${destination?.name ?? rootLabel}`}
+        </span>}
+        cancelAction={{ label: "Cancel", onClick: close, disabled: moving }}
+        primaryAction={{ label: moving ? "Moving…" : "Move here",
+            onClick: () => void move(), disabled: moving || !canMove(destinationId) }}>
+        <FolderBrowser list={list} rootLabel={rootLabel} onSelect={(folder) => {
+            setDestination(folder); setError("");
+        }}
+            disabledIds={disabledIds} />
+    </Modal>;
+}
 interface DocTableProps {
     scopeKey: string; documents: Document[]; folders: DocTableFolder[];
     loading: boolean; search: string; operations: DocTableOperations; emptyDropLabel?: string;
@@ -239,6 +278,8 @@ interface DocTableProps {
     onUploadActionsChange?: (actions: UploadActions | null) => void;
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
     onOpenSelectionInChat?: (documents: Document[]) => void;
+    onOpenWorkflows?: (documents: Document[]) => void;
+    onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
     openSelectionLabel?: string;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach"; selectionFirst?: boolean;
@@ -266,7 +307,8 @@ export function DocTable({
     scopeKey, documents, folders, loading, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
     renderAddDocumentsModal, onUploadActionsChange,
-    onCreateFolderActionChange, onOpenSelectionInChat,
+    onCreateFolderActionChange, onOpenSelectionInChat, onOpenWorkflows,
+    onAssistantWorkflowSelect,
     openSelectionLabel = "Open in new chat", onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
@@ -282,6 +324,7 @@ export function DocTable({
         warnings: { upload: null, rename: null, collection: null },
         pendingDocumentRemoval: null,
         pendingDeleteFolder: null,
+        pendingMove: null,
     }));
     function set<K extends keyof DocTableState>(key: K,
         next: DocTableState[K] | ((current: DocTableState[K]) => DocTableState[K])) {
@@ -298,6 +341,7 @@ export function DocTable({
         renamingFolderId, dragOverFolderId, dragOverSurface, uploadingVersionDocIds,
         uploadingDroppedFilenames, deletingDocIds, warnings,
         pendingDocumentRemoval, pendingDeleteFolder,
+        pendingMove,
     } = state;
     const documentUploadInputRef = useRef<HTMLInputElement>(null);
     const directoryUploadInputRef = useRef<HTMLInputElement>(null);
@@ -543,10 +587,28 @@ export function DocTable({
         }
     }
     async function handleDocsSelected() { await refreshCollection(); }
-    async function handleRemoveDocFromFolder(docId: string) {
-        const parent = docsById.get(docId)?.folder_id;
-        await operations.moveDocument(docId, null);
-        await refreshParents(parent, null);
+    async function movePending(destinationId: string | null) {
+        if (!pendingMove) return;
+        if ("folderId" in pendingMove) {
+            const folder = foldersById.get(pendingMove.folderId);
+            if (!folder || (folder.parent_folder_id ?? null) === destinationId ||
+                destinationId && wouldCreateFolderCycle(folder.id, destinationId, foldersById))
+                return;
+            await operations.moveFolder(folder.id, destinationId);
+            await refreshParents(folder.parent_folder_id, destinationId);
+        } else {
+            const documentsToMove = pendingMove.documentIds
+                .map((id) => docsById.get(id))
+                .filter((doc): doc is Document =>
+                    !!doc && (doc.folder_id ?? null) !== destinationId);
+            const results = await Promise.allSettled(documentsToMove.map((doc) =>
+                operations.moveDocument(doc.id, destinationId)));
+            await refreshParents(destinationId,
+                ...documentsToMove.map(({ folder_id }) => folder_id));
+            if (results.some(({ status }) => status === "rejected"))
+                throw new Error("Some documents could not be moved.");
+        }
+        set("pendingMove", null);
     }
     async function retryParse(docId: string) {
         if (!operations.retryPdfParse) return;
@@ -938,7 +1000,7 @@ export function DocTable({
                                                 onCancel={() => set("renamingFolderId", null)} />
                                     </div> : <button type="button" aria-expanded={isExpanded}
                                         onClick={() => toggleFolder(folder.id)}
-                                        className="flex w-full cursor-pointer items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                                        className="flex min-h-6 w-full cursor-pointer items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-red-600">
                                         {folderPrefix}<span className="truncate text-sm text-gray-800">
                                             {folder.name}</span>
                                     </button>}
@@ -953,6 +1015,7 @@ export function DocTable({
                                         }}
                                         newSubfolderLabel="New subfolder inside"
                                         onRename={() => set("renamingFolderId", folder.id)}
+                                        onMove={() => set("pendingMove", { folderId: folder.id })}
                                         onDelete={() => requestDeleteFolder(folder.id)} />
                                 </div>
                             </div>
@@ -1052,8 +1115,7 @@ export function DocTable({
                                         renameLabel="Rename document"
                                         onDownload={() => downloadDoc(doc.id)}
                                         onUploadNewVersion={() => void handleUploadNewVersion(doc)}
-                                        onRemoveFromFolder={doc.folder_id
-                                            ? () => handleRemoveDocFromFolder(doc.id) : undefined}
+                                        onMove={() => set("pendingMove", { documentIds: [doc.id] })}
                                         onDelete={() => requestRemoveDoc(doc)}
                                         deleteLabel={detachesDocument
                                             ? "Remove from project" : "Delete"}
@@ -1077,16 +1139,6 @@ export function DocTable({
         }
         downloadBlob(await downloadDocumentsZip(selectedDocIds), "documents.zip");
     }, [downloadDoc, selectedDocIds]);
-    const handleRemoveSelectedFromFolder = useCallback(async () => {
-        const ids = new Set(
-            selectedDocIds.filter((id) => docsById.get(id)?.folder_id != null),
-        );
-        if (ids.size === 0) return;
-        await Promise.all([...ids].map((id) =>
-            operations.moveDocument(id, null).catch(() => {})));
-        await refreshParents(null, ...[...ids].map((id) =>
-            docsById.get(id)?.folder_id));
-    }, [docsById, operations, refreshParents, selectedDocIds]);
     const requestDeleteSelectedDocs = useCallback(async () => {
         const documentsToRemove = selectedDocIds
             .map((id) => docsById.get(id))
@@ -1118,10 +1170,6 @@ export function DocTable({
         }
     }
     const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const selectedWorkflowDocument =
-        scopeKey !== "templates" && selectedDocIds.length === 1
-            ? (docsById.get(selectedDocIds[0]) ?? null)
-            : null;
     const selectionActions = useMemo<DocTableSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
         return {
@@ -1129,30 +1177,24 @@ export function DocTable({
             selectedDocuments: selectedDocIds
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
-            workflowDocument: selectedWorkflowDocument,
-            hasDocumentsInFolders: selectedDocIds.some(
-                (id) => docsById.get(id)?.folder_id != null),
             onWorkflowDocumentChanged: async () => {
-                if (!selectedWorkflowDocument) return;
-                await refreshDocumentVersionState(selectedWorkflowDocument.id);
+                if (selectedDocIds.length === 1)
+                    await refreshDocumentVersionState(selectedDocIds[0]);
             },
             onDownload: handleDownloadSelectedDocs,
-            onRemoveFromFolder: handleRemoveSelectedFromFolder,
+            onMove: () => set("pendingMove", { documentIds: selectedDocIds }),
             onDelete: requestDeleteSelectedDocs,
         };
-    }, [docsById, handleDownloadSelectedDocs, handleRemoveSelectedFromFolder,
+    }, [docsById, handleDownloadSelectedDocs,
         refreshDocumentVersionState, requestDeleteSelectedDocs,
-        selectedWorkflowDocument, selectedDocIds]);
+        selectedDocIds]);
     const selectionMenuItems = selectionActions ? [
         ...(onOpenSelectionInChat ? [{
             label: openSelectionLabel,
             onSelect: () => onOpenSelectionInChat(selectionActions.selectedDocuments),
         }] : []),
         { label: "Download", onSelect: () => void selectionActions.onDownload() },
-        ...(selectionActions.hasDocumentsInFolders ? [{
-            label: "Remove from subfolder",
-            onSelect: () => void selectionActions.onRemoveFromFolder(),
-        }] : []),
+        { label: "Move…", onSelect: selectionActions.onMove },
         {
             label: detachesDocument ? "Remove" : "Delete",
             onSelect: () => void selectionActions.onDelete(),
@@ -1175,6 +1217,21 @@ export function DocTable({
     const pendingDeleteFolderMessage = pendingDeleteFolder ? <p>
         Permanently delete {emphasis(pendingDeleteFolder.folder.name)} and everything inside it?
     </p> : undefined;
+    const pendingMoveTitle = pendingMove && ("folderId" in pendingMove
+        ? foldersById.get(pendingMove.folderId)?.name ?? "Folder"
+        : pendingMove.documentIds.length === 1
+            ? docsById.get(pendingMove.documentIds[0])?.filename ?? "Document"
+            : `${pendingMove.documentIds.length} documents`);
+    const disabledMoveFolders = pendingMove && "folderId" in pendingMove
+        ? descendantFolderIds(pendingMove.folderId, foldersByParent) : undefined;
+    const canMovePendingTo = (destinationId: string | null) => !!pendingMove &&
+        ("folderId" in pendingMove
+            ? (foldersById.get(pendingMove.folderId)?.parent_folder_id ?? null) !== destinationId &&
+                !disabledMoveFolders?.has(destinationId ?? "")
+            : pendingMove.documentIds.some((id) =>
+                (docsById.get(id)?.folder_id ?? null) !== destinationId));
+    const rootLabel = scopeKey === "templates" ? "Templates"
+        : scopeKey === "files" ? "Library" : "Project";
     return (
         <div className={`relative flex h-full min-h-0 flex-1 flex-col overflow-hidden ${compact ? "[&_.document-metadata]:hidden" : ""}`}
             onDragEnd={clearDragOver}>
@@ -1227,6 +1284,12 @@ export function DocTable({
                     set("pendingDeleteFolder", null);
                 }}
                 onConfirm={() => void confirmDeletePendingFolder()} />
+            {pendingMove && <MoveDialog key={"folderId" in pendingMove
+                ? pendingMove.folderId : pendingMove.documentIds.join("\0")}
+                title={pendingMoveTitle ?? "Move"} list={operations.list}
+                rootLabel={rootLabel} disabledIds={disabledMoveFolders}
+                canMove={canMovePendingTo}
+                onClose={() => set("pendingMove", null)} onMove={movePending} />}
             <TableScrollArea className="document-table"
                 header={selectionActions ? (
                     <TableHeaderRow
@@ -1243,37 +1306,31 @@ export function DocTable({
                                 {selectionActions.selectedCount} selected
                             </span>
                         </TableStickyCell>
-                        <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
+                        <div className="flex h-8 shrink-0 items-center gap-1.5">
                             {onOpenSelectionInChat && <Button variant="white"
-                                size="normal" className="h-8 py-0"
+                                size="normal" className="h-8 w-8 px-0 py-0 sm:w-auto sm:px-3"
                                 onClick={() => onOpenSelectionInChat(selectionActions.selectedDocuments)}
                                 aria-label={openSelectionLabel}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
                                 <span className="hidden lg:inline">{openSelectionLabel}</span>
                             </Button>}
-                            {selectionActions.workflowDocument && <DocumentWorkflowMenu
-                                document={selectionActions.workflowDocument}
+                            <ContextualWorkflowLauncher
+                                documents={selectionActions.selectedDocuments}
+                                onOpen={onOpenWorkflows
+                                    ? () => onOpenWorkflows(selectionActions.selectedDocuments)
+                                    : undefined}
+                                onAssistantSelect={onAssistantWorkflowSelect
+                                    ? (selection) => onAssistantWorkflowSelect(
+                                        selection, selectionActions.selectedDocuments)
+                                    : undefined}
                                 onDocumentChanged={selectionActions.onWorkflowDocumentChanged}
-                            />}
+                            />
                             <MoreActionsMenu
                                 label="More actions"
                                 items={selectionMenuItems.filter(({ label }) => label !== openSelectionLabel)}
                                 triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-950"
                             />
-                        </div>
-                        <div className="sm:hidden">
-                            {selectionActions.workflowDocument ? <DocumentWorkflowMenu
-                                document={selectionActions.workflowDocument}
-                                onDocumentChanged={selectionActions.onWorkflowDocumentChanged}
-                                compact
-                                label="Actions"
-                                actions={selectionMenuItems}
-                            /> : <MoreActionsMenu
-                                label="Actions"
-                                items={selectionMenuItems}
-                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-                            />}
                         </div>
                     </TableHeaderRow>
                 ) : (
@@ -1347,6 +1404,8 @@ export function DocTable({
                 onReplaceVersion={replaceVersionFile}
                 canDelete={!isSharedDocument(sidePanelDoc)}
                 onOwnerOnlyAction={onOwnerOnlyAction}
+                onOpenWorkflows={onOpenWorkflows}
+                onAssistantWorkflowSelect={onAssistantWorkflowSelect}
                 onDelete={(doc) => handleRemoveDocuments([doc.id], false)}
                 documentRemovalMode={documentRemovalMode} />
         </div>

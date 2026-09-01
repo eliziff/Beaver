@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "verified_on": "2026-08-31",
+  "verified_on": "2026-09-01",
   "purpose": "Auditable official-source receipts for the Authorities and Court Record Builder presets. The presets encode filing mechanics; they do not decide what proceeding or document a legal professional should use.",
   "audit_method": "Conditionally GET only the listed official URLs, retain final URL, ETag, Last-Modified, byte count and SHA-256, and compare HTML markers. A stable_parent_url is retained for manual rediscovery when a deep link moves. Never crawl beyond the listed URLs.",
   "canlii_policy": "CanLII URLs are manual_only. The audit command makes no request to CanLII, just as the Authorities download handoff makes no programmatic CanLII request.",
@@ -28,11 +28,11 @@
         "ab-ca-condensed-book"
       ],
       "kind": "rule",
-      "url": "https://www.canlii.org/en/ab/laws/regu/alta-reg-124-2010/",
-      "stable_parent_url": "https://kings-printer.alberta.ca/570.cfm?frm_isbn=9780779846934&search_by=link",
-      "locator": "Rules 13.19, 13.21 and Part 14, including Rules 14.16–14.29",
-      "expected_markers": ["Identification of exhibits", "25 or more pages", "consecutively numbered"],
-      "automated_access": "manual_only"
+      "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf",
+      "stable_parent_url": "https://kings-printer.alberta.ca/1125.cfm",
+      "locator": "Rules 13.19, 13.21 and Part 14 through Rule 14.30",
+      "reference_sha256": "956f7aaef5968f14320d8b428f725efdf0065ce09fa876ef80dfafba0549e930",
+      "expected_markers": ["Identification of exhibits", "25 or more pages", "consecutively numbered"]
     },
     {
       "id": "ab-affidavit-exhibit-example",
@@ -94,6 +94,17 @@
       "stable_parent_url": "https://www.albertacourts.ca/kb/areas-of-law/civil/practice-notes",
       "locator": "Special Applications, desk applications, judicial reviews and civil appeals",
       "expected_markers": ["Special Application", "Application Form", "authorities"]
+    },
+    {
+      "id": "ab-kb-civil-special-chambers",
+      "profiles": [
+        "ab-kb-special-application-applicant-set",
+        "ab-kb-special-application-respondent-set"
+      ],
+      "kind": "court-guidance",
+      "url": "https://www.albertacourts.ca/kb/court-operations-schedules/scheduling/civil-special-chambers",
+      "locator": "Civil Special Chambers filing requirements for pleadings, supporting materials and each party's proposed form of order",
+      "expected_markers": ["pleadings", "proposed form of Order"]
     },
     {
       "id": "ab-kb-commercial-pn1",
@@ -201,12 +212,30 @@
       "expected_markers": ["Appeal Record Requirements", "sample Table of Contents"]
     },
     {
+      "id": "ab-ca-appeal-transcripts",
+      "profiles": ["ab-ca-appeal-record"],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/docs/default-source/ca/appeal-record-transcripts.pdf?sfvrsn=4521ac80_16",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing/requirements",
+      "locator": "Appeal Record and Transcripts: Parts 1 and 2 red book; Part 3 transcripts as stand-alone PDFs; unavailable-document table-of-contents notation",
+      "expected_markers": ["Parts 1 and 2", "Part 3", "stand-alone PDF"]
+    },
+    {
       "id": "ab-ca-consolidated-directions",
       "profiles": ["ab-ca-appeal-record", "ab-ca-condensed-book"],
       "kind": "practice-direction",
       "url": "https://albertacourts.ca/docs/default-source/ca/consolidated-practice-directions.pdf?sfvrsn=a286ab80_22",
       "locator": "Part B — Transcripts and Part G — Condensed Books",
       "expected_markers": ["Part 3", "Condensed Books", "Form AP-5"]
+    },
+    {
+      "id": "ab-ca-condensed-books-overview",
+      "profiles": ["ab-ca-condensed-book"],
+      "kind": "court-guidance",
+      "url": "https://albertacourts.ca/docs/default-source/ca/condensed-books-overview.pdf?sfvrsn=24966383_4",
+      "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing",
+      "locator": "Condensed Books Overview: permitted contents and cover colour matching the filing party's factum",
+      "expected_markers": ["Condensed Book", "same colour", "Factum"]
     },
     {
       "id": "ab-ca-sample-record",
@@ -241,6 +270,8 @@
         "fca-motion-record-moving",
         "fc-motion-record-responding",
         "fca-motion-record-responding",
+        "fc-motion-reply",
+        "fca-motion-reply",
         "fc-application-record-applicant",
         "fca-application-record-applicant",
         "fc-application-record-respondent",
@@ -249,12 +280,13 @@
         "fca-condensed-book",
         "fc-trial-record",
         "fca-leave-motion-record",
-        "fca-leave-response-set"
+        "fca-leave-response-set",
+        "fca-leave-reply"
       ],
       "kind": "rule",
       "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
-      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 and 364–366",
-      "expected_markers": ["Trial Record", "Motion Record", "Appeal Books", "FORM 344"]
+      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 (including reply under Rule 355), 364–366, 369(3) and 369.2(3)",
+      "expected_markers": ["Trial Record", "Motion Record", "Appeal Books", "FORM 344", "motion for leave to appeal shall serve any reply", "written representations in reply within four days after being served", "written representations in reply within four days after the day"]
     },
     {
       "id": "fc-practice-guidelines-2025",
@@ -262,6 +294,7 @@
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
+        "fc-motion-reply",
         "fc-application-record-applicant",
         "fc-application-record-respondent",
         "fc-trial-record"
@@ -278,6 +311,7 @@
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
+        "fc-motion-reply",
         "fc-application-record-applicant",
         "fc-application-record-respondent",
         "fc-trial-record"
@@ -293,12 +327,14 @@
         "fca-affidavit-exhibits",
         "fca-motion-record-moving",
         "fca-motion-record-responding",
+        "fca-motion-reply",
         "fca-application-record-applicant",
         "fca-application-record-respondent",
         "fca-appeal-book",
         "fca-condensed-book",
         "fca-leave-motion-record",
         "fca-leave-response-set",
+        "fca-leave-reply",
         "fca-informal-motion-letter",
         "fca-compendium"
       ],
@@ -313,12 +349,14 @@
         "fca-affidavit-exhibits",
         "fca-motion-record-moving",
         "fca-motion-record-responding",
+        "fca-motion-reply",
         "fca-application-record-applicant",
         "fca-application-record-respondent",
         "fca-appeal-book",
         "fca-condensed-book",
         "fca-leave-motion-record",
         "fca-leave-response-set",
+        "fca-leave-reply",
         "fca-informal-motion-letter",
         "fca-compendium"
       ],
@@ -329,7 +367,7 @@
     },
     {
       "id": "fca-leave-guide",
-      "profiles": ["fca-leave-motion-record", "fca-leave-response-set"],
+      "profiles": ["fca-leave-motion-record", "fca-leave-response-set", "fca-leave-reply"],
       "kind": "court-guidance",
       "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Motions_for_leave_to_appeal_to_the_Federal_Court_of_Appeal.pdf",
       "stable_parent_url": "https://www.fca-caf.ca/en/pages/how-to-proceed-in-the-court",
@@ -360,7 +398,7 @@
     },
     {
       "id": "fca-example-written-representations",
-      "profiles": ["fca-motion-record-moving", "fca-motion-record-responding"],
+      "profiles": ["fca-motion-record-moving", "fca-motion-record-responding", "fca-motion-reply"],
       "kind": "official-example",
       "url": "https://www.fca-caf.ca/Content/assets/pdf/base/Example-of-Written-Representations.pdf",
       "stable_parent_url": "https://www.fca-caf.ca/en/pages/helpful-resources-for-unrepresented-litigants/examples-of-court-documents",

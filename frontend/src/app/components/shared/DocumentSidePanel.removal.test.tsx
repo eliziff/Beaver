@@ -55,11 +55,15 @@ function renderPanel({
   versions,
   onDelete = vi.fn(async () => {}),
   onSelectVersion = vi.fn(),
+  onClose = vi.fn(),
+  onOpenWorkflows,
   documentRemovalMode = "delete",
 }: {
   versions: DocumentVersion[];
   onDelete?: (doc: Document) => Promise<void>;
   onSelectVersion?: (versionId: string, label: string) => void;
+  onClose?: () => void;
+  onOpenWorkflows?: (documents: Document[]) => void;
   documentRemovalMode?: "delete" | "detach";
 }) {
   render(
@@ -67,7 +71,7 @@ function renderPanel({
       doc={document}
       versions={versions}
       versionsLoading={false}
-      onClose={vi.fn()}
+      onClose={onClose}
       onLoadVersions={vi.fn()}
       onSelectVersion={onSelectVersion}
       onDownloadDocument={vi.fn()}
@@ -77,12 +81,25 @@ function renderPanel({
       onUploadNewVersion={vi.fn(async () => {})}
       onReplaceVersion={vi.fn()}
       onDelete={onDelete}
+      onOpenWorkflows={onOpenWorkflows}
       documentRemovalMode={documentRemovalMode}
     />,
   );
 }
 
 describe("DocumentSidePanel document removal", () => {
+  it("hands its document to an existing workflow dock", async () => {
+    const onOpenWorkflows = vi.fn();
+    const onClose = vi.fn();
+    renderPanel({ versions: [version3], onOpenWorkflows, onClose });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Workflows" }));
+
+    expect(onOpenWorkflows).toHaveBeenCalledWith([document]);
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Workflows" })).toBeNull();
+  });
+
   it("opens the known current DOCX rendition before version rows load", async () => {
     const docxDocument = {
       ...document,

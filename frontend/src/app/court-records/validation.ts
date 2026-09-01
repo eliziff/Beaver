@@ -20,7 +20,8 @@ const generatedPages = (profile: CourtProfile, entries: RecordEntry[]) => {
   }
   const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
   const indexItems = [
-    ...entries.map((entry) => ({ group: kinds.get(entry.kindId)?.group })),
+    ...entries.filter((entry) => !kinds.get(entry.kindId)?.separateFile)
+      .map((entry) => ({ group: kinds.get(entry.kindId)?.group })),
     ...profile.documentKinds.filter((kind) => kind.generated).map((kind) => ({ group: kind.group })),
   ];
   const generatedContentPages = profile.documentKinds.filter((kind) => kind.generated).length;
@@ -136,6 +137,16 @@ export function validateCourtRecord({
       ));
     }
   }
+  for (const choice of profile.oneOf ?? []) {
+    const selected = choice.slots.filter((slot) => entries.some((entry) => entry.kindId === slot));
+    if (!selected.length) {
+      blockers.push(finding(`missing-${choice.slots[0]}`, "blocker",
+        `${choice.label} is missing`, `Add ${choice.label.toLowerCase()}.`));
+    } else if (selected.length > 1) {
+      blockers.push(finding(`exclusive-${choice.slots[0]}`, "blocker",
+        `Choose one ${choice.label.toLowerCase()}`, "Remove the alternative that does not apply."));
+    }
+  }
 
   const usable = entries.filter((entry) => kinds.get(entry.kindId)?.requirement !== "forbidden");
   if (profile.minimumDocuments && usable.length < profile.minimumDocuments) {
@@ -191,12 +202,13 @@ export function validateCourtRecord({
       ));
     }
     if (entry.descriptionOnly) {
-      if (!documentKind.descriptionOnly || !entry.title.trim()) {
+      if (!(documentKind.descriptionOnly || documentKind.allowUnavailableNote) ||
+          !entry.title.trim()) {
         blockers.push(finding(
           `description-${entry.id}`,
           "blocker",
           "Enter a description",
-          "Describe the physical exhibit that cannot be reproduced.",
+          "Enter the wording that should appear in the record.",
           { entryId: entry.id },
         ));
       }
@@ -291,16 +303,24 @@ export function validateCourtRecord({
   }
 
   const paginatedEntries = entries.filter((entry) => !entry.descriptionOnly &&
+    !kinds.get(entry.kindId)?.separateFile &&
     (sourceFormat(entry.file) === "pdf" || !!entry.pdfRendition));
   const knownPageCount = paginatedEntries.every((entry) => entry.pageCount !== null);
   const pageCount = knownPageCount
     ? paginatedEntries.reduce((sum, entry) => sum + (entry.pageCount ?? 0), 0) + generatedPages(profile, entries)
     : null;
-  const inputBytes = entries.reduce((sum, entry) => sum + (entry.descriptionOnly
+  const recordEntries = entries.filter((entry) => !kinds.get(entry.kindId)?.separateFile);
+  const inputBytes = recordEntries.reduce((sum, entry) => sum + (entry.descriptionOnly
     ? 0 : entry.lastSeen?.size ??
       (profile.outputMode === "separate-files" ? entry.file : entry.pdfRendition ?? entry.file).size), 0);
   const limit = profile.technical.maxOutputBytes;
   if (limit) {
+    for (const entry of entries.filter((item) => kinds.get(item.kindId)?.separateFile &&
+      item.file.size > limit)) {
+      blockers.push(finding(`size-${entry.id}`, "blocker", "File exceeds the court limit",
+        `${entry.file.name} is ${formatBytes(entry.file.size)}; each file must be no larger than ${formatBytes(limit)}.`,
+        { entryId: entry.id }));
+    }
     if (profile.outputMode === "separate-files") {
       for (const entry of entries.filter((item) => item.file.size > limit)) {
         blockers.push(finding(

@@ -3,7 +3,6 @@ import {
   ArrowUp,
   FilePlus2,
   FileText,
-  Files,
   FolderSearch,
   GripVertical,
   Loader2,
@@ -14,6 +13,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { sourceAccept, sourceFormat } from "./formats";
+import { needsOcr } from "./host";
 import { exhibitIndex, exhibitName } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
 
@@ -26,7 +26,6 @@ type Props = {
   onDescription: (kindId: string) => void;
   onPick?: (kindId: string) => void;
   onLibrary?: (kindId: string) => void;
-  onDraftOutput?: (kindId: string) => void;
   onEntry: (id: string, patch: Partial<RecordEntry>) => void;
   onRemove: (id: string) => void;
   onMove: (id: string, beforeId?: string) => void;
@@ -38,9 +37,13 @@ type Props = {
 };
 
 export function CourtRecordDocuments(props: Props) {
+  const hiddenAlternatives = new Set(props.profile.oneOf?.flatMap(({ slots }) => {
+    const fulfilled = slots.filter((id) => props.entries.some((entry) => entry.kindId === id));
+    return fulfilled.length ? slots.filter((id) => !fulfilled.includes(id)) : [];
+  }));
   const permitted = props.profile.documentKinds
     .filter((kind) => kind.requirement !== "forbidden" && !kind.generated &&
-      (!props.kindIds || props.kindIds.includes(kind.id)))
+      !hiddenAlternatives.has(kind.id) && (!props.kindIds || props.kindIds.includes(kind.id)))
     .sort((left, right) => left.order - right.order);
   const headingId = props.kindIds ? `record-documents-${props.kindIds.join("-")}-heading` : "record-documents-heading";
   const exhibitPool = props.profile.family === "affidavit" &&
@@ -58,7 +61,7 @@ export function CourtRecordDocuments(props: Props) {
   );
 }
 
-function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, onDraftOutput, onEntry, onRemove, onMove, onAssign, onOcr, onRelink }: Props & { kind: DocumentKind }) {
+function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, onEntry, onRemove, onMove, onAssign, onOcr, onRelink }: Props & { kind: DocumentKind }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   const canAdd = kind.repeatable || matching.length === 0;
   const canDrop = profile.family === "affidavit" && kind.id === "affidavit";
@@ -88,8 +91,12 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
           <div className="flex shrink-0 flex-wrap gap-2">
             {kind.descriptionOnly ? (
               <Button type="button" className="h-9 bg-gray-950 px-3 text-white hover:bg-gray-800" onClick={() => onDescription(kind.id)}><FilePlus2 /> Add description</Button>
-            ) : <AddFileControls kind={kind} onFiles={onFiles} onPick={onPick}
-              onLibrary={onLibrary} onDraftOutput={onDraftOutput} />}
+            ) : <><AddFileControls kind={kind} onFiles={onFiles} onPick={onPick}
+              onLibrary={onLibrary} />
+              {kind.allowUnavailableNote && <Button type="button" variant="outline"
+                className="h-9 border-gray-500/80 px-3" onClick={() => onDescription(kind.id)}>
+                <FilePlus2 /> Add note
+              </Button>}</>}
           </div>
         )}
       </div>
@@ -179,15 +186,13 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
   </section>;
 }
 
-function AddFileControls({ kind, onFiles, onPick, onLibrary, onDraftOutput }:
-  Pick<Props, "onFiles" | "onPick" | "onLibrary" | "onDraftOutput"> & { kind: DocumentKind }) {
+function AddFileControls({ kind, onFiles, onPick, onLibrary }:
+  Pick<Props, "onFiles" | "onPick" | "onLibrary"> & { kind: DocumentKind }) {
   const multiple = !!kind.repeatable, label = `Add file${multiple ? "s" : ""}`;
   const id = `court-record-${kind.id}-file`;
   return <>
     {onLibrary && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
       onClick={() => onLibrary(kind.id)}><FolderSearch /> Library</Button>}
-    {onDraftOutput && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
-      onClick={() => onDraftOutput(kind.id)}><Files /> Draft output</Button>}
     {onPick ? <Button id={id} type="button" className="h-9 bg-gray-950 px-3 text-white hover:bg-gray-800"
       onClick={() => onPick(kind.id)}><FilePlus2 /> {label}</Button> :
       <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-gray-950 px-3 text-sm font-medium text-white outline-none hover:bg-gray-800 focus-within:ring-3 focus-within:ring-gray-400">
@@ -219,7 +224,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   onOcr?: Props["onOcr"];
   onRelink?: Props["onRelink"];
 }) {
-  const needsOcr = entry.searchable === false || (entry.textlessPageCount ?? 0) > 0;
   const isPdf = sourceFormat(entry.file) === "pdf";
   const dateMissing = findings.some((finding) => finding.id === `date-${entry.id}`);
   const titleMissing = findings.some((finding) => finding.id === `description-${entry.id}`);
@@ -283,7 +287,7 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
         {entry.inputStatus === "missing" && onRelink && (
           <Button type="button" variant="outline" className="h-9 border-red-500 text-red-800" disabled={busy} onClick={() => onRelink(entry.id)}><FilePlus2 /> {entry.missingReason === "permission" ? "Allow file access" : "Relink file"}</Button>
         )}
-        {entry.inputStatus !== "missing" && isPdf && needsOcr && onOcr && (
+        {entry.inputStatus !== "missing" && isPdf && needsOcr(entry) && onOcr && (
           <Button type="button" variant="outline" className="h-9 border-gray-500/80" disabled={busy} onClick={() => onOcr(entry.id)}>
             {busy ? <Loader2 className="motion-safe:animate-spin" /> : <ScanText />}
             {busy ? "Running OCR" : "OCR text pages"}

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sha256 } from "../hash";
 import { relationalRepositoryContract } from "./support/relationalRepositoryContract";
 
 let directory = "";
@@ -135,6 +136,42 @@ describe("SQLite relational repository contract", () => {
         application_jobs WHERE document_id=${document.id}`)).resolves.toMatchObject({
         rows: [{ attempts: 1, last_error: "PdfEncrypted" }],
       });
+    } finally { await worker.stop(); }
+  });
+
+  it("preserves selective and all-page OCR routing through the PDF worker", async () => {
+    vi.doMock("../structureNative", () => ({ structureNative: () => ({
+      preparePdfDocument: async (bytes: Buffer) => {
+        const full = bytes.includes(Buffer.from("full"));
+        const pages = full ? [0, 1, 2] : [1, 3];
+        return { sha256: sha256(bytes), parserVersion: "test", status: "ready",
+          cacheKey: sha256(Buffer.concat([bytes, Buffer.from("cache")])),
+          pageCount: full ? 3 : 4, projectionPageCount: full ? 3 : 4,
+          pagesNeedingOcr: pages, ocrRoutedPages: pages };
+      },
+    }) }));
+    const [{ createDocumentApplication }, { documentRepository }, objects,
+      queue, { pdfJobHandlers }] = await Promise.all([
+      import("../documentApplication"), import("../relationalDocumentRepository"),
+      import("../filesystemObjectStorage"), import("../jobQueue"), import("../pdfJobs"),
+    ]);
+    const documents = createDocumentApplication(documentRepository,
+      objects.filesystemDocumentObjects());
+    const worker = queue.startJobWorker(pdfJobHandlers(documents));
+    try {
+      const selective = await documents.create(owner, { filename: "selective.pdf",
+        fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nselective") });
+      const full = await documents.create(owner, { filename: "full.pdf",
+        fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nfull") });
+      await vi.waitFor(async () => {
+        await expect(documents.parseStates(owner, [selective.id, full.id])).resolves.toEqual(
+          expect.arrayContaining([
+            { id: selective.id, parse_state: { status: "ready", phase: "ocr",
+              pages: [2, 4], page_count: 4 }, page_count: 4 },
+            { id: full.id, parse_state: { status: "ready", phase: "ocr",
+              pages: [1, 2, 3], page_count: 3 }, page_count: 3 },
+          ]));
+      }, { timeout: 3_000, interval: 10 });
     } finally { await worker.stop(); }
   });
 });

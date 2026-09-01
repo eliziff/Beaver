@@ -1,21 +1,27 @@
 import { draftOutputChoice, outputDocument } from "./host";
 import type { CourtRecordsHost, PreparationProgress } from "./host";
 import {
+  bindStandaloneFile,
   canRetainLocalFiles,
   listStandaloneOutputs,
   pickRetainedFiles,
   readStandaloneOutput,
-  relinkLocalFile,
-  resolveLocalFile,
+  relinkStandaloneFile,
+  resolveStandaloneFile,
   saveStandaloneArtifacts,
   standaloneWorkProducts,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiBlobRequest } from "@/app/lib/apiTransport";
+import { apiBlobRequest, apiRequest } from "@/app/lib/apiTransport";
 import { sourceFormat } from "./formats";
-import { prepareDeviceFile, prepareDocxRendition } from "./prepareDeviceFile";
+import { affidavitSourceFields } from "./sourceFields";
 import type { CourtRecordDraft } from "./types";
 
+type PdfPreparation = { page_count: number; ocr_pages: number[];
+  pages: Array<{ page_number: number; text: string }> };
+const preparation = import("./prepareDeviceFile");
+
 async function prepareStandaloneFile(file: File, progress?: PreparationProgress) {
+  const { prepareDeviceFile, prepareDocxRendition } = await preparation;
   if (sourceFormat(file) !== "docx") return prepareDeviceFile(file, progress);
   progress?.(`Preparing ${file.name}`);
   const body = new FormData(); body.append("file", file);
@@ -38,7 +44,30 @@ async function prepareOutput(workProductId: string, role: string, progress?: Pre
 export const standaloneCourtRecordsHost: CourtRecordsHost = {
   mode: "standalone",
   drafts: standaloneWorkProducts,
-  prepareDeviceFile: prepareStandaloneFile,
+  async prepareDeviceFile(file, progress) {
+    return { ...await prepareStandaloneFile(file, progress),
+      binding: await bindStandaloneFile(file) };
+  },
+  async runOcr(entry, progress) {
+    const pages = [...new Set(entry.textlessPages ?? [])].sort((left, right) => left - right);
+    if (!pages.length) return {};
+    progress?.("Running OCR");
+    const file = entry.pdfRendition ?? entry.file;
+    const body = new FormData(); body.append("file", file, file.name);
+    body.append("pages", JSON.stringify(pages));
+    const prepared = await apiRequest<PdfPreparation>("/court-records/pdf-preparation", {
+      method: "POST", body,
+    });
+    const text = new Map(prepared.pages.map((page) => [page.page_number, page.text]));
+    const ocrTextByPage = Array.from({ length: prepared.page_count }, (_, index) =>
+      pages.includes(index + 1) ? text.get(index + 1) ?? "" : entry.ocrTextByPage?.[index] ?? "");
+    const missing = pages.filter((page) => !ocrTextByPage[page - 1]?.trim());
+    progress?.(missing.length ? "OCR needs attention" : "OCR complete",
+      pages.length - missing.length, pages.length);
+    return { pageCount: prepared.page_count, ocrTextByPage,
+      searchable: !missing.length, textlessPageCount: missing.length, textlessPages: missing,
+      sourceFields: affidavitSourceFields(prepared.pages.map((page) => page.text)) };
+  },
   pickDeviceFiles: canRetainLocalFiles() ? pickRetainedFiles : undefined,
   async searchDraftOutputs(query, formats, excludeId) {
     const current = excludeId ? await standaloneWorkProducts.get(excludeId) : null;
@@ -55,7 +84,7 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
   importDraftOutput: (choice, progress) => prepareOutput(choice.workProductId, choice.role,
     progress, choice.output.versionId),
   async resolveInput(input, progress) {
-    if (input.kind !== "work-product-output") return resolveLocalFile(input);
+    if (input.kind !== "work-product-output") return resolveStandaloneFile(input);
     try {
       const prepared = await prepareOutput(input.workProductId, input.role, progress);
       return { status: "ready", file: prepared.file, input, prepared };
@@ -63,7 +92,7 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
       return { status: "missing", reason: "deleted" };
     }
   },
-  relinkInput: relinkLocalFile,
+  relinkInput: relinkStandaloneFile,
   async saveArtifacts({ artifacts, product, receipt }) {
     if (receipt.profile.id !== product.state.profileId ||
         receipt.outputs.length !== artifacts.length) {

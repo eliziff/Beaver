@@ -35,10 +35,10 @@ export function DirectoryActions({ actions, onCreateFolder, busy = false, compac
 }) {
     return <div className="flex items-center gap-1.5">
         <UploadAction actions={actions} busy={busy} compact={compact} />
-        <Button variant="white" size="normal" className="h-8 py-0"
+        <Button variant="white" size="normal" className="h-8 py-0" aria-label="New folder"
             onClick={() => onCreateFolder?.()} disabled={busy || !onCreateFolder}>
             <FolderSvgIcon className="h-3.5 w-3.5" />
-            <span className={compact ? "sr-only" : "hidden sm:inline"}>Folder</span>
+            <span className={compact ? "sr-only" : "hidden sm:inline"}>New folder</span>
         </Button>
     </div>;
 }

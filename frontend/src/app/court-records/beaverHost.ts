@@ -9,7 +9,6 @@ import {
   duplicateWorkProduct,
   getDocument,
   getCourtRecordPreparation,
-  getDocumentParseStates,
   getUserProfile,
   getWorkProduct,
   getWorkProductResolution,
@@ -22,6 +21,7 @@ import {
   uploadCourtRecordDocument,
 } from "@/app/lib/beaverApi";
 import { BeaverApiError } from "@/app/lib/apiTransport";
+import { waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
   WorkProductStore } from "@/app/lib/workProducts";
@@ -186,10 +186,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
       versionId = uploaded.current_version_id ?? undefined;
       sourceSha256 = uploaded.source_sha256 ?? undefined;
     }
-    const state = (await getDocumentParseStates([documentId]))[0]?.parse_state;
-    if (state?.status !== "ready" && state?.status !== "degraded") {
-      await waitForPreparation(documentId, progress);
-    }
+    await waitForPdfPreparation(documentId, progress);
     let prepared = await getCourtRecordPreparation(documentId, versionId);
     let merged = withProjection({
       file: entry.file,
@@ -210,7 +207,7 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
         ocr_provider: "kraken-lite",
         ...(versionId ? { version_id: versionId } : {}),
       });
-      await waitForPreparation(documentId, progress);
+      await waitForPdfPreparation(documentId, progress);
       prepared = await getCourtRecordPreparation(documentId, versionId);
       merged = withProjection(merged, prepared);
     }
@@ -399,21 +396,4 @@ function withProjection(
       sourceSha256: projection.source_sha256,
     },
   };
-}
-
-async function waitForPreparation(documentId: string, progress?: PreparationProgress) {
-  const started = Date.now();
-  while (Date.now() - started < 10 * 60_000) {
-    const state = (await getDocumentParseStates([documentId]))[0]?.parse_state;
-    if (state?.status === "ready" || state?.status === "degraded") return;
-    if (state?.status === "failed" || state?.status === "cancelled") {
-      throw new Error(state.error || "Local OCR did not complete.");
-    }
-    if (state?.phase === "ocr") {
-      const page = state.pages?.[0];
-      progress?.(`Running OCR${page ? ` on page ${page}` : ""}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 850));
-  }
-  throw new Error("Local OCR did not finish within 10 minutes.");
 }

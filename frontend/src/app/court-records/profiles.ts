@@ -3,10 +3,12 @@ import type {
   CoverDefinition,
   CoverField,
   CoverFieldId,
+  CoverValues,
   DocumentKind,
   PartyStyle,
   TechnicalRequirements,
 } from "./types";
+import { filingParty } from "./types";
 import profileContractJson from "../../../../shared/court-record-profiles.json";
 
 const MB = 1024 * 1024;
@@ -44,8 +46,14 @@ type ProfilePresentation = Omit<CourtProfile, "label" | "documentKinds"> & {
   documentKinds: KindPresentation[];
 };
 type ProfileContract = { id: string; label: string; coverFields: CoverFieldId[];
+  partyStyleIds?: string[]; filingGroupId?: string; effectiveFrom?: string;
+  oneOf?: Array<{ slots: string[]; label: string }>;
   slots: Array<Omit<DocumentKind, "description">> };
-const PROFILE_CONTRACTS = profileContractJson as unknown as ProfileContract[];
+const PROFILE_CONTRACT = profileContractJson as unknown as {
+  partyStyles: PartyStyle[]; profiles: ProfileContract[];
+};
+const PROFILE_CONTRACTS = PROFILE_CONTRACT.profiles;
+const PARTY_STYLE_BY_ID = new Map(PROFILE_CONTRACT.partyStyles.map((item) => [item.id, item]));
 
 const field = (
   id: CoverFieldId,
@@ -59,41 +67,6 @@ const kind = (
   id: string,
   description: string,
 ): KindPresentation => ({ id, description });
-
-const style = (
-  id: string,
-  label: string,
-  firstRole: string,
-  secondRole: string,
-): PartyStyle => ({
-  id,
-  label,
-  groups: [
-    { id: "party-a", role: firstRole },
-    { id: "party-b", role: secondRole },
-    { id: "intervener", role: "Intervener", optional: true },
-  ],
-});
-
-const applicationStyle = style("application", "Application", "Applicant", "Respondent");
-const actionStyle = style("action", "Action", "Plaintiff", "Defendant");
-const appealStyle = style("appeal", "Appeal", "Appellant", "Respondent");
-const proceedingStyles = [applicationStyle, actionStyle];
-const generalStyles = [...proceedingStyles, appealStyle];
-const abcaStyles: PartyStyle[] = [
-  ["action-plaintiff", "Action — plaintiff appeals", "Plaintiff", "Defendant"],
-  ["action-defendant", "Action — defendant appeals", "Defendant", "Plaintiff"],
-  ["application-applicant", "Application — applicant appeals", "Applicant", "Respondent"],
-  ["application-respondent", "Application — respondent appeals", "Respondent", "Applicant"],
-].map(([id, label, firstBelow, secondBelow]) => ({
-  id,
-  label,
-  groups: [
-    { id: "party-a", role: "Appellant", roleBelow: firstBelow },
-    { id: "party-b", role: "Respondent", roleBelow: secondBelow },
-    { id: "intervener", role: "Intervener", roleBelow: "Intervener", optional: true },
-  ],
-}));
 
 const baseCoverFields: CoverField[] = [
   field("courtFileNumber", "Court file number", true, "T-123-26"),
@@ -194,7 +167,6 @@ const whiteCover = (
   colourName: "white",
   colourHex: "#FFFFFF",
   fields,
-  partyStyles: proceedingStyles,
   ...extra,
 });
 
@@ -325,7 +297,7 @@ const profiles: ProfilePresentation[] = [
     family: "hearing-record",
     outputMode: "combined-record",
     effective: { from: "1970-01-01" },
-    cover: whiteCover("COURT RECORD", genericRecordFields, { partyStyles: generalStyles }),
+    cover: whiteCover("COURT RECORD", genericRecordFields),
     documentKinds: [kind("document", "Documents in record order.")],
     technical: { ...electronicRecord, maxOutputBytes: 100 * MB },
     sourceIds: [],
@@ -340,7 +312,7 @@ const profiles: ProfilePresentation[] = [
     outputMode: "affidavit-with-exhibits",
     exhibitCertificate: true,
     effective: { from: "2010-11-01" },
-    cover: { generated: false, title: "Affidavit details", colourName: "source", colourHex: "#FFFFFF", fields: affidavitFields, partyStyles: generalStyles },
+    cover: { generated: false, title: "Affidavit details", colourName: "source", colourHex: "#FFFFFF", fields: affidavitFields },
     documentKinds: affidavitKinds,
     technical: {
       ...electronicRecord,
@@ -360,7 +332,7 @@ const profiles: ProfilePresentation[] = [
     outputMode: "affidavit-with-exhibits",
     exhibitCertificate: true,
     effective: { from: "1998-02-05" },
-    cover: { generated: false, title: "Affidavit details", colourName: "source", colourHex: "#FFFFFF", fields: affidavitFields, partyStyles: generalStyles },
+    cover: { generated: false, title: "Affidavit details", colourName: "source", colourHex: "#FFFFFF", fields: affidavitFields },
     documentKinds: affidavitKinds,
     technical: { ...federalElectronic, pageOne: "first-content", bookmarks: "exhibits" },
     sourceIds: ["fc-rules", "fc-practice-guidelines-2025", "fc-efiling"],
@@ -439,9 +411,11 @@ const profiles: ProfilePresentation[] = [
     document: ["special-application-filing-set", "Special Application filing set"],
     variant: "applicant",
     role: "Applicant",
+    sourceIds: ["ab-kb-digital-guidelines", "ab-kb-cpn1", "ab-kb-civil-special-chambers"],
     documentKinds: [
       kind("application", "The application to be heard."),
       kind("evidence", "The completed evidentiary record identified in the booking request."),
+      kind("pleading", "The originating pleading and every pleading relied on."),
       kind("brief", "A short, concise summary of relevant facts and the main points of law."),
       kind("authorities", "Only authorities expected to be referred to; a headnote or extract may suffice and relied-on portions are marked."),
       kind("oral-hearing-order", "The filed order granting leave for oral evidence under Rule 6.11(1)(g)."),
@@ -454,8 +428,10 @@ const profiles: ProfilePresentation[] = [
     document: ["special-application-filing-set", "Special Application filing set"],
     variant: "respondent",
     role: "Respondent",
+    sourceIds: ["ab-kb-digital-guidelines", "ab-kb-cpn1", "ab-kb-civil-special-chambers"],
     documentKinds: [
       kind("evidence", "Every responding evidentiary item permitted for the Special Application."),
+      kind("responding-pleading", "Every responding pleading relied on."),
       kind("brief", "A short, concise response on the relevant facts and main points of law."),
       kind("authorities", "Only authorities expected to be referred to; relied-on portions are marked."),
       kind("proposed-order", "An alternate proposed form of order, where useful."),
@@ -558,9 +534,6 @@ const profiles: ProfilePresentation[] = [
       colourName: "red",
       colourHex: "#FF0000",
       fields: appealFields,
-      partyStyles: abcaStyles,
-      filingGroupId: "party-a",
-      note: "The cover is page 1. Parts 1, 2 and 3 form the appeal record.",
     },
     documentKinds: [
       kind("part-1-pleading", "Relevant pleadings in chronological order: the last pre-trial version, any amendment made at trial, and the application if the decision arose from one."),
@@ -577,7 +550,9 @@ const profiles: ProfilePresentation[] = [
       kind("argument", "Argument, trial briefs and legal authorities are prohibited from the appeal record."),
     ],
     technical: abcaElectronic,
-    sourceIds: ["ab-rules-part-13-14", "ab-ca-electronic-format", "ab-ca-filing-hub", "ab-ca-appeal-requirements", "ab-ca-consolidated-directions", "ab-ca-sample-record"],
+    sourceIds: ["ab-rules-part-13-14", "ab-ca-electronic-format", "ab-ca-filing-hub",
+      "ab-ca-appeal-requirements", "ab-ca-appeal-transcripts",
+      "ab-ca-consolidated-directions", "ab-ca-sample-record"],
     filenamePattern: "Appeal-Record-{filingParty}-{courtFileNumber}.pdf",
   },
   ...([
@@ -602,8 +577,6 @@ const profiles: ProfilePresentation[] = [
       colourName,
       colourHex,
       fields: appealFields,
-      partyStyles: abcaStyles,
-      filingGroupId: roleId === "appellant" ? "party-a" : roleId === "respondent" ? "party-b" : "intervener",
     },
     documentKinds: [
       kind("transcript-extract", "Only testimony or oral material likely to be needed to resolve the appeal."),
@@ -624,14 +597,14 @@ const profiles: ProfilePresentation[] = [
     shortLabel: "Condensed book",
     family: "extracts",
     outputMode: "combined-record",
-    effective: { from: "2019-09-01" },
-    cover: { generated: true, title: "CONDENSED BOOK", template: "abca-ap5", form: "Form AP-5", colourName: "white", colourHex: "#FFFFFF", fields: appealFields, partyStyles: abcaStyles },
+    effective: { from: "2021-02-01" },
+    cover: { generated: true, title: "CONDENSED BOOK", template: "abca-ap5", form: "Form AP-5", colourName: "beige", colourHex: "#F5F5DC", fields: appealFields },
     documentKinds: [
       kind("filed-extract", "A concise excerpt from an item already filed in the appeal."),
       kind("new-material", "A condensed book cannot be used to introduce new material or an oral-argument outline."),
     ],
     technical: abcaElectronic,
-    sourceIds: ["ab-rules-part-13-14", "ab-ca-electronic-format", "ab-ca-filing-hub", "ab-ca-consolidated-directions"],
+    sourceIds: ["ab-rules-part-13-14", "ab-ca-electronic-format", "ab-ca-filing-hub", "ab-ca-consolidated-directions", "ab-ca-condensed-books-overview"],
     filenamePattern: "Condensed-Book-{filingParty}-{courtFileNumber}.pdf",
   },
   {
@@ -687,7 +660,7 @@ const profiles: ProfilePresentation[] = [
     outputMode: "combined-record",
     role: "Applicant",
     effective: { from: "2025-12-21" },
-    cover: whiteCover("APPLICANT’S RECORD", [...federalCoverFields, federalApplicationUnder], { template: "federal-record", ruleReference: "Rule 309", partyStyles: [applicationStyle], filingGroupId: "party-a" }),
+    cover: whiteCover("APPLICANT’S RECORD", [...federalCoverFields, federalApplicationUnder], { template: "federal-record", ruleReference: "Rule 309" }),
     documentKinds: [
       kind("notice-application", "The filed notice of application."),
       kind("decision", "The order in respect of which the application is made, and reasons, if any."),
@@ -712,7 +685,7 @@ const profiles: ProfilePresentation[] = [
     outputMode: "combined-record",
     role: "Respondent",
     effective: { from: "2025-12-21" },
-    cover: whiteCover("RESPONDENT’S RECORD", [...federalCoverFields, federalApplicationUnder], { template: "federal-record", ruleReference: "Rule 310", partyStyles: [applicationStyle], filingGroupId: "party-b" }),
+    cover: whiteCover("RESPONDENT’S RECORD", [...federalCoverFields, federalApplicationUnder], { template: "federal-record", ruleReference: "Rule 310" }),
     documentKinds: [
       kind("supporting-affidavit", "Every respondent affidavit, including exhibits."),
       kind("respondent-cross-exam", "Transcripts of cross-examinations conducted by the respondent."),
@@ -736,7 +709,7 @@ const profiles: ProfilePresentation[] = [
     outputMode: "combined-record",
     role: "Appellant",
     effective: { from: "2025-12-21" },
-    cover: { generated: true, title: "APPEAL BOOK", template: "federal-record", form: "General heading and Form 344 certificate", ruleReference: "Rules 343–344", colourName: "grey", colourHex: "#BEC2C6", fields: federalCoverFields, partyStyles: [appealStyle], filingGroupId: "party-a" },
+    cover: { generated: true, title: "APPEAL BOOK", template: "federal-record", form: "General heading and Form 344 certificate", ruleReference: "Rules 343–344", colourName: "grey", colourHex: "#BEC2C6", fields: federalCoverFields },
     documentKinds: [
       kind("notice", "The notice of appeal and any notice of cross appeal."),
       kind("order-reasons", "The signed and entered order appealed from and all reasons, including dissenting reasons."),
@@ -759,7 +732,7 @@ const profiles: ProfilePresentation[] = [
     family: "extracts",
     outputMode: "combined-record",
     effective: { from: "2021-06-17" },
-    cover: whiteCover("CONDENSED BOOK", federalCoverFields, { template: "federal-record", ruleReference: "Rule 348.1", partyStyles: [appealStyle] }),
+    cover: whiteCover("CONDENSED BOOK", federalCoverFields, { template: "federal-record", ruleReference: "Rule 348.1" }),
     documentKinds: [
       kind("appeal-book-extract", "An extract from the filed appeal book that will be used in oral argument."),
       kind("authority-extract", "An extract from the filed book of statutes, regulations and authorities that will be used in oral argument."),
@@ -778,7 +751,39 @@ const fcaElectronic: TechnicalRequirements = {
   volumeInstructions: undefined,
 };
 
+const federalSeparate: TechnicalRequirements = {
+  ...federalElectronic, continuousPageNumbers: false, pdfPageLabelsMatch: false,
+  hyperlinkedIndex: false, separateSourceFiles: true,
+};
+const fcaSeparate: TechnicalRequirements = {
+  ...federalSeparate, maxOutputPages: undefined, volumeInstructions: undefined,
+};
+
 const additionalFederalProfiles: ProfilePresentation[] = [
+  {
+    id: "fc-motion-reply", ...FC,
+    ...document("motion-record", "Motion record", "reply"),
+    shortLabel: "Motion reply — moving party", family: "motion",
+    outputMode: "separate-files", role: "Moving party",
+    effective: { from: "2025-12-21" },
+    cover: { generated: false, title: "File details", colourName: "source", colourHex: "#FFFFFF", fields: [] },
+    documentKinds: [kind("written-reply", "The moving party’s written representations in reply under Rule 369(3).")],
+    technical: federalSeparate,
+    sourceIds: ["fc-rules", "fc-practice-guidelines-2025", "fc-efiling"],
+    filenamePattern: "{kind}.pdf",
+  },
+  {
+    id: "fca-motion-reply", ...FCA,
+    ...document("motion-record", "Motion record", "reply"),
+    shortLabel: "Motion reply — moving party", family: "motion",
+    outputMode: "separate-files", role: "Moving party",
+    effective: { from: "2025-12-21" },
+    cover: { generated: false, title: "File details", colourName: "source", colourHex: "#FFFFFF", fields: [] },
+    documentKinds: [kind("written-reply", "The moving party’s written representations in reply under Rule 369.2(3).")],
+    technical: fcaSeparate,
+    sourceIds: ["fc-rules", "fca-consolidated-direction-2026", "fca-efiling-guide", "fca-example-written-representations"],
+    filenamePattern: "{kind}.pdf",
+  },
   {
     id: "fc-trial-record",
     ...FC,
@@ -791,8 +796,6 @@ const additionalFederalProfiles: ProfilePresentation[] = [
     cover: whiteCover("TRIAL RECORD", federalCoverFields, {
       template: "federal-record",
       ruleReference: "Rules 268–269",
-      partyStyles: [actionStyle],
-      filingGroupId: "party-a",
     }),
     documentKinds: [
       kind("pleading", "Every filed pleading in the action."),
@@ -814,7 +817,7 @@ const additionalFederalProfiles: ProfilePresentation[] = [
     outputMode: "combined-record",
     role: "Moving party",
     effective: { from: "2025-12-21" },
-    cover: whiteCover("MOTION RECORD", [...federalCoverFields, field("recordSubtitle", "Motion description", true), federalApplicationUnder], { template: "federal-record", ruleReference: "Rules 352–353", partyStyles: [applicationStyle], filingGroupId: "party-a" }),
+    cover: whiteCover("MOTION RECORD", [...federalCoverFields, field("recordSubtitle", "Motion description", true), federalApplicationUnder], { template: "federal-record", ruleReference: "Rules 352–353" }),
     documentKinds: [
       kind("order-reasons", "The order for which leave is sought and every reason, including dissenting reasons."),
       kind("notice-motion", "The notice bringing the motion for leave to appeal."),
@@ -842,7 +845,19 @@ const additionalFederalProfiles: ProfilePresentation[] = [
       kind("supporting-affidavit", "Any supporting affidavit served with the memorandum."),
       kind("proof-service", "Proof of service attached to the applicable electronic document and bookmarked."),
     ],
-    technical: { ...fcaElectronic, continuousPageNumbers: false, pdfPageLabelsMatch: false, hyperlinkedIndex: false, separateSourceFiles: true },
+    technical: fcaSeparate,
+    sourceIds: ["fc-rules", "fca-consolidated-direction-2026", "fca-efiling-guide", "fca-leave-guide"],
+    filenamePattern: "{kind}.pdf",
+  },
+  {
+    id: "fca-leave-reply", ...FCA,
+    ...document("leave-motion-record", "Motion for leave to appeal record", "reply"),
+    shortLabel: "Leave motion — reply", family: "filing-set",
+    outputMode: "separate-files", role: "Moving party",
+    effective: { from: "2025-12-21" },
+    cover: { generated: false, title: "File details", colourName: "source", colourHex: "#FFFFFF", fields: [] },
+    documentKinds: [kind("written-reply", "The moving party’s reply to the respondent’s memorandum under Rule 355.")],
+    technical: fcaSeparate,
     sourceIds: ["fc-rules", "fca-consolidated-direction-2026", "fca-efiling-guide", "fca-leave-guide"],
     filenamePattern: "{kind}.pdf",
   },
@@ -859,7 +874,7 @@ const additionalFederalProfiles: ProfilePresentation[] = [
     documentKinds: [
       kind("letter-with-service", "One PDF confirming consent or no opposition, relevant facts, submissions, exact relief, and proof of service appended and bookmarked."),
     ],
-    technical: { ...fcaElectronic, continuousPageNumbers: false, pdfPageLabelsMatch: false, hyperlinkedIndex: false, separateSourceFiles: true },
+    technical: fcaSeparate,
     sourceIds: ["fca-consolidated-direction-2026", "fca-efiling-guide"],
     filenamePattern: "{kind}.pdf",
   },
@@ -871,7 +886,7 @@ const additionalFederalProfiles: ProfilePresentation[] = [
     family: "hearing-record",
     outputMode: "combined-record",
     effective: { from: "2026-07-09" },
-    cover: whiteCover("COMPENDIUM", federalCoverFields, { template: "federal-record", ruleReference: "Consolidated Practice Direction, paras 59–64", partyStyles: [appealStyle] }),
+    cover: whiteCover("COMPENDIUM", federalCoverFields, { template: "federal-record", ruleReference: "Consolidated Practice Direction, paras 59–64" }),
     documentKinds: [
       kind("memorandum-material", "A document or fair extract referred to in the memorandum of fact and law."),
       kind("new-evidence", "A compendium cannot augment the evidentiary record."),
@@ -893,13 +908,14 @@ const expandedProfiles = profiles.flatMap((profile): ProfilePresentation[] => {
     ...profile,
     id: profile.id.replace(/^fc-/u, "fca-"),
     ...FCA,
-    cover: profile.family === "motion"
-      ? { ...profile.cover, partyStyles: [appealStyle, applicationStyle] }
-      : profile.cover,
-    documentKinds: profile.family === "motion" ? [...profile.documentKinds,
+    cover: profile.cover,
+    documentKinds: profile.family === "motion" ? [...profile.documentKinds.map((item) =>
+      item.id === "written-representations"
+        ? { ...item, description: "Written representations under Rule 369.2." } : item),
       kind("oral-hearing-request", "The separate request and reasons attached at the end of the motion record under Rule 369.2(2).")] : profile.documentKinds,
     technical: {
       ...profile.technical,
+      ...(profile.family === "motion" && { indexDocumentLabel: undefined }),
       maxOutputPages: undefined,
       volumeInstructions: undefined,
     },
@@ -929,11 +945,16 @@ export const COURT_PROFILES = presentations.map((profile): CourtProfile => {
     `Missing Court Record contract for ${profile.id}`);
   const fields = new Map(profile.cover.fields.map((field) => [field.id, field]));
   const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
+  const partyStyles = contract.partyStyleIds?.map((id) => required(PARTY_STYLE_BY_ID.get(id),
+    `Missing Court Record party style ${id}`));
   return {
     ...profile,
     label: contract.label,
     cover: { ...profile.cover, fields: contract.coverFields.map((id) => required(
-      fields.get(id), `Missing ${profile.id} cover presentation for ${id}`)) },
+      fields.get(id), `Missing ${profile.id} cover presentation for ${id}`)),
+    ...(partyStyles && { partyStyles }),
+    ...(contract.filingGroupId && { filingGroupId: contract.filingGroupId }) },
+    ...(contract.oneOf && { oneOf: contract.oneOf }),
     documentKinds: contract.slots.map((slot) => ({ ...slot, description: required(
       kinds.get(slot.id)?.description,
       `Missing ${profile.id} slot presentation for ${slot.id}`) })),
@@ -947,3 +968,21 @@ if (COURT_PROFILES.length !== PROFILE_CONTRACTS.length) {
 export const COURT_PROFILE_BY_ID = new Map(
   COURT_PROFILES.map((profile) => [profile.id, profile]),
 );
+
+export function effectiveCourtProfiles(date = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Edmonton",
+}).format(new Date())) {
+  return COURT_PROFILES.filter(({ effective }) => effective.from <= date &&
+    (!effective.to || date <= effective.to));
+}
+
+const ABCA_FACTUM_COVERS: Record<string, [string, string]> = {
+  Appellant: ["beige", "#F5F5DC"], Respondent: ["green", "#A9D18E"],
+  Intervener: ["blue", "#9FC5DC"],
+};
+export function courtProfileForCover(profile: CourtProfile, cover: CoverValues) {
+  if (profile.id !== "ab-ca-condensed-book") return profile;
+  const colour = ABCA_FACTUM_COVERS[filingParty(profile, cover)?.group.role ?? "Appellant"];
+  return { ...profile, cover: { ...profile.cover,
+    colourName: colour[0], colourHex: colour[1] } };
+}

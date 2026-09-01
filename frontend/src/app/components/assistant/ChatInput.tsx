@@ -10,7 +10,7 @@ import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSel
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/lib/modelAvailability";
 import type { Document, Message } from "../shared/types";
-import { workflowDocumentTab, workflowMessage, type WorkflowSelection } from "../workflows/workflowRoutes";
+import { workflowDocumentTab, workflowMessage } from "../workflows/workflowRoutes";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { cn } from "@/app/lib/utils";
 import { uploadDocumentsSettled, uploadStandaloneDocument } from "@/app/lib/beaverApi";
@@ -39,11 +39,11 @@ function InputChip({ className, dark, icon, label, onRemove }: InputChipProps) {
                 <button
                     type="button" aria-label={`Remove ${label}`} onClick={onRemove}
                     className={cn(
-                        "ml-0.5 rounded-full p-0.5",
+                        "ms-0.5 grid size-6 shrink-0 place-items-center rounded-full",
                         dark ? "text-white/60 hover:bg-white/20 hover:text-white" : "text-gray-400 hover:bg-gray-900/5 hover:text-gray-700",
                     )}
                 >
-                    <X className="h-2.5 w-2.5" />
+                    <X className="size-3" aria-hidden="true" />
                 </button>
             )}
         </span>
@@ -74,22 +74,17 @@ interface Props {
     restoreDraft?: Message | null;
     onDraftRestored?: () => void;
     promptHistory?: string[];
-    documentWorkflowsAvailable?: boolean;
-    onRunDocumentWorkflow?: (document?: Document) => void;
-    onOpenWorkflows?: (
-        onSelect: (selection: WorkflowSelection) => void,
-        initialWorkflowId?: string,
-    ) => void;
+    onOpenWorkflows?: (initialWorkflowId?: string, documents?: Document[]) => void;
     initialModel?: string | null;
     initialReasoningEffort?: string | null;
     editModeLabels?: { manual: string; auto: string };
+    disabled?: boolean;
 }
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, contextUsage, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
-        promptHistory = [], documentWorkflowsAvailable = false,
-        onRunDocumentWorkflow, onOpenWorkflows, initialModel,
-        initialReasoningEffort, editModeLabels }: Props,
+        promptHistory = [], onOpenWorkflows, initialModel,
+        initialReasoningEffort, editModeLabels, disabled = false }: Props,
     ref,
 ) {
     const [hasValue, setHasValue] = useState(false);
@@ -162,8 +157,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         (workflow, prompt, options) => {
             setSelectedWorkflow(workflow);
             if (prompt && !textareaRef.current?.value) setInputValue(prompt);
-            setPicker(options?.openDocumentPicker === false || attachedDocs.length
-                ? null : options?.initialDocumentTab ?? "files");
+            const tab = options?.initialDocumentTab ?? "files";
+            const hasDocument = tab === "templates"
+                ? attachedDocs.some(({ library_kind }) => library_kind === "template")
+                : attachedDocs.length > 0;
+            setPicker((options?.openDocumentPicker ?? !hasDocument) ? tab : null);
         };
     useImperativeHandle(ref, () => ({
         addDoc: (doc: Document) => attachDocuments([doc]),
@@ -251,7 +249,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     }
     const handleSubmit = () => {
         const query = textareaRef.current?.value.trim();
-        if (!query || contextUsage?.compacting) return;
+        if (!query || disabled || contextUsage?.compacting) return;
         if (!["/compact", "/help"].includes(query.toLowerCase()) &&
             apiKeys && !isModelAvailable(model, apiKeys)) {
             setApiKeyModalProvider(getModelProvider(model));
@@ -430,23 +428,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const document = attachedDocs.length === 1
-                                            ? attachedDocs[0]
-                                            : undefined;
-                                        if (
-                                            !selectedWorkflow &&
-                                            onRunDocumentWorkflow &&
-                                            (documentWorkflowsAvailable || document)
-                                        ) {
-                                            onRunDocumentWorkflow(document);
-                                        } else if (onOpenWorkflows) {
-                                            onOpenWorkflows(
-                                                (selection) => startWorkflowDocumentSelection(
-                                                    workflowMessage(selection), undefined,
-                                                    { openDocumentPicker: false },
-                                                ),
-                                                selectedWorkflow?.id,
-                                            );
+                                        if (onOpenWorkflows) {
+                                            onOpenWorkflows(selectedWorkflow?.id, attachedDocs);
                                         } else {
                                             setPicker("workflows");
                                         }
@@ -523,8 +506,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             <button
                                 type="submit"
                                 className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-brand text-white hover:bg-brand-dark disabled:cursor-default disabled:bg-gray-300"
-                                aria-label="Send message"
-                                disabled={!hasValue || contextUsage?.compacting}
+                                aria-label={disabled ? "Waiting for draft to save" : "Send message"}
+                                disabled={disabled || !hasValue || contextUsage?.compacting}
                             >
                                 <ArrowRight className="h-4 w-4" />
                             </button>
@@ -554,10 +537,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                 <WorkflowPickerModal
                     open
                     onClose={() => setPicker(null)}
-                    onSelect={(selection) => startWorkflowDocumentSelection(
-                        workflowMessage(selection), undefined,
-                        { initialDocumentTab: workflowDocumentTab(selection) },
-                    )}
+                    onSelect={(selection) => {
+                        const tab = workflowDocumentTab(selection);
+                        startWorkflowDocumentSelection(workflowMessage(selection), undefined,
+                            { initialDocumentTab: tab });
+                    }}
                     execution="assistant"
                     breadcrumbs={projectName
                         ? ["Projects", `${projectName}${projectCmNumber ? ` (#${projectCmNumber})` : ""}`, "Assistant", "Add workflow"]

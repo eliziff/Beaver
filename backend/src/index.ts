@@ -17,6 +17,8 @@ const releaseRuntimeLock = runtime.mode === "local"
 async function start() {
   if (process.env.NODE_ENV === "production") assertFrontendBuild();
   await runtime.initialize();
+  const workers = process.env.NODE_ENV === "production"
+    ? undefined : await runtime.startWorkers();
   const host = runtime.mode === "local" ? "127.0.0.1" : "0.0.0.0";
   const listener = server.listen(PORT, host, () => {
     console.log(`Beaver running on port ${PORT}`);
@@ -34,7 +36,8 @@ async function start() {
     const closed = new Promise<void>((resolve, reject) => {
       listener.close((error) => error ? reject(error) : resolve());
     });
-    return Promise.allSettled([closed, runtime.shutdown()])
+    const services = (workers?.stop() ?? Promise.resolve()).finally(() => runtime.shutdown());
+    return Promise.allSettled([closed, services])
       .then((results) => {
         const failed = results.find((result) => result.status === "rejected");
         if (failed?.status === "rejected") throw failed.reason;

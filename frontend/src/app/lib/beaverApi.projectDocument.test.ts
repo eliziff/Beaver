@@ -123,15 +123,20 @@ describe("directoryResource", () => {
 
   it("recreates a selected folder tree before uploading its files", async () => {
     await configure("local");
-    let folder = 0, document = 0;
-    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+    let folder = 0, document = 0, leaseAttempts = 0;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       const value = String(url);
       if (value.endsWith("/folders")) return new Response(JSON.stringify({
         id: `folder-${++folder}`,
       }), { headers: { "Content-Type": "application/json" } });
-      if (value.endsWith("/documents")) return new Response(JSON.stringify({
-        id: `document-${++document}`,
-      }), { headers: { "Content-Type": "application/json" } });
+      if (value.endsWith("/documents")) {
+        const file = (init?.body as FormData).get("file") as File;
+        if (file.name === "lease.pdf" && leaseAttempts++ === 0) {
+          return new Response("failed", { status: 500 });
+        }
+        return new Response(JSON.stringify({ id: `document-${++document}` }),
+          { headers: { "Content-Type": "application/json" } });
+      }
       return new Response(null, { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -142,10 +147,13 @@ describe("directoryResource", () => {
       return value;
     };
 
-    await directoryResource({ library: "files" }).uploadDirectory([
+    const resource = directoryResource({ library: "files" });
+    const files = [
       file("lease.pdf", "Matter/Contracts/lease.pdf"),
       file("notes.docx", "Matter/notes.docx"),
-    ]);
+    ];
+    await expect(resource.uploadDirectory(files)).rejects.toThrow();
+    await resource.uploadDirectory(files);
 
     const folderBodies = fetchMock.mock.calls.slice(0, 2).map(([, init]) =>
       JSON.parse(String(init?.body)));
@@ -161,6 +169,8 @@ describe("directoryResource", () => {
       ["lease.pdf", "folder-2"],
       ["notes.docx", "folder-1"],
     ]));
+    expect(uploads.filter(([name]) => name === "lease.pdf")).toHaveLength(2);
+    expect(uploads.filter(([name]) => name === "notes.docx")).toHaveLength(1);
   });
 });
 

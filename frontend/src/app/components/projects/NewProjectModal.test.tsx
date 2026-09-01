@@ -8,12 +8,16 @@ const mocks = vi.hoisted(() => ({
     addDocumentToProject: vi.fn(),
     createProject: vi.fn(),
     uploadDocument: vi.fn(),
+    uploadDirectory: vi.fn(),
 }));
 
 vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
     ...await importOriginal(),
     ...mocks,
-    directoryResource: () => ({ uploadDocument: mocks.uploadDocument }),
+    directoryResource: () => ({
+        uploadDocument: mocks.uploadDocument,
+        uploadDirectory: mocks.uploadDirectory,
+    }),
 }));
 vi.mock("@/app/contexts/AuthContext", () => ({
     useAuth: () => ({
@@ -38,6 +42,7 @@ const project: Project = {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.createProject.mockResolvedValue(project);
+    mocks.uploadDirectory.mockResolvedValue([]);
 });
 
 it("uses native form values without rerendering for ordinary typing", async () => {
@@ -113,4 +118,43 @@ it("keeps a created project open for a failed upload and retries without duplica
     expect(mocks.createProject).toHaveBeenCalledTimes(1);
     expect(mocks.uploadDocument).toHaveBeenCalledTimes(2);
     expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("offers files and folders through one upload menu and preserves the folder tree", async () => {
+    const { container } = render(
+        <NewProjectModal open onClose={vi.fn()} onCreated={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText("Project name"), {
+        target: { value: "Appeal" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const [fileInput, folderInput] = Array.from(
+        container.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    );
+    expect(folderInput).toHaveAttribute("webkitdirectory");
+    const fileClick = vi.spyOn(fileInput, "click");
+    const folderClick = vi.spyOn(folderInput, "click");
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Files" }));
+    expect(fileClick).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Folder" }));
+    expect(folderClick).toHaveBeenCalledOnce();
+
+    const loose = new File(["brief"], "brief.pdf", { type: "application/pdf" });
+    const unsupported = new File(["binary"], "brief.exe");
+    const nested = new File(["exhibit"], "exhibit.pdf", { type: "application/pdf" });
+    Object.defineProperty(nested, "webkitRelativePath", {
+        value: "evidence/tabs/exhibit.pdf",
+    });
+    fireEvent.change(fileInput, { target: { files: [loose, unsupported] } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Unsupported file type");
+    fireEvent.change(folderInput, { target: { files: [nested] } });
+    expect(screen.getByRole("list", { name: "Files ready to upload" }))
+        .toHaveTextContent("evidence/tabs/exhibit.pdf");
+
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    await waitFor(() => expect(mocks.uploadDirectory).toHaveBeenCalledWith([nested]));
+    expect(mocks.uploadDocument).toHaveBeenCalledWith(loose);
 });

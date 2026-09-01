@@ -12,6 +12,9 @@ import type { WorkProduct } from "./workProduct";
 import type { WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 
+const pdfText = vi.hoisted(() => vi.fn(async () => [] as string[]));
+vi.mock("./authorityPdfText", () => ({ authorityPdfOcrText: pdfText }));
+
 const scope: ApplicationScope = { userId: "lawyer" };
 type Stored = { id: string; versions: Array<DocumentVersion & { bytes: Buffer;
   provenance?: unknown }> };
@@ -283,6 +286,58 @@ describe("Authorities workspace application", () => {
     })).rejects.toMatchObject({ status: 409 });
   });
 
+  it("binds only the current Library PDF without copying it", async () => {
+    const runtime = harness();
+    let product = await runtime.application.importDraft(scope,
+      { source: { kind: "manual" }, projectId: "project-1" });
+    product = await runtime.application.act(scope, product.id, product.revision, {
+      type: "add-authority", kind: "case", citation: "2024 ABKB 123",
+    });
+    const pdf = runtime.put({ filename: "Smith.pdf", fileType: "pdf",
+      bytes: Buffer.from("%PDF-1.7\nLibrary\n%%EOF") });
+    const attach = (documentId: string, versionId: string, revision = product.revision) =>
+      runtime.application.attachLibraryPdf(scope, product.id, {
+        revision, authorityId: "canonical-key", documentId, versionId,
+      });
+    await expect(attach(pdf.id, "unknown-version")).rejects.toMatchObject({ status: 409 });
+    const current = (await runtime.documents.addVersion(scope, pdf.id, {
+      filename: "Smith updated.pdf", fileType: "pdf",
+      bytes: Buffer.from("%PDF-1.7\nUpdated\n%%EOF"),
+    }))!;
+    await expect(attach(pdf.id, pdf.current_version_id)).rejects.toMatchObject({ status: 409 });
+    const word = runtime.put({ filename: "Smith.docx", fileType: "docx",
+      bytes: Buffer.from("PK\x03\x04") });
+    await expect(attach(word.id, word.current_version_id)).rejects.toMatchObject({ status: 409 });
+    const revision = product.revision;
+    product = await attach(pdf.id, current.id);
+
+    const draft = product.state as AuthoritiesDraft;
+    expect(draft.authorities["canonical-key"].source).toEqual({
+      kind: "attached", bindingRole: expect.any(String), filename: "Smith updated.pdf",
+      sourceSha256: current.source_sha256,
+      sourceUrl: "https://www.canlii.org/en/ab/abkb/doc/2024/2024abkb123/2024abkb123.pdf",
+    });
+    const role = (draft.authorities["canonical-key"].source as { bindingRole: string }).bindingRole;
+    expect(draft.bindings[role]).toEqual({ kind: "document", documentId: pdf.id,
+      version: "latest" });
+    expect(runtime.files.create).not.toHaveBeenCalled();
+    await expect(attach(pdf.id, current.id, revision)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("keeps arbitrary duplicate PDF labels as distinct manual authorities", async () => {
+    const runtime = harness({ key: () => "" });
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    for (let index = 0; index < 2; index += 1) product = await runtime.application.act(
+      scope, product.id, product.revision,
+      { type: "add-authority", kind: "other", citation: "Appendix A — Interview Notes" });
+    const state = product.state as AuthoritiesDraft;
+    expect(state.authorityOrder).toHaveLength(2);
+    expect(new Set(state.authorityOrder).size).toBe(2);
+    expect(state.authorityOrder.every(Boolean)).toBe(true);
+    expect(state.authorityOrder.map((id) => state.authorities[id].citation))
+      .toEqual(["Appendix A — Interview Notes", "Appendix A — Interview Notes"]);
+  });
+
   it("adds exact grounded receipts without replacing or reparsing the draft", async () => {
     const runtime = harness({ realImporter: true, key: () => "existing" });
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
@@ -464,6 +519,8 @@ describe("Authorities workspace application", () => {
   });
 
   it("prepares only included Book PDFs and keeps table-only attachments receipt-only", async () => {
+    pdfText.mockClear();
+    pdfText.mockResolvedValueOnce(["Recognized included source"]);
     let blockedId = "", tableOnly = false;
     const builder = vi.fn(async ({ draft, workProduct }: AuthoritiesBuildInput) =>
       built(workProduct.id, workProduct.revision, [draft.outputMode === "book" ? "book" : "table"]));
@@ -505,6 +562,9 @@ describe("Authorities workspace application", () => {
     expect(runtime.documents.parseStates).toHaveBeenCalledWith(scope, [included.id]);
     const bookSources = builder.mock.calls[0][0].sources!;
     expect(bookSources["authority:included"]?.bytes).toEqual(includedBytes);
+    expect(bookSources["authority:included"]?.ocrTextByPage)
+      .toEqual(["Recognized included source"]);
+    expect(pdfText).toHaveBeenCalledOnce();
     expect(bookSources["authority:excluded"]).toMatchObject({ resolved: {
       kind: "document", documentId: excluded.id, versionId: excluded.current_version_id,
     } });

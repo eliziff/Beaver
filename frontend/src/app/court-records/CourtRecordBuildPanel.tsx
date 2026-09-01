@@ -1,4 +1,4 @@
-import { Check, Download, FileCheck2, FolderUp, Loader2 } from "lucide-react";
+import { Check, Download, Files, FileCheck2, FolderUp, Loader2 } from "lucide-react";
 import { PdfView } from "@/app/components/shared/views/PdfView";
 import { Button } from "@/app/components/ui/button";
 import { cn, formatBytes } from "@/app/lib/utils";
@@ -23,18 +23,34 @@ type Props = {
 };
 
 export function CourtRecordBuildPanel(props: Props) {
+  const separate = props.profile.outputMode === "separate-files";
   const pdf = props.result?.artifacts.find((artifact) => artifact.mimeType === "application/pdf");
   const sourcePages = props.entries.reduce((sum, entry) => sum + (entry.pageCount ?? 0), 0);
-  const sourceFiles = props.entries.length;
-  const actionLabel = props.profile.outputMode === "separate-files" ? "Prepare filing set" : "Build record";
+  const sourceFiles = props.entries.filter((entry) => !entry.descriptionOnly).length;
+  const outputFiles = props.result?.artifacts.length;
+  const actionLabel = separate ? "Prepare filing set" : "Build record";
   return (
     <aside className="court-record-build-panel min-w-0" aria-label="Build output" aria-busy={props.building || props.saving}>
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3.5">
-          <h2 className="text-base font-semibold leading-6 text-gray-950">Preview</h2>
+          <h2 className="text-base font-semibold leading-6 text-gray-950">{separate ? "Filing set" : "Preview"}</h2>
         </div>
         <div className="flex h-[24rem] items-center justify-center bg-gray-100 p-4">
-          {pdf ? (
+          {separate ? (
+            <div className="max-w-xs text-center">
+              <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-700 shadow-sm">
+                <Files className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <p className="mt-3 text-base font-semibold text-gray-950">
+                {outputFiles !== undefined ? `${outputFiles} filing file${outputFiles === 1 ? "" : "s"} prepared`
+                  : sourceFiles ? `${sourceFiles} source file${sourceFiles === 1 ? "" : "s"}` : "No files added"}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-gray-600">
+                {sourceFiles ? "Each file remains separate for filing."
+                  : "Add the files required for this filing set."}
+              </p>
+            </div>
+          ) : pdf ? (
             <div className="flex h-full w-full overflow-hidden rounded-md border border-gray-300 bg-white">
               <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Built court record preview" />
             </div>
@@ -45,9 +61,9 @@ export function CourtRecordBuildPanel(props: Props) {
         <div className="border-t border-gray-200 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-medium text-gray-900">{props.profile.outputMode === "separate-files" ? props.profile.label : outputFilename(props.profile, props.cover)}</h3>
+              <h3 className="truncate text-sm font-medium text-gray-900">{separate ? props.profile.label : outputFilename(props.profile, props.cover)}</h3>
               <p className="mt-0.5 text-xs text-gray-500">
-                {sourceFiles ? `${sourceFiles} file${sourceFiles === 1 ? "" : "s"}${sourcePages ? ` · ${sourcePages} PDF page${sourcePages === 1 ? "" : "s"}` : ""} · ${formatBytes(props.report.inputBytes)}` : "No source files yet"}
+                {sourceFiles ? `${sourceFiles} source file${sourceFiles === 1 ? "" : "s"}${sourcePages ? ` · ${sourcePages} page${sourcePages === 1 ? "" : "s"}` : ""} · ${formatBytes(props.report.inputBytes)}` : "No source files yet"}
               </p>
             </div>
             {props.report.ready && <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800" title="Ready to build"><Check className="h-4 w-4" /><span className="sr-only">Ready to build</span></span>}

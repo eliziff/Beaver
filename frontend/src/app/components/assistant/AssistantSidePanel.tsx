@@ -14,10 +14,7 @@ import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { WorkflowRunPanel } from "./WorkflowRun";
 import { Tabs } from "@/app/components/ui/tabs";
-import {
-    DocumentWorkflowMenu,
-    type DocumentWorkflowTarget,
-} from "@/app/components/documents/DocumentWorkflowMenu";
+import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 type CommonTab = {
     id: string;
     documentId: string;
@@ -43,17 +40,11 @@ type WorkflowRunTab = {
     id: string;
     run: WorkflowRunEvent;
 };
-type DocumentWorkflowTab = {
-    kind: "document-workflows";
-    id: string;
-    document: DocumentWorkflowTarget;
-};
 export type AssistantDocumentTab = DocumentTab | CitationTab | EditTab;
 export type AssistantSidePanelTab =
     | AssistantDocumentTab
     | LegalSourceTab
-    | WorkflowRunTab
-    | DocumentWorkflowTab;
+    | WorkflowRunTab;
 interface Props {
     tabs: AssistantSidePanelTab[];
     activeTabId: string | null;
@@ -68,6 +59,7 @@ interface Props {
     onEditError?: EditResolveHandlers["onError"];
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
+    onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
     embedded?: boolean;
 }
 export function AssistantSidePanel({
@@ -84,13 +76,13 @@ export function AssistantSidePanel({
     onEditError,
     onWarningDismiss,
     onScrollChange,
+    onOpenWorkflows,
     embedded = false,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
     if (!active) return null;
     const options = tabs.map((tab) => {
-        const title = tab.kind === "document-workflows" ? "Workflows"
-            : tab.kind === "workflow-run" ? "Workflow"
+        const title = tab.kind === "workflow-run" ? "Workflow"
             : tab.kind === "legal" ? tab.name || tab.citation : tab.filename;
         const showVersion = "documentId" in tab && Number.isFinite(tab.versionNumber) &&
             (tab.versionNumber ?? 0) > (tab.kind === "edit" ? 0 : 1);
@@ -128,14 +120,6 @@ export function AssistantSidePanel({
                 {tabs.map((tab) => {
                     const isActive = tab.id === active.id;
                     const body = (() => {
-                        if (tab.kind === "document-workflows") {
-                            return (
-                                <DocumentWorkflowMenu
-                                    document={tab.document}
-                                    embedded
-                                />
-                            );
-                        }
                         if (tab.kind === "workflow-run") {
                             return <WorkflowRunPanel run={tab.run} />;
                         }
@@ -171,6 +155,7 @@ export function AssistantSidePanel({
                                     isEditorReloading?.(tab.documentId) ?? false
                                 }
                                 warning={tab.warning ?? null}
+                                onOpenWorkflows={onOpenWorkflows}
                                 onWarningDismiss={() =>
                                     onWarningDismiss?.(tab.id)
                                 }
@@ -186,8 +171,7 @@ export function AssistantSidePanel({
                             key={tab.id}
                             className={cn(
                                 "absolute inset-0",
-                                tab.kind === "workflow-run" ||
-                                tab.kind === "document-workflows"
+                                tab.kind === "workflow-run"
                                     ? "overflow-y-auto"
                                     : "flex flex-col",
                                 !isActive && "invisible pointer-events-none",

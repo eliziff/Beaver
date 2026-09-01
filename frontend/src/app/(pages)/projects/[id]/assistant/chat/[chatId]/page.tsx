@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ChatView, type ChatViewHandle } from "@/app/components/assistant/ChatView";
 import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch";
 import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
@@ -17,10 +17,10 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import { PageHeader } from "@/app/components/shared/PageHeader";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
 import { deleteChat } from "@/app/lib/beaverApi";
+import type { AssistantWorkflowLaunch } from "@/app/components/workflows/workflowRoutes";
 
 export default function ProjectAssistantChatPage() {
   const { id = "", chatId = "" } = useParams<{ id: string; chatId: string }>();
@@ -29,7 +29,7 @@ export default function ProjectAssistantChatPage() {
 
 function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId: string }) {
   const navigate = useNavigate();
-  const { setSidebarOpen } = useSidebar();
+  const location = useLocation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const workspace = useProjectWorkspace();
@@ -45,6 +45,9 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
   const [chatActionBusy, setChatActionBusy] = useState(false);
   const [chatActionError, setChatActionError] = useState<string | null>(null);
   const [initialDocuments] = useState(takeNewChatDocuments);
+  const [initialWorkflow] = useState(
+    () => (location.state as AssistantWorkflowLaunch | null) ?? undefined,
+  );
   const uploadInput = useRef<HTMLInputElement>(null);
   const directoryUploadInput = useRef<HTMLInputElement>(null);
   const chat = useRef<ChatViewHandle>(null);
@@ -56,7 +59,9 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
     message.role === "assistant" ? message.artifacts.map(({ versionId }) => versionId) : [],
   ).join("|");
 
-  useEffect(() => setSidebarOpen(false), [setSidebarOpen]);
+  useEffect(() => {
+    if (location.state) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
   useEffect(() => {
     if (!documentRevision) return;
     void Promise.all([
@@ -228,6 +233,7 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             initialModel={route.chatModel}
             initialReasoningEffort={route.chatReasoningEffort}
             initialDocuments={initialDocuments}
+            initialWorkflow={initialWorkflow}
             useDisplayedDocumentContext
             onActiveDocumentChange={setSelectedDocument}
             projectFiles={projectFiles}

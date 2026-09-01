@@ -20,6 +20,12 @@ const selectedDocument: Document = {
     status: "ready",
     created_at: "2026-07-27T00:00:00Z",
 };
+const selectedTemplate: Document = {
+    ...selectedDocument,
+    id: "template-1",
+    filename: "Pleading.docx",
+    library_kind: "template",
+};
 
 vi.mock("../modals/AddDocumentsModal", () => ({
     AddDocumentsModal: (props: {
@@ -43,7 +49,18 @@ vi.mock("../modals/AddDocumentsModal", () => ({
         ) : null,
 }));
 vi.mock("../workflows/WorkflowPickerModal", () => ({
-    WorkflowPickerModal: () => null,
+    WorkflowPickerModal: ({ open, onSelect, onClose }: {
+        open: boolean;
+        onSelect: (selection: {
+            workflow: { id: string; metadata: { title: string } };
+            variant: { id: string; execution: "assistant" };
+        }) => void;
+        onClose: () => void;
+    }) => open ? <button type="button" onClick={async () => {
+        onClose();
+        await onSelect({ workflow: { id: "drafting", metadata: { title: "Drafting" } },
+            variant: { id: "builtin-draft-from-template", execution: "assistant" } });
+    }}>Choose template workflow</button> : null,
 }));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
     ApiKeyMissingPopup: () => null,
@@ -70,6 +87,9 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
                 onClick={() => inputRef.current?.addDoc(selectedDocument)}
             >
                 Attach Lease
+            </button>
+            <button type="button" onClick={() => inputRef.current?.addDoc(selectedTemplate)}>
+                Attach template
             </button>
             <button
                 type="button"
@@ -98,46 +118,40 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
 beforeEach(() => window.localStorage.clear());
 
 describe("ChatInput workflow document selection", () => {
-    it("selects a dock workflow without opening a competing document modal", async () => {
+    it("opens the shared workflow dock with the current context", async () => {
+        const onOpenWorkflows = vi.fn();
         render(
             <ChatInput
                 onSubmit={vi.fn()}
                 onCancel={vi.fn()}
                 isLoading={false}
-                onOpenWorkflows={(onSelect) => onSelect({
-                    workflow: {
-                        id: "templates",
-                        user_id: null,
-                        metadata: {
-                            title: "Templates",
-                            description: "Draft from an existing template.",
-                            category: "Templates",
-                            audiences: ["general"],
-                            contributors: [],
-                            language: "en",
-                            version: null,
-                            jurisdictions: null,
-                        },
-                        launcher: { kind: "instructions", variants: [] },
-                        is_system: true,
-                        created_at: "2026-08-30T00:00:00Z",
-                    },
-                    variant: {
-                        id: "builtin-draft-from-template",
-                        label: "Draft from template",
-                        result: null,
-                        execution: "assistant",
-                        skill_md: "Draft from the selected template.",
-                        columns_config: null,
-                    },
-                })}
+                onOpenWorkflows={onOpenWorkflows}
             />,
         );
 
         await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
+        expect(onOpenWorkflows).toHaveBeenCalledWith(undefined, []);
+    });
+
+    it("does not let the closing workflow modal cancel its document handoff", async () => {
+        render(<ChatInput onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
+        await userEvent.click(screen.getByRole("button", { name: "Choose template workflow" }));
+
+        expect(screen.getByRole("button", { name: "Use document" }))
+            .toHaveAttribute("data-initial-tab", "templates");
+    });
+
+    it("uses an attached template without asking for it again", async () => {
+        render(<WorkflowHarness onSubmit={vi.fn()} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Attach template" }));
+        await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
+        await userEvent.click(screen.getByRole("button", { name: "Choose template workflow" }));
+
         expect(screen.queryByRole("button", { name: "Use document" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Remove Templates" }))
-            .toBeInTheDocument();
+        expect(screen.getByText("Drafting")).toBeVisible();
     });
 
     it("hides Auto Mode until enabled and preserves the selected mode", async () => {

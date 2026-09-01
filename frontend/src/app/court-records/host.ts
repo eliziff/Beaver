@@ -49,6 +49,11 @@ export interface CourtRecordsHost {
   }>;
 }
 
+export const needsOcr = (entry: Pick<RecordEntry,
+  "encrypted" | "searchable" | "textlessPageCount">) =>
+  entry.encrypted !== true &&
+    (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0);
+
 export function outputDocument(product: WorkProduct, output: WorkProductOutput): Document {
   return { id: output.documentId, project_id: product.projectId,
     filename: output.filename,

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "re
 import { X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-type TabVariant = "segmented" | "quiet" | "dock" | "underline" | "pill" | "settings" | "sheets";
+type TabVariant = "segmented" | "quiet" | "dock" | "underline" | "pill" | "brand" | "settings" | "sheets";
 type TabOption<T extends string = string> = { value: T; label: ReactNode;
     onClose?: () => void; closeLabel?: string };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
@@ -10,32 +10,35 @@ type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => v
     actions?: ReactNode; className?: string; panelId?: string };
 type TabsProps<T extends string> = { value: T; onValueChange: (value: T) => void;
     options: readonly TabOption<T>[]; ariaLabel: string; children: ReactNode;
-    variant?: TabVariant; actions?: ReactNode; className?: string };
+    variant?: TabVariant; actions?: ReactNode; className?: string; railClassName?: string };
 
 const railClass: Record<TabVariant, string> = {
     segmented: "",
-    quiet: "border-b border-gray-200 bg-gray-50 px-3 py-2",
+    quiet: "-mx-2 border-b border-gray-200 bg-gray-50 px-1 py-2 sm:mx-0 sm:px-3",
     dock: "min-h-12 border-b border-gray-200 px-2 pe-12 py-1.5",
     underline: "border-b border-gray-200",
     pill: "",
+    brand: "border-b border-gray-200 bg-white px-4 py-2 sm:px-6",
     settings: "sticky top-0 z-10 border-b border-gray-200 bg-white pb-2",
     sheets: "h-9 border-t border-gray-300 bg-gray-100",
 };
 const listClass: Record<TabVariant, string> = {
     segmented: "gap-1 rounded-lg bg-gray-100 p-1",
-    quiet: "gap-1",
+    quiet: "gap-0.5 sm:gap-1",
     dock: "gap-1",
-    underline: "gap-1.5",
-    pill: "gap-2 py-0.5",
+    underline: "gap-0.5 sm:gap-1.5",
+    pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
+    brand: "mx-auto w-full max-w-[60rem] gap-2",
     settings: "grid flex-1 grid-cols-2 gap-1 sm:grid-cols-5",
     sheets: "h-full items-stretch",
 };
 const tabClass: Record<TabVariant, string> = {
     segmented: "h-8 shrink-0 rounded-md px-1 text-sm font-medium sm:px-3",
-    quiet: "h-8 w-[4.75rem] shrink-0 rounded-md border border-transparent px-2 text-xs font-medium sm:w-40",
+    quiet: "h-8 w-[4.5rem] shrink-0 rounded-md border border-transparent px-1 text-xs font-medium sm:w-40 sm:px-2",
     dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:px-3 sm:text-sm",
-    underline: "min-h-10 border-b-2 px-3 text-sm font-medium",
+    underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
+    brand: "h-9 w-[6.5rem] shrink-0 rounded-lg border px-2 text-sm font-medium",
     settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
     sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs",
 };
@@ -45,6 +48,7 @@ const selectedClass: Record<TabVariant, string> = {
     dock: "bg-gray-900 text-white",
     underline: "border-gray-900 text-gray-900",
     pill: "border-gray-900 bg-gray-900 text-white",
+    brand: "border-red-700 bg-red-700 text-white",
     settings: "border-gray-300 bg-gray-100 text-gray-950",
     sheets: "bg-white font-semibold text-gray-900",
 };
@@ -54,6 +58,7 @@ const idleClass: Record<TabVariant, string> = {
     dock: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     underline: "border-transparent text-gray-600 hover:text-gray-900",
     pill: "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+    brand: "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-950",
     settings: "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900",
     sheets: "text-gray-600 hover:bg-gray-50",
 };
@@ -112,18 +117,18 @@ export function TabList<T extends string>({ value, onValueChange, options,
             </div>}
             {actions && <div data-tabs-actions
                 className={cn("flex shrink-0 items-center", variant === "pill" ? "gap-2" : "gap-1.5",
-                    !options.length && "ms-auto")}>{actions}</div>}
+                    (variant === "pill" || !options.length) && "ms-auto")}>{actions}</div>}
         </div>;
 }
 
 export function Tabs<T extends string>({ value, onValueChange, options, ariaLabel, children,
-    variant = "segmented", actions, className }: TabsProps<T>) {
+    variant = "segmented", actions, className, railClassName }: TabsProps<T>) {
     const id = useId();
     const active = Math.max(0, options.findIndex((option) => option.value === value));
     const panelId = `${id}-panel`;
     return <div className={cn("flex min-h-0 flex-col", className)}>
         <TabList {...{ value, onValueChange, options, ariaLabel, variant, actions,
-            panelId }} />
+            panelId }} className={railClassName} />
         <div id={panelId} role="tabpanel" aria-labelledby={`${panelId}-tab-${active}`}
             className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>;
