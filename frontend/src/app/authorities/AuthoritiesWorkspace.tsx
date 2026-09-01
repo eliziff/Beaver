@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, BookOpen, Download, FilePlus2, FolderSearch,
+import { ArrowDown, ArrowUp, BookOpen, Download, FilePlus2, FolderSearch, History,
   Loader2, Plus, RefreshCw, Scale } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ReactNode } from "react";
@@ -358,8 +358,9 @@ function Start({ busy, status, error, onFile, onPick, onLibrary, onManual, onOpe
           disabled={busy} onClick={onLibrary}><FolderSearch /> Library</Button>}
         <Button type="button" variant="ghost" className="h-11" disabled={busy}
           onClick={onManual}><Plus /> Blank book</Button>
-        {onOpen && <Button type="button" variant="ghost" className="h-11" disabled={busy}
-          onClick={onOpen}>Open saved draft</Button>}
+        {onOpen && <Button type="button" variant="outline"
+          className="h-11 basis-full border-gray-400 sm:ml-auto sm:basis-auto" disabled={busy}
+          onClick={onOpen}><History /> Open saved draft</Button>}
       </div>
       <p className={cn("mt-4 min-h-5 text-sm", error ? "text-red-700" : "text-gray-600")}
         role="status" aria-live="polite">{busy ? "Finding citations..." : status}</p>
