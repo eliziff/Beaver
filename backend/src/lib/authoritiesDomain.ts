@@ -5,6 +5,67 @@ import { decodeWorkProductBindings, type WorkProductInput,
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 export type AuthoritiesOutputMode = "table" | "book" | "both";
+export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
+export type AuthoritiesProfileId = keyof typeof AUTHORITIES_PROFILES;
+export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
+  "appellant" | "intervener";
+export type AuthoritiesBuildSettings = {
+  sourceMode: AuthoritiesSourceMode;
+  tabStyle: "numeric" | "alpha";
+  tableOrder: "first-reference" | "alphabetical";
+  tableDelivery: "native-marks" | "native-append" | "linked-append";
+  tableLocation: "pages" | "pinpoints" | "combined";
+  passageMarking: "none" | "margin" | "paragraph" | "text" | "sidelined";
+  scannedPdfPolicy: "page-margin" | "cited-pages" | "full";
+  missingSourcePolicy: "placeholder" | "omit";
+  filingMedium?: "electronic" | "paper";
+  bookRole?: AuthoritiesBookRole;
+};
+export type AuthoritiesSettings = AuthoritiesBuildSettings & {
+  profileId: AuthoritiesProfileId;
+};
+
+type AuthoritiesProfile = {
+  defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
+  locked?: { outputMode?: AuthoritiesOutputMode;
+    settings?: Partial<AuthoritiesBuildSettings> };
+};
+
+/** Filing defaults only; source receipts remain in the repository audit data. */
+const AUTHORITIES_PROFILES = {
+  general: { defaults: { outputMode: "book", settings: {
+    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
+    tableDelivery: "native-append", tableLocation: "pages",
+    passageMarking: "margin", scannedPdfPolicy: "page-margin",
+    missingSourcePolicy: "placeholder",
+  } } },
+  "ab-court-of-kings-bench": { defaults: { outputMode: "book", settings: {
+    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
+    tableDelivery: "native-append", tableLocation: "pages",
+    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
+  } }, locked: { settings: { missingSourcePolicy: "omit" } } },
+  "ab-court-of-appeal": { defaults: { outputMode: "table", settings: {
+    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "first-reference",
+    tableDelivery: "linked-append", tableLocation: "pinpoints",
+    passageMarking: "none", scannedPdfPolicy: "page-margin",
+    missingSourcePolicy: "omit",
+  } }, locked: { outputMode: "table", settings: {
+    tableDelivery: "linked-append", tableOrder: "first-reference", missingSourcePolicy: "omit",
+  } } },
+  "federal-court": { defaults: { outputMode: "book", settings: {
+    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
+    tableDelivery: "native-append", tableLocation: "pages",
+    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
+    filingMedium: "electronic", bookRole: "applicant",
+  } } },
+  "federal-court-of-appeal": { defaults: { outputMode: "book", settings: {
+    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
+    tableDelivery: "native-append", tableLocation: "pages",
+    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
+    filingMedium: "electronic", bookRole: "joint",
+  } } },
+} as const satisfies Record<string, AuthoritiesProfile>;
+export const authoritiesProfileIds = Object.keys(AUTHORITIES_PROFILES) as AuthoritiesProfileId[];
 
 export type AuthoritiesDocumentSnapshot = {
   documentId: string;
@@ -62,8 +123,27 @@ export type AuthoritySourceDecision =
   | { kind: "unresolved" }
   | { kind: "resolved" }
   | { kind: "attached"; bindingRole: string; filename: string;
-      sourceSha256: string; sourceUrl: string | null }
+      sourceSha256: string; sourceUrl: string | null;
+      origin: "manual" | "original" | "reconstructed" }
   | { kind: "pending-canlii"; authorityKey: string; pageUrl: string; pdfUrl: string };
+
+export type AuthoritiesBoundPdf = {
+  bindingRole: string;
+  filename: string;
+  sourceSha256: string;
+};
+export type AuthoritiesBookSupplement = AuthoritiesBoundPdf & {
+  id: string;
+  title: string;
+  tab: string;
+};
+export type AuthoritiesBookParts = {
+  cover: AuthoritiesBoundPdf | null;
+  index: AuthoritiesBoundPdf | null;
+  supplements: AuthoritiesBookSupplement[];
+};
+
+export type AuthorityTextSpan = { start: number; end: number; text: string };
 
 export type AuthorityIdentity = {
   id: string;
@@ -72,6 +152,7 @@ export type AuthorityIdentity = {
   citation: string;
   name: string | null;
   displayName: string | null;
+  tabLabel: string | null;
   evidenceIds: string[];
   locators: Array<{ kind: string; label: string }>;
   sourceIdentity: AuthoritySourceIdentity | null;
@@ -96,6 +177,9 @@ export type AuthorityOccurrence = {
   start: number;
   end: number;
   text: string;
+  authoritySpan: AuthorityTextSpan;
+  coreSpan: AuthorityTextSpan;
+  pinpointSpan: AuthorityTextSpan | null;
   kind: AuthorityKind | "reference";
   citation: string;
   authorityId: string | null;
@@ -112,6 +196,8 @@ export type AuthoritiesDraft = WorkProductState & {
   import: AuthoritiesImport;
   bindings: Record<string, WorkProductInput>;
   outputMode: AuthoritiesOutputMode;
+  settings: AuthoritiesSettings;
+  bookParts: AuthoritiesBookParts;
   insertIntoDocument: boolean;
   ledger: AuthorityCitationLedger | null;
   units: AuthoritiesReviewUnit[];
@@ -130,10 +216,13 @@ export type AuthoritiesAction =
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "set-authority-tab"; authorityId: string; tabLabel: string | null }
   | { type: "reorder-authorities"; authorityIds: string[] }
   | { type: "split-occurrence"; occurrenceId: string;
       replacements: [AuthorityOccurrence, AuthorityOccurrence] }
   | { type: "merge-occurrences"; occurrenceIds: [string, string];
+      replacement: AuthorityOccurrence }
+  | { type: "replace-occurrence"; occurrenceId: string;
       replacement: AuthorityOccurrence }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
@@ -143,8 +232,18 @@ export type AuthoritiesAction =
       name: string | null; source: AuthoritySourceIdentity }
   | { type: "attach-source"; authorityId: string; bindingRole: string;
       binding: WorkProductInput; filename: string; sourceSha256: string;
-      sourceUrl: string | null }
+      sourceUrl: string | null; origin?: "manual" | "original" | "reconstructed" }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
+  | { type: "set-book-part"; slot: "cover" | "index"; pdf: AuthoritiesBoundPdf;
+      binding: WorkProductInput }
+  | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "set-book-supplement"; supplement: AuthoritiesBookSupplement;
+      binding: WorkProductInput; at?: number }
+  | { type: "update-book-supplement"; id: string; title: string; tab: string }
+  | { type: "reorder-book-supplements"; ids: string[] }
+  | { type: "remove-book-supplement"; id: string }
+  | { type: "set-profile"; profileId: AuthoritiesProfileId }
+  | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
   | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }
   | { type: "set-document-output"; enabled: boolean }
   | { type: "refresh"; review: AuthoritiesFreshReview };
@@ -154,10 +253,13 @@ export class AuthoritiesDomainError extends Error {}
 export function createAuthoritiesDraft(
   source: AuthoritiesImport,
   bindings: Record<string, WorkProductInput> = {},
-  outputMode: AuthoritiesOutputMode = "both",
+  outputMode: AuthoritiesOutputMode = "book",
 ): AuthoritiesDraft {
+  const profile = AUTHORITIES_PROFILES.general;
   const draft: AuthoritiesDraft = { schemaVersion: "beaver.authorities-draft.v1",
     import: source, bindings: structuredClone(bindings), outputMode,
+    settings: { profileId: "general", ...structuredClone(profile.defaults.settings) },
+    bookParts: { cover: null, index: null, supplements: [] },
     insertIntoDocument: false, ledger: null,
     units: [], occurrences: {}, authorities: {}, authorityOrder: [] };
   const errors = validateAuthoritiesDraft(draft);
@@ -179,6 +281,9 @@ const exactKeys = (value: Record<string, unknown>, required: string[], optional:
   Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
 const nonempty = (value: unknown, max = 4_000) =>
   typeof value === "string" && value.length > 0 && value.length <= max;
+const trimmed = (value: unknown, max = 500) => typeof value === "string" &&
+  value.length > 0 && value.length <= max && value.trim() === value &&
+  !/[\u0000-\u001f\u007f]/u.test(value);
 const closed = (value: unknown, keys: string[]) => {
   const item = object(value);
   return item && exactKeys(item, keys) ? item : null;
@@ -193,6 +298,51 @@ const pair = (value: unknown) => Array.isArray(value) && value.length === 2 &&
   Array.from(value).every(integer);
 const oneOf = (value: unknown, choices: readonly string[]) =>
   typeof value === "string" && choices.includes(value);
+const authoritySpan = (value: unknown) => {
+  const item = closed(value, ["start", "end", "text"]);
+  return !!item && integer(item.start) && integer(item.end) && text(item.text);
+};
+const buildSettings = (value: unknown) => {
+  const keys = ["sourceMode", "tabStyle", "tableOrder", "tableDelivery", "tableLocation",
+    "passageMarking", "scannedPdfPolicy", "missingSourcePolicy"];
+  const item = object(value);
+  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole"])) {
+    return false;
+  }
+  const context = item.profileId === "federal-court"
+    ? oneOf(item.filingMedium, ["electronic", "paper"]) &&
+      oneOf(item.bookRole, ["applicant", "respondent", "joint"])
+    : item.profileId === "federal-court-of-appeal"
+      ? oneOf(item.filingMedium, ["electronic", "paper"]) &&
+        oneOf(item.bookRole, ["joint", "appellant", "respondent", "intervener"])
+      : !Object.hasOwn(item, "filingMedium") && !Object.hasOwn(item, "bookRole");
+  return oneOf(item.profileId, authoritiesProfileIds) && context &&
+    oneOf(item.sourceMode, ["automatic", "manual-originals", "render"]) &&
+    oneOf(item.tabStyle, ["numeric", "alpha"]) &&
+    oneOf(item.tableOrder, ["first-reference", "alphabetical"]) &&
+    oneOf(item.tableDelivery, ["native-marks", "native-append", "linked-append"]) &&
+    oneOf(item.tableLocation, ["pages", "pinpoints", "combined"]) &&
+    oneOf(item.passageMarking, ["none", "margin", "paragraph", "text", "sidelined"]) &&
+    oneOf(item.scannedPdfPolicy, ["page-margin", "cited-pages", "full"]) &&
+    oneOf(item.missingSourcePolicy, ["placeholder", "omit"]);
+};
+const boundPdf = (value: unknown) => {
+  const item = closed(value, ["bindingRole", "filename", "sourceSha256"]);
+  return !!item && trimmed(item.bindingRole, 200) && trimmed(item.filename) &&
+    typeof item.sourceSha256 === "string" && /^[a-f0-9]{64}$/u.test(item.sourceSha256);
+};
+const bookSupplement = (value: unknown) => {
+  const item = closed(value, ["id", "bindingRole", "filename", "sourceSha256", "title", "tab"]);
+  return !!item && trimmed(item.id, 200) && boundPdf({ bindingRole: item.bindingRole,
+    filename: item.filename, sourceSha256: item.sourceSha256 }) &&
+    trimmed(item.title) && trimmed(item.tab, 80);
+};
+const bookParts = (value: unknown) => {
+  const item = closed(value, ["cover", "index", "supplements"]);
+  return !!item && (item.cover === null || boundPdf(item.cover)) &&
+    (item.index === null || boundPdf(item.index)) &&
+    list(item.supplements, bookSupplement, 500);
+};
 const authorityKind = (value: unknown) => oneOf(value,
   ["case", "legislation", "commentary", "other"]);
 const pinpoint = (value: unknown) => {
@@ -232,9 +382,9 @@ const sourceDecision = (value: unknown) => {
     return exactKeys(item, ["kind"]);
   }
   if (item.kind === "attached") return exactKeys(item,
-    ["kind", "bindingRole", "filename", "sourceSha256", "sourceUrl"]) &&
+    ["kind", "bindingRole", "filename", "sourceSha256", "sourceUrl", "origin"]) &&
     text(item.bindingRole) && text(item.filename) && text(item.sourceSha256) &&
-    nullableText(item.sourceUrl);
+    nullableText(item.sourceUrl) && oneOf(item.origin, ["manual", "original", "reconstructed"]);
   return item.kind === "pending-canlii" && exactKeys(item,
     ["kind", "authorityKey", "pageUrl", "pdfUrl"]) &&
     text(item.authorityKey) && text(item.pageUrl) && text(item.pdfUrl);
@@ -249,9 +399,10 @@ const seed = (value: unknown) => {
 };
 const authority = (value: unknown) => {
   const item = closed(value, ["id", "key", "kind", "citation", "name", "displayName",
-    "evidenceIds", "locators", "sourceIdentity", "excluded", "source"]);
+    "tabLabel", "evidenceIds", "locators", "sourceIdentity", "excluded", "source"]);
   return !!item && text(item.id) && text(item.key) && authorityKind(item.kind) &&
     text(item.citation) && nullableText(item.name) && nullableText(item.displayName) &&
+    nullableText(item.tabLabel) &&
     strings(item.evidenceIds) && list(item.locators, locator) &&
     (item.sourceIdentity === null || sourceIdentity(item.sourceIdentity)) &&
     typeof item.excluded === "boolean" && sourceDecision(item.source);
@@ -272,9 +423,10 @@ const reference = (value: unknown) => {
 const occurrence = (value: unknown) => {
   const item = closed(value, ["id", "unitId", "start", "end", "text", "kind", "citation",
     "authorityId", "reference", "pinpoints", "evidenceIds", "sourceTextSha256",
-    "localOrdinal", "reviewed"]);
+    "localOrdinal", "reviewed", "authoritySpan", "coreSpan", "pinpointSpan"]);
   return !!item && text(item.id) && text(item.unitId) && integer(item.start) &&
-    integer(item.end) && text(item.text) &&
+    integer(item.end) && text(item.text) && authoritySpan(item.authoritySpan) &&
+    authoritySpan(item.coreSpan) && (item.pinpointSpan === null || authoritySpan(item.pinpointSpan)) &&
     (authorityKind(item.kind) || item.kind === "reference") && text(item.citation) &&
     (item.authorityId === null || text(item.authorityId)) &&
     (item.reference === null || reference(item.reference)) && list(item.pinpoints, pinpoint) &&
@@ -307,12 +459,13 @@ const ledger = (value: unknown) => {
 export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null {
   try {
     const draft = closed(value, ["schemaVersion", "import", "bindings", "outputMode",
-      "insertIntoDocument", "ledger", "units", "occurrences", "authorities",
-      "authorityOrder"]);
+      "settings", "bookParts", "insertIntoDocument", "ledger", "units", "occurrences",
+      "authorities", "authorityOrder"]);
     const occurrences = object(draft?.occurrences), authorities = object(draft?.authorities);
     if (!draft || draft.schemaVersion !== "beaver.authorities-draft.v1" ||
         !importedDocument(draft.import) || !decodeWorkProductBindings(draft.bindings) ||
         !oneOf(draft.outputMode, ["table", "book", "both"]) ||
+        !buildSettings(draft.settings) || !bookParts(draft.bookParts) ||
         typeof draft.insertIntoDocument !== "boolean" ||
         !(draft.ledger === null || ledger(draft.ledger)) || !list(draft.units, reviewUnit) ||
         !occurrences || !Object.values(occurrences).every(occurrence) || !authorities ||
@@ -367,6 +520,7 @@ const authorityFromSeed = (seed: AuthoritySeed): AuthorityIdentity => ({
   citation: seed.citation,
   name: seed.name,
   displayName: null,
+  tabLabel: null,
   evidenceIds: [...seed.evidenceIds],
   locators: structuredClone(seed.locators),
   sourceIdentity: { provider: seed.provider, stableSourceId: seed.stableSourceId,
@@ -375,11 +529,33 @@ const authorityFromSeed = (seed: AuthoritySeed): AuthorityIdentity => ({
   source: { kind: "resolved" },
 });
 
+function ledgerSpans(item: AuthoritiesLedgerOccurrence, citation: string) {
+  const local = item.text.toLocaleLowerCase().indexOf(citation.toLocaleLowerCase());
+  const coreStart = local < 0 ? item.start : item.start + local;
+  const coreEnd = local < 0 ? item.end : coreStart + citation.length;
+  const coreSpan = { start: coreStart, end: coreEnd,
+    text: item.unit.text.slice(coreStart, coreEnd) };
+  const candidates = item.pinpoints.flatMap(({ text }) => {
+    const at = item.text.lastIndexOf(text);
+    return at < 0 ? [] : [{ start: item.start + at, end: item.start + at + text.length }];
+  }).sort((left, right) => left.start - right.start);
+  const pinpointSpan = candidates.length ? { start: candidates[0].start,
+    end: candidates.at(-1)!.end,
+    text: item.unit.text.slice(candidates[0].start, candidates.at(-1)!.end) } : null;
+  return { authoritySpan: coreSpan, coreSpan, pinpointSpan };
+}
+
 function requireRecord<T>(record: Record<string, T>, id: string, label: string): T {
   const value = record[id];
   if (!value) throw new AuthoritiesDomainError(`Unknown ${label}: ${id}`);
   return value;
 }
+
+export const authoritiesBookPdfs = (draft: AuthoritiesDraft): AuthoritiesBoundPdf[] => [
+  ...(draft.bookParts.cover ? [draft.bookParts.cover] : []),
+  ...(draft.bookParts.index ? [draft.bookParts.index] : []),
+  ...draft.bookParts.supplements,
+];
 
 function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) {
   if (ledger.schemaVersion !== "beaver.authority-ledger.v1") {
@@ -411,6 +587,7 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
     units.set(unit.id, unit);
     occurrences[item.id] = {
       id: item.id, unitId: unit.id, start: item.start, end: item.end, text: item.text,
+      ...ledgerSpans(item, authority.citation),
       kind: item.displayedForm === "supra" || item.displayedForm === "ibid"
         ? "reference" : authority.kind,
       citation: authority.citation,
@@ -423,7 +600,10 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
     };
   }
   draft.ledger = structuredClone(ledger);
-  draft.bindings = { [draft.import.bindingRole]: draft.bindings[draft.import.bindingRole] };
+  const retained = new Set([draft.import.bindingRole,
+    ...authoritiesBookPdfs(draft).map(({ bindingRole }) => bindingRole)]);
+  draft.bindings = Object.fromEntries(Object.entries(draft.bindings)
+    .filter(([role]) => retained.has(role)));
   draft.units = [...units.values()].sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
   draft.occurrences = occurrences;
   draft.authorities = authorities;
@@ -458,7 +638,8 @@ function replaceOccurrences(
 function removeUnusedBinding(draft: AuthoritiesDraft, role: string | undefined) {
   if (!role || draft.import.kind === "document" && draft.import.bindingRole === role ||
       Object.values(draft.authorities).some((authority) =>
-        authority.source.kind === "attached" && authority.source.bindingRole === role)) return;
+        authority.source.kind === "attached" && authority.source.bindingRole === role) ||
+      authoritiesBookPdfs(draft).some(({ bindingRole }) => bindingRole === role)) return;
   delete draft.bindings[role];
 }
 
@@ -470,6 +651,56 @@ function replaceSource(
   const oldRole = authority.source.kind === "attached" ? authority.source.bindingRole : undefined;
   authority.source = source;
   removeUnusedBinding(draft, oldRole);
+}
+
+function resolveAuthority(
+  draft: AuthoritiesDraft,
+  action: Extract<AuthoritiesAction, { type: "resolve-authority" }>,
+) {
+  requireRecord(draft.authorities, action.authorityId, "authority");
+  if (!action.citation.trim()) throw new AuthoritiesDomainError("Authority citation is required.");
+  const aliases = draft.authorityOrder.map((id) => draft.authorities[id]).filter((authority) =>
+    authority.id === action.authorityId || authority.sourceIdentity?.provider ===
+      action.source.provider && authority.sourceIdentity.stableSourceId ===
+      action.source.stableSourceId);
+  const survivor = aliases[0];
+  const aliasIds = new Set(aliases.map(({ id }) => id));
+  const roles = aliases.flatMap(({ source }) => source.kind === "attached"
+    ? [source.bindingRole] : []);
+  const attached = aliases.map(({ source }) => source).find(
+    (source): source is Extract<AuthoritySourceDecision, { kind: "attached" }> =>
+      source.kind === "attached");
+  survivor.citation = action.citation.trim();
+  survivor.name = action.name?.trim() || null;
+  survivor.displayName = aliases.find(({ displayName }) => displayName !== null)?.displayName ?? null;
+  survivor.tabLabel = aliases.find(({ tabLabel }) => tabLabel !== null)?.tabLabel ?? null;
+  survivor.excluded = aliases.every(({ excluded }) => excluded);
+  survivor.evidenceIds = uniqueSorted(aliases.flatMap(({ evidenceIds }) => evidenceIds));
+  survivor.locators = uniqueSorted(aliases.flatMap(({ locators }) => locators)
+    .map(({ kind, label }) => `${kind}\0${label}`)).map((value) => {
+      const [kind, label] = value.split("\0");
+      return { kind, label };
+    });
+  survivor.sourceIdentity = structuredClone(action.source);
+  survivor.source = attached ? structuredClone(attached) : { kind: "resolved" };
+  for (const id of aliasIds) if (id !== survivor.id) delete draft.authorities[id];
+  draft.authorityOrder = draft.authorityOrder.filter((id) => id === survivor.id || !aliasIds.has(id));
+  for (const occurrence of Object.values(draft.occurrences)) {
+    if (occurrence.authorityId && aliasIds.has(occurrence.authorityId)) {
+      occurrence.authorityId = survivor.id;
+    }
+    if (occurrence.reference && aliasIds.has(occurrence.reference.targetAuthorityId)) {
+      occurrence.reference.targetAuthorityId = survivor.id;
+    }
+  }
+  for (const role of roles) removeUnusedBinding(draft, role);
+}
+
+function resumeAutomaticSources(draft: AuthoritiesDraft) {
+  for (const authority of Object.values(draft.authorities)) {
+    if (authority.source.kind === "pending-canlii") replaceSource(draft, authority,
+      authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
+  }
 }
 
 const occurrenceCarryKey = ({ unitId, sourceTextSha256, localOrdinal }: AuthorityOccurrence) =>
@@ -485,8 +716,28 @@ function groupOccurrences(items: AuthorityOccurrence[]) {
   return groups;
 }
 
+function groupUnits(draft: AuthoritiesDraft) {
+  const groups = new Map<string, AuthoritiesReviewUnit[]>();
+  for (const unit of draft.units) {
+    const occurrences = unit.occurrenceIds.map((id) => draft.occurrences[id]);
+    const hashes = new Set(occurrences.map((item) => item?.sourceTextSha256));
+    const ordinals = new Set(occurrences.map((item) => item?.localOrdinal));
+    if (!occurrences.length || occurrences.some((item) => !item) || hashes.size !== 1 ||
+        ordinals.size !== occurrences.length) continue;
+    const key = `${unit.id}\0${unit.ordinal}\0${[...hashes][0]}`;
+    const group = groups.get(key);
+    if (group) group.push(unit); else groups.set(key, [unit]);
+  }
+  return groups;
+}
+
 function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
   const fresh: AuthoritiesDraft = { ...draft, ...structuredClone(review), ledger: null };
+  for (const { bindingRole } of authoritiesBookPdfs(draft)) {
+    if (draft.bindings[bindingRole]) {
+      fresh.bindings[bindingRole] = structuredClone(draft.bindings[bindingRole]);
+    }
+  }
   const oldByKey = new Map(Object.values(draft.authorities).map((item) => [item.key, item]));
   const freshByKey = new Map(Object.values(fresh.authorities).map((item) => [item.key, item]));
   const remap = new Map<string, string>();
@@ -495,6 +746,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     if (!old) continue;
     remap.set(old.id, authority.id);
     authority.displayName = old.displayName;
+    authority.tabLabel = old.tabLabel;
     authority.excluded = old.excluded;
     const changedIdentity = Boolean(authority.sourceIdentity) &&
       !same(authority.sourceIdentity, old.sourceIdentity);
@@ -522,13 +774,39 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     ...review.authorityOrder.filter((id) =>
       !draft.authorityOrder.some((oldId) => draft.authorities[oldId]?.key === fresh.authorities[id]?.key)),
   ];
+  const carriedUnits = new Set<string>();
+  const oldUnits = groupUnits(draft);
+  for (const [key, units] of groupUnits(fresh)) {
+    const oldMatches = oldUnits.get(key);
+    if (units.length !== 1 || oldMatches?.length !== 1) continue;
+    const unit = units[0], oldUnit = oldMatches[0];
+    const replacements = oldUnit.occurrenceIds.map((id) => {
+      const item = structuredClone(draft.occurrences[id]);
+      const authorityId = item.authorityId ? remap.get(item.authorityId) ?? null : null;
+      const targetAuthorityId = item.reference
+        ? remap.get(item.reference.targetAuthorityId) ?? null : null;
+      return item.authorityId && !authorityId || item.reference && !targetAuthorityId
+        ? null : { ...item, unitId: unit.id, authorityId,
+          reference: item.reference && targetAuthorityId
+            ? { ...item.reference, targetAuthorityId } : null };
+    });
+    const currentIds = new Set(unit.occurrenceIds);
+    if (replacements.some((item) => !item || fresh.occurrences[item.id] &&
+        !currentIds.has(item.id))) continue;
+    for (const id of unit.occurrenceIds) delete fresh.occurrences[id];
+    unit.occurrenceIds = replacements.map((item) => item!.id);
+    for (const item of replacements) fresh.occurrences[item!.id] = item!;
+    carriedUnits.add(unit.id);
+  }
   const oldGroups = groupOccurrences(Object.values(draft.occurrences));
   const newGroups = groupOccurrences(Object.values(fresh.occurrences));
   for (const [key, items] of newGroups) {
+    if (carriedUnits.has(items[0].unitId)) continue;
     const oldItems = oldGroups.get(key);
     if (items.length !== 1 || oldItems?.length !== 1) continue;
     const old = oldItems[0];
     const target = old.authorityId ? remap.get(old.authorityId) : undefined;
+    if (old.authorityId && !target) continue;
     items[0].reviewed = old.reviewed;
     items[0].authorityId = target ?? null;
     items[0].reference = old.reference && target
@@ -539,6 +817,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
   for (const authority of Object.values(fresh.authorities)) {
     if (authority.source.kind === "attached") usedBindings.add(authority.source.bindingRole);
   }
+  for (const { bindingRole } of authoritiesBookPdfs(fresh)) usedBindings.add(bindingRole);
   fresh.bindings = Object.fromEntries(Object.entries(fresh.bindings)
     .filter(([role]) => usedBindings.has(role)));
   Object.assign(draft, fresh);
@@ -585,6 +864,10 @@ export function reduceAuthoritiesDraft(
       requireRecord(draft.authorities, action.authorityId, "authority").displayName =
         action.displayName?.trim() || null;
       break;
+    case "set-authority-tab":
+      requireRecord(draft.authorities, action.authorityId, "authority").tabLabel =
+        action.tabLabel?.trim() || null;
+      break;
     case "reorder-authorities": draft.authorityOrder = [...action.authorityIds]; break;
     case "split-occurrence":
       replaceOccurrences(draft, [action.occurrenceId], action.replacements); break;
@@ -596,6 +879,15 @@ export function reduceAuthoritiesDraft(
         throw new AuthoritiesDomainError("Merged occurrence must cover both original spans.");
       }
       replaceOccurrences(draft, action.occurrenceIds, [action.replacement]); break;
+    }
+    case "replace-occurrence": {
+      const current = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
+      if (action.replacement.id !== current.id ||
+          action.replacement.unitId !== current.unitId) {
+        throw new AuthoritiesDomainError("Occurrence correction must retain its identity and unit.");
+      }
+      draft.occurrences[action.occurrenceId] = structuredClone(action.replacement);
+      break;
     }
     case "relink-occurrence": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
@@ -621,12 +913,7 @@ export function reduceAuthoritiesDraft(
       break;
     }
     case "resolve-authority": {
-      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      if (!action.citation.trim()) throw new AuthoritiesDomainError("Authority citation is required.");
-      authority.citation = action.citation.trim();
-      authority.name = action.name?.trim() || null;
-      authority.sourceIdentity = structuredClone(action.source);
-      replaceSource(draft, authority, { kind: "resolved" });
+      resolveAuthority(draft, action);
       break;
     }
     case "attach-source": {
@@ -635,6 +922,7 @@ export function reduceAuthoritiesDraft(
       replaceSource(draft, requireRecord(draft.authorities, action.authorityId, "authority"), {
         kind: "attached", bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
+        origin: action.origin ?? "manual",
       });
       break;
     }
@@ -646,7 +934,96 @@ export function reduceAuthoritiesDraft(
         pageUrl: pdfUrl.replace(/\.pdf$/u, ".html"), pdfUrl });
       break;
     }
-    case "set-output-mode": draft.outputMode = action.outputMode; break;
+    case "set-book-part": {
+      const previous = draft.bookParts[action.slot];
+      const pdf = { ...structuredClone(action.pdf),
+        bindingRole: action.pdf.bindingRole.trim(), filename: action.pdf.filename.trim() };
+      draft.bindings[pdf.bindingRole] = structuredClone(action.binding);
+      draft.bookParts[action.slot] = pdf;
+      removeUnusedBinding(draft, previous?.bindingRole);
+      break;
+    }
+    case "clear-book-part": {
+      const previous = draft.bookParts[action.slot];
+      draft.bookParts[action.slot] = null;
+      removeUnusedBinding(draft, previous?.bindingRole);
+      break;
+    }
+    case "set-book-supplement": {
+      const supplements = draft.bookParts.supplements;
+      const previousIndex = supplements.findIndex(({ id }) => id === action.supplement.id);
+      const previous = previousIndex < 0 ? null : supplements.splice(previousIndex, 1)[0];
+      const supplement = { ...structuredClone(action.supplement),
+        id: action.supplement.id.trim(), bindingRole: action.supplement.bindingRole.trim(),
+        filename: action.supplement.filename.trim(), title: action.supplement.title.trim(),
+        tab: action.supplement.tab.trim() };
+      const at = action.at ?? (previousIndex < 0 ? supplements.length : previousIndex);
+      if (!Number.isSafeInteger(at) || at < 0 || at > supplements.length) {
+        throw new AuthoritiesDomainError("Supplement position is invalid.");
+      }
+      draft.bindings[supplement.bindingRole] = structuredClone(action.binding);
+      supplements.splice(at, 0, supplement);
+      removeUnusedBinding(draft, previous?.bindingRole);
+      break;
+    }
+    case "update-book-supplement": {
+      const supplement = draft.bookParts.supplements.find(({ id }) => id === action.id);
+      if (!supplement) throw new AuthoritiesDomainError(`Unknown supplement: ${action.id}`);
+      supplement.title = action.title.trim();
+      supplement.tab = action.tab.trim();
+      break;
+    }
+    case "reorder-book-supplements": {
+      const byId = new Map(draft.bookParts.supplements.map((item) => [item.id, item]));
+      draft.bookParts.supplements = action.ids.map((id) => {
+        const item = byId.get(id);
+        if (!item) throw new AuthoritiesDomainError(`Unknown supplement: ${id}`);
+        return item;
+      });
+      break;
+    }
+    case "remove-book-supplement": {
+      const index = draft.bookParts.supplements.findIndex(({ id }) => id === action.id);
+      if (index < 0) throw new AuthoritiesDomainError(`Unknown supplement: ${action.id}`);
+      const [removed] = draft.bookParts.supplements.splice(index, 1);
+      removeUnusedBinding(draft, removed.bindingRole);
+      break;
+    }
+    case "set-profile": {
+      const profile: AuthoritiesProfile = AUTHORITIES_PROFILES[action.profileId];
+      const automatic = profile.defaults.settings.sourceMode !== "manual-originals" &&
+        draft.settings.sourceMode === "manual-originals";
+      draft.outputMode = profile.defaults.outputMode;
+      draft.settings = { profileId: action.profileId,
+        ...structuredClone(profile.defaults.settings) };
+      draft.insertIntoDocument = action.profileId === "ab-court-of-appeal" &&
+        draft.import.kind === "document";
+      if (automatic) resumeAutomaticSources(draft);
+      break;
+    }
+    case "set-settings": {
+      const locked = (AUTHORITIES_PROFILES[draft.settings.profileId] as AuthoritiesProfile)
+        .locked?.settings ?? {};
+      if (Object.entries(action.settings).some(([key, value]) =>
+        key in locked && locked[key as keyof AuthoritiesBuildSettings] !== value)) {
+        throw new AuthoritiesDomainError("That court profile fixes this output setting.");
+      }
+      const automatic = action.settings.sourceMode !== undefined &&
+        action.settings.sourceMode !== "manual-originals" &&
+        draft.settings.sourceMode === "manual-originals";
+      draft.settings = { ...draft.settings, ...structuredClone(action.settings) };
+      if (automatic) resumeAutomaticSources(draft);
+      break;
+    }
+    case "set-output-mode": {
+      const locked = (AUTHORITIES_PROFILES[draft.settings.profileId] as AuthoritiesProfile)
+        .locked?.outputMode;
+      if (locked && action.outputMode !== locked) {
+        throw new AuthoritiesDomainError("That court profile fixes the output type.");
+      }
+      draft.outputMode = action.outputMode;
+      break;
+    }
     case "set-document-output": draft.insertIntoDocument = action.enabled; break;
     case "refresh": refresh(draft, action.review); break;
   }
@@ -659,15 +1036,47 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
   const errors: string[] = [];
   if (draft.schemaVersion !== "beaver.authorities-draft.v1") errors.push("Invalid draft schema version.");
   if (!["table", "book", "both"].includes(draft.outputMode)) errors.push("Invalid output mode.");
+  if (!buildSettings(draft.settings)) errors.push("Invalid Authorities settings.");
+  const profile = AUTHORITIES_PROFILES[draft.settings?.profileId as AuthoritiesProfileId] as
+    AuthoritiesProfile | undefined;
+  if (profile?.locked?.outputMode && draft.outputMode !== profile.locked.outputMode) {
+    errors.push("Output mode conflicts with the court profile.");
+  }
+  if (profile?.locked?.settings && Object.entries(profile.locked.settings).some(
+    ([key, value]) => draft.settings[key as keyof AuthoritiesBuildSettings] !== value)) {
+    errors.push("Output settings conflict with the court profile.");
+  }
   if (typeof draft.insertIntoDocument !== "boolean" || draft.insertIntoDocument &&
-      (draft.import.kind !== "document" || draft.import.fileType !== "docx")) {
-    errors.push("Word document output requires an imported Word document.");
+      draft.import.kind !== "document") {
+    errors.push("Filing output requires an imported document.");
   }
   if (draft.import.kind === "document" && !draft.bindings[draft.import.bindingRole]) {
     errors.push("Imported document binding is missing.");
   }
   const usedBindings = new Set<string>(draft.import.kind === "document"
     ? [draft.import.bindingRole] : []);
+  if (!bookParts(draft.bookParts)) {
+    errors.push("Invalid book parts.");
+  } else {
+    const claim = (pdf: AuthoritiesBoundPdf, label: string) => {
+      if (!draft.bindings[pdf.bindingRole]) errors.push(`Binding is missing for ${label}.`);
+      if (usedBindings.has(pdf.bindingRole)) {
+        errors.push(`Binding is assigned more than once: ${pdf.bindingRole}`);
+      }
+      usedBindings.add(pdf.bindingRole);
+    };
+    if (draft.bookParts.cover) claim(draft.bookParts.cover, "the custom cover");
+    if (draft.bookParts.index) claim(draft.bookParts.index, "the custom index");
+    const ids = new Set<string>(), tabs = new Set<string>();
+    for (const supplement of draft.bookParts.supplements) {
+      if (ids.has(supplement.id)) errors.push(`Duplicate supplement: ${supplement.id}`);
+      ids.add(supplement.id);
+      const tab = supplement.tab.toLocaleLowerCase("en-CA");
+      if (tabs.has(tab)) errors.push(`Duplicate supplement tab: ${supplement.tab}`);
+      tabs.add(tab);
+      claim(supplement, `supplement ${supplement.id}`);
+    }
+  }
   const authorityIds = Object.keys(draft.authorities);
   if (!same([...draft.authorityOrder].sort(), [...authorityIds].sort())) {
     errors.push("Authority order must contain every authority exactly once.");
@@ -678,6 +1087,11 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
         !["case", "legislation", "commentary", "other"].includes(authority.kind) ||
         !authority.citation?.trim()) {
       errors.push(`Invalid or duplicate authority identity: ${id}`);
+    }
+    if (!(authority.tabLabel === null || typeof authority.tabLabel === "string" &&
+        authority.tabLabel.trim() === authority.tabLabel && authority.tabLabel.length <= 80 &&
+        !/[\u0000-\u001f\u007f]/u.test(authority.tabLabel))) {
+      errors.push(`Invalid authority tab label: ${id}`);
     }
     if (!Array.isArray(authority.evidenceIds) ||
         authority.evidenceIds.some((value) => !value?.trim()) ||
@@ -748,6 +1162,16 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
           occurrence.start < end || occurrence.start < 0 || occurrence.end <= occurrence.start ||
           occurrence.text !== unit.text.slice(occurrence.start, occurrence.end)) {
         errors.push(`Invalid occurrence span: ${id}`);
+      }
+      const spans = [occurrence.authoritySpan, occurrence.coreSpan,
+        ...(occurrence.pinpointSpan ? [occurrence.pinpointSpan] : [])];
+      if (spans.some((span) => !span || !Number.isInteger(span.start) ||
+          !Number.isInteger(span.end) || span.start < occurrence.start ||
+          span.end <= span.start || span.end > occurrence.end ||
+          span.text !== unit.text.slice(span.start, span.end)) ||
+          occurrence.coreSpan.start < occurrence.authoritySpan.start ||
+          occurrence.coreSpan.end > occurrence.authoritySpan.end) {
+        errors.push(`Invalid reviewed citation boundaries: ${id}`);
       }
       end = occurrence.end;
       if (occurrence.authorityId && !draft.authorities[occurrence.authorityId]) {

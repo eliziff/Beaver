@@ -3,13 +3,16 @@ import type { AuthoritiesProduct } from "./types";
 
 const api = vi.hoisted(() => ({
   actOnAuthorities: vi.fn(), attachAuthorityPdf: vi.fn(), buildAuthorities: vi.fn(),
+  attachAuthoritiesBookPdf: vi.fn(),
   createAuthorities: vi.fn(), createWorkProduct: vi.fn(), deleteWorkProduct: vi.fn(),
   duplicateWorkProduct: vi.fn(), getAuthorities: vi.fn(), getDocumentParseStates: vi.fn(),
-  listAuthorities: vi.fn(), refreshAuthorities: vi.fn(), updateWorkProduct: vi.fn(),
-  uploadAuthoritiesDocument: vi.fn(),
+  listAuthorities: vi.fn(), listWorkProductMetadata: vi.fn(), refreshAuthorities: vi.fn(), updateWorkProduct: vi.fn(),
+  prepareAuthoritiesSources: vi.fn(), refreshAuthoritiesInput: vi.fn(),
+  replaceAuthoritiesSource: vi.fn(), reviewAuthorities: vi.fn(), uploadAuthoritiesDocument: vi.fn(),
 }));
 vi.mock("@/app/lib/beaverApi", () => ({ ...api,
   listWorkProducts: api.listAuthorities, getWorkProduct: api.getAuthorities,
+  listWorkProductMetadata: api.listAuthorities,
   directoryResource: () => ({ list: vi.fn() }) }));
 
 import { beaverAuthoritiesHost } from "./beaverHost";
@@ -19,6 +22,11 @@ const product = (): AuthoritiesProduct => ({
   revision: 1, createdAt: "2026-08-31T00:00:00Z", updatedAt: "2026-08-31T00:00:00Z",
   outputs: {}, state: { schemaVersion: "beaver.authorities-draft.v1",
     import: { kind: "manual" }, outputMode: "book", insertIntoDocument: false,
+    settings: { profileId: "general", sourceMode: "automatic", tabStyle: "numeric",
+      tableOrder: "alphabetical", tableDelivery: "native-append", tableLocation: "pages",
+      passageMarking: "margin", scannedPdfPolicy: "page-margin",
+      missingSourcePolicy: "placeholder" },
+    bookParts: { cover: null, index: null, supplements: [] }, ledger: null,
     units: [], occurrences: {}, authorityOrder: ["included", "excluded"],
     bindings: {
       "authority:included": { kind: "document", documentId: "pdf-1", version: "latest" },
@@ -26,11 +34,11 @@ const product = (): AuthoritiesProduct => ({
     },
     authorities: {
       included: { id: "included", key: "included", kind: "case", citation: "2024 ABCA 1",
-        name: null, displayName: null, excluded: false, evidenceIds: [], locators: [],
+        name: null, displayName: null, tabLabel: null, excluded: false, evidenceIds: [], locators: [],
         sourceIdentity: null, source: { kind: "attached", bindingRole: "authority:included",
           filename: "Decision.pdf", sourceSha256: "a".repeat(64), sourceUrl: null } },
       excluded: { id: "excluded", key: "excluded", kind: "case", citation: "2024 ABCA 2",
-        name: null, displayName: null, excluded: true, evidenceIds: [], locators: [],
+        name: null, displayName: null, tabLabel: null, excluded: true, evidenceIds: [], locators: [],
         sourceIdentity: null, source: { kind: "attached", bindingRole: "authority:excluded",
           filename: "Excluded.pdf", sourceSha256: "b".repeat(64), sourceUrl: null } },
     } },
@@ -67,6 +75,19 @@ describe("Beaver Authorities PDF handoff", () => {
       "Decision.pdf: Running OCR on page 4",
       "Building outputs",
     ]);
-    expect(api.buildAuthorities).toHaveBeenCalledWith("draft-1", 1);
+  });
+
+  it("routes source repair through the Authorities input operation", async () => {
+    api.refreshAuthoritiesInput.mockResolvedValue(product());
+    await expect(beaverAuthoritiesHost.relinkSource!(
+      "draft-1", "authority:included", 4)).resolves.toMatchObject({ id: "draft-1" });
+    expect(api.refreshAuthoritiesInput).toHaveBeenCalledWith(
+      "draft-1", "authority:included", 4);
+  });
+
+  it("prepares sources through the shared draft operation", async () => {
+    api.prepareAuthoritiesSources.mockResolvedValue({ ...product(), revision: 2 });
+    await expect(beaverAuthoritiesHost.prepareSources(product())).resolves.toMatchObject({ revision: 2 });
+    expect(api.prepareAuthoritiesSources).toHaveBeenCalledWith("draft-1", 1, undefined);
   });
 });

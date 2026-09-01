@@ -9,6 +9,8 @@
         "check:source-boundaries": "node scripts/check-source-boundaries.mjs",
         "audit:court-output-sources": "node scripts/audit-court-output-sources.mjs",
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
+        "test:authorities-package": "node --test scripts/authorities-package/bundle.test.mjs",
+        "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-authorities.ps1",
         "test:court-records:browser": "npm run build --prefix frontend && python scripts/test-court-records-browser.py",
         "test:experiments": "npm run test:experiments --prefix backend",
         "test:e2e": "playwright test",

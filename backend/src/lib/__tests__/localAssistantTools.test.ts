@@ -727,6 +727,27 @@ describe("local assistant tools", () => {
     expect(read.content).toContain("Gamma Delta.");
   }, 45_000);
 
+  it("resolves an indexed alias to its exact document version", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-indexed-read-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const original = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "factum.txt", bytes: Buffer.from("Original filing text.") });
+    await store.addLocalVersion({ userId: "local-user", documentId: original.id,
+      filename: "factum.txt", bytes: Buffer.from("Later filing text.") });
+    const resource = resourceReference.document(original.id, original.current_version_id);
+    const tools = await import("./support/localAssistantTools");
+    const [listed, read] = await tools.runLocalAssistantTools("local-user", [
+      { id: "glob-index", name: "Glob", input: { pattern: "doc-1" } },
+      { id: "read-index", name: "Read", input: { file_path: resource } },
+    ], { docIndex: { "doc-1": { document_id: original.id, filename: "factum.txt",
+      version_id: original.current_version_id, version_number: 1 } } });
+
+    expect(listed.content).toContain(`${resource}\talias=doc-1\tfilename=factum.txt`);
+    expect(read.content).toContain("Original filing text.");
+    expect(read.content).not.toContain("Later filing text.");
+  });
+
   it("discovers root Library files when the chat has no focused documents", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-library-chat-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
@@ -903,6 +924,312 @@ describe("local assistant tools", () => {
     expect(response.mutated).toBe(true);
   });
 
+  it("attaches an existing Library PDF to an Authorities citation", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const document = await store.createLocalDocument({
+      userId: "local-user", kind: "file", filename: "decision.pdf",
+      bytes: Buffer.from("%PDF-1.7\n%%EOF"),
+    });
+    const active = { id: "draft-1", kind: "authorities" as const,
+      projectId: null, revision: 3 };
+    const attachLibraryPdf = vi.fn(async () => ({ ...active, revision: 4 }));
+    const tools = await import("./support/localAssistantTools");
+
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "attach-authority", name: "update_work_product", input: {
+        action: "update", kind: "authorities", draft_id: active.id,
+        authority_id: "authority-1",
+        document_id: resourceReference.document(document.id, document.current_version_id),
+      },
+    }], {
+      authorities: { attachLibraryPdf } as never,
+      workProducts: { get: vi.fn(async () => active) } as never,
+    });
+
+    expect(attachLibraryPdf).toHaveBeenCalledWith({ userId: "local-user" }, active.id, {
+      revision: 3, authorityId: "authority-1", documentId: document.id,
+      versionId: document.current_version_id,
+    });
+    expect(response.mutated).toBe(true);
+    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
+      work_product: { id: active.id, kind: "authorities", revision: 4 },
+    });
+  });
+
+  it("reads Authorities summary-first and returns only requested occurrence detail", async () => {
+    const { createAuthoritiesDraft } = await import("../authoritiesDomain");
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    const text = "See R v Jordan, 2016 SCC 27 at para 5.";
+    draft.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
+    draft.authorities.jordan = { id: "jordan", key: "jordan", kind: "case",
+      citation: "2016 SCC 27", name: "R v Jordan", displayName: null, evidenceIds: [],
+      locators: [], sourceIdentity: null, excluded: false, tabLabel: "3",
+      source: { kind: "unresolved" } };
+    draft.authorityOrder = ["jordan"];
+    for (let index = 0; index < 500; index += 1) {
+      const id = `case-${index}`;
+      draft.authorities[id] = { ...draft.authorities.jordan, id, key: id,
+        citation: `${index} ${"x".repeat(800)}`, name: `Case ${index} ${"y".repeat(800)}` };
+      draft.authorityOrder.push(id);
+    }
+    draft.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:0",
+      start: 4, end: 37, text: text.slice(4, 37),
+      authoritySpan: { start: 4, end: 27, text: text.slice(4, 27) },
+      coreSpan: { start: 16, end: 27, text: text.slice(16, 27) },
+      pinpointSpan: { start: 31, end: 37, text: text.slice(31, 37) },
+      kind: "case", citation: "2016 SCC 27",
+      authorityId: "jordan", reference: null, pinpoints: [{ kind: "paragraph", text: "para 5" }],
+      evidenceIds: [], sourceTextSha256: "source-hash", localOrdinal: 4, reviewed: false };
+    const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+      projectId: null, revision: 7, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
+    const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
+    const refreshInput = vi.fn(async (_scope, _id, { revision }) =>
+      ({ ...current, revision: revision + 1 }));
+    const prepareSources = vi.fn(async (_scope, _id, revision) =>
+      ({ ...current, revision }));
+    const build = vi.fn(async (_scope, _id, revision) => ({
+      product: { ...current, revision: revision + 1 }, receipt: {},
+    }));
+    const tools = await import("./support/localAssistantTools");
+    const responses = await tools.runLocalAssistantTools("local-user", [
+      { id: "read-authorities", name: "update_work_product",
+        input: { action: "read", kind: "authorities" } },
+      { id: "read-occurrence", name: "update_work_product", input: { action: "read",
+        kind: "authorities", occurrence_id: "occurrence-1" } },
+      { id: "edit-authorities", name: "update_work_product", input: { action: "update",
+        kind: "authorities", authorities_action: { type: "set-authority-span",
+          occurrence_id: "occurrence-1", start: 4, end: 27 } } },
+      { id: "refresh-authorities", name: "update_work_product", input: {
+        action: "refresh", kind: "authorities", input_role: "source" } },
+      { id: "build-authorities", name: "update_work_product",
+        input: { action: "build", kind: "authorities" } },
+      { id: "wrong-authorities", name: "update_work_product",
+        input: { action: "read", kind: "authorities", draft_id: "another-draft" } },
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { act, refreshInput, prepareSources, build } as never,
+      workProducts: { get: vi.fn(async () => current), resolve: vi.fn(async () => ({
+        product: current, freshness: "unbuilt", inputs: {}, dependencies: [],
+      })) } as never });
+
+    const summary = JSON.parse(responses[0].content);
+    expect(summary).toMatchObject({ ok: true,
+      work_product: { id: current.id, kind: "authorities", revision: 7 },
+      draft: { counts: { units: 1, occurrences: 1, authorities: 501 },
+        book_parts: { cover: null, index: null, supplements: [] },
+        authorities: expect.arrayContaining([
+          expect.objectContaining({ id: "jordan", citation: "2016 SCC 27", tab_label: "3" }),
+        ]) },
+    });
+    expect(summary.draft).not.toHaveProperty("units");
+    expect(summary.draft).not.toHaveProperty("occurrences");
+    expect(responses[0].content.length).toBeLessThan(64_000);
+    expect(JSON.parse(responses[1].content)).toMatchObject({ draft: { unit: {
+      id: "body:0", text, text_offset: 0 }, occurrence: { id: "occurrence-1",
+      authority_span: { start: 4, end: 27 }, pinpoint_span: { start: 31, end: 37 } } } });
+    expect(responses[1].content).not.toContain("reviewed");
+    expect(act).toHaveBeenCalledWith({ userId: "local-user" }, current.id, 7,
+      { type: "set-authority-span", occurrenceId: "occurrence-1", start: 4, end: 27 });
+    expect(refreshInput).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
+      { revision: 8, role: "source" });
+    expect(prepareSources).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
+      9, expect.any(AbortSignal));
+    expect(build).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
+      9, expect.any(AbortSignal));
+    expect(responses.at(-2)?.events).toEqual([expect.objectContaining({
+      status: "complete", tool: "update_work_product",
+      id: `work-product:${current.id}`,
+      work_product: { id: current.id, kind: "authorities", revision: 10 },
+    })]);
+    expect(JSON.parse(responses.at(-1)!.content)).toEqual({ ok: false,
+      error: "This assistant is bound to a different Authorities draft" });
+  });
+
+  it("routes authority and book-part edits through the existing Authorities reducer seam", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
+    process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
+    const store = await import("./support/localDocumentFixtures");
+    const pdf = await store.createLocalDocument({ userId: "local-user", kind: "file",
+      filename: "appendix.pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF") });
+    const { createAuthoritiesDraft } = await import("../authoritiesDomain");
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    draft.bindings["book:supplement:s1"] = { kind: "document", documentId: pdf.id,
+      version: "latest" };
+    draft.bookParts.supplements = [{ id: "s1", bindingRole: "book:supplement:s1",
+      filename: "old.pdf", sourceSha256: "a".repeat(64), title: "Old", tab: "A" }];
+    const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+      projectId: null, revision: 2, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
+    const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
+    const tools = await import("./support/localAssistantTools");
+    const resource = resourceReference.document(pdf.id, pdf.current_version_id);
+    const actions = [
+      { type: "add-authority", authority_kind: "case", citation: "2026 SCC 1", name: "R v A" },
+      { type: "remove-authority", authority_id: "unused" },
+      { type: "clear-book-part", slot: "cover" },
+      { type: "update-book-supplement", supplement_id: "s1", title: "Appendix", tab: "B" },
+      { type: "reorder-book-supplements", supplement_ids: ["s1"] },
+      { type: "remove-book-supplement", supplement_id: "s1" },
+    ];
+    const responses = await tools.runLocalAssistantTools("local-user", [
+      ...actions.map((authorities_action, index) => ({ id: `action-${index}`,
+        name: "update_work_product", input: { action: "update", kind: "authorities",
+          authorities_action } })),
+      { id: "cover", name: "update_work_product", input: { action: "update",
+        kind: "authorities", book_slot: "cover", document_id: resource } },
+      { id: "supplement", name: "update_work_product", input: { action: "update",
+        kind: "authorities", book_slot: "supplement", document_id: resource,
+        supplement_title: "Chronology", supplement_tab: "C" } },
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { act } as never,
+      workProducts: { get: vi.fn(async () => current) } as never });
+
+    expect(act.mock.calls.slice(0, 6).map((call) => call[3])).toEqual([
+      { type: "add-authority", kind: "case", citation: "2026 SCC 1", name: "R v A" },
+      { type: "remove-authority", authorityId: "unused" },
+      { type: "clear-book-part", slot: "cover" },
+      { type: "update-book-supplement", id: "s1", title: "Appendix", tab: "B" },
+      { type: "reorder-book-supplements", ids: ["s1"] },
+      { type: "remove-book-supplement", id: "s1" },
+    ]);
+    expect(act.mock.calls[6][3]).toMatchObject({ type: "set-book-part", slot: "cover",
+      pdf: { bindingRole: "book:cover:cover", filename: "appendix.pdf" },
+      binding: { kind: "document", documentId: pdf.id, version: "latest" } });
+    expect(act.mock.calls[7][3]).toMatchObject({ type: "set-book-supplement",
+      supplement: { title: "Chronology", tab: "C", filename: "appendix.pdf" },
+      binding: { kind: "document", documentId: pdf.id, version: "latest" } });
+    expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
+      change: { type: "attach-book-pdf", book_slot: "supplement",
+        supplement_id: expect.any(String) } });
+  });
+
+  it("reports compact discrepancies and stale inputs, then refreshes one role", async () => {
+    const { createAuthoritiesDraft } = await import("../authoritiesDomain");
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
+      projectId: null, revision: 3, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
+    const changed = { kind: "document" as const, documentId: "document-1",
+      versionId: "version-2", filename: "new.pdf", sha256: "b".repeat(64) };
+    const resolve = vi.fn(async () => ({ product: current, freshness: "stale" as const,
+      dependencies: [], inputs: { source: { status: "changed" as const,
+        input: { kind: "document" as const, documentId: "document-1", version: "latest" as const },
+        previous: { ...changed, versionId: "version-1" }, current: changed },
+      missing: { status: "missing" as const,
+        input: { kind: "document" as const, documentId: "gone", version: "latest" as const },
+        reason: "deleted" as const, resource: "document" as const, id: "gone" } } }));
+    const discrepancies = vi.fn(async () => [{ kind: "wrong_pinpoint" as const,
+      occurrenceId: "occ-1", authorityId: "case-1", footnoteId: 2, citation: "2026 SCC 1",
+      proposition: "p".repeat(20_000), authoredQuote: "The quoted words", authoredPinpoint: {
+        kind: "paragraph" as const, text: "para 9" }, cited: { locator: {
+          kind: "paragraph" as const, label: "para 9" }, text: "x".repeat(20_000) },
+      found: { locator: { kind: "paragraph" as const, label: "para 10" }, text: "match" } }]);
+    const refreshInput = vi.fn(async (_scope, _id, { revision }) =>
+      ({ ...current, revision: revision + 1 }));
+    const tools = await import("./support/localAssistantTools");
+    const [review, refreshed] = await tools.runLocalAssistantTools("local-user", [
+      { id: "review", name: "update_work_product", input: { action: "review",
+        kind: "authorities" } },
+      { id: "refresh", name: "update_work_product", input: { action: "refresh",
+        kind: "authorities", input_role: "source" } },
+    ], { authoritiesId: current.id, authoritiesRevision: current.revision,
+      authorities: { discrepancies, refreshInput } as never,
+      workProducts: { get: vi.fn(async () => current), resolve } as never });
+
+    expect(JSON.parse(review.content)).toMatchObject({ freshness: "stale", input_issue_count: 2,
+      input_issues: [{ role: "source", status: "changed", refreshable: true },
+        { role: "missing", status: "missing", refreshable: false }],
+      discrepancy_count: 1, discrepancies: [{ occurrence_id: "occ-1",
+        cited_locator: { label: "para 9" }, suggested_locator: { label: "para 10" } }] });
+    expect(review.content.length).toBeLessThan(64_000);
+    expect(review.content).not.toContain("\"proposition\"");
+    expect(refreshInput).toHaveBeenCalledWith({ userId: "local-user" }, current.id,
+      { revision: 3, role: "source" });
+    expect(refreshed.mutated).toBe(true);
+  });
+
+  it("lists scoped drafts when unbound and will not replace a bound draft", async () => {
+    const choice = { id: "choice", kind: "authorities" as const, title: "Motion authorities",
+      projectId: null, revision: 4, createdAt: "yesterday", updatedAt: "today" };
+    const tools = await import("./support/localAssistantTools");
+    const [listed] = await tools.runLocalAssistantTools("local-user", [{ id: "list",
+      name: "update_work_product", input: { action: "read", kind: "authorities" } }], {
+      workProducts: { list: vi.fn(async () => [choice]) } as never,
+    });
+    expect(JSON.parse(listed.content)).toEqual({ ok: true, drafts: [{ id: choice.id,
+      title: choice.title, revision: 4, updated_at: "today" }], has_more: false,
+      requested_action: "choose" });
+
+    const [create, select] = await tools.runLocalAssistantTools("local-user", [
+      { id: "create", name: "update_work_product", input: { action: "create",
+        kind: "authorities" } },
+      { id: "select", name: "update_work_product", input: { action: "select",
+        kind: "authorities", draft_id: "other" } },
+    ], { authoritiesId: "bound", authoritiesRevision: 1,
+      workProducts: { get: vi.fn() } as never });
+    expect(JSON.parse(create.content)).toEqual({ ok: false,
+      error: "This assistant is already bound to an Authorities draft" });
+    expect(JSON.parse(select.content)).toEqual({ ok: false,
+      error: "This assistant is bound to a different Authorities draft" });
+  });
+
+  it("creates a Court Record when no work product is active", async () => {
+    const created = { id: "record-1", kind: "court-record" as const,
+      title: "Motion record", projectId: null, revision: 1,
+      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
+      outputs: {}, createdAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z" };
+    const create = vi.fn(async () => created);
+    const tools = await import("./support/localAssistantTools");
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "create-record", name: "update_work_product", input: {
+        action: "create", kind: "court-record",
+        profile_id: "fc-motion-record-moving", title: "Motion record",
+      },
+    }], { workProducts: { create, get: vi.fn() } as never });
+
+    expect(create).toHaveBeenCalledWith({ userId: "local-user", userEmail: undefined }, {
+      kind: "court-record", title: "Motion record", projectId: null,
+      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
+    });
+    expect(response.mutated).toBe(true);
+    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
+      work_product: { id: "record-1", kind: "court-record", revision: 1 },
+      requested_action: "open",
+      profile: { id: "fc-motion-record-moving",
+        slots: expect.arrayContaining([expect.objectContaining({ id: "notice-motion" })]) },
+    });
+  });
+
+  it("updates a selected Court Record through the same semantic fields as the builder", async () => {
+    const current = { id: "record-1", kind: "court-record" as const,
+      title: "Motion record", projectId: null, revision: 1,
+      state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
+      outputs: {}, createdAt: "2026-08-31T00:00:00.000Z",
+      updatedAt: "2026-08-31T00:00:00.000Z" };
+    const updateDraft = vi.fn(async () => ({ product: { ...current, revision: 2,
+      state: { ...current.state, cover: { courtFileNumber: "T-123-26" } } },
+    filled: ["courtFileNumber"], entryId: undefined }));
+    const tools = await import("./support/localAssistantTools");
+    const [response] = await tools.runLocalAssistantTools("local-user", [{
+      id: "update-record", name: "update_work_product", input: {
+        action: "update", kind: "court-record", draft_id: current.id,
+        cover: { courtFileNumber: "T-123-26" },
+      },
+    }], { workProducts: { create: vi.fn(), get: vi.fn(async () => current) } as never,
+      courtRecords: { updateDraft, bindOutput: vi.fn() } as never });
+
+    expect(updateDraft).toHaveBeenCalledWith({ userId: "local-user", userEmail: undefined }, {
+      courtRecordId: current.id, revision: 1, projectId: null,
+      cover: { courtFileNumber: "T-123-26" },
+    });
+    expect(response.mutated).toBe(true);
+    expect(JSON.parse(response.content)).toMatchObject({ ok: true,
+      work_product: { id: current.id, kind: "court-record", revision: 2 },
+      filled_fields: ["courtFileNumber"],
+    });
+  });
+
   it("creates or updates Authorities from exact grounded receipts without reading documents", async () => {
     const {
       createLegalEvidenceTurnState,
@@ -959,7 +1286,7 @@ describe("local assistant tools", () => {
     });
     expect(importDraft.mock.calls[0][1].source.seeds[0].receipts[0]).toBe(receipts[0]);
     expect(read).not.toHaveBeenCalled();
-    expect(JSON.parse(response.content)).toEqual({ ok: true,
+    expect(JSON.parse(response.content)).toEqual({ ok: true, requested_action: "open",
       work_product: { id: "grounded-draft", kind: "authorities", revision: 1 } });
     expect(response.events).toEqual([expect.objectContaining({
       type: "workflow_run",
@@ -982,6 +1309,7 @@ describe("local assistant tools", () => {
       userId: "local-user",
     }), "active-draft", 3, [{ authorityKey: "2016scc27", receipts }]);
     expect(JSON.parse(updated.content)).toEqual({ ok: true,
+      change: { type: "add-authorities", evidence_count: 2 },
       work_product: { id: "active-draft", kind: "authorities", revision: 4 } });
     expect(updated.events).toEqual([expect.objectContaining({
       status: "complete", tool: "update_work_product",

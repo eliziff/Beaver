@@ -1,31 +1,39 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
-import { buildAuthorities, type AuthoritiesBuildResult } from "./authoritiesBuild";
+import { randomUUID } from "node:crypto";
+import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, renderAuthoritySourcePdf,
+  type AuthoritiesBuildResult } from "./authoritiesBuild";
 import {
   AuthoritiesDomainError,
+  authoritiesBookPdfs,
   decodeAuthoritiesDraft,
   reduceAuthoritiesDraft,
   type AuthoritiesAction,
+  type AuthoritiesBuildSettings,
   type AuthoritiesDraft,
   type AuthoritiesFreshReview,
   type AuthorityIdentity,
   type AuthorityKind,
   type AuthorityOccurrence,
+  type AuthoritiesOutputMode,
+  type AuthoritiesProfileId,
 } from "./authoritiesDomain";
 import {
   createAuthoritiesImporter,
   type AuthoritiesImporter,
   type AuthoritiesImportSource,
   type GroundedReceiptSeed,
+  nativeOccurrenceSpans,
 } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
-import { authorityPdfOcrText } from "./authorityPdfText";
+import { authorityPdfText } from "./authorityPdfText";
+import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import type { DocumentFile, DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import {
   a2ajLegalSourceProvider,
   stableA2AJSourceId,
 } from "./legalSources/a2aj";
-import { downloadProviderPdfAttachment } from "./providerPdfLibraryBridge";
+import { downloadProviderOriginalPdf } from "./providerPdfLibraryBridge";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput,
   WorkProductOutputRef, WorkProductState } from "./workProduct";
@@ -36,19 +44,27 @@ type AuthoritiesProduct = Extract<WorkProduct, { kind: "authorities" }>;
 type PublicDomainAction = Exclude<AuthoritiesAction, {
   type: "ingest-ledger" | "add-seed" | "add-authority" | "resolve-authority" |
     "attach-source" | "begin-canlii-handoff" | "split-occurrence" |
-    "merge-occurrences" | "refresh";
+    "merge-occurrences" | "replace-occurrence" | "refresh";
 }>;
 export type AuthoritiesUserAction = PublicDomainAction |
   { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null } |
   { type: "begin-canlii-handoff"; authorityId: string } |
   { type: "split-occurrence"; occurrenceId: string; cursor: number } |
-  { type: "merge-occurrence"; occurrenceId: string };
+  { type: "merge-occurrence"; occurrenceId: string } |
+  { type: "set-authority-span"; occurrenceId: string; start: number; end: number } |
+  { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number };
+
+export type AuthoritiesInitialSettings = Partial<AuthoritiesBuildSettings> & {
+  profileId?: AuthoritiesProfileId;
+  outputMode?: AuthoritiesOutputMode;
+  insertIntoDocument?: boolean;
+};
 
 const sourceServices = {
-  resolve: (citation: string, kind: "case" | "legislation") =>
+  resolve: (citation: string, kind: "case" | "legislation", signal?: AbortSignal) =>
     a2ajLegalSourceProvider.document({ citation,
-    docType: kind === "case" ? "cases" : "laws" }),
-  download: downloadProviderPdfAttachment,
+    docType: kind === "case" ? "cases" : "laws", signal }),
+  download: downloadProviderOriginalPdf,
   key: (value: string) => structureNative().citationLookupKey(value),
   occurrences: (value: string) => structureNative().citationOccurrencesInText(value),
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
@@ -77,9 +93,25 @@ function update(draft: AuthoritiesDraft, action: AuthoritiesAction) {
   }
 }
 
+export function applyAuthoritiesInitialSettings(
+  draft: AuthoritiesDraft, settings?: AuthoritiesInitialSettings,
+) {
+  if (!settings) return draft;
+  let changed = settings.profileId
+    ? update(draft, { type: "set-profile", profileId: settings.profileId }) : draft;
+  const { profileId: _profile, outputMode, insertIntoDocument, ...raw } = settings;
+  const build = Object.fromEntries(Object.entries(raw).filter(([, value]) =>
+    value !== undefined)) as Partial<AuthoritiesBuildSettings>;
+  if (Object.keys(build).length) changed = update(changed, { type: "set-settings", settings: build });
+  if (outputMode) changed = update(changed, { type: "set-output-mode", outputMode });
+  if (insertIntoDocument !== undefined) changed = update(changed,
+    { type: "set-document-output", enabled: insertIntoDocument });
+  return changed;
+}
+
 function attachableAuthority(draft: AuthoritiesDraft, authorityId: string) {
   const authority = draft.authorities[authorityId];
-  if (!authority || authority.source.kind === "attached") {
+  if (!authority) {
     throw new ApplicationError(409, "This authority cannot accept that PDF");
   }
   return authority;
@@ -87,11 +119,12 @@ function attachableAuthority(draft: AuthoritiesDraft, authorityId: string) {
 
 function attachSource(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   binding: Extract<WorkProductInput, { kind: "document" }>, filename: string,
-  sourceSha256: string) {
+  sourceSha256: string, origin: "manual" | "original" | "reconstructed" = "manual",
+  sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
+    : authority.sourceIdentity?.externalUrl ?? null) {
   return update(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
     `authority:${sha256(authority.key).slice(0, 24)}`, binding, filename, sourceSha256,
-    sourceUrl: authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
-      : authority.sourceIdentity?.externalUrl ?? null });
+    sourceUrl, origin });
 }
 
 const pdfFilename = (value: string) => `${value.trim().replace(
@@ -106,6 +139,12 @@ function isCanliiUrl(value: string) {
   } catch { return false; }
 }
 
+const federalProfile = (draft: AuthoritiesDraft) =>
+  draft.settings.profileId === "federal-court" ||
+  draft.settings.profileId === "federal-court-of-appeal";
+const federalEnactment = (citation: string) =>
+  /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(citation);
+
 async function concurrentMap<T, R>(items: T[], operation: (item: T) => Promise<R>) {
   const results = new Array<R>(items.length);
   let next = 0;
@@ -118,6 +157,122 @@ async function concurrentMap<T, R>(items: T[], operation: (item: T) => Promise<R
   return results;
 }
 
+export type PreparedAuthoritySource = {
+  authorityId: string;
+  filename: string;
+  bytes: Buffer;
+  sourceSha256: string;
+  sourceUrl: string | null;
+  origin: "original" | "reconstructed";
+};
+
+/** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
+export async function resolveAuthoritiesSources(
+  initial: AuthoritiesDraft, sources: SourceServices = sourceServices,
+  signal?: AbortSignal,
+) {
+  let draft = initial;
+  const attachments: PreparedAuthoritySource[] = [];
+  const reconstruct = draft.settings.sourceMode !== "manual-originals";
+  const originals = draft.settings.sourceMode !== "render";
+  const needsPdf = draft.outputMode !== "table";
+  const candidates = draft.authorityOrder.flatMap((id) => {
+    const authority = draft.authorities[id];
+    return authority && ["case", "legislation"].includes(authority.kind) &&
+      ["unresolved", "resolved"].includes(authority.source.kind) &&
+      !(authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj")
+      ? [{ id, authority }] : [];
+  });
+  const resolutions = await concurrentMap(candidates, async ({ authority }) => {
+    signal?.throwIfAborted();
+    try {
+      const source = await sources.resolve(authority.citation,
+        authority.kind as "case" | "legislation", signal);
+      if (!source) return { source: null };
+      const revision = sources.revision(source.native);
+      if (authority.sourceIdentity &&
+          authority.sourceIdentity.sourceSha256 !== revision) return { mismatch: true as const };
+      return { source, revision };
+    } catch { signal?.throwIfAborted(); return { unavailable: true as const }; }
+  });
+  type ResolvedSource = NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>;
+  const resolvedSources = new Map<string, ResolvedSource>();
+  for (let index = 0; index < candidates.length; index += 1) {
+    signal?.throwIfAborted();
+    const { id } = candidates[index], resolved = resolutions[index];
+    if ("mismatch" in resolved || "unavailable" in resolved || !resolved.source) continue;
+    const source = resolved.source;
+    resolvedSources.set(stableA2AJSourceId(source), source);
+    draft = update(draft, { type: "resolve-authority", authorityId: id,
+      citation: source.citation, name: source.name,
+      source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
+        sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
+  }
+  if (!needsPdf) return { draft, attachments };
+  for (let index = 0; index < candidates.length; index += 1) {
+    const { id, authority } = candidates[index], current = draft.authorities[id];
+    const unavailable = "unavailable" in resolutions[index];
+    if (!current || !(unavailable || !resolutions[index].source) ||
+        current.source.kind !== "unresolved" && !(unavailable &&
+          current.source.kind === "resolved" && current.sourceIdentity &&
+          !resolvedSources.has(current.sourceIdentity.stableSourceId))) continue;
+    const pageUrl = authority.kind === "case"
+      ? buildCanliiCaseUrlFromCitation([authority.citation]) : null;
+    if (pageUrl) draft = update(draft,
+      { type: "begin-canlii-handoff", authorityId: id, pageUrl });
+  }
+  const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
+    source: ResolvedSource }>();
+  for (const id of draft.authorityOrder) {
+    const authority = draft.authorities[id], identity = authority?.sourceIdentity;
+    const source = identity?.provider === "a2aj"
+      ? resolvedSources.get(identity.stableSourceId) : undefined;
+    if (authority?.source.kind === "resolved" && source && !unique.has(identity!.stableSourceId)) {
+      unique.set(identity!.stableSourceId, { authorityId: id, authority, source });
+    }
+  }
+  const prepared = await concurrentMap([...unique.values()], async (item) => {
+    signal?.throwIfAborted();
+    const { authority, source } = item;
+    const pdfUrl = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
+      ? source.verifiedPdf.url : null;
+    const sourceUrl = source.url && !isCanliiUrl(source.url) ? source.url : null;
+    let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
+    if (originals && (pdfUrl || sourceUrl)) try {
+      original = await sources.download({ provider: "a2aj",
+        identity: stableA2AJSourceId(source), sourceUrl, pdfUrl,
+        filename: pdfFilename(source.name ?? source.citation), title: source.name,
+        version: source.date }, signal) ?? undefined;
+      if (original && sha256(original.bytes) !== original.sourceSha256) original = undefined;
+    } catch { signal?.throwIfAborted(); }
+    // Federal enactments must be reproduced in both official languages. Never turn a
+    // single-language source-text record into something that looks filing-ready.
+    const reconstructed = reconstruct && !original && source.searchText.trim() &&
+      !(federalProfile(draft) && authority.kind === "legislation" &&
+        federalEnactment(source.citation || authority.citation))
+      ? await renderAuthoritySourcePdf({ kind: authority.kind,
+        name: source.name, citation: source.citation, date: source.date,
+        sourceUrl: source.url, text: source.searchText }) : null;
+    return { ...item, original, bytes: original?.bytes ?? reconstructed };
+  });
+  for (const { authorityId, authority, source, original, bytes } of prepared) {
+    if (!bytes) {
+      const pageUrl = authority.kind === "case" ? buildCanliiCaseUrlFromCitation([
+        source.citation, source.alternateCitation, authority.citation,
+      ], source.language) : null;
+      if (pageUrl) draft = update(draft,
+        { type: "begin-canlii-handoff", authorityId, pageUrl });
+      continue;
+    }
+    attachments.push({ authorityId,
+      filename: pdfFilename(source.name ?? source.citation), bytes,
+      sourceSha256: sha256(bytes), sourceUrl: original
+        ? original.url ?? source.verifiedPdf?.url ?? source.url : source.url ?? null,
+      origin: original ? "original" : "reconstructed" });
+  }
+  return { draft, attachments };
+}
+
 const sameValue = (values: unknown[]) => values.length > 0 &&
   values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]));
 const parsedKind = ({ kind }: NativeCitationOccurrence): AuthorityKind => kind === "statute"
@@ -128,7 +283,8 @@ const lookupKey = (sources: CitationServices, text: string) => {
 const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
   name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
-  displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+  displayName: null, tabLabel: null, excluded: false, evidenceIds: [], locators: [],
+  sourceIdentity: null,
   source: { kind: "unresolved" },
 });
 
@@ -149,6 +305,10 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     ? structuredClone(donorReferences[0]) : null;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
+    ...(match ? nativeOccurrenceSpans(match, unit.text, start) : {
+      authoritySpan: { start, end, text }, coreSpan: { start, end, text },
+      pinpointSpan: null,
+    }),
     kind: reference ? "reference" : match ? parsedKind(match)
       : sameValue(donors.map(({ kind }) => kind)) ? donors[0].kind : "other",
     citation: match?.coreCitation.text ??
@@ -161,6 +321,79 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   const discovered = match && key && !authority ? parsedAuthority(match, key) : null;
   if (discovered) occurrence.authorityId = discovered.id;
   return { occurrence, discovered };
+}
+
+function selectedRange(draft: AuthoritiesDraft, occurrenceId: string, start: number, end: number) {
+  const occurrence = draft.occurrences[occurrenceId];
+  const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
+  if (!occurrence || !unit || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+      start < 0 || end <= start || end > unit.text.length) {
+    throw new ApplicationError(400, "Select text inside this citation unit");
+  }
+  while (start < end && /\s/u.test(unit.text[start])) start += 1;
+  while (end > start && /\s/u.test(unit.text[end - 1])) end -= 1;
+  if (start === end) throw new ApplicationError(400, "Select citation text");
+  return { occurrence, unit, start, end, text: unit.text.slice(start, end) };
+}
+
+function correctOccurrenceSpan(draft: AuthoritiesDraft,
+  action: Extract<AuthoritiesUserAction, { type: "set-authority-span" | "set-pinpoint-span" }>,
+  sources: CitationServices) {
+  const selected = selectedRange(draft, action.occurrenceId, action.start, action.end);
+  const occurrence = structuredClone(selected.occurrence);
+  if (action.type === "set-authority-span") {
+    const previousPinpoint = occurrence.pinpointSpan &&
+      (occurrence.pinpointSpan.end <= selected.start || occurrence.pinpointSpan.start >= selected.end)
+      ? { span: occurrence.pinpointSpan, values: occurrence.pinpoints } : null;
+    const matches = sources.occurrences(selected.text);
+    if (matches.length !== 1) throw new ApplicationError(400,
+      "Select one complete authority citation");
+    const match = matches[0], key = lookupKey(sources, match.coreCitation.text);
+    if (!key) throw new ApplicationError(400, "That selection is not a recognized citation");
+    const known = Object.values(draft.authorities).find((authority) => authority.key === key);
+    const discovered = known ?? parsedAuthority(match, key);
+    let changed = known ? draft : update(draft,
+      { type: "add-authority", authority: discovered });
+    Object.assign(occurrence, nativeOccurrenceSpans(match, selected.unit.text, selected.start), {
+      kind: parsedKind(match), citation: match.coreCitation.text,
+      authorityId: discovered.id, reference: null,
+      pinpoints: match.pinpoints.map(({ kind, text }) => ({ kind, text })), reviewed: true,
+    });
+    if (!occurrence.pinpointSpan && previousPinpoint) {
+      occurrence.pinpointSpan = previousPinpoint.span;
+      occurrence.pinpoints = previousPinpoint.values;
+    }
+    const pinpoint = occurrence.pinpointSpan;
+    occurrence.start = Math.min(occurrence.authoritySpan.start, pinpoint?.start ?? Infinity);
+    occurrence.end = Math.max(occurrence.authoritySpan.end, pinpoint?.end ?? -Infinity);
+    occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
+    changed = update(changed, { type: "replace-occurrence", occurrenceId: occurrence.id,
+      replacement: occurrence });
+    const obsoleteId = selected.occurrence.authorityId, obsolete = obsoleteId
+      ? changed.authorities[obsoleteId] : null;
+    return obsolete && obsolete.id !== discovered.id && !selected.occurrence.reviewed &&
+      ["unresolved", "pending-canlii"].includes(obsolete.source.kind) && !obsolete.sourceIdentity &&
+      !obsolete.evidenceIds.length && !Object.values(changed.occurrences)
+        .some(({ authorityId }) => authorityId === obsolete.id)
+      ? update(changed, { type: "remove-authority", authorityId: obsolete.id }) : changed;
+  }
+  const from = Math.min(occurrence.authoritySpan.start, selected.start);
+  const to = Math.max(occurrence.authoritySpan.end, selected.end);
+  const matches = sources.occurrences(selected.unit.text.slice(from, to));
+  const match = matches.find((item) => lookupKey(sources, item.coreCitation.text) ===
+    draft.authorities[occurrence.authorityId ?? ""]?.key);
+  const pinpoints = match?.pinpoints.filter((item) =>
+    from + item.end > selected.start && from + item.start < selected.end) ?? [];
+  if (!pinpoints.length) throw new ApplicationError(400,
+    "Select a complete pinpoint for this authority");
+  occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
+  occurrence.pinpoints = pinpoints.map(({ kind, text }) => ({ kind, text }));
+  occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
+  occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
+  occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
+  occurrence.reviewed = true;
+  return update(draft, { type: "replace-occurrence", occurrenceId: occurrence.id,
+    replacement: occurrence });
 }
 
 function editOccurrences(draft: AuthoritiesDraft,
@@ -212,10 +445,15 @@ export function applyAuthoritiesUserAction(
       `${action.kind}\0${citation}`).slice(0, 24)}`;
     let key = base;
     for (let suffix = 2; draft.authorities[key]; suffix += 1) key = `${base}:${suffix}`;
-    return update(draft, { type: action.type, authority: { id: key, key,
+    let changed = update(draft, { type: action.type, authority: { id: key, key,
       kind: action.kind, citation, name: action.name?.trim() || null,
-      displayName: null, excluded: false, evidenceIds: [], locators: [],
+      displayName: null, tabLabel: null, excluded: false, evidenceIds: [], locators: [],
       sourceIdentity: null, source: { kind: "unresolved" } } });
+    const pageUrl = draft.settings.sourceMode === "manual-originals" && action.kind === "case"
+      ? buildCanliiCaseUrlFromCitation([citation]) : null;
+    if (pageUrl) changed = update(changed,
+      { type: "begin-canlii-handoff", authorityId: key, pageUrl });
+    return changed;
   }
   if (action.type === "begin-canlii-handoff") {
     const authority = draft.authorities[action.authorityId];
@@ -223,6 +461,9 @@ export function applyAuthoritiesUserAction(
     if (!authority || !pageUrl) throw new ApplicationError(409,
       "A canonical CanLII link is not available for this authority");
     return update(draft, { ...action, pageUrl });
+  }
+  if (action.type === "set-authority-span" || action.type === "set-pinpoint-span") {
+    return correctOccurrenceSpan(draft, action, sources);
   }
   return action.type === "split-occurrence" || action.type === "merge-occurrence"
     ? editOccurrences(draft, action, sources) : update(draft, action);
@@ -252,99 +493,73 @@ export function createAuthoritiesWorkspaceApplication(
     return current;
   }
 
-  async function withRollback<T>(scope: ApplicationScope, ids: string[], save: () => Promise<T>) {
+  async function withRollback<T>(scope: ApplicationScope, ids: string[], save: () => Promise<T>,
+    message = "Authorities changes could not be saved or rolled back") {
     try { return await save(); }
     catch (error) {
-      await Promise.all(ids.map((id) => documents.deleteDocument(scope, id)));
+      const cleanup = await Promise.allSettled(ids.map(async (id) => {
+        if (!await documents.deleteDocument(scope, id)) throw new Error(
+          `Created document could not be removed: ${id}`);
+      }));
+      const failures = cleanup.flatMap((item) => item.status === "rejected" ? [item.reason] : []);
+      if (failures.length) throw new AggregateError([error, ...failures], message);
       throw error;
     }
   }
 
   async function resolveSources(scope: ApplicationScope, initial: AuthoritiesDraft,
-    projectId?: string | null) {
-    let draft = initial;
+    projectId?: string | null, signal?: AbortSignal) {
+    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal);
     const created: string[] = [];
-    const candidates = draft.authorityOrder.flatMap((id) => {
-      const authority = draft.authorities[id];
-      return authority && ["case", "legislation"].includes(authority.kind) &&
-        ["unresolved", "resolved"].includes(authority.source.kind) &&
-        !(authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj")
-        ? [{ id, authority }] : [];
-    });
-    const resolutions = await concurrentMap(candidates, async ({ authority }) => {
-      try {
-        const source = await sources.resolve(authority.citation,
-          authority.kind as "case" | "legislation");
-        if (!source) return { source: null };
-        const revision = sources.revision(source.native);
-        if (authority.sourceIdentity &&
-            authority.sourceIdentity.sourceSha256 !== revision) return { mismatch: true as const };
-        const verifiedPdf = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
-          ? source.verifiedPdf : null;
-        let downloaded: Awaited<ReturnType<SourceServices["download"]>> | undefined;
-        if (verifiedPdf) {
-          try {
-            downloaded = await sources.download({ provider: "a2aj",
-              identity: stableA2AJSourceId(source), url: verifiedPdf.url,
-              canonicalUrl: source.url, filename: pdfFilename(source.name ?? source.citation),
-              title: source.name, version: source.date });
-            if (sha256(downloaded.bytes) !== downloaded.sourceSha256) downloaded = undefined;
-          } catch { /* A verified PDF can be retried on refresh. */ }
+    return withRollback(scope, created, async () => {
+      for (const attachment of attachments) {
+        signal?.throwIfAborted();
+        const saved = await files.create(scope, "authorities",
+          { filename: attachment.filename, fileType: "pdf", bytes: attachment.bytes },
+          { projectId });
+        created.push(saved.id);
+        if (saved.source_sha256 !== attachment.sourceSha256) {
+          throw new Error("Saved authority PDF hash does not match its prepared source");
         }
-        return { source: verifiedPdf === source.verifiedPdf ? source
-          : { ...source, verifiedPdf }, revision, downloaded };
-      } catch { return { unavailable: true as const }; }
-    });
-    for (let index = 0; index < candidates.length; index += 1) {
-      const { id, authority } = candidates[index], resolved = resolutions[index];
-      if ("unavailable" in resolved || "mismatch" in resolved) continue;
-      if (!resolved.source) {
-        const pageUrl = authority.kind === "case"
-          ? buildCanliiCaseUrlFromCitation([authority.citation]) : null;
-        if (pageUrl && authority.source.kind === "unresolved") {
-          draft = update(draft, { type: "begin-canlii-handoff", authorityId: id, pageUrl });
-        }
-        continue;
+        draft = attachSource(draft, draft.authorities[attachment.authorityId],
+          { kind: "document", documentId: saved.id,
+            version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
+          saved.filename, saved.source_sha256, attachment.origin, attachment.sourceUrl);
       }
-      const source = resolved.source;
-      draft = update(draft, { type: "resolve-authority", authorityId: id,
-        citation: source.citation, name: source.name,
-        source: { provider: "a2aj",
-          stableSourceId: stableA2AJSourceId(source), sourceSha256: resolved.revision,
-          version: source.date, externalUrl: source.url } });
-      if (source.verifiedPdf) {
-        let saved: Awaited<ReturnType<WorkflowFiles["create"]>> | null = null;
-        try {
-          const filename = pdfFilename(source.name ?? source.citation);
-          if (!resolved.downloaded) continue;
-          saved = await files.create(scope, "authorities", {
-            filename, fileType: "pdf", bytes: resolved.downloaded.bytes,
-          }, { projectId });
-          draft = update(draft, { type: "attach-source", authorityId: id,
-            bindingRole: `authority:${sha256(authority.key).slice(0, 24)}`,
-            binding: { kind: "document", documentId: saved.id,
-              version: { versionId: saved.current_version_id,
-                sha256: saved.source_sha256 } },
-            filename: saved.filename, sourceSha256: saved.source_sha256,
-            sourceUrl: source.url ?? source.verifiedPdf.url });
-          created.push(saved.id);
-          continue;
-        } catch {
-          if (saved) await documents.deleteDocument(scope, saved.id).catch(() => false);
-        }
-        continue;
-      }
-      const pageUrl = authority.kind === "case" ? buildCanliiCaseUrlFromCitation([
-        source.citation, source.alternateCitation, authority.citation,
-      ], source.language) : null;
-      if (pageUrl) draft = update(draft,
-        { type: "begin-canlii-handoff", authorityId: id, pageUrl });
-    }
-    return { draft, created };
+      return { draft, created };
+    }, "Authority sources could not be saved or rolled back");
   }
 
-  async function buildSources(scope: ApplicationScope, draft: AuthoritiesDraft) {
-    const result: Record<string, { bytes?: Uint8Array;
+  async function saveRefresh(scope: ApplicationScope, product: AuthoritiesProduct,
+    draft: AuthoritiesDraft, revision: number, source: AuthoritiesImportSource) {
+    const fresh = await importer.draft(scope, source);
+    return workProducts.save(scope, product.id, { revision,
+      state: update(draft, { type: "refresh", review: review(fresh) }) });
+  }
+
+  async function currentLibraryVersion(scope: ApplicationScope, draft: AuthoritiesDraft,
+    role: string, expected: "pdf" | "source") {
+    const binding = draft.bindings[role];
+    if (binding?.kind !== "document") {
+      throw new ApplicationError(409, "This source is not a Library document");
+    }
+    const history = await documents.versions(scope, binding.documentId);
+    const version = history?.versions.find(({ id }) => id === history.current_version_id);
+    if (!version) throw new ApplicationError(409,
+      "This Library file is no longer available. Add it again.");
+    const fileType = version.file_type.toLowerCase();
+    if (expected === "pdf" ? fileType !== "pdf" : !["pdf", "docx"].includes(fileType)) {
+      throw new ApplicationError(409, expected === "pdf"
+        ? "The current Library file is not a PDF"
+        : "The current Library file is not a PDF or Word document");
+    }
+    return { binding, version };
+  }
+
+  async function buildSources(scope: ApplicationScope, draft: AuthoritiesDraft,
+    signal?: AbortSignal) {
+    const result: Record<string, { bytes?: Uint8Array; pageTextByPage?: string[];
+      ocrTextByPage?: string[]; passageGeometry?: Awaited<ReturnType<typeof authorityPdfText>>["passageGeometry"];
       resolved?: ResolvedWorkProductInput }> = {};
     if (draft.import.kind === "document" && draft.import.snapshot) {
       const { bindingRole, snapshot, filename } = draft.import;
@@ -368,38 +583,52 @@ export function createAuthoritiesWorkspaceApplication(
         filename: version.filename || filename, sha256: source.sourceSha256 } };
       if (draft.insertIntoDocument) {
         const file = await documents.read(scope, binding.documentId, source.versionId, false);
-        if (!file || file.fileType.toLowerCase() !== "docx" ||
+        if (!file || file.fileType.toLowerCase() !== draft.import.fileType ||
             file.version.source_sha256 !== snapshot.sha256 ||
             sha256(file.bytes) !== snapshot.sha256) {
-          throw new ApplicationError(409, "The imported Word document changed. Refresh before building.");
+          throw new ApplicationError(409, "The imported document changed. Refresh before building.");
         }
         result[bindingRole].bytes = file.bytes;
       }
     }
-    const attached = Object.values(draft.authorities).flatMap(({ source }) =>
-      source.kind === "attached" ? [source] : []);
+    const attached = Object.values(draft.authorities).flatMap((authority) =>
+      authority.source.kind === "attached" ? [{ authority, source: authority.source }] : []);
     const needsBook = draft.outputMode !== "table";
+    const needsFilingPdfs = draft.insertIntoDocument && draft.settings.profileId ===
+      "ab-court-of-appeal" && draft.import.kind === "document" && draft.import.fileType === "pdf";
     const bookRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
       needsBook && !excluded && source.kind === "attached" ? [source.bindingRole] : []));
-    const preparation = new Map(bookRoles.size
-      ? (await documents.parseStates(scope, [...bookRoles].flatMap((role) => {
+    const filingRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
+      needsFilingPdfs && !excluded && source.kind === "attached" ? [source.bindingRole] : []));
+    const textRoles = authoritiesTextRoles(draft);
+    const preparedRoles = new Set([...bookRoles, ...textRoles]);
+    const preparation = new Map(preparedRoles.size
+      ? (await documents.parseStates(scope, [...preparedRoles].flatMap((role) => {
         const binding = draft.bindings[role];
         return binding?.kind === "document" ? [binding.documentId] : [];
       }))).map((state) => [state.id, state.parse_state])
       : []);
-    await Promise.all(attached.map(async (source) => {
+    const readPdf = async (source: { bindingRole: string; filename: string;
+      sourceSha256: string }, label: string) => {
       const binding = draft.bindings[source.bindingRole];
-      if (binding?.kind !== "document") {
-        throw new ApplicationError(409, `Attached PDF is unavailable: ${source.filename}`);
-      }
-      const versionId = binding.version === "latest" ? null : binding.version.versionId;
-      const file = await documents.read(scope, binding.documentId, versionId, false);
+      if (binding?.kind !== "document") throw new ApplicationError(409,
+        `${label} is unavailable: ${source.filename}`);
+      const file = await documents.read(scope, binding.documentId,
+        binding.version === "latest" ? null : binding.version.versionId, false);
       if (!file || file.fileType.toLowerCase() !== "pdf" ||
           file.version.source_sha256 !== source.sourceSha256 ||
-          sha256(file.bytes) !== source.sourceSha256) {
-        throw new ApplicationError(409, `Attached PDF changed: ${source.filename}`);
-      }
+          sha256(file.bytes) !== source.sourceSha256) throw new ApplicationError(409,
+        `${label} changed: ${source.filename}`);
+      return { binding, file, resolved: { kind: "document" as const,
+        documentId: binding.documentId, versionId: file.version.id,
+        filename: file.filename, sha256: file.version.source_sha256 } };
+    };
+    await Promise.all(attached.map(async ({ authority, source }) => {
+      signal?.throwIfAborted();
+      const { binding, file, resolved } = await readPdf(source, "Attached PDF");
       const forBook = bookRoles.has(source.bindingRole);
+      const forFiling = filingRoles.has(source.bindingRole);
+      const needsText = textRoles.has(source.bindingRole);
       if (forBook && !file.pdfProfile) {
         const state = preparation.get(binding.documentId);
         const pending = state?.status === "queued" || state?.status === "parsing";
@@ -413,14 +642,21 @@ export function createAuthoritiesWorkspaceApplication(
           pdf_phase: state?.phase,
           pdf_pages: state?.pages?.join(",") });
       }
-      const ocrTextByPage = forBook ? await authorityPdfOcrText({ bytes: file.bytes,
+      const text = needsText ? await authorityPdfText({ bytes: file.bytes,
         documentId: binding.documentId, versionId: file.version.id,
-        sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile }) : [];
-      result[source.bindingRole] = { ...(forBook ? { bytes: file.bytes } : {}),
-        ...(ocrTextByPage.some(Boolean) ? { ocrTextByPage } : {}),
-        resolved: { kind: "document",
-        documentId: binding.documentId, versionId: file.version.id,
-        filename: file.filename, sha256: file.version.source_sha256 } };
+        sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal,
+        passageTargets: draft.settings.passageMarking === "none"
+          ? [] : authorityPassageTargets(draft, authority.id) }) : null;
+      result[source.bindingRole] = { ...(forBook || forFiling ? { bytes: file.bytes } : {}),
+        ...(text ? { pageTextByPage: text.pageTextByPage } : {}),
+        ...(text?.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
+        ...(text?.passageGeometry ? { passageGeometry: text.passageGeometry } : {}),
+        resolved };
+    }));
+    await Promise.all(authoritiesBookPdfs(draft).map(async (source) => {
+      signal?.throwIfAborted();
+      const { file, resolved } = await readPdf(source, "Book PDF");
+      result[source.bindingRole] = { bytes: file.bytes, resolved };
     }));
     return result;
   }
@@ -431,6 +667,9 @@ export function createAuthoritiesWorkspaceApplication(
     async get(scope: ApplicationScope, id: string) {
       return (await open(scope, id)).product;
     },
+    async discrepancies(scope: ApplicationScope, id: string, signal?: AbortSignal) {
+      return reviewAuthoritiesDiscrepancies((await open(scope, id)).draft, signal);
+    },
     async saveFile(scope: ApplicationScope, file: DocumentFile, projectId?: string | null) {
       if (!["pdf", "docx"].includes(file.fileType.toLowerCase())) {
         throw new ApplicationError(400, "Add a PDF or Word document");
@@ -439,18 +678,19 @@ export function createAuthoritiesWorkspaceApplication(
     },
     async importDraft(scope: ApplicationScope, input: {
       source: AuthoritiesImportSource; title?: string; projectId?: string | null;
+      settings?: AuthoritiesInitialSettings;
     }) {
-      const resolved = await resolveSources(scope, await importer.draft(scope, input.source),
-        input.projectId);
-      const title = input.title ?? (resolved.draft.import.kind === "document"
-        ? resolved.draft.import.filename.replace(/\.[^.]+$/u, "") || "Authorities"
+      const initial = applyAuthoritiesInitialSettings(
+        await importer.draft(scope, input.source), input.settings);
+      const title = input.title ?? (initial.import.kind === "document"
+        ? initial.import.filename.replace(/\.[^.]+$/u, "") || "Authorities"
         : "Authorities");
-      return withRollback(scope, resolved.created, () => workProducts.create(scope,
-        { kind: "authorities", title, projectId: input.projectId, state: resolved.draft }));
+      return workProducts.create(scope,
+        { kind: "authorities", title, projectId: input.projectId, state: initial });
     },
     async addReceipts(scope: ApplicationScope, id: string, revision: number,
       seeds: readonly GroundedReceiptSeed[]) {
-      const { product, draft } = await edit(scope, id, revision);
+      const { draft } = await edit(scope, id, revision);
       const incoming = review(await importer.draft(scope, { kind: "receipts", seeds }));
       const current = review(draft);
       const changed = update(draft, { type: "refresh", review: {
@@ -460,15 +700,19 @@ export function createAuthoritiesWorkspaceApplication(
           (authorityId) => !current.authorities[authorityId],
         )],
       } });
-      const resolved = await resolveSources(scope, changed, product.projectId);
-      return withRollback(scope, resolved.created, () =>
-        workProducts.save(scope, id, { revision, state: resolved.draft }));
+      return workProducts.save(scope, id, { revision, state: changed });
     },
     async act(scope: ApplicationScope, id: string, revision: number,
       action: AuthoritiesUserAction) {
-      const { product, draft } = await edit(scope, id, revision);
+      const { draft } = await edit(scope, id, revision);
       const changed = applyAuthoritiesUserAction(draft, action, sources);
-      const resolved = await resolveSources(scope, changed, product.projectId);
+      return workProducts.save(scope, id, { revision, state: changed });
+    },
+    async prepareSources(scope: ApplicationScope, id: string, revision: number,
+      signal?: AbortSignal) {
+      const { product, draft } = await edit(scope, id, revision);
+      const resolved = await resolveSources(scope, draft, product.projectId, signal);
+      if (resolved.draft === draft && !resolved.created.length) return product;
       return withRollback(scope, resolved.created, () =>
         workProducts.save(scope, id, { revision, state: resolved.draft }));
     },
@@ -483,11 +727,68 @@ export function createAuthoritiesWorkspaceApplication(
       if (!binding && !receiptSeeds?.length) return product;
       const source: AuthoritiesImportSource = binding ??
         { kind: "receipts", seeds: receiptSeeds! };
-      const fresh = await importer.draft(scope, source);
-      const resolved = await resolveSources(scope,
-        update(draft, { type: "refresh", review: review(fresh) }), product.projectId);
-      return withRollback(scope, resolved.created, () =>
-        workProducts.save(scope, id, { revision, state: resolved.draft }));
+      return saveRefresh(scope, product, draft, revision, source);
+    },
+    async refreshInput(scope: ApplicationScope, id: string, input: {
+      revision: number; role: string;
+    }) {
+      const { product, draft } = await edit(scope, id, input.revision);
+      if (draft.import.kind === "document" && draft.import.bindingRole === input.role) {
+        const { binding, version } = await currentLibraryVersion(
+          scope, draft, input.role, "source");
+        if (version.file_type.toLowerCase() !== draft.import.fileType) {
+          throw new ApplicationError(409,
+            `The current Library file is not a ${draft.import.fileType === "pdf" ? "PDF" : "Word document"}`);
+        }
+        return saveRefresh(scope, product, draft, input.revision,
+          { ...binding, version: "latest" });
+      }
+      const authority = Object.values(draft.authorities).find(({ source }) =>
+        source.kind === "attached" && source.bindingRole === input.role);
+      const cover = draft.bookParts.cover?.bindingRole === input.role
+        ? draft.bookParts.cover : null;
+      const index = draft.bookParts.index?.bindingRole === input.role
+        ? draft.bookParts.index : null;
+      const supplement = draft.bookParts.supplements.find(
+        ({ bindingRole }) => bindingRole === input.role);
+      const boundPdf = authority?.source.kind === "attached" ? authority.source
+        : cover ?? index ?? supplement;
+      if (!boundPdf) throw new ApplicationError(409, "This source is no longer in the draft");
+      const { binding, version } = await currentLibraryVersion(scope, draft, input.role, "pdf");
+      const nextBinding = { ...binding, version: "latest" as const };
+      const pdf = { ...boundPdf, filename: version.filename,
+        sourceSha256: version.source_sha256 };
+      const state = authority?.source.kind === "attached"
+        ? update(draft, { type: "attach-source", authorityId: authority.id,
+          bindingRole: input.role, binding: nextBinding, filename: pdf.filename,
+          sourceSha256: pdf.sourceSha256, sourceUrl: authority.source.sourceUrl,
+          origin: authority.source.origin })
+        : supplement
+          ? update(draft, { type: "set-book-supplement",
+            supplement: { ...supplement, ...pdf }, binding: nextBinding })
+          : update(draft, { type: "set-book-part", slot: cover ? "cover" : "index",
+            pdf, binding: nextBinding });
+      return workProducts.save(scope, id, { revision: input.revision, state });
+    },
+    async replaceSource(scope: ApplicationScope, id: string, input: {
+      revision: number; file: DocumentFile;
+    }) {
+      const fileType = input.file.fileType.toLowerCase();
+      if (!["pdf", "docx"].includes(fileType)) {
+        throw new ApplicationError(400, "Add a PDF or Word document");
+      }
+      const { product, draft } = await edit(scope, id, input.revision);
+      if (draft.import.kind !== "document") {
+        throw new ApplicationError(409, "Only an imported document can be replaced");
+      }
+      const created = await files.create(scope, "authorities", input.file,
+        { projectId: product.projectId });
+      return withRollback(scope, [created.id], async () => {
+        const fresh = await importer.draft(scope, { kind: "document",
+          documentId: created.id, version: "latest" });
+        return workProducts.save(scope, id, { revision: input.revision,
+          state: update(draft, { type: "refresh", review: review(fresh) }) });
+      }, "Replacing the source could not be completed");
     },
     async attachPdf(scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; file: DocumentFile;
@@ -499,22 +800,38 @@ export function createAuthoritiesWorkspaceApplication(
       const authority = attachableAuthority(draft, input.authorityId);
       const created = await files.create(scope, "authorities", input.file,
         { projectId: product.projectId });
-      try {
+      return withRollback(scope, [created.id], async () => {
         const state = attachSource(draft, authority,
           { kind: "document", documentId: created.id,
             version: { versionId: created.current_version_id,
               sha256: created.source_sha256 } }, created.filename, created.source_sha256);
-        return await workProducts.save(scope, id, { revision: input.revision, state });
-      } catch (error) {
-        try {
-          if (!await documents.deleteDocument(scope, created.id)) {
-            throw new Error("Created PDF could not be removed");
-          }
-        } catch (cleanup) {
-          throw new AggregateError([error, cleanup], "Attaching the PDF could not be completed");
-        }
-        throw error;
+        return workProducts.save(scope, id, { revision: input.revision, state });
+      }, "Attaching the PDF could not be completed");
+    },
+    async attachBookPdf(scope: ApplicationScope, id: string, input: {
+      revision: number; slot: "cover" | "index" | "supplemental";
+      file: DocumentFile; title?: string; tab?: string;
+    }) {
+      if (input.file.fileType.toLowerCase() !== "pdf") {
+        throw new ApplicationError(400, "Attach a PDF file");
       }
+      const { product, draft } = await edit(scope, id, input.revision);
+      const created = await files.create(scope, "authorities", input.file,
+        { projectId: product.projectId });
+      return withRollback(scope, [created.id], async () => {
+        const binding = { kind: "document" as const, documentId: created.id,
+          version: { versionId: created.current_version_id, sha256: created.source_sha256 } };
+        const partId = input.slot === "supplemental" ? randomUUID() : input.slot;
+        const pdf = { bindingRole: `book:${input.slot}:${partId}`, filename: created.filename,
+          sourceSha256: created.source_sha256 };
+        const state = input.slot === "supplemental"
+          ? update(draft, { type: "set-book-supplement", supplement: { ...pdf, id: partId,
+            title: input.title?.trim() || created.filename.replace(/\.pdf$/iu, ""),
+            tab: input.tab?.trim() || `Appendix ${draft.bookParts.supplements.length + 1}` },
+          binding })
+          : update(draft, { type: "set-book-part", slot: input.slot, pdf, binding });
+        return workProducts.save(scope, id, { revision: input.revision, state });
+      }, "Attaching the book PDF could not be completed");
     },
     async attachLibraryPdf(scope: ApplicationScope, id: string, input: {
       revision: number; authorityId: string; documentId: string; versionId: string;
@@ -532,13 +849,13 @@ export function createAuthoritiesWorkspaceApplication(
           { kind: "document", documentId: input.documentId, version: "latest" },
           version.filename, version.source_sha256) });
     },
-    async build(scope: ApplicationScope, id: string, revision: number):
+    async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {
       const { product, draft } = await edit(scope, id, revision);
       let built: AuthoritiesBuildResult;
       try {
         built = await builder({ draft, title: product.title,
-          workProduct: { id, revision }, sources: await buildSources(scope, draft) });
+          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal });
       } catch (error) {
         if (error instanceof ApplicationError) throw error;
         throw new ApplicationError(409,
@@ -549,8 +866,10 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         for (const artifact of Object.values(built.artifacts).filter(
           (item): item is NonNullable<typeof item> => Boolean(item))) {
+          signal?.throwIfAborted();
           const file = { filename: artifact.filename,
-            fileType: artifact.role === "book" ? "pdf" : "docx", bytes: artifact.bytes,
+            fileType: artifact.mimeType === "application/pdf" ? "pdf" : "docx",
+            bytes: artifact.bytes,
             provenance: { schemaVersion: 1 as const, actor: "work-product" as const,
               action: "built" as const, receipt: artifact.receipt } };
           const existing = product.outputs[artifact.role];
@@ -573,6 +892,7 @@ export function createAuthoritiesWorkspaceApplication(
               versionId: created.current_version_id };
           }
         }
+        signal?.throwIfAborted();
         const saved = await workProducts.save(scope, id, { revision, outputs: refs });
         if (saved.kind !== "authorities") throw new ApplicationError(409,
           "Authorities draft state is invalid");

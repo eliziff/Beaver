@@ -267,6 +267,40 @@ describe("A2AJ client", () => {
     );
   });
 
+  it("resolves an exact parallel citation through one canonical fetch", async () => {
+    const requested = "[2015] 1 SCR 331";
+    const signal = new AbortController().signal;
+    vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(init?.signal).toBe(signal);
+      const url = new URL(String(input));
+      const citation = url.searchParams.get("citation");
+      if (url.pathname === "/fetch" && citation === "2015 SCC 5") {
+        return new Response(JSON.stringify({ results: [{
+          dataset: "SCC", citation_en: "2015 SCC 5", citation_fr: "2015 CSC 5",
+          citation2_en: "[2015] 1 SCR 331", citation2_fr: "[2015] 1 RCS 331",
+          name_en: "Carter v Canada (Attorney General)",
+          unofficial_text_en: "[1] These are the reasons for judgment.",
+        }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.pathname === "/search") {
+        return new Response(JSON.stringify({ results: [
+          { dataset: "SCC", citation_en: "2015 SCC 50", citation2_en: `${requested}0` },
+          { dataset: "SCC", citation_en: "2015 SCC 5", citation2_en: "[2015] 1 SCR 331",
+            citation_fr: "2015 CSC 5" },
+        ] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ results: [] }),
+        { status: 200, headers: { "content-type": "application/json" } });
+    }));
+
+    await expect(a2ajLegalSourceProvider.document({ citation: requested, signal }))
+      .resolves.toMatchObject({ citation: "2015 SCC 5",
+        alternateCitation: "[2015] 1 SCR 331", dataset: "SCC" });
+    const urls = guardedRemoteFetch.mock.calls.map(([url]) => new URL(String(url)));
+    expect(urls.map(({ pathname }) => pathname)).toEqual(["/fetch", "/search", "/fetch"]);
+    expect(urls.at(-1)?.searchParams.get("citation")).toBe("2015 SCC 5");
+  });
+
   it("uses the supplied source URL to disambiguate duplicate citation records", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       results: [

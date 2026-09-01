@@ -20,6 +20,7 @@
     {
       "id": "ab-rules-part-13-14",
       "profiles": [
+        "ab-court-of-appeal",
         "ab-kb-affidavit-exhibits",
         "ab-ca-appeal-record",
         "ab-ca-extracts-appellant",
@@ -30,7 +31,7 @@
       "kind": "rule",
       "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf",
       "stable_parent_url": "https://kings-printer.alberta.ca/1125.cfm",
-      "locator": "Rules 13.19, 13.21 and Part 14 through Rule 14.30",
+      "locator": "Rules 13.19 and 13.21; Rule 14.25(1)(h) requires a factum table of authorities, following the 2023 repeal of the separate civil Book provisions",
       "reference_sha256": "956f7aaef5968f14320d8b428f725efdf0065ce09fa876ef80dfafba0549e930",
       "expected_markers": ["Identification of exhibits", "25 or more pages", "consecutively numbered"]
     },
@@ -151,32 +152,38 @@
     },
     {
       "id": "ab-kb-citation-guidelines",
-      "profiles": ["authorities-handoff"],
+      "profiles": ["ab-court-of-kings-bench", "authorities-handoff"],
       "kind": "court-guidance",
       "url": "https://albertacourts.ca/kb/resources/citation-guidelines",
-      "locator": "Citation Guidelines",
-      "expected_markers": ["Book of Authorities", "Avoid duplicating authorities"]
+      "locator": "Directions 9–10: a Book, when used, matches cited authorities; avoid duplicates; a joint Book is recommended; bilingual federal enactments are encouraged",
+      "expected_markers": ["Book of Authorities", "Avoid duplicating authorities", "joint book"]
     },
     {
       "id": "ab-kb-general-pn1",
-      "profiles": ["authorities-handoff"],
+      "profiles": ["ab-court-of-kings-bench", "authorities-handoff"],
       "kind": "practice-direction",
       "url": "https://www.albertacourts.ca/docs/default-source/qb/general-practice-notes/kb-general-practice-note-1-english.pdf?sfvrsn=a6227c82_16",
-      "locator": "Citation of Authorities",
+      "locator": "Section 3, Citation of Authorities: the periodically revised Citation Guidelines govern all King's Bench proceedings",
       "expected_markers": ["Citation", "Authorities"]
     },
     {
       "id": "ab-ca-authorities-guide",
-      "profiles": ["authorities-handoff"],
+      "profiles": ["ab-court-of-appeal", "authorities-handoff"],
       "kind": "court-guidance",
       "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
       "stable_parent_url": "https://www.albertacourts.ca/ca/registry/filing",
-      "locator": "Finding and Providing Authorities, pages 1–2",
-      "expected_markers": ["Table of Authorities", "hyperlink"]
+      "locator": "Finding and Providing Authorities (12 January 2024), pages 1–2 and Civil Rule 14.25(1)(h): no separate civil Book; first-reference Table in the filing document; public hyperlinks preferred; otherwise append and bookmark the authority",
+      "supersedes": {
+        "url": "https://albertacourts.ca/docs/default-source/ca/book-of-authorities-mandatory-requirements-and-check-return-form.pdf?sfvrsn=4048d980_0",
+        "revised": "2019-02-07",
+        "reason": "The 2024 guide records that civil Books were eliminated in 2021 and the former Part 14 Book provisions were repealed effective 2023-04-30."
+      },
+      "expected_markers": ["Table of Authorities", "publicly accessible hyperlink", "bookmarked"]
     },
     {
       "id": "ab-ca-electronic-format",
       "profiles": [
+        "ab-court-of-appeal",
         "ab-ca-appeal-record",
         "ab-ca-extracts-appellant",
         "ab-ca-extracts-respondent",
@@ -264,6 +271,8 @@
     {
       "id": "fc-rules",
       "profiles": [
+        "federal-court",
+        "federal-court-of-appeal",
         "fc-affidavit-exhibits",
         "fca-affidavit-exhibits",
         "fc-motion-record-moving",
@@ -285,12 +294,13 @@
       ],
       "kind": "rule",
       "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
-      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 (including reply under Rule 355), 364–366, 369(3) and 369.2(3)",
-      "expected_markers": ["Trial Record", "Motion Record", "Appeal Books", "FORM 344", "motion for leave to appeal shall serve any reply", "written representations in reply within four days after being served", "written representations in reply within four days after the day"]
+      "locator": "Rules 65, 70, 80, 268–269, 309–310, 344, 348, 352–356 (including reply under Rule 355), 364–366, 369(3) and 369.2(3); Rules 70(1)(e)–(g), 70(2)–(2.1) and 348 govern Federal authority lists and books",
+      "expected_markers": ["Trial Record", "Motion Record", "Book of Authorities", "Enactments in both official languages", "Colour of cover", "FORM 344", "motion for leave to appeal shall serve any reply", "written representations in reply within four days after being served", "written representations in reply within four days after the day"]
     },
     {
       "id": "fc-practice-guidelines-2025",
       "profiles": [
+        "federal-court",
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
@@ -302,12 +312,13 @@
       "kind": "practice-direction",
       "url": "https://www.fct-cf.gc.ca/Content/assets/pdf/base/2025-06-20__Amended-Consolidated-General-Practice-Guidelines.pdf",
       "stable_parent_url": "https://www.fct-cf.gc.ca/en/pages/law-and-practice/practice-guidelines",
-      "locator": "Paragraphs 19(d)–(h) and 83–84",
-      "expected_markers": ["Book of Authorities", "hyperlinked", "highlighted"]
+      "locator": "Paragraphs 19(d)–(h) and 83–84, including authority-book filer identification, joint books and hyperlink treatment",
+      "expected_markers": ["Book of Authorities", "joint book", "hyperlinked", "highlighted"]
     },
     {
       "id": "fc-efiling",
       "profiles": [
+        "federal-court",
         "fc-affidavit-exhibits",
         "fc-motion-record-moving",
         "fc-motion-record-responding",
@@ -324,6 +335,7 @@
     {
       "id": "fca-efiling-guide",
       "profiles": [
+        "federal-court-of-appeal",
         "fca-affidavit-exhibits",
         "fca-motion-record-moving",
         "fca-motion-record-responding",

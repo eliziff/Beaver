@@ -3,7 +3,10 @@ import { applicationScope, reject } from "../lib/applicationError";
 import type {
   AuthorityOccurrence,
 } from "../lib/authoritiesDomain";
+import { authoritiesProfileIds, type AuthoritiesBuildSettings,
+  type AuthoritiesProfileId } from "../lib/authoritiesDomain";
 import type {
+  AuthoritiesInitialSettings,
   AuthoritiesUserAction,
   AuthoritiesWorkspaceApplication,
 } from "../lib/authoritiesWorkspaceApplication";
@@ -37,6 +40,42 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }
 const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
+const settingsChoices = {
+  sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha"],
+  tableOrder: ["first-reference", "alphabetical"],
+  tableDelivery: ["native-marks", "native-append", "linked-append"],
+  tableLocation: ["pages", "pinpoints", "combined"],
+  passageMarking: ["none", "margin", "paragraph", "text", "sidelined"],
+  scannedPdfPolicy: ["page-margin", "cited-pages", "full"],
+  missingSourcePolicy: ["placeholder", "omit"],
+  filingMedium: ["electronic", "paper"],
+  bookRole: ["applicant", "respondent", "joint", "appellant", "intervener"],
+} as const satisfies { [K in keyof AuthoritiesBuildSettings]: readonly AuthoritiesBuildSettings[K][] };
+
+export function decodeAuthoritiesInitialSettings(value: unknown): AuthoritiesInitialSettings {
+  return settings(value, true);
+}
+function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
+function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
+function settings(value: unknown, initial = false) {
+  const item = object(value), allowed = new Set([
+    ...Object.keys(settingsChoices), ...(initial
+      ? ["profileId", "outputMode", "insertIntoDocument"] : []),
+  ]);
+  if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
+  const result: Record<string, unknown> = {};
+  for (const [key, values] of Object.entries(settingsChoices)) if (item[key] !== undefined) {
+    result[key] = choice(item[key], values);
+  }
+  if (initial && item.profileId !== undefined) result.profileId = choice(
+    item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;
+  if (initial && item.outputMode !== undefined) result.outputMode = choice(
+    item.outputMode, ["table", "book", "both"] as const);
+  if (initial && item.insertIntoDocument !== undefined) result.insertIntoDocument =
+    typeof item.insertIntoDocument === "boolean" ? item.insertIntoDocument : bad();
+  if (!Object.keys(result).length) return bad();
+  return result as AuthoritiesInitialSettings;
+}
 
 function reference(value: unknown): AuthorityOccurrence["reference"] {
   if (value === null) return null;
@@ -61,10 +100,15 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       excluded: typeof item.excluded === "boolean" ? item.excluded : bad() };
     case "rename-authority": return { type, authorityId: text(item.authorityId),
       displayName: nullableText(item.displayName, 2_000) };
+    case "set-authority-tab": return { type, authorityId: text(item.authorityId),
+      tabLabel: nullableText(item.tabLabel, 80) };
     case "reorder-authorities": return { type, authorityIds: stringArray(item.authorityIds) };
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       cursor: integer(item.cursor, 1) };
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
+    case "set-authority-span":
+    case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
+      start: integer(item.start), end: integer(item.end, 1) };
     case "relink-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       authorityId: item.authorityId === null ? null : text(item.authorityId) };
     case "set-reviewed": return { type, occurrenceId: text(item.occurrenceId),
@@ -75,6 +119,15 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       if (item.pageUrl !== undefined) return bad();
       return { type, authorityId: text(item.authorityId) };
     }
+    case "clear-book-part": return { type,
+      slot: choice(item.slot, ["cover", "index"] as const) };
+    case "update-book-supplement": return { type, id: text(item.id),
+      title: text(item.title, 500), tab: text(item.tab, 80) };
+    case "reorder-book-supplements": return { type, ids: stringArray(item.ids) };
+    case "remove-book-supplement": return { type, id: text(item.id) };
+    case "set-profile": return { type,
+      profileId: choice(item.profileId, authoritiesProfileIds) };
+    case "set-settings": return { type, settings: settings(item.settings) };
     case "set-output-mode": return { type,
       outputMode: choice(item.outputMode, ["table", "book", "both"] as const) };
     case "set-document-output": return { type,
@@ -91,21 +144,23 @@ function documentImport(value: unknown): Parameters<
   AuthoritiesWorkspaceApplication["importDraft"]
 >[1] {
   const item = object(value), source = object(item.source);
-  if (source.kind === "manual") return { source: { kind: "manual" },
+  const options = {
     ...(item.title === undefined ? {} : { title: text(item.title, 300) }),
     ...(item.projectId === undefined ? {} : {
       projectId: item.projectId === null ? null : text(item.projectId),
-    }) };
+    }),
+    ...(item.settings === undefined ? {} : {
+      settings: decodeAuthoritiesInitialSettings(item.settings),
+    }),
+  };
+  if (source.kind === "manual") return { source: { kind: "manual" }, ...options };
   if (source.kind !== "document") return bad();
   const version = source.version === "latest" ? "latest" as const : (() => {
     const pinned = object(source.version);
     return { versionId: text(pinned.versionId), sha256: digest(pinned.sha256) };
   })();
   return { source: { kind: "document", documentId: text(source.documentId), version },
-    ...(item.title === undefined ? {} : { title: text(item.title, 300) }),
-    ...(item.projectId === undefined ? {} : {
-      projectId: item.projectId === null ? null : text(item.projectId),
-    }) };
+    ...options };
 }
 
 export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplication) {
@@ -131,6 +186,11 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
   router.get("/:id", asyncRoute(async (req, res) => {
     res.json(await application.get(applicationScope(res), text(req.params.id)));
   }));
+  router.post("/:id/discrepancies", asyncRoute(async (req, res) => {
+    const review = new AbortController(); res.once("close", () => review.abort());
+    res.json(await application.discrepancies(
+      applicationScope(res), text(req.params.id), review.signal));
+  }));
   router.post("/:id/actions", asyncRoute(async (req, res) => {
     const body = object(req.body);
     res.json(await application.act(applicationScope(res), text(req.params.id),
@@ -140,6 +200,22 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     res.json(await application.refresh(applicationScope(res), text(req.params.id),
       revision(object(req.body).revision)));
   }));
+  router.post("/:id/sources", asyncRoute(async (req, res) => {
+    const preparation = new AbortController(); res.once("close", () => preparation.abort());
+    res.json(await application.prepareSources(applicationScope(res), text(req.params.id),
+      revision(object(req.body).revision), preparation.signal));
+  }));
+  router.post("/:id/inputs/:role/refresh", asyncRoute(async (req, res) => {
+    res.json(await application.refreshInput(applicationScope(res), text(req.params.id), {
+      revision: revision(object(req.body).revision), role: text(req.params.role, 200),
+    }));
+  }));
+  router.post("/:id/source", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const file = req.file ?? reject(400, "file is required");
+    res.json(await application.replaceSource(applicationScope(res), text(req.params.id), {
+      revision: revision(req.body?.revision, true), file: uploadedDocument(file),
+    }));
+  }));
   router.post("/:id/attachments/:authorityId", singleFileUpload("file"),
     asyncRoute(async (req, res) => {
       const file = req.file ?? reject(400, "file is required");
@@ -148,9 +224,22 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
         authorityId: text(req.params.authorityId), file: uploadedDocument(file),
       }));
     }));
+  router.post("/:id/book-parts/:slot", singleFileUpload("file"),
+    asyncRoute(async (req, res) => {
+      const file = req.file ?? reject(400, "file is required");
+      res.json(await application.attachBookPdf(applicationScope(res), text(req.params.id), {
+        revision: revision(req.body?.revision, true),
+        slot: choice(req.params.slot, ["cover", "index", "supplemental"] as const),
+        file: uploadedDocument(file),
+        ...(req.body?.title === undefined ? {} : { title: text(req.body.title, 500) }),
+        ...(req.body?.tab === undefined ? {} : { tab: text(req.body.tab, 80) }),
+      }));
+    }));
   router.post("/:id/build", asyncRoute(async (req, res) => {
+    const build = new AbortController();
+    res.once("close", () => build.abort());
     res.json(await application.build(applicationScope(res), text(req.params.id),
-      revision(object(req.body).revision)));
+      revision(object(req.body).revision), build.signal));
   }));
   return router;
 }

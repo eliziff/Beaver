@@ -14,6 +14,7 @@ import {
   withProjectionLock,
 } from "./documentProjection";
 import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from "./remoteUrlSafety";
+import { rankedPublisherPdfLinks } from "./legalSourcePresentation";
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { resourceReference } from "./resourceReferences";
@@ -22,7 +23,7 @@ import {
   decodePdfProfileSelection,
   type PdfProfileSelection,
 } from "./documentStore";
-import { enqueueJob, type JobHandler } from "./jobQueue";
+import type { JobHandler } from "./jobQueue";
 
 export type ProviderPdfAttachment = {
   provider: string;
@@ -152,17 +153,17 @@ async function verifiedContent(digest?: string) {
   catch { return null; }
 }
 
-async function fetchPdf(request: SafeRequest, signal?: AbortSignal) {
-  let current = new URL(request.url);
+async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal) {
+  let current = new URL(rawUrl);
   for (let redirects = 0; redirects <= 5; redirects += 1) {
     const url = sourceUrl(current.toString());
     if (url.hostname === "api.govinfo.gov" && !url.searchParams.has("api_key"))
       url.searchParams.set("api_key", process.env.GOVINFO_API_KEY?.trim() || "DEMO_KEY");
     const response = await guardedRemoteFetch(url, {
       redirect: "manual", signal,
-      headers: { Accept: "application/pdf, application/octet-stream" },
+      headers: { Accept: accept },
     }, { label: "Source PDF URL", timeoutMs: 30_000 });
-    if (response.status < 300 || response.status >= 400) return response;
+    if (response.status < 300 || response.status >= 400) return { response, url };
     const location = response.headers.get("location");
     await response.body?.cancel().catch(() => undefined);
     if (!location || redirects === 5) throw new Error("Source PDF redirect could not be resolved");
@@ -172,30 +173,84 @@ async function fetchPdf(request: SafeRequest, signal?: AbortSignal) {
 }
 
 async function download(request: SafeRequest, signal?: AbortSignal) {
+  const found = await inspectPublisherSource(request, signal, false);
+  if (!found.path || !found.digest) throw new Error("Source PDF is unavailable");
+  return { path: found.path, digest: found.digest };
+}
+
+type ProviderOriginalPdfRequest = Omit<ProviderPdfAttachment,
+  "url" | "canonicalUrl" | "requestReference"> & {
+  sourceUrl?: string | null;
+  pdfUrl?: string | null;
+};
+
+async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal,
+  allowHtml = true) {
   return withProjectionLock(request.requestReference, async () => {
     const prior = await readRecord(request.requestKey);
     const cached = prior?.status === "downloaded"
       ? await verifiedContent(prior.source_sha256) : null;
-    if (cached && prior?.source_sha256)
-      return { path: cached, digest: prior.source_sha256 };
-    await writeRecord(request, "queued");
+    if (cached && prior?.source_sha256) return {
+      path: cached, digest: prior.source_sha256, url: request.url, links: [] as string[],
+    };
+    let pdf = !allowHtml;
     try {
-      let response = await fetchPdf(request, signal);
+      if (pdf) await writeRecord(request, "queued");
+      let { response, url } = await fetchSource(request.url,
+        `application/pdf, application/octet-stream${allowHtml
+          ? ", text/html, application/xhtml+xml" : ""}`, signal);
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
         throw new Error(`Source PDF request failed (${response.status})`);
       }
+      const mediaType = response.headers.get("content-type")?.split(";", 1)[0]
+        .trim().toLowerCase();
+      if (allowHtml && ["text/html", "application/xhtml+xml"].includes(mediaType ?? "")) {
+        response = await boundRemoteResponse(response, { label: "Publisher source page",
+          maxBytes: 2_000_000, contentTypes: ["text/html", "application/xhtml+xml"] });
+        return { path: null, digest: null, url: url.toString(),
+          links: rankedPublisherPdfLinks(await response.text(), url) };
+      }
+      if (!pdf) { pdf = true; await writeRecord(request, "queued"); }
       response = await boundRemoteResponse(response, { label: "Source PDF",
         maxBytes: 100 * 1024 * 1024,
         contentTypes: ["application/pdf", "application/octet-stream"] });
       const published = await publishPdfStream(response.body!, signal);
       await writeRecord(request, "downloaded", published.sourceSha256);
-      return { path: published.path, digest: published.sourceSha256 };
+      return { path: published.path, digest: published.sourceSha256,
+        url: url.toString(), links: [] as string[] };
     } catch (error) {
-      await writeRecord(request, "failed");
+      if (pdf) await writeRecord(request, "failed");
       throw error;
     }
   });
+}
+
+/** Finds and validates an A2AJ publisher's original PDF without ever requesting CanLII. */
+export async function downloadProviderOriginalPdf(
+  input: ProviderOriginalPdfRequest,
+  signal?: AbortSignal,
+) {
+  const { sourceUrl: rawSource, pdfUrl, ...attachment } = input;
+  let canonicalUrl: string | null = null;
+  try { canonicalUrl = rawSource ? sourceUrl(rawSource).toString() : null; } catch { /* blocked */ }
+  const queue = [pdfUrl, rawSource].filter((value): value is string => Boolean(value));
+  const seen = new Set<string>();
+  while (queue.length && seen.size < 12) {
+    signal?.throwIfAborted();
+    let request: SafeRequest;
+    try { request = safeRequest({ ...attachment, url: queue.shift()!, canonicalUrl }); }
+    catch { continue; }
+    if (seen.has(request.url)) continue;
+    seen.add(request.url);
+    try {
+      const found = await inspectPublisherSource(request, signal);
+      if (found.path && found.digest) return { bytes: await readFile(found.path),
+        sourceSha256: found.digest, url: found.url };
+      queue.push(...found.links);
+    } catch { signal?.throwIfAborted(); }
+  }
+  return null;
 }
 
 /** Downloads one provider-verified PDF through the shared guarded cache. */
@@ -231,6 +286,7 @@ function state(request: SafeRequest, record: PdfRecord | null,
 }
 
 async function enqueueProviderJob(request: SafeRequest, userId: string) {
+  const { enqueueJob } = await import("./jobQueue");
   const queued = await enqueueJob({
     kind: "pdf.provider",
     dedupeKey: request.requestReference,

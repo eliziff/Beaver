@@ -5,6 +5,7 @@ import {
   reduceAuthoritiesDraft,
   type AuthoritiesFreshReview,
   type AuthoritiesImport,
+  type AuthoritiesSourceMode,
   type AuthorityIdentity,
   type AuthorityKind,
   type AuthorityOccurrence,
@@ -13,7 +14,8 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { structureNative, type NativeAuthorityTextUnit } from "./structureNative";
+import { structureNative, type NativeAuthorityReferenceOccurrence,
+  type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 
@@ -21,7 +23,7 @@ type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type ProjectionReader = Pick<typeof documentProjectionService, "read">;
 type AuthoritiesNative = Pick<ReturnType<typeof structureNative>,
   "docxAuthorityTextUnits" | "pdfAuthorityTextUnits" | "citationOccurrencesInText" |
-  "citationLookupKey">;
+  "authorityReferencesInText" | "citationLookupKey">;
 
 export type GroundedReceiptSeed = {
   authorityKey: string;
@@ -30,6 +32,24 @@ export type GroundedReceiptSeed = {
 
 export type AuthoritiesImportSource = { kind: "manual" } | DocumentInput |
   { kind: "receipts"; seeds: readonly GroundedReceiptSeed[] };
+
+type Span = { start: number; end: number };
+function occurrenceSpans(unitText: string, authority: Span, core: Span,
+  pinpoints: Span[], offset = 0) {
+  const span = ({ start, end }: Span) => ({
+    start: offset + start, end: offset + end,
+    text: unitText.slice(offset + start, offset + end),
+  });
+  const ordered = [...pinpoints].sort((left, right) => left.start - right.start);
+  return { authoritySpan: span(authority), coreSpan: span(core),
+    pinpointSpan: ordered.length ? span({ start: ordered[0].start,
+      end: ordered.at(-1)!.end }) : null };
+}
+
+export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
+  occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
+const nativeReferenceSpans = (match: NativeAuthorityReferenceOccurrence, text: string) =>
+  occurrenceSpans(text, match.token, match.token, match.pinpoints);
 
 function scanReview(
   imported: AuthoritiesImport,
@@ -40,10 +60,52 @@ function scanReview(
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
+  const aliases = new Map<string, Set<string>>();
+  const footnoteAuthorities = new Map<number, Set<string>>();
+  let lastAuthorityId: string | null = null;
+  const remember = (authorityId: string, footnoteId: number | null) => {
+    lastAuthorityId = authorityId;
+    if (footnoteId !== null) footnoteAuthorities.set(footnoteId,
+      new Set([...(footnoteAuthorities.get(footnoteId) ?? []), authorityId]));
+  };
+  const addAlias = (authorityId: string, value: string | null | undefined) => {
+    const alias = value ? native.citationLookupKey(value) : "";
+    if (alias) aliases.set(authorityId, new Set([...(aliases.get(authorityId) ?? []), alias]));
+  };
   const reviewUnits = units.map((unit) => {
     const occurrenceIds: string[] = [];
     const sourceTextSha256 = sha256(unit.text);
-    native.citationOccurrencesInText(unit.text).forEach((match, localOrdinal) => {
+    const items = [
+      ...native.citationOccurrencesInText(unit.text)
+        .map((match) => ({ kind: "authority" as const, match })),
+      ...native.authorityReferencesInText(unit.text)
+        .map((match) => ({ kind: "reference" as const, match })),
+    ].sort((left, right) => left.match.start - right.match.start ||
+      left.match.end - right.match.end || left.kind.localeCompare(right.kind));
+    items.forEach((item, localOrdinal) => {
+      if (item.kind === "reference") {
+        const match = item.match;
+        const prefix = native.citationLookupKey(unit.text.slice(0, match.token.start));
+        const named = authorityOrder.filter((authorityId) =>
+          [...(aliases.get(authorityId) ?? [])].some((alias) => prefix.endsWith(alias)));
+        const noted = match.noteNumber === undefined ? []
+          : [...(footnoteAuthorities.get(match.noteNumber) ?? [])];
+        const candidates = match.kind === "ibid" ? (lastAuthorityId ? [lastAuthorityId] : [])
+          : match.noteNumber === undefined ? named
+          : named.length ? noted.filter((authorityId) => named.includes(authorityId)) : noted;
+        const authorityId = candidates.length === 1 ? candidates[0] : null;
+        const id = `${unit.key}:${localOrdinal}`;
+        occurrenceIds.push(id);
+        occurrences[id] = { id, unitId: unit.key, start: match.start, end: match.end,
+          text: match.text, ...nativeReferenceSpans(match, unit.text), kind: "reference",
+          citation: match.token.text, authorityId,
+          reference: authorityId ? { kind: match.kind, targetAuthorityId: authorityId } : null,
+          pinpoints: match.pinpoints.map(({ kind, text }) => ({ kind, text })),
+          evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: Boolean(authorityId) };
+        if (authorityId) remember(authorityId, unit.footnote_id);
+        return;
+      }
+      const match = item.match;
       const key = native.citationLookupKey(match.coreCitation.text);
       if (!key) return;
       const kind: AuthorityKind = match.kind === "statute" ? "legislation"
@@ -52,20 +114,25 @@ function scanReview(
         ? match.shortForm?.trim() || null : null;
       if (!authorities[key]) {
         authorities[key] = { id: key, key, kind, citation: match.coreCitation.text,
-          name: observedName, displayName: null, excluded: false,
+          name: observedName, displayName: null, tabLabel: null, excluded: false,
           evidenceIds: [], locators: [], sourceIdentity: null,
           source: { kind: "unresolved" } };
         authorityOrder.push(key);
       } else if (!authorities[key].name && observedName) {
         authorities[key].name = observedName;
       }
+      addAlias(key, match.shortForm);
+      addAlias(key, match.explicitShortForm);
+      addAlias(key, observedName);
       const id = `${unit.key}:${localOrdinal}`;
       occurrenceIds.push(id);
       occurrences[id] = { id, unitId: unit.key, start: match.start, end: match.end,
-        text: match.text, kind, citation: match.coreCitation.text, authorityId: key,
+        text: match.text, ...nativeOccurrenceSpans(match, unit.text),
+        kind, citation: match.coreCitation.text, authorityId: key,
         reference: null, pinpoints: match.pinpoints.map(({ kind, text }) => ({ kind, text })),
         evidenceIds: [],
         sourceTextSha256, localOrdinal, reviewed: false };
+      remember(key, unit.footnote_id);
     });
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
       footnoteId: unit.footnote_id, pageNumbers: unit.page_numbers, text: unit.text,
@@ -159,6 +226,7 @@ export function createAuthoritiesImporter(
 /** Stateless local-runtime import; the browser remains the draft/file owner. */
 export async function importStandaloneAuthoritiesFile(input: {
   filename: string; fileType: "docx" | "pdf"; bytes: Buffer; modified: number;
+  sourceMode?: AuthoritiesSourceMode;
 }, projection: ProjectionReader = documentProjectionService,
 native: AuthoritiesNative = structureNative()) {
   const sourceSha256 = sha256(input.bytes);
@@ -174,10 +242,14 @@ native: AuthoritiesNative = structureNative()) {
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
     filename: input.filename, fileType: input.fileType, snapshot: null };
   const bindings = { source: binding };
-  let draft = reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
+  let initial = createAuthoritiesDraft(imported, bindings);
+  if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
+    settings: { sourceMode: input.sourceMode } });
+  let draft = reduceAuthoritiesDraft(initial, {
     type: "refresh", review: scanReview(imported, bindings, units, native),
   });
-  for (const authority of Object.values(draft.authorities)) {
+  for (const authority of input.sourceMode === "manual-originals"
+    ? Object.values(draft.authorities) : []) {
     const pageUrl = authority.kind === "case"
       ? buildCanliiCaseUrlFromCitation([authority.citation]) : null;
     if (pageUrl) draft = reduceAuthoritiesDraft(draft, {

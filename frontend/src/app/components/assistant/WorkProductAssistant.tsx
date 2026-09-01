@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { MessageCircle } from "lucide-react";
-import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import type { WorkProductContext } from "@/app/lib/workProducts";
-import { AssistantDock } from "./AssistantDock";
-import { ChatView } from "./ChatView";
+
+export type WorkProductAssistantProps = { product?: WorkProductContext;
+  chatId?: string; onChatIdChange(id: string): void;
+  expanded?: boolean; synced?: boolean; onClose(): void; onBusyChange?(busy: boolean): void;
+  onProductUpdated?(revision: number): void; onTurnComplete?(): void };
+
+let panelPromise: Promise<{ default: typeof import("./WorkProductAssistantPanel")["WorkProductAssistantPanel"] }> | undefined;
+const loadPanel = () => panelPromise ??= import("./WorkProductAssistantPanel")
+  .then(({ WorkProductAssistantPanel: defaultPanel }) => ({ default: defaultPanel }));
+const AssistantPanel = lazy(loadPanel);
 
 export function useWorkProductAssistantState<T extends WorkProductContext>() {
   const [product, setProduct] = useState<T>();
@@ -26,45 +33,29 @@ export function useWorkProductAssistantState<T extends WorkProductContext>() {
     onProductUpdated };
 }
 
-export function WorkProductAssistant({ product, chatId, onChatIdChange, expanded = true, onClose,
-  synced = true, onBusyChange, onProductUpdated, onTurnComplete }: { product?: WorkProductContext;
-  chatId?: string; onChatIdChange(id: string): void;
-  expanded?: boolean; synced?: boolean; onClose(): void; onBusyChange?(busy: boolean): void;
-  onProductUpdated?(revision: number): void; onTurnComplete?(): void }) {
-  const assistant = useAssistantChat({ chatId, onChatIdChange, stayInPlace: true,
-    projectId: product?.projectId ?? undefined,
-    workProduct: product && { kind: product.kind, id: product.id, revision: product.revision } });
-  const notifiedRevision = useRef(0);
-  const busy = assistant.state.run !== null;
-  useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); },
-    [busy, onBusyChange]);
-  useEffect(() => { notifiedRevision.current = product?.revision ?? 0; }, [product?.id, product?.revision]);
-  const revisions = assistant.state.messages.flatMap((message) => message.role === "assistant"
-    ? message.workflowRuns.flatMap((run) => product && run.status === "complete" &&
-      run.work_product?.id === product.id && run.work_product.kind === product.kind
-      ? [run.work_product.revision] : []) : []);
-  const latestRevision = Math.max(0, ...revisions);
+export function WorkProductAssistant(props: WorkProductAssistantProps) {
+  const expanded = props.expanded ?? true;
+  const [activated, setActivated] = useState(expanded);
   useEffect(() => {
-    if (latestRevision <= notifiedRevision.current) return;
-    notifiedRevision.current = latestRevision;
-    onProductUpdated?.(latestRevision);
-  }, [latestRevision, onProductUpdated]);
-  const handleChat: typeof assistant.actions.handleChat = async (...args) => {
-    const result = await assistant.actions.handleChat(...args);
-    onTurnComplete?.();
-    return result;
-  };
-  return <AssistantDock tabs={[{ id: "assistant", label: "Assistant",
-    icon: <MessageCircle aria-hidden className="size-4" />, content:
-      <ChatView chatId={assistant.state.chatId} session={assistant.state}
-        handleChat={handleChat} cancel={assistant.actions.cancel}
-        sendDisabled={!synced}
-        onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
-        onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
-        layout="panel" features={{ contextTools: false, dock: false }} /> }]}
-    activeTabId="assistant" onActivateTab={() => {}} expanded={expanded}
-    showCollapsedButton={false}
-    onExpandedChange={(nextExpanded) => { if (!nextExpanded) onClose(); }} />;
+    const preload = () => void loadPanel().catch(() => { panelPromise = undefined; });
+    if (window.requestIdleCallback) {
+      const request = window.requestIdleCallback(preload, { timeout: 1_000 });
+      return () => window.cancelIdleCallback?.(request);
+    }
+    const timeout = window.setTimeout(preload, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+  useEffect(() => { if (expanded) setActivated(true); }, [expanded]);
+  if (!activated && !expanded) return null;
+  return <Suspense fallback={expanded ? <DockLoadingShell /> : null}>
+    <AssistantPanel {...props} expanded={expanded} />
+  </Suspense>;
+}
+
+function DockLoadingShell() {
+  return <aside aria-label="Assistant dock" aria-busy="true"
+    style={{ "--assistant-dock-width": "480px" } as CSSProperties}
+    className="absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),50%)] xl:rounded-2xl" />;
 }
 
 export function WorkProductAssistantButton({ available, expanded, onClick }: {

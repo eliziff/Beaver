@@ -87,6 +87,7 @@ export type WorkProductResolution<State = unknown> = {
 
 export interface WorkProductStore {
   list<State>(kind: WorkProductKind, projectId?: string): Promise<WorkProduct<State>[]>;
+  listMetadata?(kind: WorkProductKind, projectId?: string): Promise<WorkProductMetadata[]>;
   get<State>(id: string): Promise<WorkProduct<State>>;
   create<State>(input: WorkProductCreate<State>): Promise<WorkProduct<State>>;
   update<State>(id: string, patch: WorkProductPatch<State>): Promise<WorkProduct<State>>;

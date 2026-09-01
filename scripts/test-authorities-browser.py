@@ -6,763 +6,654 @@ import hashlib
 import json
 import tempfile
 import time
-import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import fitz
 from docx import Document
 from selenium import webdriver
+from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.wait import WebDriverWait
 
 
-CITATIONS = ("2099 ABKB 998", "2099 ABKB 999")
-CANLII_PDF = (
-    "https://www.canlii.org/en/ab/abkb/doc/2099/"
-    "2099abkb998/2099abkb998.pdf"
-)
-WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-CHROME = next(
-    (
-        path
-        for path in (
-            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-        )
-        if path.is_file()
-    ),
-    None,
-)
-CHROMEDRIVER = next(
-    iter(
-        sorted(
-            Path.home().parent.glob(
-                r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"
-            ),
-            reverse=True,
-        )
-    ),
-    None,
-)
+REAL_CITATIONS = ("2009 SCC 32", "2016 SCC 27")
+CHROME = next((path for path in (
+    Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+) if path.is_file()), None)
+CHROMEDRIVER = next(iter(sorted(Path.home().parent.glob(
+    r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"), reverse=True)), None)
 
 
-def sha256(path: Path) -> str:
+def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def make_fixtures(directory: Path) -> tuple[Path, Path]:
-    source = directory / "authorities-smoke.docx"
-    document = Document()
-    document.add_heading("Written argument", level=1)
-    document.add_paragraph(
-        f"Synthetic Applicant v Synthetic Respondent, {CITATIONS[0]}."
-    )
-    document.add_paragraph(
-        f"Synthetic Appellant v Synthetic Respondent, {CITATIONS[1]}."
-    )
-    document.save(source)
-
-    authority = directory / "manually-downloaded-authority.pdf"
+def pdf_fixture(path: Path, title: str, detail: str) -> Path:
     pdf = fitz.open()
     page = pdf.new_page(width=612, height=792)
-    page.insert_text((72, 96), "Attached authority proof", fontsize=16)
-    page.insert_textbox(
-        fitz.Rect(72, 130, 540, 700),
-        "A valid one-page PDF supplied by the user through the CanLII handoff.",
-        fontsize=12,
-    )
-    pdf.set_metadata({"title": "Attached authority proof"})
-    pdf.save(authority)
+    page.insert_text((72, 86), title, fontsize=18)
+    page.insert_textbox(fitz.Rect(72, 125, 540, 700), detail, fontsize=11)
+    pdf.set_metadata({"title": title, "subject": detail})
+    pdf.save(path)
     pdf.close()
-    return source, authority
+    return path
 
 
-def browser(profile: Path, headed: bool) -> webdriver.Chrome:
+def fixtures(directory: Path) -> tuple[Path, list[Path], dict[str, Path]]:
+    source = directory / "real-authorities-smoke.docx"
+    document = Document()
+    document.add_heading("Written argument", level=1)
+    document.add_paragraph("The governing framework is stated in R v Grant, 2009 SCC 32 at para 29.")
+    document.add_paragraph("The proportionality analysis originates in R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC).")
+    document.add_paragraph("Delay is addressed in R v Jordan, 2016 SCC 27 at para 47.")
+    document.save(source)
+    pdfs = []
+    for filename, title, citation in (
+        ("R v Grant.pdf", "R v Grant", "2009 SCC 32\n\n[29] The governing framework is stated here."),
+        ("R v Oakes.pdf", "R v Oakes", "[1986] 1 SCR 103"),
+        ("R v Jordan.pdf", "R v Jordan", "2016 SCC 27"),
+    ):
+        pdfs.append(pdf_fixture(directory / filename, title,
+            f"{citation}\n\nValid local source PDF used by the Authorities production smoke."))
+    parts = {name: pdf_fixture(directory / filename, title, detail)
+        for name, filename, title, detail in (
+            ("cover", "custom-cover.pdf", "Custom Filing Cover", "Filed for the browser smoke."),
+            ("index", "custom-index.pdf", "Custom Filing Index", "Custom index supplied by counsel."),
+            ("alpha", "supplement-alpha.pdf", "Supplement Alpha", "First supplemental document."),
+            ("beta", "supplement-beta.pdf", "Supplement Beta", "Second supplemental document."),
+        )}
+    return source, pdfs, parts
+
+
+def chrome(profile: Path, headed: bool) -> webdriver.Chrome:
     if not CHROME:
-        raise RuntimeError("Google Chrome is required for the live smoke.")
+        raise RuntimeError("Google Chrome is required.")
     options = webdriver.ChromeOptions()
     options.binary_location = str(CHROME)
     if not headed:
         options.add_argument("--headless=new")
-    for flag in (
-        "--disable-gpu",
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-crash-reporter",
-        "--no-first-run",
-    ):
+    for flag in ("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
+                 "--disable-crash-reporter", "--no-first-run"):
         options.add_argument(flag)
     options.add_argument(f"--user-data-dir={profile}")
-    options.add_experimental_option(
-        "prefs",
-        {
-            "download.prompt_for_download": False,
-            "plugins.always_open_pdf_externally": True,
-        },
-    )
-    options.set_capability(
-        "goog:loggingPrefs", {"browser": "ALL", "performance": "ALL"}
-    )
-    driver = webdriver.Chrome(
-        options=options,
-        service=Service(str(CHROMEDRIVER)) if CHROMEDRIVER else None,
-    )
+    options.set_capability("goog:loggingPrefs", {"browser": "ALL", "performance": "ALL"})
+    driver = webdriver.Chrome(options=options,
+        service=Service(str(CHROMEDRIVER)) if CHROMEDRIVER else None)
     driver.execute_cdp_cmd("Network.enable", {})
     driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled": True})
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-Object.defineProperty(window,'showOpenFilePicker',{value:undefined});
-window.__beaverLongTasks=[];
-try { window.__beaverLongTaskObserver=new PerformanceObserver(list =>
-  window.__beaverLongTasks.push(...list.getEntries().map(({name,startTime,duration}) =>
-    ({name,startTime,duration}))));
-  window.__beaverLongTaskObserver.observe({type:'longtask',buffered:true}); } catch {}
-""",
-    })
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": r"""
+window.__authoritiesSmoke={cls:0,shifts:[],longTasks:[],canliiClicks:[],fakeCanlii:null,
+  errors:[],builds:0,lastBuild:null,lastPrepared:null};
+try { new PerformanceObserver(list => list.getEntries().forEach(e => {
+  if (!e.hadRecentInput) { window.__authoritiesSmoke.cls += e.value;
+    window.__authoritiesSmoke.shifts.push({value:e.value,time:e.startTime}); }
+})).observe({type:'layout-shift',buffered:true}); } catch {}
+try { new PerformanceObserver(list => list.getEntries().forEach(e =>
+  window.__authoritiesSmoke.longTasks.push({duration:e.duration,time:e.startTime})
+)).observe({type:'longtask',buffered:true}); } catch {}
+try { Object.defineProperty(window,'showOpenFilePicker',{configurable:true,value:undefined}); } catch {}
+try { Object.defineProperty(window,'showDirectoryPicker',{configurable:true,value:async()=>{let scans=0;return ({
+  requestPermission:async()=> 'granted',
+  async *values() {
+    const item=window.__authoritiesSmoke.fakeCanlii;
+    if (!item || scans++ === 0) return;
+    yield {kind:'file',name:item.name,getFile:async()=>new File([
+      Uint8Array.from(atob(item.base64),character=>character.charCodeAt(0))
+    ],item.name,{type:'application/pdf',lastModified:item.lastModified||1700000000000})};
+  }
+})}}); } catch {}
+const nativeOpen=window.open;
+window.open=(url,target,features)=>url==='about:blank'
+  ? {opener:null,location:{replace:value=>window.__authoritiesSmoke.canliiClicks.push(value)},close(){}}
+  : nativeOpen.call(window,url,target,features);
+addEventListener('click',event=>{
+  const link=event.target.closest?.('a[href*="canlii.org"]');
+  if (link) event.preventDefault();
+},true);
+const nativeFetch=window.fetch;
+window.fetch=async(...args)=>{
+  const body=args[1]?.body,target=typeof args[0]==='string' ? args[0] : args[0]?.url||'';
+  if (target.includes('/authorities-runtime/build') && body instanceof FormData) {
+    const draft=JSON.parse(body.get('draft'));
+    window.__authoritiesSmoke.lastBuild={importKind:draft.import.kind,settings:draft.settings,
+      sources:draft.authorityOrder.map(id=>draft.authorities[id].source.kind),
+      sourceOrigins:draft.authorityOrder.map(id=>draft.authorities[id].source.origin||null),
+      bookParts:draft.bookParts,roles:JSON.parse(body.get('roles')),
+      files:body.getAll('files').map(file=>({name:file.name,size:file.size,type:file.type}))};
+  }
+  const response=await nativeFetch(...args);
+  if (response.ok && /\/api\/authorities\/[^/]+\/sources$/.test(response.url)) {
+    const product=await response.clone().json(),draft=product.state;
+    window.__authoritiesSmoke.lastPrepared={settings:draft.settings,
+      sources:draft.authorityOrder.map(id=>draft.authorities[id].source.kind),
+      sourceOrigins:draft.authorityOrder.map(id=>draft.authorities[id].source.origin||null)};
+  }
+  if (!response.ok) window.__authoritiesSmoke.errors.push({url:response.url,
+    status:response.status,body:await response.clone().text()});
+  if (response.url.includes('/authorities-runtime/build') ||
+      /\/authorities\/[^/]+\/build$/.test(response.url)) window.__authoritiesSmoke.builds++;
+  return response;
+};
+const nativeClick=HTMLInputElement.prototype.click;
+HTMLInputElement.prototype.click=function() {
+  if (this.type==='file' && !this.isConnected) {
+    this.dataset.authoritiesSmokePicker='true';
+    Object.assign(this.style,{position:'fixed',left:'-9999px',top:'0'});
+    document.documentElement.append(this);
+    this.addEventListener('change',()=>setTimeout(()=>this.remove()),{once:true});
+    return;
+  }
+  return nativeClick.call(this);
+};
+"""})
     return driver
 
 
-def performance_events(driver: webdriver.Chrome) -> list[dict[str, object]]:
-    events: list[dict[str, object]] = []
-    for record in driver.get_log("performance"):
-        try:
-            events.append(json.loads(record["message"])["message"])
-        except (KeyError, TypeError, json.JSONDecodeError):
-            continue
-    return events
+def wait(driver: webdriver.Chrome, seconds: int = 60) -> WebDriverWait:
+    return WebDriverWait(driver, seconds)
 
 
-def request_urls(events: list[dict[str, object]]) -> list[str]:
-    return [
-        str(event.get("params", {}).get("request", {}).get("url", ""))
-        for event in events
-        if event.get("method") == "Network.requestWillBeSent"
-    ]
+def idle(driver: webdriver.Chrome) -> None:
+    wait(driver, 120).until(lambda item: not item.find_elements(By.CSS_SELECTOR, "[class*='animate-spin']"))
 
 
-def navigation_timing(driver: webdriver.Chrome) -> dict[str, object]:
-    timing = driver.execute_script("""
-const n=performance.getEntriesByType('navigation')[0];
-return n&&{type:n.type,duration:n.duration,responseStart:n.responseStart,
-  domContentLoaded:n.domContentLoadedEventEnd,load:n.loadEventEnd,
-  transferSize:n.transferSize,decodedBodySize:n.decodedBodySize,
-  resources:performance.getEntriesByType('resource').map(r=>({name:r.name,
-    transferSize:r.transferSize,duration:r.duration})).sort((a,b)=>b.duration-a.duration).slice(0,8),
-  longTaskCount:(window.__beaverLongTasks||[]).length,
-  longTasks:(window.__beaverLongTasks||[]).sort((a,b)=>b.duration-a.duration).slice(0,5)};
-""")
-    assert timing and timing["duration"] > 0, timing
-    return timing
+def tab(driver: webdriver.Chrome, name: str):
+    return driver.find_element(By.XPATH,
+        f"//*[@role='tablist' and @aria-label='Authorities sections']//*[@role='tab' and normalize-space(.)='{name}']")
 
 
-def build_response(
-    driver: webdriver.Chrome, events: list[dict[str, object]]
-) -> dict[str, object]:
-    for event in reversed(events):
-        if event.get("method") != "Network.responseReceived":
-            continue
-        params = event.get("params", {})
-        response = params.get("response", {})
-        path = urlparse(str(response.get("url", ""))).path.rstrip("/")
-        if not path.endswith("/build") or "/authorities/" not in path:
-            continue
-        assert response.get("status") == 200, response
-        payload = driver.execute_cdp_cmd(
-            "Network.getResponseBody", {"requestId": params["requestId"]}
-        )
-        body = payload["body"]
-        if payload.get("base64Encoded"):
-            body = base64.b64decode(body).decode("utf-8")
-        return json.loads(body)
-    raise AssertionError("The Authorities build response was not captured.")
+def click_button(driver: webdriver.Chrome, name: str, root=None):
+    owner = root or driver
+    return owner.find_element(By.XPATH, f".//button[normalize-space(.)='{name}']").click()
 
 
-def start_new(driver: webdriver.Chrome) -> None:
-    if driver.find_elements(
-        By.XPATH, "//h2[normalize-space()='Start with a document']"
-    ):
-        return
-    menu = driver.find_element(By.CSS_SELECTOR, "[data-draft-menu]")
-    menu.find_element(By.TAG_NAME, "summary").click()
-    WebDriverWait(driver, 5).until(
-        lambda item: item.find_element(
-            By.XPATH, "//*[@data-draft-menu]//button[normalize-space()='New']"
-        )
-    ).click()
-    WebDriverWait(driver, 5).until(
-        lambda item: item.find_elements(
-            By.XPATH, "//h2[normalize-space()='Start with a document']"
-        )
-    )
+def choose(driver: webdriver.Chrome, label: str, option: str, root=None) -> None:
+    owner = root or driver
+    field = owner.find_element(By.XPATH,
+        f".//label[.//select and starts-with(normalize-space(.), '{label}')]/select")
+    Select(field).select_by_visible_text(option)
 
 
-def authority_row(driver: webdriver.Chrome, citation: str):
-    return driver.find_element(
-        By.XPATH, f"//article[contains(normalize-space(.), '{citation}')]"
-    )
+def upload(driver: webdriver.Chrome, label: str, paths: list[Path], root=None) -> None:
+    owner = root or driver
+    inputs = owner.find_elements(By.XPATH,
+        f".//label[normalize-space(.)='{label}']/input[@type='file']")
+    if inputs:
+        picker = inputs[0]
+    else:
+        click_button(driver, label, owner)
+        picker = wait(driver, 5).until(lambda item: item.find_element(
+            By.CSS_SELECTOR, "input[type='file'][data-authorities-smoke-picker]"))
+    picker.send_keys("\n".join(str(path.resolve()) for path in paths))
 
 
-def wait_for_authorities(driver: webdriver.Chrome) -> None:
-    WebDriverWait(driver, 90).until(
-        lambda item: all(
-            item.find_elements(
-                By.XPATH, f"//article[contains(normalize-space(.), '{citation}')]"
-            )
-            for citation in CITATIONS
-        )
-    )
+def fixture_proof(source: Path, pdfs: list[Path], parts: dict[str, Path]) -> dict[str, object]:
+    text = "\n".join(paragraph.text for paragraph in Document(source).paragraphs)
+    assert all(citation in text for citation in REAL_CITATIONS)
+    files = [*pdfs, *parts.values()]
+    for path in files:
+        with fitz.open(path) as pdf:
+            assert pdf.is_pdf and not pdf.is_encrypted and pdf.page_count == 1 and pdf[0].get_text().strip()
+    return {"source": source.name, "pdfs": [path.name for path in files]}
 
 
-def review_citations(driver: webdriver.Chrome) -> None:
-    for citation in CITATIONS:
-        citations = driver.find_element(By.CSS_SELECTOR, "[aria-label='Detected citations']")
-        next(
-            button
-            for button in citations.find_elements(By.TAG_NAME, "button")
-            if citation in button.text
-        ).click()
-        reviewed = driver.find_element(
-            By.XPATH, "//label[contains(normalize-space(.), 'Reviewed')]/input"
-        )
-        if not reviewed.is_selected():
-            reviewed.find_element(By.XPATH, "parent::label").click()
-        WebDriverWait(driver, 30).until(
-            lambda item: item.find_element(
-                By.XPATH, "//label[contains(normalize-space(.), 'Reviewed')]/input"
-            ).is_selected()
-        )
+def book_contents(driver: webdriver.Chrome):
+    heading = driver.find_element(By.XPATH, "//h3[normalize-space(.)='Book contents']")
+    return heading.find_element(By.XPATH, "ancestor::div[contains(@class,'border-t')][1]")
 
 
-def add_menu_probe(driver: webdriver.Chrome) -> str:
-    citation = "2099 ABCA 997"
-    driver.find_element(By.XPATH, "//summary[normalize-space()='Add authority']").click()
-    driver.find_element(By.CSS_SELECTOR, "input[aria-label='Citation']").send_keys(citation)
-    driver.find_element(By.XPATH, "//button[normalize-space()='Add']").click()
-    WebDriverWait(driver, 30).until(lambda item: authority_row(item, citation))
-    return citation
+def book_part(driver: webdriver.Chrome, name: str):
+    return book_contents(driver).find_element(By.XPATH,
+        f".//span[normalize-space(.)='{name}']/parent::div")
 
 
-def menu_keyboard_contract(
-    driver: webdriver.Chrome, citation: str, output: Path
-) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for width, height in ((1440, 1000), (320, 800)):
-        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
-            "width": width, "height": height, "deviceScaleFactor": 1, "mobile": False,
-        })
-        trigger = authority_row(driver, citation).find_element(
-            By.CSS_SELECTOR, "button[aria-haspopup='menu']"
-        )
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});arguments[0].focus()", trigger)
-        trigger.send_keys(Keys.ENTER)
-        menu = WebDriverWait(driver, 5).until(
-            lambda item: item.find_element(By.CSS_SELECTOR, "[role='menu']")
-        )
-        items = [item.text.strip() for item in menu.find_elements(By.CSS_SELECTOR, "[role='menuitem']")]
-        assert items == ["Move up", "Edit label", "Remove"], items
-        assert driver.switch_to.active_element.text.strip() == items[0]
-        driver.switch_to.active_element.send_keys(Keys.ARROW_DOWN)
-        assert driver.switch_to.active_element.text.strip() == items[1]
-        driver.switch_to.active_element.send_keys(Keys.HOME)
-        assert driver.switch_to.active_element.text.strip() == items[0]
-        metrics = driver.execute_script("""
-const t=arguments[0],m=arguments[1],r=t.getBoundingClientRect(),q=m.getBoundingClientRect(),s=getComputedStyle(t);
-return {expanded:t.getAttribute('aria-expanded'),triggerWidth:r.width,triggerHeight:r.height,
-  menuLeft:q.left,menuRight:q.right,overflow:document.documentElement.scrollWidth-innerWidth,
-  outline:s.outlineWidth,shadow:s.boxShadow};
-""", trigger, menu)
-        assert metrics["expanded"] == "true" and metrics["overflow"] <= 1, metrics
-        assert metrics["menuLeft"] >= 0 and metrics["menuRight"] <= width, metrics
-        assert metrics["triggerWidth"] >= 24 and metrics["triggerHeight"] >= 24, metrics
-        assert driver.save_screenshot(str(output / f"authorities-menu-{width}.png"))
-        driver.switch_to.active_element.send_keys(Keys.ESCAPE)
-        WebDriverWait(driver, 5).until(lambda item: not item.find_elements(By.CSS_SELECTOR, "[role='menu']"))
-        assert driver.switch_to.active_element == trigger
-        result[str(width)] = metrics
-    driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
-    driver.set_window_size(1440, 1000)
-    trigger = authority_row(driver, citation).find_element(By.CSS_SELECTOR, "button[aria-haspopup='menu']")
-    trigger.send_keys(Keys.ENTER)
-    WebDriverWait(driver, 5).until(lambda item: item.find_element(By.CSS_SELECTOR, "[role='menu']"))
-    driver.switch_to.active_element.send_keys(Keys.END, Keys.ENTER)
-    WebDriverWait(driver, 30).until(
-        lambda item: not item.find_elements(By.XPATH, f"//article[contains(normalize-space(.), '{citation}')]")
-    )
+def supplement_rows(driver: webdriver.Chrome):
+    return book_contents(driver).find_elements(By.XPATH,
+        ".//label[.//span[normalize-space(.)='Document title']]/parent::div")
+
+
+def supplement_title(row) -> str:
+    return row.find_element(By.XPATH,
+        ".//label[.//span[normalize-space(.)='Document title']]/input").get_attribute("value")
+
+
+def replace_input(field, value: str) -> None:
+    field.click(); field.send_keys(Keys.CONTROL, "a", Keys.NULL, value, Keys.TAB)
+
+
+def edit_supplement(driver: webdriver.Chrome, old: str, title: str, tab_label: str) -> None:
+    row = next(row for row in supplement_rows(driver) if supplement_title(row) == old)
+    field = row.find_element(By.XPATH,
+        ".//label[.//span[normalize-space(.)='Document title']]/input")
+    replace_input(field, title); idle(driver)
+    row = next(row for row in supplement_rows(driver) if supplement_title(row) == title)
+    field = row.find_element(By.XPATH,
+        ".//label[.//span[normalize-space(.)='Tab label']]/input")
+    replace_input(field, tab_label); idle(driver)
+
+
+def select_text(driver: webdriver.Chrome, surface, needle: str) -> None:
+    found = driver.execute_script(r"""
+const root=arguments[0],needle=arguments[1],walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+let nodes=[],text='',node; while(node=walker.nextNode()){nodes.push([node,text.length]);text+=node.data;}
+const start=text.indexOf(needle); if(start<0)return false; const end=start+needle.length,range=document.createRange();
+const a=nodes.findLast(([,offset])=>offset<=start),b=nodes.findLast(([,offset])=>offset<end);
+range.setStart(a[0],start-a[1]); range.setEnd(b[0],end-b[1]);
+const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+root.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));return true;
+""", surface, needle)
+    assert found, surface.text
+
+
+def automatic_review(driver: webdriver.Chrome, source: Path, output: Path) -> dict[str, object]:
+    upload(driver, "Add file", [source])
+    setup = wait(driver, 5).until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "dialog[open]"))
+    click_button(driver, "Import and review", setup)
+    citations = wait(driver, 120).until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "[role='listbox'][aria-label='Citations']"))
+    options = citations.find_elements(By.CSS_SELECTOR, "[role='option']")
+    labels = [option.text for option in options]
+    assert all(any(citation in label for label in labels) for citation in REAL_CITATIONS), labels
+    next(option for option in options if REAL_CITATIONS[0] in option.text).click()
+    surface = wait(driver).until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "[role='textbox'][aria-label$='citation context']"))
+    assert surface.get_attribute("aria-label") in {"In-text citation context", "Footnote context"}
+    kind_labels = [span.text for span in driver.find_elements(By.TAG_NAME, "span")
+                   if span.text.startswith(("In-text citation ", "Footnote "))]
+    assert kind_labels, driver.find_element(By.TAG_NAME, "body").text
+    select_text(driver, surface, REAL_CITATIONS[0])
+    correction = driver.find_element(By.XPATH, "//button[normalize-space(.)='Use selection as authority']")
+    wait(driver, 5).until(lambda _item: correction.is_enabled())
+    correction.click()
+    idle(driver)
+    choose(driver, "Create", "Book and Table")
+    driver.find_element(By.XPATH, "//summary[normalize-space(.)='Options']").click()
+    choose(driver, "Missing sources", "Leave out of book"); idle(driver)
+    choose(driver, "Missing sources", "Add labelled pages"); idle(driver)
+    build(driver)
+    built_sources = driver.execute_script(
+        "return window.__authoritiesSmoke.lastBuild||window.__authoritiesSmoke.lastPrepared")
+    assert built_sources["settings"]["sourceMode"] == "automatic", built_sources
+    assert built_sources["settings"]["missingSourcePolicy"] == "placeholder", built_sources
+    assert "attached" in built_sources["sources"], built_sources
+    assert any(origin in ("original", "reconstructed")
+               for origin in built_sources["sourceOrigins"]), built_sources
+    files = downloads(driver, output / "automatic")
+    table_file = next(path for path in files if path.suffix.lower() == ".docx")
+    book_file = next(path for path in files if path.suffix.lower() == ".pdf")
+    assert driver.save_screenshot(str(output / "automatic-desktop.png"))
+    book = inspect_book(book_file, output / "automatic-first-page.png")
+    with fitz.open(book_file) as built:
+        marked = next(page for page in built if "[29]" in page.get_text())
+        target = marked.search_for("[29]")[0]
+        bars = [drawing["rect"] for drawing in marked.get_drawings()
+                if 2 < drawing["rect"].height < 100]
+        assert any(bar.y0 <= target.y1 and bar.y1 >= target.y0 for bar in bars), \
+            "The cited paragraph did not receive a bounded margin mark."
+    return {"labels": kind_labels, "citations": labels, "table": inspect_table(table_file),
+            "placeholderBook": book, "markedParagraph": 29,
+            "sourceOrigins": built_sources["sourceOrigins"]}
+
+
+def build(driver: webdriver.Chrome) -> None:
+    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Build']")
+    wait(driver, 30).until(lambda _item: control.is_enabled())
+    completed = driver.execute_script("return window.__authoritiesSmoke.builds")
+    failures = len(driver.execute_script("return window.__authoritiesSmoke.errors"))
+    control.click()
+    wait(driver, 120).until(lambda _item: driver.execute_script(
+        "return window.__authoritiesSmoke.builds") > completed)
+    idle(driver)
+    errors = driver.execute_script("return window.__authoritiesSmoke.errors")
+    assert len(errors) == failures, {"errors": errors[failures:],
+        "request": driver.execute_script("return window.__authoritiesSmoke.lastBuild")}
+    assert driver.find_elements(By.CSS_SELECTOR, "button[aria-label^='Download ']"), [
+        [status.text for status in driver.find_elements(By.CSS_SELECTOR, "[role='status']") if status.text],
+        driver.execute_script("return window.__authoritiesSmoke.errors")]
+
+
+def downloads(driver: webdriver.Chrome, directory: Path) -> list[Path]:
+    directory.mkdir(parents=True, exist_ok=True)
+    driver.execute_cdp_cmd("Page.setDownloadBehavior",
+                           {"behavior": "allow", "downloadPath": str(directory.resolve())})
+    result = []
+    for control in driver.find_elements(By.CSS_SELECTOR, "button[aria-label^='Download ']"):
+        filename = control.get_attribute("aria-label").removeprefix("Download ")
+        target = directory / filename
+        control.click()
+        wait(driver, 60).until(lambda _item: target.is_file() and target.stat().st_size > 0
+            and not list(directory.glob("*.crdownload")))
+        result.append(target)
+    assert result, "No built files were offered for download."
     return result
 
 
-def standalone_state(driver: webdriver.Chrome) -> dict[str, object]:
-    state = driver.execute_async_script("""
-const done=arguments[arguments.length-1],id=new URL(location.href).searchParams.get('draft'),
-  open=indexedDB.open('beaver-work-products');
-open.onerror=()=>done({error:open.error?.message||'open failed'});
-open.onsuccess=()=>{const get=open.result.transaction('drafts').objectStore('drafts').get(id);
-  get.onerror=()=>done({error:get.error?.message||'read failed'});
-  get.onsuccess=()=>done(get.result?{outputs:get.result.outputs,
-    insertIntoDocument:get.result.state.insertIntoDocument}:{error:'draft missing'});};
-""")
-    assert state and not state.get("error"), state
-    return state
+def manual_book(driver: webdriver.Chrome, pdfs: list[Path], parts: dict[str, Path],
+                output: Path) -> dict[str, object]:
+    tab(driver, "Manual").click()
+    title = driver.find_element(By.XPATH, "//label[starts-with(normalize-space(.), 'Book title')]/input")
+    title.clear()
+    title.send_keys("Authorities Smoke Book")
+    upload(driver, "Add PDFs", pdfs[:2])
+    wait(driver, 120).until(lambda item: len(item.find_elements(By.TAG_NAME, "article")) == 2)
+    draft_id = parse_qs(urlparse(driver.current_url).query)["draft"][0]
+    rows = driver.find_elements(By.TAG_NAME, "article")
+    for index, value in enumerate(("A", "B")):
+        field = driver.find_elements(By.CSS_SELECTOR, "input[aria-label^='Tab for ']")[index]
+        replace_input(field, value)
+        idle(driver)
+    tabs = [field.get_attribute("value") for field in driver.find_elements(
+        By.CSS_SELECTOR, "input[aria-label^='Tab for '")]
+    assert tabs == ["A", "B"], tabs
+    first_title, second_title = (row.find_element(By.TAG_NAME, "h3").text for row in rows)
+    handle = rows[0].find_element(By.CSS_SELECTOR, "button[aria-keyshortcuts]")
+    handle.click()
+    ActionChains(driver).key_down(Keys.ALT).send_keys(Keys.ARROW_DOWN).key_up(Keys.ALT).perform()
+    wait(driver).until(lambda item: item.find_elements(By.TAG_NAME, "article")[0]
+                       .find_element(By.TAG_NAME, "h3").text == second_title)
+    assert driver.find_elements(By.TAG_NAME, "article")[1].find_element(By.TAG_NAME, "h3").text == first_title
 
+    assert all("Generated" in book_part(driver, name).text for name in ("Cover", "Index"))
+    upload(driver, "Add file", [parts["cover"]], book_part(driver, "Cover")); idle(driver)
+    wait(driver).until(lambda _item: parts["cover"].name in book_part(driver, "Cover").text)
+    upload(driver, "Add file", [parts["index"]], book_part(driver, "Index")); idle(driver)
+    wait(driver).until(lambda _item: parts["index"].name in book_part(driver, "Index").text)
+    upload(driver, "Add files", [parts["alpha"], parts["beta"]], book_contents(driver))
+    wait(driver, 120).until(lambda _item: len(supplement_rows(driver)) == 2); idle(driver)
+    edit_supplement(driver, "supplement-alpha", "Appendix Alpha", "S1")
+    edit_supplement(driver, "supplement-beta", "Appendix Beta", "S2")
+    assert [supplement_title(row) for row in supplement_rows(driver)] == ["Appendix Alpha", "Appendix Beta"]
+    move = supplement_rows(driver)[0].find_element(By.CSS_SELECTOR, "button[aria-label^='Move ']")
+    move.click()
+    ActionChains(driver).key_down(Keys.ALT).send_keys(Keys.ARROW_DOWN).key_up(Keys.ALT).perform()
+    wait(driver).until(lambda _item: [supplement_title(row) for row in supplement_rows(driver)] ==
+                       ["Appendix Beta", "Appendix Alpha"])
+    idle(driver)
 
-def canlii_handoff(driver: webdriver.Chrome) -> str:
-    row = authority_row(driver, CITATIONS[0])
-    links = row.find_elements(By.LINK_TEXT, "Download from CanLII")
-    if not links:
-        row.find_element(By.XPATH, ".//button[normalize-space()='Get CanLII PDF']").click()
-        links = WebDriverWait(driver, 30).until(
-            lambda item: authority_row(item, CITATIONS[0]).find_elements(
-                By.LINK_TEXT, "Download from CanLII"
-            )
-        )
-    href = links[0].get_attribute("href")
-    assert href == CANLII_PDF, href
-    return href
+    click_button(driver, "Add authority without a PDF")
+    dialog = wait(driver, 5).until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
+    choose(driver, "Type", "Case", dialog)
+    citation = dialog.find_element(By.XPATH,
+        ".//label[starts-with(normalize-space(.), 'Citation')]/input")
+    citation.send_keys("R v Jordan, 2016 SCC 27")
+    click_button(driver, "Add", dialog)
+    wait(driver, 120).until(lambda item: len(item.find_elements(By.TAG_NAME, "article")) == 3)
+    jordan = next(row for row in driver.find_elements(By.TAG_NAME, "article")
+                  if "2016 SCC 27" in row.text)
+    handoffs = jordan.find_elements(By.LINK_TEXT, "Download from CanLII")
+    assert len(handoffs) == 1 and urlparse(handoffs[0].get_attribute("href")).hostname == "www.canlii.org"
+    assert handoffs[0].get_attribute("href").endswith(".pdf")
+    handoff = handoffs[0].get_attribute("href")
+    assert jordan.find_element(By.XPATH,
+        ".//*[self::button or self::label][normalize-space(.)='Add PDF']").is_displayed()
+    click_button(driver, "Connect downloads folder")
+    wait(driver, 5).until(lambda item: item.find_element(By.XPATH,
+        "//button[normalize-space(.)='Change downloads folder']").get_attribute("aria-pressed") == "true")
+    expected = Path(urlparse(handoff).path).name
+    driver.execute_script("window.__authoritiesSmoke.fakeCanlii=arguments[0]", {
+        "name": expected, "base64": base64.b64encode(pdfs[2].read_bytes()).decode("ascii")})
+    page_url, handles = driver.current_url, len(driver.window_handles)
+    jordan = next(row for row in driver.find_elements(By.TAG_NAME, "article")
+                  if "2016 SCC 27" in row.text)
+    jordan.find_element(By.LINK_TEXT, "Download from CanLII").click()
+    wait(driver, 120).until(lambda _item: any(expected in row.text for row in
+        driver.find_elements(By.TAG_NAME, "article") if "2016 SCC 27" in row.text))
+    idle(driver)
+    assert driver.current_url == page_url and len(driver.window_handles) == handles
+    assert driver.execute_script("return window.__authoritiesSmoke.canliiClicks") == [handoff]
+    assert not driver.find_elements(By.CSS_SELECTOR, "a[href*='canlii.org']")
 
+    build(driver)
+    first = next(path for path in downloads(driver, output / "manual-first")
+                 if path.suffix.lower() == ".pdf")
+    custom_text = ("Custom Filing Cover", "Custom Filing Index", "Supplement Alpha", "Supplement Beta")
+    first_proof = inspect_book(first, output / "manual-first-page.png",
+        required_text=custom_text, required_outline=("Authorities Smoke Book", "Table of Contents"),
+        minimum_links=0)
+    tab(driver, "Automatic").click()
+    tab(driver, "Drafts").click()
+    saved = wait(driver).until(lambda item: [button for button in item.find_elements(By.TAG_NAME, "button")
+        if "Authorities Smoke Book" in button.text])
+    saved[0].click()
+    wait(driver).until(lambda item: parse_qs(urlparse(item.current_url).query).get("draft") == [draft_id])
 
-def select_mode(driver: webdriver.Chrome, value: str) -> None:
-    radio = driver.find_element(
-        By.CSS_SELECTOR, f"input[name='authorities-output'][value='{value}']"
-    )
-    radio.find_element(By.XPATH, "parent::label").click()
-    WebDriverWait(driver, 30).until(
-        lambda item: (
-            item.find_element(
-                By.CSS_SELECTOR,
-                f"input[name='authorities-output'][value='{value}']",
-            ).is_selected()
-            and item.find_element(
-                By.CSS_SELECTOR,
-                f"input[name='authorities-output'][value='{value}']",
-            ).is_enabled()
-        )
-    )
-
-
-def enable_word_copy_with_keyboard(driver: webdriver.Chrome) -> dict[str, object]:
-    both = driver.find_element(
-        By.CSS_SELECTOR, "input[name='authorities-output'][value='both']"
-    )
-    both.send_keys(Keys.TAB)
-    active = driver.switch_to.active_element
-    label = active.find_element(By.XPATH, "ancestor::label[1]")
-    assert "Create Word copy with table" in label.text, label.text
-    focus = driver.execute_script(
-        "const n=arguments[0],s=getComputedStyle(n),r=n.getBoundingClientRect();"
-        "return {tag:n.tagName,width:r.width,height:r.height,outline:s.outlineWidth,"
-        "shadow:s.boxShadow};",
-        label,
-    )
-    assert focus["outline"] != "0px" or focus["shadow"] != "none", focus
-    active.send_keys(Keys.SPACE)
-    WebDriverWait(driver, 30).until(
-        lambda item: item.find_element(
-            By.XPATH, "//label[contains(., 'Create Word copy with table')]/input"
-        ).is_selected()
-    )
-    return focus
-
-
-UI_CONTRACT = r"""
-const visible = (node) => {
-  const style = getComputedStyle(node), rect = node.getBoundingClientRect();
-  return (!node.checkVisibility || node.checkVisibility({
-    contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true
-  })) && style.display !== 'none' && style.visibility !== 'hidden' &&
-    rect.width > 1 && rect.height > 1 && !node.classList.contains('sr-only');
-};
-const name = (node) => node.getAttribute('aria-label') ||
-  (node.getAttribute('aria-labelledby') || '').split(/\s+/).map(
-    id => document.getElementById(id)?.textContent || '').join(' ').trim() ||
-  [...(node.labels || [])].map(label => label.textContent).join(' ').trim() ||
-  node.innerText?.trim() || node.textContent?.trim() || node.title;
-const controls = [...document.querySelectorAll(
-  "button,summary,select,input:not([type=file]),textarea,label:has(input[type=file]),a[href]"
-)].filter(visible);
-const ids = [...document.querySelectorAll('[id]')].map(node => node.id);
-const mojibake = document.body.innerText.match(/\u00e2[\u20ac\u2122\u0153\u201d\u201c]|\ufffd/iu);
-return {
-  width: innerWidth,
-  overflow: document.documentElement.scrollWidth - innerWidth,
-  h1: document.querySelectorAll('h1').length,
-  main: document.querySelectorAll('main').length,
-  duplicateIds: [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))],
-  mojibake: mojibake?.[0] || '',
-  unnamed: controls.filter(node => !name(node)).map(node => node.outerHTML.slice(0, 160)),
-  smallTargets: controls.filter(node => { const proxy=node.matches('input[type=checkbox],input[type=radio]')
-    ? node.closest('label') : node; const r=proxy.getBoundingClientRect(); return r.width<24||r.height<24; })
-    .map(node => `${node.tagName}:${name(node)}`),
-  smallFormText: [...document.querySelectorAll('input:not([type=file]):not([type=checkbox]):not([type=radio]),select,textarea')]
-    .filter(visible).filter(node => parseFloat(getComputedStyle(node).fontSize)<16)
-    .map(node => `${name(node)}:${getComputedStyle(node).fontSize}`),
-  wideNodes: [...document.querySelectorAll('body *')].filter(visible).filter(
-    node => node.getBoundingClientRect().right > innerWidth + 1
-  ).map(node => { const rect = node.getBoundingClientRect(); return {
-    tag: node.tagName, className: String(node.className), left: Math.round(rect.left),
-    right: Math.round(rect.right), width: Math.round(rect.width)
-  }; }).slice(0, 12),
-};
-"""
-
-
-def check_viewports(driver: webdriver.Chrome, output: Path) -> dict[str, object]:
-    results: dict[str, object] = {}
-    for name, width, height in (("desktop", 1440, 1000), ("320", 320, 800)):
-        driver.execute_cdp_cmd(
-            "Emulation.setDeviceMetricsOverride",
-            {
-                "width": width,
-                "height": height,
-                "deviceScaleFactor": 1,
-                "mobile": False,
-            },
-        )
-        driver.execute_script("scrollTo(0, 0)")
-        metrics = driver.execute_script(UI_CONTRACT)
-        assert metrics["overflow"] <= 1, metrics
-        assert not metrics["wideNodes"], metrics
-        assert metrics["h1"] == metrics["main"] == 1, metrics
-        assert not metrics["duplicateIds"], metrics
-        assert not metrics["mojibake"], metrics
-        assert not metrics["unnamed"], metrics
-        assert not metrics["smallTargets"], metrics
-        if width == 320:
-            assert not metrics["smallFormText"], metrics
-        assert driver.save_screenshot(str(output / f"authorities-{name}.png"))
-        results[name] = metrics
-    driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
-    driver.set_window_size(1440, 1000)
-    return results
-
-
-def download_outputs(driver: webdriver.Chrome, directory: Path) -> dict[str, Path]:
-    directory.mkdir(parents=True, exist_ok=True)
-    driver.execute_cdp_cmd(
-        "Page.setDownloadBehavior",
-        {"behavior": "allow", "downloadPath": str(directory.resolve())},
-    )
-    buttons: list[tuple[str, object]] = []
-    for button in driver.find_elements(
-        By.CSS_SELECTOR, "aside[aria-label='Build outputs'] button"
-    ):
-        names = [span.text.strip() for span in button.find_elements(By.TAG_NAME, "span")]
-        filename = next(
-            (name for name in names if name.lower().endswith((".pdf", ".docx"))),
-            "",
-        )
-        if filename:
-            buttons.append((filename, button))
-    assert len(buttons) == 3, [name for name, _ in buttons]
-    downloaded: dict[str, Path] = {}
-    for filename, button in buttons:
-        driver.execute_script("arguments[0].click()", button)
-        target = directory / filename
-        WebDriverWait(driver, 30).until(
-            lambda _item: target.is_file()
-            and not list(directory.glob("*.crdownload"))
-        )
-        downloaded[filename] = target
-    return downloaded
-
-
-def inspect_book(path: Path, preview: Path) -> dict[str, object]:
-    document = fitz.open(path)
-    try:
-        text = "\n".join(page.get_text() for page in document)
-        toc = document.get_toc()
-        links = [
-            link
-            for page in document
-            for link in page.get_links()
-            if int(link.get("page", -1)) >= 0
-        ]
-        page_mode = list(
-            document.xref_get_key(document.pdf_catalog(), "PageMode")
-        )
-        assert document.is_pdf and not document.is_encrypted
-        assert document.page_count == 3, document.page_count
-        assert all(
-            value in text
-            for value in (
-                "Book of Authorities",
-                "Table of Contents",
-                "Attached authority proof",
-                CITATIONS[0],
-            )
-        ), text
-        assert len(links) >= 1, links
-        assert {"Book of Authorities", "Table of Contents"}.issubset(
-            {row[1] for row in toc}
-        ), toc
-        assert any(CITATIONS[0] in row[1] for row in toc), toc
-        assert page_mode == ["name", "/UseOutlines"], page_mode
-        document[0].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False).save(
-            preview
-        )
-        return {
-            "sha256": sha256(path),
-            "pages": document.page_count,
-            "bookmarks": [row[1] for row in toc],
-            "internal_links": len(links),
-            "page_mode": page_mode,
-        }
-    finally:
-        document.close()
-
-
-def docx_text(path: Path) -> str:
-    document = Document(path)
-    return "\n".join(
-        [paragraph.text for paragraph in document.paragraphs]
-        + [cell.text for table in document.tables for row in table.rows for cell in row.cells]
-    )
+    row = driver.find_elements(By.TAG_NAME, "article")[0]
+    row.find_element(By.CSS_SELECTOR, "button[aria-haspopup='menu']").click()
+    wait(driver, 5).until(lambda item: item.find_element(By.XPATH,
+        "//*[@role='menuitem' and normalize-space(.)='Edit title']")).click()
+    name = row.find_element(By.CSS_SELECTOR, "input[aria-label='Authority title']")
+    name.clear()
+    name.send_keys("Revised authority title")
+    click_button(driver, "Save", row)
+    wait(driver).until(lambda _item: "Revised authority title" in row.text)
+    idle(driver)
+    build(driver)
+    rebuilt = next(path for path in downloads(driver, output / "manual-rebuilt")
+                   if path.suffix.lower() == ".pdf")
+    rebuilt_proof = inspect_book(rebuilt, output / "manual-rebuilt-page.png",
+        required_text=custom_text, required_outline=("Authorities Smoke Book", "Table of Contents"),
+        minimum_links=0)
+    assert digest(first) != digest(rebuilt)
+    assert "Revised authority title" in "\n".join(rebuilt_proof["outline"])
+    responsive = book_viewport_proof(driver, output, parts)
+    assert driver.save_screenshot(str(output / "manual-desktop.png"))
+    return {"draft": draft_id, "handoff": handoff,
+            "canliiCapture": {"filename": expected, "clicks": 1, "requests": 0},
+            "first": first_proof, "rebuilt": rebuilt_proof, "contents": responsive}
 
 
 def inspect_table(path: Path) -> dict[str, object]:
-    text = docx_text(path)
-    assert "Table of Authorities" in text, text
-    assert all(citation in text for citation in CITATIONS), text
-    assert "Not reproduced" in text, text
-    return {"sha256": sha256(path), "citations": list(CITATIONS)}
-
-
-def inspect_word_copy(path: Path) -> dict[str, object]:
     with zipfile.ZipFile(path) as package:
-        document_xml = package.read("word/document.xml")
-        settings_xml = package.read("word/settings.xml")
-        assert "[Content_Types].xml" in package.namelist()
-    root = ET.fromstring(document_xml)
-    instructions = [
-        (node.text or "").strip()
-        for node in root.findall(f".//{{{WORD_NS}}}instrText")
-    ]
-    ta = [value for value in instructions if value.startswith("TA ")]
-    toa = [value for value in instructions if value.startswith("TOA ")]
-    assert len(ta) == len(CITATIONS), instructions
-    assert len(toa) == 1 and '\\h \\e "\\t"' in toa[0], instructions
-    assert all(any(citation in field for field in ta) for citation in CITATIONS), ta
+        assert package.testzip() is None
+        assert {"[Content_Types].xml", "word/document.xml"}.issubset(package.namelist())
+    document = Document(path)
+    text = "\n".join([paragraph.text for paragraph in document.paragraphs] +
+        [cell.text for table in document.tables for row in table.rows for cell in row.cells])
+    assert document.tables and "Table of Authorities" in text
+    assert all(citation in text for citation in REAL_CITATIONS), text
+    return {"file": path.name, "sha256": digest(path), "tables": len(document.tables)}
 
-    settings = ET.fromstring(settings_xml)
-    update = settings.find(f".//{{{WORD_NS}}}updateFields")
-    assert update is not None and update.get(f"{{{WORD_NS}}}val") == "true"
-    body = root.find(f".//{{{WORD_NS}}}body")
-    assert body is not None
-    children = list(body)
-    sect = next(
-        index
-        for index, child in enumerate(children)
-        if child.tag == f"{{{WORD_NS}}}sectPr"
-    )
-    toa_paragraph = next(
-        index
-        for index, child in enumerate(children)
-        if any(
-            (node.text or "").strip().startswith("TOA ")
-            for node in child.findall(f".//{{{WORD_NS}}}instrText")
-        )
-    )
-    assert toa_paragraph == sect - 1, (toa_paragraph, sect)
-    text = docx_text(path)
-    assert all(citation in text for citation in CITATIONS), text
-    assert "Table of Authorities" in text, text
-    return {
-        "sha256": sha256(path),
-        "ta_fields": len(ta),
-        "toa_fields": len(toa),
-        "update_on_open": True,
-        "toa_before_section": True,
-    }
+
+def link_page(link: dict[str, object]) -> int:
+    try:
+        return int(link.get("page", -1))
+    except (TypeError, ValueError):
+        return -1
+
+
+def inspect_book(path: Path, preview: Path, *,
+                 required_text: tuple[str, ...] = ("Book of Authorities", "Table of Contents"),
+                 required_outline: tuple[str, ...] = ("Book of Authorities", "Table of Contents"),
+                 minimum_links: int = 3) -> dict[str, object]:
+    pdf = fitz.open(path)
+    try:
+        text = "\n".join(page.get_text() for page in pdf)
+        toc = pdf.get_toc()
+        outline = [item[1] for item in toc]
+        links = [link for page in pdf for link in page.get_links() if link_page(link) >= 0]
+        assert pdf.is_pdf and not pdf.is_encrypted and pdf.page_count >= 5
+        assert all(value in text for value in required_text), text
+        assert len(links) >= minimum_links and set(required_outline).issubset(set(outline))
+        pdf[0].get_pixmap(matrix=fitz.Matrix(1.2, 1.2), alpha=False).save(preview)
+        return {"file": path.name, "sha256": digest(path), "pages": pdf.page_count,
+                "bookmarks": len(toc), "outline": outline, "links": len(links),
+                "textCharacters": len(text),
+                "textSha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+    finally:
+        pdf.close()
+
+
+def book_viewport_proof(driver: webdriver.Chrome, output: Path,
+                        parts: dict[str, Path]) -> dict[str, object]:
+    proof = {}
+    for name, width, height, scale in (("desktop", 1440, 1000, 1), ("320", 320, 900, 1),
+                                        ("320-200-percent", 320, 900, 2)):
+        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+            "width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
+        contents = book_contents(driver)
+        driver.execute_script("arguments[0].scrollIntoView({block:'start'})", contents)
+        assert parts["cover"].name in book_part(driver, "Cover").text
+        assert parts["index"].name in book_part(driver, "Index").text
+        assert ([supplement_title(row) for row in supplement_rows(driver)] ==
+                ["Appendix Beta", "Appendix Alpha"])
+        assert all(row.find_element(By.CSS_SELECTOR, "button[aria-label^='Move ']").is_displayed()
+                   for row in supplement_rows(driver))
+        if scale == 2:
+            edit_supplement(driver, "Appendix Alpha", "Appendix Alpha Narrow", "S1")
+            edit_supplement(driver, "Appendix Alpha Narrow", "Appendix Alpha", "S1")
+            for _index in range(2):
+                handle = supplement_rows(driver)[0].find_element(By.CSS_SELECTOR,
+                    "button[aria-label^='Move ']")
+                handle.click()
+                ActionChains(driver).key_down(Keys.ALT).send_keys(Keys.ARROW_DOWN).key_up(Keys.ALT).perform()
+                idle(driver)
+            assert ([supplement_title(row) for row in supplement_rows(driver)] ==
+                    ["Appendix Beta", "Appendix Alpha"])
+        metrics = driver.execute_script("""
+const root=arguments[0],box=root.getBoundingClientRect();
+return {width:innerWidth,scale:devicePixelRatio,physicalWidth:innerWidth*devicePixelRatio,
+  overflow:document.documentElement.scrollWidth-innerWidth,left:box.left,right:box.right};
+""", book_contents(driver))
+        assert metrics["width"] == width and metrics["scale"] == scale, metrics
+        assert metrics["physicalWidth"] == width * scale and metrics["overflow"] <= 1, metrics
+        assert metrics["left"] >= -1 and metrics["right"] <= width + 1, metrics
+        assert driver.save_screenshot(str(output / f"manual-contents-{name}.png"))
+        proof[name] = metrics
+    driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+    driver.set_window_size(1440, 1000)
+    return proof
+
+
+def keyboard_tabs(driver: webdriver.Chrome) -> None:
+    automatic = tab(driver, "Automatic")
+    automatic.click()
+    automatic.send_keys(Keys.ARROW_RIGHT)
+    wait(driver, 5).until(lambda _item: tab(driver, "Manual").get_attribute("aria-selected") == "true")
+    driver.switch_to.active_element.send_keys(Keys.ARROW_LEFT)
+    wait(driver, 5).until(lambda _item: automatic.get_attribute("aria-selected") == "true")
+
+
+def visit_tabs(driver: webdriver.Chrome) -> list[str]:
+    names = ["Automatic", "Manual", "Drafts", "Settings"]
+    for name in names:
+        control = tab(driver, name)
+        control.click()
+        panel = control.get_attribute("aria-controls")
+        wait(driver, 5).until(lambda item, control=control, panel=panel:
+            control.get_attribute("aria-selected") == "true" and
+            item.find_element(By.ID, panel).is_displayed())
+    tab(driver, "Automatic").click()
+    wait(driver, 5).until(lambda _item:
+        tab(driver, "Automatic").get_attribute("aria-selected") == "true")
+    return names
+
+
+def viewport_proof(driver: webdriver.Chrome, output: Path) -> dict[str, object]:
+    proof = {}
+    for name, width, height, scale in (("desktop", 1440, 1000, 1), ("320", 320, 800, 1),
+                                        ("200-percent", 320, 800, 2)):
+        driver.execute_script("window.__authoritiesSmoke.cls=0;window.__authoritiesSmoke.shifts=[]")
+        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+            "width": width, "height": height, "deviceScaleFactor": scale, "mobile": False})
+        driver.execute_script("scrollTo(0,0)")
+        visited = visit_tabs(driver)
+        metrics = driver.execute_script("""
+const s=window.__authoritiesSmoke||{};
+return {width:innerWidth,visualWidth:visualViewport?.width||innerWidth,
+  deviceScale:devicePixelRatio,physicalWidth:innerWidth*devicePixelRatio,
+  overflow:document.documentElement.scrollWidth-innerWidth,
+  cls:s.cls||0,longTasks:(s.longTasks||[]).length,
+  selectedTabs:document.querySelectorAll('[aria-label="Authorities sections"] [role=tab][aria-selected=true]').length,
+  unnamed:[...document.querySelectorAll('button,a[href],input,select,[role=textbox]')]
+    .filter(n=>n.getClientRects().length && !(n.getAttribute('aria-label')||n.labels?.length||n.textContent.trim()))
+    .map(n=>n.outerHTML.slice(0,120))};
+""")
+        metrics["visitedTabs"] = visited
+        assert abs(metrics["width"] - width) <= 1 and abs(metrics["visualWidth"] - width) <= 1, metrics
+        assert metrics["deviceScale"] == scale and metrics["physicalWidth"] == width * scale, metrics
+        assert metrics["overflow"] <= 1 and metrics["cls"] <= 0.1, metrics
+        assert metrics["selectedTabs"] == 1 and visited == ["Automatic", "Manual", "Drafts", "Settings"], metrics
+        assert not metrics["unnamed"], metrics
+        assert driver.save_screenshot(str(output / f"authorities-{name}.png"))
+        proof[name] = metrics
+    driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+    driver.set_window_size(1440, 1000)
+    return proof
+
+
+def network_urls(driver: webdriver.Chrome) -> list[str]:
+    result = []
+    for record in driver.get_log("performance"):
+        try:
+            message = json.loads(record["message"])["message"]
+            if message["method"] == "Network.requestWillBeSent":
+                result.append(message["params"]["request"]["url"])
+        except (KeyError, TypeError, json.JSONDecodeError):
+            pass
+    return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Exercise native Authorities through live Beaver and Chrome."
-    )
-    parser.add_argument(
-        "--url",
-        default="http://127.0.0.1:3000/table-of-authorities",
-        help="Live Beaver Authorities URL.",
-    )
+    parser = argparse.ArgumentParser(description="Live Chrome smoke for the shared Authorities workspace.")
+    parser.add_argument("--url", default="http://127.0.0.1:3000/table-of-authorities")
+    parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--headed", action="store_true")
-    parser.add_argument(
-        "--artifacts",
-        type=Path,
-        help="Optional directory for screenshots and downloaded proof files.",
-    )
+    parser.add_argument("--fixtures-only", action="store_true",
+                        help="Validate the local DOCX/PDF fixtures without launching Chrome.")
     args = parser.parse_args()
-
-    with tempfile.TemporaryDirectory(prefix="beaver-authorities-browser-") as temporary:
-        session = Path(temporary)
-        output = args.artifacts.resolve() if args.artifacts else session / "proof"
+    standalone = urlparse(args.url).path.rstrip("/").endswith("authorities.html")
+    mode = "standalone" if standalone else "beaver"
+    with tempfile.TemporaryDirectory(prefix=f"authorities-{mode}-") as temporary:
+        temporary_path = Path(temporary)
+        output = (args.artifacts.resolve() if args.artifacts else temporary_path / "proof") / mode
         output.mkdir(parents=True, exist_ok=True)
-        fixtures = session / "fixtures"
-        fixtures.mkdir()
-        source, authority_pdf = make_fixtures(fixtures)
-        driver = browser(session / "chrome-profile", args.headed)
+        fixture_dir = output / "inputs" if args.artifacts else temporary_path / "fixtures"
+        fixture_dir.mkdir(parents=True)
+        source, pdfs, parts = fixtures(fixture_dir)
+        if args.fixtures_only:
+            print(json.dumps(fixture_proof(source, pdfs, parts), indent=2))
+            return 0
+        driver = chrome(temporary_path / "chrome", args.headed)
         driver.set_window_size(1440, 1000)
-        network_urls: list[str] = []
         started = time.monotonic()
-        standalone = urlparse(args.url).path.rstrip("/").endswith("authorities.html")
         try:
             driver.get(args.url)
-            try:
-                WebDriverWait(driver, 30).until(
-                    lambda item: item.find_elements(
-                        By.XPATH, "//h1[normalize-space()='Authorities']"
-                    )
-                )
-            except Exception as error:
-                raise RuntimeError(
-                    "Start local Beaver with .\\scripts\\mike.ps1 start, then pass "
-                    "its /table-of-authorities URL with --url."
-                ) from error
-            cold_navigation = navigation_timing(driver)
-            start_new(driver)
-            file_input = driver.find_element(
-                By.XPATH,
-                "//h2[normalize-space()='Start with a document']/"
-                "ancestor::section[1]//input[@type='file']",
-            )
-            file_input.send_keys(str(source.resolve()))
-            wait_for_authorities(driver)
-            review_citations(driver)
-            handoff = canlii_handoff(driver)
-            menu = menu_keyboard_contract(driver, add_menu_probe(driver), output)
-
-            row = authority_row(driver, CITATIONS[0])
-            row.find_element(By.CSS_SELECTOR, "input[type='file']").send_keys(
-                str(authority_pdf.resolve())
-            )
-            WebDriverWait(driver, 30).until(
-                lambda item: authority_pdf.name in authority_row(
-                    item, CITATIONS[0]
-                ).text
-            )
-            other = authority_row(driver, CITATIONS[1])
-            exclude = other.find_element(
-                By.XPATH, ".//label[contains(., 'Leave out of book')]/input"
-            )
-            if not exclude.is_selected():
-                exclude.click()
-            WebDriverWait(driver, 30).until(
-                lambda item: authority_row(item, CITATIONS[1])
-                .find_element(
-                    By.XPATH, ".//label[contains(., 'Leave out of book')]/input"
-                )
-                .is_selected()
-            )
-
-            for mode in ("table", "book", "both"):
-                select_mode(driver, mode)
-            focus = enable_word_copy_with_keyboard(driver)
-            network_urls.extend(request_urls(performance_events(driver)))
-
-            build = driver.find_element(By.XPATH, "//button[normalize-space()='Build']")
-            WebDriverWait(driver, 10).until(lambda _item: build.is_enabled())
-            build.click()
-            WebDriverWait(driver, 90).until(
-                lambda item: any(
-                    "Outputs ready" in status.text
-                    for status in item.find_elements(By.CSS_SELECTOR, "[role='status']")
-                )
-            )
-            build_events = performance_events(driver)
-            network_urls.extend(request_urls(build_events))
-            expected_roles = {"table", "book", "annotated-document"}
-            response = None if standalone else build_response(driver, build_events)
-            saved = standalone_state(driver) if standalone else None
-            product_outputs = saved["outputs"] if saved else response["product"]["outputs"]
-            receipt_outputs = product_outputs if saved else response["receipt"]["outputs"]
-            assert set(receipt_outputs) == expected_roles, receipt_outputs
-            assert set(product_outputs) == expected_roles, product_outputs
-            assert (saved["insertIntoDocument"] if saved else
-                    response["receipt"]["draft"]["insertIntoDocument"]) is True
-
-            viewports = check_viewports(driver, output)
-            downloaded = download_outputs(driver, output / "downloads")
-            network_urls.extend(request_urls(performance_events(driver)))
-            assert not [
-                url
-                for url in network_urls
-                if (urlparse(url).hostname or "").lower().endswith("canlii.org")
-            ], network_urls
-            console_errors = [
-                entry
-                for entry in driver.get_log("browser")
-                if entry.get("level") == "SEVERE"
-                and entry.get("source") in {"console-api", "javascript"}
-            ]
-            assert not console_errors, console_errors
-
-            book = next(
-                path
-                for path in downloaded.values()
-                if path.name.endswith(".book-of-authorities.pdf")
-            )
-            table = next(
-                path
-                for path in downloaded.values()
-                if path.name.endswith(".table-of-authorities.docx")
-            )
-            word_copy = next(
-                path
-                for path in downloaded.values()
-                if path.name.endswith(".with-table-of-authorities.docx")
-            )
-            actual_hashes = {
-                filename: sha256(path) for filename, path in downloaded.items()
-            }
-            expected_hashes = {
-                metadata["filename"]: metadata["sha256"]
-                for metadata in receipt_outputs.values()
-            }
-            (output / "build-proof.json").write_text(
-                json.dumps(
-                    {
-                        "receipt": response["receipt"] if response else None,
-                        "product_outputs": product_outputs,
-                        "expected_hashes": expected_hashes,
-                        "downloaded_hashes": actual_hashes,
-                        "network_urls": network_urls,
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            assert actual_hashes == expected_hashes, {
-                "expected": expected_hashes,
-                "downloaded": actual_hashes,
-                "requests": [url for url in network_urls if "/single-documents/" in url],
-            }
-            if response:
-                for role, metadata in receipt_outputs.items():
-                    assert product_outputs[role]["sha256"] == metadata["sha256"], (role, metadata)
-
-            result = {
-                "schema_version": "beaver.authorities-browser-test.v1",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "url": args.url,
-                "citations": list(CITATIONS),
-                "canlii": {"pdf_url": handoff, "requests": 0},
-                "mode": "standalone" if standalone else "beaver",
-                "cold_navigation": cold_navigation,
-                "output_roles": sorted(product_outputs),
-                "downloads": {
-                    filename: sha256(path) for filename, path in downloaded.items()
-                },
-                "book": inspect_book(book, output / "book-page-1.png"),
-                "table": inspect_table(table),
-                "word_copy": inspect_word_copy(word_copy),
-                "ui": {"viewports": viewports, "keyboard_focus": focus,
-                       "more_actions_menu": menu},
-                "console_errors": [],
-                "elapsed_seconds": round(time.monotonic() - started, 3),
-            }
+            wait(driver, 30).until(lambda item: item.find_elements(By.XPATH,
+                "//h1[normalize-space(.)='Authorities']"))
+            navigation = driver.execute_script("""
+const n=performance.getEntriesByType('navigation')[0]; return n&&{
+ duration:n.duration,responseStart:n.responseStart,domContentLoaded:n.domContentLoadedEventEnd,
+ load:n.loadEventEnd,transferSize:n.transferSize};
+""")
+            assert navigation and navigation["duration"] > 0
+            cold_layout_shift = driver.execute_script("return window.__authoritiesSmoke.cls||0")
+            assert cold_layout_shift <= 0.1, cold_layout_shift
+            keyboard_tabs(driver)
+            automatic = automatic_review(driver, source, output)
+            manual = manual_book(driver, pdfs, parts, output)
+            viewports = viewport_proof(driver, output)
+            urls = network_urls(driver)
+            canlii_requests = [url for url in urls
+                if (urlparse(url).hostname or "").lower().endswith("canlii.org")]
+            assert not canlii_requests, canlii_requests
+            severe = [entry for entry in driver.get_log("browser") if entry.get("level") == "SEVERE"
+                      and "favicon.ico" not in entry.get("message", "")]
+            assert not severe, severe
+            result = {"schema_version": "beaver.authorities-browser-smoke.v2",
+                "created_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
+                "url": args.url, "cold_navigation": navigation, "cold_layout_shift": cold_layout_shift,
+                "automatic": automatic,
+                "manual": manual, "viewports": viewports, "canlii_requests": 0,
+                "browser_severe": [], "elapsed_seconds": round(time.monotonic() - started, 3)}
+            (output / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
             print(json.dumps(result, indent=2))
             return 0
         finally:

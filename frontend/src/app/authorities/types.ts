@@ -2,6 +2,33 @@ import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 export type AuthoritiesOutputMode = "table" | "book" | "both";
+export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
+export type AuthoritiesProfileId = "general" | "ab-court-of-kings-bench" |
+  "ab-court-of-appeal" | "federal-court" | "federal-court-of-appeal";
+export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
+  "appellant" | "intervener";
+export type AuthoritiesBuildSettings = {
+  sourceMode: AuthoritiesSourceMode;
+  tabStyle: "numeric" | "alpha";
+  tableOrder: "first-reference" | "alphabetical";
+  tableDelivery: "native-marks" | "native-append" | "linked-append";
+  tableLocation: "pages" | "pinpoints" | "combined";
+  passageMarking: "none" | "margin" | "paragraph" | "text" | "sidelined";
+  scannedPdfPolicy: "page-margin" | "cited-pages" | "full";
+  missingSourcePolicy: "placeholder" | "omit";
+  filingMedium?: "electronic" | "paper";
+  bookRole?: AuthoritiesBookRole;
+};
+export type AuthoritiesBoundPdf = {
+  bindingRole: string;
+  filename: string;
+  sourceSha256: string;
+};
+export type AuthoritiesBookSupplement = AuthoritiesBoundPdf & {
+  id: string;
+  title: string;
+  tab: string;
+};
 type AuthoritySourceIdentity = {
   provider: string;
   stableSourceId: string;
@@ -14,7 +41,8 @@ type AuthoritySource =
   | { kind: "unresolved" }
   | { kind: "resolved" }
   | { kind: "attached"; bindingRole: string; filename: string;
-      sourceSha256: string; sourceUrl: string | null }
+      sourceSha256: string; sourceUrl: string | null;
+      origin: "manual" | "original" | "reconstructed" }
   | { kind: "pending-canlii"; authorityKey: string; pageUrl: string; pdfUrl: string };
 
 export type AuthorityIdentity = {
@@ -24,6 +52,7 @@ export type AuthorityIdentity = {
   citation: string;
   name: string | null;
   displayName: string | null;
+  tabLabel: string | null;
   evidenceIds: string[];
   locators: Array<{ kind: string; label: string }>;
   sourceIdentity: AuthoritySourceIdentity | null;
@@ -37,6 +66,9 @@ export type AuthorityOccurrence = {
   start: number;
   end: number;
   text: string;
+  authoritySpan: AuthorityTextSpan;
+  coreSpan: AuthorityTextSpan;
+  pinpointSpan: AuthorityTextSpan | null;
   kind: AuthorityKind | "reference";
   citation: string;
   authorityId: string | null;
@@ -48,6 +80,8 @@ export type AuthorityOccurrence = {
   reviewed: boolean;
 };
 
+export type AuthorityTextSpan = { start: number; end: number; text: string };
+
 export type AuthoritiesDraft = {
   schemaVersion: "beaver.authorities-draft.v1";
   import: { kind: "manual" } | { kind: "document"; bindingRole: "source";
@@ -56,7 +90,14 @@ export type AuthoritiesDraft = {
     } | null };
   bindings: Record<string, WorkProductInput>;
   outputMode: AuthoritiesOutputMode;
+  settings: AuthoritiesBuildSettings & { profileId: AuthoritiesProfileId };
+  bookParts: {
+    cover: AuthoritiesBoundPdf | null;
+    index: AuthoritiesBoundPdf | null;
+    supplements: AuthoritiesBookSupplement[];
+  };
   insertIntoDocument: boolean;
+  ledger: unknown | null;
   units: Array<{ id: string; kind: "body" | "footnote"; ordinal: number;
     footnoteId: number | null; footnoteRefs: Array<[number, number]>;
     pageNumbers: number[]; text: string; occurrenceIds: string[] }>;
@@ -66,20 +107,42 @@ export type AuthoritiesDraft = {
 };
 
 export type AuthoritiesProduct = WorkProduct<AuthoritiesDraft>;
+export type AuthoritiesDiscrepancy = {
+  kind: "quote_mismatch" | "wrong_pinpoint";
+  occurrenceId: string;
+  authorityId: string;
+  footnoteId: number;
+  citation: string;
+  proposition: string;
+  authoredQuote: string;
+  authoredPinpoint: { kind: "paragraph" | "section" | "page"; text: string };
+  cited: { locator: { kind: "paragraph" | "section" | "page"; label: string }; text: string };
+  found: { locator: { kind: "paragraph" | "section" | "page"; label: string };
+    text: string } | null;
+};
 
 export type AuthoritiesAction =
   | { type: "add-authority"; kind: AuthorityKind; citation: string; name?: string | null }
   | { type: "remove-authority"; authorityId: string }
   | { type: "exclude-authority"; authorityId: string; excluded: boolean }
   | { type: "rename-authority"; authorityId: string; displayName: string | null }
+  | { type: "set-authority-tab"; authorityId: string; tabLabel: string | null }
   | { type: "reorder-authorities"; authorityIds: string[] }
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
+  | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
+  | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
       reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null }
   | { type: "begin-canlii-handoff"; authorityId: string }
+  | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "update-book-supplement"; id: string; title: string; tab: string }
+  | { type: "reorder-book-supplements"; ids: string[] }
+  | { type: "remove-book-supplement"; id: string }
+  | { type: "set-profile"; profileId: AuthoritiesProfileId }
+  | { type: "set-settings"; settings: Partial<AuthoritiesBuildSettings> }
   | { type: "set-output-mode"; outputMode: AuthoritiesOutputMode }
   | { type: "set-document-output"; enabled: boolean };
 

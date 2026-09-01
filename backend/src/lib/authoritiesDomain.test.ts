@@ -52,6 +52,7 @@ const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
 
 const authority = (id: string, key = id): AuthorityIdentity => ({
   id, key, kind: "case", citation: id, name: id, displayName: null,
+  tabLabel: null,
   evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
   source: { kind: "unresolved" },
 });
@@ -66,6 +67,8 @@ const occurrence = (
 ): AuthorityOccurrence => ({
   id, unitId: "footnote:1", start, end, text: text.slice(start, end), kind: "case",
   citation: text.slice(start, end), authorityId, reference: null, pinpoints: [],
+  authoritySpan: { start, end, text: text.slice(start, end) },
+  coreSpan: { start, end, text: text.slice(start, end) }, pinpointSpan: null,
   evidenceIds: [], sourceTextSha256: "unit-sha", localOrdinal, reviewed: false,
 });
 
@@ -73,6 +76,9 @@ describe("authorities draft domain", () => {
   it("decodes canonical and rejects malformed nested durable state", () => {
     const canonical = createAuthoritiesDraft({ kind: "manual" });
     expect(decodeAuthoritiesDraft(canonical)).toEqual(canonical);
+    const oldShape = structuredClone(canonical) as Partial<AuthoritiesDraft>;
+    delete oldShape.bookParts;
+    expect(decodeAuthoritiesDraft(oldShape)).toBeNull();
 
     const malformedAuthority = structuredClone({
       ...canonical,
@@ -105,13 +111,113 @@ describe("authorities draft domain", () => {
     })).toBeNull();
   });
 
-  it("offers source-document output only for imported Word drafts", () => {
+  it("offers source-document output only for imported document drafts", () => {
     const source = createAuthoritiesDraft(sourceImport, sourceBindings);
     expect(reduceAuthoritiesDraft(source,
+      { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
+    const pdf = createAuthoritiesDraft({ ...sourceImport, filename: "Factum.pdf",
+      fileType: "pdf" }, sourceBindings);
+    expect(reduceAuthoritiesDraft(pdf,
       { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
     expect(() => reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
       { type: "set-document-output", enabled: true }))
       .toThrowError(AuthoritiesDomainError);
+  });
+
+  it("applies data-backed court presets, locked output rules, and editable tabs", () => {
+    const general = createAuthoritiesDraft({ kind: "manual" });
+    expect(general).toMatchObject({ outputMode: "book", settings: {
+      profileId: "general", sourceMode: "automatic", tableOrder: "alphabetical",
+    } });
+    const appeal = reduceAuthoritiesDraft(general,
+      { type: "set-profile", profileId: "ab-court-of-appeal" });
+    expect(appeal).toMatchObject({ outputMode: "table", settings: {
+      tableDelivery: "linked-append", tableLocation: "pinpoints",
+      tableOrder: "first-reference", passageMarking: "none", missingSourcePolicy: "omit",
+    } });
+    const appealDocument = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport,
+      sourceBindings), { type: "set-profile", profileId: "ab-court-of-appeal" });
+    expect(appealDocument.insertIntoDocument).toBe(true);
+    expect(() => reduceAuthoritiesDraft(appeal,
+      { type: "set-output-mode", outputMode: "book" })).toThrow(AuthoritiesDomainError);
+    expect(() => reduceAuthoritiesDraft(appeal, { type: "set-settings",
+      settings: { tableOrder: "alphabetical" } })).toThrow(AuthoritiesDomainError);
+    for (const profileId of ["ab-court-of-kings-bench", "federal-court",
+      "federal-court-of-appeal"] as const) {
+      expect(reduceAuthoritiesDraft(general, { type: "set-profile", profileId }))
+        .toMatchObject({ outputMode: "book", settings: {
+          sourceMode: "automatic", scannedPdfPolicy: "full",
+        } });
+    }
+    const kingsBench = reduceAuthoritiesDraft(general,
+      { type: "set-profile", profileId: "ab-court-of-kings-bench" });
+    expect(kingsBench.settings).toMatchObject({ missingSourcePolicy: "omit" });
+    expect(reduceAuthoritiesDraft(kingsBench,
+      { type: "set-output-mode", outputMode: "table" }).outputMode).toBe("table");
+    expect(reduceAuthoritiesDraft(kingsBench,
+      { type: "set-output-mode", outputMode: "both" }).outputMode).toBe("both");
+    for (const court of [kingsBench, appeal]) expect(() => reduceAuthoritiesDraft(court, {
+      type: "set-settings", settings: { missingSourcePolicy: "placeholder" },
+    })).toThrow(AuthoritiesDomainError);
+    const federal = reduceAuthoritiesDraft(general,
+      { type: "set-profile", profileId: "federal-court" });
+    expect(federal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "applicant" });
+    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
+      settings: { filingMedium: "paper", bookRole: "respondent" } }).settings)
+      .toMatchObject({ filingMedium: "paper", bookRole: "respondent" });
+    expect(reduceAuthoritiesDraft(federal, { type: "set-settings",
+      settings: { bookRole: "joint" } }).settings.bookRole).toBe("joint");
+    const federalAppeal = reduceAuthoritiesDraft(general,
+      { type: "set-profile", profileId: "federal-court-of-appeal" });
+    expect(federalAppeal.settings).toMatchObject({ filingMedium: "electronic", bookRole: "joint" });
+    for (const bookRole of ["appellant", "respondent", "intervener"] as const) {
+      expect(reduceAuthoritiesDraft(federalAppeal,
+        { type: "set-settings", settings: { bookRole } }).settings.bookRole).toBe(bookRole);
+    }
+    const added = reduceAuthoritiesDraft(general,
+      { type: "add-authority", authority: authority("case") });
+    expect(reduceAuthoritiesDraft(added, { type: "set-authority-tab",
+      authorityId: "case", tabLabel: "  A-1  " }).authorities.case.tabLabel).toBe("A-1");
+  });
+
+  it("binds one cover, one index, and ordered supplemental PDFs", () => {
+    const input = (name: string, digest: string) => ({ kind: "local-file" as const,
+      handleId: `${name}-handle`, lastSeen: { name: `${name}.pdf`, size: 10,
+        modified: 1, sha256: digest } });
+    const pdf = (name: string, digest: string) => ({ bindingRole: `book:${name}`,
+      filename: `${name}.pdf`, sourceSha256: digest });
+    let draft = createAuthoritiesDraft({ kind: "manual" });
+    draft = reduceAuthoritiesDraft(draft, { type: "set-book-part", slot: "cover",
+      pdf: pdf("cover", "1".repeat(64)), binding: input("cover", "1".repeat(64)) });
+    draft = reduceAuthoritiesDraft(draft, { type: "set-book-part", slot: "index",
+      pdf: pdf("index", "2".repeat(64)), binding: input("index", "2".repeat(64)) });
+    for (const [id, digest] of [["one", "3".repeat(64)], ["two", "4".repeat(64)]]) {
+      draft = reduceAuthoritiesDraft(draft, { type: "set-book-supplement", supplement: {
+        id, ...pdf(id, digest), title: `  Document ${id}  `, tab: `  Appendix ${id}  `,
+      }, binding: input(id, digest) });
+    }
+    draft = reduceAuthoritiesDraft(draft, { type: "update-book-supplement", id: "two",
+      title: "  Updated document  ", tab: "  Appendix B  " });
+    draft = reduceAuthoritiesDraft(draft,
+      { type: "reorder-book-supplements", ids: ["two", "one"] });
+    expect(draft.bookParts).toMatchObject({ cover: { bindingRole: "book:cover" },
+      index: { bindingRole: "book:index" }, supplements: [
+        { id: "two", title: "Updated document", tab: "Appendix B" },
+        { id: "one", title: "Document one", tab: "Appendix one" },
+      ] });
+    expect(validateAuthoritiesDraft(draft)).toEqual([]);
+    expect(decodeAuthoritiesDraft(draft)).toEqual(draft);
+
+    const duplicateTab = structuredClone(draft);
+    duplicateTab.bookParts.supplements[1].tab = "Appendix B";
+    expect(decodeAuthoritiesDraft(duplicateTab)).toBeNull();
+    expect(() => reduceAuthoritiesDraft(draft, { type: "set-book-part", slot: "index",
+      pdf: pdf("cover", "1".repeat(64)), binding: input("cover", "1".repeat(64)) }))
+      .toThrow("Binding is assigned more than once");
+
+    draft = reduceAuthoritiesDraft(draft, { type: "clear-book-part", slot: "index" });
+    draft = reduceAuthoritiesDraft(draft, { type: "remove-book-supplement", id: "one" });
+    expect(Object.keys(draft.bindings).sort()).toEqual(["book:cover", "book:two"]);
   });
 
   it("keeps grounded identity orthogonal to unresolved review state", () => {
@@ -263,7 +369,7 @@ describe("authorities draft domain", () => {
     })).toThrow(AuthoritiesDomainError);
   });
 
-  it("carries decisions only across unambiguous structural occurrence matches", () => {
+  it("carries reviewed partitions only across exact, unambiguous unit matches", () => {
     const text = "Case A; Case A";
     const old: AuthoritiesDraft = {
       ...createAuthoritiesDraft({ kind: "manual" }),
@@ -275,7 +381,7 @@ describe("authorities draft domain", () => {
         "old-2": { ...occurrence("old-2", text, 8, 14, "old-a"), reviewed: true },
       },
       authorities: { "old-a": { ...authority("old-a", "same-key"), displayName: "Grant",
-        excluded: true, evidenceIds: ["receipt-old"],
+        tabLabel: "A-1", excluded: true, evidenceIds: ["receipt-old"],
         locators: [{ kind: "paragraph", label: "12" }],
         sourceIdentity: { provider: "a2aj", stableSourceId: "grant",
           sourceSha256: "f".repeat(64), version: "2009", externalUrl: null },
@@ -292,32 +398,62 @@ describe("authorities draft domain", () => {
     } });
 
     expect(refreshed.authorities["new-a"]).toMatchObject({
-      displayName: "Grant", excluded: true, evidenceIds: ["receipt-old"],
+      displayName: "Grant", tabLabel: "A-1", excluded: true, evidenceIds: ["receipt-old"],
       locators: [{ kind: "paragraph", label: "12" }],
       source: { kind: "resolved" }, sourceIdentity: { stableSourceId: "grant" },
     });
     expect(refreshed.occurrences.fresh).toMatchObject({ authorityId: null, reviewed: false });
 
+    const split = reduceAuthoritiesDraft({ ...old, occurrences: {
+      ...old.occurrences, "old-2": { ...old.occurrences["old-2"], localOrdinal: 8 },
+    } }, { type: "refresh", review: {
+      import: { kind: "manual" }, bindings: {}, units: refreshed.units,
+      occurrences: { fresh: occurrence("fresh", text, 0, 6, null) },
+      authorities: { "new-a": authority("new-a", "same-key") },
+      authorityOrder: ["new-a"],
+    } });
+    expect(split.units[0].occurrenceIds).toEqual(["old-1", "old-2"]);
+    expect(split.units[0].occurrenceIds.map((id) => split.occurrences[id].authorityId))
+      .toEqual(["new-a", "new-a"]);
+
+    const corrected = { ...old.occurrences["old-1"], end: text.length, text,
+      pinpointSpan: { start: 8, end: text.length, text: text.slice(8) },
+      pinpoints: [{ kind: "paragraph" as const, text: text.slice(8) }] };
     const unambiguous = reduceAuthoritiesDraft({
       ...old,
       units: [{ ...old.units[0], occurrenceIds: ["old-1"] }],
-      occurrences: { "old-1": old.occurrences["old-1"] },
+      occurrences: { "old-1": corrected },
       authorities: { "old-a": { ...old.authorities["old-a"],
         sourceIdentity: null, source: { kind: "unresolved" } } },
     }, { type: "refresh", review: {
-      import: { kind: "manual" }, bindings: {}, units: refreshed.units,
-      occurrences: { fresh: occurrence("fresh", text, 0, 6, null) },
+      import: { kind: "manual" }, bindings: {}, units: [{ ...refreshed.units[0],
+        occurrenceIds: ["fresh-1", "fresh-2"] }],
+      occurrences: {
+        "fresh-1": occurrence("fresh-1", text, 0, 6, null),
+        "fresh-2": occurrence("fresh-2", text, 8, text.length, null, 1),
+      },
       authorities: { "new-a": { ...authority("new-a", "same-key"),
         sourceIdentity: { provider: "a2aj", stableSourceId: "new-source",
           sourceSha256: "a".repeat(64), version: "2026", externalUrl: null },
         source: { kind: "resolved" } } },
       authorityOrder: ["new-a"],
     } });
-    expect(unambiguous.occurrences.fresh).toMatchObject({ authorityId: "new-a", reviewed: true });
+    expect(unambiguous.units[0].occurrenceIds).toEqual(["old-1"]);
+    expect(unambiguous.occurrences["old-1"]).toMatchObject({ authorityId: "new-a",
+      reviewed: true, start: 0, end: text.length,
+      authoritySpan: { start: 0, end: 6 }, pinpointSpan: { start: 8, end: text.length } });
     expect(unambiguous.authorities["new-a"]).toMatchObject({
       source: { kind: "resolved" },
       sourceIdentity: { stableSourceId: "new-source", version: "2026" },
     });
+
+    const unmapped = reduceAuthoritiesDraft(unambiguous, { type: "refresh", review: {
+      import: { kind: "manual" }, bindings: {}, units: refreshed.units,
+      occurrences: { fresh: occurrence("fresh", text, 0, 6, "other") },
+      authorities: { other: authority("other", "other-key") }, authorityOrder: ["other"],
+    } });
+    expect(unmapped.units[0].occurrenceIds).toEqual(["fresh"]);
+    expect(unmapped.occurrences.fresh).toMatchObject({ authorityId: "other", reviewed: false });
   });
 
   it("merges receipts only for the same exact source identity", () => {
@@ -331,7 +467,8 @@ describe("authorities draft domain", () => {
       authorities: { old: { ...authority("old", "grant-key"),
         evidenceIds: ["old-evidence"], locators: [{ kind: "paragraph", label: "12" }],
         sourceIdentity, source: { kind: "attached", bindingRole: "authority:grant",
-          filename: "grant.pdf", sourceSha256: "b".repeat(64), sourceUrl: null } } },
+          filename: "grant.pdf", sourceSha256: "b".repeat(64), sourceUrl: null,
+          origin: "manual" } } },
       authorityOrder: ["old"],
     };
     const reviewWith = (identity: typeof sourceIdentity, evidenceId: string,
@@ -367,5 +504,63 @@ describe("authorities draft domain", () => {
     expect(changedHash.authorities.fresh).toMatchObject({
       evidenceIds: ["hash-evidence"], sourceIdentity: { sourceSha256: "c".repeat(64) },
     });
+  });
+
+  it("collapses grounded citation aliases without losing user state or references", () => {
+    const text = "[2015] 1 SCR 331; 2015 SCC 5; Carter, supra";
+    let draft: AuthoritiesDraft = {
+      ...createAuthoritiesDraft({ kind: "manual" }),
+      units: [{ id: "footnote:1", kind: "footnote", ordinal: 1, footnoteId: 1,
+        footnoteRefs: [], pageNumbers: [], text,
+        occurrenceIds: ["reporter-cite", "neutral-cite", "french-supra"] }],
+      occurrences: {
+        "reporter-cite": occurrence("reporter-cite", text, 0, 16, "reporter"),
+        "neutral-cite": occurrence("neutral-cite", text, 18, 28, "neutral", 1),
+        "french-supra": { ...occurrence("french-supra", text, 30, text.length, "french", 2),
+          kind: "reference", reference: { kind: "supra", targetAuthorityId: "french" } },
+      },
+      authorities: {
+        reporter: { ...authority("reporter"), citation: "[2015] 1 SCR 331",
+          name: null, tabLabel: "A", excluded: true, evidenceIds: ["reporter-evidence"],
+          locators: [{ kind: "paragraph", label: "1" }] },
+        neutral: { ...authority("neutral"), citation: "2015 SCC 5",
+          displayName: "Carter (Charter)", evidenceIds: ["neutral-evidence"],
+          locators: [{ kind: "paragraph", label: "2" }] },
+        french: { ...authority("french"), citation: "2015 CSC 5", excluded: true,
+          evidenceIds: ["french-evidence"] },
+      },
+      authorityOrder: ["reporter", "neutral", "french"],
+    };
+    const attach = (authorityId: string, role: string, digest: string) => {
+      draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId,
+        bindingRole: role, binding: { kind: "local-file", handleId: role,
+          lastSeen: { name: `${role}.pdf`, size: 10, modified: 1, sha256: digest } },
+        filename: `${role}.pdf`, sourceSha256: digest, sourceUrl: null });
+    };
+    const source = { provider: "a2aj", stableSourceId: "a2aj:en:scc:2015 scc 5",
+      sourceSha256: "c".repeat(64), version: "2015-02-06", externalUrl: null };
+    attach("neutral", "authority:neutral", "d".repeat(64));
+    draft = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: "neutral",
+      citation: "2015 SCC 5", name: "Carter v Canada (Attorney General)", source });
+    attach("french", "authority:french", "e".repeat(64));
+    draft = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: "french",
+      citation: "2015 SCC 5", name: "Carter v Canada (Attorney General)", source });
+    draft = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: "reporter",
+      citation: "2015 SCC 5", name: "Carter v Canada (Attorney General)", source });
+
+    expect(draft.authorityOrder).toEqual(["reporter"]);
+    expect(draft.authorities.reporter).toMatchObject({
+      citation: "2015 SCC 5", name: "Carter v Canada (Attorney General)",
+      displayName: "Carter (Charter)", tabLabel: "A", excluded: false,
+      evidenceIds: ["french-evidence", "neutral-evidence", "reporter-evidence"],
+      locators: [{ kind: "paragraph", label: "1" }, { kind: "paragraph", label: "2" }],
+      sourceIdentity: source, source: { kind: "attached", bindingRole: "authority:neutral" },
+    });
+    expect(Object.keys(draft.bindings)).toEqual(["authority:neutral"]);
+    expect(Object.values(draft.occurrences).map(({ authorityId }) => authorityId))
+      .toEqual(["reporter", "reporter", "reporter"]);
+    expect(draft.occurrences["french-supra"].reference)
+      .toEqual({ kind: "supra", targetAuthorityId: "reporter" });
+    expect(validateAuthoritiesDraft(draft)).toEqual([]);
   });
 });
