@@ -5,6 +5,7 @@ import { reject } from "../lib/applicationError";
 import { buildAuthorities } from "../lib/authoritiesBuild";
 import { decodeAuthoritiesDraft, reduceAuthoritiesDraft } from "../lib/authoritiesDomain";
 import { importStandaloneAuthoritiesFile } from "../lib/authoritiesImport";
+import { authorityPdfOcrText } from "../lib/authorityPdfText";
 import { applyAuthoritiesUserAction } from "../lib/authoritiesWorkspaceApplication";
 import { asyncRoute } from "../lib/asyncRoute";
 import { multipleFileUpload, singleFileUpload } from "../lib/upload";
@@ -75,8 +76,15 @@ export function createAuthoritiesRuntimeRouter() {
     const title = String(req.body?.title ?? "").trim();
     if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
       reject(400, "Authorities build identity is invalid");
-    const sources = Object.fromEntries(await Promise.all(files.map(async (file, index) =>
-      [roleNames[index], { bytes: await readFile(file.path) }] as const)));
+    const bookRoles = new Set(state.outputMode === "table" ? [] : Object.values(
+      state.authorities).flatMap(({ excluded, source }) =>
+      !excluded && source.kind === "attached" ? [source.bindingRole] : []));
+    const sources: Record<string, { bytes: Buffer; ocrTextByPage?: string[] }> = {};
+    for (let index = 0; index < files.length; index += 1) {
+      const role = roleNames[index], bytes = await readFile(files[index].path);
+      const ocrTextByPage = bookRoles.has(role) ? await authorityPdfOcrText({ bytes }) : [];
+      sources[role] = { bytes, ...(ocrTextByPage.some(Boolean) ? { ocrTextByPage } : {}) };
+    }
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources });
     const boundary = `beaver-${randomUUID()}`, chunks: Buffer[] = [];

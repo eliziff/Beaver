@@ -53,7 +53,7 @@ export function ProjectPageHeader({
                     ? { label: project.name }
                     : { label: "Project not found" },
             ]}
-            actions={project ? [
+            actions={project === null ? undefined : [
                 {
                     type: "search",
                     value: search,
@@ -77,16 +77,18 @@ export function ProjectPageHeader({
                                         ? "Edit details"
                                         : "View details",
                                     onSelect: onOpenDetails,
+                                    disabled: !project,
                                 },
                                 {
                                     label: "Delete",
                                     onSelect: onDeleteProject,
+                                    disabled: !project,
                                 },
                             ]}
                         />
                     ),
                 },
-            ] : undefined}
+            ]}
         />
     );
 }

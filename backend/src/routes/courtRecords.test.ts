@@ -8,6 +8,8 @@ const originalMode = process.env.AUTH_MODE;
 const application = {
   saveFile: vi.fn(),
   saveBuild: vi.fn(async () => ({ id: "record-1", revision: 4 })),
+  prepareUploadedPdf: vi.fn(async () => ({ page_count: 1,
+    pages: [{ page_number: 1, text: "Recognized text" }] })),
 } as unknown as CourtRecordsApplication;
 const app = express();
 app.use("/court-records", createCourtRecordsRouter(application));
@@ -56,5 +58,15 @@ describe("Court Records output HTTP boundary", () => {
       .attach("files", Buffer.from("%PDF-1.7\n%%EOF"), "Index.pdf")
       .expect(400);
     expect(application.saveBuild).not.toHaveBeenCalled();
+  });
+
+  it("passes a staged PDF and one-based pages to stateless preparation", async () => {
+    await request(app).post("/court-records/pdf-preparation")
+      .field("pages", "[2]")
+      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "scan.pdf")
+      .expect(200, { page_count: 1, pages: [{ page_number: 1, text: "Recognized text" }] });
+    expect(application.prepareUploadedPdf).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filename: "scan.pdf", fileType: "pdf" }), [2],
+    );
   });
 });

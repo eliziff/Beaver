@@ -1,8 +1,11 @@
 import { useRef, useState } from "react";
-import { Upload, User, X } from "lucide-react";
+import { User, X } from "lucide-react";
 import { addDocumentToProject, createProject, directoryResource, uploadDocumentsSettled,
     type UserLookupResult } from "@/app/lib/beaverApi";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { formatUnsupportedDocumentWarning, partitionSupportedDocumentFiles,
+    SUPPORTED_DOCUMENT_ACCEPT } from "@/app/lib/documentUploadValidation";
+import { UploadAction } from "../documents/UploadAction";
 import { Modal } from "../modals/Modal";
 import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
@@ -27,6 +30,8 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
     const [error, setError] = useState("");
     const fileInput = useRef<HTMLInputElement>(null);
+    const folderInput = useRef<HTMLInputElement>(null);
+    const projectFilesRef = useRef<ReturnType<typeof directoryResource> | null>(null);
     const ownEmail = useAuth().user?.email?.trim().toLowerCase();
     const formId = "new-project-modal-form";
 
@@ -48,27 +53,34 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
                 area || undefined,
                 users.map(({ email }) => email).filter((email) => email !== ownEmail));
             if (!createdProject) setCreatedProject(project);
-            const projectFiles = directoryResource({ projectId: project.id });
+            const projectFiles = projectFilesRef.current ??=
+                directoryResource({ projectId: project.id });
+            const looseFiles = files.filter((file) => !file.webkitRelativePath);
+            const folderFiles = files.filter((file) => file.webkitRelativePath);
             const additions = [
                 ...documents.map(({ id }) => ({ kind: "document" as const, id })),
-                ...files.map((file) => ({ kind: "file" as const, id: file.name })),
+                ...looseFiles.map((file) => ({ kind: "file" as const, id: file.name })),
             ];
-            const [documentResults, fileResults] = await Promise.all([
+            const [documentResults, fileResults, folderResult] = await Promise.all([
                 Promise.allSettled(documents.map(({ id }) =>
                     addDocumentToProject(project.id, id))),
-                uploadDocumentsSettled(files, projectFiles.uploadDocument),
+                uploadDocumentsSettled(looseFiles, projectFiles.uploadDocument),
+                Promise.allSettled(folderFiles.length
+                    ? [projectFiles.uploadDirectory(folderFiles)] : []),
             ]);
             const results = [...documentResults, ...fileResults];
             const succeeded = new Set(additions.flatMap((addition, index) =>
                 results[index].status === "fulfilled" ? [`${addition.kind}:${addition.id}`] : []));
             setDocuments((current) => current.filter(({ id }) =>
                 !succeeded.has(`document:${id}`)));
-            setFiles((current) => current.filter(({ name }) =>
-                !succeeded.has(`file:${name}`)));
+            setFiles((current) => current.filter((file) => file.webkitRelativePath
+                ? folderResult[0]?.status !== "fulfilled"
+                : !succeeded.has(`file:${file.name}`)));
             const failed = results.filter(({ status: resultStatus }) =>
-                resultStatus === "rejected").length;
+                resultStatus === "rejected").length +
+                (folderResult[0]?.status === "rejected" ? folderFiles.length : 0);
             if (failed) throw new Error(
-                `Project created, but ${failed} document${failed === 1 ? "" : "s"} could not be added. Try again.`,
+                `Project created, but ${failed} item${failed === 1 ? "" : "s"} could not be added. Try again.`,
             );
             onCreated(project);
             onClose();
@@ -78,10 +90,13 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
         }
     }
     function addFiles(event: React.ChangeEvent<HTMLInputElement>) {
-        const added = Array.from(event.target.files ?? []);
+        const { supported, unsupported } = partitionSupportedDocumentFiles(
+            Array.from(event.target.files ?? []));
         event.target.value = "";
-        setFiles((current) => [...current, ...added.filter((file) =>
-            !current.some(({ name }) => name === file.name))]);
+        setError(formatUnsupportedDocumentWarning(unsupported) ?? "");
+        setFiles((current) => [...current, ...supported.filter((file) =>
+            !current.some((existing) => (existing.webkitRelativePath || existing.name) ===
+                (file.webkitRelativePath || file.name)))]);
     }
     function validateUser(email: string) {
         if (email === ownEmail) return "You cannot share a project with yourself.";
@@ -92,14 +107,18 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     return <Modal open onClose={onClose}
         className={step === "details" ? "!h-fit max-h-[calc(100dvh-2rem)]" : undefined}
         breadcrumbs={["Projects", step === "details" ? "New project" : "Add documents"]}
-        secondaryAction={step === "documents" ? { label: `Upload${files.length ? ` (${files.length})` : ""}`,
-            icon: <Upload className="h-3.5 w-3.5" />, onClick: () => fileInput.current?.click(),
-            disabled: loading } : undefined}
+        headerAction={step === "documents" ? <UploadAction busy={loading} actions={{
+            files: () => fileInput.current?.click(),
+            folder: () => folderInput.current?.click(),
+        }} /> : undefined}
         cancelAction={step === "documents"
             ? { label: "Back", onClick: () => setStep("details"), disabled: loading } : undefined}
         primaryAction={{ label: step === "details" ? "Next" : loading ? "Creating…" : "Create project",
             type: "submit", form: formId, disabled: loading }}>
-        <input ref={fileInput} type="file" multiple className="hidden" onChange={addFiles} />
+        <input ref={fileInput} type="file" multiple accept={SUPPORTED_DOCUMENT_ACCEPT}
+            className="hidden" onChange={addFiles} />
+        <input ref={folderInput} type="file" multiple className="hidden" onChange={addFiles}
+            accept={SUPPORTED_DOCUMENT_ACCEPT} {...{ webkitdirectory: "", directory: "" }} />
         <form id={formId} onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
             <div hidden={step !== "details"} className="space-y-6">
                 <FormField label="Project name" htmlFor="new-project-name">
@@ -145,13 +164,14 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
                     </p>
                     <ul aria-label="Files ready to upload"
                         className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto">
-                        {files.map((file) => <li key={file.name}
+                        {files.map((file) => <li key={file.webkitRelativePath || file.name}
                             className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border border-gray-200 bg-gray-50 py-1 pl-2.5 pr-1 text-xs text-gray-700">
-                            <span className="truncate">{file.name}</span>
-                            <button type="button" aria-label={`Remove ${file.name}`}
+                            <span className="truncate">{file.webkitRelativePath || file.name}</span>
+                            <button type="button" aria-label={`Remove ${file.webkitRelativePath || file.name}`}
                                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
                                 onClick={() => setFiles((current) => current.filter(
-                                    ({ name }) => name !== file.name))}>
+                                    (existing) => (existing.webkitRelativePath || existing.name) !==
+                                        (file.webkitRelativePath || file.name)))}>
                                 <X aria-hidden="true" className="h-3.5 w-3.5" />
                             </button>
                         </li>)}

@@ -236,7 +236,7 @@ type Dependencies = {
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "resolve" | "applyResearchSetAction">;
+    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
   authorities: Pick<AuthoritiesWorkspaceApplication,
     "importDraft" | "refresh" | "build" | "addReceipts">;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;

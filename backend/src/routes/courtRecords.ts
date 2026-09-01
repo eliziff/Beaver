@@ -31,6 +31,13 @@ export function createCourtRecordsRouter(application: CourtRecordsApplication) {
     const pdf = await application.pdfRendition(uploadedDocument(file));
     res.type("application/pdf").send(pdf);
   }));
+  router.post("/pdf-preparation", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const file = req.file ?? reject(400, "file is required");
+    let pages: unknown;
+    try { pages = JSON.parse(String(req.body?.pages)); }
+    catch { reject(400, "pages must be JSON"); }
+    res.json(await application.prepareUploadedPdf(uploadedDocument(file), pages));
+  }));
   router.get("/documents/:documentId/preparation", asyncRoute(async (req, res) => {
     const versionId = typeof req.query.version_id === "string" && req.query.version_id.trim()
       ? req.query.version_id.trim() : null;

@@ -99,8 +99,12 @@ async function firstPageFill(bytes: Uint8Array) {
 async function profileEntries(profile: CourtProfile) {
   const required = profile.documentKinds.filter((kind) =>
     kind.requirement === "required" && !kind.generated);
-  const kinds = required.length ? required : profile.documentKinds.filter((kind) =>
+  const base = required.length ? required : profile.documentKinds.filter((kind) =>
     kind.requirement !== "forbidden" && !kind.generated).slice(0, 1);
+  const kinds = [...base, ...(profile.oneOf ?? []).flatMap((choice) => {
+    const selected = profile.documentKinds.find((kind) => kind.id === choice.slots[0]);
+    return selected && !base.some((kind) => kind.id === selected.id) ? [selected] : [];
+  })];
   return Promise.all(kinds.map(async (kind, index) => ({
     ...await entry(`${profile.id}-${index + 1}`, kind.id),
     ...(profile.technical.indexDate === "required" ? { date: "May 31, 2023" } : {}),
@@ -296,6 +300,7 @@ describe("court record assembly", () => {
 
   it("preserves Alberta roles below and appeal status for every party group", async () => {
     const profile = COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!;
+    const transcript = await entry("transcript", "part-3-transcript");
     const result = await buildCourtRecord({
       profile,
       cover: { ...cover, partyStyleId: "application-respondent" },
@@ -305,17 +310,39 @@ describe("court record assembly", () => {
         ["reasons", "part-2-reasons"],
         ["order", "part-2-order"],
         ["notice", "part-2-notice"],
-        ["transcript", "part-3-transcript"],
-      ].map(([id, kindId]) => entry(id, kindId))),
+      ].map(([id, kindId]) => entry(id, kindId))).then((items) => [...items, transcript]),
     });
-    const artifact = result.artifacts.find((item) => item.mimeType === "application/pdf")!;
+    const artifact = result.artifacts.find((item) => item.role === "record")!;
+    const transcriptArtifact = result.artifacts.find((item) =>
+      item.role === "part-3-transcript")!;
     const text = await pdfText(artifact.bytes.slice());
     expect(text).toContain("RESPONDENT:");
     expect(text).toContain("APPLICANT:");
     expect(text).toContain("Appellant");
     expect(text).toContain("Respondent");
     expect(text).toContain("Intervener");
-    expect(await pdfText(artifact.bytes.slice(), 2)).toContain("transcript");
+    expect(await pdfText(artifact.bytes.slice(), 2)).not.toContain("transcript");
+    expect([...transcriptArtifact.bytes]).toEqual([...new Uint8Array(await transcript.file.arrayBuffer())]);
+  });
+
+  it("writes unavailable and no-oral-record notes into the Alberta appeal-record index", async () => {
+    const profile = COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!;
+    const files = await Promise.all(profile.documentKinds.filter((kind) =>
+      kind.requirement === "required" && kind.id !== "part-2-order")
+      .map((kind) => entry(kind.id, kind.id)));
+    const note = (id: string, kindId: string, title: string): RecordEntry => ({
+      id, kindId, title, file: new File([], "description-only"), pageCount: 0,
+      searchable: null, encrypted: null, descriptionOnly: true,
+    });
+    const result = await buildCourtRecord({ profile, cover: profileCover(profile),
+      preparationDate: "2026-08-29", entries: [...files,
+        note("order-note", "part-2-order", "The formal order was not available when this appeal record was prepared."),
+        note("no-oral", "part-3-no-oral-record",
+          "There is no oral record that can be transcribed for Part 3, Transcripts")] });
+    expect(result.artifacts).toHaveLength(1);
+    const index = await pdfText(result.artifacts[0].bytes.slice(), 2);
+    expect(index).toContain("The formal order was not available");
+    expect(index).toContain("There is no oral record that can be transcribed for Part 3, Transcripts");
   });
 
   it("preserves an editable Alberta proposed order byte-for-byte", async () => {
@@ -366,7 +393,7 @@ describe("court record assembly", () => {
       for (const artifact of result.artifacts.filter((item) => item.mimeType === "application/pdf")) {
         const output = await PDFDocument.load(artifact.bytes);
         expect(output.getPageCount(), `${profile.id}:${artifact.filename}`).toBeGreaterThan(0);
-        if (profile.technical.pdfPageLabelsMatch) {
+        if (profile.technical.pdfPageLabelsMatch && artifact.role?.startsWith("record")) {
           expect(output.catalog.get(PDFName.of("PageLabels")), profile.id).toBeTruthy();
         }
       }

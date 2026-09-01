@@ -8,6 +8,7 @@ import { DirectoryActions, type UploadActions } from "@/app/components/documents
 import { projectBreadcrumbLabel } from "./ProjectPageParts";
 import { ProjectSectionTabs, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
+import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
 export function ProjectDocumentsView() {
     const {
         projectId,
@@ -49,6 +50,9 @@ export function ProjectDocumentsView() {
                 onCreateFolderActionChange={handleCreateFolderActionChange}
                 onOpenSelectionInChat={(documents) => {
                     void createChat(documents);
+                }}
+                onAssistantWorkflowSelect={(selection, documents) => {
+                    void createChat(documents, assistantWorkflowLaunch(selection));
                 }}
                 renderAddDocumentsModal={(open, onClose, onSelect) =>
                     project ? (

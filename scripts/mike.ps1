@@ -5,6 +5,7 @@ param(
     [string]$Action = 'status',
     [switch]$Full,
     [switch]$WithTableOfAuthorities,
+    [switch]$WithAssistantDock,
     [switch]$NoBrowser,
     [ValidateRange(5, 300)]
     [int]$TimeoutSeconds = 90
@@ -601,6 +602,17 @@ function Invoke-Smoke {
             '--url' 'http://127.0.0.1:3000/table-of-authorities'
         if ($LASTEXITCODE -ne 0) {
             throw "Authorities browser smoke failed with exit code $LASTEXITCODE."
+        }
+    }
+    if ($Full -or $WithAssistantDock) {
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $python) {
+            throw 'Assistant dock smoke requires Python and ChromeDriver.'
+        }
+        & $python.Source (Join-Path $Repo 'scripts\test-sources-dock-browser.py') `
+            '--url' 'http://127.0.0.1:3000/'
+        if ($LASTEXITCODE -ne 0) {
+            throw "Assistant dock browser smoke failed with exit code $LASTEXITCODE."
         }
     }
     if ($Full) {

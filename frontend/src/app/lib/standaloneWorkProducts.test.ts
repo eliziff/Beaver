@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { canRetainLocalFiles, listStandaloneOutputs, pickRetainedFiles,
-  readStandaloneOutput, resolveRetainedFile, saveStandaloneArtifacts,
-  standaloneWorkProducts } from "./standaloneWorkProducts";
+import { bindStandaloneFile, canRetainLocalFiles, listStandaloneOutputs, pickRetainedFiles,
+  readStandaloneOutput, resolveRetainedFile, resolveStandaloneFile,
+  saveStandaloneArtifacts, standaloneWorkProducts } from "./standaloneWorkProducts";
 
 const input = { kind: "local-file" as const, handleId: "handle-1", lastSeen: {
   name: "brief.pdf", size: 3, modified: 10, sha256: "a".repeat(64),
@@ -27,6 +27,17 @@ describe("standalone retained files", () => {
     await expect(resolveRetainedFile(handle(changed), input)).resolves.toEqual({
       status: "changed", file: changed,
       input: { ...input, lastSeen: { name: "brief.pdf", size: 4, modified: 11 } },
+    });
+  });
+
+  it("keeps a directly added file available for the browser session", async () => {
+    const file = new File(["brief"], "brief.pdf", { lastModified: 10 });
+    const binding = await bindStandaloneFile(file);
+
+    expect(binding).toMatchObject({ kind: "local-file", handleId: expect.stringMatching(/^session:/),
+      lastSeen: { name: "brief.pdf", sha256: expect.stringMatching(/^[a-f0-9]{64}$/) } });
+    await expect(resolveStandaloneFile(binding)).resolves.toMatchObject({
+      status: "ready", file, input: binding,
     });
   });
 
@@ -85,7 +96,9 @@ describe("standalone retained files", () => {
     const handles = Array.from({ length: 70 }, (_, index) => fileHandle(index));
     vi.stubGlobal("window", { showOpenFilePicker: vi.fn()
       .mockResolvedValueOnce(handles).mockResolvedValueOnce([fileHandle(70)]) });
-    await pickRetainedFiles(true);
+    const retained = await pickRetainedFiles(true);
+    expect((await bindStandaloneFile(retained[0].file)).handleId)
+      .toBe(retained[0].input.handleId);
     expect(memory.stores.get("fileHandles")?.size).toBe(70);
     await pickRetainedFiles(false);
     expect(memory.stores.get("fileHandles")?.size).toBe(64);

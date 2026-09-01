@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "manifest": "docs/decisions/court-output-preset-receipts.json",
-  "manifest_verified_on": "2026-08-31",
-  "updated_at": "2026-08-31T14:15:34.237Z",
+  "manifest_verified_on": "2026-09-01",
+  "updated_at": "2026-09-01T06:40:28.036Z",
   "results": [
     {
       "id": "ab-affidavit-exhibit-example",
@@ -53,6 +53,24 @@
       "last_attempt_detail": "connect EACCES 199.213.200.107:443"
     },
     {
+      "id": "ab-ca-appeal-transcripts",
+      "url": "https://albertacourts.ca/docs/default-source/ca/appeal-record-transcripts.pdf?sfvrsn=4521ac80_16",
+      "final_url": "https://albertacourts.ca/docs/default-source/ca/appeal-record-transcripts.pdf?sfvrsn=4521ac80_16",
+      "checked_at": "2026-09-01T06:39:42.378Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 290448,
+      "sha256": "6d9561d703ab79bbd6b77017854f5168c74dbc24d49f6135318c6a37a8dc0cf4",
+      "etag": null,
+      "last_modified": "Thu, 19 Sep 2024 17:56:20 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      }
+    },
+    {
       "id": "ab-ca-authorities-guide",
       "url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
       "final_url": "https://www.albertacourts.ca/docs/default-source/ca/finding-and-providing-authorities.pdf?sfvrsn=a3952e82_5",
@@ -72,6 +90,24 @@
       "last_attempt_at": "2026-08-30T22:55:20.404Z",
       "last_attempt_status": "error",
       "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-ca-condensed-books-overview",
+      "url": "https://albertacourts.ca/docs/default-source/ca/condensed-books-overview.pdf?sfvrsn=24966383_4",
+      "final_url": "https://albertacourts.ca/docs/default-source/ca/condensed-books-overview.pdf?sfvrsn=24966383_4",
+      "checked_at": "2026-09-01T06:39:42.598Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 105294,
+      "sha256": "019d9279c4815954e95817c3df7d5e793381e9cb4bd8c814095b80f5e236c65d",
+      "etag": null,
+      "last_modified": "Mon, 01 Feb 2021 22:46:30 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      }
     },
     {
       "id": "ab-ca-consolidated-directions",
@@ -208,6 +244,27 @@
       "last_attempt_at": "2026-08-30T22:55:20.398Z",
       "last_attempt_status": "error",
       "last_attempt_detail": "connect EACCES 199.213.200.107:443"
+    },
+    {
+      "id": "ab-kb-civil-special-chambers",
+      "url": "https://www.albertacourts.ca/kb/court-operations-schedules/scheduling/civil-special-chambers",
+      "final_url": "https://www.albertacourts.ca/kb/court-operations-schedules/scheduling/civil-special-chambers",
+      "checked_at": "2026-09-01T06:39:41.937Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "byte_count": 110003,
+      "sha256": "9f1f5f6e00f432c4d0d5763da9db883ed41f9fd36f263da2e275343cfc8256a8",
+      "etag": null,
+      "last_modified": null,
+      "markers": {
+        "status": "matched",
+        "found": [
+          "pleadings",
+          "proposed form of Order"
+        ],
+        "missing": []
+      }
     },
     {
       "id": "ab-kb-commercial-pn1",
@@ -369,10 +426,23 @@
     },
     {
       "id": "ab-rules-part-13-14",
-      "url": "https://www.canlii.org/en/ab/laws/regu/alta-reg-124-2010/",
-      "checked_at": "2026-08-30T22:55:20.320Z",
-      "status": "manual_only",
-      "detail": "No automated request was made."
+      "url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf",
+      "final_url": "https://kings-printer.alberta.ca/documents/rules2010/Rules_vol_1.pdf",
+      "checked_at": "2026-09-01T06:39:41.121Z",
+      "status": "fetched",
+      "http_status": 200,
+      "content_type": "application/pdf",
+      "byte_count": 4549051,
+      "sha256": "956f7aaef5968f14320d8b428f725efdf0065ce09fa876ef80dfafba0549e930",
+      "reference_sha256": "956f7aaef5968f14320d8b428f725efdf0065ce09fa876ef80dfafba0549e930",
+      "reference_status": "matched",
+      "etag": "\"93dac0ece2f1dc1:0\"",
+      "last_modified": "Mon, 01 Jun 2026 16:23:05 GMT",
+      "markers": {
+        "status": "hash_only",
+        "found": [],
+        "missing": []
+      }
     },
     {
       "id": "canlii-terms",
@@ -452,7 +522,7 @@
       "id": "fc-rules",
       "url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
       "final_url": "https://laws-lois.justice.gc.ca/eng/regulations/sor-98-106/FullText.html",
-      "checked_at": "2026-08-30T20:05:45.154Z",
+      "checked_at": "2026-09-01T06:40:24.889Z",
       "status": "fetched",
       "http_status": 200,
       "content_type": "text/html",
@@ -466,13 +536,13 @@
           "Trial Record",
           "Motion Record",
           "Appeal Books",
-          "FORM 344"
+          "FORM 344",
+          "motion for leave to appeal shall serve any reply",
+          "written representations in reply within four days after being served",
+          "written representations in reply within four days after the day"
         ],
         "missing": []
-      },
-      "last_attempt_at": "2026-08-30T22:55:20.464Z",
-      "last_attempt_status": "error",
-      "last_attempt_detail": ""
+      }
     },
     {
       "id": "fc-sample-motion-record",

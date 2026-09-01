@@ -1,11 +1,13 @@
 import { FileStack } from "lucide-react";
 import type { CourtProfile, CoverValues } from "./types";
 import { contactGroups, coverPartyGroups, filingParty, groupNames, partyNames } from "./types";
+import { courtProfileForCover } from "./profiles";
 
-export function CourtCoverPreview({ profile, cover }: {
+export function CourtCoverPreview({ profile: sourceProfile, cover }: {
   profile: CourtProfile;
   cover: CoverValues;
 }) {
+  const profile = courtProfileForCover(sourceProfile, cover);
   if (!profile.cover.generated) {
     return (
       <div aria-hidden="true" className="flex aspect-[8.5/11] h-full max-w-full flex-col justify-between border border-black/15 bg-white px-6 py-7 text-left shadow-[0_8px_24px_rgba(0,0,0,.12)]">

@@ -8,16 +8,17 @@ import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesDraft, AuthoritiesProduct } from "./types";
 
 const mocks = vi.hoisted(() => ({
-  apiResponse: vi.fn(), get: vi.fn(), update: vi.fn(), resolve: vi.fn(), relink: vi.fn(),
-  saveArtifacts: vi.fn(),
+  apiResponse: vi.fn(), bindFile: vi.fn(), get: vi.fn(), update: vi.fn(),
+  resolve: vi.fn(), relink: vi.fn(), saveArtifacts: vi.fn(),
 }));
 
 vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   canRetainLocalFiles: () => true,
+  bindStandaloneFile: mocks.bindFile,
   pickRetainedFiles: vi.fn(),
   readStandaloneOutput: vi.fn(),
-  resolveLocalFile: mocks.resolve,
-  relinkLocalFile: mocks.relink,
+  resolveStandaloneFile: mocks.resolve,
+  relinkStandaloneFile: mocks.relink,
   saveStandaloneArtifacts: mocks.saveArtifacts,
   standaloneWorkProducts: {
     create: vi.fn(), duplicate: vi.fn(), get: mocks.get, list: vi.fn(), remove: vi.fn(),
@@ -63,7 +64,8 @@ describe("standalone Authorities sources", () => {
     mocks.resolve.mockResolvedValue({ status: "missing", reason: "deleted" });
     mocks.relink.mockResolvedValue({ status: "ready", file: replacement,
       input: { kind: "local-file", handleId: "source-handle",
-        lastSeen: { name: replacement.name, size: replacement.size, modified: 2 } } });
+        lastSeen: { name: replacement.name, size: replacement.size, modified: 2,
+          sha256: await sha256(replacement) } } });
     mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
     mocks.apiResponse.mockImplementation(async (_path, options) => {
@@ -101,7 +103,10 @@ describe("standalone Authorities sources", () => {
     mocks.get.mockResolvedValue(saved);
     mocks.resolve.mockResolvedValue({ status: "missing", reason: "deleted" });
     mocks.relink.mockResolvedValue({ status: "ready", file: replacement,
-      input: saved.state.bindings["authority:case"] });
+      input: { kind: "local-file", handleId: "pdf-handle", lastSeen: {
+        name: replacement.name, size: replacement.size, modified: 2,
+        sha256: await sha256(replacement),
+      } } });
     mocks.update.mockImplementation(async (_id, patch) => ({ ...saved, revision: 2,
       state: patch.state }));
 
@@ -122,7 +127,9 @@ describe("standalone Authorities sources", () => {
     let submitted!: AuthoritiesDraft;
     mocks.get.mockResolvedValue(saved);
     mocks.resolve.mockResolvedValue({ status: "changed", file: changed,
-      input: saved.state.bindings.source });
+      input: { kind: "local-file", handleId: "refresh-handle", lastSeen: {
+        name: changed.name, size: changed.size, modified: 3, sha256: await sha256(changed),
+      } } });
     mocks.apiResponse.mockImplementation(async (_path, options) => {
       submitted = JSON.parse(String((options.body as FormData).get("draft")));
       return { json: async () => submitted };
@@ -155,7 +162,7 @@ describe("standalone Authorities sources", () => {
       return { formData: async () => response };
     });
 
-    await standaloneAuthoritiesHost.build("draft-1", 1);
+    await standaloneAuthoritiesHost.build(saved);
 
     expect(JSON.parse(String(request.get("roles")))).toEqual(["source"]);
     const [included] = request.getAll("files") as File[];
@@ -170,13 +177,17 @@ describe("standalone Authorities sources", () => {
     }).mockResolvedValue({});
     const relinkSource = vi.fn().mockResolvedValue(relinked);
     const host: AuthoritiesHost = {
-      mode: "standalone", list: vi.fn().mockResolvedValue([saved]),
-      get: vi.fn().mockResolvedValue(saved), create: vi.fn(), act: vi.fn(),
-      refresh: vi.fn(), attach: vi.fn(), build: vi.fn(), update: vi.fn(),
-      duplicate: vi.fn(), remove: vi.fn(), download: vi.fn(),
+      mode: "standalone", drafts: {
+        list: vi.fn().mockResolvedValue([saved]), get: vi.fn().mockResolvedValue(saved),
+        create: vi.fn(), update: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+      },
+      create: vi.fn(), act: vi.fn(), refresh: vi.fn(), attach: vi.fn(), build: vi.fn(),
+      download: vi.fn(),
       sourceIssues: issues, relinkSource,
     };
-    render(<MemoryRouter><AuthoritiesWorkspace host={host} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={host} />
+    </MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("button", { name: "Relink source" }));
     expect(relinkSource).toHaveBeenCalledWith("draft-1", "source", 1);

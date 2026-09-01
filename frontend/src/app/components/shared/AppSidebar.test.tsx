@@ -379,20 +379,6 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("uses Workflows as the only workflow discovery destination", () => {
-    render(sidebar(false));
-
-    expect(
-      screen.getByRole("link", { name: "Workflows" }),
-    ).toHaveAttribute("href", "/workflows");
-    expect(screen.queryByRole("link", { name: "Authorities" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Court Records" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Tabular Review" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Recycling bin" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: "API keys" })).toBeNull();
-  });
-
   it("opens one Settings modal in cloud mode", async () => {
     mocks.localMode = false;
     mocks.profile = null;

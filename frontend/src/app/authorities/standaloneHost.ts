@@ -1,18 +1,12 @@
 import {
-  canRetainLocalFiles, pickRetainedFiles, readStandaloneOutput, resolveLocalFile,
-  relinkLocalFile, saveStandaloneArtifacts, standaloneWorkProducts,
+  bindStandaloneFile, canRetainLocalFiles, pickRetainedFiles, readStandaloneOutput,
+  relinkStandaloneFile, resolveStandaloneFile, saveStandaloneArtifacts,
+  standaloneWorkProducts,
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/apiTransport";
-import type { InputResolution, WorkProductInput } from "@/app/lib/workProducts";
+import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesDraft } from "./types";
-import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
-
-const sessionFiles = new Map<string, File>();
-const snapshot = async (file: File) => ({ name: file.name, size: file.size,
-  modified: file.lastModified, sha256: await hash(file) });
-const hash = async (file: Blob) => [...new Uint8Array(await crypto.subtle.digest(
-  "SHA-256", await file.arrayBuffer(),
-))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 
 function emptyDraft(): AuthoritiesDraft {
   return { schemaVersion: "beaver.authorities-draft.v1", import: { kind: "manual" },
@@ -20,33 +14,8 @@ function emptyDraft(): AuthoritiesDraft {
     units: [], occurrences: {}, authorities: {}, authorityOrder: [] };
 }
 
-async function inputFor(selected: AuthoritiesFile) {
-  const lastSeen = await snapshot(selected.file);
-  if (selected.input?.kind === "local-file") return { ...selected.input, lastSeen };
-  const handleId = `session:${crypto.randomUUID()}`;
-  sessionFiles.set(handleId, selected.file);
-  return { kind: "local-file" as const, handleId, lastSeen };
-}
-
-async function resolveInput(input: WorkProductInput, verifyContents = false): Promise<InputResolution> {
-  if (input.kind !== "local-file") throw new Error("This standalone input is unavailable.");
-  const cached = sessionFiles.get(input.handleId);
-  const result = cached ? { status: "ready" as const, file: cached, input }
-    : await resolveLocalFile(input);
-  if (result.status === "missing") return result;
-  const previous = input.lastSeen, metadata = { name: result.file.name, size: result.file.size,
-    modified: result.file.lastModified };
-  const metadataChanged = result.status === "changed" || metadata.name !== previous.name ||
-    metadata.size !== previous.size || metadata.modified !== previous.modified;
-  const current = verifyContents || metadataChanged || !previous.sha256
-    ? await snapshot(result.file) : { ...metadata, sha256: previous.sha256 };
-  const changed = metadataChanged || verifyContents && current.sha256 !== previous.sha256;
-  return { status: changed ? "changed" : "ready", file: result.file,
-    input: { ...input, lastSeen: current } };
-}
-
 async function resolveExact(input: WorkProductInput) {
-  const result = await resolveInput(input, true);
+  const result = await resolveStandaloneFile(input, true);
   if (result.status === "missing") throw new Error(result.reason === "permission"
     ? "Allow access to the connected file, then try again."
     : "A connected file could not be found. Reconnect it, then try again.");
@@ -59,7 +28,7 @@ async function resolveExact(input: WorkProductInput) {
 async function findSourceIssues(state: AuthoritiesDraft) {
   const entries = await Promise.all(Object.entries(state.bindings).map(async ([role, input]) => {
     if (input.kind !== "local-file") return null;
-    const result = await resolveInput(input);
+    const result = await resolveStandaloneFile(input);
     const issue: AuthoritiesSourceIssue | null = result.status === "changed"
       ? { status: "changed" } : result.status === "missing" ? result : null;
     return issue ? [role, issue] as const : null;
@@ -71,6 +40,11 @@ async function findSourceIssues(state: AuthoritiesDraft) {
 
 async function save(id: string, revision: number, state: AuthoritiesDraft) {
   return standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state });
+}
+async function currentProduct(id: string, revision: number) {
+  const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
+  if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+  return product;
 }
 
 async function runtimeResponse(path: string, body: BodyInit, json = false) {
@@ -90,12 +64,12 @@ async function refreshImported(state: AuthoritiesDraft, file: File) {
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   mode: "standalone",
-  list: () => standaloneWorkProducts.list<AuthoritiesDraft>("authorities"),
-  get: (id) => standaloneWorkProducts.get<AuthoritiesDraft>(id),
+  drafts: standaloneWorkProducts,
   async create({ source, title }) {
     const state = emptyDraft();
     if (source.kind === "file") {
-      const binding = await inputFor(source.selected), extension = source.selected.file.name
+      const binding = await bindStandaloneFile(source.selected.file, source.selected.input);
+      const extension = source.selected.file.name
         .split(".").at(-1)?.toLowerCase();
       if (extension !== "pdf" && extension !== "docx") throw new Error("Add a PDF or Word document.");
       const form = new FormData(); form.append("file", source.selected.file);
@@ -106,18 +80,16 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return standaloneWorkProducts.create<AuthoritiesDraft>({ kind: "authorities", title, state });
   },
   async act(id, revision, action: AuthoritiesAction) {
-    const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-    if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+    const product = await currentProduct(id, revision);
     const state = await runtime<AuthoritiesDraft>("action",
       JSON.stringify({ draft: product.state, action }), true);
     return save(id, revision, state);
   },
   async refresh(id, revision) {
-    const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-    if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+    const product = await currentProduct(id, revision);
     if (product.state.import.kind !== "document") return product;
     const role = product.state.import.bindingRole;
-    const resolved = await resolveInput(product.state.bindings[role]);
+    const resolved = await resolveStandaloneFile(product.state.bindings[role]);
     if (resolved.status === "missing") throw new Error(
       "The connected source could not be found. Relink it, then try again.",
     );
@@ -126,11 +98,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   async attach(id, authorityId, revision, selected) {
     if (await selected.file.slice(0, 5).text() !== "%PDF-") throw new Error("Add a valid PDF.");
-    const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-    if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+    const product = await currentProduct(id, revision);
     const state = structuredClone(product.state), authority = state.authorities[authorityId];
     if (!authority) throw new Error("This authority no longer exists.");
-    const role = `authority:${authorityId}`, binding = await inputFor(selected);
+    const role = `authority:${authorityId}`;
+    const binding = await bindStandaloneFile(selected.file, selected.input);
     const sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl : null;
     if (authority.source.kind === "attached") delete state.bindings[authority.source.bindingRole];
     state.bindings[role] = binding;
@@ -138,9 +110,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       sourceSha256: binding.lastSeen.sha256!, sourceUrl };
     return save(id, revision, state);
   },
-  async build(id, revision) {
-    const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-    if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+  async build(selected) {
+    const product = await currentProduct(selected.id, selected.revision);
     const roles = [
       ...(product.state.outputMode === "table" ? [] :
         Object.values(product.state.authorities).flatMap(({ excluded, source }) =>
@@ -168,10 +139,6 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       ({ ...artifact, receipt })));
     return { product: saved, receipt };
   },
-  update: (id, revision, title) => standaloneWorkProducts.update<AuthoritiesDraft>(id,
-    { revision, title }),
-  duplicate: (id, title) => standaloneWorkProducts.duplicate<AuthoritiesDraft>(id, { title }),
-  remove: (id) => standaloneWorkProducts.remove(id),
   download: async (documentId, versionId) => {
     const saved = await readStandaloneOutputByDocument(documentId, versionId);
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
@@ -182,16 +149,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     },
     sourceIssues: (draft) => findSourceIssues(draft.state),
     async relinkSource(id: string, role: string, revision: number) {
-      const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-      if (product.revision !== revision)
-        throw new Error("This draft changed. Reopen it and try again.");
+      const product = await currentProduct(id, revision);
       const binding = product.state.bindings[role];
       if (binding?.kind !== "local-file") throw new Error("This source cannot be relinked.");
-      let resolved = await resolveInput(binding);
-      if (resolved.status === "missing") resolved = await relinkLocalFile(binding);
+      const resolved = await relinkStandaloneFile(binding, true);
       if (resolved.status === "missing") throw new Error("Choose the source file to relink it.");
       if (resolved.input.kind !== "local-file") throw new Error("This source cannot be relinked.");
-      const state = structuredClone(product.state), current = await snapshot(resolved.file);
+      const state = structuredClone(product.state), current = resolved.input.lastSeen;
       const imported = state.import.kind === "document" && state.import.bindingRole === role
         ? state.import : null;
       const authority = Object.values(state.authorities).find(({ source }) =>

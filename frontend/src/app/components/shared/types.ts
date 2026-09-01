@@ -1,3 +1,5 @@
+import type { WorkProductKind } from "@/app/lib/workProducts";
+
 export interface Folder {
   id: string;
   name: string;
@@ -119,7 +121,7 @@ export type WorkflowRunEvent = {
   job_id?: string;
   version_number?: number | null;
   work_product?: {
-    kind: "court-record" | "authorities" | "research-set";
+    kind: WorkProductKind;
     id: string;
     revision: number;
   };

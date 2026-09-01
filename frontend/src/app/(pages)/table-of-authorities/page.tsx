@@ -1,30 +1,24 @@
-import { useCallback, useState } from "react";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
 import type { AuthoritiesProduct } from "@/app/authorities/types";
-import { WorkProductAssistant, WorkProductAssistantButton } from "@/app/components/assistant/WorkProductAssistant";
+import { WorkProductAssistant, WorkProductAssistantButton,
+  useWorkProductAssistantState } from "@/app/components/assistant/WorkProductAssistant";
 
 export default function TableOfAuthoritiesPage() {
-  const [readyDraft, setReadyDraft] = useState<AuthoritiesProduct>();
-  const [draftId, setDraftId] = useState("");
-  const [chatIds, setChatIds] = useState<Record<string, string>>({});
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [refreshToken, setRefreshToken] = useState(0);
-  const onDraftChange = useCallback((draft?: AuthoritiesProduct) => {
-    setReadyDraft(draft);
-    if (draft) setDraftId(draft.id);
-  }, []);
+  const assistant = useWorkProductAssistantState<AuthoritiesProduct>();
+  const draftId = assistant.product?.id;
   return <div className="relative flex h-full min-h-0 w-full">
     <div className="min-w-0 flex-1">
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} onDraftChange={onDraftChange}
-        refreshToken={refreshToken}
-        headerActions={<WorkProductAssistantButton ready={!!readyDraft}
-          expanded={assistantOpen} onClick={() => setAssistantOpen(true)} />} />
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost}
+        locked={assistant.busy}
+        onDraftChange={assistant.onProductChange} refreshToken={assistant.refreshToken}
+        headerActions={<WorkProductAssistantButton available={!!assistant.product}
+          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />} />
     </div>
-    {assistantOpen && draftId && <WorkProductAssistant key={draftId}
-      product={readyDraft} chatId={chatIds[draftId]}
-      onChatIdChange={(chatId) => setChatIds((current) => ({ ...current, [draftId]: chatId }))}
-      onClose={() => setAssistantOpen(false)}
-      onTurnComplete={() => setRefreshToken((current) => current + 1)} />}
+    {draftId && <WorkProductAssistant key={draftId} expanded={assistant.expanded}
+      product={assistant.product} synced={assistant.synced} chatId={assistant.chatId}
+      onChatIdChange={assistant.onChatIdChange} onClose={() => assistant.setExpanded(false)}
+      onBusyChange={assistant.setBusy}
+      onProductUpdated={assistant.onProductUpdated} />}
   </div>;
 }

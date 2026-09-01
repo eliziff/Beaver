@@ -33,13 +33,12 @@ export default function AppShell() {
     const authoritiesActive = pathname === "/table-of-authorities";
     const capabilityUnavailable = access.capability &&
         !getRuntimeConfig().capabilities[access.capability];
-    const authoritiesLoading = authoritiesActive && profileLoading;
     const unavailable = isLocalMode && access.cloudOnly
         ? ["Unavailable in local mode", "This feature is not available locally yet."]
         : capabilityUnavailable
           ? ["Unavailable in this deployment",
               "This feature is disabled by the server administrator."]
-          : authoritiesActive && !profile
+          : authoritiesActive && !profileLoading && !profile
             ? ["Authorities unavailable",
                 "Your settings could not be loaded. Try again."]
           : authoritiesActive && profile?.features.authorities === false
@@ -93,13 +92,13 @@ export default function AppShell() {
                             <div className="relative flex min-h-0 w-full flex-1">
                                 <main
                                     id="main-content"
-                                    className="flex h-full w-full flex-1 flex-col overflow-y-auto md:max-lg:has-[aside[data-assistant-dock]]:overflow-visible md:max-lg:has-[aside[data-assistant-dock]]:pe-3.5 lg:overflow-hidden"
+                                    className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-hidden"
                                 >
                                     {authLoading ? (
                                         <p className="m-auto px-6 text-sm text-gray-500" role="status">
                                             Loading…
                                         </p>
-                                    ) : unavailable && !authoritiesLoading ? (
+                                    ) : unavailable ? (
                                         <div className="m-auto px-6 text-center">
                                             <h1 className="font-serif text-2xl font-medium text-gray-900">
                                                 {unavailable[0]}
@@ -108,14 +107,7 @@ export default function AppShell() {
                                                 {unavailable[1]}
                                             </p>
                                         </div>
-                                    ) : <>
-                                        <div className={authoritiesLoading ? "hidden" : "contents"}>
-                                            <Outlet />
-                                        </div>
-                                        {authoritiesLoading && <p className="m-auto px-6 text-sm text-gray-500" role="status">
-                                            Loading authorities
-                                        </p>}
-                                    </>}
+                                    ) : <Outlet />}
                                 </main>
                             </div>
                         </div>

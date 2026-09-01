@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
-import { DocumentWorkflowMenu } from "@/app/components/documents/DocumentWorkflowMenu";
+import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
+import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import { Button } from "@/app/components/ui/button";
 import type { Document } from "@/app/components/shared/types";
@@ -81,6 +82,8 @@ interface Props {
     onOwnerOnlyAction?: (action: string) => void;
     onDelete: (doc: Document) => Promise<void> | void;
     documentRemovalMode?: "delete" | "detach";
+    onOpenWorkflows?: (documents: Document[]) => void;
+    onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
 }
 
 const PLAIN_TEXT_VIEW_EXTENSIONS = new Set([
@@ -139,6 +142,8 @@ export function DocumentSidePanel({
     onOwnerOnlyAction,
     onDelete,
     documentRemovalMode = "delete",
+    onOpenWorkflows,
+    onAssistantWorkflowSelect,
 }: Props) {
     const [mounted, setMounted] = useState(false);
     const [versionQuery, setVersionQuery] = useState("");
@@ -488,8 +493,15 @@ export function DocumentSidePanel({
                         )}
                     </>
                 )}
-                <DocumentWorkflowMenu
-                    document={activeDoc}
+                <ContextualWorkflowLauncher
+                    documents={[activeDoc]}
+                    onOpen={onOpenWorkflows ? () => {
+                        onOpenWorkflows([activeDoc]);
+                        onClose();
+                    } : undefined}
+                    onAssistantSelect={onAssistantWorkflowSelect
+                        ? (selection) => onAssistantWorkflowSelect(selection, [activeDoc])
+                        : undefined}
                     onDocumentChanged={async (result) => {
                         await onLoadVersions(activeDoc.id);
                         onSelectVersion(result.version_id, result.filename);

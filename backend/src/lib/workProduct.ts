@@ -171,6 +171,7 @@ type Product<K extends WorkProductKind> = {
 };
 export type WorkProduct = Product<"court-record"> | Product<"authorities"> |
   Product<"research-set">;
+export type WorkProductReference = Pick<WorkProduct, "id" | "kind" | "revision">;
 export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs">;
 
 export const workProductInputs = (state: WorkProductState) =>

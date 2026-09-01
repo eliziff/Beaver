@@ -157,11 +157,14 @@ const authoritiesWorkspace = lazy(async () =>
 const courtRecords = lazy(async () => (await import("./lib/courtRecordsApplication"))
   .createCourtRecordsApplication(await documents(), await workflowFiles(), await workProducts()));
 const chatAuthorities: Pick<AuthoritiesWorkspaceApplication,
-  "importDraft" | "refresh" | "build" | "addReceipts"> = Object.freeze({
+  "importDraft" | "refresh" | "build" | "addReceipts" | "attachLibraryPdf"> = Object.freeze({
   async importDraft(...args) { return (await authoritiesWorkspace()).importDraft(...args); },
   async refresh(...args) { return (await authoritiesWorkspace()).refresh(...args); },
   async build(...args) { return (await authoritiesWorkspace()).build(...args); },
   async addReceipts(...args) { return (await authoritiesWorkspace()).addReceipts(...args); },
+  async attachLibraryPdf(...args) {
+    return (await authoritiesWorkspace()).attachLibraryPdf(...args);
+  },
 });
 const chatCourtRecords: Pick<CourtRecordsApplication,
   "bindOutput" | "updateDraft"> = Object.freeze({

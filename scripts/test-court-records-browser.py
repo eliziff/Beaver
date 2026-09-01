@@ -67,6 +67,11 @@ def make_fixtures(directory: Path) -> dict[str, Path]:
         "ambiguous": directory / "Service-agreement.pdf",
         "notice": directory / "Notice-of-motion.pdf",
         "representations": directory / "Written-representations.pdf",
+        "appeal_pleading": directory / "Statement-of-Claim.pdf",
+        "appeal_reasons": directory / "Reasons-for-Judgment.pdf",
+        "appeal_order": directory / "Formal-Order.pdf",
+        "appeal_notice": directory / "Notice-of-Appeal.pdf",
+        "appeal_transcript": directory / "Oral-Proceedings-Transcript.pdf",
     }
     make_pdf(fixtures["affidavit"], [
         "COURT OF KING'S BENCH OF ALBERTA",
@@ -115,6 +120,15 @@ def make_fixtures(directory: Path) -> dict[str, Path]:
         "WRITTEN REPRESENTATIONS OF THE APPLICANT",
         "The requested directions are just and proportionate.",
     ])
+    for key, heading in (
+        ("appeal_pleading", "STATEMENT OF CLAIM"),
+        ("appeal_reasons", "REASONS FOR JUDGMENT"),
+        ("appeal_order", "FORMAL ORDER"),
+        ("appeal_notice", "NOTICE OF APPEAL"),
+        ("appeal_transcript", "ORAL PROCEEDINGS TRANSCRIPT"),
+    ):
+        make_pdf(fixtures[key], [heading, "Court File Number 2403-00789",
+                                 "North Prairie Ltd. v. Riverstone Inc."])
     return fixtures
 
 
@@ -204,6 +218,42 @@ return {name:document.getElementById(id)?.textContent?.trim(),left:r.left,right:
     return result
 
 
+def assistant_contract(driver: webdriver.Chrome, output: Path) -> dict[str, object]:
+    selector = ".court-records-workspace button[aria-label='Assistant']"
+    buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+    if urlsplit(driver.current_url).path.endswith("court-records.html"):
+        assert not buttons, "The standalone builder exposed Beaver's assistant."
+        return {"available": False, "mode": "standalone"}
+
+    button = WebDriverWait(driver, 10).until(
+        lambda item: next((candidate for candidate in item.find_elements(
+            By.CSS_SELECTOR, selector
+        ) if candidate.is_enabled()), False)
+    )
+    button.click()
+    dock = WebDriverWait(driver, 10).until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']"
+    ))
+    assert dock.find_element(By.TAG_NAME, "textarea").is_displayed()
+    assert driver.find_element(By.CSS_SELECTOR, "[data-court-record-chooser]")
+    assert driver.save_screenshot(str(output / "assistant-open.png"))
+    dock.find_element(By.CSS_SELECTOR,
+                      "button[aria-label='Close assistant'],"
+                      "button[aria-label='Collapse assistant dock']").click()
+    WebDriverWait(driver, 5).until(
+        lambda _item: dock.get_attribute("aria-hidden") == "true"
+    )
+    button.click()
+    reopened = WebDriverWait(driver, 5).until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']"
+    ))
+    assert reopened == dock, "Collapsing the assistant replaced its mounted workspace."
+    reopened.find_element(By.CSS_SELECTOR,
+                          "button[aria-label='Close assistant'],"
+                          "button[aria-label='Collapse assistant dock']").click()
+    return {"available": True, "mode": "beaver", "same_panel_after_reopen": True}
+
+
 def reset_workspace(
     driver: webdriver.Chrome, url: str, profile_id: str, chooser_output: Path | None = None
 ) -> tuple[float, dict[str, object], dict[str, object]]:
@@ -216,52 +266,54 @@ def reset_workspace(
     })
     driver.get(url)
     wait = WebDriverWait(driver, 20)
-    chooser = wait.until(lambda item: item.find_element(
-        By.CSS_SELECTOR, "#court-record-workspace:not([inert]) [data-court-record-chooser]"
+    workspace = wait.until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "#court-record-workspace:not([inert])"
     ))
     timing = navigation_timing(driver)
-    drafts = driver.find_element(By.CSS_SELECTOR, "[data-draft-menu]")
-    drafts.find_element(By.TAG_NAME, "summary").click()
-    drafts.find_element(By.XPATH, ".//button[normalize-space()='New']").click()
-    wait.until(lambda item: item.find_element(
-        By.CSS_SELECTOR, "[data-court-record-chooser]"
-    ).get_attribute("data-selected-profile") == "general-affidavit-exhibits")
-    wait.until(lambda item: not item.find_element(By.ID, "cover-courtFileNumber")
-               .get_attribute("value"))
-    chooser = driver.find_element(By.CSS_SELECTOR, "[data-court-record-chooser]")
+    assert not workspace.find_elements(By.CSS_SELECTOR, "[data-court-record-chooser]")
+    assert not driver.find_elements(
+        By.CSS_SELECTOR, ".court-records-workspace button[aria-label='Assistant']"
+    )
+    if chooser_output:
+        assert driver.save_screenshot(str(chooser_output / "blank-start.png"))
+    workspace.find_element(
+        By.XPATH, ".//button[normalize-space()='New court record']"
+    ).click()
     documents = {
         "ab-kb-affidavit-exhibits": "Affidavit with exhibits",
         "fc-motion-record-moving": "Motion record",
+        "ab-ca-appeal-record": "Civil appeal record",
     }
     formats = {
         "ab-kb-affidavit-exhibits": ".//button[normalize-space()='ABKB']",
         "fc-motion-record-moving": ".//button[starts-with(normalize-space(),'FC ') and contains(normalize-space(),'Moving party')]",
+        "ab-ca-appeal-record": ".//button[normalize-space()='ABCA']",
     }
-    chooser.find_element(By.CSS_SELECTOR, "button[aria-label^='Document:']").click()
     dialog = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
-    chooser_proof = ({"document": chooser_contract(
+    groups = [item.text.strip().casefold() for item in dialog.find_elements(
+        By.XPATH, ".//*[@role='group']/div"
+    )]
+    assert groups == ["trial and applications", "appeal"], groups
+    chooser_proof = {"blank_start": True,
+                     "document_groups": ["Trial and applications", "Appeal"]}
+    if chooser_output:
+        chooser_proof["document"] = chooser_contract(
         driver, dialog, chooser_output, "document"
-    )} if chooser_output else {})
+        )
     choice = dialog.find_element(
         By.XPATH, f".//button[normalize-space()='{documents[profile_id]}']"
     )
-    if choice.get_attribute("aria-pressed") == "true":
-        driver.switch_to.active_element.send_keys(Keys.ESCAPE)
-        wait.until(lambda item: not item.find_elements(By.CSS_SELECTOR, "dialog[open]"))
-        chooser.find_element(By.CSS_SELECTOR, "button[aria-label^='Format:']").click()
-    else:
-        choice.click()
+    choice.click()
     dialog = wait.until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
     if chooser_output:
         chooser_proof["format"] = chooser_contract(driver, dialog, chooser_output, "format")
     choice = dialog.find_element(By.XPATH, formats[profile_id])
-    if choice.get_attribute("aria-pressed") == "true":
-        driver.switch_to.active_element.send_keys(Keys.ESCAPE)
-    else:
-        choice.click()
+    choice.click()
     wait.until(lambda item: item.find_element(
         By.CSS_SELECTOR, "[data-court-record-chooser]"
     ).get_attribute("data-selected-profile") == profile_id)
+    if chooser_output:
+        chooser_proof["assistant"] = assistant_contract(driver, chooser_output)
     return round((time.perf_counter() - started) * 1000, 1), timing, chooser_proof
 
 
@@ -494,6 +546,48 @@ def inspect_federal(path: Path, output: Path) -> dict[str, object]:
         document.close()
 
 
+def inspect_appeal_record(
+    record_path: Path, transcript_path: Path, source_transcript: Path, output: Path
+) -> dict[str, object]:
+    record = fitz.open(record_path)
+    transcript = fitz.open(transcript_path)
+    try:
+        pages = [page.get_text() for page in record]
+        text = "\n".join(pages)
+        toc = [row[1] for row in record.get_toc()]
+        links = sum(len(page.get_links()) for page in record)
+        corner = record[0].get_pixmap(alpha=False).pixel(5, 5)[:3]
+        assert record.page_count == 6, pages
+        assert [page.get_label() for page in record] == [str(value) for value in range(1, 7)]
+        assert corner[0] > 240 and corner[1] < 15 and corner[2] < 15, corner
+        for value in ("COURT OF APPEAL OF ALBERTA", "APPEAL RECORD", "Table of Contents",
+                      "STATEMENT OF CLAIM", "REASONS FOR JUDGMENT", "FORMAL ORDER",
+                      "NOTICE OF APPEAL"):
+            assert value in text, value
+        assert "ORAL PROCEEDINGS TRANSCRIPT" not in text
+        assert links >= 4 and len(toc) >= 6, (links, toc)
+        assert transcript.page_count == 1 and not transcript.is_encrypted
+        assert "ORAL PROCEEDINGS TRANSCRIPT" in transcript[0].get_text()
+        assert sha256(transcript_path) == sha256(source_transcript)
+        record[0].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False).save(
+            output / "appeal-record-cover.png"
+        )
+        record[1].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False).save(
+            output / "appeal-record-index.png"
+        )
+        return {
+            "record": {"filename": record_path.name, "sha256": sha256(record_path),
+                       "pages": record.page_count, "bookmarks": toc,
+                       "internal_links": links, "cover_rgb": list(corner)},
+            "transcript": {"filename": transcript_path.name,
+                           "sha256": sha256(transcript_path), "pages": transcript.page_count,
+                           "preserved_byte_for_byte": True},
+        }
+    finally:
+        record.close()
+        transcript.close()
+
+
 def check_affidavit(
     driver: webdriver.Chrome, url: str, fixtures: dict[str, Path], output: Path
 ) -> dict[str, object]:
@@ -597,6 +691,120 @@ def check_federal(
             "output": inspect_federal(pdf, output)}
 
 
+def check_appeal_record(
+    driver: webdriver.Chrome, url: str, fixtures: dict[str, Path], output: Path
+) -> dict[str, object]:
+    profile_ms, navigation, _chooser = reset_workspace(driver, url, "ab-ca-appeal-record")
+    for selector, value in (("[data-party-group='Appellant'] input", "North Prairie Ltd."),
+                            ("[data-party-group='Respondent'] input", "Riverstone Inc.")):
+        enter(driver.find_element(By.CSS_SELECTOR, selector), value)
+    for field_id, value in {
+        "courtFileNumber": "2403-00789", "registry": "Calgary",
+        "counselName": "Jordan Lee", "counselAddress": "100 Legal Avenue\nCalgary, Alberta",
+        "counselPhone": "403-555-0100", "counselEmail": "jlee@example.test",
+    }.items():
+        reveal(driver, field(driver, field_id))
+        enter(field(driver, field_id), value)
+    for kind_id, fixture in (
+        ("part-1-pleading", "appeal_pleading"),
+        ("part-2-reasons", "appeal_reasons"),
+        ("part-2-order", "appeal_order"),
+        ("part-2-notice", "appeal_notice"),
+        ("part-3-transcript", "appeal_transcript"),
+    ):
+        upload(driver, kind_id, fixtures[fixture])
+    assert not driver.find_elements(By.CSS_SELECTOR, "[draggable='true']")
+    viewports = viewport_contract(
+        driver, output, "appeal-record", "[data-kind-id='part-3-transcript']"
+    )
+    downloads = build_and_download(
+        driver, output / "appeal-record-downloads", "appeal-record", 6
+    )
+    assert len(downloads) == 2, downloads
+    transcript = downloads[fixtures["appeal_transcript"].name]
+    record = next(path for path in downloads.values() if path != transcript)
+    return {"profile": "ab-ca-appeal-record", "reset_and_profile_ms": profile_ms,
+            "navigation": navigation, "viewports": viewports,
+            "outputs": inspect_appeal_record(
+                record, transcript, fixtures["appeal_transcript"], output)}
+
+
+def check_workflows(driver: webdriver.Chrome, court_url: str, output: Path) -> dict[str, object]:
+    parsed = urlsplit(court_url)
+    if parsed.path.endswith("court-records.html"):
+        return {"available": False, "mode": "standalone"}
+    driver.get(f"{parsed.scheme}://{parsed.netloc}/")
+    wait = WebDriverWait(driver, 20)
+    wait.until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "button[aria-label='Expand assistant dock']"
+    )).click()
+    dock = wait.until(lambda item: item.find_element(
+        By.CSS_SELECTOR, "[data-assistant-dock][aria-hidden='false']"
+    ))
+    next(tab for tab in dock.find_elements(By.CSS_SELECTOR, "[role='tab']")
+         if "Workflows" in tab.text).click()
+    audiences = wait.until(lambda _item: dock.find_element(
+        By.CSS_SELECTOR, "[role='tablist'][aria-label='Workflow audience']"
+    ))
+    tabs = audiences.find_elements(By.CSS_SELECTOR, "[role='tab']")
+    assert [tab.text.strip() for tab in tabs] == ["General", "Solicitor", "Litigator", "All"]
+    tabs[0].click()
+    wait.until(lambda _item: dock.find_elements(By.CSS_SELECTOR, "[data-workflow-id]"))
+    headings = [text for heading in dock.find_elements(By.CSS_SELECTOR, "h2")
+                if (text := heading.text.strip())]
+    assert headings == ["Start something", "Use documents"], headings
+    drafting = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='drafting']")
+    review = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='document-review']")
+    assert "Draft, revise, or proofread a legal document." in drafting.text
+    assert "Chat" in drafting.text
+    drafting.click()
+    first_panel = drafting.get_attribute("aria-controls")
+    assert dock.find_element(By.ID, first_panel).is_displayed()
+    review.click()
+    wait.until(lambda _item: review.get_attribute("aria-expanded") == "true")
+    assert drafting.get_attribute("aria-expanded") == "false"
+    assert not dock.find_elements(By.ID, first_panel)
+
+    next(tab for tab in tabs if tab.text.strip() == "Litigator").click()
+    court = wait.until(lambda _item: dock.find_element(
+        By.CSS_SELECTOR, "[data-workflow-id='court-records']"
+    ))
+    authorities = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='authorities']")
+    tabular = dock.find_element(By.CSS_SELECTOR, "[data-workflow-id='evidence-review']")
+    assert court.get_attribute("aria-label") == "Open Court Records"
+    assert court.text.count("Court Records") == 1
+    assert authorities.get_attribute("aria-label") == (
+        "Open Create table/book of authorities in Authorities"
+    )
+    assert "Authorities" in authorities.text
+    assert tabular.get_attribute("aria-label") == "Open Review evidence in Tabular Review"
+    assert "Tabular Review" in tabular.text
+
+    metrics: dict[str, object] = {}
+    for width, height in ((1440, 1000), (320, 800)):
+        driver.execute_cdp_cmd("Emulation.setDeviceMetricsOverride", {
+            "width": width, "height": height, "deviceScaleFactor": 1, "mobile": False,
+        })
+        wait.until(lambda item: item.execute_script("return innerWidth") == width)
+        result = driver.execute_script("""
+const d=arguments[0],r=d.getBoundingClientRect();
+return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,
+  overflow:document.documentElement.scrollWidth-innerWidth,
+  panelOverflow:d.scrollWidth-d.clientWidth};
+""", dock)
+        assert result["left"] >= 0 and result["right"] <= width, result
+        assert result["top"] >= 0 and result["bottom"] <= height, result
+        assert result["overflow"] <= 1 and result["panelOverflow"] <= 1, result
+        assert driver.save_screenshot(str(output / f"workflows-{width}.png"))
+        metrics[str(width)] = result
+    driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
+    driver.set_window_size(1440, 1000)
+    return {"available": True, "mode": "beaver", "groups": headings,
+            "details_visible": True, "expanded_choice_swaps": True,
+            "direct_destinations": ["Chat", "Tabular Review", "Authorities", "Court Records"],
+            "viewports": metrics}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Exercise the production Court Record Builder through Chrome."
@@ -635,6 +843,9 @@ def main() -> int:
                 "url": url,
                 "affidavit": check_affidavit(driver, url, fixtures, output),
                 "federal_motion": check_federal(driver, url, fixtures, output),
+                "alberta_appeal_record": check_appeal_record(
+                    driver, url, fixtures, output),
+                "workflows": check_workflows(driver, url, output),
             }
             logs = driver.get_log("browser")
             severe = [entry for entry in logs if entry["level"] == "SEVERE"]

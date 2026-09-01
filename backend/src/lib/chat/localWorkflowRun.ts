@@ -1,4 +1,5 @@
 import { jsonRecord as row, trimmedText as text } from "../value";
+import type { WorkProductReference } from "../workProduct";
 
 type WorkflowRunTool =
   | "update_work_product"
@@ -16,6 +17,9 @@ const workProduct = (value: unknown) => {
 };
 
 export type LocalWorkflowRunEvent = Row & { type: "workflow_run"; id: string };
+export const workProductResult = (product: WorkProductReference,
+  values: Row = {}) => ({ ok: true, work_product: { id: product.id, kind: product.kind,
+    revision: product.revision }, ...values });
 
 function event(
   tool: WorkflowRunTool,

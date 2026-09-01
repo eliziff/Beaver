@@ -50,7 +50,8 @@ export type AuthoritiesBuildInput = {
   draft: AuthoritiesDraft;
   title: string;
   workProduct: { id: string; revision: number };
-  sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput }>;
+  sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
+    ocrTextByPage?: string[] }>;
 };
 
 type BareArtifact = Omit<AuthoritiesBuildArtifact, "receipt">;
@@ -180,7 +181,7 @@ async function documentArtifact(draft: AuthoritiesDraft, filename: string,
     const occurrence = draft.occurrences[id], authority = occurrence?.authorityId
       ? draft.authorities[occurrence.authorityId] : null;
     const key = authority && `${unit.id}\0${occurrence.end}\0${authority.id}`;
-    if (!authority || !key || seen.has(key)) return [];
+    if (!occurrence?.reviewed || !authority || !key || seen.has(key)) return [];
     seen.add(key);
     return [nativeMark(authority, unit.id, occurrence.end)];
   }));
@@ -256,7 +257,7 @@ async function bookArtifact(
       throw new Error(`Attached PDF could not be opened for ${entry.name}.`);
     }
     if (!document.getPageCount()) throw new Error(`Attached PDF is empty for ${entry.name}.`);
-    return { entry, document };
+    return { entry, document, ocrTextByPage: attached[source.bindingRole]?.ocrTextByPage };
   }));
   const tokens = groups.flatMap((group) => {
     const kept = group.entries.filter(({ authority }) => !authority.excluded);
@@ -309,9 +310,12 @@ async function bookArtifact(
     }
     page.drawText(String(chunkIndex + 2), { x: 540, y: 24, size: 8, font: regular });
   });
-  for (const { document: source } of sources) {
+  for (const { document: source, ocrTextByPage } of sources) {
     const pages = await document.copyPages(source, source.getPageIndices());
-    pages.forEach((page) => document.addPage(page));
+    pages.forEach((page, index) => {
+      document.addPage(page);
+      addOcrText(page, regular, ocrTextByPage?.[index]);
+    });
   }
   for (const link of links) addLink(link.page, link.rect,
     document.getPage(starts.get(link.entry.authority.id)!));
@@ -335,6 +339,18 @@ async function bookArtifact(
   document.catalog.set(pdf.PDFName.of("Lang"), pdf.PDFHexString.fromText("en-CA"));
   const bytes = Buffer.from(await document.save({ useObjectStreams: false }));
   return artifact("book", filename, "application/pdf", bytes, document.getPageCount());
+}
+
+function addOcrText(page: PdfPage, font: PdfFont, value?: string) {
+  if (!value?.trim()) return;
+  const text = value.normalize("NFKC")
+    .replace(/[\u2018\u2019]/gu, "'").replace(/[\u201c\u201d]/gu, '"')
+    .replace(/[\u2013\u2014]/gu, "-").replace(/\u2026/gu, "...")
+    .replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?").slice(0, 60_000);
+  for (const [index, chunk] of (text.match(/[\s\S]{1,1800}/gu) ?? []).entries()) {
+    page.drawText(chunk, { x: 1, y: 1 + index % 4, size: 1, lineHeight: 1,
+      maxWidth: Math.max(1, page.getWidth() - 2), font, opacity: 0 });
+  }
 }
 
 function artifact(

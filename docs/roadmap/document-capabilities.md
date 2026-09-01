@@ -77,7 +77,7 @@ union. `General Transactions` is deleted rather than retained as a catch-all.
 Practice area and jurisdiction remain secondary filters or workflow inputs.
 
 Stop using **Automation** and **Actions** as user-facing product categories.
-The contextual label is **Run workflow**. `DocumentAutomation.tsx` and
+The contextual label is **Workflows**. `DocumentAutomation.tsx` and
 `AutomationRun.tsx` are replaced by the ordinary workflow launcher and shared
 run presentation; no action registry or parallel run model is introduced.
 
@@ -598,23 +598,23 @@ review produces structured findings.
 
 ## UI plan
 
-- **Workflows** is the single catalogue destination. Remove separate top-level
-  Automation, Actions, Tabular Review, Authorities, and Court Records discovery
-  surfaces; their existing focused routes remain launch targets and resumable
-  workspaces where required.
+- **Workflows** absorbs Automation and Actions as the single automation
+  catalogue. Tabular Review, Authorities, and Court Records retain their direct
+  entries and focused workspaces as well as their canonical workflow launchers.
 - The catalogue begins with **General | Solicitor | Litigator | All**, then
   progressively reveals the concrete categories and canonical workflows in the
   table above. It never starts with assistant/tabular/system implementation
   types or one alphabetical dump.
-- **Continue working** shows recent runs and saved work-product drafts by
-  projecting existing state. Do not add another history store.
+- Saved work-product drafts live in each focused workspace's compact draft
+  control and open through exact draft links. Do not add another recent-work or
+  history projection.
 - One workflow appears once per filtered result set and once in All. Search,
   category browsing, Library shortcuts, and project shortcuts resolve the same
   workflow ID and cannot create alias definitions.
-- Consolidate paired assistant/tabular system entries into one workflow with a
-  result choice such as written review, review table, or both. Show execution
-  details only when they materially change cost, availability, or behavior.
-- A contextual **Run workflow** panel shows compatible workflows for the
+- Consolidate paired assistant/tabular implementations into one workflow. Let
+  the user choose Chat or Tabular Review only where both are useful; execution
+  details are destinations, not duplicate catalogue entries or result labels.
+- A contextual **Workflows** panel shows compatible workflows for the
   selected resource and opens the same catalogue definition with that resource
   already bound.
 - Each invocation uses the existing job/run progress, Stop, partial-result, and
@@ -667,12 +667,11 @@ checks pass.
   existing Beaver components; experimental prototypes are reference material,
   never a second maintained product.
 
-Gate: both products retain their standalone flows, their Beaver entry points
-resolve through one canonical workflow definition, the audience/category
-catalogue never duplicates a workflow ID, existing job/work-product state powers
-Continue working, local/cloud composition and court-record fixtures agree,
-source boundaries pass, and no second UI, engine, store, worker, or progress
-system exists.
+Gate: both products retain their standalone flows and direct Beaver entries,
+their catalogue launchers resolve through one canonical workflow definition,
+the audience/category catalogue never duplicates a workflow ID, local/cloud
+composition and court-record fixtures agree, source boundaries pass, and no
+second UI, engine, store, worker, or progress system exists.
 
 ### Phase 2 — benchmark baseline and handle kernel
 

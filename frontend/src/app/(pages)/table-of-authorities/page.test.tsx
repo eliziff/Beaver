@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
@@ -10,31 +10,46 @@ import TableOfAuthoritiesPage from "./page";
 
 const api = vi.hoisted(() => ({
   listAuthorities: vi.fn(), createAuthorities: vi.fn(), getAuthorities: vi.fn(),
+  createWorkProduct: vi.fn(),
   actOnAuthorities: vi.fn(), attachAuthorityPdf: vi.fn(), buildAuthorities: vi.fn(),
   deleteWorkProduct: vi.fn(), duplicateWorkProduct: vi.fn(), refreshAuthorities: vi.fn(),
   updateWorkProduct: vi.fn(), uploadAuthoritiesDocument: vi.fn(), downloadDocument: vi.fn(),
+  directoryList: vi.fn(),
 }));
 const assistant = vi.hoisted(() => ({ options: [] as Record<string, unknown>[],
   handleChat: vi.fn() }));
 vi.mock("@/app/lib/beaverApi", () => ({
   ...api,
-  directoryResource: () => ({ list: vi.fn().mockResolvedValue({ items: [] }) }),
+  listWorkProducts: api.listAuthorities,
+  getWorkProduct: api.getAuthorities,
+  directoryResource: () => ({ list: api.directoryList }),
 }));
 vi.mock("@/app/components/assistant/AssistantDock", () => ({
-  AssistantDock: ({ tabs }: { tabs: Array<{ content: ReactNode }> }) =>
-    <aside aria-label="Assistant dock">{tabs[0]?.content}</aside>,
+  AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: ReactNode }>; expanded: boolean }) =>
+    <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0]?.content}</aside>,
 }));
 vi.mock("@/app/components/assistant/ChatView", () => ({
-  ChatView: ({ handleChat }: { handleChat: (...args: never[]) => Promise<unknown> }) =>
-    <button type="button" onClick={() => void handleChat({ content: "Add the case" } as never)}>
+  ChatView: ({ handleChat, sendDisabled }: {
+    handleChat: (...args: never[]) => Promise<unknown>; sendDisabled?: boolean;
+  }) =>
+    <button type="button" disabled={sendDisabled}
+      onClick={() => void handleChat({ content: "Add the case" } as never)}>
       Complete Assistant turn
     </button>,
 }));
 vi.mock("@/app/hooks/useAssistantChat", () => ({
   useAssistantChat: (options: Record<string, unknown>) => {
     assistant.options.push(options);
-    return { state: { chatId: options.chatId }, actions: {
-      handleChat: assistant.handleChat, cancel: vi.fn(), clearRejectedTurn: vi.fn(),
+    const [messages, setMessages] = useState<Array<{ role: "assistant"; workflowRuns: Array<{
+      status: "complete"; work_product: { id: string; kind: string; revision: number } }> }>>([]);
+    const product = options.workProduct as { id: string; kind: string; revision: number } | undefined;
+    return { state: { chatId: options.chatId, messages }, actions: {
+      handleChat: async (request: unknown) => {
+        const result = await assistant.handleChat(request);
+        if (product) setMessages([{ role: "assistant", workflowRuns: [{ status: "complete",
+          work_product: { ...product, revision: product.revision + 1 } }] }]);
+        return result;
+      }, cancel: vi.fn(), clearRejectedTurn: vi.fn(),
       retryRejectedTurn: vi.fn(),
     } };
   },
@@ -49,16 +64,36 @@ const product = (): AuthoritiesProduct => ({
     occurrences: {}, authorities: {}, authorityOrder: [] },
 });
 
+const reviewProduct = (): AuthoritiesProduct => {
+  const saved = product(), text = "2024 ABKB 1";
+  saved.state.units = [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
+    footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
+  saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:1",
+    start: 0, end: text.length, text, kind: "case", citation: text,
+    authorityId: "authority-1", reference: null, pinpoints: [], evidenceIds: [],
+    sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
+  saved.state.authorities["authority-1"] = { id: "authority-1", key: "2024 abkb 1",
+    kind: "case", citation: text, name: null, displayName: null, evidenceIds: [],
+    locators: [], sourceIdentity: null, excluded: false, source: { kind: "unresolved" } };
+  saved.state.authorityOrder = ["authority-1"];
+  return saved;
+};
+
 describe("Authorities workspace", () => {
   beforeEach(() => {
     vi.clearAllMocks(); assistant.options.length = 0;
     assistant.handleChat.mockResolvedValue(null);
     api.listAuthorities.mockResolvedValue([]);
+    api.directoryList.mockResolvedValue({ items: [], next_cursor: null });
   });
 
   it("keeps the scoped Assistant beside the draft and refreshes only that draft", async () => {
     const saved = product(), built = { ...product(), revision: 2 },
       refreshed = { ...product(), revision: 3 };
+    for (const item of [saved, built, refreshed]) {
+      item.state = { ...item.state, outputMode: "table", import: { kind: "document",
+        bindingRole: "source", filename: "Factum.docx", fileType: "docx", snapshot: null } };
+    }
     saved.projectId = built.projectId = refreshed.projectId = "matter-1";
     api.listAuthorities.mockResolvedValue([saved]);
     api.getAuthorities.mockResolvedValue(refreshed);
@@ -66,7 +101,9 @@ describe("Authorities workspace", () => {
     api.buildAuthorities.mockImplementation(() => new Promise((resolve) => {
       finishBuild = resolve;
     }));
-    render(<MemoryRouter><TableOfAuthoritiesPage /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <TableOfAuthoritiesPage />
+    </MemoryRouter>);
 
     const openAssistant = await screen.findByRole("button", { name: "Assistant" });
     await waitFor(() => expect(openAssistant).toBeEnabled());
@@ -78,13 +115,17 @@ describe("Authorities workspace", () => {
     expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Build" }));
-    await waitFor(() => expect(assistant.options.at(-1)?.workProduct).toBeUndefined());
-    expect(openAssistant).toBeDisabled();
+    await waitFor(() => expect(assistant.options.at(-1)?.workProduct).toEqual({
+      kind: "authorities", id: "draft-1", revision: 1,
+    }));
+    expect(openAssistant).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Complete Assistant turn" })).toBeDisabled();
     expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
     finishBuild({ product: built });
     await waitFor(() => expect(assistant.options.at(-1)?.workProduct).toEqual({
       kind: "authorities", id: "draft-1", revision: 2,
     }));
+    expect(screen.getByRole("button", { name: "Complete Assistant turn" })).toBeEnabled();
 
     await userEvent.click(screen.getByRole("button", { name: "Complete Assistant turn" }));
     await waitFor(() => expect(api.getAuthorities).toHaveBeenCalledWith("draft-1"));
@@ -96,7 +137,8 @@ describe("Authorities workspace", () => {
   });
 
   it("starts a durable blank book without an iframe or legacy runtime", async () => {
-    api.createAuthorities.mockResolvedValue(product());
+    const created = product(); created.state.outputMode = "book";
+    api.createAuthorities.mockResolvedValue(created);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Start with a document" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Blank book" }));
@@ -105,6 +147,36 @@ describe("Authorities workspace", () => {
     });
     expect(await screen.findByRole("heading", { name: "Sources" })).toBeVisible();
     expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("keeps the Authorities surface in place while saved drafts load", async () => {
+    let finish!: (items: AuthoritiesProduct[]) => void;
+    api.listAuthorities.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent("Loading authorities");
+    finish([]);
+    expect(await screen.findByRole("heading", { name: "Start with a document" })).toBeVisible();
+  });
+
+  it("accepts a correct citation without changing its link or form", async () => {
+    const saved = reviewProduct();
+    api.listAuthorities.mockResolvedValue([saved]);
+    api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2,
+      state: { ...saved.state, occurrences: { "occurrence-1": {
+        ...saved.state.occurrences["occurrence-1"], reviewed: true,
+      } } } });
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
+
+    const reviewed = await screen.findByRole("checkbox", { name: "Reviewed" });
+    expect(reviewed).not.toBeChecked();
+    await userEvent.click(reviewed);
+    expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
+      type: "set-reviewed", occurrenceId: "occurrence-1", reviewed: true,
+    });
   });
 
   it("keeps a direct source upload inside its Project", async () => {
@@ -129,7 +201,71 @@ describe("Authorities workspace", () => {
     </MemoryRouter>);
     expect(await screen.findByText("Manual book")).toBeVisible();
     expect(api.listAuthorities).toHaveBeenCalledTimes(1);
+    expect(api.getAuthorities).not.toHaveBeenCalled();
+  });
+
+  it("loads a requested draft omitted from the bounded list", async () => {
+    const saved = product();
+    api.listAuthorities.mockResolvedValue([]);
+    api.getAuthorities.mockResolvedValue(saved);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
+
+    expect(await screen.findByText("Manual book")).toBeVisible();
+    expect(api.getAuthorities).toHaveBeenCalledOnce();
     expect(api.getAuthorities).toHaveBeenCalledWith("draft-1");
+  });
+
+  it("opens saved work only when it is selected from the blank route", async () => {
+    const saved = product();
+    api.listAuthorities.mockResolvedValue([saved]);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Start with a document" })).toBeVisible();
+    expect(screen.queryByText("Manual book")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open saved draft" }));
+    await userEvent.click(screen.getByRole("button", { name: saved.title }));
+    expect(await screen.findByText("Manual book")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Back from authorities draft" }));
+    expect(await screen.findByRole("heading", { name: "Start with a document" })).toBeVisible();
+  });
+
+  it("returns home after deleting the active draft", async () => {
+    const saved = product();
+    api.listAuthorities.mockResolvedValue([saved]);
+    api.deleteWorkProduct.mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "authorities draft actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(api.deleteWorkProduct).toHaveBeenCalledWith("draft-1"));
+    expect(await screen.findByRole("heading", { name: "Start with a document" })).toBeVisible();
+  });
+
+  it("aborts a superseded Library search and shows only the latest result", async () => {
+    const signals: AbortSignal[] = [];
+    api.directoryList.mockImplementation(({ q }: { q: string }, signal: AbortSignal) => {
+      signals.push(signal);
+      if (q === "first") return new Promise((_resolve, reject) => signal.addEventListener(
+        "abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true }));
+      return Promise.resolve({ items: q === "second" ? [{ kind: "document", document: {
+        id: "second", filename: "Second.docx", file_type: "docx",
+      } }] : [], next_cursor: null });
+    });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Library" }));
+    const input = screen.getByRole("searchbox", { name: "Search Library PDF or Word files" });
+    fireEvent.change(input, { target: { value: "first" } });
+    fireEvent.change(input, { target: { value: "second" } });
+
+    await waitFor(() => expect(signals.at(-2)?.aborted).toBe(true));
+    expect(await screen.findByText("Second.docx")).toBeVisible();
   });
 
   it("offers one native Word-copy option for imported DOCX drafts", async () => {
@@ -143,7 +279,9 @@ describe("Authorities workspace", () => {
     api.listAuthorities.mockResolvedValue([saved]);
     api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2,
       state: { ...saved.state, insertIntoDocument: true } });
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
     await userEvent.click(await screen.findByRole("checkbox", {
       name: "Create Word copy with table",
     }));
@@ -164,7 +302,9 @@ describe("Authorities workspace", () => {
       next.state.authorities.oakes.displayName = action.displayName;
       return next;
     });
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
     await userEvent.click(await screen.findByLabelText("Options for R v Oakes"));
     await userEvent.click(screen.getByRole("menuitem", { name: "Edit label" }));
     await userEvent.clear(screen.getByRole("textbox", { name: "Authority label" }));
@@ -189,7 +329,9 @@ describe("Authorities workspace", () => {
     attached.state.authorities.oakes.source = { kind: "attached", bindingRole: "authority:oakes",
       filename: "1986canlii46.pdf", sourceSha256: "a".repeat(64), sourceUrl: null };
     api.attachAuthorityPdf.mockResolvedValue(attached);
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} />
+    </MemoryRouter>);
     const link = await screen.findByRole("link", { name: "Download from CanLII" });
     expect(link).toHaveAttribute("href", saved.state.authorities.oakes.source.pdfUrl);
     expect(link).toHaveAttribute("rel", "noopener noreferrer");

@@ -136,6 +136,7 @@ export type AuthoritiesAction =
   | { type: "merge-occurrences"; occurrenceIds: [string, string];
       replacement: AuthorityOccurrence }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
+  | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
       reference: AuthorityOccurrence["reference"] }
   | { type: "resolve-authority"; authorityId: string; citation: string;
@@ -396,7 +397,7 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
   const units = new Map<string, AuthoritiesReviewUnit>();
   const occurrences: Record<string, AuthorityOccurrence> = {};
   for (const item of ledger.occurrences) {
-    requireRecord(authorities, item.authorityKey, "ledger authority");
+    const authority = requireRecord(authorities, item.authorityKey, "ledger authority");
     const unit = units.get(item.unit.id) ?? { id: item.unit.id, kind: item.unit.kind,
       ordinal: item.unit.ordinal, footnoteId: item.unit.footnoteId,
       footnoteRefs: item.unit.footnoteRefs, pageNumbers: item.unit.pageNumbers,
@@ -411,8 +412,8 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
     occurrences[item.id] = {
       id: item.id, unitId: unit.id, start: item.start, end: item.end, text: item.text,
       kind: item.displayedForm === "supra" || item.displayedForm === "ibid"
-        ? "reference" : authorities[item.authorityKey].kind,
-      citation: authorities[item.authorityKey].citation,
+        ? "reference" : authority.kind,
+      citation: authority.citation,
       authorityId: item.authorityKey,
       reference: item.displayedForm === "supra" || item.displayedForm === "ibid"
         ? { kind: item.displayedForm, targetAuthorityId: item.authorityKey } : null,
@@ -605,6 +606,9 @@ export function reduceAuthoritiesDraft(
       occurrence.reviewed = true;
       break;
     }
+    case "set-reviewed":
+      requireRecord(draft.occurrences, action.occurrenceId, "occurrence").reviewed = action.reviewed;
+      break;
     case "set-reference": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
       if (action.reference) requireRecord(draft.authorities,

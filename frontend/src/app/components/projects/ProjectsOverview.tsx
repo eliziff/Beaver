@@ -170,6 +170,7 @@ export function ProjectsOverview() {
                         <Button
                             data-page-new
                             aria-keyshortcuts="Alt+N"
+                            aria-label="New project"
                             variant="black"
                             size="normal"
                             onClick={() => setModalOpen(true)}
@@ -177,7 +178,7 @@ export function ProjectsOverview() {
                             className="h-9 shrink-0 shadow-none"
                         >
                             <FolderSvgIcon className="h-4 w-4" />
-                            New project
+                            <span className="hidden sm:inline">New project</span>
                         </Button>
                     </div>
                 </div>
@@ -193,12 +194,16 @@ export function ProjectsOverview() {
             />
             <TableScrollArea
                 className="[&>div]:bg-white"
-                header={selectedIds.length ? (
-                    <TableSelectionHeader label={`${selectedIds.length} selected`}
-                        selection={selection} selectionLabel="Select loaded projects"
-                        className="w-full min-w-0 bg-white"
-                        primaryClassName="min-w-0 flex-1 bg-white"
-                        widthClassName="min-w-0 flex-1">
+                header={<TableSelectionHeader
+                    label={selectedIds.length ? `${selectedIds.length} selected` : "Name"}
+                    loading={selectedIds.length ? undefined : loading}
+                    selection={selection} selectionLabel="Select loaded projects"
+                    className="w-full min-w-0 bg-white"
+                    primaryClassName="min-w-0 flex-1 bg-white"
+                    widthClassName="min-w-0 flex-1"
+                    leading={selectedIds.length ? undefined : <span aria-hidden="true"
+                        className="mr-2 h-5 w-5 shrink-0" />}>
+                    {selectedIds.length ? <>
                         <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
                             {selectedIds.length === 1 && <Button variant="white"
                                 size="normal" className="h-8 py-0"
@@ -220,18 +225,8 @@ export function ProjectsOverview() {
                                 triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
                             />
                         </div>
-                    </TableSelectionHeader>
-                ) : (
-                    <TableSelectionHeader label="Name" loading={loading}
-                        selection={selection} selectionLabel="Select loaded projects"
-                        className="w-full min-w-0 bg-white"
-                        primaryClassName="min-w-0 flex-1 bg-white"
-                        widthClassName="min-w-0 flex-1"
-                        leading={<span aria-hidden="true"
-                            className="mr-2 h-5 w-5 shrink-0" />}>
-                        <TableHeaderCell className="w-8" />
-                    </TableSelectionHeader>
-                )}
+                    </> : <TableHeaderCell className="w-8" />}
+                </TableSelectionHeader>}
             >
                 {loading ? (
                     <TableLoadingRows count={SKELETON_ROWS}

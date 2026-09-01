@@ -18,7 +18,7 @@ export function useProjectFiles() {
         (parentId, q, cursor, signal) => resource.list({
             parent_id: parentId, q, cursor,
         }, signal),
-        search, [resource, search], project != null,
+        search, [resource, search], project !== null,
     );
     const { reload: reloadDirectory, replaceDocumentParseStates } = directory;
     const folders = directory.folders as Folder[];

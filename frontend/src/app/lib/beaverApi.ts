@@ -320,11 +320,20 @@ export function directoryResource(scope: DirectoryScope) {
       name,
       parent_folder_id: parentFolderId ?? null,
     });
+  const folderIds = new Map<string, string>();
+  let uploadedDirectoryFiles = new WeakSet<File>();
+  let retryParentFolderId: string | null | undefined;
   const uploadDirectory = async (
     files: File[],
     parentFolderId: string | null = null,
     onProgress?: (completed: number, total: number) => void,
   ) => {
+    if (retryParentFolderId !== parentFolderId) {
+      folderIds.clear();
+      uploadedDirectoryFiles = new WeakSet<File>();
+      retryParentFolderId = parentFolderId;
+    }
+    files = files.filter((file) => !uploadedDirectoryFiles.has(file));
     const paths = files.map((file) => {
       const parts = (file.webkitRelativePath || file.name)
         .split(/[\\/]+/u)
@@ -337,9 +346,9 @@ export function directoryResource(scope: DirectoryScope) {
     });
     const wanted = new Set(paths.flatMap((parts) =>
       parts.map((_part, index) => parts.slice(0, index + 1).join("/"))));
-    const folderIds = new Map<string, string>();
+    const pendingFolders = [...wanted].filter((path) => !folderIds.has(path));
     let completed = 0;
-    for (const path of [...wanted].sort((left, right) =>
+    for (const path of pendingFolders.sort((left, right) =>
       left.split("/").length - right.split("/").length || left.localeCompare(right))) {
       const parts = path.split("/");
       const name = parts.pop()!;
@@ -349,16 +358,21 @@ export function directoryResource(scope: DirectoryScope) {
         parentPath ? folderIds.get(parentPath) : parentFolderId,
       );
       folderIds.set(path, folder.id);
-      onProgress?.(++completed, wanted.size + files.length);
+      onProgress?.(++completed, pendingFolders.length + files.length);
     }
     const pathByFile = new Map(files.map((file, index) => [file, paths[index]]));
-    return uploadDocuments(files, async (file) => {
+    const documents = await uploadDocuments(files, async (file) => {
       const folderId = folderIds.get(pathByFile.get(file)?.join("/") ?? "") ??
         parentFolderId;
       const document = await uploadDocument(file, folderId);
-      onProgress?.(++completed, wanted.size + files.length);
+      uploadedDirectoryFiles.add(file);
+      onProgress?.(++completed, pendingFolders.length + files.length);
       return document;
     });
+    folderIds.clear();
+    uploadedDirectoryFiles = new WeakSet<File>();
+    retryParentFolderId = undefined;
+    return documents;
   };
   return {
     list: (options: PageQuery & { parent_id?: string | null } = {}, signal?: AbortSignal) =>

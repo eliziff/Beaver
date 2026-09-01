@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { DocumentWorkflowMenu } from "../documents/DocumentWorkflowMenu";
+import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
+import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type {
   Citation,
   EditAnnotation,
@@ -40,6 +41,7 @@ export function DocPanel({
   onWarningDismiss,
   initialScrollTop,
   onScrollChange,
+  onOpenWorkflows,
 }: {
   documentId: string;
   filename: string;
@@ -52,6 +54,7 @@ export function DocPanel({
   onWarningDismiss?: () => void;
   initialScrollTop?: number | null;
   onScrollChange?: (scrollTop: number) => void;
+  onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
 }) {
   const [version, setVersion] = useState({ source: versionId, value: versionId });
   const [downloading, setDownloading] = useState(false);
@@ -88,8 +91,9 @@ export function DocPanel({
             {filename}
             {!!versionNumber && <small className="ml-2 font-sans text-xs">V{versionNumber}</small>}
           </h2>
-          <DocumentWorkflowMenu
-            document={{ id: documentId, filename, project_id: projectId }}
+          <ContextualWorkflowLauncher
+            documents={[{ id: documentId, filename, project_id: projectId }]}
+            onOpen={onOpenWorkflows}
             onDocumentChanged={(result) => setVersion({
               source: versionId,
               value: result.version_id,

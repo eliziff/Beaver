@@ -12,12 +12,12 @@ import type {
 import { NewTRModal } from "@/app/components/tabular/NewTRModal";
 import { TabularReviewDetailsModal } from "@/app/components/tabular/TabularReviewDetailsModal";
 import { TabularReviewsTable } from "@/app/components/tabular/TabularReviewsTable";
+import { createTabularReviewPath } from "@/app/components/tabular/tabularReviewRoute";
 import { Button } from "@/app/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import {
-    createTabularReview,
     deleteTabularReview,
     listTabularReviews,
     updateTabularReview,
@@ -159,17 +159,13 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
     ) {
         setCreating(true);
         try {
-            const review = await createTabularReview({
+            navigate(await createTabularReviewPath({
                 title,
                 document_ids: documentIds ?? [],
                 columns_config: columnsConfig ?? [],
                 workflow_id: workflowId,
                 ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-            });
-            navigate(selectedProjectId
-                ? `/projects/${selectedProjectId}/tabular-reviews/${review.id}`
-                : `/tabular-reviews/${review.id}`
-            );
+            }));
         } finally {
             setCreating(false);
         }

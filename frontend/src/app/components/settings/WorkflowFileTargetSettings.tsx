@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalSegmentedToggle } from "@/app/components/modals/ModalSegmentedToggle";
 import { ProjectChoiceList } from "@/app/components/projects/ProjectChoiceList";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
+import { FolderBrowser } from "@/app/components/shared/FolderBrowser";
 import type { Folder } from "@/app/components/shared/types";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { usePagedQuery } from "@/app/hooks/usePagedQuery";
 import {
     directoryResource,
     getLibraryFolder,
@@ -88,6 +86,8 @@ function TargetPicker({ title, current, onClose, onSave }: {
         ? current.projectId : "");
     const [folder, setFolder] = useState<Folder | null>(null);
     const [saving, setSaving] = useState(false), [error, setError] = useState("");
+    const list = useMemo(() => directoryResource(kind === "project"
+        ? { projectId } : { library: "files" }).list, [kind, projectId]);
     async function choose() {
         if (!folder || saving) return;
         setSaving(true); setError("");
@@ -113,59 +113,12 @@ function TargetPicker({ title, current, onClose, onSave }: {
         </fieldset>
         {kind === "project" && !projectId
             ? <ProjectChoiceList value={null} onChange={(id) => setProjectId(id)} />
-            : <FolderBrowser key={`${kind}:${projectId}`} projectId={kind === "project"
-                ? projectId : null} onSelect={setFolder}
-                onChangeProject={kind === "project" ? () => {
+            : <FolderBrowser key={`${kind}:${projectId}`}
+                list={list}
+                rootLabel={kind === "project" ? "Project folders" : "Library folders"}
+                onSelect={setFolder}
+                onBack={kind === "project" ? () => {
                     setProjectId(""); setFolder(null);
                 } : undefined} />}
     </Modal>;
-}
-
-function FolderBrowser({ projectId, onSelect, onChangeProject }: {
-    projectId: string | null; onSelect: (folder: Folder | null) => void;
-    onChangeProject?: () => void;
-}) {
-    const [path, setPath] = useState<Folder[]>([]), parent = path.at(-1) ?? null;
-    const resource = useMemo(() => directoryResource(projectId
-        ? { projectId } : { library: "files" }), [projectId]);
-    const page = usePagedQuery((cursor, signal) => resource.list({
-        parent_id: parent?.id ?? null, cursor, limit: 100,
-    }, signal), [resource, parent?.id], true);
-    const folders = page.items.flatMap((item) => item.kind === "folder" ? [item.folder] : []);
-    function move(next: Folder[]) { setPath(next); onSelect(next.at(-1) ?? null); }
-    return <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-gray-300 p-1"
-        aria-busy={page.loading}>
-        <div className="flex min-h-10 items-center gap-1 px-1">
-            {(path.length > 0 || onChangeProject) && <button type="button"
-                aria-label={`Back to ${path.length > 1 ? path.at(-2)?.name : projectId ? "projects" : "Library"}`}
-                onClick={() => path.length ? move(path.slice(0, -1)) : onChangeProject?.()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>}
-            <p className="min-w-0 break-words px-1 text-sm font-medium text-gray-800">
-                {parent?.name ?? (projectId ? "Project folders" : "Library folders")}
-            </p>
-        </div>
-        {folders.map((folder) => <button type="button" key={folder.id}
-            onClick={() => move([...path, folder])}
-            className="flex min-h-10 w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900">
-            <FolderSvgIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 break-words">{folder.name}</span>
-            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-        </button>)}
-        {page.hasMore && <button type="button" disabled={page.loading}
-            onClick={() => void page.loadMore()}
-            className="min-h-10 w-full rounded px-2 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">
-            {page.loading ? "Loading…" : "Load more"}
-        </button>}
-        {page.loading && !folders.length && <p role="status"
-            className="px-3 py-8 text-center text-sm text-gray-500">Loading folders…</p>}
-        {page.error && !page.loading && <button type="button" onClick={() => void page.reload()}
-            className="min-h-10 w-full rounded px-3 text-sm text-red-700 hover:bg-red-50">
-            Unable to load folders. Try again
-        </button>}
-        {!page.loading && !page.error && !folders.length && <p className="px-3 py-8 text-center text-sm text-gray-500">
-            {parent ? "No folders here" : "No folders yet"}
-        </p>}
-    </div>;
 }

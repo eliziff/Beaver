@@ -133,14 +133,15 @@
     display: none;
 }
 .authorities-citations { order: 1; }
-.authorities-build { order: 2; }
-.authorities-sources { order: 3; }
-.authorities-review-list { border-bottom-width: 1px; }
+.authorities-sources { order: 2; }
+.authorities-build { order: 3; }
+.authorities-review-list { border-bottom-width: 1px; max-height: 12rem; }
 @container (min-width: 52rem) {
     .authorities-review { grid-template-columns: 16rem minmax(0, 1fr); }
     .authorities-review-list {
         border-bottom-width: 0;
         border-inline-end-width: 1px;
+        max-height: 32rem;
     }
 }
 @container (min-width: 64rem) {

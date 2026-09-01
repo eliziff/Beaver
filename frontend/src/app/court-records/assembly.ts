@@ -13,6 +13,7 @@ import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from 
 import { acceptedSourceFormats, DOCX_MIME, sourceFormat } from "./formats";
 import { indexChunks, indexPageCount } from "./layout";
 import { outputFilename, sortedEntries, validateCourtRecord } from "./validation";
+import { courtProfileForCover } from "./profiles";
 import { exhibitName } from "./types";
 import type {
   BuildArtifact,
@@ -77,7 +78,7 @@ export type BuildCourtRecordInput = {
 };
 
 export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<BuildResult> {
-  const { profile, cover } = input;
+  const cover = input.cover, profile = courtProfileForCover(input.profile, cover);
   const entries = sortedEntries(profile, input.entries);
   const blocked = validateCourtRecord({ profile, entries, cover }).blockers[0];
   if (blocked) throw new Error(blocked.detail);
@@ -93,7 +94,9 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
     const kind = allowedKinds.get(entry.kindId);
     if (!kind) throw new Error(`${entry.title || entry.file.name} is not permitted in this preset.`);
     if (entry.descriptionOnly) {
-      if (!kind.descriptionOnly) throw new Error(`${entry.title} requires a source file.`);
+      if (!(kind.descriptionOnly || kind.allowUnavailableNote)) {
+        throw new Error(`${entry.title} requires a source file.`);
+      }
       continue;
     }
     const format = sourceFormat(entry.file);
@@ -105,7 +108,9 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
       throw new Error("Combined court records require prepared PDF sources.");
     }
   }
-  const uploadItems = entries.map<AssemblyItem>((entry) => {
+  const separateEntries = entries.filter((entry) => allowedKinds.get(entry.kindId)?.separateFile);
+  const recordEntries = entries.filter((entry) => !allowedKinds.get(entry.kindId)?.separateFile);
+  const uploadItems = recordEntries.map<AssemblyItem>((entry) => {
     const kind = allowedKinds.get(entry.kindId);
     return {
       id: entry.id,
@@ -153,16 +158,20 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
 
   let outputArtifacts: BuildArtifact[];
   if (profile.outputMode === "separate-files") {
-    outputArtifacts = await buildSeparateFiles(profile, entries, input.onProgress);
-  } else if (profile.outputMode === "affidavit-with-exhibits") {
-    outputArtifacts = [await buildAffidavit(profile, entries, cover, input.onProgress)];
+    outputArtifacts = (await buildSeparateFiles(profile, entries, input.onProgress))
+      .map((artifact, index) => ({ ...artifact, role: entryOutputRole(entries, index) }));
   } else {
-    outputArtifacts = await buildMeasuredVolumes(profile, items, cover, input.onProgress);
+    const records = profile.outputMode === "affidavit-with-exhibits"
+      ? [await buildAffidavit(profile, recordEntries, cover, input.onProgress)]
+      : await buildMeasuredVolumes(profile, items, cover, input.onProgress);
+    const separate = await buildSeparateFiles(profile, separateEntries, input.onProgress, true);
+    outputArtifacts = [
+      ...records.map((artifact, index) => ({ ...artifact,
+        role: index ? `record-${index + 1}` : "record" })),
+      ...separate.map((artifact, index) => ({ ...artifact,
+        role: entryOutputRole(separateEntries, index) })),
+    ];
   }
-  outputArtifacts = outputArtifacts.map((artifact, index) => ({
-    ...artifact,
-    role: outputRole(profile, entries, index),
-  }));
 
   enforceOutputLimits(profile, outputArtifacts);
   const profileSha256 = await sha256Bytes(new TextEncoder().encode(canonicalJson(profile)));
@@ -201,8 +210,7 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
   return { artifacts: outputArtifacts, receipt };
 }
 
-function outputRole(profile: CourtProfile, entries: RecordEntry[], index: number) {
-  if (profile.outputMode !== "separate-files") return index ? `record-${index + 1}` : "record";
+function entryOutputRole(entries: RecordEntry[], index: number) {
   const entry = entries[index];
   if (!entry) return `file-${index + 1}`;
   const occurrence = entries.slice(0, index + 1).filter((item) => item.kindId === entry.kindId).length;
@@ -214,6 +222,7 @@ async function buildSeparateFiles(
   profile: CourtProfile,
   entries: RecordEntry[],
   progress?: Progress,
+  preserve = false,
 ) {
   const artifacts: BuildArtifact[] = [];
   const filenames = new Map<string, number>();
@@ -224,6 +233,19 @@ async function buildSeparateFiles(
     if (!format) throw new Error(`${entry.file.name} is not a supported filing artifact.`);
     const raw = await fileBytes(entry.file);
     const filename = uniqueFilename(entry.file.name, filenames);
+    if (preserve) {
+      if (format !== "pdf") throw new Error(`${entry.file.name} must remain a separate PDF.`);
+      if (!entry.ocrTextByPage?.some((text) => text?.trim())) {
+        artifacts.push(await pdfArtifact(filename, raw, entry.pageCount ?? 0));
+        continue;
+      }
+      const output = await PDFDocument.load(raw);
+      const font = await output.embedFont(StandardFonts.Helvetica);
+      output.getPages().forEach((page, pageIndex) =>
+        applyOcrText(page, font, entry.ocrTextByPage?.[pageIndex]));
+      artifacts.push(await pdfArtifact(filename, await output.save(), output.getPageCount()));
+      continue;
+    }
     if (format === "docx") {
       artifacts.push(await fileArtifact(filename, DOCX_MIME, raw));
       continue;
@@ -947,6 +969,10 @@ function automaticSteps(profile: CourtProfile, entries: RecordEntry[], volumes: 
   }
   if (entries.some((entry) => entry.ocrTextByPage?.some(Boolean))) {
     steps.push("Added locally recognized text to source pages selected for OCR");
+  }
+  const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
+  if (entries.some((entry) => kinds.get(entry.kindId)?.separateFile)) {
+    steps.push("Kept stand-alone source PDFs separate from the assembled record");
   }
   if (profile.exhibitCertificate) {
     steps.push("Inserted an exhibit certificate before each exhibit");
