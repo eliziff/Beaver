@@ -236,6 +236,26 @@ function mapDocument(value: unknown, language: Language, docType: DocType) {
   return document;
 }
 
+const citationKey = (value: string) => {
+  try { return structureNative().citationLookupKey(value); } catch { return ""; }
+};
+const exactCitationRows = (results: unknown, citation: string, dataset?: string,
+  expectedUrl?: string | null) => {
+  const key = citationKey(citation);
+  if (!key) return [];
+  return (Array.isArray(results) ? results : []).filter((value) => {
+    const record = object(value);
+    return record && (!dataset?.trim() || string(record.dataset)?.toLowerCase() ===
+      dataset.trim().toLowerCase()) && (!expectedUrl?.trim() ||
+        sourceUrl(record, "en") === expectedUrl.trim() ||
+        sourceUrl(record, "fr") === expectedUrl.trim()) && ["citation_en", "citation2_en", "citation_fr",
+      "citation2_fr"].some((field) => {
+        const candidate = string(record[field]);
+        return candidate && citationKey(candidate) === key;
+      });
+  });
+};
+
 async function compileDocument(document: A2AJDocument): Promise<A2AJCompiledDocument> {
   const native = await deriveA2AJDocument({
     citation: document.citation,
@@ -339,6 +359,33 @@ async function document(args: {
     source = args.sourceUrl?.trim()
       ? candidates.find((item) => item.url === args.sourceUrl!.trim()) ?? null
       : candidates[0] ?? null;
+    if (!source) {
+      const searched = await request("/search", {
+        query: citation, doc_type: docType, search_type: "full_text",
+        search_language: language, size: 10, dataset: args.dataset?.trim(),
+      }, args.signal);
+      const matches = exactCitationRows(searched.results, citation, args.dataset, args.sourceUrl);
+      if (matches.length === 1) {
+        source = mapDocument(matches[0], language, docType);
+        if (!source) {
+          const record = object(matches[0]);
+          const canonical = record && (languageText(record, "citation", language) ??
+            languageText(record, "citation2", language));
+          if (canonical) {
+            const retried = await request("/fetch", {
+              citation: canonical, doc_type: docType, output_language: language,
+            }, args.signal);
+            const candidates = (Array.isArray(retried.results) ? retried.results : [])
+              .map((item) => mapDocument(item, language, docType))
+              .filter((item): item is A2AJDocument => !!item && (!args.dataset?.trim() ||
+                item.dataset.toLowerCase() === args.dataset.trim().toLowerCase()));
+            source = args.sourceUrl?.trim()
+              ? candidates.find((item) => item.url === args.sourceUrl!.trim()) ?? null
+              : candidates[0] ?? null;
+          }
+        }
+      }
+    }
   }
   if (!source) return null;
   source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };

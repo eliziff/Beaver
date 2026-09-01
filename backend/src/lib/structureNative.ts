@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import type { SpreadsheetCellSpan } from "./spreadsheet";
 
@@ -33,7 +34,17 @@ export type NativeCitationOccurrence = NativeCitationTextSpan & {
   }>;
   kind: "case" | "statute" | "journal" | "other";
   shortForm?: string;
+  explicitShortForm?: string;
   reasons: string[];
+};
+
+export type NativeAuthorityReferenceOccurrence = NativeCitationTextSpan & {
+  token: NativeCitationTextSpan;
+  pinpoints: Array<NativeCitationTextSpan & {
+    kind: "paragraph" | "section" | "page";
+  }>;
+  kind: "ibid" | "supra";
+  noteNumber?: number;
 };
 
 /** Footnote offsets use JavaScript UTF-16 code units. */
@@ -45,6 +56,46 @@ export type NativeAuthorityTextUnit = {
   page_numbers: number[];
   text: string;
   footnote_refs: Array<[footnoteId: number, offset: number]>;
+};
+
+type Rect = [number, number, number, number];
+type PassageStatus = "found" | "not_found" | "ambiguous" | "invalid" | "unavailable";
+
+export type NativePdfPassageTarget = {
+  id: string;
+  locatorKind: "paragraph" | "section" | "page";
+  locator: string;
+  exactQuotes?: string[];
+};
+
+export type NativePdfPassageGeometry = {
+  schemaVersion: "legalpdf.passage-geometry.v1";
+  sourceSha256: string;
+  parserVersion: string;
+  coordinateSpace: "visible_crop_box";
+  coordinateOrigin: "top_left";
+  rotationApplied: true;
+  targets: Array<{
+    id: string;
+    locatorKind: NativePdfPassageTarget["locatorKind"];
+    locator: string;
+    status: PassageStatus;
+    pages: Array<{
+      pageNumber: number; width: number; height: number;
+      source: "native" | "unavailable"; passageRects: Rect[];
+    }>;
+    quotes: Array<{
+      text: string; status: PassageStatus; pageNumber?: number; rects: Rect[];
+    }>;
+  }>;
+};
+
+type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
+  schemaVersion: "legalpdf.passage-pages.v1";
+  targets: Array<{ id: string; status: PassageStatus; pages: Array<{
+    pageNumber: number; width: number; height: number; source: "native" | "unavailable";
+    lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }>;
+  }> }>;
 };
 
 type PdfStructureLookupBase = {
@@ -103,6 +154,8 @@ type StructureAddon = {
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
+  pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
+    targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -140,6 +193,7 @@ type StructureAddon = {
     volume?: string; reporter?: string; page?: string;
   }>;
   citationOccurrencesInText(text: string): NativeCitationOccurrence[];
+  authorityReferencesInText(text: string): NativeAuthorityReferenceOccurrence[];
   caselawCitationLookupKey(text: string): string;
   hasCitationInText(text: string): boolean;
   classifyCitatorExcerpt(text: string): CitatorExcerptClassification;
@@ -270,4 +324,74 @@ export function structureNative() {
   process.dlopen(module, filename);
   addon = module.exports as StructureAddon;
   return addon;
+}
+
+const normalizedWords = (text: string) =>
+  (text.normalize("NFKC").toLowerCase()
+    .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [])
+    .map((word) => word.replace(/['’]/g, ""));
+
+function unionRects(rects: Rect[]) {
+  return rects.slice(1).reduce<Rect>((box, rect) => [
+    Math.min(box[0], rect[0]), Math.min(box[1], rect[1]),
+    Math.max(box[2], rect[2]), Math.max(box[3], rect[3]),
+  ], rects[0]);
+}
+
+function exactQuote(target: NativePdfPassagePages["targets"][number], text: string) {
+  if (target.status !== "found") return { text, status: target.status, rects: [] };
+  const needle = normalizedWords(text);
+  if (needle.length < 2) return { text, status: "invalid" as const, rects: [] };
+  const hits = target.pages.flatMap((page) => {
+    if (page.source !== "native") return [];
+    const words = page.lines.flatMap((line) => line.words.flatMap((word) =>
+      normalizedWords(word.text).map((value) => ({ value, line: line.id, rect: word.rect }))));
+    return words.flatMap((_, start) =>
+      needle.every((word, offset) => words[start + offset]?.value === word)
+        ? [{ pageNumber: page.pageNumber, words: words.slice(start, start + needle.length) }]
+        : []);
+  });
+  if (hits.length !== 1) return {
+    text, status: (hits.length ? "ambiguous" : "not_found") as PassageStatus, rects: [],
+  };
+  const lines = new Map<string, Rect[]>();
+  hits[0].words.forEach((word) => lines.set(word.line, [...(lines.get(word.line) ?? []), word.rect]));
+  return { text, status: "found" as const, pageNumber: hits[0].pageNumber,
+    rects: [...lines.values()].map(unionRects) };
+}
+
+export async function pdfPassageGeometry(
+  document: NativeDocument, bytes: Buffer, targets: NativePdfPassageTarget[],
+): Promise<NativePdfPassageGeometry> {
+  if (!targets.length || targets.length > 100 || !bytes.length || bytes.length > 100 * 1024 * 1024 ||
+    targets.some((target) => (target.exactQuotes?.length ?? 0) > 20 ||
+    target.exactQuotes?.some((quote) => quote.length > 4_000))) {
+    throw new Error("Invalid PDF passage geometry request");
+  }
+  const native = structureNative();
+  const summary = native.pdfDocumentSummary(document);
+  if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
+    throw new Error("PDF source changed after preparation");
+  }
+  const raw = await native.pdfPassageGeometryPages(document, bytes,
+    targets.map(({ exactQuotes: _, ...target }) => target));
+  if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
+    throw new Error("PDF passage geometry source identity changed");
+  }
+  return { ...raw, schemaVersion: "legalpdf.passage-geometry.v1",
+    targets: raw.targets.map((target, index) => {
+      const request = targets[index];
+      const status = target.status === "found" && (!target.pages.length || target.pages.every((page) =>
+        page.source === "unavailable" || (request.locatorKind !== "page" && !page.lines.length)))
+        ? "unavailable" : target.status;
+      const resolved = { ...target, status };
+      return { id: target.id, locatorKind: request.locatorKind, locator: request.locator, status,
+        pages: target.pages.map((page) => ({
+        pageNumber: page.pageNumber, width: page.width, height: page.height, source: page.source,
+        passageRects: request.locatorKind === "page" || !page.lines.length
+          ? [] : [unionRects(page.lines.map((line) => line.rect))],
+        })),
+        quotes: (request.exactQuotes ?? []).map((quote) => exactQuote(resolved, quote)),
+      };
+    }) };
 }

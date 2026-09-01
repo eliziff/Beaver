@@ -9,13 +9,15 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["legalpdf"]
-legalpdf = ["dep:legalpdf"]
+legalpdf = ["dep:legalpdf", "dep:legal-pdf-extraction", "dep:legal-pdf-support"]
 diagnostics = ["legalpdf", "legalpdf/profiling"]
 allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["provider-text", "citator", "journal", "native-markup", "quote-verification"] }
 legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
+legal-pdf-extraction = { path = "../../legal-pdf-parser/legal-pdf-extraction", optional = true }
+legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
 napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
 napi-derive = "3"
 serde = { version = "1.0", features = ["derive"] }

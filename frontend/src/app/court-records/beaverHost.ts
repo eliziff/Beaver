@@ -14,6 +14,7 @@ import {
   getWorkProductResolution,
   listDocumentVersions,
   listWorkProducts,
+  prepareAuthoritiesSources,
   retryLibraryPdfParse,
   refreshAuthorities,
   saveCourtRecordBuild,
@@ -35,6 +36,7 @@ import { prepareDeviceFile, prepareDocxRendition } from "./prepareDeviceFile";
 import { affidavitSourceFields } from "./sourceFields";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import { canonicalJson } from "../../../../shared/canonical-json.cjs";
+import type { AuthoritiesProduct } from "../authorities/types";
 
 const resolutionRequests = new Map<string, Promise<WorkProductResolution>>();
 function currentResolution(id: string, progress?: PreparationProgress) {
@@ -44,14 +46,24 @@ function currentResolution(id: string, progress?: PreparationProgress) {
     if (resolution.freshness === "current" || resolution.product.kind !== "authorities") {
       return resolution;
     }
-    let revision = resolution.product.revision;
+    let product = resolution.product;
     try {
       if (Object.values(resolution.inputs).some(({ status }) => status === "changed")) {
         progress?.(`Refreshing ${resolution.product.title}`);
-        revision = (await refreshAuthorities(id, revision)).revision;
+        product = await refreshAuthorities(id, product.revision);
+      }
+      product = await prepareAuthoritiesSources(id, product.revision);
+      const draft = product.state as AuthoritiesProduct["state"];
+      for (const authority of Object.values(draft.authorities)) {
+        if (authority.excluded || authority.source.kind !== "attached") continue;
+        const source = authority.source;
+        const binding = draft.bindings[source.bindingRole];
+        if (binding?.kind !== "document") continue;
+        await waitForPdfPreparation(binding.documentId,
+          (status) => progress?.(`${source.filename}: ${status}`));
       }
       progress?.(`Building ${resolution.product.title}`);
-      await buildAuthorities(id, revision);
+      await buildAuthorities(id, product.revision);
       return getWorkProductResolution(id);
     } catch (error) {
       const detail = error instanceof Error ? `: ${error.message}` : ".";

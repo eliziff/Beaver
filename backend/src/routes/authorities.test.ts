@@ -10,9 +10,13 @@ const product = { id: "draft-1", kind: "authorities", title: "Authorities",
   outputs: {}, createdAt: "now", updatedAt: "now" };
 const application = {
   list: vi.fn(async () => [product]), get: vi.fn(async () => product),
+  discrepancies: vi.fn(async () => []),
   saveFile: vi.fn(async () => ({ id: "document-1" })),
   importDraft: vi.fn(async () => product), act: vi.fn(async () => product),
-  refresh: vi.fn(async () => product), attachPdf: vi.fn(async () => product),
+  prepareSources: vi.fn(async () => product),
+  refresh: vi.fn(async () => product), replaceSource: vi.fn(async () => product),
+  refreshInput: vi.fn(async () => product),
+  attachPdf: vi.fn(async () => product), attachBookPdf: vi.fn(async () => product),
   build: vi.fn(async () => ({ product, receipt: { schemaVersion: "beaver.authorities-build.v1" } })),
 } as unknown as AuthoritiesWorkspaceApplication;
 const app = express();
@@ -33,6 +37,18 @@ describe("Authorities HTTP boundary", () => {
     expect(application.importDraft).toHaveBeenCalledWith(expect.anything(), {
       source: { kind: "manual" }, title: "Appeal authorities",
     });
+  });
+
+  it("returns deterministic source findings without mutating the draft", async () => {
+    await request(app).post("/authorities/draft-1/discrepancies").expect(200, []);
+    expect(application.discrepancies).toHaveBeenCalledWith(expect.anything(), "draft-1",
+      expect.any(AbortSignal));
+  });
+
+  it("starts source preparation only through the explicit draft operation", async () => {
+    await request(app).post("/authorities/draft-1/sources").send({ revision: 1 }).expect(200);
+    expect(application.prepareSources).toHaveBeenCalledWith(expect.anything(), "draft-1", 1,
+      expect.any(AbortSignal));
   });
 
   it("keeps authority identity and CanLII URL derivation behind the application", async () => {
@@ -72,6 +88,40 @@ describe("Authorities HTTP boundary", () => {
     });
   });
 
+  it("decodes initial court/source settings and exact review corrections", async () => {
+    const settings = { profileId: "federal-court", sourceMode: "automatic",
+      passageMarking: "paragraph", filingMedium: "paper", bookRole: "respondent",
+      outputMode: "both" };
+    await request(app).post("/authorities").send({ source: { kind: "manual" }, settings })
+      .expect(201);
+    expect(application.importDraft).toHaveBeenLastCalledWith(expect.anything(), {
+      source: { kind: "manual" }, settings,
+    });
+    for (const action of [
+      { type: "set-profile", profileId: "ab-court-of-appeal" },
+      { type: "set-settings", settings: { tableLocation: "combined", tabStyle: "alpha",
+        filingMedium: "electronic", bookRole: "appellant" } },
+      { type: "set-authority-tab", authorityId: "grant", tabLabel: "A-1" },
+      { type: "set-authority-span", occurrenceId: "cite", start: 3, end: 20 },
+      { type: "set-pinpoint-span", occurrenceId: "cite", start: 24, end: 33 },
+      { type: "update-book-supplement", id: "appendix", title: "Affidavit", tab: "A" },
+      { type: "reorder-book-supplements", ids: ["appendix", "order"] },
+      { type: "clear-book-part", slot: "cover" },
+      { type: "remove-book-supplement", id: "order" },
+    ]) {
+      await request(app).post("/authorities/draft-1/actions")
+        .send({ revision: 1, action }).expect(200);
+      expect(application.act).toHaveBeenLastCalledWith(expect.anything(), "draft-1", 1, action);
+    }
+    await request(app).post("/authorities").send({ source: { kind: "manual" },
+      settings: { profileId: "unknown" } }).expect(400);
+    await request(app).post("/authorities").send({ source: { kind: "manual" },
+      settings: { sourceMode: "automatic", surprise: true } }).expect(400);
+    await request(app).post("/authorities/draft-1/actions").send({ revision: 1, action: {
+      type: "set-settings", settings: { sourceMode: "automatic", surprise: true },
+    } }).expect(400);
+  });
+
   it("stages direct and authority PDF uploads through the typed operations", async () => {
     await request(app).post("/authorities/documents")
       .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "brief.pdf").expect(201);
@@ -88,6 +138,26 @@ describe("Authorities HTTP boundary", () => {
     expect(application.attachPdf).toHaveBeenCalledWith(expect.anything(), "draft-1",
       expect.objectContaining({ revision: 1, authorityId: "authority-1",
         file: expect.objectContaining({ filename: "case.pdf", fileType: "pdf" }) }));
+    await request(app).post("/authorities/draft-1/source")
+      .field("revision", "1")
+      .attach("file", Buffer.from("PK\x03\x04replacement"), "replacement.docx").expect(200);
+    expect(application.replaceSource).toHaveBeenCalledWith(expect.anything(), "draft-1",
+      expect.objectContaining({ revision: 1,
+        file: expect.objectContaining({ filename: "replacement.docx", fileType: "docx" }) }));
+    await request(app).post("/authorities/draft-1/book-parts/supplemental")
+      .field("revision", "1").field("title", "Affidavit").field("tab", "A")
+      .attach("file", Buffer.from("%PDF-1.7\n%%EOF"), "affidavit.pdf").expect(200);
+    expect(application.attachBookPdf).toHaveBeenCalledWith(expect.anything(), "draft-1",
+      expect.objectContaining({ revision: 1, slot: "supplemental", title: "Affidavit", tab: "A",
+        file: expect.objectContaining({ filename: "affidavit.pdf", fileType: "pdf" }) }));
+  });
+
+  it("accepts the current Library version for one bound input", async () => {
+    await request(app).post("/authorities/draft-1/inputs/authority%3Agrant/refresh")
+      .send({ revision: 3 }).expect(200);
+    expect(application.refreshInput).toHaveBeenCalledWith(expect.anything(), "draft-1", {
+      revision: 3, role: "authority:grant",
+    });
   });
 
   it("returns only persisted product refs and the aggregate receipt after build", async () => {

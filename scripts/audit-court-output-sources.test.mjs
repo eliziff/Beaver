@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   auditRedirectUrl,
@@ -75,4 +76,13 @@ test("offline checks require one receipt for every manifest source", () => {
   assert.throws(() => validateAuditCoverage(manifest, {
     results: [{ id: "a" }, { id: "a" }],
   }), /match/u);
+});
+
+test("current Alberta authority profiles do not consume the superseded Book checklist", () => {
+  const manifest = JSON.parse(readFileSync(new URL(
+    "../docs/decisions/court-output-preset-receipts.json", import.meta.url), "utf8"));
+  const guide = manifest.sources.find(({ id }) => id === "ab-ca-authorities-guide");
+  assert(guide.profiles.includes("ab-court-of-appeal"));
+  assert.equal(guide.locator.includes("Rule 14.25(1)(h)"), true);
+  assert.equal(manifest.sources.some(({ url }) => url === guide.supersedes.url), false);
 });

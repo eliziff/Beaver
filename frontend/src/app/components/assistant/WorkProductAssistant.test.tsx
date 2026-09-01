@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WorkProductAssistant, useWorkProductAssistantState } from "./WorkProductAssistant";
+import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
 
 const mocks = vi.hoisted(() => ({
   messages: [] as Array<Record<string, unknown>>,
@@ -16,7 +17,8 @@ vi.mock("@/app/hooks/useAssistantChat", () => ({
   }),
 }));
 vi.mock("./AssistantDock", () => ({
-  AssistantDock: ({ tabs }: { tabs: Array<{ content: React.ReactNode }> }) => tabs[0].content,
+  AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: React.ReactNode }>;
+    expanded: boolean }) => <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0].content}</aside>,
 }));
 vi.mock("./ChatView", () => ({
   ChatView: ({ sendDisabled }: { sendDisabled?: boolean }) =>
@@ -26,11 +28,14 @@ vi.mock("./ChatView", () => ({
 const product = { id: "record-1", kind: "court-record" as const,
   revision: 2, projectId: null };
 
+beforeEach(() => { mocks.messages = []; });
+afterEach(() => vi.unstubAllGlobals());
+
 it("refreshes only for a newer completed mutation of the active product", () => {
   const onProductUpdated = vi.fn();
   const props = { product, chatId: undefined, onChatIdChange: vi.fn(), onClose: vi.fn(),
     onProductUpdated };
-  const { rerender } = render(<WorkProductAssistant {...props} />);
+  const { rerender } = render(<WorkProductAssistantPanel {...props} />);
 
   mocks.messages = [{ role: "assistant", workflowRuns: [
     { status: "complete", work_product: { kind: "court-record", id: "other", revision: 9 } },
@@ -38,18 +43,38 @@ it("refreshes only for a newer completed mutation of the active product", () => 
     { status: "running", work_product: { kind: "court-record", id: "record-1", revision: 4 } },
     { status: "complete", work_product: { kind: "court-record", id: "record-1", revision: 3 } },
   ] }];
-  rerender(<WorkProductAssistant {...props} />);
+  rerender(<WorkProductAssistantPanel {...props} />);
   expect(onProductUpdated).toHaveBeenCalledOnce();
   expect(onProductUpdated).toHaveBeenCalledWith(3);
 
-  rerender(<WorkProductAssistant {...props} />);
+  rerender(<WorkProductAssistantPanel {...props} />);
   expect(onProductUpdated).toHaveBeenCalledOnce();
 });
 
 it("keeps drafting available while disabling send until the product is synchronized", () => {
-  render(<WorkProductAssistant product={product} synced={false}
+  render(<WorkProductAssistantPanel product={product} synced={false}
     onChatIdChange={vi.fn()} onClose={vi.fn()} onProductUpdated={vi.fn()} />);
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+});
+
+it("preloads in idle time, reserves the dock, and stays mounted after first expansion", async () => {
+  const idle = vi.fn((_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1);
+  vi.stubGlobal("requestIdleCallback", idle); vi.stubGlobal("cancelIdleCallback", vi.fn());
+  const props = { product, onChatIdChange: vi.fn(), onClose: vi.fn() };
+  const { rerender } = render(<WorkProductAssistant {...props} expanded={false} />);
+  expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 1_000 });
+  expect(screen.queryByLabelText("Assistant dock")).not.toBeInTheDocument();
+
+  rerender(<WorkProductAssistant {...props} expanded />);
+  expect(screen.getByLabelText("Assistant dock")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByLabelText("Assistant dock"))
+    .toHaveStyle({ "--assistant-dock-width": "480px" });
+  await screen.findByRole("button", { name: "Send" });
+  const dock = screen.getByLabelText("Assistant dock");
+  rerender(<WorkProductAssistant {...props} expanded={false} />);
+  expect(dock).toHaveAttribute("hidden");
+  rerender(<WorkProductAssistant {...props} expanded />);
+  expect(screen.getByLabelText("Assistant dock")).toBe(dock);
 });
 
 it("keeps one conversation per work product without assistant-owned draft state", async () => {

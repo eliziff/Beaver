@@ -817,7 +817,9 @@ dependencies = [
 name = "legal-structure-node"
 version = "0.1.0"
 dependencies = [
+ "legal-pdf-extraction",
  "legal-pdf-parser",
+ "legal-pdf-support",
  "legal-structure",
  "napi",
  "napi-build",

@@ -238,7 +238,9 @@ type Dependencies = {
   workProducts: Pick<WorkProductApplication,
     "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
   authorities: Pick<AuthoritiesWorkspaceApplication,
-    "importDraft" | "refresh" | "build" | "addReceipts">;
+    "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
+      "discrepancies" | "build" |
+      "addReceipts" | "attachLibraryPdf">;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
   tabular: Pick<TabularApplication, "detail">;
   features: ChatApplicationFeatures;
@@ -461,7 +463,7 @@ function availableDocumentsPrompt(
     const path = String(records.get(info.document_id)?.folder_path ?? "");
     return `- ${label}: ${path ? `${path} / ` : ""}${info.filename}`;
   });
-  return `AVAILABLE DOCUMENTS:\n${lines.join("\n")}\nCall Read for the relevant versioned resource before relying on its content.`;
+  return `AVAILABLE DOCUMENTS:\n${lines.join("\n")}\nCall Glob to resolve a doc-N alias, then Read the relevant versioned resource.`;
 }
 
 export function createChatApplication(deps: Dependencies) {
@@ -795,6 +797,7 @@ export function createChatApplication(deps: Dependencies) {
         documentNames: new Map([...context.records].map(([id, record]) => [
           id, String(record.filename ?? "Untitled document"),
         ])),
+        docIndex: Object.keys(context.docIndex).length ? context.docIndex : undefined,
         documents: deps.documents,
         library: deps.library,
         projects: deps.projects,

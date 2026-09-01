@@ -29,7 +29,7 @@ const partyGroups = { type: "array", maxItems: 50, items: { type: "object", prop
     required: ["id", "name"], additionalProperties: false } },
 }, required: ["id", "parties"], additionalProperties: false } };
 
-const COURT_RECORD_TOOL_PROPERTIES = {
+export const COURT_RECORD_TOOL_PROPERTIES = {
   profile_id: { type: "string", enum: profileIds },
   cover: { type: "object", properties: {
     ...Object.fromEntries(coverFields.map((field) => [field, textField(5_000)])),
@@ -93,7 +93,7 @@ const authoritiesChoices = async (dependencies: Dependencies) =>
   });
 
 type CourtRecordProduct = Awaited<ReturnType<Dependencies["workProducts"]["get"]>>;
-function courtRecordResult(product: CourtRecordProduct,
+export function courtRecordResult(product: CourtRecordProduct,
   values: Record<string, unknown> = {}) {
   const profile = product.kind === "court-record"
     ? COURT_RECORD_PROFILE_BY_ID.get(String(product.state.profileId)) : undefined;

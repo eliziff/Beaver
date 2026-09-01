@@ -1,7 +1,7 @@
 import { assistantTools } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import type { BeaverTool } from "./toolRegistry";
-import type { TabularCellStore, WorkflowStore } from "./types";
+import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
 import type { DraftingStyleSettings } from "../draftingStyle";
 import type { EditMode } from "../docxTrackedChanges";
 import type { DocumentStore } from "../documentStore";
@@ -27,6 +27,7 @@ export function createChatToolRunner(options: {
   projectId: string | null;
   allowedDocumentIds?: Set<string>;
   documentNames?: ReadonlyMap<string, string>;
+  docIndex?: DocIndex;
   tabular?: TabularCellStore;
   documents: DocumentStore;
   library: LibraryStore;
@@ -38,7 +39,9 @@ export function createChatToolRunner(options: {
   researchSetId?: string;
   researchSetRevision?: number;
   authorities: Pick<AuthoritiesWorkspaceApplication,
-    "importDraft" | "refresh" | "build" | "addReceipts">;
+    "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
+      "discrepancies" | "build" |
+      "addReceipts" | "attachLibraryPdf">;
   authoritiesId?: string;
   authoritiesRevision?: number;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
@@ -87,6 +90,7 @@ export function createChatToolRunner(options: {
         ...(scope === "main" ? {} : { readerAssignment: scope }),
         tabular: options.tabular,
         documentNames: options.documentNames,
+        docIndex: options.docIndex,
         resolveArtifact: (value) => artifacts.get(value),
         artifactFor,
         onMutationCommitted() {

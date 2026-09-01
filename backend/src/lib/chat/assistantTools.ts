@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { sha256 } from "../hash";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
 import {
@@ -114,7 +115,7 @@ import { jsonRecord as objectRecord, trimmedText as trimmed } from "../value";
 import { RESOURCE_TOOLS, globPattern as globRegExp } from "./resourceTools";
 import {
   supraFixEvent,
-  workProductEvent,
+  workProductEvent, workProductResult,
 } from "./localWorkflowRun";
 import {
   MAX_MODEL_TOOL_RESULT_CHARS,
@@ -124,14 +125,17 @@ import {
   type BeaverTool,
 } from "./toolRegistry";
 import { tabularTool } from "./tabularCells";
-import type { TabularCellStore, WorkflowStore } from "./types";
+import type { DocIndex, TabularCellStore, WorkflowStore } from "./types";
 import type { ReadSubagentAssignment } from "./readSubagents";
 import type { AssistantEvent } from "./turnEngine";
 import { safeErrorMessage } from "../safeError";
-import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
+import type { AuthoritiesUserAction,
+  AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
+import { authoritiesProfileIds, decodeAuthoritiesDraft } from "../authoritiesDomain";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
-import { courtRecordSlotTool } from "./courtRecordSlotTool";
-import { COURT_RECORD_PROFILES, COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
+import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
+import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
+  courtRecordSlotTool } from "./courtRecordSlotTool";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
 import type { WorkProductKind } from "../workProduct";
@@ -192,17 +196,57 @@ const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   annotations: { readOnlyHint: true },
   inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
 };
-const COURT_RECORD_PROFILE_IDS = COURT_RECORD_PROFILES.map(({ id }) => id);
-const COURT_RECORD_COVER_FIELDS = [...new Set(
-  COURT_RECORD_PROFILES.flatMap(({ coverFields }) => coverFields),
-)];
-const COURT_RECORD_SLOT_IDS = [...new Set(COURT_RECORD_PROFILES.flatMap(({ slots }) =>
-  slots.filter((slot) => slot.requirement !== "forbidden" && !slot.generated &&
-    !slot.descriptionOnly).map(({ id }) => id)))];
 const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
-  create: "Creating draft", select: "Opening draft", update: "Updating draft",
-  refresh: "Refreshing draft", build: "Building draft", research: "Updating saved research",
+  create: "Creating draft", read: "Reading draft", select: "Opening draft",
+  update: "Updating draft", review: "Checking draft", refresh: "Refreshing draft",
+  build: "Building draft", research: "Updating saved research",
 };
+const AUTHORITIES_ACTION = objectSchema({
+  type: { type: "string", enum: [
+    "set-authority-span", "set-pinpoint-span", "split-occurrence", "merge-occurrence",
+    "relink-occurrence", "set-reference", "add-authority", "remove-authority", "exclude-authority",
+    "rename-authority", "set-authority-tab", "reorder-authorities", "set-profile", "set-settings",
+    "set-output-mode", "set-document-output", "clear-book-part", "update-book-supplement",
+    "reorder-book-supplements", "remove-book-supplement",
+  ] },
+  occurrence_id: { type: "string", minLength: 1 },
+  authority_id: { type: "string" },
+  authority_kind: { type: "string", enum: ["case", "legislation", "commentary", "other"] },
+  citation: { type: "string", minLength: 1, maxLength: 1_000 },
+  name: { type: ["string", "null"], maxLength: 1_000 },
+  target_authority_id: { type: "string", minLength: 1 },
+  authority_ids: { type: "array", minItems: 1, uniqueItems: true,
+    items: { type: "string", minLength: 1 } },
+  start: { type: "integer", minimum: 0 },
+  end: { type: "integer", minimum: 0 },
+  cursor: { type: "integer", minimum: 0 },
+  reference_kind: { type: "string", enum: ["supra", "ibid", "none"] },
+  excluded: { type: "boolean" },
+  display_name: { type: "string", maxLength: 1_000 },
+  tab_label: { type: ["string", "null"] },
+  profile_id: { type: "string", enum: authoritiesProfileIds },
+  settings: objectSchema({
+    source_mode: { type: "string", enum: ["automatic", "manual-originals", "render"] },
+    tab_style: { type: "string", enum: ["numeric", "alpha"] },
+    table_order: { type: "string", enum: ["first-reference", "alphabetical"] },
+    table_delivery: { type: "string", enum: ["native-marks", "native-append", "linked-append"] },
+    table_location: { type: "string", enum: ["pages", "pinpoints", "combined"] },
+    passage_marking: { type: "string", enum: ["none", "margin", "paragraph", "text", "sidelined"] },
+    scanned_pdf_policy: { type: "string", enum: ["page-margin", "cited-pages", "full"] },
+    missing_source_policy: { type: "string", enum: ["placeholder", "omit"] },
+    filing_medium: { type: "string", enum: ["electronic", "paper"] },
+    book_role: { type: "string",
+      enum: ["applicant", "respondent", "joint", "appellant", "intervener"] },
+  }),
+  output_mode: { type: "string", enum: ["table", "book", "both"] },
+  enabled: { type: "boolean" },
+  slot: { type: "string", enum: ["cover", "index"] },
+  supplement_id: { type: "string", minLength: 1 },
+  supplement_ids: { type: "array", minItems: 1, uniqueItems: true,
+    items: { type: "string", minLength: 1 } },
+  title: { type: "string", maxLength: 1_000 },
+  tab: { type: "string", maxLength: 200 },
+}, ["type"]);
 const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy => ({
   name: "update_work_product",
   specialist: true,
@@ -212,19 +256,27 @@ const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy =
     "research set using the same operations as the workspace.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
-    action: { type: "string", enum: ["create", "select", "update", "refresh", "build"] },
+    action: { type: "string", enum: ["create", "read", "review", "select", "update", "refresh", "build"] },
     kind: { type: "string", enum: ["court-record",
       ...(authoritiesEnabled ? ["authorities"] : []), "research-set"] },
     draft_id: { type: "string", minLength: 1 },
     title: { type: "string", minLength: 1, maxLength: 300 },
-    profile_id: { type: "string", enum: COURT_RECORD_PROFILE_IDS },
-    cover: objectSchema(Object.fromEntries(COURT_RECORD_COVER_FIELDS.map((field) =>
-      [field, { type: "string", minLength: 1, maxLength: 5000 }]))),
+    ...COURT_RECORD_TOOL_PROPERTIES,
     document_id: DOCUMENT_ID_PROPERTY,
-    slot_id: { type: "string", enum: COURT_RECORD_SLOT_IDS },
-    replace_entry_id: { type: "string" },
-    child_draft_id: { type: "string", minLength: 1 },
-    output_role: { type: "string", enum: ["table", "book"] },
+    unit_id: { type: "string", minLength: 1 },
+    occurrence_id: { type: "string", minLength: 1 },
+    text_offset: { type: "integer", minimum: 0 },
+    text_limit: { type: "integer", minimum: 1, maximum: 20_000 },
+    authority_offset: { type: "integer", minimum: 0 },
+    authority_limit: { type: "integer", minimum: 1, maximum: 50 },
+    input_role: { type: "string", minLength: 1 },
+    authority_id: { type: "string", minLength: 1,
+      description: "Authority ID returned by reading an Authorities draft." },
+    book_slot: { type: "string", enum: ["cover", "index", "supplement"] },
+    supplement_id: { type: "string", minLength: 1 },
+    supplement_title: { type: "string", maxLength: 1_000 },
+    supplement_tab: { type: "string", maxLength: 200 },
+    authorities_action: AUTHORITIES_ACTION,
     evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
       items: { type: "string", minLength: 1 } },
     query_ids: { type: "array", uniqueItems: true,
@@ -1045,12 +1097,15 @@ async function runCodingShapeCall(
   workflows: WorkflowStore = new Map(),
   editMode: EditMode = "manual",
   documentNames: Map<string, string> = new Map(),
+  docIndex?: DocIndex,
   progress?: (label: string) => void,
   signal?: AbortSignal,
 ): Promise<BeaverOutcome> {
   servedDraftingCache ??= new Map();
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
+  const indexed = new Map(Object.values(docIndex ?? {}).map((item) =>
+    [item.document_id, item]));
   let listedFiles: AssistantDocument[] | undefined;
   const files = async () => {
     if (!listedFiles) {
@@ -1067,9 +1122,10 @@ async function runCodingShapeCall(
     const listed = listedFiles?.find(({ id }) => id === reference.documentId);
     if (listed) return listed;
     const record = await documents.metadata(scope, reference.documentId, !matterId);
-    if (!record || (matterId
+    const exactIndex = indexed.get(reference.documentId)?.version_id === reference.versionId;
+    if (!record || (!exactIndex && (matterId
       ? record.project_id !== matterId
-      : record.project_id !== null || record.library_kind !== "file") ||
+      : record.project_id !== null || record.library_kind !== "file")) ||
       typeof record.filename !== "string" ||
       typeof record.current_version_id !== "string" ||
       typeof record.file_type !== "string") return null;
@@ -1151,9 +1207,12 @@ async function runCodingShapeCall(
   };
   if (call.name === "Glob") {
     const re = globRegExp(trimmed(args.pattern) || "*");
-    const fileRows = (await files())
-      .filter((document) => re.test(document.filename))
-      .map((document) => `${codingPath(document)}\tfilename=${document.filename}`);
+    const fileRows = docIndex ? Object.entries(docIndex).flatMap(([alias, document]) =>
+      document.version_id && (re.test(alias) || re.test(document.filename))
+        ? [`${resourceReference.document(document.document_id, document.version_id)}` +
+          `\talias=${alias}\tfilename=${document.filename}`] : []) : (await files())
+        .filter((document) => re.test(document.filename))
+        .map((document) => `${codingPath(document)}\tfilename=${document.filename}`);
     const workflowRows = [...workflows].flatMap(([id, workflow]) => {
       const resource = resourceReference.workflow(id);
       return re.test(resource) ? [`${resource}\ttitle=${workflow.title}`] : [];
@@ -2278,7 +2337,9 @@ type AssistantToolsDependencies = {
   researchSetId?: string;
   researchSetRevision?: number;
   authorities: Pick<AuthoritiesWorkspaceApplication,
-    "importDraft" | "refresh" | "build" | "addReceipts">;
+    "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
+      "discrepancies" | "build" |
+      "addReceipts" | "attachLibraryPdf">;
   authoritiesId?: string;
   authoritiesRevision?: number;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
@@ -2298,6 +2359,7 @@ type AssistantToolsDependencies = {
   readerAssignment?: ReadSubagentAssignment;
   tabular?: TabularCellStore;
   documentNames?: ReadonlyMap<string, string>;
+  docIndex?: DocIndex;
   resolveArtifact(value: string): string | undefined;
   artifactFor(documentId: string, versionId: string): string;
   onMutationCommitted(): void;
@@ -2344,6 +2406,7 @@ export function assistantTools<Context extends {
     readerAssignment,
     tabular,
     documentNames,
+    docIndex,
     resolveArtifact,
     artifactFor,
     onMutationCommitted,
@@ -2404,6 +2467,7 @@ export function assistantTools<Context extends {
       availableWorkflows,
       editMode,
       knownDocumentNames,
+      docIndex,
       progress,
       signal,
     );
@@ -2678,6 +2742,17 @@ export function assistantTools<Context extends {
   if (researchSetId && researchSetRevision) {
     workProductRevisions.set(researchSetId, researchSetRevision);
   }
+  const clip = (value: unknown, max = 500) => {
+    const text = trimmed(value);
+    return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  };
+  const workProductChoices = async (kind: WorkProductKind) => {
+    const products = await workProducts.list(scope, { kind, limit: 50, metadata: true });
+    const drafts = products.filter(({ projectId }) => projectId === workProductProjectId)
+      .map(({ id, title, revision, updatedAt }) =>
+        ({ id, title: clip(title, 300), revision, updated_at: updatedAt }));
+    return { drafts, has_more: products.length === 50 };
+  };
   const targetWorkProduct = async (kind: WorkProductKind, input: Record<string, unknown>) => {
     const active = kind === "court-record" ? { id: courtRecordId, revision: courtRecordRevision }
       : kind === "authorities" ? { id: authoritiesId, revision: authoritiesRevision }
@@ -2695,8 +2770,133 @@ export function assistantTools<Context extends {
   const workProductPayload = (product: { id: string; kind: WorkProductKind;
     revision: number }, values: Record<string, unknown> = {}) => {
     workProductRevisions.set(product.id, product.revision);
-    return { ok: true, work_product: { id: product.id, kind: product.kind,
-      revision: product.revision }, ...values };
+    return workProductResult(product, values);
+  };
+  const authoritiesPayload = (product: { id: string; kind: WorkProductKind;
+    revision: number; state: unknown; outputs: Record<string, unknown> },
+    input: Record<string, unknown> = {}, values: Record<string, unknown> = {}) => {
+    const draft = decodeAuthoritiesDraft(product.state);
+    const outputRoles = Object.keys(product.outputs ?? {});
+    if (!draft) return workProductPayload(product, values);
+    const authorityOffset = Math.max(0, Math.trunc(Number(input.authority_offset) || 0));
+    const authorityLimit = Math.max(1, Math.min(50,
+      Math.trunc(Number(input.authority_limit) || 25)));
+    const authority = (id: string) => {
+      const item = draft.authorities[id];
+      if (!item) return null;
+      const source = item.source;
+      return { id, kind: item.kind, citation: clip(item.citation),
+        name: clip(item.displayName ?? item.name), tab_label: item.tabLabel ?? null,
+        excluded: item.excluded, source: { status: source.kind,
+          ...(source.kind === "attached" ? { binding_role: source.bindingRole,
+            filename: clip(source.filename, 300) } : {}),
+          ...(source.kind === "pending-canlii" ? { page_url: clip(source.pageUrl, 1_000) } : {}) } };
+    };
+    const part = (item: typeof draft.bookParts.cover) => item && ({
+      binding_role: item.bindingRole, filename: clip(item.filename, 300),
+    });
+    const source = draft.import.kind === "document" ? {
+      kind: draft.import.kind, filename: clip(draft.import.filename, 300),
+      file_type: draft.import.fileType, binding_role: draft.import.bindingRole,
+    } : { kind: draft.import.kind };
+    const summary: Record<string, unknown> = {
+      source,
+      output_mode: draft.outputMode,
+      settings: { profile_id: draft.settings.profileId,
+        source_mode: draft.settings.sourceMode, tab_style: draft.settings.tabStyle,
+        table_order: draft.settings.tableOrder, table_delivery: draft.settings.tableDelivery,
+        table_location: draft.settings.tableLocation,
+        passage_marking: draft.settings.passageMarking,
+        scanned_pdf_policy: draft.settings.scannedPdfPolicy,
+        missing_source_policy: draft.settings.missingSourcePolicy,
+        ...(draft.settings.filingMedium
+          ? { filing_medium: draft.settings.filingMedium } : {}),
+        ...(draft.settings.bookRole ? { book_role: draft.settings.bookRole } : {}) },
+      book_parts: { cover: part(draft.bookParts.cover), index: part(draft.bookParts.index),
+        supplements: draft.bookParts.supplements.slice(0, 50).map((item) => ({
+          id: item.id, binding_role: item.bindingRole, filename: clip(item.filename, 300),
+          title: clip(item.title, 500), tab: clip(item.tab, 200),
+        })), supplement_count: draft.bookParts.supplements.length },
+      insert_into_document: draft.insertIntoDocument,
+      counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
+        authorities: draft.authorityOrder.length },
+      authorities: draft.authorityOrder.slice(authorityOffset, authorityOffset + authorityLimit)
+        .map(authority).filter(Boolean),
+      authority_page: { offset: authorityOffset, limit: authorityLimit,
+        has_more: authorityOffset + authorityLimit < draft.authorityOrder.length },
+    };
+    const occurrenceId = trimmed(input.occurrence_id), requestedUnitId = trimmed(input.unit_id);
+    if (occurrenceId && requestedUnitId) throw new Error(
+      "Read either one unit_id or one occurrence_id");
+    const occurrence = occurrenceId ? draft.occurrences[occurrenceId] : null;
+    if (occurrenceId && !occurrence) throw new Error(`Unknown occurrence: ${occurrenceId}`);
+    const unitId = requestedUnitId || occurrence?.unitId || "";
+    const unit = unitId ? draft.units.find(({ id }) => id === unitId) : null;
+    if (unitId && !unit) throw new Error(`Unknown unit: ${unitId}`);
+    if (unit) {
+      const requestedOffset = input.text_offset === undefined ? null : Number(input.text_offset);
+      const textOffset = Math.min(unit.text.length, Math.max(0, Math.trunc(requestedOffset ??
+        (occurrence ? Math.max(0, occurrence.start - 2_000) : 0))));
+      const textLimit = Math.max(1, Math.min(20_000,
+        Math.trunc(Number(input.text_limit) || 12_000)));
+      const textEnd = Math.min(unit.text.length, textOffset + textLimit);
+      summary.unit = { id: unit.id, kind: unit.kind, ordinal: unit.ordinal,
+        footnote_id: unit.footnoteId, page_numbers: unit.pageNumbers,
+        text: unit.text.slice(textOffset, textEnd), text_offset: textOffset,
+        text_end: textEnd, text_length: unit.text.length, has_more: textEnd < unit.text.length,
+        occurrences: unit.occurrenceIds.slice(0, 100).flatMap((id) => {
+          const item = draft.occurrences[id];
+          return item ? [{ id, start: item.start, end: item.end, kind: item.kind,
+            citation: clip(item.citation, 300), authority_id: item.authorityId }] : [];
+        }), occurrence_count: unit.occurrenceIds.length };
+    }
+    if (occurrence) {
+      const span = (value: typeof occurrence.authoritySpan | null) => value && ({
+        start: value.start, end: value.end, text: clip(value.text, 500),
+      });
+      summary.occurrence = { id: occurrence.id, unit_id: occurrence.unitId,
+        start: occurrence.start, end: occurrence.end, text: clip(occurrence.text, 1_000),
+        kind: occurrence.kind, citation: clip(occurrence.citation),
+        authority_id: occurrence.authorityId, authority_span: span(occurrence.authoritySpan),
+        core_span: span(occurrence.coreSpan), pinpoint_span: span(occurrence.pinpointSpan),
+        reference: occurrence.reference, pinpoints: occurrence.pinpoints };
+    }
+    return workProductPayload(product, { draft: summary, output_roles: outputRoles, ...values });
+  };
+  const authoritiesMutationPayload = (
+    product: { id: string; kind: WorkProductKind; revision: number;
+      state: unknown; outputs: Record<string, unknown> },
+    change: Record<string, unknown>,
+  ) => {
+    const draft = decodeAuthoritiesDraft(product.state), outputRoles = Object.keys(product.outputs ?? {});
+    return workProductPayload(product, { change,
+      ...(draft && { state: { output_mode: draft.outputMode,
+        profile_id: draft.settings.profileId,
+        counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
+          authorities: draft.authorityOrder.length },
+        book_parts: { cover: Boolean(draft.bookParts.cover), index: Boolean(draft.bookParts.index),
+          supplements: draft.bookParts.supplements.length } } }),
+      ...(outputRoles.length && { output_roles: outputRoles }) });
+  };
+  const inputIssues = async (id: string) => {
+    const resolution = await workProducts.resolve(scope, id);
+    const issues: Record<string, unknown>[] = [];
+    for (const [role, item] of Object.entries(resolution.inputs)) {
+      if (item.status === "ready") continue;
+      if (item.status === "changed") {
+        const current = item.current.kind === "local-file"
+          ? { filename: clip(item.current.filename, 300) }
+          : { document_id: item.current.documentId, version_id: item.current.versionId,
+            filename: clip(item.current.filename, 300) };
+        issues.push({ role, status: item.status, current, refreshable: true });
+      } else if (item.status === "missing") {
+        issues.push({ role, status: item.status, reason: item.reason,
+          resource: item.resource, resource_id: item.id, refreshable: false });
+      } else issues.push({ role, status: item.status, reason: item.reason,
+        work_product_id: item.workProductId, refreshable: false });
+    }
+    return { freshness: resolution.freshness, input_issue_count: issues.length,
+      input_issues: issues.slice(0, 50), input_issues_truncated: issues.length > 50 };
   };
   const authorizedDocument = async (input: Record<string, unknown>) => {
     const rawDocument = trimmed(input.document_id);
@@ -2711,7 +2911,168 @@ export function assistantTools<Context extends {
     }
     return document?.kind === "document" ? document : null;
   };
-  const updateWorkProduct: AssistantToolRun = async (call, input) => {
+  const authorizedPdf = async (input: Record<string, unknown>) => {
+    const document = await authorizedDocument(input);
+    if (!document) throw new Error("Select one version-pinned Library PDF");
+    const history = await documents.versions(scope, document.documentId);
+    const version = history?.versions.find(({ id }) => id === document.versionId);
+    if (!version || history?.current_version_id !== version.id ||
+        version.file_type.toLowerCase() !== "pdf") {
+      throw new Error("Select the current PDF version from Library");
+    }
+    return { ...document, version };
+  };
+  const authoritiesAction = (value: unknown): AuthoritiesUserAction | null => {
+    const action = objectRecord(value);
+    if (!action) return null;
+    const type = trimmed(action.type), occurrenceId = trimmed(action.occurrence_id),
+      authorityId = trimmed(action.authority_id);
+    const occurrence = () => {
+      if (!occurrenceId) throw new Error(`${type} requires occurrence_id`);
+      return occurrenceId;
+    };
+    const authority = () => {
+      if (!authorityId) throw new Error(`${type} requires authority_id`);
+      return authorityId;
+    };
+    const integer = (key: "start" | "end" | "cursor") => {
+      const number = action[key];
+      if (!Number.isSafeInteger(number) || Number(number) < 0) {
+        throw new Error(`${type} requires a non-negative integer ${key}`);
+      }
+      return Number(number);
+    };
+    switch (type) {
+      case "add-authority": {
+        const kind = trimmed(action.authority_kind), citation = trimmed(action.citation);
+        if (!["case", "legislation", "commentary", "other"].includes(kind) || !citation) {
+          throw new Error("add-authority requires authority_kind and citation");
+        }
+        return { type, kind: kind as "case" | "legislation" | "commentary" | "other",
+          citation, name: action.name === null ? null : trimmed(action.name) || null };
+      }
+      case "remove-authority":
+        return { type, authorityId: authority() };
+      case "set-authority-span":
+      case "set-pinpoint-span":
+        return { type, occurrenceId: occurrence(), start: integer("start"),
+          end: integer("end") };
+      case "split-occurrence":
+        return { type, occurrenceId: occurrence(), cursor: integer("cursor") };
+      case "merge-occurrence":
+        return { type, occurrenceId: occurrence() };
+      case "relink-occurrence":
+        return { type, occurrenceId: occurrence(), authorityId: authorityId || null };
+      case "set-reference": {
+        const kind = action.reference_kind;
+        if (kind !== "supra" && kind !== "ibid" && kind !== "none") {
+          throw new Error("set-reference requires reference_kind");
+        }
+        const targetAuthorityId = trimmed(action.target_authority_id);
+        if (kind !== "none" && !targetAuthorityId) {
+          throw new Error("set-reference requires target_authority_id");
+        }
+        return { type, occurrenceId: occurrence(), reference: kind === "none" ? null
+          : { kind, targetAuthorityId } };
+      }
+      case "exclude-authority":
+        if (typeof action.excluded !== "boolean") {
+          throw new Error("exclude-authority requires excluded");
+        }
+        return { type, authorityId: authority(), excluded: action.excluded };
+      case "rename-authority":
+        if (typeof action.display_name !== "string") {
+          throw new Error("rename-authority requires display_name");
+        }
+        return { type, authorityId: authority(), displayName: trimmed(action.display_name) || null };
+      case "set-authority-tab":
+        if (typeof action.tab_label !== "string" && action.tab_label !== null) {
+          throw new Error("set-authority-tab requires tab_label");
+        }
+        return { type, authorityId: authority(), tabLabel: trimmed(action.tab_label) || null };
+      case "reorder-authorities": {
+        const authorityIds = Array.isArray(action.authority_ids)
+          ? action.authority_ids.map(trimmed) : [];
+        if (!authorityIds.length || authorityIds.some((id) => !id)) {
+          throw new Error("reorder-authorities requires authority_ids");
+        }
+        return { type, authorityIds };
+      }
+      case "set-profile": {
+        const profileId = trimmed(action.profile_id);
+        if (!authoritiesProfileIds.includes(profileId as typeof authoritiesProfileIds[number])) {
+          throw new Error("set-profile requires profile_id");
+        }
+        return { type, profileId } as AuthoritiesUserAction;
+      }
+      case "set-settings": {
+        const input = objectRecord(action.settings);
+        if (!input) throw new Error("set-settings requires settings");
+        const keys = {
+          source_mode: ["sourceMode", ["automatic", "manual-originals", "render"]],
+          tab_style: ["tabStyle", ["numeric", "alpha"]],
+          table_order: ["tableOrder", ["first-reference", "alphabetical"]],
+          table_delivery: ["tableDelivery", ["native-marks", "native-append", "linked-append"]],
+          table_location: ["tableLocation", ["pages", "pinpoints", "combined"]],
+          passage_marking: ["passageMarking", ["none", "margin", "paragraph", "text", "sidelined"]],
+          scanned_pdf_policy: ["scannedPdfPolicy", ["page-margin", "cited-pages", "full"]],
+          missing_source_policy: ["missingSourcePolicy", ["placeholder", "omit"]],
+          filing_medium: ["filingMedium", ["electronic", "paper"]],
+          book_role: ["bookRole",
+            ["applicant", "respondent", "joint", "appellant", "intervener"]],
+        } as const;
+        const settings: Record<string, string> = {};
+        for (const [inputKey, [outputKey, allowed]] of Object.entries(keys)) {
+          const selected = input[inputKey];
+          if (selected === undefined) continue;
+          if (typeof selected !== "string" || !(allowed as readonly string[]).includes(selected)) {
+            throw new Error(`Invalid Authorities setting: ${inputKey}`);
+          }
+          settings[outputKey] = selected;
+        }
+        if (!Object.keys(settings).length) throw new Error("set-settings requires settings");
+        return { type, settings } as AuthoritiesUserAction;
+      }
+      case "set-output-mode":
+        if (!["table", "book", "both"].includes(String(action.output_mode))) {
+          throw new Error("set-output-mode requires output_mode");
+        }
+        return { type, outputMode: action.output_mode as "table" | "book" | "both" };
+      case "set-document-output":
+        if (typeof action.enabled !== "boolean") {
+          throw new Error("set-document-output requires enabled");
+        }
+        return { type, enabled: action.enabled };
+      case "clear-book-part":
+        if (action.slot !== "cover" && action.slot !== "index") {
+          throw new Error("clear-book-part requires slot");
+        }
+        return { type, slot: action.slot };
+      case "update-book-supplement": {
+        const id = trimmed(action.supplement_id);
+        if (!id || typeof action.title !== "string" || typeof action.tab !== "string") {
+          throw new Error("update-book-supplement requires supplement_id, title, and tab");
+        }
+        return { type, id, title: action.title, tab: action.tab };
+      }
+      case "reorder-book-supplements": {
+        const ids = Array.isArray(action.supplement_ids)
+          ? action.supplement_ids.map(trimmed) : [];
+        if (!ids.length || ids.some((id) => !id)) {
+          throw new Error("reorder-book-supplements requires supplement_ids");
+        }
+        return { type, ids };
+      }
+      case "remove-book-supplement": {
+        const id = trimmed(action.supplement_id);
+        if (!id) throw new Error("remove-book-supplement requires supplement_id");
+        return { type, id };
+      }
+      default:
+        throw new Error("Select a supported Authorities action");
+    }
+  };
+  const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
     const respond = (payload: Record<string, unknown>, mutated = false) => withEvent(
       payload.ok === true ? (mutated ? mutationResult(payload) : result(payload))
@@ -2724,16 +3085,15 @@ export function assistantTools<Context extends {
     if (kind === "authorities" && productFeatures?.authorities === false) {
       return respond({ ok: false, error: "Authorities is turned off in Settings." });
     }
-    const rawCover = input.cover === undefined ? undefined : objectRecord(input.cover);
-    if (input.cover !== undefined && !rawCover) {
-      return respond({ ok: false, error: "cover must be an object" });
-    }
-    const cover = rawCover && Object.fromEntries(Object.entries(rawCover)
-      .filter((entry): entry is [string, string] => typeof entry[1] === "string"));
-    if (rawCover && Object.keys(cover!).length !== Object.keys(rawCover).length) {
-      return respond({ ok: false, error: "cover values must be text" });
-    }
     try {
+      const requestedId = trimmed(input.draft_id);
+      const activeId = kind === "court-record" ? courtRecordId
+        : kind === "authorities" ? authoritiesId : researchSetId;
+      if (kind !== "research-set" && !requestedId && !activeId &&
+          (input.action === "read" || input.action === "select")) {
+        return respond({ ok: true, ...(await workProductChoices(kind)),
+          requested_action: "choose" });
+      }
       if (input.action === "create") {
         if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
         if (kind === "research-set") {
@@ -2745,6 +3105,8 @@ export function assistantTools<Context extends {
             state: createResearchSetState(actor, title) });
           return respond(workProductPayload(product), true);
         }
+        if (kind === "authorities" && authoritiesId) throw new Error(
+          "This assistant is already bound to an Authorities draft");
         if (kind === "court-record") {
           const profileId = trimmed(input.profile_id);
           if (!COURT_RECORD_PROFILE_BY_ID.has(profileId)) {
@@ -2754,7 +3116,7 @@ export function assistantTools<Context extends {
             title: trimmed(input.title) || "Untitled court record",
             projectId: workProductProjectId,
             state: { profileId, cover: {}, entries: [], bindings: {} } });
-          return respond(workProductPayload(product), true);
+          return respond(courtRecordResult(product, { requested_action: "open" }), true);
         }
         const document = await authorizedDocument(input);
         const seeds = input.evidence_ids === undefined ? null : evidenceSeeds(input);
@@ -2764,15 +3126,58 @@ export function assistantTools<Context extends {
             version: "latest" } : seeds ? { kind: "receipts", seeds } : { kind: "manual" },
           title: trimmed(input.title) || undefined, projectId: workProductProjectId,
         });
-        return respond(workProductPayload(product), true);
+        return respond(workProductPayload(product, { requested_action: "open" }), true);
+      }
+      if (kind === "court-record") {
+        if (authoritiesId && input.action === "select") throw new Error(
+          "This assistant is bound to an Authorities draft");
+        const id = trimmed(input.draft_id);
+        if (!id) throw new Error("Select a Court Record draft_id");
+        const product = await workProducts.get(scope, id);
+        if (product.kind !== "court-record" || product.projectId !== workProductProjectId) {
+          throw new Error("Draft is outside this chat's work-product scope");
+        }
+        if (input.action === "read" || input.action === "select") {
+          return respond(courtRecordResult(product, input.action === "select"
+            ? { requested_action: "open" } : {}));
+        }
+        if (input.action !== "update") {
+          throw new Error("Open the Court Record to refresh or build it");
+        }
+        if (!courtRecords) throw new Error("Court Records is unavailable");
+        return courtRecordSlotTool<Context>({ scope,
+          target: { id: product.id, revision: product.revision },
+          projectId: workProductProjectId, allowedDocumentIds, library,
+          workProducts, courtRecords, resolveArtifact, onMutationCommitted: () => {},
+        }).execute({ ...input, action: "update" }, {} as Context, signal, call);
       }
       const target = await targetWorkProduct(kind, input);
       if (input.action === "select") {
-        return respond(workProductPayload(target.product, {
-          requested_action: "open",
+        return respond(workProductPayload(target.product, { requested_action: "open",
           ...(kind === "research-set"
-            ? { research: researchSetSummary(decodeResearchSetState(target.product.state)!) } : {}),
+            ? { research: researchSetSummary(decodeResearchSetState(target.product.state)!) }
+            : {}) }));
+      }
+      if (kind === "authorities" && input.action === "read") {
+        return respond(authoritiesPayload(target.product, input,
+          await inputIssues(target.product.id)));
+      }
+      if (kind === "authorities" && input.action === "review") {
+        const [issues, discrepancies] = await Promise.all([
+          inputIssues(target.product.id),
+          authorities.discrepancies(scope, target.product.id, signal),
+        ]);
+        const compact = discrepancies.slice(0, 40).map((item) => ({
+          kind: item.kind, occurrence_id: item.occurrenceId,
+          authority_id: item.authorityId, footnote_id: item.footnoteId,
+          citation: clip(item.citation), authored_quote: clip(item.authoredQuote, 500),
+          authored_pinpoint: item.authoredPinpoint,
+          cited_locator: item.cited.locator,
+          ...(item.found ? { suggested_locator: item.found.locator } : {}),
         }));
+        return respond(authoritiesPayload(target.product, input, { ...issues,
+          discrepancy_count: discrepancies.length, discrepancies: compact,
+          discrepancies_truncated: discrepancies.length > compact.length }));
       }
       if (kind === "research-set") {
         if (input.action !== "update") throw new Error("Saved research supports create, select, and update");
@@ -2816,8 +3221,14 @@ export function assistantTools<Context extends {
       }
       if (input.action === "refresh") {
         if (kind === "authorities") {
-          const product = await authorities.refresh(scope, target.product.id, target.revision);
-          return respond(workProductPayload(product), product.revision !== target.product.revision);
+          const role = trimmed(input.input_role);
+          const product = role
+            ? await authorities.refreshInput(scope, target.product.id,
+              { revision: target.revision, role })
+            : await authorities.refresh(scope, target.product.id, target.revision);
+          return respond(authoritiesMutationPayload(product,
+            role ? { type: "refresh-input", role } : { type: "refresh" }),
+          product.revision !== target.product.revision);
         }
         const resolution = await workProducts.resolve(scope, target.product.id);
         return respond(workProductPayload(resolution.product, {
@@ -2826,57 +3237,75 @@ export function assistantTools<Context extends {
       }
       if (input.action === "build") {
         if (kind === "authorities") {
-          const built = await authorities.build(scope, target.product.id, target.revision);
-          return respond(workProductPayload(built.product, {
-            output_roles: Object.keys(built.product.outputs),
-          }), true);
+          const prepared = await authorities.prepareSources(scope, target.product.id,
+            target.revision, signal);
+          try {
+            const built = await authorities.build(scope, prepared.id, prepared.revision, signal);
+            return respond(authoritiesMutationPayload(built.product, { type: "build" }), true);
+          } catch (error) {
+            return respond(authoritiesMutationPayload(prepared, { type: "prepare-sources",
+              build_error: safeErrorMessage(error, "The outputs could not be built") }),
+            prepared.revision !== target.revision);
+          }
         }
         return respond(workProductPayload(target.product, { requested_action: "build" }));
       }
       if (input.action !== "update") throw new Error("Unknown work-product action");
-      if (kind === "authorities") {
-        const product = await authorities.addReceipts(scope, target.product.id,
-          target.revision, evidenceSeeds(input));
-        return respond(workProductPayload(product), true);
+      const authorityId = trimmed(input.authority_id);
+      const bookSlot = trimmed(input.book_slot);
+      const action = authoritiesAction(input.authorities_action);
+      const receipts = input.evidence_ids !== undefined;
+      const attachment = Boolean(trimmed(input.document_id) || authorityId || bookSlot);
+      if ([Boolean(action), attachment, receipts].filter(Boolean).length !== 1) {
+        throw new Error("Update Authorities with exactly one edit, PDF attachment, or evidence list");
       }
-      if (!courtRecords) throw new Error("Court Records is unavailable");
-      const childId = trimmed(input.child_draft_id);
-      const outputRole = trimmed(input.output_role);
-      const slotId = trimmed(input.slot_id);
-      if (!!childId !== !!outputRole) {
-        throw new Error("child_draft_id and output_role must be supplied together");
+      if (action) {
+        const product = await authorities.act(scope, target.product.id, target.revision, action);
+        return respond(authoritiesMutationPayload(product, { type: action.type }), true);
       }
-      if (childId) {
-        if (slotId !== "authorities" && slotId !== "authority-extract") {
-          throw new Error("Select an Authorities output slot");
+      if (attachment) {
+        if (Boolean(authorityId) === Boolean(bookSlot)) {
+          throw new Error("Attach the PDF to one authority_id or one book_slot");
         }
-        const linked = await courtRecords.bindOutput(scope, {
-          courtRecordId: target.product.id, revision: target.revision, kindId: slotId,
-          childWorkProductId: childId, role: outputRole as "table" | "book",
-          ...(trimmed(input.replace_entry_id)
-            ? { replaceEntryId: trimmed(input.replace_entry_id) } : {}),
-          projectId: workProductProjectId,
-        });
-        return respond(workProductPayload(linked.product, { entry_id: linked.entryId }), true);
+        const document = await authorizedPdf(input);
+        if (authorityId) {
+          const product = await authorities.attachLibraryPdf(scope, target.product.id, {
+            revision: target.revision, authorityId, documentId: document.documentId,
+            versionId: document.versionId,
+          });
+          return respond(authoritiesMutationPayload(product,
+            { type: "attach-authority-pdf", authority_id: authorityId }), true);
+        }
+        if (!["cover", "index", "supplement"].includes(bookSlot)) {
+          throw new Error("Select cover, index, or supplement as book_slot");
+        }
+        const draft = decodeAuthoritiesDraft(target.product.state)!;
+        const suppliedId = trimmed(input.supplement_id);
+        const existing = suppliedId
+          ? draft.bookParts.supplements.find(({ id }) => id === suppliedId) : null;
+        if (suppliedId && !existing) throw new Error(`Unknown supplement: ${suppliedId}`);
+        const id = bookSlot === "supplement" ? suppliedId || randomUUID() : bookSlot;
+        const binding = { kind: "document" as const, documentId: document.documentId,
+          version: "latest" as const };
+        const pdf = { bindingRole: `book:${bookSlot}:${id}`,
+          filename: document.version.filename, sourceSha256: document.version.source_sha256 };
+        const bookAction: AuthoritiesUserAction = bookSlot === "supplement"
+          ? { type: "set-book-supplement", supplement: { ...pdf, id,
+            title: trimmed(input.supplement_title) || existing?.title ||
+              document.version.filename.replace(/\.pdf$/iu, ""),
+            tab: trimmed(input.supplement_tab) || existing?.tab ||
+              `Appendix ${draft.bookParts.supplements.length + 1}` }, binding }
+          : { type: "set-book-part", slot: bookSlot as "cover" | "index", pdf, binding };
+        const product = await authorities.act(scope, target.product.id, target.revision, bookAction);
+        return respond(authoritiesMutationPayload(product, {
+          type: "attach-book-pdf", book_slot: bookSlot,
+          ...(bookSlot === "supplement" ? { supplement_id: id } : {}),
+        }), true);
       }
-      const document = await authorizedDocument(input);
-      if (!!document !== !!slotId) {
-        throw new Error("document_id and slot_id must be supplied together");
-      }
-      const profileId = trimmed(input.profile_id);
-      if (!profileId && !cover && !document) throw new Error("No draft changes were supplied");
-      const updated = await courtRecords.updateDraft(scope, {
-        courtRecordId: target.product.id, revision: target.revision,
-        projectId: workProductProjectId,
-        ...(profileId ? { profileId } : {}), ...(cover ? { cover } : {}),
-        ...(document ? { document: { documentId: document.documentId,
-          versionId: document.versionId, slotId,
-          ...(trimmed(input.replace_entry_id)
-            ? { replaceEntryId: trimmed(input.replace_entry_id) } : {}) } } : {}),
-      });
-      return respond(workProductPayload(updated.product, {
-        filled_fields: updated.filled, entry_id: updated.entryId,
-      }), updated.product.revision !== target.product.revision);
+      const product = await authorities.addReceipts(scope, target.product.id,
+        target.revision, evidenceSeeds(input));
+      return respond(authoritiesMutationPayload(product, { type: "add-authorities",
+        evidence_count: Array.isArray(input.evidence_ids) ? input.evidence_ids.length : 0 }), true);
     } catch (error) {
       return respond({ ok: false, error: safeErrorMessage(
         error, "The work product could not be updated",

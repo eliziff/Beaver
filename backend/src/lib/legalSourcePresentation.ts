@@ -129,3 +129,23 @@ function markupLinks(markup: string) {
   }
   return links;
 }
+
+/** Ranks explicit publisher download controls; callers still validate the response as PDF. */
+export function rankedPublisherPdfLinks(markup: string, rawUrl: string | URL) {
+  const source = httpUrl(String(rawUrl));
+  if (!source) return [];
+  return markupLinks(markup).map(({ url: raw, label }, position) => {
+    const url = httpUrl(raw, source);
+    if (!url) return null;
+    const clue = `${label} ${url.pathname} ${url.search}`.toLowerCase();
+    let score = url.pathname.toLowerCase().endsWith(".pdf") ? 50 : 0;
+    if (url.pathname.toLowerCase().includes("/document.do")) score += 90;
+    if (/download pdf|view pdf|full[- ]text pdf/u.test(clue)) score += 80;
+    else if (/download|viewcontent|article\/view|galley/u.test(clue)) score += 35;
+    else if (label.toLowerCase() === "pdf") score += 60;
+    if (url.origin === source.origin) score += 15;
+    return score >= 50 ? { score, position, url: url.toString() } : null;
+  }).filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((left, right) => right.score - left.score || left.position - right.position)
+    .map(({ url }) => url);
+}
