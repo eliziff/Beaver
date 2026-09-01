@@ -3,7 +3,7 @@ import { ApplicationError } from "./applicationError";
 import { createCourtRecordsApplication } from "./courtRecordsApplication";
 import type { DocumentStore } from "./documentStore";
 import type { WorkProduct, WorkProductBuildReceipt } from "./workProduct";
-import { canonicalJsonSha256 } from "./hash";
+import { canonicalJsonSha256, sha256 } from "./hash";
 
 const scope = { userId: "user-1" };
 
@@ -77,7 +77,7 @@ describe("court records application", () => {
       ],
     }));
     const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never, { lookupPdf: lookupPdf as never });
+      workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
     await expect(application.preparedPageText(scope, "document-1", null)).resolves.toEqual({
       document_id: "document-1", version_id: "version-1",
       source_sha256: "a".repeat(64), page_count: 2, parser_status: "ready",
@@ -96,10 +96,54 @@ describe("court records application", () => {
   it("does not route non-PDFs through a second conversion or parser", async () => {
     const lookupPdf = vi.fn(), { files, workProducts } = dependencies();
     const application = createCourtRecordsApplication(documents("docx"), files as never,
-      workProducts as never, { lookupPdf: lookupPdf as never });
+      workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
     await expect(application.preparedPageText(scope, "document-1", null))
       .rejects.toMatchObject({ status: 409 });
     expect(lookupPdf).not.toHaveBeenCalled();
+  });
+
+  it("prepares only selected standalone PDF pages and returns their searchable text", async () => {
+    const bytes = Buffer.from("%PDF-1.7\nscanned\n%%EOF"), digest = sha256(bytes);
+    const preparePdf = vi.fn(async () => ({ sourceSha256: digest, pageCount: 2,
+      projectionPageCount: 2, parserVersion: "legalpdf-test", cacheKey: "b".repeat(64),
+      status: "ready" as const, pagesNeedingOcr: [], ocrRoutedPages: [1], profile: {} }));
+    const lookupPdf = vi.fn(async () => ({ status: "found" as const, pages: [
+      { page_number: 1, text: "Native first page" },
+      { page_number: 2, text: "Recognized second page" },
+    ] }));
+    const { files, workProducts } = dependencies();
+    const application = createCourtRecordsApplication(documents(), files as never,
+      workProducts as never, { preparePdf: preparePdf as never, lookupPdf: lookupPdf as never });
+
+    await expect(application.prepareUploadedPdf({ filename: "scan.pdf", fileType: "pdf", bytes },
+      [2, 2])).resolves.toEqual({ source_sha256: digest, page_count: 2,
+      parser_status: "ready", ocr_pages: [2], pages: [
+        { page_number: 1, text: "Native first page" },
+        { page_number: 2, text: "Recognized second page" },
+      ] });
+    expect(preparePdf).toHaveBeenCalledWith(expect.objectContaining({
+      documentId: `court-record:${digest}`, versionId: `source:${digest}`,
+      sourceSha256: digest, pages: [2], ocrProvider: "kraken-lite",
+    }));
+    expect(lookupPdf).toHaveBeenCalledWith(expect.any(Function), {
+      locatorKind: "page", locator: "1-2", contextBlocks: 0,
+    }, expect.objectContaining({ documentId: `court-record:${digest}`,
+      versionId: `source:${digest}`, persistEvidence: false }));
+  });
+
+  it("rejects invalid and password-protected standalone PDFs", async () => {
+    const encrypted = Object.assign(new Error(
+      "PDF is password-protected. Remove its password, then upload it again."),
+    { name: "PdfEncrypted" });
+    const { files, workProducts } = dependencies();
+    const application = createCourtRecordsApplication(documents(), files as never,
+      workProducts as never, { preparePdf: vi.fn(async () => { throw encrypted; }) as never,
+        lookupPdf: vi.fn() as never });
+    await expect(application.prepareUploadedPdf({ filename: "bad.pdf", fileType: "pdf",
+      bytes: Buffer.from("not a PDF") }, [1])).rejects.toMatchObject({ status: 400 });
+    await expect(application.prepareUploadedPdf({ filename: "locked.pdf", fileType: "pdf",
+      bytes: Buffer.from("%PDF-1.7\nlocked") }, [1])).rejects.toMatchObject({ status: 409,
+        message: expect.stringContaining("password-protected") });
   });
 
   it("reuses the document converter for an ephemeral Word PDF rendition", async () => {
@@ -290,7 +334,7 @@ describe("court records application", () => {
 
   it("fills an empty Authorities slot from a live named output without changing cover fields", async () => {
     const record = product();
-    record.state = { profileId: "fc-motion-record-moving",
+    record.state = { profileId: "ab-kb-chambers-justice-applicant-set",
       cover: { counselName: "Ada Lawyer" }, entries: [], bindings: {} };
     const child: WorkProduct = { ...product({ book: { documentId: "authority-document",
       versionId: "authority-version", filename: "Authorities.pdf",
@@ -322,7 +366,8 @@ describe("court records application", () => {
     const existing = { id: "entry-1", kindId: "authorities", title: "My authorities",
       date: "August 30, 2026", lastSeen: { name: "old.pdf", size: 1, modified: 1 } };
     const record = product();
-    record.state = { profileId: "fc-motion-record-moving", cover: {}, entries: [existing],
+    record.state = { profileId: "ab-kb-chambers-justice-applicant-set",
+      cover: {}, entries: [existing],
       bindings: { "entry-1": { kind: "document", documentId: "old", version: "latest" } } };
     const child: WorkProduct = { ...product({ book: { documentId: "authority-document",
       versionId: "authority-version", filename: "Authorities.pdf",
@@ -334,7 +379,8 @@ describe("court records application", () => {
       workProducts as never);
     await application.bindOutput(scope, { courtRecordId: record.id, revision: 3,
       kindId: "authorities", childWorkProductId: child.id, role: "book",
-      replaceEntryId: "entry-1" });
+      replaceEntryId: "entry-1", description: "Generated authorities",
+      date: "September 1, 2026" });
     expect(workProducts.save.mock.calls[0][2].state).toMatchObject({
       entries: [{ id: "entry-1", title: "My authorities", date: "August 30, 2026",
         lastSeen: { name: "Authorities.pdf", sha256: "d".repeat(64) } }],
@@ -355,34 +401,89 @@ describe("court records application", () => {
     expect(workProducts.save).toHaveBeenCalledOnce();
   });
 
-  it("selects a profile, fills only empty cover fields, and follows the current Library version", async () => {
+  it("fills empty cover and party fields and binds a described Library entry", async () => {
     const record = product();
     record.state = { profileId: "general-court-record",
-      cover: { courtFileNumber: "T-100-26", counselEmail: "" }, entries: [], bindings: {} };
+      cover: { courtFileNumber: "2401-10000", registry: "" }, entries: [], bindings: {} };
     const saved = { ...record, revision: 4 };
     const workProducts = { get: vi.fn(async () => record), save: vi.fn(async () => saved) };
     const application = createCourtRecordsApplication(documents(),
       { create: vi.fn() } as never, workProducts as never);
+    const partyGroups = [{ id: "party-a", parties: [
+      { id: "applicant-1", name: "Ada Applicant" },
+      { id: "applicant-2", name: "Apex Ltd." },
+    ] }, { id: "intervener", parties: [
+      { id: "intervener-1", name: "Public Interest Group" },
+    ] }];
     await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
-      profileId: "fc-motion-record-moving",
-      cover: { courtFileNumber: "T-999-26", counselEmail: "ada@example.test" },
-      document: { documentId: "library-1", versionId: "authority-version",
-        slotId: "notice-motion" } })).resolves.toMatchObject({ product: saved,
-      filled: ["counselEmail"], entryId: expect.any(String) });
+      profileId: "ab-kb-affidavit-exhibits",
+      cover: { courtFileNumber: "2401-99999", registry: "Calgary",
+        partyStyleId: "application", partyGroups, filingPartyId: "applicant-1" },
+      entry: { slotId: "exhibit", description: "Employment agreement",
+        date: "August 30, 2026", exhibitLabel: "A",
+        document: { documentId: "library-1", versionId: "authority-version" } } }))
+      .resolves.toMatchObject({ product: saved,
+        filled: ["registry", "partyStyleId", "partyGroups", "filingPartyId"],
+        entryId: expect.any(String) });
     const state = workProducts.save.mock.calls[0][2].state as {
       profileId: string; cover: Record<string, string>;
       entries: Array<{ id: string; kindId: string; title: string }>;
       bindings: Record<string, unknown>;
     };
-    expect(state).toMatchObject({ profileId: "fc-motion-record-moving",
-      cover: { courtFileNumber: "T-100-26", counselEmail: "ada@example.test" },
-      entries: [{ kindId: "notice-motion", title: "Notice of motion" }] });
+    expect(state).toMatchObject({ profileId: "ab-kb-affidavit-exhibits",
+      cover: { courtFileNumber: "2401-10000", registry: "Calgary",
+        partyStyleId: "application", partyGroups: [
+          { id: "party-a", role: "Applicant", parties: partyGroups[0].parties },
+          { id: "intervener", role: "Intervener", parties: partyGroups[1].parties },
+        ], filingPartyId: "applicant-1" },
+      entries: [{ kindId: "exhibit", title: "Employment agreement",
+        date: "August 30, 2026", exhibitLabel: "A" }] });
     expect(state.bindings[state.entries[0].id]).toEqual({ kind: "document",
       documentId: "library-1", version: "latest" });
 
     await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
-      document: { documentId: "library-1", versionId: "authority-version",
-        slotId: "not-a-slot" } })).rejects.toMatchObject({ status: 409 });
+      entry: { slotId: "not-a-slot",
+        document: { documentId: "library-1", versionId: "authority-version" } } }))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
+  it("adds a description-only entry and never creates a file binding for it", async () => {
+    const record = product();
+    record.state = { profileId: "fc-application-record-applicant",
+      cover: {}, entries: [], bindings: {} };
+    const saved = { ...record, revision: 4 };
+    const workProducts = { get: vi.fn(async () => record), save: vi.fn(async () => saved) };
+    const application = createCourtRecordsApplication(documents(),
+      { create: vi.fn() } as never, workProducts as never);
+    await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
+      entry: { slotId: "physical-exhibit",
+        description: "Original scale model tendered before the tribunal" } }))
+      .resolves.toMatchObject({ product: saved, entryId: expect.any(String) });
+    expect(workProducts.save.mock.calls[0][2].state).toMatchObject({
+      entries: [{ kindId: "physical-exhibit",
+        title: "Original scale model tendered before the tribunal", descriptionOnly: true,
+        lastSeen: { name: "description-only", size: 0, modified: 0 } }],
+      bindings: {},
+    });
+  });
+
+  it("uses a preparer's note when an Alberta appeal-record document is unavailable", async () => {
+    const record = product();
+    record.state = { profileId: "ab-ca-appeal-record", cover: {}, entries: [], bindings: {} };
+    const saved = { ...record, revision: 4 };
+    const workProducts = { get: vi.fn(async () => record), save: vi.fn(async () => saved) };
+    const application = createCourtRecordsApplication(documents(),
+      { create: vi.fn() } as never, workProducts as never);
+    await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
+      entry: { slotId: "part-2-order" } })).resolves.toMatchObject({
+        product: saved, entryId: expect.any(String),
+      });
+    expect(workProducts.save.mock.calls[0][2].state).toMatchObject({
+      entries: [{ kindId: "part-2-order",
+        title: "Formal order or decision was not available when this appeal record was prepared.",
+        descriptionOnly: true }],
+      bindings: {},
+    });
   });
 
   it("does not turn an assistant-selected historical version into a latest binding", async () => {
@@ -403,8 +504,9 @@ describe("court records application", () => {
     const application = createCourtRecordsApplication(store, files as never,
       workProducts as never);
     await expect(application.updateDraft(scope, { courtRecordId: record.id, revision: 3,
-      document: { documentId: "library-1", versionId: "historical-version",
-        slotId: "notice-motion" } })).rejects.toMatchObject({ status: 409 });
+      entry: { slotId: "notice-motion",
+        document: { documentId: "library-1", versionId: "historical-version" } } }))
+      .rejects.toMatchObject({ status: 409 });
     expect(workProducts.save).not.toHaveBeenCalled();
   });
 });

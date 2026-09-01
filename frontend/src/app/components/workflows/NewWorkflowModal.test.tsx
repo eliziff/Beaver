@@ -20,7 +20,7 @@ it("creates a usable written workflow from visible instructions", async () => {
     render(<NewWorkflowModal open onClose={vi.fn()} onCreated={onCreated} />);
 
     expect(screen.getByRole("button", { name: "Assistant" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText("Workflow name"), {
         target: { value: "Matter summary" },
     });
     fireEvent.change(screen.getByLabelText("Instructions"), {
@@ -47,7 +47,7 @@ it("creates a table workflow without assistant instructions", async () => {
     createWorkflow.mockResolvedValue({ id: "my-table" } as Workflow);
     render(<NewWorkflowModal open onClose={vi.fn()} onCreated={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Issues" } });
+    fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Issues" } });
     fireEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.queryByLabelText("Instructions")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));

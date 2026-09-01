@@ -218,6 +218,26 @@ def wait_for_authorities(driver: webdriver.Chrome) -> None:
     )
 
 
+def review_citations(driver: webdriver.Chrome) -> None:
+    for citation in CITATIONS:
+        citations = driver.find_element(By.CSS_SELECTOR, "[aria-label='Detected citations']")
+        next(
+            button
+            for button in citations.find_elements(By.TAG_NAME, "button")
+            if citation in button.text
+        ).click()
+        reviewed = driver.find_element(
+            By.XPATH, "//label[contains(normalize-space(.), 'Reviewed')]/input"
+        )
+        if not reviewed.is_selected():
+            reviewed.find_element(By.XPATH, "parent::label").click()
+        WebDriverWait(driver, 30).until(
+            lambda item: item.find_element(
+                By.XPATH, "//label[contains(normalize-space(.), 'Reviewed')]/input"
+            ).is_selected()
+        )
+
+
 def add_menu_probe(driver: webdriver.Chrome) -> str:
     citation = "2099 ABCA 997"
     driver.find_element(By.XPATH, "//summary[normalize-space()='Add authority']").click()
@@ -294,7 +314,7 @@ def canlii_handoff(driver: webdriver.Chrome) -> str:
     row = authority_row(driver, CITATIONS[0])
     links = row.find_elements(By.LINK_TEXT, "Download from CanLII")
     if not links:
-        row.find_element(By.XPATH, ".//button[normalize-space()='CanLII']").click()
+        row.find_element(By.XPATH, ".//button[normalize-space()='Get CanLII PDF']").click()
         links = WebDriverWait(driver, 30).until(
             lambda item: authority_row(item, CITATIONS[0]).find_elements(
                 By.LINK_TEXT, "Download from CanLII"
@@ -610,6 +630,7 @@ def main() -> int:
             )
             file_input.send_keys(str(source.resolve()))
             wait_for_authorities(driver)
+            review_citations(driver)
             handoff = canlii_handoff(driver)
             menu = menu_keyboard_contract(driver, add_menu_probe(driver), output)
 

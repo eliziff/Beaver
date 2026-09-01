@@ -1,7 +1,7 @@
 # Durable legal work products: Court Records and Authorities
 
-Status: implemented and production-proved for the Alberta and federal release
-scope
+Status: in implementation; production build, artifact, and live UI proof remain
+release gates
 
 Date: 2026-08-31
 
@@ -410,7 +410,8 @@ record which real example informed discretionary layout.
 
 The standalone products keep their direct focused entry. Inside Beaver,
 [the canonical Workflows catalogue](document-capabilities.md#product-vocabulary-and-workflow-catalogue)
-is the only discovery surface:
+provides consolidated discovery while the focused Court Records and Authorities
+entries remain directly available:
 
 - **Court and hearing materials** contains one **Court Records** definition and
   one **Authorities** definition;
@@ -418,12 +419,12 @@ is the only discovery surface:
   Records, not separate catalogue workflows;
 - Table of Authorities, Book of Authorities, or both are result choices inside
   Authorities, not separate catalogue workflows;
-- **Continue working** projects recent drafts from the work-product repository
-  and reopens the same focused workspace;
+- each focused workspace owns its compact saved-draft control and accepts a
+  direct draft link;
 - Library, project, assistant, and nested-draft launch points resolve those same
   two workflow IDs with inputs already bound; and
-- Beaver adds no separate top-level Authorities/Court Records navigation,
-  duplicate alias definitions, or second draft list.
+- Beaver keeps the focused Authorities/Court Records navigation without adding
+  duplicate workflow definitions or a second draft list.
 
 This catalogue integration does not force the two products through a common
 builder. They share only the small work-product model and launcher contract
@@ -707,6 +708,14 @@ The tool returns a typed host event containing the draft ID and revision. The
 frontend opens or refreshes the ordinary draft UI. There is no assistant-only
 builder screen or duplicate draft model.
 
+This is the reusable interaction seam for future focused apps: a product is
+identified by kind, ID, project, and expected revision; its domain operation
+accepts semantic field, slot, and resource IDs; and the normal host reconciles
+the returned revision into its controlled UI. Adding another app extends the
+explicit work-product union and switch with one domain adapter. It does not add
+a UI-schema renderer, DOM-driving tool, plugin registry, or assistant-owned
+copy of the product state.
+
 Beaver may render that same workspace either as the main surface or as a
 right-dock tab. From the main Authorities or Court Records surface, the existing
 Assistant can open beside it with the current draft and bound resources in
@@ -852,8 +861,8 @@ Gate:
    badges/instructions.
 7. Rebuild hierarchy, grouping, responsive layout, error focus, and the one
    scroll owner.
-8. Register the one canonical Court Records work-product launcher and project
-   its saved drafts into Workflows → Continue working.
+8. Register the one canonical Court Records launcher; saved drafts remain in
+   the focused workspace and open through exact draft links.
 
 Gate:
 
@@ -898,8 +907,8 @@ Gate:
    stable Library output versions.
 6. Move the working workspace into React and remove the iframe.
 7. Implement the persisted pending-authority CanLII manual handoff.
-8. Register the one canonical Authorities work-product launcher and project
-   its saved drafts into Workflows → Continue working.
+8. Register the one canonical Authorities launcher; saved drafts remain in the
+   focused workspace and open through exact draft links.
 9. Switch every UI/route/tool caller, then delete the Python worker/bootstrap
    product path and helper project state.
 
@@ -991,7 +1000,7 @@ the repository guide.
 | Assistant fill | Populate empty fields/slots in Beaver; prove existing values remain byte-for-byte unchanged. |
 | Responsive/accessibility | Complete primary flows by keyboard at 320 px and 200% zoom with visible focus and announced progress/errors. |
 | Load performance | Open Court Records and Authorities, then Library picker; bounded/lazy behavior meets or improves the recorded baseline. |
-| Workflow catalogue | Find each product once under Court and hearing materials, reopen its draft from Continue working, and prove every contextual launch resolves the same workflow ID. |
+| Workflow catalogue | Find each product once in Workflows, reopen its draft from the focused workspace, and prove every contextual launch resolves the same workflow ID. |
 
 ## Required automated gates
 
@@ -1020,8 +1029,8 @@ Additional feature gates:
 - nested resolution/cycle/stale-child behavior tests;
 - generated DOCX/PDF open/parse/search/bookmark/link checks; and
 - accessibility automation plus the manual keyboard/screen-reader pass.
-- workflow catalogue deduplication, audience filtering, contextual binding, and
-  Continue-working projection tests.
+- workflow catalogue deduplication, audience filtering, and contextual binding
+  tests.
 
 ## Deletion/cutover list
 
@@ -1033,8 +1042,8 @@ The feature is not complete while these displaced paths remain:
 - native calendar/index-date UI and successful Searchable badges;
 - hidden Additional/Optional document sections;
 - user-facing official-source/preparation/check instructions;
-- separate top-level Authorities/Court Records discovery links and any duplicate
-  workflow aliases for their document/output variants;
+- duplicate workflow aliases for Authorities/Court Records document or output
+  variants; their focused top-level entries remain;
 - Authorities iframe host and private Python stdio workspace proxy;
 - Python Authorities browser/server/job/project persistence and managed runtime
   from the product launch path;

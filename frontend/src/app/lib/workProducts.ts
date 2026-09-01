@@ -56,6 +56,8 @@ export type WorkProduct<State = unknown> = {
   createdAt: string;
   updatedAt: string;
 };
+export type WorkProductContext = Pick<WorkProduct,
+  "id" | "kind" | "revision" | "projectId">;
 export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs">;
 
 export type WorkProductCreate<State> = Pick<WorkProduct<State>, "kind" | "title" | "state"> & {
@@ -84,7 +86,7 @@ export type WorkProductResolution<State = unknown> = {
 };
 
 export interface WorkProductStore {
-  list<State>(kind: WorkProductKind): Promise<WorkProduct<State>[]>;
+  list<State>(kind: WorkProductKind, projectId?: string): Promise<WorkProduct<State>[]>;
   get<State>(id: string): Promise<WorkProduct<State>>;
   create<State>(input: WorkProductCreate<State>): Promise<WorkProduct<State>>;
   update<State>(id: string, patch: WorkProductPatch<State>): Promise<WorkProduct<State>>;

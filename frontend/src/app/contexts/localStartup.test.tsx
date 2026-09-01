@@ -130,7 +130,30 @@ describe("local startup", () => {
         expect(mocks.getAuthSession).not.toHaveBeenCalled();
     });
 
+    it("does not load the unused local profile on Library", async () => {
+        mocks.pathname = "/library";
+        await configure("local");
+        const { AuthProvider } = await import("./AuthContext");
+        const { UserProfileProvider, useUserProfile } = await import(
+            "./UserProfileContext"
+        );
+
+        function Probe() {
+            return <output>{String(useUserProfile().loading)}</output>;
+        }
+
+        render(
+            <AuthProvider>
+                <UserProfileProvider><Probe /></UserProfileProvider>
+            </AuthProvider>,
+        );
+
+        expect(screen.getByText("false")).toBeInTheDocument();
+        expect(mocks.getUserProfile).not.toHaveBeenCalled();
+    });
+
     it("restores cloud auth through the backend cookie and keeps MFA fail-closed while the profile loads", async () => {
+        mocks.pathname = "/library";
         await configure("cloud");
         sessionStorage.setItem("beaver:new-chat-documents", '[{"owner_email":"prior@example.com"}]');
         mocks.getAuthSession.mockResolvedValue({

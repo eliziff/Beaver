@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
 import { COURT_PROFILE_BY_ID } from "./profiles";
@@ -13,15 +14,16 @@ const required = { profile, entries: [], entryFindings: new Map(),
   onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(), onMove: vi.fn(),
   onAssign: vi.fn() };
 
-describe("Court Record draft-output slot", () => {
-  it("is an explicit Beaver capability and remains absent in standalone", () => {
-    const onDraftOutput = vi.fn();
+describe("Court Record documents", () => {
+  it("offers Library or file upload, not record drafts, as slot sources", () => {
+    const onLibrary = vi.fn();
     const { rerender } = render(<CourtRecordDocuments {...required}
-      onDraftOutput={onDraftOutput} />);
-    fireEvent.click(screen.getByRole("button", { name: "Draft output" }));
-    expect(onDraftOutput).toHaveBeenCalledWith("authorities");
-    rerender(<CourtRecordDocuments {...required} />);
+      onLibrary={onLibrary} />);
+    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+    expect(onLibrary).toHaveBeenCalledWith("authorities");
     expect(screen.queryByRole("button", { name: "Draft output" })).toBeNull();
+    rerender(<CourtRecordDocuments {...required} />);
+    expect(screen.queryByRole("button", { name: "Library" })).toBeNull();
   });
 
   it("keeps affidavit files in a pool and assigns them to referenced slots", () => {
@@ -47,5 +49,24 @@ describe("Court Record draft-output slot", () => {
     });
     expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));
     expect(onFiles.mock.calls[0][1]).toHaveLength(2);
+  });
+
+  it("shows only the fulfilled one-of slot until its entry is removed", () => {
+    const transcript = { id: "transcript", kindId: "part-3-transcript",
+      file: new File(["transcript"], "transcript.pdf"), title: "Transcript", pageCount: 1,
+      searchable: true, encrypted: false } as RecordEntry;
+    function AppealDocuments() {
+      const [entries, setEntries] = useState([transcript]);
+      return <CourtRecordDocuments {...required}
+        profile={COURT_PROFILE_BY_ID.get("ab-ca-appeal-record")!} entries={entries}
+        onRemove={(id) => setEntries((current) => current.filter((entry) => entry.id !== id))} />;
+    }
+    render(<AppealDocuments />);
+
+    expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: /Part 3 .* No oral record/u })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove transcript.pdf" }));
+    expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /Part 3 .* No oral record/u })).toBeVisible();
   });
 });

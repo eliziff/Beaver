@@ -67,6 +67,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
     case "relink-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       authorityId: item.authorityId === null ? null : text(item.authorityId) };
+    case "set-reviewed": return { type, occurrenceId: text(item.occurrenceId),
+      reviewed: typeof item.reviewed === "boolean" ? item.reviewed : bad() };
     case "set-reference": return { type, occurrenceId: text(item.occurrenceId),
       reference: reference(item.reference) };
     case "begin-canlii-handoff": {

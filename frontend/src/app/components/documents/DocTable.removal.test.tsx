@@ -79,6 +79,12 @@ function Harness({
       loading={false}
       search={search}
       operations={{
+        list: async ({ parent_id }) => ({
+          items: folders
+            .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
+            .map((folder) => ({ kind: "folder" as const, folder })),
+          next_cursor: null,
+        }),
         removeDocument,
         uploadDocument: vi.fn(),
         refreshCollection: vi.fn(),

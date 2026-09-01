@@ -8,19 +8,28 @@ const mocks = vi.hoisted(() => ({
   readOutput: vi.fn(),
   saveArtifacts: vi.fn(),
   prepare: vi.fn(),
+  bindFile: vi.fn(),
+  resolveFile: vi.fn(),
+  relinkFile: vi.fn(),
+  apiRequest: vi.fn(),
+  apiBlobRequest: vi.fn(),
 }));
 
 vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   standaloneWorkProducts: { get: mocks.getDraft },
+  bindStandaloneFile: mocks.bindFile,
   canRetainLocalFiles: () => false,
   pickRetainedFiles: vi.fn(),
-  relinkLocalFile: vi.fn(),
-  resolveLocalFile: vi.fn(async () => ({ status: "missing", reason: "unavailable" })),
+  relinkStandaloneFile: mocks.relinkFile,
+  resolveStandaloneFile: mocks.resolveFile,
   listStandaloneOutputs: mocks.listOutputs,
   readStandaloneOutput: mocks.readOutput,
   saveStandaloneArtifacts: mocks.saveArtifacts,
 }));
-vi.mock("@/app/lib/apiTransport", () => ({ apiBlobRequest: vi.fn() }));
+vi.mock("@/app/lib/apiTransport", () => ({
+  apiRequest: mocks.apiRequest,
+  apiBlobRequest: mocks.apiBlobRequest,
+}));
 vi.mock("./prepareDeviceFile", () => ({
   prepareDeviceFile: mocks.prepare,
   prepareDocxRendition: mocks.prepare,
@@ -29,7 +38,7 @@ vi.mock("./prepareDeviceFile", () => ({
 import type { WorkProduct, WorkProductOutput } from "@/app/lib/workProducts";
 import { restoreCourtRecordDraft } from "./draftState";
 import { standaloneCourtRecordsHost } from "./standaloneHost";
-import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt } from "./types";
+import type { BuildArtifact, CourtRecordDraft, CourtRecordReceipt, RecordEntry } from "./types";
 
 const hash = (letter: string) => letter.repeat(64);
 const builtAt = "2026-08-30T12:00:00.000Z";
@@ -64,6 +73,10 @@ function receipt(item = artifact()): CourtRecordReceipt {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.bindFile.mockImplementation(async (file: File) => ({ kind: "local-file",
+    handleId: "session:direct", lastSeen: { name: file.name, size: file.size,
+      modified: file.lastModified, sha256: hash("d") } }));
+  mocks.resolveFile.mockResolvedValue({ status: "missing", reason: "unavailable" });
   mocks.prepare.mockImplementation(async (file: File) => ({ file, pageCount: 2,
     searchable: true, encrypted: false, textlessPageCount: 0, textlessPages: [] }));
   mocks.getDraft.mockResolvedValue(product("record"));
@@ -71,6 +84,42 @@ beforeEach(() => {
 });
 
 describe("standalone Court outputs", () => {
+  it("binds a directly added file for later draft restoration", async () => {
+    const file = new File(["%PDF-file"], "Affidavit.pdf", { lastModified: 2 });
+
+    const prepared = await standaloneCourtRecordsHost.prepareDeviceFile(file);
+
+    expect(prepared).toMatchObject({ file, binding: { kind: "local-file",
+      handleId: "session:direct", lastSeen: { name: "Affidavit.pdf" } } });
+  });
+
+  it("makes a textless device PDF searchable without replacing its file binding", async () => {
+    const file = new File(["%PDF-scan"], "Affidavit.pdf", { type: "application/pdf" });
+    const binding = { kind: "local-file" as const, handleId: "session:scan",
+      lastSeen: { name: file.name, size: file.size, modified: file.lastModified } };
+    const entry: RecordEntry = { id: "scan", kindId: "affidavit", title: "Affidavit",
+      file, pageCount: 2, searchable: false, encrypted: false,
+      textlessPageCount: 1, textlessPages: [2], origin: { kind: "device" }, binding };
+    mocks.apiRequest.mockResolvedValue({ page_count: 2, ocr_pages: [2], pages: [
+      { page_number: 1, text: "Native first page" },
+      { page_number: 2, text: "Recognized second page" },
+    ] });
+    const progress = vi.fn();
+
+    const merged = { ...entry, ...await standaloneCourtRecordsHost.runOcr!(entry, progress) };
+
+    expect(merged).toMatchObject({ file, origin: { kind: "device" }, binding,
+      pageCount: 2, searchable: true, textlessPageCount: 0, textlessPages: [],
+      ocrTextByPage: ["", "Recognized second page"] });
+    const [path, request] = mocks.apiRequest.mock.calls[0];
+    expect(path).toBe("/court-records/pdf-preparation");
+    expect((request.body as FormData).get("file")).toMatchObject({
+      name: file.name, size: file.size,
+    });
+    expect((request.body as FormData).get("pages")).toBe("[2]");
+    expect(progress).toHaveBeenLastCalledWith("OCR complete", 1, 1);
+  });
+
   it("lists and imports an exact named output", async () => {
     const child = product("child", output());
     mocks.listOutputs.mockResolvedValue([{ product: child, role: "record",

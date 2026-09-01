@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
+import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
 import { DocTable, type DocTableFolder } from "../documents/DocTable";
 import { DirectoryActions, type UploadActions } from "../documents/UploadAction";
 import { PageHeader } from "../shared/PageHeader";
@@ -67,11 +68,13 @@ export function LibraryCollectionPage({
     kind,
     onKindChange,
     onOpenInChat,
+    onOpenWorkflows,
     embedded = false,
 }: {
     kind: LibraryKind;
     onKindChange?: (kind: LibraryKind) => void;
     onOpenInChat?: (documents: Document[]) => void;
+    onOpenWorkflows?: (documents: Document[]) => void;
     embedded?: boolean;
 }) {
     const navigate = useNavigate();
@@ -144,8 +147,9 @@ export function LibraryCollectionPage({
                             : navigate(libraryRoute(next as LibraryKind))
                     }
                     ariaLabel="Library sections"
-                    variant="quiet"
+                    variant="pill"
                     className="h-full"
+                    railClassName="mx-4 mb-2 min-h-12 flex-col items-stretch gap-2 py-2 sm:flex-row sm:flex-wrap sm:items-center md:mx-6"
                     actions={
                         <DirectoryActions actions={uploadActions}
                             busy={directory.loading} compact={embedded}
@@ -162,6 +166,11 @@ export function LibraryCollectionPage({
                     onUploadActionsChange={setUploadActions}
                     onCreateFolderActionChange={setCreateFolder}
                     onOpenSelectionInChat={openChat}
+                    onOpenWorkflows={onOpenWorkflows}
+                    onAssistantWorkflowSelect={(selection, documents) => {
+                        stageNewChatDocuments(documents);
+                        navigate("/assistant", { state: assistantWorkflowLaunch(selection) });
+                    }}
                     openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"}
                     selectionFirst
                     compact={embedded}

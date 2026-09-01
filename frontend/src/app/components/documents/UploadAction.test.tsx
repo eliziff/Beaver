@@ -18,7 +18,7 @@ it("keeps directory actions on one rail", () => {
     const createFolder = vi.fn();
     render(<DirectoryActions actions={null} onCreateFolder={createFolder} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Folder" }));
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }));
     expect(createFolder).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled();
 });

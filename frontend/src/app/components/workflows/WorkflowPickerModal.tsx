@@ -21,18 +21,23 @@ export function useWorkflowPickerState(initialWorkflowId?: string) {
     const [audience, setAudience] = useState<AudienceFilter>(initialWorkflowId ? "all" : "general");
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+    const [loadAttempt, setLoadAttempt] = useState(0);
+    useEffect(() => { if (initialWorkflowId) setAudience("all"); }, [initialWorkflowId]);
     useEffect(() => {
         let active = true;
+        setLoading(true); setLoadError(false);
         listWorkflows({ audience: "all" })
             .then((items) => { if (active) setWorkflows(items); })
-            .catch(() => { if (active) setWorkflows([]); })
+            .catch(() => { if (active) setLoadError(true); })
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, []);
+    }, [loadAttempt]);
     return { workflows: workflows.filter(({ id, metadata }) =>
         (id !== "authorities" || profile?.features.authorities !== false) &&
         (audience === "all" || metadata.audiences.includes("general") || metadata.audiences.includes(audience))),
-        setWorkflows, loading, search, setSearch, audience, setAudience };
+        setWorkflows, loading, loadError, retryLoad: () => setLoadAttempt((value) => value + 1),
+        search, setSearch, audience, setAudience };
 }
 
 export function WorkflowPickerModal({ open, ...props }: Props) {
@@ -44,8 +49,8 @@ function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
     const state = useWorkflowPickerState(initialWorkflowId);
     async function choose(selection: WorkflowSelection) {
         if (selecting || disabledWorkflow?.(selection)) return;
-        await onSelect(selection);
         if (closeOnSelect) onClose();
+        await onSelect(selection);
     }
     return <Modal open onClose={onClose} size="xl" breadcrumbs={breadcrumbs}>
         <WorkflowPickerContent workflows={state.workflows.filter(({ launcher }) =>
@@ -53,7 +58,8 @@ function OpenWorkflowPickerModal({ onClose, onSelect, execution, breadcrumbs,
             onSelect={(workflow, variant) => { if (variant) void choose({ workflow, variant }); }}
             search={state.search} onSearchChange={state.setSearch}
             audience={state.audience} onAudienceChange={state.setAudience}
-            loading={state.loading} execution={execution} initialWorkflowId={initialWorkflowId}
+            loading={state.loading} loadError={state.loadError} onRetryLoad={state.retryLoad}
+            execution={execution} initialWorkflowId={initialWorkflowId}
             disabledItem={(workflow, variant) => !variant || selecting ||
                 Boolean(disabledWorkflow?.({ workflow, variant }))} />
     </Modal>;

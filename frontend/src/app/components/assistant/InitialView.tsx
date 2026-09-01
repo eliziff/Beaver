@@ -10,7 +10,8 @@ import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
 import { InitialDockPanel } from "./InitialDockPanel";
-import { createTabularReview, type LibraryKind } from "@/app/lib/beaverApi";
+import type { LibraryKind } from "@/app/lib/beaverApi";
+import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import type { DirectoryTab } from "../shared/FileDirectory";
 import { workflowDocumentTab, workflowMessage, type AssistantWorkflowLaunch,
     type WorkflowSelection } from "../workflows/workflowRoutes";
@@ -43,7 +44,7 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
         prompt: "proofread",
     },
     compareDocuments: {
-        workflowId: "document-comparison",
+        workflowId: "document-review",
         variantId: "builtin-compare-documents",
         title: "Compare Documents",
         prompt: "compare documents",
@@ -55,7 +56,7 @@ const DOCUMENT_WORKFLOW_ACTIONS: Partial<
         prompt: "extract key terms",
     },
     draftFromTemplate: {
-        workflowId: "templates",
+        workflowId: "drafting",
         variantId: "builtin-draft-from-template",
         title: "Draft from Template",
         prompt: "draft from template",
@@ -75,16 +76,14 @@ export function InitialView({
     const { profile } = useUserProfile();
     const navigate = useNavigate();
     const [modal, setModal] = useState<InitialModal | null>(null);
-    const [dockTab, setDockTab] = useState(initialWorkflow
-        ? initialWorkflow.documentTab === "templates" ? "library" : "workflows"
-        : "sources");
+    const [dockTab, setDockTab] = useState(initialWorkflow ? "workflows" : "sources");
     const [dockOpen, setDockOpen] = useState(!!initialWorkflow);
-    const [libraryKind, setLibraryKind] = useState<LibraryKind>(
-        initialWorkflow?.documentTab === "templates" ? "templates" : "files");
-    const [workflowDocument, setWorkflowDocument] = useState<Document | null>(null);
+    const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
+    const [workflowDocuments, setWorkflowDocuments] = useState<Document[]>(initialDocuments);
     const [{ quickActions: visibleActions }, updatePreferences] =
         useAssistantPreferences();
     const chatInputRef = useRef<ChatInputHandle>(null);
+    const startedInitialWorkflow = useRef(false);
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
     const visibleQuickActions = QUICK_ACTIONS.filter(
@@ -96,15 +95,18 @@ export function InitialView({
         }
     }, [initialDocuments]);
     useEffect(() => {
-        if (!initialWorkflow) return;
+        if (startedInitialWorkflow.current || !initialWorkflow) return;
+        startedInitialWorkflow.current = true;
+        const tab = initialWorkflow.documentTab;
+        const hasDocument = tab === "templates"
+            ? initialDocuments.some(({ library_kind }) => library_kind === "template")
+            : initialDocuments.length > 0;
         chatInputRef.current?.startWorkflowDocumentSelection(
-            initialWorkflow.workflow, undefined, { openDocumentPicker: false });
-        if (initialWorkflow.documentTab === "templates") {
-            setLibraryKind("templates");
-            setDockTab("library");
-        } else setDockTab("workflows");
+            initialWorkflow.workflow, undefined, { initialDocumentTab: tab,
+                openDocumentPicker: !hasDocument });
+        setDockTab("workflows");
         setDockOpen(true);
-    }, [initialWorkflow]);
+    }, [initialDocuments, initialWorkflow]);
     function handleDocumentWorkflowClick(id: QuickActionId) {
         const config = DOCUMENT_WORKFLOW_ACTIONS[id];
         if (!config) return;
@@ -115,14 +117,8 @@ export function InitialView({
                 title: config.title,
             },
             config.prompt,
-            { initialDocumentTab: config.initialDocumentTab,
-                openDocumentPicker: config.initialDocumentTab !== "templates" },
+            { initialDocumentTab: config.initialDocumentTab },
         );
-        if (config.initialDocumentTab === "templates") {
-            setLibraryKind("templates");
-            setDockTab("library");
-            setDockOpen(true);
-        }
     }
     async function handleNewReview(
         title: string,
@@ -131,7 +127,7 @@ export function InitialView({
         columnsConfig?: ColumnConfig[] | null,
         workflowId?: string,
     ) {
-        const review = await createTabularReview({
+        const path = await createTabularReviewPath({
             title,
             document_ids: documentIds ?? [],
             columns_config: columnsConfig ?? [],
@@ -139,11 +135,7 @@ export function InitialView({
             ...(projectId && { project_id: projectId }),
         });
         setModal(null);
-        navigate(
-            projectId
-                ? `/projects/${projectId}/tabular-reviews/${review.id}`
-                : `/tabular-reviews/${review.id}`,
-        );
+        navigate(path);
     }
     function handleQuickAction(id: QuickActionId) {
         if (id === "projectChat") {
@@ -163,18 +155,19 @@ export function InitialView({
     const startWorkflow = (selection: WorkflowSelection) => {
         const documentTab = workflowDocumentTab(selection);
         chatInputRef.current?.startWorkflowDocumentSelection(
-            workflowMessage(selection), undefined, { openDocumentPicker: false });
-        if (documentTab === "templates") {
-            setLibraryKind("templates");
-            openDock("library");
-        }
+            workflowMessage(selection), undefined, { initialDocumentTab: documentTab });
     };
     const dockPanel = (tab: "library" | "workflows" | "sources") => (
         <InitialDockPanel tab={tab} libraryKind={libraryKind}
-            workflowDocument={workflowDocument}
+            workflowDocuments={workflowDocuments}
             onLibraryKindChange={setLibraryKind}
             onOpenInChat={(documents) => {
                 for (const document of documents) chatInputRef.current?.addDoc(document);
+            }}
+            onOpenWorkflows={(documents) => {
+                for (const document of documents) chatInputRef.current?.addDoc(document);
+                setWorkflowDocuments(documents);
+                openDock("workflows");
             }}
             onWorkflowSelect={startWorkflow} />
     );
@@ -207,13 +200,8 @@ export function InitialView({
                     onSubmit={onSubmit}
                     onCancel={() => {}}
                     isLoading={false}
-                    onOpenWorkflows={() => {
-                        setWorkflowDocument(null);
-                        openDock("workflows");
-                    }}
-                    documentWorkflowsAvailable={!!workflowDocument}
-                    onRunDocumentWorkflow={(document) => {
-                        if (document) setWorkflowDocument(document);
+                    onOpenWorkflows={(_, documents = []) => {
+                        setWorkflowDocuments(documents);
                         openDock("workflows");
                     }}
                 />

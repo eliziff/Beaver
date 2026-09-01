@@ -18,6 +18,7 @@ import {
   type GroundedReceiptSeed,
 } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { authorityPdfOcrText } from "./authorityPdfText";
 import type { DocumentFile, DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import {
@@ -25,9 +26,9 @@ import {
   stableA2AJSourceId,
 } from "./legalSources/a2aj";
 import { downloadProviderPdfAttachment } from "./providerPdfLibraryBridge";
-import { structureNative } from "./structureNative";
-import type { ResolvedWorkProductInput, WorkProduct, WorkProductOutputRef,
-  WorkProductState } from "./workProduct";
+import { structureNative, type NativeCitationOccurrence } from "./structureNative";
+import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput,
+  WorkProductOutputRef, WorkProductState } from "./workProduct";
 import type { WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 
@@ -76,6 +77,23 @@ function update(draft: AuthoritiesDraft, action: AuthoritiesAction) {
   }
 }
 
+function attachableAuthority(draft: AuthoritiesDraft, authorityId: string) {
+  const authority = draft.authorities[authorityId];
+  if (!authority || authority.source.kind === "attached") {
+    throw new ApplicationError(409, "This authority cannot accept that PDF");
+  }
+  return authority;
+}
+
+function attachSource(draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  binding: Extract<WorkProductInput, { kind: "document" }>, filename: string,
+  sourceSha256: string) {
+  return update(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
+    `authority:${sha256(authority.key).slice(0, 24)}`, binding, filename, sourceSha256,
+    sourceUrl: authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
+      : authority.sourceIdentity?.externalUrl ?? null });
+}
+
 const pdfFilename = (value: string) => `${value.trim().replace(
   /[<>:"/\\|?*\u0000-\u001f]/gu, "-",
 ).replace(/[. ]+$/u, "").slice(0, 180) || "Authority"}.pdf`;
@@ -102,6 +120,17 @@ async function concurrentMap<T, R>(items: T[], operation: (item: T) => Promise<R
 
 const sameValue = (values: unknown[]) => values.length > 0 &&
   values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]));
+const parsedKind = ({ kind }: NativeCitationOccurrence): AuthorityKind => kind === "statute"
+  ? "legislation" : kind === "journal" ? "commentary" : kind;
+const lookupKey = (sources: CitationServices, text: string) => {
+  try { return sources.key(text).trim(); } catch { return ""; }
+};
+const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
+  id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
+  name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
+  displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+  source: { kind: "unresolved" },
+});
 
 function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units"][number],
   start: number, end: number, donors: AuthorityOccurrence[], sources: CitationServices) {
@@ -111,7 +140,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     "The edit must leave citation text on both sides");
   const text = unit.text.slice(start, end);
   const matches = sources.occurrences(text), match = matches.length === 1 ? matches[0] : null;
-  const key = match ? sources.key(match.coreCitation.text) : null;
+  const key = match ? lookupKey(sources, match.coreCitation.text) : "";
   const authority = key ? Object.values(draft.authorities).find((item) => item.key === key) : null;
   const donorIds = donors.map(({ authorityId }) => authorityId);
   const authorityId = authority?.id ?? (sameValue(donorIds) ? donorIds[0] : null);
@@ -120,9 +149,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     ? structuredClone(donorReferences[0]) : null;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
-    kind: reference ? "reference" : match
-      ? match.kind === "statute" ? "legislation"
-        : match.kind === "journal" ? "commentary" : match.kind
+    kind: reference ? "reference" : match ? parsedKind(match)
       : sameValue(donors.map(({ kind }) => kind)) ? donors[0].kind : "other",
     citation: match?.coreCitation.text ??
       (sameValue(donors.map(({ citation }) => citation)) ? donors[0].citation : text.trim()),
@@ -131,15 +158,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
     sourceTextSha256: donors[0].sourceTextSha256, localOrdinal: start, reviewed: true,
   };
-  const discovered: AuthorityIdentity | null = match && key && !authority ? {
-    id: key, key,
-    kind: match.kind === "statute" ? "legislation"
-      : match.kind === "journal" ? "commentary" : match.kind,
-    citation: match.coreCitation.text,
-    name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
-    displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
-    source: { kind: "unresolved" },
-  } : null;
+  const discovered = match && key && !authority ? parsedAuthority(match, key) : null;
   if (discovered) occurrence.authorityId = discovered.id;
   return { occurrence, discovered };
 }
@@ -188,7 +207,11 @@ export function applyAuthoritiesUserAction(
   sources: CitationServices = sourceServices,
 ) {
   if (action.type === "add-authority") {
-    const citation = action.citation.trim(), key = sources.key(citation);
+    const citation = action.citation.trim();
+    const base = lookupKey(sources, citation) || `manual:${sha256(
+      `${action.kind}\0${citation}`).slice(0, 24)}`;
+    let key = base;
+    for (let suffix = 2; draft.authorities[key]; suffix += 1) key = `${base}:${suffix}`;
     return update(draft, { type: action.type, authority: { id: key, key,
       kind: action.kind, citation, name: action.name?.trim() || null,
       displayName: null, excluded: false, evidenceIds: [], locators: [],
@@ -390,7 +413,11 @@ export function createAuthoritiesWorkspaceApplication(
           pdf_phase: state?.phase,
           pdf_pages: state?.pages?.join(",") });
       }
+      const ocrTextByPage = forBook ? await authorityPdfOcrText({ bytes: file.bytes,
+        documentId: binding.documentId, versionId: file.version.id,
+        sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile }) : [];
       result[source.bindingRole] = { ...(forBook ? { bytes: file.bytes } : {}),
+        ...(ocrTextByPage.some(Boolean) ? { ocrTextByPage } : {}),
         resolved: { kind: "document",
         documentId: binding.documentId, versionId: file.version.id,
         filename: file.filename, sha256: file.version.source_sha256 } };
@@ -469,21 +496,14 @@ export function createAuthoritiesWorkspaceApplication(
         throw new ApplicationError(400, "Attach a PDF file");
       }
       const { product, draft } = await edit(scope, id, input.revision);
-      const authority = draft.authorities[input.authorityId];
-      if (!authority || authority.source.kind === "attached") {
-        throw new ApplicationError(409, "This authority cannot accept that PDF");
-      }
+      const authority = attachableAuthority(draft, input.authorityId);
       const created = await files.create(scope, "authorities", input.file,
         { projectId: product.projectId });
       try {
-        const bindingRole = `authority:${sha256(authority.key).slice(0, 24)}`;
-        const state = update(draft, { type: "attach-source", authorityId: authority.id,
-          bindingRole, binding: { kind: "document", documentId: created.id,
+        const state = attachSource(draft, authority,
+          { kind: "document", documentId: created.id,
             version: { versionId: created.current_version_id,
-              sha256: created.source_sha256 } },
-          filename: created.filename, sourceSha256: created.source_sha256,
-          sourceUrl: authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
-            : authority.sourceIdentity?.externalUrl ?? null });
+              sha256: created.source_sha256 } }, created.filename, created.source_sha256);
         return await workProducts.save(scope, id, { revision: input.revision, state });
       } catch (error) {
         try {
@@ -495,6 +515,22 @@ export function createAuthoritiesWorkspaceApplication(
         }
         throw error;
       }
+    },
+    async attachLibraryPdf(scope: ApplicationScope, id: string, input: {
+      revision: number; authorityId: string; documentId: string; versionId: string;
+    }) {
+      const { draft } = await edit(scope, id, input.revision);
+      const authority = attachableAuthority(draft, input.authorityId);
+      const history = await documents.versions(scope, input.documentId);
+      const version = history?.versions.find(({ id }) => id === input.versionId);
+      if (!version || history?.current_version_id !== version.id ||
+          version.file_type.toLowerCase() !== "pdf") {
+        throw new ApplicationError(409, "Select the current PDF version from Library");
+      }
+      return workProducts.save(scope, id, { revision: input.revision,
+        state: attachSource(draft, authority,
+          { kind: "document", documentId: input.documentId, version: "latest" },
+          version.filename, version.source_sha256) });
     },
     async build(scope: ApplicationScope, id: string, revision: number):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {

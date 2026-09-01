@@ -211,6 +211,9 @@ describe("authorities draft domain", () => {
       reference: { kind: "supra", targetAuthorityId: "b" },
     });
     draft = reduceAuthoritiesDraft(draft, {
+      type: "set-reviewed", occurrenceId: "left", reviewed: true,
+    });
+    draft = reduceAuthoritiesDraft(draft, {
       type: "rename-authority", authorityId: "b", displayName: "  Better name  ",
     });
     draft = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: "b",
@@ -231,6 +234,7 @@ describe("authorities draft domain", () => {
     draft = reduceAuthoritiesDraft(draft, { type: "set-output-mode", outputMode: "book" });
 
     expect(base.occurrences.whole).toBeDefined();
+    expect(draft.occurrences.left.reviewed).toBe(true);
     expect(draft.occurrences.right).toMatchObject({ authorityId: "b", reviewed: true,
       reference: { kind: "supra", targetAuthorityId: "b" } });
     expect(draft.authorities.b).toMatchObject({ displayName: "Better name",

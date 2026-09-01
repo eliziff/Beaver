@@ -9,9 +9,9 @@ const binding = { kind: "document" as const, documentId: "document-1",
   version: "latest" as const };
 const courtState = (bound = false): WorkProductState => ({
   profileId: "general-court-record",
-  cover: { partyGroups: [{ id: "appellants", role: "Appellants", parties: [
+  cover: { partyStyleId: "appeal", partyGroups: [{ id: "party-a", role: "Appellant", parties: [
     { id: "appellant-1", name: "A Corp." }, { id: "appellant-2", name: "B Corp." },
-  ] }, { id: "interveners", role: "Interveners", parties: [
+  ] }, { id: "intervener", role: "Intervener", parties: [
     { id: "intervener-1", name: "Public Interest Group" },
   ] }] },
   entries: bound ? [{ id: "entry-1", kindId: "document", title: "Motion record",
@@ -59,12 +59,23 @@ describe("WorkProduct application state contract", () => {
       state: { ...courtState(), profileId: "unknown-profile" } }))
       .rejects.toMatchObject({ status: 400 });
     const duplicateParties = courtState();
-    duplicateParties.cover = { partyGroups: [
-      { id: "side", role: "Applicants", parties: [{ id: "party", name: "A" }] },
-      { id: "side", role: "Respondents", parties: [{ id: "party", name: "B" }] },
+    duplicateParties.cover = { partyStyleId: "application", partyGroups: [
+      { id: "party-a", role: "Applicant", parties: [{ id: "party", name: "A" }] },
+      { id: "party-a", role: "Applicant", parties: [{ id: "party", name: "B" }] },
     ] };
     await expect(application.create(scope, { kind: "court-record", title: "Record",
       state: duplicateParties })).rejects.toMatchObject({ status: 400 });
+    const inventedRole = courtState();
+    ((inventedRole.cover as { partyGroups: Array<{ role: string }> }).partyGroups)[0].role =
+      "Applicants";
+    await expect(application.create(scope, { kind: "court-record", title: "Record",
+      state: inventedRole })).rejects.toMatchObject({ status: 400 });
+    const wrongFiler: WorkProductState = { profileId: "fc-application-record-applicant",
+      cover: { partyStyleId: "application", partyGroups: [{ id: "party-b",
+        role: "Respondent", parties: [{ id: "respondent", name: "Canada" }] }],
+      filingPartyId: "respondent" }, entries: [], bindings: {} };
+    await expect(application.create(scope, { kind: "court-record", title: "Record",
+      state: wrongFiler })).rejects.toMatchObject({ status: 400 });
     expect(repository.create).not.toHaveBeenCalled();
   });
 

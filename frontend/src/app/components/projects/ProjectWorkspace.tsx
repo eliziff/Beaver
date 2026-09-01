@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  createTabularReview,
   deleteProject,
   getProject,
   getProjectPeople,
@@ -18,8 +17,10 @@ import {
 } from "@/app/lib/beaverApi";
 import type { Chat, ColumnConfig, Document, Project } from "../shared/types";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
+import type { AssistantWorkflowLaunch } from "../workflows/workflowRoutes";
 import { PeopleModal } from "../modals/PeopleModal";
 import { NewTRModal } from "../tabular/NewTRModal";
+import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import { Tabs } from "../ui/tabs";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -41,7 +42,7 @@ type Context = {
   ensureProjectChats: () => Promise<Chat[]>;
   creatingChat: boolean;
   creatingReview: boolean;
-  createChat: (documents?: Document[]) => Promise<void>;
+  createChat: (documents?: Document[], workflow?: AssistantWorkflowLaunch) => Promise<void>;
   openNewReview: () => void;
   setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
@@ -101,7 +102,9 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
     return chatRequest.current;
   }, [projectChats, projectId]);
 
-  const createChat = useCallback(async (documents: Document[] = []) => {
+  const createChat = useCallback(async (
+    documents: Document[] = [], workflow?: AssistantWorkflowLaunch,
+  ) => {
     setCreatingChat(true);
     try {
       const id = await saveChat(projectId);
@@ -115,7 +118,8 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
         title: null,
         created_at: new Date().toISOString(),
       }, ...current] : current);
-      navigate(`/projects/${projectId}/assistant/chat/${id}`);
+      navigate(`/projects/${projectId}/assistant/chat/${id}`,
+        workflow ? { state: workflow } : undefined);
     } finally {
       setCreatingChat(false);
     }
@@ -130,14 +134,13 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   ) {
     setCreatingReview(true);
     try {
-      const review = await createTabularReview({
+      navigate(await createTabularReviewPath({
         title: title || undefined,
         document_ids: documentIds,
         columns_config: columns ?? [],
         workflow_id: workflowId,
         project_id: projectId,
-      });
-      navigate(`/projects/${projectId}/tabular-reviews/${review.id}`);
+      }));
     } finally {
       setCreatingReview(false);
     }

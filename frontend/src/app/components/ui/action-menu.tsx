@@ -6,7 +6,6 @@ import {
     useRef,
     useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { cn } from "@/app/lib/utils";
 
 export type ActionMenuItem = {
@@ -14,6 +13,7 @@ export type ActionMenuItem = {
     onSelect: () => void;
     disabled?: boolean;
 };
+const nativePopover = typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 
 export function ActionMenu({
     label,
@@ -55,6 +55,7 @@ export function ActionMenu({
 
     useEffect(() => {
         if (!open) return;
+        menuRef.current?.showPopover?.();
         menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
         const dismiss = (event: PointerEvent) => {
             if (!menuRef.current?.contains(event.target as Node) &&
@@ -114,14 +115,17 @@ export function ActionMenu({
             >
                 {children}
             </button>
-            {open && createPortal(
+            {open &&
                 <div
                     ref={menuRef}
+                    popover={nativePopover ? "manual" : undefined}
                     id={menuId}
                     role="menu"
                     aria-label={label}
+                    data-shortcut-layer
+                    data-shortcut-open="true"
                     onKeyDown={handleMenuKeyDown}
-                    className="fixed z-[260] min-w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
+                    className="fixed bottom-auto left-auto m-0 min-w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
                     style={position}
                 >
                     {items.map((item) => (
@@ -140,9 +144,7 @@ export function ActionMenu({
                             {item.label}
                         </button>
                     ))}
-                </div>,
-                document.body,
-            )}
+                </div>}
         </span>
     );
 }

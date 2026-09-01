@@ -1,5 +1,5 @@
 import { fileSnapshot, type WorkProduct } from "@/app/lib/workProducts";
-import type { CourtRecordsHost, PreparationProgress } from "./host";
+import { needsOcr, type CourtRecordsHost, type PreparationProgress } from "./host";
 import type { CourtRecordDraft, CoverValues, RecordEntry } from "./types";
 
 export function courtRecordDraft(
@@ -17,10 +17,7 @@ export function courtRecordDraft(
       ...(entry.date ? { date: entry.date } : {}),
       ...(entry.exhibitLabel ? { exhibitLabel: entry.exhibitLabel } : {}),
       ...(entry.descriptionOnly ? { descriptionOnly: true } : {}),
-      lastSeen: {
-        ...fileSnapshot(entry.file),
-        ...(entry.origin?.sourceSha256 ? { sha256: entry.origin.sourceSha256 } : {}),
-      },
+      lastSeen: entrySnapshot(entry),
     })),
     bindings: Object.fromEntries(entries.flatMap((entry) =>
       entry.binding ? [[entry.id, entry.binding]] : [])),
@@ -31,7 +28,9 @@ export async function restoreCourtRecordDraft(
   draft: WorkProduct<CourtRecordDraft>,
   host: CourtRecordsHost,
   progress?: PreparationProgress,
+  current: RecordEntry[] = [],
 ): Promise<RecordEntry[]> {
+  const currentById = new Map(current.map((entry) => [entry.id, entry]));
   return Promise.all(draft.state.entries.map(async (saved): Promise<RecordEntry> => {
     const { lastSeen, ...values } = saved;
     if (saved.descriptionOnly) return {
@@ -44,6 +43,12 @@ export async function restoreCourtRecordDraft(
     };
     const binding = draft.state.bindings[saved.id];
     if (!binding) return missingEntry(saved, "unavailable");
+    const existing = currentById.get(saved.id);
+    if (existing && JSON.stringify(existing.binding) === JSON.stringify(binding) &&
+        JSON.stringify(entrySnapshot(existing)) === JSON.stringify(lastSeen)) {
+      return withOcr(host, { ...existing, ...values, lastSeen, binding,
+        inputStatus: "ready" }, progress);
+    }
     try {
       const resolved = await host.resolveInput(binding, progress);
       if (resolved.status === "missing") return missingEntry(saved, resolved.reason, binding);
@@ -52,16 +57,35 @@ export async function restoreCourtRecordDraft(
         lastSeen.sha256 && prepared.origin?.sourceSha256 &&
         lastSeen.sha256 !== prepared.origin.sourceSha256
       );
-      return {
+      return withOcr(host, {
         ...values,
         ...prepared,
         binding: resolved.input,
         inputStatus: changed ? "changed" : "ready",
-      };
+      }, progress);
     } catch {
       return missingEntry(saved, "unavailable", binding);
     }
   }));
+}
+
+async function withOcr(
+  host: CourtRecordsHost,
+  entry: RecordEntry,
+  progress?: PreparationProgress,
+): Promise<RecordEntry> {
+  if (!host.runOcr || !needsOcr(entry)) return entry;
+  try {
+    return { ...entry, ...await host.runOcr(entry, progress) };
+  } catch (error) {
+    return { ...entry,
+      inspectionError: error instanceof Error ? error.message : "OCR failed." };
+  }
+}
+
+function entrySnapshot(entry: RecordEntry) {
+  return { ...(entry.lastSeen ?? fileSnapshot(entry.file)),
+    ...(entry.origin?.sourceSha256 ? { sha256: entry.origin.sourceSha256 } : {}) };
 }
 
 function missingEntry(

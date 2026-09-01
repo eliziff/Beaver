@@ -130,6 +130,7 @@ import type { AssistantEvent } from "./turnEngine";
 import { safeErrorMessage } from "../safeError";
 import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
+import { courtRecordSlotTool } from "./courtRecordSlotTool";
 import { COURT_RECORD_PROFILES, COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
@@ -2271,7 +2272,7 @@ type AssistantToolsDependencies = {
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "resolve" | "applyResearchSetAction">;
+    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
   model?: string;
   chatId?: string;
   researchSetId?: string;
@@ -2972,9 +2973,11 @@ export function assistantTools<Context extends {
     definition(WRITE_TOOL, write),
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
     definition(CITATOR_TOOL, runCitator),
-    ...(turnScope === "main"
-      ? [definition(workProductTool(productFeatures?.authorities !== false), updateWorkProduct)]
-      : []),
+    ...(turnScope !== "main" ? [] : courtRecordId && courtRecordRevision && courtRecords
+      ? [courtRecordSlotTool({ scope, target: { id: courtRecordId, revision: courtRecordRevision },
+          projectId: workProductProjectId, allowedDocumentIds, library, workProducts,
+          courtRecords, resolveArtifact, onMutationCommitted })]
+      : [definition(workProductTool(productFeatures?.authorities !== false), updateWorkProduct)]),
     definition(documentOperationTool(), documentOperation),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
       runWorkflow(call, { ...input, action: "lint_structure" }, signal)),

@@ -4,6 +4,8 @@ import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Tabs } from "@/app/components/ui/tabs";
 
+const compactDock = "(max-width: 1279px)";
+
 export type AssistantDockTab = {
     id: string;
     label: string;
@@ -21,6 +23,7 @@ export function AssistantDock({
     inspectorContent,
     inspectorOpen = false,
     onCloseInspector,
+    showCollapsedButton = true,
 }: {
     tabs: AssistantDockTab[];
     activeTabId: string;
@@ -30,13 +33,23 @@ export function AssistantDock({
     inspectorContent?: ReactNode;
     inspectorOpen?: boolean;
     onCloseInspector?: () => void;
+    showCollapsedButton?: boolean;
 }) {
     const [width, setWidth] = useState(480);
+    const [compact, setCompact] = useState(() => window.matchMedia?.(compactDock).matches ?? false);
     const resizeStart = useRef<{ x: number; width: number } | null>(null);
     const dock = useRef<HTMLElement>(null);
     const changeExpanded = useRef(onExpandedChange);
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
     changeExpanded.current = onExpandedChange;
+
+    useEffect(() => {
+        const media = window.matchMedia?.(compactDock);
+        if (!media) return;
+        const update = () => setCompact(media.matches);
+        media.addEventListener?.("change", update);
+        return () => media.removeEventListener?.("change", update);
+    }, []);
 
     useEffect(() => {
         const resize = (event: PointerEvent) => {
@@ -67,7 +80,7 @@ export function AssistantDock({
 
     useEffect(() => {
         const panel = dock.current;
-        if (!expanded || !panel || !window.matchMedia?.("(max-width: 767px)").matches) return;
+        if (!expanded || !compact || !panel) return;
         const parent = panel.parentElement;
         const previousFocus = document.activeElement as HTMLElement | null;
         const siblings = parent ? [...parent.children].filter((node) => node !== panel) as HTMLElement[] : [];
@@ -82,7 +95,14 @@ export function AssistantDock({
         )].filter((node) => node.getAttribute("role") !== "separator" && !node.closest('[aria-hidden="true"]'));
         (panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? controls()[0] ?? panel).focus();
         const trapFocus = (event: KeyboardEvent) => {
-            if (event.key === "Escape") { event.preventDefault(); changeExpanded.current(false); return; }
+            if (event.key === "Escape") {
+                const dialog = event.target instanceof Element
+                    ? event.target.closest('dialog, [role="dialog"], [role="alertdialog"]') : null;
+                if (dialog && dialog !== panel) return;
+                event.preventDefault();
+                changeExpanded.current(false);
+                return;
+            }
             if (event.key !== "Tab") return;
             const items = controls();
             const first = items[0], last = items.at(-1);
@@ -100,11 +120,10 @@ export function AssistantDock({
             if (parent) parent.style.overflow = previousOverflow;
             previousFocus?.focus();
         };
-    }, [expanded]);
+    }, [compact, expanded]);
 
     if (!active) return null;
-    if (!expanded) {
-        return createPortal(
+    const expandButton = !expanded && showCollapsedButton ? createPortal(
             <button
                 type="button"
                 onClick={() => onExpandedChange(true)}
@@ -114,18 +133,22 @@ export function AssistantDock({
                 <PanelRightOpen className="size-4" aria-hidden="true" />
             </button>,
             document.body,
-        );
-    }
+        ) : null;
     const showingInspector = active.id !== "sources" && inspectorOpen;
-    return (
+    return <>
+        {expandButton}
         <aside
             ref={dock}
             tabIndex={-1}
             data-assistant-dock
+            role={expanded && compact ? "dialog" : undefined}
+            aria-modal={expanded && compact || undefined}
             aria-label="Assistant dock"
+            aria-hidden={!expanded}
+            inert={!expanded ? true : undefined}
             className={cn(
-                "absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg",
-                "md:relative md:inset-auto md:my-3 md:me-3 md:h-[calc(100dvh-1.5rem)] md:w-[min(var(--assistant-dock-width),50%)] md:rounded-2xl",
+                expanded ? "absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
+                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),50%)] xl:rounded-2xl",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >
@@ -152,7 +175,7 @@ export function AssistantDock({
                         ),
                     );
                 }}
-                className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none md:block"
+                className="absolute inset-y-0 start-0 z-20 hidden w-1 cursor-col-resize bg-transparent hover:bg-gray-300 focus-visible:bg-gray-400 focus-visible:outline-none xl:block"
             />
             <Tabs
                 value={active.id}
@@ -207,10 +230,10 @@ export function AssistantDock({
                 type="button"
                 onClick={() => onExpandedChange(false)}
                 className="absolute end-2 top-1.5 z-10 grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                aria-label="Collapse assistant dock"
+                aria-label={compact ? "Close assistant" : "Collapse assistant dock"}
             >
                 <PanelRightClose className="size-4" aria-hidden="true" />
             </button>
         </aside>
-    );
+    </>;
 }

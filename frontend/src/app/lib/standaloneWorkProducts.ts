@@ -36,11 +36,16 @@ type StoredOutput = Omit<StandaloneArtifact, "bytes"> & {
   createdAt: string;
 };
 type StoredHandle = { id: string; handle: FileSystemFileHandle; createdAt: number };
+type LocalFileInput = Extract<WorkProductInput, { kind: "local-file" }>;
+
+const sessionFiles = new Map<string, File>();
+const selectedInputs = new WeakMap<File, LocalFileInput>();
 
 export const standaloneWorkProducts: WorkProductStore = {
-  async list(kind) {
+  async list(kind, projectId) {
     const drafts = await all<WorkProduct>(DRAFTS);
-    return drafts.filter((draft) => draft.kind === kind)
+    return drafts.filter((draft) => draft.kind === kind &&
+      (projectId === undefined || draft.projectId === projectId))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) as never;
   },
   async get(id) {
@@ -265,7 +270,7 @@ export function canRetainLocalFiles() {
 }
 
 export async function pickRetainedFiles(multiple: boolean): Promise<Array<{
-  file: File; input: Extract<WorkProductInput, { kind: "local-file" }>;
+  file: File; input: LocalFileInput;
 }>> {
   const picker = (window as PickerWindow).showOpenFilePicker;
   if (!picker) return [];
@@ -290,12 +295,57 @@ export async function pickRetainedFiles(multiple: boolean): Promise<Array<{
   const createdAt = Date.now();
   for (const { handle, handleId } of selected) store.put({ id: handleId, handle, createdAt });
   await completed(transaction);
-  return selected.map(({ file, handleId }) => ({
-    file, input: { kind: "local-file", handleId, lastSeen: fileSnapshot(file) },
-  }));
+  return selected.map(({ file, handleId }) => {
+    const input: LocalFileInput = { kind: "local-file", handleId, lastSeen: fileSnapshot(file) };
+    selectedInputs.set(file, input);
+    return { file, input };
+  });
 }
 
-export async function resolveLocalFile(input: WorkProductInput): Promise<InputResolution> {
+export async function bindStandaloneFile(file: File, input?: WorkProductInput) {
+  const retained = input?.kind === "local-file" ? input : selectedInputs.get(file);
+  if (retained?.lastSeen.sha256 && retained.lastSeen.name === file.name &&
+      retained.lastSeen.size === file.size && retained.lastSeen.modified === file.lastModified) {
+    selectedInputs.set(file, retained);
+    return retained;
+  }
+  const binding: LocalFileInput = {
+    kind: "local-file",
+    handleId: retained?.handleId ?? `session:${crypto.randomUUID()}`,
+    lastSeen: await snapshotFile(file),
+  };
+  if (!retained) sessionFiles.set(binding.handleId, file);
+  selectedInputs.set(file, binding);
+  return binding;
+}
+
+export async function resolveStandaloneFile(input: WorkProductInput, verifyContents = false) {
+  if (input.kind !== "local-file") return { status: "missing" as const, reason: "unavailable" as const };
+  const cached = sessionFiles.get(input.handleId);
+  const result = cached ? { status: "ready" as const, file: cached, input }
+    : await resolveLocalFile(input);
+  if (result.status === "missing") return result;
+  const metadata = fileSnapshot(result.file), previous = input.lastSeen;
+  const metadataChanged = result.status === "changed" || metadata.name !== previous.name ||
+    metadata.size !== previous.size || metadata.modified !== previous.modified;
+  const current = verifyContents || metadataChanged || !previous.sha256
+    ? await snapshotFile(result.file) : { ...metadata, sha256: previous.sha256 };
+  const changed = metadataChanged || verifyContents && current.sha256 !== previous.sha256;
+  const resolvedInput: LocalFileInput = { ...input, lastSeen: current };
+  selectedInputs.set(result.file, resolvedInput);
+  return { status: changed ? "changed" as const : "ready" as const, file: result.file,
+    input: resolvedInput };
+}
+
+export async function relinkStandaloneFile(input: WorkProductInput, verifyContents = false) {
+  const current = await resolveStandaloneFile(input, verifyContents);
+  if (current.status !== "missing") return current;
+  const replacement = await relinkLocalFile(input);
+  if (replacement.status === "missing") return replacement;
+  return resolveStandaloneFile(replacement.input, verifyContents);
+}
+
+async function resolveLocalFile(input: WorkProductInput): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
   const saved = await read<{ id: string; handle: FileSystemFileHandle }>(HANDLES, input.handleId);
   if (!saved) return { status: "missing", reason: "deleted" };
@@ -325,7 +375,7 @@ export async function resolveRetainedFile(handle: FileSystemFileHandle,
   }
 }
 
-export async function relinkLocalFile(input: WorkProductInput): Promise<InputResolution> {
+async function relinkLocalFile(input: WorkProductInput): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
   const existing = await read<StoredHandle>(HANDLES, input.handleId);
   const requestPermission = existing && (existing.handle as PermissionFileHandle).requestPermission;
@@ -346,7 +396,9 @@ export async function relinkLocalFile(input: WorkProductInput): Promise<InputRes
   store.put({ id: input.handleId, handle: saved.handle, createdAt: saved.createdAt });
   store.delete(replacement.input.handleId);
   await completed(transaction);
-  return { status: "ready", file: replacement.file, input: { ...replacement.input, handleId: input.handleId } };
+  const relinked = { ...replacement.input, handleId: input.handleId };
+  selectedInputs.set(replacement.file, relinked);
+  return { status: "ready", file: replacement.file, input: relinked };
 }
 
 let database: Promise<IDBDatabase> | undefined;
@@ -408,4 +460,8 @@ function exactOutput(stored: StoredOutput, workProductId: string, role: string,
 async function digestBytes(bytes: Uint8Array) {
   const hash = await crypto.subtle.digest("SHA-256", bytes.slice().buffer);
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function snapshotFile(file: File) {
+  return { ...fileSnapshot(file), sha256: await digestBytes(new Uint8Array(await file.arrayBuffer())) };
 }

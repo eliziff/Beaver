@@ -6,7 +6,7 @@ import {
   useState,
   type DragEvent,
 } from "react";
-import { BookOpenText, History, PanelLeft, Settings, Trash2 } from "lucide-react";
+import { BookOpenCheck, BookOpenText, Files, History, PanelLeft, Settings, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { updateChatProject } from "@/app/lib/beaverApi";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -15,6 +15,7 @@ import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import {
   ChatSkeuoIcon,
   LibrarySkeuoIcon,
+  TabularReviewSkeuoIcon,
   WorkflowSkeuoIcon,
 } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -50,6 +51,9 @@ const NAV_ITEMS = [
   { href: "/library", label: "Library", icon: LibrarySkeuoIcon },
   { href: "/sources", label: "Sources", icon: BookOpenText },
   { href: "/workflows", label: "Workflows", icon: WorkflowSkeuoIcon },
+  { href: "/court-records", label: "Court Records", icon: Files },
+  { href: "/table-of-authorities", label: "Authorities", icon: BookOpenCheck },
+  { href: "/tabular-reviews", label: "Tabular Review", icon: TabularReviewSkeuoIcon },
   { href: "/history", label: "History", icon: History },
 ];
 const FOCUSABLE_SELECTOR =

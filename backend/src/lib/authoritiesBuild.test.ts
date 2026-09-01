@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { Document as WordDocument, Packer, Paragraph, TextRun } from "docx";
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, StandardFonts } from "pdf-lib";
+import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber,
+  PDFRawStream, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { buildAuthorities } from "./authoritiesBuild";
@@ -16,6 +17,15 @@ async function sourcePdf(label: string, sizes: Array<[number, number]>) {
     page.drawText(`${label} page ${index + 1}`, { x: 36, y: height - 50, font, size: 14 });
   });
   return Buffer.from(await pdf.save());
+}
+
+function pageContent(document: PDFDocument, page: ReturnType<PDFDocument["getPage"]>) {
+  const contents = page.node.Contents();
+  const items = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
+  return items.map((item) => {
+    const stream = item instanceof PDFRawStream ? item : document.context.lookup(item, PDFRawStream);
+    return Buffer.from(decodePDFRawStream(stream).decode()).toString("latin1");
+  }).join("\n");
 }
 
 function attached(
@@ -96,7 +106,8 @@ describe("Authorities output builder", () => {
     const legislationPdf = await sourcePdf("Act", [[500, 600], [500, 600]]);
     const input = { draft: draft(casePdf, legislationPdf, true),
       title: "Appeal Brief", workProduct: { id: "authorities-1", revision: 4 },
-      sources: { "source:grant": { bytes: casePdf },
+      sources: { "source:grant": { bytes: casePdf,
+        ocrTextByPage: ["Recognized scanned decision"] },
         "source:fca": { bytes: legislationPdf }, source: { resolved: {
           kind: "document", documentId: "brief-document", versionId: "brief-v2",
           filename: "Brief.docx", sha256: "9".repeat(64),
@@ -164,6 +175,9 @@ describe("Authorities output builder", () => {
     expect(book.getPageCount()).toBe(5);
     expect(book.getTitle()).toBe("Book of Authorities");
     expect(book.getPage(2).getSize()).toEqual({ width: 400, height: 500 });
+    expect(pageContent(book, book.getPage(2)).toUpperCase()).toContain(
+      Buffer.from("Recognized scanned decision", "latin1").toString("hex").toUpperCase(),
+    );
     expect(book.getPage(3).getSize()).toEqual({ width: 500, height: 600 });
     expect(book.getPage(4).getSize()).toEqual({ width: 500, height: 600 });
     expect(book.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
@@ -252,5 +266,15 @@ describe("Authorities output builder", () => {
     expect(xml).toContain(' TOA \\h \\e &quot;\\t&quot; ');
     expect(result.receipt.outputs["annotated-document"]?.sha256)
       .toBe(result.artifacts["annotated-document"]?.sha256);
+
+    direct.occurrences["grant:0"].reviewed = false;
+    const unchecked = await buildAuthorities({ draft: direct, title: "Factum",
+      workProduct: { id: "authorities-docx", revision: 3 }, sources: { source: {
+        bytes: source, resolved: { kind: "document", documentId: "factum",
+          versionId: "v3", filename: "Factum.docx", sha256: digest },
+      } } });
+    const uncheckedXml = await (await JSZip.loadAsync(
+      unchecked.artifacts["annotated-document"]!.bytes)).file("word/document.xml")!.async("string");
+    expect(uncheckedXml).not.toContain(" TA \\l ");
   });
 });

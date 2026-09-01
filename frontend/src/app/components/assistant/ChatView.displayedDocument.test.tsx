@@ -8,7 +8,7 @@ import { createAssistantSessionState } from "@/app/lib/assistantSession";
 
 const dockMocks = vi.hoisted(() => ({
     addDocument: vi.fn(),
-    selectWorkflow: vi.fn(),
+    startWorkflow: vi.fn(),
     sidePanelModuleLoaded: vi.fn(),
 }));
 const idle = vi.hoisted(() => ({ callback: null as (() => void) | null }));
@@ -40,22 +40,25 @@ vi.mock("./AssistantSidePanel", () => {
     dockMocks.sidePanelModuleLoaded();
     return { AssistantSidePanel: () => null };
 });
-vi.mock("./AssistantWorkflowDock", () => ({
-    AssistantWorkflowDock: ({ onSelect, initialWorkflowId }: {
-        onSelect: (selection: unknown) => void; initialWorkflowId?: string;
+vi.mock("../workflows/ContextualWorkflowPicker", () => ({
+    ContextualWorkflowPicker: ({ onAssistantSelect, initialWorkflowId, documents = [] }: {
+        onAssistantSelect: (selection: unknown, documents: Document[]) => void;
+        initialWorkflowId?: string;
+        documents?: Document[];
     }) => {
-        const [openedId] = React.useState(initialWorkflowId);
         return (
         <>
-            <output aria-label="Opened workflow">{openedId ?? "none"}</output>
-            <button type="button" onClick={() => onSelect({ workflow: {
+            <output aria-label="Opened workflow">{initialWorkflowId ?? "none"}</output>
+            <output aria-label="Workflow documents">{documents.map(({ filename }) =>
+                filename).join(", ") || "none"}</output>
+            <button type="button" onClick={() => onAssistantSelect({ workflow: {
                 id: "drafting", metadata: { title: "Drafting" },
-            }, variant: { id: "builtin-proofread", execution: "assistant" } })}>
+            }, variant: { id: "builtin-proofread", execution: "assistant" } }, documents)}>
                 Proofread
             </button>
-            <button type="button" onClick={() => onSelect({ workflow: {
-                id: "templates", metadata: { title: "Templates" },
-            }, variant: { id: "builtin-draft-from-template", execution: "assistant" } })}>
+            <button type="button" onClick={() => onAssistantSelect({ workflow: {
+                id: "drafting", metadata: { title: "Drafting" },
+            }, variant: { id: "builtin-draft-from-template", execution: "assistant" } }, documents)}>
                 Draft from template
             </button>
         </>
@@ -64,16 +67,21 @@ vi.mock("./AssistantWorkflowDock", () => ({
 }));
 vi.mock("@/app/components/library/LibraryWorkspace", () => ({
     LibraryWorkspaceProvider: ({ children }: { children: React.ReactNode }) => children,
-    LibraryCollectionPage: ({ kind, onOpenInChat }: {
+    LibraryCollectionPage: ({ kind, onOpenInChat, onOpenWorkflows }: {
         kind: string; onOpenInChat: (documents: Document[]) => void;
+        onOpenWorkflows?: (documents: Document[]) => void;
     }) => {
         const [query, setQuery] = React.useState("");
+        const documents = [{ id: "template-1", filename: "Pleading.docx" } as Document];
         return <><input aria-label="Library query" value={query}
             onChange={(event) => setQuery(event.target.value)} /><button type="button"
             data-library-kind={kind}
-            onClick={() => onOpenInChat([{ id: "template-1", filename: "Pleading.docx" } as Document])}>
+            onClick={() => onOpenInChat(documents)}>
             Use Pleading template
-        </button></>;
+        </button>{onOpenWorkflows && <button type="button"
+            onClick={() => onOpenWorkflows(documents)}>
+            Use Pleading in workflows
+        </button>}</>;
     },
 }));
 vi.mock("@/app/components/legal/LegalLibrary", () => ({
@@ -116,14 +124,14 @@ vi.mock("./ChatInput", () => ({
             onOpenWorkflows,
         }: {
             onSubmit: (message: Message) => void;
-            onOpenWorkflows?: (onSelect: (selection: unknown) => void) => void;
+            onOpenWorkflows?: (initialWorkflowId?: string, documents?: Document[]) => void;
         },
         ref,
     ) {
         React.useImperativeHandle(ref, () => ({
             addDoc: dockMocks.addDocument,
             clearDraft: vi.fn(),
-            startWorkflowDocumentSelection: vi.fn(),
+            startWorkflowDocumentSelection: dockMocks.startWorkflow,
         }));
         return (<>
             <button
@@ -142,11 +150,16 @@ vi.mock("./ChatInput", () => ({
                 Workflows
             </button>
             {onOpenWorkflows && <button type="button"
-                onClick={() => onOpenWorkflows(dockMocks.selectWorkflow)}>
+                onClick={() => onOpenWorkflows()}>
                 Browse workflows
             </button>}
             {onOpenWorkflows && <button type="button"
-                onClick={() => onOpenWorkflows(dockMocks.selectWorkflow, "court-records")}>
+                onClick={() => onOpenWorkflows(undefined,
+                    [{ id: "lease", filename: "Lease.docx" } as Document])}>
+                Browse workflows with Lease
+            </button>}
+            {onOpenWorkflows && <button type="button"
+                onClick={() => onOpenWorkflows("court-records")}>
                 Open Court Records workflow
             </button>}
         </>);
@@ -199,11 +212,36 @@ describe("ChatView displayed document context", () => {
         expect(dockMocks.addDocument).toHaveBeenCalledTimes(1);
     });
 
+    it("restores a project workflow launch without sending a fake turn", async () => {
+        const initialDocuments = [{ id: "document-1", filename: "Brief.docx" } as Document];
+        const handleChat = vi.fn();
+        dockMocks.addDocument.mockClear();
+        dockMocks.startWorkflow.mockClear();
+        const view = <ChatView session={session()} handleChat={handleChat} cancel={vi.fn()}
+            initialDocuments={initialDocuments} initialWorkflow={{
+                workflow: { id: "drafting", variant_id: "proofread", title: "Drafting" },
+                documentTab: "files",
+            }} />;
+        const { rerender } = render(view);
+
+        await waitFor(() => expect(dockMocks.startWorkflow).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "drafting", variant_id: "proofread" }),
+            undefined, { initialDocumentTab: "files", openDocumentPicker: false },
+        ));
+        expect(screen.getByRole("tab", { name: "Workflows" }))
+            .toHaveAttribute("aria-selected", "true");
+        expect(handleChat).not.toHaveBeenCalled();
+        rerender(view);
+        expect(dockMocks.startWorkflow).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps the dock open when a workflow is selected", async () => {
         const user = userEvent.setup();
         render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
 
-        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
+        await user.click(screen.getByRole("button", { name: "Browse workflows with Lease" }));
+        expect(screen.getByRole("status", { name: "Workflow documents" }))
+            .toHaveTextContent("Lease.docx");
         await user.click(screen.getByRole("button", { name: "Proofread" }));
 
         expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
@@ -220,6 +258,21 @@ describe("ChatView displayed document context", () => {
 
         expect(screen.getByRole("status", { name: "Opened workflow" }))
             .toHaveTextContent("court-records");
+    });
+
+    it("starts a workflow selected directly from the dock", async () => {
+        const user = userEvent.setup();
+        dockMocks.startWorkflow.mockClear();
+        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()}
+            projectFiles={<p>Project files</p>} />);
+
+        await user.click(screen.getByRole("tab", { name: "Workflows" }));
+        await user.click(screen.getByRole("button", { name: "Proofread" }));
+
+        expect(dockMocks.startWorkflow).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "drafting" }), undefined,
+            { initialDocumentTab: "files" },
+        );
     });
 
     it("keeps Library and Sources state mounted while switching dock tabs", async () => {
@@ -239,26 +292,46 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("textbox", { name: "Sources query" })).toHaveValue("appeal");
     });
 
-    it("keeps template drafting selected while templates attach in the dock", async () => {
+    it("moves an embedded Library selection into the mounted workflow dock", async () => {
         const user = userEvent.setup();
-        dockMocks.addDocument.mockClear(); dockMocks.selectWorkflow.mockClear();
+        const handleChat = vi.fn();
+        dockMocks.addDocument.mockClear();
+        dockMocks.startWorkflow.mockClear();
+        render(<ChatView chatId="chat-1" session={session()} handleChat={handleChat}
+            cancel={vi.fn()} />);
+
+        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
+        await user.click(screen.getByRole("tab", { name: "Library" }));
+        await user.click(screen.getByRole("button", { name: "Use Pleading in workflows" }));
+
+        expect(screen.getByRole("tab", { name: "Workflows" }))
+            .toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("status", { name: "Workflow documents" }))
+            .toHaveTextContent("Pleading.docx");
+        expect(dockMocks.addDocument).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "template-1", filename: "Pleading.docx" }),
+        );
+        dockMocks.addDocument.mockClear();
+        expect(handleChat).not.toHaveBeenCalled();
+        await user.click(screen.getByRole("button", { name: "Proofread" }));
+        expect(dockMocks.addDocument).not.toHaveBeenCalled();
+        expect(dockMocks.startWorkflow).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the workflow dock open when template drafting is selected", async () => {
+        const user = userEvent.setup();
+        dockMocks.startWorkflow.mockClear();
         render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("button", { name: "Draft from template" }));
 
-        expect(screen.getByRole("tab", { name: "Library" }))
+        expect(screen.getByRole("tab", { name: "Workflows" }))
             .toHaveAttribute("aria-selected", "true");
-        expect(screen.getByRole("button", { name: "Use Pleading template" }))
-            .toHaveAttribute("data-library-kind", "templates");
-        expect(dockMocks.selectWorkflow).toHaveBeenCalledWith(expect.objectContaining({
-            workflow: expect.objectContaining({ id: "templates" }),
-        }));
-
-        await user.click(screen.getByRole("button", { name: "Use Pleading template" }));
-        expect(dockMocks.addDocument).toHaveBeenCalledWith(expect.objectContaining({
-            id: "template-1",
-        }));
+        expect(dockMocks.startWorkflow).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "drafting" }), undefined,
+            { initialDocumentTab: "templates" },
+        );
         expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
     });
 

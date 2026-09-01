@@ -56,10 +56,12 @@ function Harness({
     uploadDocuments = (files) => Promise.all(files.map((file) => uploadDocument(file))),
     refreshCollection = vi.fn(),
     moveDocument = async () => document,
+    moveFolder = vi.fn(),
     renameDocument = async (_documentId, filename) => ({
         ...document,
         filename,
     }),
+    onOpenWorkflows,
     search = "",
 }: {
     selectionFirst?: boolean;
@@ -73,10 +75,12 @@ function Harness({
         documentId: string,
         folderId: string | null,
     ) => Promise<Document>;
+    moveFolder?: (folderId: string, parentFolderId: string | null) => Promise<DocTableFolder>;
     renameDocument?: (
         documentId: string,
         filename: string,
     ) => Promise<Document>;
+    onOpenWorkflows?: (documents: Document[]) => void;
     search?: string;
 }) {
     return (
@@ -87,6 +91,12 @@ function Harness({
             loading={false}
             search={search}
             operations={{
+                list: async ({ parent_id }) => ({
+                    items: initialFolders
+                        .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
+                        .map((folder) => ({ kind: "folder" as const, folder })),
+                    next_cursor: null,
+                }),
                 uploadDocument,
                 uploadDocuments,
                 refreshCollection: async () => { await refreshCollection(); },
@@ -94,12 +104,13 @@ function Harness({
                 createFolder: vi.fn(),
                 renameFolder: vi.fn(),
                 deleteFolder: vi.fn(),
-                moveFolder: vi.fn(),
+                moveFolder,
                 moveDocument,
                 renameDocument,
             }}
             selectionFirst={selectionFirst}
             onCreateFolderActionChange={onCreateFolderActionChange}
+            onOpenWorkflows={onOpenWorkflows}
         />
     );
 }
@@ -336,6 +347,52 @@ describe("DocTable Library interactions", () => {
         );
     });
 
+    it("moves selected documents with the destination picker", async () => {
+        const moveDocument = vi.fn(async (id: string, folderId: string | null) => ({
+            ...(id === document.id ? document : wordDocument), folder_id: folderId,
+        }));
+        const target = { id: "filed", name: "Filed", parent_folder_id: null } as DocTableFolder;
+        render(<Harness initialDocuments={[document, wordDocument]}
+            initialFolders={[target]} moveDocument={moveDocument} />);
+        fireEvent.click(within(rowFor(document.filename)).getByRole("checkbox"));
+        fireEvent.click(within(rowFor(wordDocument.filename)).getByRole("checkbox"));
+        const header = screen.getByRole("group", { name: "Selected documents" });
+        fireEvent.click(within(header).getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Move…" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Open Filed" }));
+        fireEvent.click(screen.getByRole("button", { name: "Move here" }));
+
+        await waitFor(() => expect(moveDocument).toHaveBeenCalledTimes(2));
+        expect(moveDocument).toHaveBeenCalledWith(document.id, target.id);
+        expect(moveDocument).toHaveBeenCalledWith(wordDocument.id, target.id);
+    });
+
+    it("includes the collection root as a move destination", async () => {
+        const moveDocument = vi.fn(async () => ({ ...document, folder_id: null }));
+        render(<Harness initialDocuments={[{ ...document, folder_id: "research" }]}
+            moveDocument={moveDocument} search="Brief" />);
+        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Move…" }));
+        expect(screen.getByText("Destination: Project")).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Move here" }));
+        await waitFor(() => expect(moveDocument).toHaveBeenCalledWith(document.id, null));
+    });
+
+    it("moves a folder with the same destination picker", async () => {
+        const source = { id: "research", name: "Research", parent_folder_id: null } as DocTableFolder;
+        const target = { id: "filed", name: "Filed", parent_folder_id: null } as DocTableFolder;
+        const moveFolder = vi.fn(async () => source);
+        render(<Harness initialFolders={[source, target]} moveFolder={moveFolder} />);
+        const sourceRow = screen.getByText("Research").closest("[data-tree-drop-folder]")!;
+        fireEvent.click(within(sourceRow as HTMLElement)
+            .getByRole("button", { name: "More actions" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: "Move…" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Open Filed" }));
+        fireEvent.click(screen.getByRole("button", { name: "Move here" }));
+
+        await waitFor(() => expect(moveFolder).toHaveBeenCalledWith(source.id, target.id));
+    });
+
     it("selects on click without opening and keeps View visible", () => {
         render(<Harness />);
         const row = documentRow();
@@ -442,7 +499,7 @@ describe("DocTable Library interactions", () => {
             within(rowFor("Brief.pdf")).getByRole("checkbox"),
         );
         expect(screen.getByText("2 selected")).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Workflows" })).toBeNull();
+        expect(screen.getAllByRole("button", { name: "Workflows" })).toHaveLength(1);
 
         fireEvent.click(rowFor("Submissions.docx"));
         expect(screen.getByText("1 selected")).toBeInTheDocument();
@@ -451,6 +508,19 @@ describe("DocTable Library interactions", () => {
         fireEvent.click(rowFor("Brief.pdf"));
         expect(screen.getByText("1 selected")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
+    });
+
+    it("hands the full selection to an existing workflow dock", () => {
+        const onOpenWorkflows = vi.fn();
+        render(<Harness initialDocuments={[document, wordDocument]}
+            onOpenWorkflows={onOpenWorkflows} />);
+        fireEvent.click(rowFor("Brief.pdf"));
+        fireEvent.click(within(rowFor("Submissions.docx")).getByRole("checkbox"));
+
+        fireEvent.click(screen.getByRole("button", { name: "Workflows" }));
+
+        expect(onOpenWorkflows).toHaveBeenCalledWith([document, wordDocument]);
+        expect(screen.queryByRole("dialog", { name: "Workflows" })).toBeNull();
     });
 
     it.each([1440, 390])(
@@ -540,6 +610,7 @@ describe("structural parse state", () => {
                 loading={false}
                 search=""
                 operations={{
+                    list: async () => ({ items: [], next_cursor: null }),
                     uploadDocument: async () => document,
                     uploadDocuments: async () => [document],
                     refreshCollection: vi.fn(),

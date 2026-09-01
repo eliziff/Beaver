@@ -71,4 +71,55 @@ describe("court record draft state", () => {
     expect(restored.inputStatus).toBe("changed");
     expect(restored.file.lastModified).toBe(99);
   });
+
+  it("reuses prepared sources when only assistant-editable fields changed", async () => {
+    const existing = entry();
+    const state = courtRecordDraft("fc-motion-record-moving", {}, [existing]);
+    state.entries[0].title = "Assistant description";
+    const host = { mode: "standalone", drafts: store, resolveInput: vi.fn(),
+      prepareDeviceFile: vi.fn() } satisfies CourtRecordsHost;
+
+    const [restored] = await restoreCourtRecordDraft(product(state), host, undefined, [existing]);
+
+    expect(restored).toMatchObject({ title: "Assistant description", file: existing.file,
+      pageCount: 1, searchable: true });
+    expect(host.resolveInput).not.toHaveBeenCalled();
+  });
+
+  it("OCRs a restored textless source", async () => {
+    const state = courtRecordDraft("fc-motion-record-moving", {}, [entry()]);
+    const file = entry().file;
+    const host = {
+      mode: "standalone", drafts: store,
+      resolveInput: vi.fn().mockResolvedValue({ status: "ready", file, input }),
+      prepareDeviceFile: vi.fn().mockResolvedValue({ file, pageCount: 1,
+        searchable: false, encrypted: false, textlessPageCount: 1, textlessPages: [1] }),
+      runOcr: vi.fn().mockResolvedValue({ searchable: true, textlessPageCount: 0,
+        textlessPages: [], ocrTextByPage: ["Notice of motion"] }),
+    } satisfies CourtRecordsHost;
+
+    const [restored] = await restoreCourtRecordDraft(product(state), host);
+
+    expect(host.runOcr).toHaveBeenCalledWith(expect.objectContaining({
+      file, inputStatus: "ready", textlessPages: [1],
+    }), undefined);
+    expect(restored).toMatchObject({ inputStatus: "ready", searchable: true,
+      textlessPageCount: 0, ocrTextByPage: ["Notice of motion"] });
+  });
+
+  it("keeps a retained source ready when restore OCR fails", async () => {
+    const existing = { ...entry(), searchable: false, textlessPageCount: 1,
+      textlessPages: [1] };
+    const state = courtRecordDraft("fc-motion-record-moving", {}, [existing]);
+    const host = {
+      mode: "standalone", drafts: store, resolveInput: vi.fn(), prepareDeviceFile: vi.fn(),
+      runOcr: vi.fn().mockRejectedValue(new Error("OCR unavailable")),
+    } satisfies CourtRecordsHost;
+
+    const [restored] = await restoreCourtRecordDraft(product(state), host, undefined, [existing]);
+
+    expect(restored).toMatchObject({ inputStatus: "ready", searchable: false,
+      inspectionError: "OCR unavailable" });
+    expect(host.resolveInput).not.toHaveBeenCalled();
+  });
 });
