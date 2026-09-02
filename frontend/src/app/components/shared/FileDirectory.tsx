@@ -144,7 +144,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
     return <div className="flex min-h-0 flex-1 flex-col gap-2">
         <SearchBar autoFocus value={search} onValueChange={setSearch} booleanSearch
             placeholder="Search files" aria-label="Search files" />
-        {showTabs ? <Tabs value={activeTab} variant="quiet" ariaLabel="File source"
+        {showTabs ? <Tabs value={activeTab} variant="pill" ariaLabel="File source"
             options={TABS.map(([value, label]) => ({ value, label }))}
             onValueChange={(value) => {
                 setTab(value as DirectoryTab); setSelectedProjectId(""); setExpanded(new Set());

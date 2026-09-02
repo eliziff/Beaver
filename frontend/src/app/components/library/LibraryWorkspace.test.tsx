@@ -18,14 +18,15 @@ vi.mock("../assistant/assistantLaunch", () => ({
     stageNewChatDocuments: mocks.stage,
 }));
 vi.mock("../documents/DocTable", () => ({
-    DocTable: ({ onAssistantWorkflowSelect }: {
+    DocTable: ({ onAssistantWorkflowSelect, scopeKey }: {
+        scopeKey: string;
         onAssistantWorkflowSelect: (
             selection: WorkflowSelection, documents: Document[],
         ) => void;
-    }) => <button type="button"
-        onClick={() => onAssistantWorkflowSelect(selection, [source])}>
-        Proofread selected
-    </button>,
+    }) => <><input aria-label={`${scopeKey} state`} /><button type="button"
+            onClick={() => onAssistantWorkflowSelect(selection, [source])}>
+            Proofread selected
+        </button></>,
 }));
 vi.mock("../../hooks/usePagedDirectory", () => ({
     usePagedDirectory: () => ({
@@ -59,4 +60,17 @@ it("hands selected Library documents to a new assistant workflow", async () => {
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(
         JSON.stringify({ pathname: "/assistant", state: assistantWorkflowLaunch(selection) }),
     );
+});
+
+it("keeps each visited Library section mounted", async () => {
+    const view = (kind: "files" | "templates") => <MemoryRouter>
+        <LibraryCollectionPage kind={kind} />
+    </MemoryRouter>;
+    const { rerender } = render(view("files"));
+    await userEvent.type(screen.getByLabelText("files state"), "kept");
+
+    rerender(view("templates"));
+    expect(screen.getByLabelText("templates state")).toBeVisible();
+    rerender(view("files"));
+    expect(screen.getByLabelText("files state")).toHaveValue("kept");
 });

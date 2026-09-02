@@ -387,6 +387,7 @@ export type WorkflowAudience = "general" | "solicitor" | "litigator";
 export interface WorkflowVariant {
   id: string;
   label: string;
+  description?: string | null;
   result: string | null;
   execution: "assistant" | "tabular";
   skill_md: string | null;

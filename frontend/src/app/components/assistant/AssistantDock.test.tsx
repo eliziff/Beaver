@@ -25,8 +25,11 @@ it("resizes the dock from the keyboard", () => {
 it("collapses without discarding its mounted content", () => {
     const onExpandedChange = vi.fn();
     const props = {
-        tabs: [{ id: "sources", label: "Sources", content:
-            <input aria-label="Draft message" defaultValue="still here" /> }],
+        tabs: [
+            { id: "sources", label: "Sources", content:
+                <input aria-label="Draft message" defaultValue="still here" /> },
+            { id: "library", label: "Library", content: <p>Unopened library</p> },
+        ],
         activeTabId: "sources",
         onActivateTab: vi.fn(),
         onExpandedChange,
@@ -34,15 +37,19 @@ it("collapses without discarding its mounted content", () => {
     const { rerender } = render(
         <AssistantDock
             {...props}
-            expanded={false}
+            expanded
         />,
     );
 
-    expect(document.querySelector('[aria-label="Draft message"]')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Draft message" }), {
+        target: { value: "edited" },
+    });
+    expect(screen.queryByText("Unopened library")).not.toBeInTheDocument();
+    rerender(<AssistantDock {...props} expanded={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Expand assistant dock" }));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
     rerender(<AssistantDock {...props} expanded />);
-    expect(screen.getByRole("textbox", { name: "Draft message" })).toHaveValue("still here");
+    expect(screen.getByRole("textbox", { name: "Draft message" })).toHaveValue("edited");
 });
 
 it("can use an existing page trigger without adding a second collapsed button", () => {
@@ -76,6 +83,7 @@ it("contains focus while it covers the workspace on a narrow screen", () => {
     expect(screen.getByRole("tab", { name: "Assistant" })).toHaveFocus();
     const dock = screen.getByRole("dialog", { name: "Assistant dock" });
     expect(dock).toHaveAttribute("aria-modal", "true");
+    expect(document.documentElement.style.scrollbarGutter).toBe("auto");
     expect(screen.getByRole("button", { name: "Close assistant" })).toBeVisible();
     fireEvent.keyDown(dock, { key: "Escape" });
     expect(onExpandedChange).toHaveBeenCalledWith(false);
@@ -86,6 +94,7 @@ it("contains focus while it covers the workspace on a narrow screen", () => {
             activeTabId="assistant" onActivateTab={vi.fn()} expanded={false}
             onExpandedChange={onExpandedChange} />
     </div>);
+    expect(document.documentElement.style.scrollbarGutter).toBe("");
     expect(screen.getByRole("button", { name: "Workspace action" }).inert).not.toBe(true);
 });
 

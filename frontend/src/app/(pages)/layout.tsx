@@ -92,7 +92,7 @@ export default function AppShell() {
                             <div className="relative flex min-h-0 w-full flex-1">
                                 <main
                                     id="main-content"
-                                    className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-hidden"
+                                    className="flex h-full w-full flex-1 flex-col overflow-y-auto lg:overflow-clip"
                                 >
                                     {authLoading ? (
                                         <p className="m-auto px-6 text-sm text-gray-500" role="status">

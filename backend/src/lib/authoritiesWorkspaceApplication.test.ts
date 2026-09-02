@@ -25,7 +25,8 @@ type Stored = { id: string; versions: Array<DocumentVersion & { bytes: Buffer;
 function harness(options: {
   draft?: AuthoritiesDraft;
   resolve?: (...args: unknown[]) => Promise<unknown>;
-  download?: (...args: unknown[]) => Promise<{ bytes: Buffer; sourceSha256: string }>;
+  download?: (...args: unknown[]) => Promise<{
+    bytes: Buffer; sourceSha256: string; url?: string } | null>;
   builder?: (...args: never[]) => Promise<AuthoritiesBuildResult>;
   key?: (text: string) => string;
   occurrences?: (text: string) => unknown[];
@@ -276,6 +277,41 @@ describe("Authorities workspace application", () => {
     expect(runtime.files.create).not.toHaveBeenCalled();
   });
 
+  it("expands a parser-missed style of cause from the provider's observed name", async () => {
+    const text = "See R. v. Que\u0301bec, 2024 SCC 1 at para 4.", name = "R v Qu\u00e9bec",
+      styleStart = text.indexOf("R."), core = "2024 SCC 1", coreStart = text.indexOf(core),
+      coreEnd = coreStart + core.length;
+    const draft = createAuthoritiesDraft({ kind: "manual" }, {}, "table");
+    Object.assign(draft, {
+      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+        footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["cite"] }],
+      occurrences: { cite: { id: "cite", unitId: "body:0", start: styleStart, end: coreEnd,
+        text: text.slice(styleStart, coreEnd),
+        authoritySpan: { start: coreStart, end: coreEnd, text: core },
+        coreSpan: { start: coreStart, end: coreEnd, text: core }, pinpointSpan: null,
+        kind: "case", citation: core, authorityId: "case", reference: null, pinpoints: [],
+        evidenceIds: [], sourceTextSha256: "unit-hash", localOrdinal: 0, reviewed: false } },
+      authorities: { case: { id: "case", key: "case", kind: "case", citation: core,
+        name: null, displayName: null, tabLabel: null, excluded: false, evidenceIds: [],
+        locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
+      authorityOrder: ["case"],
+    });
+    const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "SCC",
+      citation: core, alternateCitation: null, name, date: "2024-01-01",
+      url: "https://publisher.example/decision/1", verifiedPdf: null, language: "en",
+      upstreamLicense: null, searchText: "Reasons", native: {} as never,
+      searchNative: {} as never }) });
+
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    const product = await prepareSources(runtime, imported);
+    const occurrence = (product.state as AuthoritiesDraft).occurrences.cite;
+
+    expect(occurrence.authoritySpan).toEqual({ start: styleStart, end: coreEnd,
+      text: text.slice(styleStart, coreEnd) });
+    expect(occurrence.coreSpan).toEqual({ start: coreStart, end: coreEnd, text: core });
+    expect((product.state as AuthoritiesDraft).authorities.case.name).toBe(name);
+  });
+
   it("prepares one PDF after parallel citations resolve to one grounded authority", async () => {
     let draft = createAuthoritiesDraft({ kind: "manual" });
     for (const [id, citation] of [["reporter", "[2015] 1 SCR 331"],
@@ -375,7 +411,7 @@ describe("Authorities workspace application", () => {
     expect(runtime.files.create).not.toHaveBeenCalled();
   });
 
-  it("offers a manual CanLII handoff when automatic resolution has no source bytes", async () => {
+  it("keeps provider failures retryable before offering a CanLII no-match fallback", async () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
         citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
@@ -384,16 +420,54 @@ describe("Authorities workspace application", () => {
     });
     const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network forbidden"));
     try {
-      const runtime = harness({ draft, resolve: async () => null });
+      let attempt = 0;
+      const runtime = harness({ draft, resolve: async () => {
+        if (!attempt++) throw new Error("A2AJ unavailable");
+        return null;
+      } });
       const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
-      const product = await prepareSources(runtime, imported);
+      let product = await prepareSources(runtime, imported);
+      expect((product.state as AuthoritiesDraft).authorities.grant.source)
+        .toEqual({ kind: "unresolved" });
+      product = await prepareSources(runtime, product);
       expect((product.state as AuthoritiesDraft).authorities.grant.source).toMatchObject({
         kind: "pending-canlii",
         pdfUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.pdf",
       });
+      expect(runtime.sources.resolve).toHaveBeenCalledTimes(2);
       expect(runtime.sources.download).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
     } finally { fetch.mockRestore(); }
+  });
+
+  it("keeps an original-PDF download failure retryable before offering CanLII", async () => {
+    const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
+        citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" } },
+    });
+    let attempt = 0;
+    const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "SCC",
+      citation: "2009 SCC 32", alternateCitation: null, name: "R v Grant", date: "2009-07-17",
+      url: "https://publisher.example/grant", verifiedPdf: {
+        url: "https://publisher.example/grant.pdf", pdfOnly: false }, language: "en",
+      upstreamLicense: null, searchText: "", native: {} as never, searchNative: {} as never }),
+      download: async () => {
+        if (!attempt++) throw new Error("publisher unavailable");
+        return null;
+      } });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+
+    let product = await prepareSources(runtime, imported);
+    expect((product.state as AuthoritiesDraft).authorities.grant.source)
+      .toEqual({ kind: "resolved" });
+    product = await prepareSources(runtime, product);
+    expect((product.state as AuthoritiesDraft).authorities.grant.source).toMatchObject({
+      kind: "pending-canlii",
+      pdfUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.pdf",
+    });
+    expect(runtime.sources.download).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -799,8 +873,8 @@ describe("Authorities workspace application", () => {
 
   it("persists exact UTF-16 authority and pinpoint selections without losing provenance",
     async () => {
-    const unitText = "\u{1f9ab} See Smith v Jones, 2024 ABKB 123 at paras 7-9.",
-      authorityText = "Smith v Jones, 2024 ABKB 123", core = "2024 ABKB 123",
+    const unitText = "\u{1f9ab} See Smith v Jones, 2024 ABKB 123 (Alta.) at paras 7-9.",
+      authorityText = "Smith v Jones, 2024 ABKB 123 (Alta.)", core = "2024 ABKB 123",
       pinpoint = "paras 7-9", authorityStart = unitText.indexOf(authorityText),
       authorityEnd = authorityStart + authorityText.length,
       pinpointStart = unitText.indexOf(pinpoint), pinpointEnd = pinpointStart + pinpoint.length;
@@ -814,13 +888,13 @@ describe("Authorities workspace application", () => {
         authoritySpan: { start: oldCoreStart, end: oldCoreEnd, text: core },
         coreSpan: { start: oldCoreStart, end: oldCoreEnd, text: core },
         pinpointSpan: { start: pinpointStart, end: pinpointEnd, text: pinpoint },
-        kind: "case", citation: core, authorityId: "old", reference: null,
+        kind: "case", citation: core, authorityId: "canonical", reference: null,
         pinpoints: [{ kind: "paragraph", text: "7-9" }], evidenceIds: ["evidence-1"], sourceTextSha256: "unit-hash",
         localOrdinal: 4, reviewed: false } },
-      authorities: { old: { id: "old", key: "old", kind: "case", citation: core,
+      authorities: { canonical: { id: "canonical", key: "canonical", kind: "case", citation: core,
         name: null, displayName: null, tabLabel: null, excluded: false,
         evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
-      authorityOrder: ["old"],
+      authorityOrder: ["canonical"],
     });
     const matches = (value: string) => {
       const styledEnd = value.indexOf(core) + core.length;
@@ -834,6 +908,9 @@ describe("Authorities workspace application", () => {
     };
     const runtime = harness({ draft, key: () => "canonical", occurrences: matches });
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    await expect(runtime.application.act(scope, product.id, product.revision,
+      { type: "set-authority-span", occurrenceId: "cite",
+        start: authorityStart, end: pinpointEnd })).rejects.toMatchObject({ status: 400 });
     product = await runtime.application.act(scope, product.id, product.revision,
       { type: "set-authority-span", occurrenceId: "cite",
         start: authorityStart, end: authorityEnd });
@@ -841,6 +918,9 @@ describe("Authorities workspace application", () => {
       pinpointSpan: { start: pinpointStart, end: pinpointEnd, text: pinpoint },
       pinpoints: [{ kind: "paragraph", text: "7-9" }],
     });
+    await expect(runtime.application.act(scope, product.id, product.revision,
+      { type: "set-pinpoint-span", occurrenceId: "cite",
+        start: oldCoreStart, end: pinpointEnd })).rejects.toMatchObject({ status: 400 });
     product = await runtime.application.act(scope, product.id, product.revision,
       { type: "set-pinpoint-span", occurrenceId: "cite",
         start: pinpointStart, end: pinpointEnd });
@@ -853,7 +933,118 @@ describe("Authorities workspace application", () => {
     expect(occurrence).toMatchObject({ authorityId: "canonical", reviewed: true,
       evidenceIds: ["evidence-1"], sourceTextSha256: "unit-hash", localOrdinal: 4,
       pinpoints: [{ kind: "paragraph", text: "7-9" }] });
+    expect((product.state as AuthoritiesDraft).authorities.canonical.displayName)
+      .toBe("Smith v Jones");
     expect((product.state as AuthoritiesDraft).authorityOrder).toEqual(["canonical"]);
+  });
+
+  it("uses the exact lawyer-selected parallel citation and absorbs its detections", async () => {
+    const text = "R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)",
+      reporter = "[1986] 1 SCR 103", neutral = "1986 CanLII 46",
+      reporterStart = text.indexOf(reporter), neutralStart = text.indexOf(neutral);
+    const item = (id: string, start: number, value: string, authorityId: string,
+      evidenceId: string) => ({ id, unitId: "body:0", start, end: start + value.length,
+      text: value, authoritySpan: { start, end: start + value.length, text: value },
+      coreSpan: { start, end: start + value.length, text: value }, pinpointSpan: null,
+      kind: "case" as const, citation: value, authorityId, reference: null, pinpoints: [],
+      evidenceIds: [evidenceId], sourceTextSha256: "unit-hash", localOrdinal: start,
+      reviewed: false });
+    const identity = (id: string, citation: string) => ({ id, key: id, kind: "case" as const,
+      citation, name: null, displayName: null, tabLabel: null, excluded: false,
+      evidenceIds: [], locators: [], sourceIdentity: null,
+      source: { kind: "unresolved" as const } });
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    Object.assign(draft, {
+      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+        footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["reporter", "neutral"] }],
+      occurrences: { reporter: item("reporter", reporterStart, reporter, "reporter-key", "e1"),
+        neutral: item("neutral", neutralStart, neutral, "neutral-key", "e2") },
+      authorities: { "reporter-key": identity("reporter-key", reporter),
+        "neutral-key": identity("neutral-key", neutral) },
+      authorityOrder: ["reporter-key", "neutral-key"],
+    });
+    const match = (value: string, start: number, kind: "case" | "other", reasons: string[]) =>
+      ({ text: value, start, end: start + value.length,
+        styledCitation: { text: value, start, end: start + value.length },
+        coreCitation: { text: value, start, end: start + value.length },
+        pinpoints: [], kind, shortForm: kind === "case" ? "R v Oakes" : null, reasons });
+    const runtime = harness({ draft,
+      key: (value) => value === neutral ? "neutral-key" : "reporter-key",
+      occurrences: () => [
+        match(reporter, reporterStart, "other", ["citation_grammar", "kind_unclassified"]),
+        match(neutral, neutralStart, "case", ["provider_routing", "same_text_style"]),
+      ] });
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "set-authority-span", occurrenceId: "neutral", start: 0, end: text.length });
+    const state = product.state as AuthoritiesDraft, corrected = state.occurrences.neutral;
+    expect(state.units[0].occurrenceIds).toEqual(["neutral"]);
+    expect(corrected.authoritySpan).toEqual({ start: 0, end: text.length, text });
+    expect(corrected.coreSpan.text).toBe(neutral);
+    expect(corrected.evidenceIds).toEqual(["e1", "e2"]);
+    expect(state.authorities["reporter-key"]).toBeUndefined();
+    expect(state.authorities["neutral-key"].displayName).toBe("R v Oakes");
+  });
+
+  it("absorbs a split pinpoint and permits an exact manual citation boundary", async () => {
+    const text = "R v Grant, 2009 SCC 32 at para 29", authority = "R v Grant, 2009 SCC 32",
+      core = "2009 SCC 32", pinpoint = "para 29", pinpointStart = text.indexOf(pinpoint);
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    Object.assign(draft, {
+      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+        footnoteRefs: [], pageNumbers: [], text, occurrenceIds: ["main", "split"] }],
+      occurrences: {
+        main: { id: "main", unitId: "body:0", start: 0, end: authority.length, text: authority,
+          authoritySpan: { start: 0, end: authority.length, text: authority },
+          coreSpan: { start: text.indexOf(core), end: text.indexOf(core) + core.length, text: core },
+          pinpointSpan: null, kind: "case", citation: core, authorityId: "grant", reference: null,
+          pinpoints: [], evidenceIds: ["e1"], sourceTextSha256: "hash", localOrdinal: 0,
+          reviewed: false },
+        split: { id: "split", unitId: "body:0", start: pinpointStart, end: text.length,
+          text: pinpoint, authoritySpan: { start: pinpointStart, end: text.length, text: pinpoint },
+          coreSpan: { start: pinpointStart, end: text.length, text: pinpoint },
+          pinpointSpan: null, kind: "other", citation: pinpoint, authorityId: null,
+          reference: null, pinpoints: [], evidenceIds: ["e2"], sourceTextSha256: "hash",
+          localOrdinal: pinpointStart, reviewed: false },
+      },
+      authorities: { grant: { id: "grant", key: "grant", kind: "case", citation: core,
+        name: "R v Grant", displayName: null, tabLabel: null, excluded: false,
+        evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
+      authorityOrder: ["grant"],
+    });
+    const runtime = harness({ draft, key: () => "grant", occurrences: () => [{ text,
+      start: 0, end: text.length, styledCitation: { text: authority, start: 0, end: authority.length },
+      coreCitation: { text: core, start: text.indexOf(core), end: text.indexOf(core) + core.length },
+      pinpoints: [{ text: "29", start: text.indexOf("29"), end: text.length,
+        kind: "paragraph" }], kind: "case", shortForm: "R v Grant",
+      reasons: ["provider_routing", "same_text_style", "pinpoint_grammar"] }] });
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "set-pinpoint-span", occurrenceId: "main", start: pinpointStart, end: text.length });
+    let state = product.state as AuthoritiesDraft;
+    expect(state.units[0].occurrenceIds).toEqual(["main"]);
+    expect(state.occurrences.main).toMatchObject({ evidenceIds: ["e1", "e2"],
+      pinpointSpan: { start: pinpointStart, end: text.length, text: pinpoint },
+      pinpoints: [{ kind: "paragraph", text: "29" }] });
+
+    const manualText = "R v Oddity, unreported", manualStart = manualText.indexOf("unreported"),
+      manual = createAuthoritiesDraft({ kind: "manual" });
+    Object.assign(manual, { units: [{ id: "body:1", kind: "body", ordinal: 0,
+      footnoteId: null, footnoteRefs: [], pageNumbers: [], text: manualText,
+      occurrenceIds: ["odd"] }], occurrences: { odd: { id: "odd", unitId: "body:1",
+      start: manualStart, end: manualText.length, text: "unreported",
+      authoritySpan: { start: manualStart, end: manualText.length, text: "unreported" },
+      coreSpan: { start: manualStart, end: manualText.length, text: "unreported" }, pinpointSpan: null,
+      kind: "other", citation: "unreported", authorityId: null, reference: null,
+      pinpoints: [], evidenceIds: [], sourceTextSha256: "hash", localOrdinal: manualStart,
+      reviewed: false } } });
+    const manualRuntime = harness({ draft: manual, key: () => "", occurrences: () => [] });
+    product = await manualRuntime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await manualRuntime.application.act(scope, product.id, product.revision,
+      { type: "set-authority-span", occurrenceId: "odd", start: 0, end: manualText.length });
+    state = product.state as AuthoritiesDraft;
+    expect(state.occurrences.odd).toMatchObject({ reviewed: true,
+      authoritySpan: { start: 0, end: manualText.length, text: manualText } });
   });
 
   it("replaces obsolete output roles after output-mode changes", async () => {

@@ -1,6 +1,6 @@
 import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Loader2, MessageSquarePlus }
+import { AlertCircle, ChevronDown, ChevronRight, Loader2 }
     from "lucide-react";
 import { deleteDocument, deleteDocumentVersion, downloadDocumentsZip,
     downloadDocument, listDocumentVersions, renameDocumentVersion,
@@ -32,21 +32,13 @@ import { Button } from "@/app/components/ui/button";
 import { getPdfJs } from "@/app/components/shared/views/highlightQuote";
 import { DocumentSidePanel, preloadDocumentViewer }
     from "@/app/components/shared/DocumentSidePanel";
-import type { UploadActions } from "./UploadAction";
-import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
+import type { DocumentSelectionActions, UploadActions } from "./UploadAction";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
-import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { Modal } from "@/app/components/modals/Modal";
 import { buildDocumentTree, CHAT_DOCUMENT_DRAG_TYPE, descendantFolderIds, DOCUMENT_DRAG_TYPE,
     documentTreeDropFolder, FOLDER_DRAG_TYPE, hasDocumentTreeDrag,
     wouldCreateFolderCycle } from "./documentTree";
 export type DocTableFolder = ProjectFolder | LibraryFolder;
-interface DocTableSelectionActions {
-    selectedCount: number; selectedDocuments: Document[];
-    onWorkflowDocumentChanged: () => Promise<void>;
-    onDownload: () => Promise<void>; onMove: () => void;
-    onDelete: () => Promise<void>;
-}
 const DOCUMENT_ROW_CLASS =
     "group flex h-11 min-h-11 w-full min-w-0 items-center border-b border-gray-100 pr-2 [content-visibility:auto] [contain-intrinsic-size:auto_44px]";
 const DOCUMENT_METADATA_COLUMNS = [
@@ -78,11 +70,11 @@ const EMPTY_METADATA_VALUE = (
 );
 const WARNING_KINDS = ["upload", "rename", "collection"] as const;
 function prewarmDocumentView(doc: Document) {
-    void preloadDocumentViewer();
+    void preloadDocumentViewer().catch(() => undefined);
     const type = (doc.file_type ?? doc.filename.split(".").pop() ?? "")
         .toLowerCase().replace(/^\./u, "");
     if (type === "pdf" || !!doc.pdf_storage_path) {
-        void getPdfJs();
+        void getPdfJs().catch(() => undefined);
     }
 }
 type InlineNameInputProps = {
@@ -277,10 +269,9 @@ interface DocTableProps {
         onSelect: (documents: Document[]) => void) => ReactNode;
     onUploadActionsChange?: (actions: UploadActions | null) => void;
     onCreateFolderActionChange?: (action: (() => void) | null) => void;
-    onOpenSelectionInChat?: (documents: Document[]) => void;
+    onSelectionActionsChange?: (actions: DocumentSelectionActions | null) => void;
     onOpenWorkflows?: (documents: Document[]) => void;
     onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
-    openSelectionLabel?: string;
     onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
     documentRemovalMode?: "delete" | "detach"; selectionFirst?: boolean;
     compact?: boolean;
@@ -307,9 +298,8 @@ export function DocTable({
     scopeKey, documents, folders, loading, search, operations,
     emptyDropLabel = "Drop PDF, Word, Excel, or PowerPoint files here",
     renderAddDocumentsModal, onUploadActionsChange,
-    onCreateFolderActionChange, onOpenSelectionInChat, onOpenWorkflows,
-    onAssistantWorkflowSelect,
-    openSelectionLabel = "Open in new chat", onOwnerOnlyAction,
+    onCreateFolderActionChange, onSelectionActionsChange, onOpenWorkflows,
+    onAssistantWorkflowSelect, onOwnerOnlyAction,
     documentRemovalMode = "delete", selectionFirst = false, compact = false,
     hasMoreParents = new Set(), loadingParents = new Set(),
     onFolderExpanded, onLoadMore,
@@ -349,7 +339,7 @@ export function DocTable({
     const renderAddDocumentsModalRef = useRef(renderAddDocumentsModal);
     const detachesDocument = documentRemovalMode === "detach";
     useEffect(() => {
-        const timer = window.setTimeout(() => void preloadDocumentViewer(), 500);
+        const timer = window.setTimeout(() => void preloadDocumentViewer().catch(() => undefined), 500);
         return () => window.clearTimeout(timer);
     }, []);
     const removeDocument = operations.removeDocument ?? deleteDocument;
@@ -1170,36 +1160,31 @@ export function DocTable({
         }
     }
     const sidePanelDoc = viewingDoc ? docsById.get(viewingDoc.id) ?? viewingDoc : null;
-    const selectionActions = useMemo<DocTableSelectionActions | null>(() => {
+    const selectionHandlers = useRef({
+        refreshDocumentVersionState, handleDownloadSelectedDocs, requestDeleteSelectedDocs,
+    });
+    selectionHandlers.current = {
+        refreshDocumentVersionState, handleDownloadSelectedDocs, requestDeleteSelectedDocs,
+    };
+    const selectionActions = useMemo<DocumentSelectionActions | null>(() => {
         if (selectedDocIds.length === 0) return null;
         return {
-            selectedCount: selectedDocIds.length,
-            selectedDocuments: selectedDocIds
+            documents: selectedDocIds
                 .map((id) => docsById.get(id))
                 .filter((document): document is Document => !!document),
             onWorkflowDocumentChanged: async () => {
                 if (selectedDocIds.length === 1)
-                    await refreshDocumentVersionState(selectedDocIds[0]);
+                    await selectionHandlers.current.refreshDocumentVersionState(selectedDocIds[0]);
             },
-            onDownload: handleDownloadSelectedDocs,
+            onDownload: () => selectionHandlers.current.handleDownloadSelectedDocs(),
             onMove: () => set("pendingMove", { documentIds: selectedDocIds }),
-            onDelete: requestDeleteSelectedDocs,
+            onRemove: () => selectionHandlers.current.requestDeleteSelectedDocs(),
+            removeLabel: detachesDocument ? "Remove" : "Delete",
         };
-    }, [docsById, handleDownloadSelectedDocs,
-        refreshDocumentVersionState, requestDeleteSelectedDocs,
-        selectedDocIds]);
-    const selectionMenuItems = selectionActions ? [
-        ...(onOpenSelectionInChat ? [{
-            label: openSelectionLabel,
-            onSelect: () => onOpenSelectionInChat(selectionActions.selectedDocuments),
-        }] : []),
-        { label: "Download", onSelect: () => void selectionActions.onDownload() },
-        { label: "Move…", onSelect: selectionActions.onMove },
-        {
-            label: detachesDocument ? "Remove" : "Delete",
-            onSelect: () => void selectionActions.onDelete(),
-        },
-    ] : [];
+    }, [detachesDocument, docsById, selectedDocIds]);
+    useEffect(() => onSelectionActionsChange?.(selectionActions),
+        [onSelectionActionsChange, selectionActions]);
+    useEffect(() => () => onSelectionActionsChange?.(null), [onSelectionActionsChange]);
     const pendingDeleteDoc =
         pendingDocumentRemoval && !pendingDocumentRemoval.fromSelection
             ? pendingDocumentRemoval.documents[0]
@@ -1291,63 +1276,18 @@ export function DocTable({
                 canMove={canMovePendingTo}
                 onClose={() => set("pendingMove", null)} onMove={movePending} />}
             <TableScrollArea className="document-table"
-                header={selectionActions ? (
-                    <TableHeaderRow
-                        role="group"
-                        aria-label="Selected documents"
-                        className="!min-w-0 w-full pr-2"
-                    >
-                        <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
-                            <TableSelectionCheckbox checked={selection.allSelected}
-                                aria-label="Select loaded documents"
-                                indeterminate={selection.someSelected}
-                                onChange={selection.toggleAll} />
-                            <span className="truncate text-sm font-medium text-gray-800">
-                                {selectionActions.selectedCount} selected
-                            </span>
-                        </TableStickyCell>
-                        <div className="flex h-8 shrink-0 items-center gap-1.5">
-                            {onOpenSelectionInChat && <Button variant="white"
-                                size="normal" className="h-8 w-8 px-0 py-0 sm:w-auto sm:px-3"
-                                onClick={() => onOpenSelectionInChat(selectionActions.selectedDocuments)}
-                                aria-label={openSelectionLabel}
-                            >
-                                <MessageSquarePlus className="h-3.5 w-3.5" />
-                                <span className="hidden lg:inline">{openSelectionLabel}</span>
-                            </Button>}
-                            <ContextualWorkflowLauncher
-                                documents={selectionActions.selectedDocuments}
-                                onOpen={onOpenWorkflows
-                                    ? () => onOpenWorkflows(selectionActions.selectedDocuments)
-                                    : undefined}
-                                onAssistantSelect={onAssistantWorkflowSelect
-                                    ? (selection) => onAssistantWorkflowSelect(
-                                        selection, selectionActions.selectedDocuments)
-                                    : undefined}
-                                onDocumentChanged={selectionActions.onWorkflowDocumentChanged}
-                            />
-                            <MoreActionsMenu
-                                label="More actions"
-                                items={selectionMenuItems.filter(({ label }) => label !== openSelectionLabel)}
-                                triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-950"
-                            />
-                        </div>
-                    </TableHeaderRow>
-                ) : (
-                    <TableHeaderRow className="!min-w-0 w-full pr-2">
-                        <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
-                            <TableSelectionCheckbox checked={selection.allSelected}
-                                aria-label="Select loaded documents"
-                                indeterminate={selection.someSelected}
-                                onChange={selection.toggleAll} />
-                            <span aria-hidden="true"
-                                className="mr-2 h-4 w-4 shrink-0" />
-                            <span className="mr-1">Name</span>
-                        </TableStickyCell>
-                        {DOCUMENT_METADATA_HEADERS}
-                        <TableHeaderCell className="w-8" />
-                    </TableHeaderRow>
-                )}
+                header={<TableHeaderRow className="!min-w-0 w-full pr-2">
+                    <TableStickyCell header widthClassName={DOC_NAME_COL_W}>
+                        <TableSelectionCheckbox checked={selection.allSelected}
+                            aria-label="Select loaded documents"
+                            indeterminate={selection.someSelected}
+                            onChange={selection.toggleAll} />
+                        <span aria-hidden="true" className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="mr-1">Name</span>
+                    </TableStickyCell>
+                    {DOCUMENT_METADATA_HEADERS}
+                    <TableHeaderCell className="w-8" />
+                </TableHeaderRow>}
             >
                     {loading ? PROJECT_TABLE_LOADING : (
                         <div className="flex-1 flex flex-col min-h-0">

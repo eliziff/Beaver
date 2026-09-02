@@ -111,6 +111,32 @@
 .chat-input-container {
     container-type: inline-size;
 }
+.document-directory {
+    container-type: inline-size;
+}
+.directory-action-full,
+.directory-action-shared,
+.directory-action-short {
+    display: none;
+}
+.directory-action-button {
+    padding-inline: 0;
+    width: 2rem;
+}
+@container (min-width: 44rem) {
+    .directory-action-shared,
+    .directory-action-short {
+        display: inline;
+    }
+    .directory-action-button {
+        padding-inline: 0.75rem;
+        width: auto;
+    }
+}
+@container (min-width: 62rem) {
+    .directory-action-short { display: none; }
+    .directory-action-full { display: inline; }
+}
 .authorities-workspace,
 .court-records-workspace {
     container-type: inline-size;
@@ -123,9 +149,6 @@
     }
     .builder-assistant-label { display: none; }
 }
-@container (min-width: 32rem) {
-    .builder-header { flex-wrap: nowrap; }
-}
 .tab-list {
     scrollbar-width: none;
 }
@@ -134,7 +157,6 @@
 }
 .authorities-review-list { border-bottom-width: 1px; max-height: 12rem; }
 @container (min-width: 40rem) {
-    .authorities-review { grid-template-columns: 15rem minmax(0, 1fr); }
     .authorities-review-list {
         border-bottom-width: 0;
         border-inline-end-width: 1px;

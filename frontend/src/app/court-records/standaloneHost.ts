@@ -13,15 +13,14 @@ import {
 } from "@/app/lib/standaloneWorkProducts";
 import { apiBlobRequest, apiRequest } from "@/app/lib/apiTransport";
 import { sourceFormat } from "./formats";
-import { affidavitSourceFields } from "./sourceFields";
 import type { CourtRecordDraft } from "./types";
 
 type PdfPreparation = { page_count: number; ocr_pages: number[];
   pages: Array<{ page_number: number; text: string }> };
-const preparation = import("./prepareDeviceFile");
+const preparation = () => import("./prepareDeviceFile");
 
 async function prepareStandaloneFile(file: File, progress?: PreparationProgress) {
-  const { prepareDeviceFile, prepareDocxRendition } = await preparation;
+  const { prepareDeviceFile, prepareDocxRendition } = await preparation();
   if (sourceFormat(file) !== "docx") return prepareDeviceFile(file, progress);
   progress?.(`Preparing ${file.name}`);
   const body = new FormData(); body.append("file", file);
@@ -58,6 +57,7 @@ export const standaloneCourtRecordsHost: CourtRecordsHost = {
     const prepared = await apiRequest<PdfPreparation>("/court-records/pdf-preparation", {
       method: "POST", body,
     });
+    const { affidavitSourceFields } = await import("./sourceFields");
     const text = new Map(prepared.pages.map((page) => [page.page_number, page.text]));
     const ocrTextByPage = Array.from({ length: prepared.page_count }, (_, index) =>
       pages.includes(index + 1) ? text.get(index + 1) ?? "" : entry.ocrTextByPage?.[index] ?? "");

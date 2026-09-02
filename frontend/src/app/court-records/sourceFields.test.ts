@@ -35,4 +35,12 @@ describe("affidavit source fields", () => {
     expect(affidavitSourceFields([["PLAINTIFF:", "ALPHA LTD.", "DEFENDANT:",
       "BETA LTD."].join("\n")])?.parties).toEqual({ first: "Alpha Ltd.", second: "Beta Ltd." });
   });
+
+  it("reads the generated Federal Court cover used by nested records", () => {
+    expect(affidavitSourceFields([["Court File No. T-982-19", "FEDERAL COURT", "BETWEEN:",
+      "North Prairie Ltd.", "Applicant", "and", "Riverstone Inc.", "Respondent",
+      "APPLICATION UNDER Federal Courts Act, section 18.1", "MOTION RECORD"].join("\n")]))
+      .toMatchObject({ cover: { courtFileNumber: "T-982-19" }, partyStyleId: "application",
+        parties: { first: "North Prairie Ltd.", second: "Riverstone Inc." } });
+  });
 });

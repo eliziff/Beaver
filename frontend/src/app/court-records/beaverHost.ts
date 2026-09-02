@@ -12,6 +12,7 @@ import {
   getUserProfile,
   getWorkProduct,
   getWorkProductResolution,
+  listWorkProductMetadata,
   listDocumentVersions,
   listWorkProducts,
   prepareAuthoritiesSources,
@@ -27,7 +28,7 @@ import type { ResolvedWorkProductInput, WorkProduct, WorkProductBuildReceipt,
   WorkProductInput, WorkProductResolution,
   WorkProductStore } from "@/app/lib/workProducts";
 import type { BuildArtifact, BuildReceiptSource, CourtRecordDraft, CourtRecordReceipt,
-  RecordEntry } from "./types";
+  RecordEntry, SourceDocumentFields } from "./types";
 import { draftOutputChoice } from "./host";
 import type { CourtRecordsHost, DraftOutputChoice, PreparedFile,
   PreparationProgress } from "./host";
@@ -79,6 +80,7 @@ function currentResolution(id: string, progress?: PreparationProgress) {
 }
 const drafts: WorkProductStore = {
   list: listWorkProducts,
+  listMetadata: listWorkProductMetadata,
   get: getWorkProduct,
   create: createWorkProduct,
   update: updateWorkProduct,
@@ -137,12 +139,12 @@ export const beaverCourtRecordsHost: CourtRecordsHost = {
   async searchDraftOutputs(query, formats, excludeId) {
     const projectId = excludeId ? (await getWorkProduct(excludeId)).projectId : null;
     const products = (await Promise.all([
-      listWorkProducts("authorities", projectId ?? undefined),
-      listWorkProducts("court-record", projectId ?? undefined),
+      listWorkProductMetadata("authorities", projectId ?? undefined),
+      listWorkProductMetadata("court-record", projectId ?? undefined),
     ])).flat().filter((product) => product.id !== excludeId &&
       product.projectId === projectId);
     const needle = query.trim().toLowerCase();
-    return products.flatMap((product) => Object.entries(product.outputs)
+    return products.flatMap((product) => Object.entries(product.outputs ?? {})
       .flatMap(([role, output]) => {
         const choice = draftOutputChoice(product, role, output);
         const format = sourceFormat({ name: output.filename, type: output.mimeType });
@@ -400,7 +402,8 @@ function withProjection(
     searchable: missing.length ? prepared.searchable : true,
     textlessPageCount: missing.length,
     textlessPages: missing,
-    sourceFields: affidavitSourceFields(projection.pages.map((page) => page.text)),
+    sourceFields: mergeSourceFields(prepared.sourceFields,
+      affidavitSourceFields(projection.pages.map((page) => page.text))),
     origin: {
       kind: "library",
       documentId: projection.document_id,
@@ -408,4 +411,18 @@ function withProjection(
       sourceSha256: projection.source_sha256,
     },
   };
+}
+
+function mergeSourceFields(...sources: (SourceDocumentFields | undefined)[]) {
+  const values = sources.filter((source): source is SourceDocumentFields => Boolean(source));
+  if (!values.length) return;
+  return {
+    cover: Object.assign({}, ...values.map(({ cover }) => cover)),
+    partyStyleId: values.findLast(({ partyStyleId }) => partyStyleId)?.partyStyleId,
+    parties: Object.assign({}, ...values.map(({ parties }) => parties)),
+    exhibitLabels: [...new Set(values.flatMap(({ exhibitLabels }) => exhibitLabels))],
+    explicitExhibitLabel: values.findLast(({ explicitExhibitLabel }) => explicitExhibitLabel)?.explicitExhibitLabel,
+    entryTitle: values.findLast(({ entryTitle }) => entryTitle)?.entryTitle,
+    entryDate: values.findLast(({ entryDate }) => entryDate)?.entryDate,
+  } satisfies SourceDocumentFields;
 }

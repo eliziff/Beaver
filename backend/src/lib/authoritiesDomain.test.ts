@@ -77,8 +77,24 @@ describe("authorities draft domain", () => {
     const canonical = createAuthoritiesDraft({ kind: "manual" });
     expect(decodeAuthoritiesDraft(canonical)).toEqual(canonical);
     const oldShape = structuredClone(canonical) as Partial<AuthoritiesDraft>;
-    delete oldShape.bookParts;
-    expect(decodeAuthoritiesDraft(oldShape)).toBeNull();
+    delete oldShape.settings; delete oldShape.bookParts;
+    expect(decodeAuthoritiesDraft(oldShape)).toEqual(canonical);
+
+    const stored = structuredClone({ ...canonical,
+      bindings: { pdf: { kind: "document" as const, documentId: "pdf", version: "latest" as const } },
+      authorities: { a: { ...authority("a"), source: { kind: "attached" as const,
+        bindingRole: "pdf", filename: "a.pdf", sourceSha256: "a".repeat(64),
+        sourceUrl: null } } }, authorityOrder: ["a"],
+    }) as unknown as Partial<AuthoritiesDraft> & {
+      authorities: Record<string, Record<string, unknown>>;
+    };
+    delete stored.settings; delete stored.bookParts; delete stored.authorities.a.tabLabel;
+    expect(decodeAuthoritiesDraft(stored)).toMatchObject({ authorities: { a: {
+      tabLabel: null, source: { origin: "manual" },
+    } } });
+    const incomplete = structuredClone(canonical) as Partial<AuthoritiesDraft>;
+    delete incomplete.bookParts;
+    expect(decodeAuthoritiesDraft(incomplete)).toBeNull();
 
     const malformedAuthority = structuredClone({
       ...canonical,
@@ -343,6 +359,12 @@ describe("authorities draft domain", () => {
     expect(draft.occurrences.left.reviewed).toBe(true);
     expect(draft.occurrences.right).toMatchObject({ authorityId: "b", reviewed: true,
       reference: { kind: "supra", targetAuthorityId: "b" } });
+    draft = reduceAuthoritiesDraft(draft, {
+      type: "set-reference", occurrenceId: "right", reference: null,
+    });
+    expect(draft.occurrences.right).toMatchObject({
+      kind: "reference", authorityId: null, reference: null, reviewed: true,
+    });
     expect(draft.authorities.b).toMatchObject({ displayName: "Better name",
       citation: "2024 SCC 1", name: "Example v Test",
       source: { kind: "pending-canlii", authorityKey: "b",

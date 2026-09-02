@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
 import type { AuthoritiesProduct, AuthorityIdentity } from "@/app/authorities/types";
+import type { WorkProductMetadata } from "@/app/lib/workProducts";
 import TableOfAuthoritiesPage from "./page";
 
 const api = vi.hoisted(() => ({
@@ -86,6 +87,26 @@ function add(saved: AuthoritiesProduct, ...items: AuthorityIdentity[]) {
   return saved;
 }
 const workspaceRoute = (draftId = "") => ({ draftId, replaceDraft: vi.fn() });
+function deferred<T>() {
+  let resolve!: (value: T) => void, reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+function selectRange(root: HTMLElement, start: number, end = start) {
+  const range = document.createRange(), walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode(), offset = 0, started = false;
+  while (node) {
+    const next = offset + (node.textContent?.length ?? 0);
+    if (!started && start <= next) {
+      range.setStart(node, start - offset); started = true;
+    }
+    if (started && end <= next) { range.setEnd(node, end - offset); break; }
+    offset = next; node = walker.nextNode();
+  }
+  const selection = window.getSelection()!;
+  selection.removeAllRanges(); selection.addRange(range); fireEvent.mouseUp(root);
+}
 
 describe("Authorities UI contracts", () => {
   beforeEach(() => {
@@ -102,7 +123,7 @@ describe("Authorities UI contracts", () => {
 
   it("renders the shared blank workspace without opening saved work or an iframe", async () => {
     api.listWorkProductMetadata.mockResolvedValue([
-      (({ state: _state, outputs: _outputs, ...item }) => item)(draft("other", "Other draft")),
+      (({ state: _state, ...item }) => item)(draft("other", "Other draft")),
     ]);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute()} /></MemoryRouter>);
@@ -150,7 +171,7 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    const sources = screen.getByLabelText("Source PDFs");
+    const sources = screen.getByLabelText("Source handling");
     expect(sources).toHaveValue("render");
     expect(within(sources).getAllByRole("option").map(({ textContent }) => textContent))
       .toEqual(["Automatic sources", "Add missing PDFs myself", "Rebuild all sources from text"]);
@@ -185,7 +206,7 @@ describe("Authorities UI contracts", () => {
 
   it("loads only the draft named by the route", async () => {
     api.listWorkProductMetadata.mockResolvedValue([
-      (({ state: _state, outputs: _outputs, ...item }) => item)(draft("other", "Other draft")),
+      (({ state: _state, ...item }) => item)(draft("other", "Other draft")),
     ]);
     api.getWorkProduct.mockResolvedValue(documentDraft("wanted", "Wanted draft"));
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=wanted"]}>
@@ -196,6 +217,68 @@ describe("Authorities UI contracts", () => {
     expect(api.getWorkProduct).toHaveBeenCalledTimes(1);
     expect(api.getWorkProduct).toHaveBeenCalledWith("wanted");
     expect(screen.queryByRole("heading", { name: "Other draft" })).not.toBeInTheDocument();
+  });
+
+  it("reserves the workspace height while a route draft is loading", async () => {
+    const load = deferred<AuthoritiesProduct>();
+    api.getWorkProduct.mockReturnValue(load.promise);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    expect(screen.getByRole("main")).toHaveClass("min-h-80");
+    expect(screen.getByText("Loading authorities")).toBeVisible();
+    load.resolve(draft());
+    expect(await screen.findByRole("heading", { name: "Book of Authorities" })).toBeVisible();
+  });
+
+  it("lets only the latest route load replace the workspace", async () => {
+    const loads = new Map(["a", "b", "c"].map((id) => [id, deferred<AuthoritiesProduct>()]));
+    api.getWorkProduct.mockImplementation((id: string) => loads.get(id)!.promise);
+    const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("a")} /></MemoryRouter>);
+    await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("a"));
+
+    view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("b")} /></MemoryRouter>);
+    view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("c")} /></MemoryRouter>);
+    loads.get("b")!.resolve(draft("b", "Draft B"));
+    loads.get("a")!.resolve(draft("a", "Draft A"));
+    loads.get("c")!.resolve(draft("c", "Draft C"));
+
+    expect(await screen.findByRole("heading", { name: "Draft C" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Draft A" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Draft B" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an explicitly selected global tab while a route draft is loading", async () => {
+    const load = deferred<AuthoritiesProduct>();
+    api.getWorkProduct.mockReturnValue(load.promise);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+    await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("draft-1"));
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+
+    load.resolve(documentDraft());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" }))
+      .toHaveAttribute("aria-selected", "true"));
+    expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
+  });
+
+  it("clears the previous editable draft before a new route fails", async () => {
+    const next = deferred<AuthoritiesProduct>();
+    api.getWorkProduct.mockResolvedValueOnce(documentDraft("a", "Draft A"))
+      .mockReturnValueOnce(next.promise);
+    const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("a")} /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Draft A" })).toBeVisible();
+
+    view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("missing")} /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "Draft A" })).not.toBeInTheDocument();
+    next.reject(new Error("Draft missing"));
+    expect(await screen.findByText("Draft missing")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Draft A" })).not.toBeInTheDocument();
   });
 
   it("keeps Drafts and Settings in the global Authorities context", async () => {
@@ -210,6 +293,35 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
     expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Requested draft" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the drafts surface in a loading state until metadata arrives", async () => {
+    const load = deferred<WorkProductMetadata[]>(), saved = draft("saved", "Saved book");
+    const { state: _state, ...metadata } = saved;
+    api.listWorkProductMetadata.mockReturnValue(load.promise);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute()} /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
+    expect(screen.getByText("Loading saved drafts")).toBeVisible();
+    expect(screen.queryByText("No saved drafts yet.")).not.toBeInTheDocument();
+    load.resolve([metadata]);
+    expect(await screen.findByText("Saved book")).toBeVisible();
+  });
+
+  it("labels a draft-opening operation without deriving it from the selected tab", async () => {
+    const load = deferred<AuthoritiesProduct>(), saved = draft("saved", "Saved book");
+    const { state: _state, ...metadata } = saved;
+    api.listWorkProductMetadata.mockResolvedValue([metadata]);
+    api.getWorkProduct.mockReturnValue(load.promise);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute()} /></MemoryRouter>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
+    await userEvent.click(await screen.findByText("Saved book"));
+    expect(screen.getByRole("status")).toHaveTextContent("Opening draft");
+    load.resolve(saved);
+    expect(await screen.findByRole("heading", { name: "Saved book" })).toBeVisible();
   });
 
   it("shows the optional output-folder setting without changing the shared workspace", async () => {
@@ -251,13 +363,131 @@ describe("Authorities UI contracts", () => {
     expect(context).toHaveTextContent(styled);
     expect(context.querySelector("mark")).toHaveTextContent(styled);
     expect(within(context.parentElement!).getAllByRole("button").map(({ textContent }) => textContent))
-      .toEqual(["Use selection as authority", "Use selection as pinpoint", "Split at cursor",
+      .toEqual(["Use selection as citation", "Use selection as pinpoint", "Split at cursor",
         "Merge with previous"]);
     expect(screen.queryByRole("checkbox", { name: "Reviewed" })).not.toBeInTheDocument();
   });
 
+  it("submits a DOM selection across existing marks and clears the stale selection", async () => {
+    const saved = documentDraft(), text = "See R v Example, 2024 ABKB 1 at para 12.";
+    const start = text.indexOf("R v"), pinpoint = text.indexOf("at para"), end = text.length - 1;
+    saved.state.units = [{ id: "body:1", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
+    saved.state.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "body:1",
+      start, end, text: text.slice(start, end), kind: "case", citation: "2024 ABKB 1",
+      authoritySpan: { start, end, text: text.slice(start, end) },
+      coreSpan: { start: text.indexOf("2024"), end: pinpoint - 1, text: "2024 ABKB 1" },
+      pinpointSpan: { start: pinpoint, end, text: text.slice(pinpoint, end) },
+      authorityId: "authority-1", reference: null, pinpoints: [], evidenceIds: [],
+      sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
+    add(saved, { ...authority("authority-1", "R v Example", { kind: "unresolved" }),
+      citation: "2024 ABKB 1" });
+    const changed = structuredClone(saved); changed.revision = 2;
+    changed.state.occurrences["occurrence-1"].authoritySpan =
+      { start: 0, end, text: text.slice(0, end) };
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.actOnAuthorities.mockResolvedValue(changed);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const context = await screen.findByRole("textbox", { name: "In-text citation context" });
+    expect([...context.querySelectorAll<HTMLElement>("[data-authority-span]")]
+      .map((node) => node.textContent).join("")).toBe(text.slice(start, end));
+    expect([...context.querySelectorAll<HTMLElement>("[data-pinpoint-span]")]
+      .map((node) => node.textContent).join("")).toBe(text.slice(pinpoint, end));
+    expect(context.querySelector("[data-authority-span][data-pinpoint-span]")).not.toBeNull();
+
+    selectRange(context, 0, end);
+    const useSelection = screen.getByRole("button", { name: "Use selection as citation" });
+    expect(useSelection).toBeEnabled();
+    await userEvent.click(useSelection);
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
+      type: "set-authority-span", occurrenceId: "occurrence-1", start: 0, end,
+    }));
+    await waitFor(() => expect(useSelection).toBeDisabled());
+    expect(window.getSelection()?.rangeCount).toBe(0);
+  });
+
+  it("keeps the right citation selected after splitting a later footnote span", async () => {
+    const saved = documentDraft(), text = "Alpha; Beta", split = text.indexOf("Beta");
+    const occurrence = (id: string, start: number, end: number, ordinal: number) => ({
+      id, unitId: "footnote:1", start, end, text: text.slice(start, end), kind: "other" as const,
+      citation: text.slice(start, end), authoritySpan: { start, end, text: text.slice(start, end) },
+      coreSpan: { start, end, text: text.slice(start, end) }, pinpointSpan: null,
+      authorityId: null, reference: null, pinpoints: [], evidenceIds: [],
+      sourceTextSha256: "a".repeat(64), localOrdinal: ordinal, reviewed: false,
+    });
+    saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["whole"] }];
+    saved.state.occurrences = { whole: occurrence("whole", 0, text.length, 0) };
+    const changed = structuredClone(saved); changed.revision = 2;
+    changed.state.units[0].occurrenceIds = ["left", "right"];
+    changed.state.occurrences = {
+      left: occurrence("left", 0, split, 0),
+      right: occurrence("right", split, text.length, 1),
+    };
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.actOnAuthorities.mockResolvedValue(changed);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const context = await screen.findByRole("textbox", { name: "Footnote context" });
+    selectRange(context, split);
+    await userEvent.click(screen.getByRole("button", { name: "Split at cursor" }));
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
+      type: "split-occurrence", occurrenceId: "whole", cursor: split,
+    }));
+    expect(await screen.findByRole("option", { name: /Beta/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("links a visible Ibid by keyboard and restores focus to the source row", async () => {
+    const saved = documentDraft(), text = "2024 ABKB 1; Ibid", ibidStart = text.indexOf("Ibid");
+    const span = (start: number, end: number) => ({ start, end, text: text.slice(start, end) });
+    saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["full", "ibid"] }];
+    saved.state.occurrences = {
+      full: { id: "full", unitId: "footnote:1", ...span(0, 11), kind: "case",
+        citation: "2024 ABKB 1", authoritySpan: span(0, 11), coreSpan: span(0, 11),
+        pinpointSpan: null, authorityId: "authority-1", reference: null, pinpoints: [],
+        evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false },
+      ibid: { id: "ibid", unitId: "footnote:1", ...span(ibidStart, text.length),
+        kind: "reference", citation: "Ibid", authoritySpan: span(ibidStart, text.length),
+        coreSpan: span(ibidStart, text.length), pinpointSpan: null, authorityId: null,
+        reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256: "a".repeat(64),
+        localOrdinal: 1, reviewed: false },
+    };
+    add(saved, { ...authority("authority-1", "Example v Example", { kind: "unresolved" }),
+      citation: "2024 ABKB 1" });
+    const changed = structuredClone(saved); changed.revision = 2;
+    Object.assign(changed.state.occurrences.ibid, { authorityId: "authority-1",
+      reference: { kind: "ibid" as const, targetAuthorityId: "authority-1" }, reviewed: true });
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.actOnAuthorities.mockResolvedValue(changed);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const source = await screen.findByRole("option", { name: /Ibid/ });
+    await userEvent.click(source);
+    await userEvent.click(screen.getByRole("button", { name: "Link to authority" }));
+    expect(source).toHaveFocus();
+    await userEvent.keyboard("{ArrowUp}");
+    const target = screen.getByRole("option", { name: /2024 ABKB 1/ });
+    expect(target).toHaveFocus();
+    expect(source).toHaveAttribute("aria-selected", "true");
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
+      type: "set-reference", occurrenceId: "ibid",
+      reference: { kind: "ibid", targetAuthorityId: "authority-1" },
+    }));
+    await waitFor(() => expect(source).toHaveFocus());
+    expect(source).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Choose the full citation this cross-reference points to."))
+      .not.toBeInTheDocument();
+  });
+
   it("keeps automatic source acquisition behind Build until manual intervention is requested", async () => {
-    const saved = add(documentDraft(), authority("case", "Example v Example",
+    const saved = add(documentDraft(), authority("resolved", "Fetchable decision",
+      { kind: "resolved" }), authority("missing", "Reconstructed decision",
       { kind: "unresolved" }));
     saved.state.outputMode = "book";
     api.getWorkProduct.mockResolvedValue(saved);
@@ -268,11 +498,11 @@ describe("Authorities UI contracts", () => {
     const sources = screen.getByRole("heading", { name: "Sources" }).closest("details")!;
     expect(build.compareDocumentPosition(sources) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sources).not.toHaveAttribute("open");
-    expect(screen.getByLabelText("Add PDF")).not.toBeVisible();
+    expect(within(sources).getAllByLabelText("Add PDF")[0]).not.toBeVisible();
     expect(screen.queryByText(/missing source PDF/)).not.toBeInTheDocument();
 
     await userEvent.click(within(sources).getByText("Sources"));
-    expect(screen.getByLabelText("Add PDF")).toBeVisible();
+    expect(within(sources).getAllByLabelText("Add PDF")[0]).toBeVisible();
     expect(within(sources).getByRole("button", { name: "Add authority" })).toBeVisible();
   });
 
@@ -364,6 +594,26 @@ describe("Authorities UI contracts", () => {
     expect(await screen.findByText("The book could not be built")).toBeVisible();
     expect(screen.getByText("Decision.pdf")).toBeVisible();
   });
+
+  it.each(["federal-court", "ab-court-of-kings-bench"] as const)(
+    "stops a required-source %s book before final build", async (profile) => {
+      const saved = add(draft(), authority("missing", "Missing decision", { kind: "unresolved" }));
+      saved.state.outputMode = "book";
+      saved.state.settings.profileId = profile;
+      const prepared = structuredClone(saved); prepared.revision = 2;
+      prepared.title = `${profile} prepared`;
+      api.getWorkProduct.mockResolvedValue(saved);
+      api.prepareAuthoritiesSources.mockResolvedValue(prepared);
+      api.buildAuthorities.mockResolvedValue({ product: prepared, receipt: {} });
+      render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+        route={workspaceRoute("draft-1")} /></MemoryRouter>);
+
+      await userEvent.click(await screen.findByRole("button", { name: "Build" }));
+
+      expect(await screen.findByText("Attach a source PDF for Missing decision before building.")).toBeVisible();
+      expect(screen.getByRole("heading", { name: `${profile} prepared` })).toBeVisible();
+      expect(api.buildAuthorities).not.toHaveBeenCalled();
+    });
 
   it("replaces an imported source without starting a new draft", async () => {
     const saved = documentDraft(), replaced = { ...saved, revision: 2 };
@@ -549,7 +799,7 @@ describe("Authorities UI contracts", () => {
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByLabelText("Filing")).toHaveValue("electronic");
-    expect(screen.queryByText(/source PDF is required/)).not.toBeInTheDocument();
+    expect(screen.queryByText("1 source PDF is required before building.")).not.toBeInTheDocument();
     const filedBy = screen.getByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
       .toEqual(["Applicant", "Respondent", "Joint"]);
@@ -561,13 +811,14 @@ describe("Authorities UI contracts", () => {
   });
 
   it("does not offer placeholder pages when the Alberta court preset fixes source handling", async () => {
-    const saved = draft();
+    const saved = add(draft(), authority("missing", "Missing decision", { kind: "unresolved" }));
     saved.state.settings.profileId = "ab-court-of-kings-bench";
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await screen.findByLabelText("Court");
+    expect(screen.queryByText("1 source PDF is required before building.")).not.toBeInTheDocument();
     await userEvent.click(screen.getByText("Options"));
     expect(screen.queryByLabelText("Missing sources")).not.toBeInTheDocument();
   });
@@ -617,5 +868,20 @@ describe("Authorities UI contracts", () => {
       kind: "authorities", id: "draft-1", revision: 3,
     }));
     expect(dock).toBeVisible();
+  });
+
+  it("unbinds the Assistant when switching to a global Authorities surface", async () => {
+    api.getWorkProduct.mockResolvedValue(documentDraft());
+    render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
+      <TableOfAuthoritiesPage />
+    </MemoryRouter>);
+
+    const assistantButton = await screen.findByRole("button", { name: "Assistant" });
+    await userEvent.click(assistantButton);
+    expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
+
+    expect(screen.queryByRole("complementary", { name: "Assistant dock" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assistant" })).toBeDisabled();
   });
 });

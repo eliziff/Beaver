@@ -58,7 +58,8 @@ export type WorkProduct<State = unknown> = {
 };
 export type WorkProductContext = Pick<WorkProduct,
   "id" | "kind" | "revision" | "projectId">;
-export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs">;
+export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs"> &
+  { outputs?: WorkProduct["outputs"] };
 
 export type WorkProductCreate<State> = Pick<WorkProduct<State>, "kind" | "title" | "state"> & {
   projectId?: string | null;

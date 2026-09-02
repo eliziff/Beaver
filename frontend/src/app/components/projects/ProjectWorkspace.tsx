@@ -276,7 +276,7 @@ export function ProjectSectionTabs({ actions, children }: {
       ariaLabel="Project sections"
       variant="underline"
       actions={actions}
-      className="min-h-0 flex-1 [&>[data-tabs-rail]]:mx-4 [&>[data-tabs-rail]]:gap-2 [&>[role=tabpanel]]:pt-2 md:[&>[data-tabs-rail]]:mx-6"
+      className="document-directory min-h-0 flex-1 [&>[data-tabs-rail]]:mx-4 [&>[data-tabs-rail]]:gap-2 [&>[role=tabpanel]]:pt-2 md:[&>[data-tabs-rail]]:mx-6"
     >
       {children}
     </Tabs>

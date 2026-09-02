@@ -59,7 +59,7 @@ afterEach(async () => {
 }, 30_000);
 
 describe("account-free workflow catalogue", () => {
-  it("lists 12 canonical workflows while preserving every existing recipe as a variant", async () => {
+  it("lists 12 canonical workflows while preserving each concrete recipe as a variant", async () => {
     const api = await loadApi();
     const [all, general, solicitor, litigator, search] = await Promise.all([
       request(api).get("/workflows?audience=all"),
@@ -75,13 +75,25 @@ describe("account-free workflow catalogue", () => {
     expect(solicitor.body).toHaveLength(8);
     expect(litigator.body).toHaveLength(8);
     expect(search.body.map(({ id }: { id: string }) => id)).toEqual(["agreement-work"]);
-    expect(all.body.flatMap(({ launcher }: { launcher: { variants?: object[] } }) =>
-      launcher.variants ?? []).every((variant: object) => !("skill_md" in variant))).toBe(true);
+    const variants = all.body.flatMap(({ launcher }: {
+      launcher: { variants?: { id: string; result: string; description: string }[] };
+    }) => launcher.variants ?? []);
+    expect(variants.every((variant: object) => !("skill_md" in variant))).toBe(true);
+    expect(variants.every(({ result, description }: { result: string; description: string }) => {
+      const detail = description.trim();
+      return detail.split(/\s+/u).length >= 12 && detail.length > result.trim().length;
+    })).toBe(true);
+    const publicDescriptions = all.body.flatMap(({ metadata, launcher }: {
+      metadata: { description: string }; launcher: { variants?: { description: string }[] };
+    }) => [metadata.description, ...(launcher.variants ?? []).map(({ description }) => description)]);
+    expect(publicDescriptions.some((description: string) =>
+      /table-columns\.yaml|If the user has not provided|read_document|library_read|requires_review|\{\{|## Instructions|exactly these columns|Before finalizing/iu
+        .test(description))).toBe(false);
+    expect(JSON.stringify(all.body)).not.toMatch(/[âÃÂ]/u);
+    expect(JSON.stringify((await import("../../lib/systemWorkflows")).SYSTEM_WORKFLOWS))
+      .not.toMatch(/[âÃÂ]/u);
     expect(all.body.some(({ launcher }: { launcher: { variants?: { columns_config?: unknown[] }[] } }) =>
       launcher.variants?.some(({ columns_config }) => columns_config?.length))).toBe(true);
-    const variants = all.body.flatMap(({ launcher }: {
-      launcher: { kind: string; variants?: { id: string; result: string | null }[] };
-    }) => launcher.variants ?? []);
     const variantIds = variants.map(({ id }: { id: string }) => id);
     expect(variantIds).toEqual(expect.arrayContaining(preservedRecipeIds));
     expect(new Set(variantIds).size).toBe(variantIds.length);
@@ -93,6 +105,11 @@ describe("account-free workflow catalogue", () => {
       ]));
     expect(all.body.find(({ id }: { id: string }) => id === "document-review").launcher.variants
       .map(({ id }: { id: string }) => id)).toContain("builtin-compare-documents");
+    expect(all.body.find(({ id }: { id: string }) => id === "document-review").launcher.variants
+      .map(({ id }: { id: string }) => id)).not.toContain("builtin-draft-issues-list");
+    expect(all.body.find(({ id }: { id: string }) => id === "agreement-work").launcher.variants
+      .map(({ id }: { id: string }) => id)).toContain("builtin-draft-issues-list");
+    expect(variantIds).not.toContain("builtin-agreement-work-general");
     expect(all.body.find(({ id }: { id: string }) => id === "authorities").launcher)
       .toEqual({ kind: "authorities" });
     expect(all.body.find(({ id }: { id: string }) => id === "court-records").launcher)
