@@ -88,6 +88,7 @@ async function refreshImported(state: AuthoritiesDraft, file: File, replace = fa
 const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-";
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
+  mode: "standalone",
   drafts: standaloneWorkProducts,
   async create({ source, title, settings }) {
     if (source.kind === "document") {

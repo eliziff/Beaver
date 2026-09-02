@@ -12,6 +12,7 @@ import {
   DocTable,
   type DocTableFolder,
 } from "./DocTable";
+import { DirectoryActions, type DocumentSelectionActions } from "./UploadAction";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "local-user" } }),
@@ -41,12 +42,13 @@ const secondDocument: Document = {
 };
 
 function chooseAction(label: string) {
-  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "More actions" })
+    .find((button) => !button.hasAttribute("disabled"))!);
   fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
 
 function chooseSelectedAction(label: string) {
-  const header = screen.getByRole("group", { name: "Selected documents" });
+  const header = screen.getByRole("group", { name: "Document actions" });
   fireEvent.click(within(header).getByRole("button", { name: "More actions" }));
   fireEvent.click(screen.getByRole("menuitem", { name: label }));
 }
@@ -69,7 +71,9 @@ function Harness({
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [folders, setFolders] =
     useState<DocTableFolder[]>(initialFolders);
+  const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
   return (
+    <><DirectoryActions actions={null} onCreateFolder={null} selection={selection} />
     <DocTable
       scopeKey="matter-1"
       documents={documents}
@@ -96,8 +100,9 @@ function Harness({
         renameDocument: vi.fn(),
       }}
       onOwnerOnlyAction={onOwnerOnlyAction}
+      onSelectionActionsChange={setSelection}
       documentRemovalMode={documentRemovalMode}
-    />
+    /></>
   );
 }
 
@@ -184,7 +189,6 @@ describe("DocTable document removal", () => {
 
     selectDocument(document.filename);
     selectDocument(secondDocument.filename);
-    expect(screen.getByText("2 selected")).toBeInTheDocument();
     chooseSelectedAction("Remove");
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
@@ -247,7 +251,8 @@ describe("DocTable document removal", () => {
     expect(screen.getByText("Brief.pdf")).toBeInTheDocument();
     expect(screen.queryByText("Research")).not.toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: "More actions" }),
+      screen.getAllByRole("button", { name: "More actions" })
+        .filter((button) => !button.hasAttribute("disabled")),
     ).toHaveLength(2);
   });
 

@@ -148,6 +148,7 @@ export function AddDocumentsModal({
   return (
     <Modal
       open={open}
+      size="2xl"
       onClose={onClose}
       keepMounted={keepMounted}
       breadcrumbs={breadcrumb}

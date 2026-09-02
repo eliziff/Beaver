@@ -230,7 +230,7 @@ export function filingParty(profile: CourtProfile, cover: CoverValues) {
       .map((party) => ({ party, group })));
   const selected = entered.find(({ party }) => party.id === cover.filingPartyId);
   if (selected) return selected;
-  return entered[0];
+  return entered.length === 1 ? entered[0] : undefined;
 }
 
 export function contactGroups(profile: CourtProfile, cover: CoverValues) {

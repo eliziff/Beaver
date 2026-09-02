@@ -180,7 +180,7 @@ const affidavitFields: CoverField[] = [
   field("registry", "Registry"),
   field("affidavitNumber", "Affidavit number"),
   field("deponent", "Deponent", true),
-  field("swornDate", "Date sworn or affirmed", true, "August 29, 2026"),
+  field("swornDate", "Date sworn or affirmed", true),
   field("swornPlace", "Place sworn or affirmed"),
 ];
 const generalAffidavitFields = affidavitFields.map((item) => ({

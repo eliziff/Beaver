@@ -10,6 +10,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     createAuthorities: vi.fn(),
+    createWorkProduct: vi.fn(),
     createTabularReview: vi.fn(),
     fixSupras: vi.fn(),
     inspect: vi.fn(),
@@ -19,12 +20,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("react-router-dom", () => ({ useNavigate: () => mocks.navigate }));
 vi.mock("@/app/lib/beaverApi", () => ({
     createAuthorities: mocks.createAuthorities,
+    createWorkProduct: mocks.createWorkProduct,
     createTabularReview: mocks.createTabularReview,
     fixLibraryDocxSupras: mocks.fixSupras,
     inspectDocxWorkflowCapabilities: mocks.inspect,
 }));
 vi.mock("./WorkflowPickerModal", () => ({
-    useWorkflowPickerState: () => ({ workflows: [drafting, authorities], search: "",
+    useWorkflowPickerState: () => ({ workflows: [drafting, authorities, courtRecords], search: "",
         setSearch: vi.fn(), audience: "general", setAudience: vi.fn(), loading: false,
         loadError: false, retryLoad: vi.fn() }),
 }));
@@ -66,6 +68,9 @@ const drafting: Workflow = {
 const authorities: Workflow = { ...drafting, id: "authorities",
     metadata: { ...drafting.metadata, title: "Authorities" },
     launcher: { kind: "authorities" } };
+const courtRecords: Workflow = { ...drafting, id: "court-records",
+    metadata: { ...drafting.metadata, title: "Court Records" },
+    launcher: { kind: "court_records" } };
 const document = (id: string, filename = `${id}.docx`): WorkflowDocument => ({
     id, filename, file_type: filename.split(".").pop(), project_id: "project-1",
 });
@@ -91,6 +96,35 @@ it("binds a sole source to the latest Authorities draft", async () => {
     expect(mocks.navigate).toHaveBeenCalledWith("/table-of-authorities?draft=authorities-1");
 });
 
+it("persists selected files in a new Court Records draft before navigation", async () => {
+    mocks.createWorkProduct.mockResolvedValue({ id: "record-1" });
+    render(<ContextualWorkflowPicker documents={[document("notice"), document("affidavit", "affidavit.pdf")]}
+        onAssistantSelect={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open Court Records" }));
+
+    expect(mocks.createWorkProduct).toHaveBeenCalledWith({
+        kind: "court-record",
+        title: "Untitled court record",
+        projectId: "project-1",
+        state: {
+            profileId: "",
+            cover: {},
+            entries: [
+                { id: "notice", kindId: "unassigned", title: "notice",
+                    lastSeen: { name: "notice.docx", size: 0, modified: 0 } },
+                { id: "affidavit", kindId: "unassigned", title: "affidavit",
+                    lastSeen: { name: "affidavit.pdf", size: 0, modified: 0 } },
+            ],
+            bindings: {
+                notice: { kind: "document", documentId: "notice", version: "latest" },
+                affidavit: { kind: "document", documentId: "affidavit", version: "latest" },
+            },
+        },
+    });
+    expect(mocks.navigate).toHaveBeenCalledWith("/court-records?draft=record-1");
+});
+
 it("uses every selected document for tables and assistant work", async () => {
     const documents = [document("one"), document("two")];
     const onAssistantSelect = vi.fn();
@@ -105,7 +139,7 @@ it("uses every selected document for tables and assistant work", async () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Create issues table" }));
     expect(mocks.createTabularReview).toHaveBeenCalledWith({
-        title: "Drafting", document_ids: ["one", "two"],
+        title: "Create issues table", document_ids: ["one", "two"],
         columns_config: [{ name: "Issue", type: "text" }],
         workflow_id: "drafting", project_id: "project-1",
     });

@@ -107,42 +107,6 @@ function a2ajDocumentFromRow(
 }
 
 /**
- * Rowid fetch for samplers that already hold document ids. `document.id` is
- * the primary key, so this is an index lookup where
- * `fetchLocalA2AJDocument` must resolve the citation key first.
- */
-export function fetchLocalA2AJDocumentById(args: {
-  id: number;
-  docType?: DocType;
-  language?: Language;
-  maxChars?: number;
-}): A2AJDocument | null {
-  if (!Number.isSafeInteger(args.id) || args.id < 1) return null;
-  return withDatabase((database) => {
-    const row = database
-      .prepare(
-        `SELECT document.*
-         FROM document
-         WHERE document.id = ? AND document.doc_type = ?`,
-      )
-      .get(args.id, args.docType ?? "cases") as Row | undefined;
-    const result = row
-      ? a2ajDocumentFromRow(row, args.language === "fr" ? "fr" : "en")
-      : null;
-    if (!result) return null;
-    const maxChars = boundedSize(
-      args.maxChars,
-      50_000,
-      Number.MAX_SAFE_INTEGER,
-    );
-    if (result.text.length > maxChars) {
-      result.text = result.text.slice(0, maxChars);
-    }
-    return result;
-  });
-}
-
-/**
  * Batched rowid fetch for samplers that already hold document ids. Keeps one
  * connection for the whole set; per-call fetches open and close the bulk
  * database each time.

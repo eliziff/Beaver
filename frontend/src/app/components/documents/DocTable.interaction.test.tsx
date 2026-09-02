@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler } from "react";
+import { Profiler, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/components/shared/types";
 import {
     DocTable,
     type DocTableFolder,
 } from "./DocTable";
+import { DirectoryActions, type DocumentSelectionActions } from "./UploadAction";
 import { CHAT_DOCUMENT_DRAG_TYPE } from "./documentTree";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -46,11 +47,13 @@ const wordDocument: Document = {
     storage_path: "submissions.docx",
     pdf_storage_path: null,
 };
+const DEFAULT_DOCUMENTS = [document];
+const NO_FOLDERS: DocTableFolder[] = [];
 
 function Harness({
     selectionFirst = true,
-    initialDocuments = [document],
-    initialFolders = [],
+    initialDocuments = DEFAULT_DOCUMENTS,
+    initialFolders = NO_FOLDERS,
     onCreateFolderActionChange,
     uploadDocument = async () => document,
     uploadDocuments = (files) => Promise.all(files.map((file) => uploadDocument(file))),
@@ -83,35 +86,40 @@ function Harness({
     onOpenWorkflows?: (documents: Document[]) => void;
     search?: string;
 }) {
+    const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
+    const operations = useRef({
+        list: async ({ parent_id }: { parent_id?: string | null }) => ({
+            items: initialFolders
+                .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
+                .map((folder) => ({ kind: "folder" as const, folder })),
+            next_cursor: null,
+        }),
+        uploadDocument,
+        uploadDocuments,
+        refreshCollection: async () => { await refreshCollection(); },
+        refreshDocumentParseStates: vi.fn(),
+        createFolder: vi.fn(),
+        renameFolder: vi.fn(),
+        deleteFolder: vi.fn(),
+        moveFolder,
+        moveDocument,
+        renameDocument,
+    }).current;
     return (
+        <><DirectoryActions actions={null} onCreateFolder={null} selection={selection}
+            onOpenWorkflows={onOpenWorkflows} />
         <DocTable
             scopeKey="library"
             documents={initialDocuments}
             folders={initialFolders}
             loading={false}
             search={search}
-            operations={{
-                list: async ({ parent_id }) => ({
-                    items: initialFolders
-                        .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
-                        .map((folder) => ({ kind: "folder" as const, folder })),
-                    next_cursor: null,
-                }),
-                uploadDocument,
-                uploadDocuments,
-                refreshCollection: async () => { await refreshCollection(); },
-                refreshDocumentParseStates: vi.fn(),
-                createFolder: vi.fn(),
-                renameFolder: vi.fn(),
-                deleteFolder: vi.fn(),
-                moveFolder,
-                moveDocument,
-                renameDocument,
-            }}
+            operations={operations}
             selectionFirst={selectionFirst}
             onCreateFolderActionChange={onCreateFolderActionChange}
+            onSelectionActionsChange={setSelection}
             onOpenWorkflows={onOpenWorkflows}
-        />
+        /></>
     );
 }
 
@@ -164,7 +172,7 @@ describe("DocTable Library interactions", () => {
         render(<Harness />);
         const renders = sidePanelRender.mock.calls.length;
         expect(renders).toBe(1);
-        fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
         fireEvent.click(screen.getByRole("menuitem", {
             name: "Upload new version",
         }));
@@ -356,7 +364,7 @@ describe("DocTable Library interactions", () => {
             initialFolders={[target]} moveDocument={moveDocument} />);
         fireEvent.click(within(rowFor(document.filename)).getByRole("checkbox"));
         fireEvent.click(within(rowFor(wordDocument.filename)).getByRole("checkbox"));
-        const header = screen.getByRole("group", { name: "Selected documents" });
+        const header = screen.getByRole("group", { name: "Document actions" });
         fireEvent.click(within(header).getByRole("button", { name: "More actions" }));
         fireEvent.click(screen.getByRole("menuitem", { name: "Move…" }));
         fireEvent.click(await screen.findByRole("button", { name: "Open Filed" }));
@@ -470,16 +478,15 @@ describe("DocTable Library interactions", () => {
         );
     });
 
-    it("puts contextual workflows in the selection header", async () => {
+    it("keeps table headings and selection actions in stable places", async () => {
         render(
             <Harness
                 initialDocuments={[document, wordDocument]}
             />,
         );
 
-        expect(
-            screen.queryByRole("button", { name: "Workflows" }),
-        ).toBeNull();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeDisabled();
+        expect(screen.getByText("Name")).toBeVisible();
         expect(
             within(rowFor("Brief.pdf")).queryByRole("button", {
                 name: "Workflows",
@@ -492,31 +499,29 @@ describe("DocTable Library interactions", () => {
         ).toBeNull();
 
         fireEvent.click(rowFor("Submissions.docx"));
-        expect(screen.getByText("1 selected")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
+        await waitFor(() => expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled());
+        expect(screen.getByText("Name")).toBeVisible();
 
         fireEvent.click(
             within(rowFor("Brief.pdf")).getByRole("checkbox"),
         );
-        expect(screen.getByText("2 selected")).toBeInTheDocument();
         expect(screen.getAllByRole("button", { name: "Workflows" })).toHaveLength(1);
 
         fireEvent.click(rowFor("Submissions.docx"));
-        expect(screen.getByText("1 selected")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
 
         fireEvent.click(rowFor("Brief.pdf"));
-        expect(screen.getByText("1 selected")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Workflows" })).toBeVisible();
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled();
     });
 
-    it("hands the full selection to an existing workflow dock", () => {
+    it("hands the full selection to an existing workflow dock", async () => {
         const onOpenWorkflows = vi.fn();
         render(<Harness initialDocuments={[document, wordDocument]}
             onOpenWorkflows={onOpenWorkflows} />);
         fireEvent.click(rowFor("Brief.pdf"));
         fireEvent.click(within(rowFor("Submissions.docx")).getByRole("checkbox"));
 
+        await waitFor(() => expect(screen.getByRole("button", { name: "Workflows" })).toBeEnabled());
         fireEvent.click(screen.getByRole("button", { name: "Workflows" }));
 
         expect(onOpenWorkflows).toHaveBeenCalledWith([document, wordDocument]);

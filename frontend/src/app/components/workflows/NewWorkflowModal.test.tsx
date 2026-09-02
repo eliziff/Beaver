@@ -23,6 +23,9 @@ it("creates a usable written workflow from visible instructions", async () => {
     fireEvent.change(screen.getByLabelText("Workflow name"), {
         target: { value: "Matter summary" },
     });
+    fireEvent.change(screen.getByLabelText("What it produces"), {
+        target: { value: "A concise matter summary" },
+    });
     fireEvent.change(screen.getByLabelText("Instructions"), {
         target: { value: "Summarize the selected documents for counsel." },
     });
@@ -36,6 +39,7 @@ it("creates a usable written workflow from visible instructions", async () => {
             launcher: { kind: "instructions", variants: [
             expect.objectContaining({
                 execution: "assistant",
+                result: "A concise matter summary",
                 skill_md: "Summarize the selected documents for counsel.",
             }),
         ] } }),
@@ -48,13 +52,16 @@ it("creates a table workflow without assistant instructions", async () => {
     render(<NewWorkflowModal open onClose={vi.fn()} onCreated={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "Issues" } });
+    fireEvent.change(screen.getByLabelText("What it produces"), {
+        target: { value: "An issues table" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Table" }));
     expect(screen.queryByLabelText("Instructions")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
 
     await waitFor(() => expect(createWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({ launcher: { kind: "instructions", variants: [
-            expect.objectContaining({ execution: "tabular", skill_md: null,
+            expect.objectContaining({ execution: "tabular", result: "An issues table", skill_md: null,
                 columns_config: [] }),
         ] } }),
     ));

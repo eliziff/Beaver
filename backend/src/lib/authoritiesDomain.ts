@@ -223,7 +223,8 @@ export type AuthoritiesAction =
   | { type: "merge-occurrences"; occurrenceIds: [string, string];
       replacement: AuthorityOccurrence }
   | { type: "replace-occurrence"; occurrenceId: string;
-      replacement: AuthorityOccurrence }
+      replacement: AuthorityOccurrence;
+      absorbed?: { ids: string[]; start: number; end: number } }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
@@ -407,6 +408,16 @@ const authority = (value: unknown) => {
     (item.sourceIdentity === null || sourceIdentity(item.sourceIdentity)) &&
     typeof item.excluded === "boolean" && sourceDecision(item.source);
 };
+function deriveStoredAuthority(value: unknown) {
+  const item = object(value);
+  if (!item || Object.hasOwn(item, "tabLabel") || !exactKeys(item,
+    ["id", "key", "kind", "citation", "name", "displayName", "evidenceIds", "locators",
+      "sourceIdentity", "excluded", "source"])) return value;
+  const source = object(item.source);
+  return { ...item, tabLabel: null, source: source?.kind === "attached" &&
+    exactKeys(source, ["kind", "bindingRole", "filename", "sourceSha256", "sourceUrl"])
+    ? { ...source, origin: "manual" } : item.source };
+}
 const reviewUnit = (value: unknown) => {
   const item = closed(value, ["id", "kind", "ordinal", "footnoteId", "footnoteRefs",
     "pageNumbers", "text", "occurrenceIds"]);
@@ -433,6 +444,29 @@ const occurrence = (value: unknown) => {
     strings(item.evidenceIds) && text(item.sourceTextSha256) && integer(item.localOrdinal) &&
     typeof item.reviewed === "boolean";
 };
+
+function deriveStoredOccurrenceSpans(value: unknown, unitText: string | undefined) {
+  const item = object(value);
+  if (!item || !unitText || Object.hasOwn(item, "authoritySpan") ||
+      !exactKeys(item, ["id", "unitId", "start", "end", "text", "kind", "citation",
+        "authorityId", "reference", "pinpoints", "evidenceIds", "sourceTextSha256",
+        "localOrdinal", "reviewed"]) || !integer(item.start) || !integer(item.end) ||
+      typeof item.citation !== "string" || !Array.isArray(item.pinpoints)) return value;
+  const start = Number(item.start), end = Number(item.end), source = unitText.slice(start, end);
+  if (source !== item.text) return value;
+  const coreAt = source.indexOf(item.citation), coreStart = coreAt < 0 ? start : start + coreAt,
+    coreEnd = coreAt < 0 ? end : coreStart + item.citation.length;
+  const pinpointText = [...item.pinpoints].reverse().map((pin) => object(pin)?.text)
+    .find((pin): pin is string => typeof pin === "string" && source.lastIndexOf(pin) >= 0);
+  const pinpointAt = pinpointText ? source.lastIndexOf(pinpointText) : -1,
+    pinpointStart = pinpointAt < 0 ? null : start + pinpointAt;
+  const authorityEnd = pinpointStart !== null && pinpointStart >= coreEnd ? pinpointStart : end;
+  return { ...item,
+    authoritySpan: { start, end: authorityEnd, text: unitText.slice(start, authorityEnd) },
+    coreSpan: { start: coreStart, end: coreEnd, text: unitText.slice(coreStart, coreEnd) },
+    pinpointSpan: pinpointStart === null ? null : { start: pinpointStart, end,
+      text: unitText.slice(pinpointStart, end) } };
+}
 const ledgerUnit = (value: unknown) => {
   const item = closed(value, ["id", "kind", "ordinal", "footnoteId", "footnoteRefs",
     "pageNumbers", "text", "sourceTextSha256"]);
@@ -458,20 +492,41 @@ const ledger = (value: unknown) => {
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
 export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null {
   try {
-    const draft = closed(value, ["schemaVersion", "import", "bindings", "outputMode",
+    const keys = ["schemaVersion", "import", "bindings", "outputMode",
       "settings", "bookParts", "insertIntoDocument", "ledger", "units", "occurrences",
-      "authorities", "authorityOrder"]);
-    const occurrences = object(draft?.occurrences), authorities = object(draft?.authorities);
-    if (!draft || draft.schemaVersion !== "beaver.authorities-draft.v1" ||
-        !importedDocument(draft.import) || !decodeWorkProductBindings(draft.bindings) ||
-        !oneOf(draft.outputMode, ["table", "book", "both"]) ||
-        !buildSettings(draft.settings) || !bookParts(draft.bookParts) ||
-        typeof draft.insertIntoDocument !== "boolean" ||
-        !(draft.ledger === null || ledger(draft.ledger)) || !list(draft.units, reviewUnit) ||
+      "authorities", "authorityOrder"];
+    const candidate = object(value), earlier = keys.filter((key) =>
+      key !== "settings" && key !== "bookParts");
+    const stored = closed(candidate && exactKeys(candidate, earlier) ? { ...candidate,
+      settings: { profileId: "general",
+        ...structuredClone(AUTHORITIES_PROFILES.general.defaults.settings) },
+      bookParts: { cover: null, index: null, supplements: [] },
+    } : value, keys);
+    const unitText = new Map(Array.isArray(stored?.units) ? stored.units.flatMap((unit) => {
+      const item = object(unit);
+      return typeof item?.id === "string" && typeof item.text === "string"
+        ? [[item.id, item.text] as const] : [];
+    }) : []);
+    const storedOccurrences = object(stored?.occurrences);
+    const draft = stored && storedOccurrences ? { ...stored,
+      occurrences: Object.fromEntries(Object.entries(storedOccurrences).map(([id, item]) =>
+        [id, deriveStoredOccurrenceSpans(item, unitText.get(String(object(item)?.unitId))) ])) }
+      : stored;
+    const occurrences = object(draft?.occurrences), storedAuthorities = object(draft?.authorities),
+      authorities = storedAuthorities && Object.fromEntries(Object.entries(storedAuthorities)
+        .map(([id, item]) => [id, deriveStoredAuthority(item)]));
+    const normalized = draft && authorities ? { ...draft, authorities } : draft;
+    if (!normalized || normalized.schemaVersion !== "beaver.authorities-draft.v1" ||
+        !importedDocument(normalized.import) || !decodeWorkProductBindings(normalized.bindings) ||
+        !oneOf(normalized.outputMode, ["table", "book", "both"]) ||
+        !buildSettings(normalized.settings) || !bookParts(normalized.bookParts) ||
+        typeof normalized.insertIntoDocument !== "boolean" ||
+        !(normalized.ledger === null || ledger(normalized.ledger)) ||
+        !list(normalized.units, reviewUnit) ||
         !occurrences || !Object.values(occurrences).every(occurrence) || !authorities ||
-        !Object.values(authorities).every(authority) || !list(draft.authorityOrder,
+        !Object.values(authorities).every(authority) || !list(normalized.authorityOrder,
           (id) => nonempty(id, 200))) return null;
-    const result = draft as unknown as AuthoritiesDraft;
+    const result = normalized as unknown as AuthoritiesDraft;
     return validateAuthoritiesDraft(result).length ? null : result;
   } catch { return null; }
 }
@@ -614,6 +669,7 @@ function replaceOccurrences(
   draft: AuthoritiesDraft,
   ids: string[],
   replacements: AuthorityOccurrence[],
+  allowExpansion = false,
 ) {
   const first = requireRecord(draft.occurrences, ids[0], "occurrence");
   const unit = draft.units.find(({ id }) => id === first.unitId);
@@ -627,7 +683,8 @@ function replaceOccurrences(
   }
   const min = Math.min(...ids.map((id) => draft.occurrences[id].start));
   const max = Math.max(...ids.map((id) => draft.occurrences[id].end));
-  if (replacements.some((item) => item.unitId !== unit.id || item.start < min || item.end > max)) {
+  if (replacements.some((item) => item.unitId !== unit.id || !allowExpansion &&
+      (item.start < min || item.end > max))) {
     throw new AuthoritiesDomainError("Replacement occurrences must stay inside the original span.");
   }
   for (const id of ids) delete draft.occurrences[id];
@@ -651,6 +708,20 @@ function replaceSource(
   const oldRole = authority.source.kind === "attached" ? authority.source.bindingRole : undefined;
   authority.source = source;
   removeUnusedBinding(draft, oldRole);
+}
+
+function resolvedNameSpan(value: string, name: string) {
+  const tokens = (text: string) => [...text.matchAll(/[\p{L}\p{M}\p{N}_’'-]+\.?/gu)].map((match) => ({
+    value: match[0].normalize("NFKD").toLowerCase().replace(/\.$/u, ""),
+    start: match.index, end: match.index + match[0].length,
+  }));
+  const source = tokens(value), wanted = tokens(name).map(({ value: token }) => token);
+  for (let index = 0; wanted.length && index <= source.length - wanted.length; index += 1) {
+    if (wanted.every((token, offset) => source[index + offset].value === token)) {
+      return { start: source[index].start, end: source[index + wanted.length - 1].end };
+    }
+  }
+  return null;
 }
 
 function resolveAuthority(
@@ -685,12 +756,25 @@ function resolveAuthority(
   survivor.source = attached ? structuredClone(attached) : { kind: "resolved" };
   for (const id of aliasIds) if (id !== survivor.id) delete draft.authorities[id];
   draft.authorityOrder = draft.authorityOrder.filter((id) => id === survivor.id || !aliasIds.has(id));
+  const units = new Map(draft.units.map((unit) => [unit.id, unit]));
   for (const occurrence of Object.values(draft.occurrences)) {
     if (occurrence.authorityId && aliasIds.has(occurrence.authorityId)) {
       occurrence.authorityId = survivor.id;
     }
     if (occurrence.reference && aliasIds.has(occurrence.reference.targetAuthorityId)) {
       occurrence.reference.targetAuthorityId = survivor.id;
+    }
+    if (action.name && occurrence.kind === "case" && occurrence.authorityId === survivor.id) {
+      const unit = units.get(occurrence.unitId);
+      const local = unit?.text.slice(occurrence.start, occurrence.authoritySpan.end) ?? "";
+      const span = resolvedNameSpan(local, action.name);
+      const start = occurrence.start + (span?.start ?? 0);
+      if (unit && span && start < occurrence.authoritySpan.start) {
+        occurrence.authoritySpan = { start, end: occurrence.authoritySpan.end,
+          text: unit.text.slice(start, occurrence.authoritySpan.end) };
+        occurrence.start = Math.min(occurrence.start, start);
+        occurrence.text = unit.text.slice(occurrence.start, occurrence.end);
+      }
     }
   }
   for (const role of roles) removeUnusedBinding(draft, role);
@@ -886,7 +970,23 @@ export function reduceAuthoritiesDraft(
           action.replacement.unitId !== current.unitId) {
         throw new AuthoritiesDomainError("Occurrence correction must retain its identity and unit.");
       }
-      draft.occurrences[action.occurrenceId] = structuredClone(action.replacement);
+      const absorbed = [...new Set(action.absorbed?.ids ?? [])]
+        .filter((id) => id !== current.id);
+      if (absorbed.length) {
+        const span = action.absorbed!;
+        if (span.start < action.replacement.start || span.end > action.replacement.end ||
+            span.end <= span.start) throw new AuthoritiesDomainError(
+          "The absorbed review span must stay inside the corrected citation.");
+        if (absorbed.some((id) => {
+          const item = requireRecord(draft.occurrences, id, "occurrence");
+          return item.start < span.start || item.end > span.end;
+        })) throw new AuthoritiesDomainError(
+          "A corrected citation can absorb only review items inside the selected span.");
+        const unit = draft.units.find(({ id }) => id === current.unitId)!;
+        const ids = [current.id, ...absorbed].sort((left, right) =>
+          unit.occurrenceIds.indexOf(left) - unit.occurrenceIds.indexOf(right));
+        replaceOccurrences(draft, ids, [action.replacement], true);
+      } else draft.occurrences[action.occurrenceId] = structuredClone(action.replacement);
       break;
     }
     case "relink-occurrence": {
@@ -906,9 +1006,8 @@ export function reduceAuthoritiesDraft(
       if (action.reference) requireRecord(draft.authorities,
         action.reference.targetAuthorityId, "authority");
       occurrence.reference = structuredClone(action.reference);
-      occurrence.authorityId = action.reference?.targetAuthorityId ?? occurrence.authorityId;
-      occurrence.kind = action.reference ? "reference"
-        : occurrence.authorityId ? draft.authorities[occurrence.authorityId].kind : "other";
+      occurrence.authorityId = action.reference?.targetAuthorityId ?? null;
+      occurrence.kind = "reference";
       occurrence.reviewed = true;
       break;
     }

@@ -1,9 +1,9 @@
 import { BookOpen, ChevronRight, Download, FilePlus2, FolderSearch, GripVertical,
   History, Link2, Loader2, Plus, Scale, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
-import { DraftHeader } from "@/app/components/shared/DraftHeader";
+import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document } from "@/app/components/shared/types";
 import { Button } from "@/app/components/ui/button";
@@ -55,6 +55,8 @@ type LibraryPicker = ComponentType<{ open: boolean; title: string; formatLabel: 
   onSelect: (document: Document) => void; onClose: () => void }>;
 export type AuthoritiesRoute = { draftId: string; projectId?: string;
   replaceDraft: (draftId?: string) => void };
+type ActionHandler = (action: AuthoritiesAction,
+  done?: (next: AuthoritiesProduct) => void) => void;
 
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   refreshToken, locked = false, LibraryPicker, route }: {
@@ -67,21 +69,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   LibraryPicker?: LibraryPicker;
 }) {
   const { draftId: requested, projectId, replaceDraft } = route;
-  const requestedRef = useRef(requested), routeTarget = useRef<string | null>(null);
-  requestedRef.current = requested;
+  const routeTarget = useRef<string | null>(null), routeRequest = useRef(0);
   const [tab, setTab] = useState<WorkspaceTab>("automatic");
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const globalTab = tab === "drafts" || tab === "settings";
   const [preferences, setPreferences] = useState(loadPreferences);
   const [manualTitle, setManualTitle] = useState("Book of Authorities");
   const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(true);
   const [draft, setDraft] = useState<AuthoritiesProduct>();
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(!!requested), [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState("");
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState(""), [error, setError] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false), [addOpen, setAddOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport>();
   const [query, setQuery] = useState(""), [results, setResults] = useState<Document[]>([]);
   const [searching, setSearching] = useState(false), [linkingId, setLinkingId] = useState("");
+  const [focusRequest, setFocusRequest] = useState(0);
   const [downloadDirectory, setDownloadDirectory] = useState<DownloadDirectory | null>(null);
   const [outputFolder, setOutputFolder] = useState<string | null>(null);
   const [capturingId, setCapturingId] = useState("");
@@ -95,12 +102,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const refreshSeen = useRef(0), refreshRequest = useRef(0);
   draftRef.current = draft;
 
-  const display = useCallback((next?: AuthoritiesProduct) => {
+  const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     captureRequest.current?.abort(); captureRequest.current = null; setCapturingId("");
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
     setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
     if (next) {
-      setTab(next.state.import.kind === "manual" ? "manual" : "automatic");
+      if (!preserveTab) setTab(next.state.import.kind === "manual" ? "manual" : "automatic");
       setManualTitle(next.title);
     }
     setLinkingId(""); setError(""); setMessage("");
@@ -121,38 +128,43 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   useEffect(() => {
     let active = true;
-    const exactId = requestedRef.current;
-    setLoading(!!exactId);
+    setDraftsLoading(true);
     const listed = host.drafts.listMetadata
       ? host.drafts.listMetadata("authorities", projectId)
       : host.drafts.list<AuthoritiesProduct["state"]>("authorities", projectId)
         .then((items) => items.map(metadata));
     void listed.then((items) => active && setDrafts(items))
-      .catch((caught) => active && setError(errorText(caught)));
-    if (!exactId) { setLoading(false); display(); }
-    else void host.drafts.get<AuthoritiesProduct["state"]>(exactId).then((exact) => {
-      if (exact.kind !== "authorities") throw new Error("This is not an Authorities draft.");
-      if (active) display(exact);
-    }).catch((caught) => active && setError(errorText(caught)))
-      .finally(() => active && setLoading(false));
+      .catch((caught) => active && setError(errorText(caught)))
+      .finally(() => active && setDraftsLoading(false));
     return () => { active = false; };
-  }, [projectId, display, host]);
+  }, [projectId, host]);
 
   useEffect(() => {
-    if (loading) return;
     if (routeTarget.current !== null) {
-      if (requested !== routeTarget.current) return;
+      const target = routeTarget.current;
       routeTarget.current = null;
+      if (requested === target) return;
     }
-    if (requested === draft?.id) return;
-    if (!requested) { display(); return; }
+    const request = ++routeRequest.current;
+    setLoading(!!requested);
+    display();
+    if (!requested) { setLoading(false); return; }
     void host.drafts.get<AuthoritiesProduct["state"]>(requested).then((next) => {
       if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
-      remember(next); display(next);
-    }).catch((caught) => setError(errorText(caught)));
-  }, [requested, loading, draft?.id, display, host]);
+      if (request !== routeRequest.current) return;
+      remember(next);
+      display(next, tabRef.current === "drafts" || tabRef.current === "settings");
+    }).catch((caught) => {
+      if (request === routeRequest.current) setError(errorText(caught));
+    }).finally(() => {
+      if (request === routeRequest.current) setLoading(false);
+    });
+    return () => { routeRequest.current += 1; };
+  }, [requested, projectId, display, host]);
 
-  useEffect(() => { onDraftChange?.(draft, !!draft && !busy); }, [draft, busy, onDraftChange]);
+  useEffect(() => {
+    onDraftChange?.(globalTab ? undefined : draft, !!draft && !busy && !globalTab);
+  }, [draft, busy, globalTab, onDraftChange]);
   useEffect(() => localStorage.setItem("beaver.authorities.preferences", JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => {
@@ -207,22 +219,18 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   const authorities = draft?.state.authorityOrder.flatMap((id) =>
     draft.state.authorities[id] ? [draft.state.authorities[id]] : []) ?? [];
-  const buildsBook = draft?.state.outputMode !== "table";
   const missingPdfs = draft ? authorities.filter((item) => !item.excluded &&
-    item.source.kind !== "attached" && (requiresPdf(draft.state, item) && !buildsBook ||
-      buildsBook && (draft.state.settings.sourceMode === "manual-originals" ||
-        item.source.kind !== "unresolved"))) : [];
+    item.source.kind !== "attached" && missingSource(draft.state, item)) : [];
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
-  const canWatchDownloads = authorities.some(({ source }) => source.kind === "pending-canlii") &&
+  const canWatchDownloads = authorities.some(({ excluded, source }) => !excluded &&
+    source.kind === "pending-canlii") &&
     typeof window !== "undefined" && "showDirectoryPicker" in window;
-  const globalTab = tab === "drafts" || tab === "settings";
   const reviewError = !globalTab ? currentReview?.error || "" : "";
   const status = error || message || reviewError;
   const busyText = building ? "Building outputs" : pendingImport ? "Finding citations"
-    : tab === "drafts" ? "Opening draft" : tab === "settings" ? "Updating settings"
-      : "Updating authorities";
+    : operation || "Updating authorities";
 
   function remember(next: AuthoritiesProduct) {
     setDraft(next);
@@ -238,20 +246,36 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         (next === "manual" && draft?.state.import.kind === "document")) open();
     setTab(next); setError(""); setMessage(""); setLinkingId("");
   }
-  async function run<T>(operation: () => Promise<T>, done: (value: T) => void,
-    success = "") {
+  async function run<T>(operationFn: () => Promise<T>, done: (value: T) => void,
+    success = "", label = "Updating authorities") {
     if (busy) return;
     captureRequest.current?.abort(); captureRequest.current = null; setCapturingId("");
-    setBusy(true); setError(""); setMessage("");
-    try { const value = await operation(); done(value); if (success) setMessage(success); }
+    setBusy(true); setOperation(label); setError(""); setMessage("");
+    try { const value = await operationFn(); done(value); if (success) setMessage(success); }
     catch (caught) {
       if ((caught as { name?: string })?.name === "AbortError") setMessage("Build cancelled");
       else setError(errorText(caught));
     }
-    finally { setBusy(false); }
+    finally { setBusy(false); setOperation(""); }
   }
-  const act = (action: AuthoritiesAction) => draft && void run(
-    () => host.act(draft.id, draft.revision, action), remember);
+  const act: ActionHandler = (action, done) => {
+    if (!draft) return;
+    const prior = "occurrenceId" in action ? draft.state.occurrences[action.occurrenceId] : null;
+    void run(() => host.act(draft.id, draft.revision, action), (next) => {
+      remember(next);
+      if (prior) {
+        const unit = next.state.units.find(({ id }) => id === prior.unitId);
+        const items = unit?.occurrenceIds.flatMap((id) =>
+          next.state.occurrences[id] ? [next.state.occurrences[id]] : []) ?? [];
+        const replacement = next.state.occurrences[prior.id] ??
+          (action.type === "split-occurrence"
+            ? items.find(({ start }) => start === action.cursor)
+            : items.find(({ start, end }) => start <= prior.start && end >= prior.end));
+        if (replacement) setSelectedId(replacement.id);
+      }
+      done?.(next);
+    });
+  };
 
   function queueDocument(document: Document) {
     setLibraryOpen(false); setError(""); setMessage("");
@@ -399,6 +423,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       setMessage("Finding source PDFs");
       const prepared = await host.prepareSources(draft, request.signal);
       remember(prepared);
+      const required = prepared.state.authorityOrder.map((id) => prepared.state.authorities[id])
+        .filter((authority) => authority && !authority.excluded &&
+          authority.source.kind !== "attached" && mustAttachPdf(prepared.state, authority));
+      if (required.length) throw new Error(
+        `Attach a source PDF for ${authorityName(required[0])} before building.`,
+      );
       return host.build(prepared, setMessage, request.signal);
     },
       ({ product, notice }) => { remember(product); setMessage(notice || "Outputs ready"); }).finally(() => {
@@ -419,39 +449,40 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   }
   function selectOccurrence(id: string) {
     if (!linkingId || !draft) { setSelectedId(id); return; }
+    if (busy) return;
     const target = draft.state.occurrences[id], source = draft.state.occurrences[linkingId];
     if (!target?.authorityId || target.id === source?.id) {
       setError("Choose the full citation this cross-reference points to."); return;
     }
     const kind = /\bibid\b/iu.test(source?.text ?? "") ? "ibid" : "supra";
-    act({ type: "set-reference", occurrenceId: linkingId,
-      reference: { kind, targetAuthorityId: target.authorityId } });
-    setLinkingId(""); setSelectedId(linkingId);
+    const sourceId = linkingId;
+    act({ type: "set-reference", occurrenceId: sourceId,
+      reference: { kind, targetAuthorityId: target.authorityId } }, () => {
+      setLinkingId(""); setSelectedId(sourceId); setFocusRequest((value) => value + 1);
+    });
   }
 
-  return <div className="authorities-workspace min-h-full bg-[#f5f5f4] lg:h-full lg:min-h-0 lg:overflow-y-auto">
-    <header className="border-b border-gray-200 bg-white">
-      {draft && !globalTab ? <DraftHeader className="max-w-[50rem]" current={draft}
+  return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
+    host.mode === "standalone" ? "min-h-dvh" : "h-full min-h-0 overflow-y-auto")}>
+    {draft && !globalTab ? <WorkspaceHeader className="max-w-[50rem]" current={draft}
         busy={busy || locked} itemLabel="authorities draft" headerActions={headerActions}
         onBack={() => open()} onRename={rename} onDuplicate={duplicate} onDelete={removeDraft} />
-        : <div className="mx-auto max-w-[50rem] px-4 py-4 sm:px-6">
-          <h1 className="font-serif text-2xl font-semibold text-gray-950">Authorities</h1>
-        </div>}
-    </header>
+        : <WorkspaceHeader className="max-w-[50rem]" title="Authorities"
+          headerActions={headerActions} />}
     <div inert={locked} aria-busy={locked || undefined}>
-      <main className="mx-auto max-w-[50rem] px-4 py-4 sm:px-6">
+          <main className="mx-auto min-h-80 max-w-[50rem] px-4 py-4 sm:px-6">
         <TabList value={tab} onValueChange={changeTab} options={TABS}
           ariaLabel="Authorities sections" variant="brand" panelId="authorities-panel"
-          className="mb-1 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:gap-0.5 max-[22rem]:[&_[role=tab]]:px-1.5 max-[22rem]:[&_[role=tab]]:text-[13px]" />
+          className="mb-1 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1 max-[22rem]:[&_[role=tab]]:text-xs" />
         <Status busy={busy || !!capturingId}
           busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
         {loading ? <Loading /> : tab === "drafts"
-          ? <DraftsPanel drafts={drafts} busy={busy} onOpen={(id) => void run(
+          ? <DraftsPanel drafts={drafts} loading={draftsLoading} busy={busy} onOpen={(id) => void run(
               () => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
                 remember(next); open(next);
-              })} />
+              }, "", "Opening draft")} />
           : tab === "settings"
             ? <StartSettings value={preferences} onChange={setPreferences} busy={busy}
                 outputFolder={host.outputFolder ? outputFolder : undefined}
@@ -512,14 +543,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                               variant="outline" compact />)}
                       </div>
                     </div>
-                    {linkingId && <div className="flex min-h-11 items-center gap-3 border-b border-red-200 bg-red-50 px-4 text-sm text-red-900">
-                      <span className="min-w-0 flex-1">Choose the full citation this cross-reference points to.</span>
-                      <Button type="button" variant="ghost" className="h-8" onClick={() => setLinkingId("")}>Cancel</Button>
-                    </div>}
                     <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
-                      onSelect={selectOccurrence}
-                      onAction={act} onBeginLink={setLinkingId} />
+                      busy={busy} linkingId={linkingId} focusRequest={focusRequest}
+                      onCancelLink={() => setLinkingId("")}
+                      onSelect={selectOccurrence} onAction={act}
+                      onBeginLink={(id) => { setError(""); setLinkingId(id); }} />
                   </section>
                   <BuildPanel draft={draft} busy={busy} building={building}
                     missing={missingPdfs.length}
@@ -611,7 +640,7 @@ function ImportSetup({ pending, busy, status, onChange, onClose, onImport }: {
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
       onClick: onImport }}>
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <OptionCards legend="Source PDFs" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
+    <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
     <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
       options={PASSAGE_OPTIONS} columns disabled={busy}
@@ -639,20 +668,23 @@ function ManualStart({ title, busy, onTitle, onPick, onFiles }: {
   </section>;
 }
 
-function DraftsPanel({ drafts, busy, onOpen }: { drafts: WorkProductMetadata[];
-  busy: boolean; onOpen: (id: string) => void }) {
+function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMetadata[];
+  loading: boolean; busy: boolean; onOpen: (id: string) => void }) {
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-16 items-center gap-3 border-b border-gray-200 px-4 py-3">
       <History className="h-5 w-5 shrink-0 text-red-700" /><div className="min-w-0"><h2 className="font-semibold text-gray-950">Saved drafts</h2>
       <p className="text-sm text-gray-600">Reopen, edit, and build again.</p></div></div>
-    <div>
-      {drafts.map((item) => <button key={item.id} type="button" disabled={busy}
+    <div className="min-h-40">
+      {loading ? <div className="grid min-h-40 place-items-center px-4 py-12 text-sm text-gray-500"
+        role="status"><span className="inline-flex items-center"><Loader2
+          className="mr-2 h-4 w-4 motion-safe:animate-spin" />Loading saved drafts</span></div>
+        : drafts.map((item) => <button key={item.id} type="button" disabled={busy}
         onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600">
         <span className="min-w-0"><span className="block truncate text-sm font-medium text-gray-950">{item.title}</span>
           <span className="block text-xs text-gray-500">{new Date(item.updatedAt).toLocaleString()}</span></span>
         <ChevronRight className="h-4 w-4 text-gray-500" />
       </button>)}
-      {!drafts.length && <p className="px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
+      {!loading && !drafts.length && <p className="grid min-h-40 place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
     </div>
   </section>;
 }
@@ -668,7 +700,7 @@ function StartSettings({ value, onChange, busy, outputFolder, onChooseFolder, on
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
       <SelectField label="Court" value={value.profileId}
         onChange={(profileId) => onChange({ ...value, profileId })} options={PROFILES} />
-      <SelectField label="Source PDFs" value={value.sourceMode}
+      <SelectField label="Source handling" value={value.sourceMode}
         onChange={(sourceMode) => onChange({ ...value, sourceMode })}
         options={SOURCE_OPTIONS} />
       <SelectField label="Passage marking" value={value.passageMarking}
@@ -750,7 +782,7 @@ function Sources({ draft, authorities, occurrences, busy, sourceIssues, onAction
 }) {
   const needsPdf = authorities.some((authority) => requiresPdf(draft.state, authority));
   const intervention = forceOpen || Object.keys(sourceIssues).length > 0 || (needsPdf &&
-    (authorities.some(({ source }) => source.kind === "pending-canlii" || source.kind === "resolved") ||
+    (authorities.some(({ excluded, source }) => !excluded && source.kind === "pending-canlii") ||
     (draft.state.settings.sourceMode === "manual-originals" &&
       authorities.some(({ excluded, source }) => !excluded && source.kind !== "attached")) ||
     authorities.some((authority) => !authority.excluded && requiresAbcaPdf(draft.state, authority) &&
@@ -790,62 +822,100 @@ function Sources({ draft, authorities, occurrences, busy, sourceIssues, onAction
 }
 
 function CitationReview({ occurrences, units, selected, authorities, discrepancies, onSelect,
-  onAction, onBeginLink }: {
+  onAction, onBeginLink, busy, linkingId, focusRequest, onCancelLink }: {
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence;
   units: AuthoritiesProduct["state"]["units"]; authorities: AuthorityIdentity[];
-  discrepancies: AuthoritiesDiscrepancy[];
-  onSelect: (id: string) => void; onAction: (action: AuthoritiesAction) => void;
-  onBeginLink: (id: string) => void;
+  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean; linkingId: string;
+  focusRequest: number;
+  onSelect: (id: string) => void; onAction: ActionHandler;
+  onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
-  const options = useRef<Array<HTMLButtonElement | null>>([]);
+  const options = useRef<Array<HTMLButtonElement | null>>([]), previousLink = useRef("");
+  useLayoutEffect(() => {
+    if (linkingId || previousLink.current) {
+      options.current[occurrences.findIndex(({ id }) => id === selected?.id)]?.focus();
+    }
+    previousLink.current = linkingId;
+  }, [linkingId, occurrences, selected?.id, focusRequest]);
   if (!occurrences.length) return <div className="grid h-80 place-items-center text-sm text-gray-500">No citations found.</div>;
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
+  const authorityById = new Map(authorities.map((item) => [item.id, item]));
+  const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
   return <div className="authorities-review grid h-[32rem] min-h-0 overflow-hidden @min-[40rem]:h-80 @min-[40rem]:grid-cols-[18rem_minmax(0,1fr)]!">
-    <div className="authorities-review-list overflow-y-auto border-gray-200" role="listbox" aria-label="Citations">
+    <div className="authorities-review-list overflow-y-auto border-gray-200" role="listbox"
+      aria-label="Citations" aria-describedby={linkingId ? "authority-link-instruction" : undefined}>
       {occurrences.map((item, index) => {
-        const authority = authorities.find(({ id }) => id === item.authorityId);
-        const finding = discrepancies.find(({ occurrenceId }) => occurrenceId === item.id);
+        const authority = item.authorityId ? authorityById.get(item.authorityId) : undefined;
+        const finding = findingByOccurrence.get(item.id);
         return <button key={item.id} ref={(node) => { options.current[index] = node; }}
           type="button" role="option" aria-selected={item.id === selected?.id}
+          aria-disabled={busy && !!linkingId || undefined}
           tabIndex={item.id === selected?.id ? 0 : -1} onClick={() => onSelect(item.id)}
           onKeyDown={(event) => {
+            if (event.key === "Escape" && linkingId) {
+              event.preventDefault(); if (!busy) onCancelLink(); return;
+            }
             if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
             event.preventDefault();
             const next = event.key === "Home" ? 0 : event.key === "End" ? occurrences.length - 1
               : (index + (event.key === "ArrowDown" ? 1 : -1) + occurrences.length) % occurrences.length;
-            onSelect(occurrences[next].id); options.current[next]?.focus();
+            if (!linkingId) onSelect(occurrences[next].id);
+            options.current[next]?.focus();
           }} className={cn("block min-h-[3.6rem] w-full border-b border-s-4 border-gray-100 px-3 py-2 text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600", item.id === selected?.id ? "border-s-red-700 bg-red-50" : "border-s-transparent hover:bg-red-50")}>
-          <span className="block text-xs text-gray-500">{location(item, index, occurrences)}</span>
+          <span className="block text-xs text-gray-500">{location(item, index, occurrences, units)}</span>
           {authority && authorityName(authority) !== authority.citation &&
             <span className="block truncate text-sm font-semibold text-gray-900">{authorityName(authority)}</span>}
-          <span className="block truncate text-xs text-gray-700">{authority?.citation ?? item.citation}</span>
+          <span className="block truncate text-xs text-gray-700">{item.kind === "reference"
+            ? item.citation : authority?.citation ?? item.citation}</span>
           {finding && <span className="block text-xs font-medium text-red-800">Source mismatch</span>}
         </button>;
       })}
     </div>
     {selected && <CitationEditor key={selected.id} selected={selected} unitText={unitText}
       footnote={unit?.kind === "footnote"} canMerge={(unit?.occurrenceIds.indexOf(selected.id) ?? 0) > 0}
-      authorities={authorities}
-      finding={discrepancies.find(({ occurrenceId }) => occurrenceId === selected.id)}
-      onAction={onAction} onBeginLink={onBeginLink} />}
+      authorities={authorities} busy={busy} linking={linkingId === selected.id}
+      finding={findingByOccurrence.get(selected.id)}
+      onAction={onAction} onBeginLink={onBeginLink} onCancelLink={onCancelLink} />}
   </div>;
 }
 
 function CitationEditor({ selected, unitText, footnote, canMerge, authorities, finding, onAction,
-  onBeginLink }: {
+  onBeginLink, busy, linking, onCancelLink }: {
   selected: AuthorityOccurrence; unitText: string; footnote: boolean; canMerge: boolean;
-  authorities: AuthorityIdentity[]; onAction: (action: AuthoritiesAction) => void;
+  authorities: AuthorityIdentity[]; onAction: ActionHandler; busy: boolean; linking: boolean;
   finding?: AuthoritiesDiscrepancy;
-  onBeginLink: (id: string) => void;
+  onBeginLink: (id: string) => void; onCancelLink: () => void;
 }) {
   const surface = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
   const rememberSelection = () => setSelection(selectionRange(surface.current));
+  useEffect(() => {
+    const update = () => setSelection(selectionRange(surface.current));
+    document.addEventListener("selectionchange", update);
+    return () => document.removeEventListener("selectionchange", update);
+  }, []);
+  useLayoutEffect(() => {
+    setSelection(null);
+    const root = surface.current;
+    const marks = root && [...root.querySelectorAll<HTMLElement>("[data-authority-span]")];
+    if (!root || !marks?.length) return;
+    const rootBox = root.getBoundingClientRect(), first = marks[0].getBoundingClientRect(),
+      last = marks[marks.length - 1].getBoundingClientRect();
+    root.scrollTop += (first.top + last.bottom - rootBox.top * 2 - rootBox.height) / 2;
+  }, [selected.id, selected.authoritySpan.start, selected.authoritySpan.end, unitText]);
+  const submit = (action: AuthoritiesAction) => onAction(action, () => {
+    window.getSelection()?.removeAllRanges(); setSelection(null);
+  });
   const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[40rem]:min-h-9 @min-[40rem]:whitespace-nowrap";
   return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
-    <div className="mb-2 flex min-h-5 items-center gap-2 text-xs text-gray-500">
-      <span>{occurrenceKind(selected)}{humanPinpoints(selected) && ` · ${humanPinpoints(selected)}`}</span>
+    <div className={cn("mb-2 flex min-h-9 items-center gap-2 text-xs",
+      linking ? "text-red-900" : "text-gray-500")} aria-live="polite">
+      {linking ? <><span id="authority-link-instruction" className="min-w-0 flex-1">
+        Choose the full citation this cross-reference points to.</span>
+        <Button type="button" variant="ghost" className="h-8" disabled={busy}
+          onClick={onCancelLink}>Cancel</Button></>
+        : <span>{occurrenceKind(selected)}{humanPinpoints(selected) && ` · ${humanPinpoints(selected)}`}</span>}
     </div>
     {finding && <SourceFinding finding={finding} />}
     <div ref={surface} contentEditable suppressContentEditableWarning role="textbox" aria-readonly="true"
@@ -856,23 +926,23 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       onDrop={(event) => event.preventDefault()} onKeyDown={(event) => {
         if ((!event.ctrlKey && !event.metaKey && event.key.length === 1) ||
             ["Backspace", "Delete", "Enter"].includes(event.key)) event.preventDefault();
-      }} className="h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-300 bg-white p-3 text-sm leading-6 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">{highlight(unitText, selected)}</div>
+      }} className="h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-300 bg-white px-3 py-12 text-sm leading-6 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">{highlight(unitText, selected)}</div>
     <div className="mt-2 grid min-h-[5.5rem] grid-cols-2 content-start gap-2">
-      <Button type="button" className={actionClass} disabled={!usableSelection(selection)}
-        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && onAction({
+      <Button type="button" className={actionClass} disabled={busy || !usableSelection(selection)}
+        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({
           type: "set-authority-span", occurrenceId: selected.id,
-          start: selection.start, end: selection.end })}>Use selection as authority</Button>
+          start: selection.start, end: selection.end })}>Use selection as citation</Button>
       <Button type="button" variant="outline" className={actionClass}
-        disabled={!usableSelection(selection)} onMouseDown={(event) => event.preventDefault()}
-        onClick={() => selection && onAction({ type: "set-pinpoint-span",
+        disabled={busy || !usableSelection(selection)} onMouseDown={(event) => event.preventDefault()}
+        onClick={() => selection && submit({ type: "set-pinpoint-span",
           occurrenceId: selected.id, start: selection.start, end: selection.end })}>Use selection as pinpoint</Button>
       <Button type="button" variant="outline" className={actionClass}
-        disabled={!footnote || !selection || selection.start !== selection.end ||
+        disabled={busy || !footnote || !selection || selection.start !== selection.end ||
           selection.start <= selected.start || selection.start >= selected.end}
-        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && onAction({
+        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({
           type: "split-occurrence", occurrenceId: selected.id, cursor: selection.start })}>Split at cursor</Button>
       <Button type="button" variant="outline" className={actionClass}
-        disabled={!footnote || !canMerge} onClick={() => onAction({
+        disabled={busy || !footnote || !canMerge} onClick={() => submit({
           type: "merge-occurrence", occurrenceId: selected.id })}>Merge with previous</Button>
     </div>
     <div className={cn("mt-2 grid min-h-16 grid-cols-2 items-center gap-2 border-t border-gray-200 pt-2 @min-[40rem]:flex @min-[40rem]:min-h-12",
@@ -881,10 +951,10 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[40rem]:flex-1">{linked
         ? `Linked to ${authorityName(linked)}` : "Not linked"}</span>
       <Button type="button" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight"
-        onClick={() => onBeginLink(selected.id)}>
+        disabled={busy} onClick={() => onBeginLink(selected.id)}>
         <Link2 /> Link to authority</Button>
-      <Button type="button" variant="ghost" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight" disabled={!selected.reference}
-        onClick={() => onAction({ type: "set-reference", occurrenceId: selected.id,
+      <Button type="button" variant="ghost" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight" disabled={busy || !selected.reference}
+        onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
           reference: null })}>Clear link</Button>
     </div>
   </div>;
@@ -973,9 +1043,12 @@ function AuthorityRow({ authority, index, order, busy, onAction, removable, need
       {needsPdf && <div className="col-span-2 col-start-3 row-start-2 flex min-h-8 min-w-0 flex-wrap items-center gap-2 @min-[40rem]:col-span-1 @min-[40rem]:col-start-4 @min-[40rem]:row-start-1 @min-[40rem]:flex-nowrap">
         {manual && <label className="inline-flex shrink-0 items-center gap-1 text-xs text-gray-600">Tab
           <input aria-label={`Tab for ${authorityName(authority)}`} value={tabLabel}
-            onChange={(event) => setTabLabel(event.target.value)} onBlur={() => onAction({
-              type: "set-authority-tab", authorityId: authority.id,
-              tabLabel: tabLabel.trim() || null })}
+            disabled={busy}
+            onChange={(event) => setTabLabel(event.target.value)} onBlur={() => {
+              const next = tabLabel.trim() || null;
+              if (next !== authority.tabLabel) onAction({ type: "set-authority-tab",
+                authorityId: authority.id, tabLabel: next });
+            }}
             className="h-8 w-12 rounded-md border border-gray-400 px-2 text-sm text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600" /></label>}
         {authority.source.kind === "pending-canlii" && <a href={authority.source.pdfUrl}
           target="_blank" rel="noopener noreferrer" onClick={(event) => {
@@ -996,7 +1069,7 @@ function AuthorityRow({ authority, index, order, busy, onAction, removable, need
       <div className="col-start-4 row-start-1 @min-[40rem]:col-start-5">
         <MoreActionsMenu label={`Options for ${authorityName(authority)}`}
         triggerClassName="h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
-        items={[{ label: "Edit title", onSelect: () => {
+        items={[{ label: "Edit title", disabled: busy, onSelect: () => {
           setName(authorityName(authority)); setEditing(true);
          } }, ...(authority.source.kind === "attached" && !replaceMissing && onPick ? [{ label: "Replace PDF",
           disabled: busy, onSelect: onPick }] : []), { label: authority.excluded ? "Include in book" : "Leave out of book",
@@ -1022,9 +1095,11 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
   const book = draft.state.outputMode !== "table";
   const federal = draft.state.settings.profileId === "federal-court" ||
     draft.state.settings.profileId === "federal-court-of-appeal";
+  const completeBook = book && (federal ||
+    draft.state.settings.profileId === "ab-court-of-kings-bench");
   const bookRoles = draft.state.settings.profileId === "federal-court"
     ? FC_BOOK_ROLES : FCA_BOOK_ROLES;
-  const missingText = missing ? federal
+  const missingText = missing ? completeBook || lockedOutput
     ? `${missing} source PDF${missing === 1 ? " is" : "s are"} required before building.`
     : draft.state.settings.missingSourcePolicy === "placeholder"
     ? `${missing} missing source PDF${missing === 1 ? "" : "s"}: labelled pages will be added.`
@@ -1034,7 +1109,8 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
     <h2 className="font-semibold text-gray-950">Build outputs</h2>
     <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem] sm:items-end">
       <SelectField label="Court" value={draft.state.settings.profileId}
-        onChange={(profileId) => onAction({ type: "set-profile", profileId })} options={PROFILES} />
+        disabled={busy} onChange={(profileId) => onAction({ type: "set-profile", profileId })}
+        options={PROFILES} />
       <SelectField label="Create" value={draft.state.outputMode} disabled={busy || lockedOutput}
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
@@ -1062,35 +1138,35 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
       <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1 rounded-md px-1 text-sm font-medium text-red-700 outline-none hover:text-red-900 focus-visible:ring-2 focus-visible:ring-red-600 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" /> Options</summary>
       <div className="grid gap-3 pb-2 pt-3 sm:grid-cols-2">
-        {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Source PDFs" value={draft.state.settings.sourceMode}
-          onChange={(sourceMode) => onAction({ type: "set-settings", settings: { sourceMode } })}
+        {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Source handling" value={draft.state.settings.sourceMode}
+          disabled={busy} onChange={(sourceMode) => onAction({ type: "set-settings", settings: { sourceMode } })}
           options={SOURCE_OPTIONS} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Passage marking" value={draft.state.settings.passageMarking}
-          onChange={(passageMarking) => onAction({ type: "set-settings", settings: { passageMarking } })}
+          disabled={busy} onChange={(passageMarking) => onAction({ type: "set-settings", settings: { passageMarking } })}
           options={PASSAGE_OPTIONS} />}
         {draft.state.outputMode !== "table" && <SelectField label="Tabs" value={draft.state.settings.tabStyle}
-          onChange={(tabStyle) => onAction({ type: "set-settings", settings: { tabStyle } })}
+          disabled={busy} onChange={(tabStyle) => onAction({ type: "set-settings", settings: { tabStyle } })}
           options={[{ value: "numeric", label: "Numbers" }, { value: "alpha", label: "Letters" }]} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && <SelectField label="Table order" value={draft.state.settings.tableOrder}
-          onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })}
+          disabled={busy} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })}
           options={[{ value: "alphabetical", label: "Alphabetical" },
             { value: "first-reference", label: "First reference" }]} />}
         {book && draft.state.settings.profileId === "general" && <SelectField label="Missing sources" value={draft.state.settings.missingSourcePolicy}
-          onChange={(missingSourcePolicy) => onAction({ type: "set-settings",
+          disabled={busy} onChange={(missingSourcePolicy) => onAction({ type: "set-settings",
             settings: { missingSourcePolicy } })}
           options={[{ value: "placeholder", label: "Add labelled pages" },
             { value: "omit", label: "Leave out of book" }]} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && <SelectField label="Word table" value={draft.state.settings.tableDelivery}
-          onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
+          disabled={busy} onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
           options={[{ value: "native-append", label: "Append a native table" },
             { value: "linked-append", label: "Append a linked table" },
             { value: "native-marks", label: "Mark citations in a Word copy" }]} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && <SelectField label="Table locations" value={draft.state.settings.tableLocation}
-          onChange={(tableLocation) => onAction({ type: "set-settings", settings: { tableLocation } })}
+          disabled={busy} onChange={(tableLocation) => onAction({ type: "set-settings", settings: { tableLocation } })}
           options={[{ value: "pages", label: "Pages" }, { value: "pinpoints", label: "Pinpoints" },
             { value: "combined", label: "Pages and pinpoints" }]} />}
         {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Scanned PDFs" value={draft.state.settings.scannedPdfPolicy}
-          onChange={(scannedPdfPolicy) => onAction({ type: "set-settings", settings: { scannedPdfPolicy } })}
+          disabled={busy} onChange={(scannedPdfPolicy) => onAction({ type: "set-settings", settings: { scannedPdfPolicy } })}
           options={[{ value: "page-margin", label: "Keep scan; mark cited pages" },
             { value: "cited-pages", label: "OCR cited pages" },
             { value: "full", label: "OCR every page" }]} />}
@@ -1319,7 +1395,9 @@ function Status({ busy, busyText, status, error }: { busy: boolean; busyText: st
     visible && "bg-white shadow-sm ring-1 ring-gray-200",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>
-    {busy && <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 motion-safe:animate-spin" />}
+    {visible && <span className="mr-2 grid size-4 shrink-0 place-items-center" aria-hidden="true">
+      {busy && <Loader2 className="size-4 motion-safe:animate-spin" />}
+    </span>}
     {busy ? status || busyText : status}
   </p>;
 }
@@ -1366,28 +1444,30 @@ function discrepancyKey(draft?: AuthoritiesProduct) {
     }),
   ]);
 }
-function metadata({ state: _state, outputs: _outputs, ...item }: AuthoritiesProduct) { return item; }
+function metadata({ state: _state, ...item }: AuthoritiesProduct) { return item; }
 function highlight(text: string, occurrence: AuthorityOccurrence) {
   const spans = [occurrence.authoritySpan, occurrence.pinpointSpan].filter((span): span is NonNullable<typeof span> =>
     !!span && span.start >= 0 && span.end > span.start && span.end <= text.length)
     .sort((a, b) => a.start - b.start);
   if (!spans.length) return text;
-  const nodes: ReactNode[] = []; let cursor = 0;
-  spans.forEach((span, index) => {
-    if (span.start > cursor) nodes.push(text.slice(cursor, span.start));
-    const start = Math.max(cursor, span.start);
-    if (span.end > start) nodes.push(<mark key={`${span.start}:${span.end}:${index}`}
-      className={cn("rounded px-0.5 text-inherit",
-        span === occurrence.pinpointSpan ? "bg-[#f6aaa3]" : "bg-[#ffd7d3]")}>
-      {text.slice(start, span.end)}</mark>);
-    cursor = Math.max(cursor, span.end);
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+  const boundaries = [...new Set([0, text.length, ...spans.flatMap(({ start, end }) =>
+    [start, end])])].sort((a, b) => a - b), nodes: ReactNode[] = [];
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const start = boundaries[index], end = boundaries[index + 1],
+      authority = start < occurrence.authoritySpan.end && occurrence.authoritySpan.start < end,
+      pinpoint = !!occurrence.pinpointSpan && start < occurrence.pinpointSpan.end &&
+        occurrence.pinpointSpan.start < end, value = text.slice(start, end);
+    nodes.push(authority || pinpoint ? <mark key={`${start}:${end}`}
+      data-authority-span={authority || undefined} data-pinpoint-span={pinpoint || undefined}
+      className={cn("rounded px-0.5 text-inherit", pinpoint ? "bg-red-200" : "bg-red-100")}>
+      {value}</mark> : value);
+  }
   return <>{nodes}</>;
 }
-function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurrence[]) {
-  const footnote = /^footnote:(\d+)$/u.exec(item.unitId);
-  if (footnote) return `Footnote ${footnote[1]}`;
+function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurrence[],
+  units: AuthoritiesProduct["state"]["units"]) {
+  const unit = units.find(({ id }) => id === item.unitId);
+  if (unit?.kind === "footnote") return `Footnote ${unit.footnoteId ?? unit.ordinal + 1}`;
   const body = all.slice(0, index + 1).filter(({ unitId }) => !/^footnote:/u.test(unitId)).length;
   return `In-text citation ${body}`;
 }
@@ -1408,8 +1488,18 @@ function attachedRole(item: AuthorityIdentity) {
   return item.source.kind === "attached" ? item.source.bindingRole : null;
 }
 function requiresPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
-  if (state.outputMode !== "table" || state.settings.sourceMode === "manual-originals") return true;
-  return requiresAbcaPdf(state, item);
+  return state.settings.sourceMode === "manual-originals" || state.outputMode !== "table" ||
+    requiresAbcaPdf(state, item);
+}
+function missingSource(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+  if (!requiresPdf(state, item)) return false;
+  return state.settings.sourceMode === "manual-originals" ||
+    item.source.kind === "pending-canlii";
+}
+function mustAttachPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+  if (state.outputMode === "table") return requiresAbcaPdf(state, item);
+  return ["ab-court-of-kings-bench", "federal-court", "federal-court-of-appeal"]
+    .includes(state.settings.profileId);
 }
 function requiresAbcaPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   const sourceUrl = item.source.kind === "attached" ? item.source.sourceUrl

@@ -160,7 +160,8 @@ function workflowArchive(workflow: {
       display_name: many
         ? `${workflow.metadata.title} — ${[variant.label, variant.result].filter(Boolean).join(" — ")}`
         : workflow.metadata.title,
-      description: workflow.metadata.description ?? `Run the ${workflow.metadata.title} workflow.`,
+      description: variant.description ?? workflow.metadata.description
+        ?? `Run the ${workflow.metadata.title} workflow.`,
       type: variant.execution,
       language: workflow.metadata.language,
       version: workflow.metadata.version ?? "1.0.0",
@@ -199,7 +200,8 @@ export function createWorkflowsRouter(
       (!q || [workflow.metadata.title, workflow.metadata.description,
         workflow.metadata.category,
         ...(workflow.launcher.kind === "instructions"
-          ? workflow.launcher.variants.flatMap(({ label, result }) => [label, result ?? ""])
+          ? workflow.launcher.variants.flatMap(({ label, result, description }) =>
+            [label, result ?? "", description ?? ""])
           : []),
       ].some((value) => value.toLocaleLowerCase().includes(q))));
     const custom = await repositoryFor(applicationScope(res)).list({ audience, q });

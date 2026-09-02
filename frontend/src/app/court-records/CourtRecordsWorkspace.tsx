@@ -3,7 +3,7 @@ import type { Document } from "@/app/components/shared/types";
 import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
-import { DraftHeader } from "@/app/components/shared/DraftHeader";
+import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { courtRecordDraft, restoreCourtRecordDraft } from "./draftState";
@@ -12,7 +12,7 @@ import { CourtRecordChooser, CourtRecordSetup } from "./CourtRecordSetup";
 import { downloadArtifact, needsOcr, type CourtRecordsHost, type DraftOutputChoice,
   type SelectedFile } from "./host";
 import { COURT_PROFILE_BY_ID, effectiveCourtProfiles } from "./profiles";
-import type { WorkProduct } from "@/app/lib/workProducts";
+import type { WorkProduct, WorkProductMetadata } from "@/app/lib/workProducts";
 import type {
   BuildResult,
   BuildArtifact,
@@ -41,7 +41,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
   const [cover, setCover] = useState<CoverValues>({});
   const [entries, setEntries] = useState<RecordEntry[]>([]);
-  const [drafts, setDrafts] = useState<WorkProduct<CourtRecordDraft>[]>([]);
+  const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
   const [draft, setDraft] = useState<WorkProduct<CourtRecordDraft>>();
   const [draftBusy, setDraftBusy] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -66,17 +66,20 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const draftRef = useRef(draft);
   const stateRef = useRef(courtRecordDraft(profileId, cover, entries));
   const savingDraft = useRef<Promise<WorkProduct<CourtRecordDraft> | undefined> | undefined>(undefined);
+  const stateVersion = useRef(0);
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
+  const hasProfile = COURT_PROFILE_BY_ID.has(profileId);
   const preparationDate = today();
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
+  const operationBusy = draftBusy || building || saving || !!busyEntryId || sourceBusy;
   const openDraftEffect = useEffectEvent(openDraft);
   const saveDraftEffect = useEffectEvent(saveCurrentDraft);
   const refreshDraftEffect = useEffectEvent(refreshDraft);
   const clearDraftEffect = useEffectEvent(clearDraft);
 
   draftRef.current = draft;
-  stateRef.current = courtRecordDraft(profile.id, cover, entries);
+  stateRef.current = courtRecordDraft(profileId, cover, entries);
 
   useEffect(() => {
     if (initialDraftId && initialDraftId === draftRef.current?.id) return;
@@ -84,12 +87,16 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setDraftBusy(true);
     void (async () => {
       if (draftRef.current && !await saveDraftEffect()) return;
-      const saved = await host.drafts.list<CourtRecordDraft>("court-record");
+      const summaries = host.drafts.listMetadata
+        ? await host.drafts.listMetadata("court-record") : undefined;
+      const saved = summaries ?? await host.drafts.list<CourtRecordDraft>("court-record");
       if (cancelled) return;
       setDrafts(saved);
       if (!initialDraftId) { clearDraftEffect(); return; }
-      const requested = saved.find(({ id }) => id === initialDraftId) ??
-        await host.drafts.get<CourtRecordDraft>(initialDraftId);
+      const requested = summaries
+        ? await host.drafts.get<CourtRecordDraft>(initialDraftId)
+        : (saved as WorkProduct<CourtRecordDraft>[]).find(({ id }) => id === initialDraftId) ??
+          await host.drafts.get<CourtRecordDraft>(initialDraftId);
       if (requested.kind !== "court-record") throw new Error("This is not a Court Record draft.");
       if (!cancelled) await openDraftEffect(requested);
     })().catch((caught) => {
@@ -99,8 +106,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [host, initialDraftId]);
 
   useEffect(() => {
-    onDraftChange?.(draft, !draftBusy && (!draft || sameState(draft.state, stateRef.current)));
-  }, [draft, draftBusy, profile.id, cover, entries, onDraftChange]);
+    onDraftChange?.(draft, !operationBusy && (!draft || sameState(draft.state, stateRef.current)));
+  }, [draft, operationBusy, profileId, cover, entries, onDraftChange]);
 
   useEffect(() => {
     if (refreshToken === undefined || refreshToken <= (refreshSeen.current ?? 0)) return;
@@ -109,10 +116,10 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [refreshToken]);
 
   useEffect(() => {
-    if (!draft || draftBusy || sameState(draft.state, stateRef.current)) return;
+    if (!draft || operationBusy || sameState(draft.state, stateRef.current)) return;
     const timer = window.setTimeout(() => void saveDraftEffect(), 400);
     return () => window.clearTimeout(timer);
-  }, [draft, draftBusy, profile.id, cover, entries]);
+  }, [draft, operationBusy, profileId, cover, entries]);
 
   const report = useMemo(() => validateCourtRecord({
     profile,
@@ -123,6 +130,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const entryFindings = useMemo(() => findingsByEntry([...report.blockers, ...report.review]), [report]);
 
   function invalidate() {
+    stateVersion.current += 1;
     setResult(undefined);
     setError(undefined);
   }
@@ -135,6 +143,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   function clearDraft() {
+    stateVersion.current += 1;
     openRequest.current += 1;
     openingRevision.current = undefined;
     draftRef.current = undefined;
@@ -147,7 +156,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   function saveCurrentDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
-    if (savingDraft.current) return savingDraft.current;
+    if (savingDraft.current) return savingDraft.current.then(() => saveCurrentDraft());
     const current = draftRef.current;
     const state = stateRef.current;
     if (!current || sameState(current.state, state)) return Promise.resolve(current);
@@ -182,14 +191,17 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       },
         draftRef.current?.id === next.id ? entries : []);
       if (request !== openRequest.current) return;
+      stateVersion.current += 1;
       const nextProfile = COURT_PROFILE_BY_ID.has(next.state.profileId)
-        ? next.state.profileId : DEFAULT_PROFILE_ID;
+        ? next.state.profileId : "";
       setProfileId(nextProfile);
-      setCover(fillSourceCover(COURT_PROFILE_BY_ID.get(nextProfile)!, next.state.cover ?? {},
-        restored.flatMap((entry) => entry.sourceFields ? [entry.sourceFields] : [])));
+      const restoredCover = next.state.cover ?? {};
+      setCover(nextProfile ? fillSourceCover(COURT_PROFILE_BY_ID.get(nextProfile)!, restoredCover,
+        restored.flatMap((entry) => entry.sourceFields ? [entry.sourceFields] : [])) : restoredCover);
       setEntries(fillExhibitLabels(restored));
       setResult(undefined);
       setShowErrors(false);
+      setCreating(!nextProfile);
       rememberDraft(next);
     } catch (caught) {
       if (request === openRequest.current) {
@@ -237,9 +249,14 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  async function openSavedDraft(next: WorkProduct<CourtRecordDraft>) {
+  async function openSavedDraft(next: WorkProductMetadata) {
     setSavedOpen(false);
-    await openDraft(next);
+    try {
+      await openDraft(await host.drafts.get<CourtRecordDraft>(next.id));
+    } catch (caught) {
+      setError(errorMessage(caught, "This draft could not be opened."));
+      setDraftBusy(false);
+    }
   }
 
   async function closeDraft() {
@@ -291,26 +308,47 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   function chooseProfile(nextId: string) {
     const next = COURT_PROFILE_BY_ID.get(nextId);
-    if (!next || next.id === profile.id) return;
-    if (entries.length && !window.confirm("Changing the format will remove the source files in this build.")) return;
+    if (!next) return;
+    if (next.id === profileId) { setCreating(false); return; }
+    const assigned = entries.some((entry) =>
+      profile.documentKinds.some((kind) => kind.id === entry.kindId));
+    if (assigned && !window.confirm("Changing the format will remove the assigned source files in this build.")) return;
+    const sourceFields = entries.filter((entry) =>
+      !profile.documentKinds.some((kind) => kind.id === entry.kindId))
+      .flatMap((entry) => entry.sourceFields ? [entry.sourceFields] : []);
     setCover((current) => {
       const fields = new Set<string>(next.cover.fields.map(({ id }) => id));
       const kept = Object.fromEntries(Object.entries(current)
         .filter(([field]) => fields.has(field))) as CoverValues;
       const styleId = current.partyStyleId ?? profile.cover.partyStyles?.[0]?.id;
       const style = next.cover.partyStyles?.find(({ id }) => id === styleId);
-      if (!style) return kept;
+      if (!style) return fillSourceCover(next, kept, sourceFields);
       const groups = current.partyGroups?.filter(({ id }) =>
         style.groups.some((group) => group.id === id));
       const filingPartyId = current.filingPartyId && groups?.some((group) =>
         (!next.cover.filingGroupId || group.id === next.cover.filingGroupId) &&
         group.parties.some(({ id }) => id === current.filingPartyId))
         ? current.filingPartyId : undefined;
-      return { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyId };
+      return fillSourceCover(next,
+        { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyId }, sourceFields);
     });
     setProfileId(next.id);
-    setEntries([]);
+    setEntries((current) => current.filter((entry) =>
+      !profile.documentKinds.some((kind) => kind.id === entry.kindId)));
     setShowErrors(false);
+    setCreating(false);
+    invalidate();
+  }
+
+  function assignKind(id: string, kindId: string) {
+    const kind = profile.documentKinds.find((item) => item.id === kindId &&
+      item.requirement !== "forbidden" && !item.generated && !item.descriptionOnly);
+    if (!kind) return;
+    setEntries((current) => fillExhibitLabels(current.map((entry) => {
+      if (entry.id !== id) return entry;
+      const title = kind.repeatable ? titleFromFile(entry.file.name) : kind.label;
+      return sourceEntry({ ...entry, kindId, title }, title);
+    })));
     invalidate();
   }
 
@@ -383,7 +421,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     }
   }
 
-  function addDescription(kindId: string) {
+  function addDescription(kindId: string, title?: string) {
     const kind = profile.documentKinds.find((item) => item.id === kindId &&
       (item.descriptionOnly || item.allowUnavailableNote));
     if (!kind) return;
@@ -391,7 +429,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setEntries((current) => [...current, {
       id,
       kindId,
-      title: kind.defaultDescription ?? (kind.allowUnavailableNote
+      title: title ?? kind.defaultDescription ?? (kind.allowUnavailableNote
         ? `${kind.label.replace(/^Part [12]\s+—\s+/u, "")} was not available when this appeal record was prepared.`
         : ""),
       file: new File([], "description-only"),
@@ -402,9 +440,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       inputStatus: "ready",
     }]);
     invalidate();
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(
-      `[data-entry-id="${id}"] input`,
-    )?.focus());
+    if (title === undefined) requestAnimationFrame(() =>
+      document.getElementById(`entry-${id}-title`)?.focus());
   }
 
   async function relinkEntry(id: string) {
@@ -475,7 +512,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   async function build() {
-    if (building) return;
+    if (operationBusy || locked) return;
     if (!report.ready) {
       setShowErrors(true);
       setError(report.blockers[0]?.title ?? "Complete the required information.");
@@ -485,6 +522,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setBuilding(true);
     setError(undefined);
     setResult(undefined);
+    const version = stateVersion.current;
     try {
       const buildEntries = fillExhibitLabels(await currentInputs(entries));
       setEntries(buildEntries);
@@ -503,6 +541,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         needsAttention: buildReport.review.map(({ title, detail }) => ({ title, detail })),
         onProgress: (message, completed, total) => setProgress(`${message} · ${completed}/${total}`),
       });
+      if (version !== stateVersion.current) {
+        throw new Error("The court record changed while it was building. Build it again.");
+      }
       setResult(built);
       setProgress("Build complete");
     } catch (caught) {
@@ -643,21 +684,24 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     invalidate();
   }
   const WorkspaceElement = host.mode === "standalone" ? "main" : "div";
-  const documents = (heading: string, kindIds?: string[]) => (
+  const documents = (heading: string, kindIds?: string[], showUnassigned = false) => (
     <CourtRecordDocuments
       profile={profile}
       entries={entries}
       busyEntryId={busyEntryId}
       entryFindings={entryFindings}
       kindIds={kindIds}
+      showUnassigned={showUnassigned}
       heading={heading}
       onFiles={(kindId, files) => void addFiles(kindId, files)}
       onDescription={addDescription}
       onPick={host.pickDeviceFiles ? (kindId) => void pickFiles(kindId) : undefined}
       onLibrary={host.searchLibrary || host.searchDraftOutputs ? openSource : undefined}
+      sourceLabel={host.searchLibrary ? "Library" : "Saved drafts"}
       onEntry={(id, patch) => { setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)); invalidate(); }}
       onMove={(id, beforeId) => { setEntries((current) => moveEntry(current, id, beforeId)); invalidate(); }}
       onAssign={(id, label) => { setEntries((current) => assignExhibit(current, id, label)); invalidate(); }}
+      onAssignKind={assignKind}
       onRemove={(id) => { setEntries((current) => current.filter((entry) => entry.id !== id)); invalidate(); }}
       onOcr={host.runOcr ? (id) => void runOcr(id) : undefined}
       onRelink={host.relinkInput ? (id) => void relinkEntry(id) : undefined}
@@ -669,23 +713,20 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       setCover((current) => ({ ...current, [field]: value })); invalidate();
     }} />;
   return (
-    <div className={cn("court-records-workspace bg-[#f5f5f4]", host.mode === "standalone"
+    <div className={cn("court-records-workspace bg-app-background [scrollbar-gutter:stable]", host.mode === "standalone"
       ? "min-h-dvh"
-      : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
+      : "h-full min-h-0 overflow-y-auto")}>
       <a href="#court-record-workspace" className="fixed left-3 top-3 z-50 -translate-y-20 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-950 shadow focus:translate-y-0 focus:ring-2 focus:ring-red-600">Skip to builder</a>
-      <header className="border-b border-gray-200/80 bg-white/90 backdrop-blur">
-        {draft ? <DraftHeader className="max-w-[78rem]" current={draft}
-          busy={draftBusy || locked} itemLabel="court record" headerActions={headerActions}
+      {draft ? <WorkspaceHeader className="max-w-[78rem]" current={draft}
+          busy={operationBusy || locked} itemLabel="court record" headerActions={headerActions}
           onBack={() => void closeDraft()} onRename={(title) => void renameDraft(title)}
           onDuplicate={() => void duplicateDraft()} onDelete={() => void deleteDraft()} />
-          : <div className="builder-header mx-auto max-w-[78rem] px-4 py-4 sm:px-6">
-            <h1 className="font-serif text-2xl font-semibold leading-tight text-gray-950">Court Records</h1>
-          </div>}
-      </header>
+          : <WorkspaceHeader className="max-w-[78rem]" title="Court Records"
+            headerActions={headerActions} />}
       {!draft ? <WorkspaceElement id="court-record-workspace" tabIndex={-1}
         aria-busy={draftBusy} inert={draftBusy}
         className="mx-auto flex min-h-80 max-w-[78rem] flex-col items-center justify-center px-4 py-12 text-center outline-none sm:px-6">
-        <h2 className="font-serif text-2xl font-semibold text-gray-950">Start a court record</h2>
+        {!(draftBusy && initialDraftId) && <><h2 className="font-serif text-2xl font-semibold text-gray-950">Start a court record</h2>
         <p className="mt-2 text-sm text-gray-600">Choose a filing format or open a saved record.</p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <button type="button" disabled={draftBusy} onClick={() => setCreating(true)}
@@ -697,13 +738,16 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
             className="min-h-10 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-950 disabled:opacity-50">
             Open saved record
           </button>}
-        </div>
+        </div></>}
         <p className={cn("mt-4 min-h-5 text-sm", error ? "text-red-700" : "text-gray-600")}
-          role={error ? "alert" : "status"}>{error || progress || (draftBusy ? "Loading court records" : "")}</p>
-      </WorkspaceElement> : <div inert={locked} aria-busy={locked || undefined}
+          role={error ? "alert" : "status"}>{error || progress || (draftBusy
+            ? initialDraftId ? "Opening court record" : "Loading court records" : "")}</p>
+      </WorkspaceElement> : !hasProfile ? <WorkspaceElement id="court-record-workspace"
+        tabIndex={-1} className="mx-auto min-h-80 max-w-[78rem] outline-none" />
+      : <div inert={locked} aria-busy={locked || undefined}
         className="court-record-layout mx-auto grid max-w-[78rem] grid-cols-[minmax(0,1fr)] items-start gap-5 px-4 py-5 sm:px-6">
         <WorkspaceElement id="court-record-workspace" tabIndex={-1}
-          aria-busy={draftBusy} inert={draftBusy}
+          aria-busy={operationBusy || locked} inert={operationBusy || locked}
           className="min-w-0 space-y-4 outline-none">
           <section className="px-1 pb-1" aria-labelledby="builder-intro-heading">
             <h2 id="builder-intro-heading" className="text-balance font-serif text-xl font-semibold leading-tight text-gray-950 sm:text-2xl">
@@ -717,12 +761,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           </section>
           <CourtRecordChooser profile={profile} onProfile={chooseProfile} />
           {isAffidavit ? <>
-            {documents("1. Add the affidavit", ["affidavit"])}
+            {documents("1. Add the affidavit", ["affidavit"], true)}
             {setup("2. Case details")}
             {documents("3. Add exhibits or another document", ["exhibit", "other-document"])}
           </> : <>
             {hasCaseDetails && setup("1. Case details")}
-            {documents(`${hasCaseDetails ? "2" : "1"}. Add documents`)}
+            {documents(`${hasCaseDetails ? "2" : "1"}. Add documents`, undefined, true)}
           </>}
         </WorkspaceElement>
         <CourtRecordBuildPanel
@@ -733,6 +777,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
           result={result}
           building={building}
           saving={saving}
+          disabled={operationBusy || locked}
           progress={progress}
           error={error}
           hostMode={host.mode}
@@ -742,7 +787,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         />
       </div>}
       {creating && <CourtRecordChooser creating profile={profile}
-        onProfile={(id) => void newDraft(id)} onCancel={() => setCreating(false)} />}
+        onProfile={(id) => draft && !hasProfile ? chooseProfile(id) : void newDraft(id)}
+        onCancel={() => draft && !hasProfile ? void closeDraft() : setCreating(false)} />}
       {savedOpen && <SearchableChoiceModal open title="Open saved record"
         searchLabel="Search saved records" searchable={drafts.length > 8}
         value={null} options={drafts.map(({ id, title }) => ({ value: id, label: title }))}
@@ -753,9 +799,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       {draft && sourceKindId && sourceKind && (
         <LibraryDocumentPicker
           open
-          title={`Add ${sourceKind.label} from Library`}
+          title={`Add ${sourceKind.label} from ${host.searchLibrary ? "Library" : "saved drafts"}`}
           formatLabel={sourceFormatLabel(sourceKind)}
-          sourceLabel="Library"
+          sourceLabel={host.searchLibrary ? "Library" : "Saved drafts"}
           query={sourceQuery}
           results={sourceResults.map(({ document }) => document)}
           busy={sourceBusy}
@@ -782,13 +828,26 @@ function findingsByEntry(findings: ComplianceFinding[]) {
 }
 
 function focusFinding(finding?: ComplianceFinding) {
-  const target = finding?.fieldId
-    ? document.getElementById(`cover-${finding.fieldId}`)
-    : finding?.id.startsWith("missing-")
-      ? document.getElementById(`court-record-${finding.id.slice(8)}-file`)
-      : finding?.entryId
-        ? document.querySelector<HTMLElement>(`[data-entry-id="${finding.entryId}"] input`)
-        : document.querySelector<HTMLElement>("[data-kind-id] input[type=file]");
+  if (!finding) return;
+  let target: HTMLElement | null = null;
+  if (finding.fieldId === "partyGroups") {
+    target = document.querySelector(`[data-party-group-id="${finding.id.slice(6)}"] input`);
+  } else if (finding.fieldId) {
+    target = document.getElementById(`cover-${finding.fieldId}`);
+  } else if (finding.entryId) {
+    const suffix = finding.id.startsWith("date-") ? "date"
+      : finding.id.startsWith("exhibit-slot-") ? "exhibit"
+        : finding.id.startsWith("searchability-") || finding.id.startsWith("textless-pages-")
+          ? "ocr"
+          : finding.id.startsWith("description-") || finding.id.startsWith("unknown-")
+            ? "title"
+            : finding.id.startsWith("missing-file-") ? "relink" : "remove";
+    target = document.getElementById(`entry-${finding.entryId}-${suffix}`) ||
+      document.getElementById(`entry-${finding.entryId}-remove`);
+  } else if (finding.id.startsWith("missing-")) {
+    target = document.getElementById(`court-record-${finding.id.slice(8)}-file`);
+  }
+  target ??= document.querySelector<HTMLElement>("[data-kind-id] input[type=file]");
   target?.focus();
 }
 

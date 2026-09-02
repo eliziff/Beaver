@@ -4,11 +4,13 @@ import {
 } from "react";
 import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
 import { DocTable } from "@/app/components/documents/DocTable";
-import { DirectoryActions, type UploadActions } from "@/app/components/documents/UploadAction";
+import { DirectoryActions, type DocumentSelectionActions,
+    type UploadActions } from "@/app/components/documents/UploadAction";
 import { projectBreadcrumbLabel } from "./ProjectPageParts";
 import { ProjectSectionTabs, useProjectWorkspace } from "./ProjectWorkspace";
 import { useProjectFiles } from "./useProjectFiles";
-import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
+import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
+import type { Document } from "../shared/types";
 export function ProjectDocumentsView() {
     const {
         projectId,
@@ -22,7 +24,9 @@ export function ProjectDocumentsView() {
         (() => void) | null
     >(null);
     const [uploadActions, setUploadActions] = useState<UploadActions | null>(null);
-    const files = useProjectFiles();
+    const [selectionActions, setSelectionActions] =
+        useState<DocumentSelectionActions | null>(null);
+    const files = useProjectFiles(search);
     const { documents, folders, operations } = files;
     const handleCreateFolderActionChange = useCallback(
         (action: (() => void) | null) => {
@@ -33,9 +37,13 @@ export function ProjectDocumentsView() {
     const handleUploadActionsChange = useCallback(
         (actions: UploadActions | null) => setUploadActions(actions), [],
     );
+    const openAssistantWorkflow = useCallback((selection: WorkflowSelection, documents: Document[]) =>
+        void createChat(documents, assistantWorkflowLaunch(selection)), [createChat]);
     const toolbarActions = project !== null
         ? <DirectoryActions actions={uploadActions} busy={projectLoading}
-            onCreateFolder={createFolderAction} />
+            onCreateFolder={createFolderAction} selection={selectionActions}
+            onOpenSelectionInChat={(documents) => { void createChat(documents); }}
+            onAssistantWorkflowSelect={openAssistantWorkflow} />
         : null;
     return (
         <ProjectSectionTabs actions={toolbarActions}>
@@ -48,12 +56,8 @@ export function ProjectDocumentsView() {
                 operations={operations}
                 onUploadActionsChange={handleUploadActionsChange}
                 onCreateFolderActionChange={handleCreateFolderActionChange}
-                onOpenSelectionInChat={(documents) => {
-                    void createChat(documents);
-                }}
-                onAssistantWorkflowSelect={(selection, documents) => {
-                    void createChat(documents, assistantWorkflowLaunch(selection));
-                }}
+                onSelectionActionsChange={setSelectionActions}
+                onAssistantWorkflowSelect={openAssistantWorkflow}
                 renderAddDocumentsModal={(open, onClose, onSelect) =>
                     project ? (
                         <AddDocumentsModal

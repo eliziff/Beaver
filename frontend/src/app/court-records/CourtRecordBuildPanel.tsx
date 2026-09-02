@@ -14,6 +14,7 @@ type Props = {
   result?: BuildResult;
   building: boolean;
   saving: boolean;
+  disabled?: boolean;
   progress?: string;
   error?: string;
   hostMode: "standalone" | "beaver";
@@ -74,7 +75,8 @@ export function CourtRecordBuildPanel(props: Props) {
               <div className="mt-2 space-y-2">{props.report.review.map((item) => <p key={item.id} className="text-xs leading-5 text-amber-900">{item.detail}</p>)}</div>
             </details>
           )}
-          <Button type="button" className="mt-3 h-11 w-full" disabled={props.building} aria-busy={props.building} onClick={props.onBuild} data-court-record-build>
+          <Button type="button" className="mt-3 h-11 w-full" disabled={props.disabled || props.building}
+            aria-busy={props.building} onClick={props.onBuild} data-court-record-build>
             {props.building ? <Loader2 className="motion-safe:animate-spin" /> : <FileCheck2 />}
             {actionLabel}
           </Button>
@@ -85,7 +87,8 @@ export function CourtRecordBuildPanel(props: Props) {
           <div className="border-t border-gray-100 p-3">
             <div className="space-y-1.5">
               {props.result.artifacts.map((artifact) => (
-                <button key={artifact.filename} type="button" onClick={() => props.onDownload(artifact)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-500">
+                <button key={artifact.filename} type="button" disabled={props.disabled}
+                  onClick={() => props.onDownload(artifact)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50">
                   <Download className="h-4 w-4 shrink-0 text-red-700" />
                   <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-800">{artifact.filename}</span>
                   <span className="shrink-0 text-xs text-gray-500">{formatBytes(artifact.bytes.byteLength)}</span>
@@ -93,7 +96,7 @@ export function CourtRecordBuildPanel(props: Props) {
               ))}
             </div>
             {props.onSave && (
-              <Button type="button" variant="outline" className="mt-2 h-9 w-full border-gray-500/80" disabled={props.saving} onClick={props.onSave}>
+              <Button type="button" variant="outline" className="mt-2 h-9 w-full border-gray-500/80" disabled={props.disabled || props.saving} onClick={props.onSave}>
                 {props.saving ? <Loader2 className="motion-safe:animate-spin" /> : <FolderUp />}
                 {props.hostMode === "beaver" ? "Save to Library" : "Save output"}
               </Button>

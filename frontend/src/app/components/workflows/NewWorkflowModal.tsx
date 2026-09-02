@@ -35,6 +35,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         const title = String(form.get("title") ?? "").trim();
+        const result = String(form.get("result") ?? "").trim();
         const category = String(form.get("category") ?? "");
         const language = String(form.get("language") ?? "").trim();
         const jurisdictions = String(form.get("jurisdictions") ?? "").split(",")
@@ -49,7 +50,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
         }
         const launcher = { kind: "instructions" as const, variants: [{
             label: title, execution,
-            result: current?.result ?? (execution === "assistant" ? "Written response" : "Review table"),
+            result,
             skill_md: execution === "assistant" ? instructions.trim() : null,
             columns_config: execution === "tabular" ? current?.columns_config ?? [] : null }] };
         setLoading(true); setError("");
@@ -76,7 +77,6 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
     const instructionsError = error === "Write instructions for this workflow.";
     const audienceError = error === "Choose at least one audience.";
     return <Modal open onClose={onClose} size="xl"
-            className="!h-fit max-h-[calc(100dvh-2rem)]"
             breadcrumbs={["Workflows", editWorkflow ? "Edit workflow" : "New workflow"]}
             primaryAction={{ label: loading ? "Saving…" : editWorkflow ? "Save changes" : "Create workflow",
                 type: "submit", form: formId, disabled: loading }}>
@@ -88,10 +88,13 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                         void importMarkdown(file);
                     }} />
                 <div className={`grid gap-5 ${editWorkflow
-                    ? "" : "sm:grid-cols-[minmax(0,1fr)_auto]"}`}>
+                    ? "sm:grid-cols-2" : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"}`}>
                     <FormField label="Workflow name" htmlFor="workflow-title">
                         <ModalTextInput name="title" required autoFocus
                             defaultValue={editWorkflow?.metadata.title} />
+                    </FormField>
+                    <FormField label="What it produces" htmlFor="workflow-result">
+                        <ModalTextInput name="result" required defaultValue={current?.result ?? ""} />
                     </FormField>
                     {!editWorkflow && <FieldGroup legend="Opens in">
                         <ModalSegmentedToggle value={execution} onChange={setExecution} options={[

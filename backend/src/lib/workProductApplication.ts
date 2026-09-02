@@ -5,7 +5,7 @@ import { decodeResearchSetState, recordResearchSetAudit, reduceResearchSet,
   type ResearchSetAction, type ResearchSetActor } from "./researchSet";
 import { decodeWorkProductState, workProductInputs,
   type WorkProductFailure, type WorkProductKind,
-  type WorkProductOutputRef, type WorkProductRepository,
+  type WorkProduct, type WorkProductOutputRef, type WorkProductRepository,
   type WorkProductState } from "./workProduct";
 
 function title(value: string) {
@@ -21,12 +21,15 @@ function state(kind: WorkProductKind, value: unknown): WorkProductState {
   if (!decoded) return reject(400, `Invalid ${name} state`);
   const valid = kind === "court-record" ? decodeCourtRecordDraftState(decoded)
     : kind === "authorities" ? decodeAuthoritiesDraft(decoded) : decodeResearchSetState(decoded);
-  if (!valid) reject(400, `Invalid ${name} state`);
-  if (workProductInputs(decoded).some(({ kind: inputKind }) => inputKind === "local-file")) {
+  if (!valid) return reject(400, `Invalid ${name} state`);
+  if (workProductInputs(valid).some(({ kind: inputKind }) => inputKind === "local-file")) {
     reject(400, "Local file handles belong in the standalone draft store");
   }
-  return decoded;
+  return valid;
 }
+
+const checked = <T extends WorkProduct>(product: T): T =>
+  ({ ...product, state: state(product.kind, product.state) });
 
 const populated = (state: WorkProductState, outputs: Record<string, unknown> = {}) =>
   workProductInputs(state).length > 0 || Object.keys(outputs).length > 0;
@@ -58,17 +61,20 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
   const created = (result: Awaited<ReturnType<WorkProductRepository["create"]>>) =>
     result.status === "created" ? result.product : failed(result);
   return Object.freeze({
-    list(scope: ApplicationScope, options: {
+    async list(scope: ApplicationScope, options: {
       kind?: WorkProductKind; projectId?: string; limit?: number; metadata?: boolean;
     } = {}) {
-      return repository.list(scope, { ...options, limit: options.limit ?? 50 });
+      const products = await repository.list(scope, { ...options, limit: options.limit ?? 50 });
+      return products.map((product) => "state" in product ? checked(product) : product);
     },
     async get(scope: ApplicationScope, id: string) {
-      return (await repository.get(scope, id))?.product ?? reject(404, "Draft not found");
+      const product = (await repository.get(scope, id))?.product ??
+        reject(404, "Draft not found");
+      return checked(product);
     },
     async resolve(scope: ApplicationScope, id: string) {
       const result = await repository.resolve(scope, id);
-      return "product" in result ? result : failed(result);
+      return "product" in result ? { ...result, product: checked(result.product) } : failed(result);
     },
     async create(scope: ApplicationScope, input: {
       kind: WorkProductKind; title: string; projectId?: string | null; state?: unknown;

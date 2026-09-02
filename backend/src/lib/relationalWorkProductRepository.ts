@@ -23,6 +23,8 @@ const metadata = (row: Row): WorkProductMetadata => ({
   title: String(row.title),
   projectId: typeof row.project_id === "string" ? row.project_id : null,
   revision: Number(row.revision),
+  ...(row.kind === "research-set" ? {}
+    : { outputs: decode<Record<string, WorkProductOutput>>(row.outputs_json, {}) }),
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at),
 });
@@ -281,7 +283,7 @@ async function outputs(scope: ApplicationScope, product: WorkProduct,
 export const workProductRepository: WorkProductRepository = {
   async list(scope, options) {
     const result = await rows(sql`SELECT ${options.metadata ? sql.raw(
-      "w.id,w.kind,w.title,w.project_id,w.revision,w.created_at,w.updated_at") : sql.raw("w.*")}
+      "w.id,w.kind,w.title,w.project_id,w.revision,w.outputs_json,w.created_at,w.updated_at") : sql.raw("w.*")}
       FROM work_products w WHERE ${access(scope)}
       ${options.kind ? sql`AND w.kind=${options.kind}` : sql.raw("")}
       ${options.projectId ? sql`AND w.project_id=${options.projectId}` : sql.raw("")}

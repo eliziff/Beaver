@@ -85,9 +85,11 @@ const authoritiesChoices = async (dependencies: Dependencies) =>
   (await dependencies.workProducts.list(dependencies.scope, {
     kind: "authorities", limit: 100, metadata: false,
   })).flatMap((product) => {
-    if (!("outputs" in product) || product.projectId !== dependencies.projectId) return [];
+    if (!("outputs" in product) || !product.outputs || typeof product.outputs !== "object" ||
+        product.projectId !== dependencies.projectId) return [];
+    const outputs = product.outputs as object;
     const roles = (["table", "book"] as const)
-      .filter((role) => Object.hasOwn(product.outputs, role));
+      .filter((role) => Object.hasOwn(outputs, role));
     return roles.length ? [{ child_draft_id: product.id, title: product.title,
       revision: product.revision, output_roles: roles }] : [];
   });

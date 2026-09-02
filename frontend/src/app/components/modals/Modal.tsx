@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
-type ModalSize = "sm" | "md" | "lg" | "xl";
+type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 type ModalAction = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     "className"
@@ -32,6 +32,7 @@ const sizeClassName: Record<ModalSize, string> = {
     md: "max-w-lg",
     lg: "max-w-xl",
     xl: "max-w-2xl",
+    "2xl": "max-w-4xl",
 };
 export function Modal({
     open,

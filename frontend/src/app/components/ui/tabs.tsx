@@ -28,7 +28,7 @@ const listClass: Record<TabVariant, string> = {
     dock: "gap-1",
     underline: "gap-0.5 sm:gap-1.5",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
-    brand: "mx-auto w-full max-w-[60rem] gap-2",
+    brand: "mx-auto w-full max-w-[60rem] gap-1",
     settings: "grid flex-1 grid-cols-2 gap-1 sm:grid-cols-5",
     sheets: "h-full items-stretch",
 };
@@ -38,7 +38,7 @@ const tabClass: Record<TabVariant, string> = {
     dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:px-3 sm:text-sm",
     underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
-    brand: "h-9 w-[6.5rem] shrink-0 rounded-lg border px-2 text-sm font-medium",
+    brand: "h-9 shrink-0 rounded-lg border px-2 text-sm font-medium",
     settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
     sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs",
 };

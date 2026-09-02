@@ -1,6 +1,24 @@
 import { fileSnapshot, type WorkProduct } from "@/app/lib/workProducts";
+import type { Document } from "@/app/components/shared/types";
 import { needsOcr, type CourtRecordsHost, type PreparationProgress } from "./host";
 import type { CourtRecordDraft, CoverValues, RecordEntry } from "./types";
+
+const UNASSIGNED_KIND_ID = "unassigned";
+
+export function courtRecordDraftFromDocuments(documents: Array<Pick<Document, "id" | "filename"> &
+  Partial<Pick<Document, "size_bytes" | "created_at" | "source_sha256">>>): CourtRecordDraft {
+  const entries = documents.map((document) => ({
+    id: document.id,
+    kindId: UNASSIGNED_KIND_ID,
+    title: document.filename.replace(/\.(?:pdf|docx)$/iu, ""),
+    lastSeen: { name: document.filename, size: document.size_bytes ?? 0,
+      modified: Date.parse(document.created_at ?? "") || 0,
+      ...(document.source_sha256 ? { sha256: document.source_sha256 } : {}) },
+  }));
+  return { profileId: "", cover: {}, entries,
+    bindings: Object.fromEntries(documents.map(({ id }) => [id,
+      { kind: "document", documentId: id, version: "latest" }])) };
+}
 
 export function courtRecordDraft(
   profileId: string,

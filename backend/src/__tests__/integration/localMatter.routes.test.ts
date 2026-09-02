@@ -425,7 +425,7 @@ describe("account-free matter routes", () => {
 
     expect((await turn(0)).status).toBe(200);
     expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
-      "[Workflow: Document Review (id: document-review; variant: builtin-extract-key-terms)]",
+      "(id: document-review; variant: builtin-extract-key-terms)",
     );
     expect((await turn(2)).status).toBe(200);
     expect(pageDocuments((await request(api).get(

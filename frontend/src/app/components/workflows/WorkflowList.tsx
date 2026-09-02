@@ -34,7 +34,7 @@ export function WorkflowList() {
         setLaunching(true); setLaunchError(null);
         try {
             navigate(await createTabularReviewPath({
-                title: workflow.metadata.title,
+                title: variant.label,
                 document_ids: [],
                 columns_config: variant.columns_config ?? [],
                 workflow_id: workflow.id,

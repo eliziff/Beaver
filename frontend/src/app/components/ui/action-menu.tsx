@@ -12,6 +12,8 @@ export type ActionMenuItem = {
     label: string;
     onSelect: () => void;
     disabled?: boolean;
+    checked?: boolean;
+    keepOpen?: boolean;
 };
 const nativePopover = typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 
@@ -132,15 +134,17 @@ export function ActionMenu({
                         <button
                             key={item.label}
                             type="button"
-                            role="menuitem"
+                            role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+                            aria-checked={item.checked}
                             disabled={item.disabled}
                             onClick={(event) => {
                                 event.stopPropagation();
-                                close(true);
+                                if (!item.keepOpen) close(true);
                                 item.onSelect();
                             }}
                             className="flex min-h-9 w-full items-center rounded-md px-3 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none disabled:cursor-default disabled:text-gray-400"
                         >
+                            {item.checked !== undefined && <span className="me-2 w-3" aria-hidden="true">{item.checked ? "✓" : ""}</span>}
                             {item.label}
                         </button>
                     ))}
