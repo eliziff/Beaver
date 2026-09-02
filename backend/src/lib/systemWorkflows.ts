@@ -6,7 +6,6 @@ export const WORKFLOW_CATEGORIES = [
   "Drafting and document preparation",
   "Document review and comparison",
   "Research and verification",
-  "Templates",
   "Agreements",
   "Due diligence",
   "Transactions and closing",
@@ -27,6 +26,7 @@ export type WorkflowContributor = {
 export type InstructionVariant = {
   id: string;
   label: string;
+  description?: string | null;
   result: string | null;
   execution: WorkflowExecution;
   skill_md: string | null;

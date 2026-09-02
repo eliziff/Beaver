@@ -105,7 +105,6 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
     }
     const loading = status === "loading";
     return <Modal open onClose={onClose}
-        className={step === "details" ? "!h-fit max-h-[calc(100dvh-2rem)]" : undefined}
         breadcrumbs={["Projects", step === "details" ? "New project" : "Add documents"]}
         headerAction={step === "documents" ? <UploadAction busy={loading} actions={{
             files: () => fileInput.current?.click(),

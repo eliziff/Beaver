@@ -19,6 +19,7 @@ export type AuthoritiesCreate = {
     outputMode?: AuthoritiesOutputMode; insertIntoDocument?: boolean };
 };
 export interface AuthoritiesHost {
+  mode?: "beaver" | "standalone";
   drafts: WorkProductStore;
   create(input: AuthoritiesCreate): Promise<AuthoritiesProduct>;
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;

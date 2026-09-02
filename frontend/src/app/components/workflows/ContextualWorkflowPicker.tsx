@@ -3,10 +3,12 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     createAuthorities,
+    createWorkProduct,
     fixLibraryDocxSupras,
     inspectDocxWorkflowCapabilities,
     type DeterministicDocxActionResult,
 } from "@/app/lib/beaverApi";
+import { courtRecordDraftFromDocuments } from "@/app/court-records/draftState";
 import { publishWorkflowRun, workflowOperationLabel } from "../assistant/WorkflowRun";
 import { WorkflowSkeuoIcon } from "../shared/AppSidebarSkeuoIcons";
 import type { Document, WorkflowOperationName } from "../shared/types";
@@ -39,6 +41,9 @@ function documentType({ filename, file_type }: WorkflowDocument) {
     if (type === "pdf" || type === "docx") return type;
     return filename.toLowerCase().match(/\.(pdf|docx)$/u)?.[1] ?? type ?? "";
 }
+const sharedProjectId = (documents: WorkflowDocument[]) => documents[0]?.project_id &&
+    documents.every(({ project_id }) => project_id === documents[0].project_id)
+    ? documents[0].project_id : undefined;
 
 export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
     onAssistantSelect, onDocumentChanged, onLaunched, className }: PickerProps) {
@@ -80,11 +85,9 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
         if (launching) return;
         setLaunching("table"); setLaunchError(null);
         try {
-            const projectId = documents[0]?.project_id && documents.every(
-                ({ project_id }) => project_id === documents[0].project_id)
-                ? documents[0].project_id : undefined;
+            const projectId = sharedProjectId(documents);
             const path = await createTabularReviewPath({
-                title: selection.workflow.metadata.title,
+                title: selection.variant.label,
                 document_ids: documents.map(({ id }) => id),
                 columns_config: selection.variant.columns_config ?? [],
                 workflow_id: selection.workflow.id,
@@ -99,6 +102,25 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
 
     async function openProduct(workflow: (typeof state.workflows)[number]) {
         if (launching) return;
+        if (workflow.launcher.kind === "court_records" && documents.length) {
+            if (documents.some((document) => document.library_kind === "template" ||
+                !/^(pdf|docx)$/u.test(documentType(document)))) {
+                setLaunchError("Court Records accepts PDF or Word files.");
+                return;
+            }
+            setLaunching("product"); setLaunchError(null);
+            try {
+                const projectId = sharedProjectId(documents);
+                const product = await createWorkProduct({ kind: "court-record",
+                    title: "Untitled court record", projectId,
+                    state: courtRecordDraftFromDocuments(documents) });
+                onLaunched?.();
+                navigate(`/court-records?draft=${encodeURIComponent(product.id)}`);
+            } catch {
+                setLaunchError("Unable to create Court Records. Try again.");
+            } finally { setLaunching(null); }
+            return;
+        }
         const source = documents.length === 1 && documents[0].library_kind !== "template" &&
             /^(pdf|docx)$/u.test(documentType(documents[0]))
             ? documents[0] : null;
@@ -184,20 +206,25 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
     </div>;
 }
 
-export function ContextualWorkflowLauncher({ documents, onAssistantSelect,
-    onDocumentChanged, onOpen }: Pick<PickerProps, "documents" | "onAssistantSelect" |
-        "onDocumentChanged"> & { onOpen?: (documents: WorkflowDocument[]) => void }) {
+export function ContextualWorkflowLauncher({ documents = [], onAssistantSelect,
+    onDocumentChanged, onOpen, className, labelClassName = "hidden sm:inline",
+    disabled = false, showDisabled = false }: Pick<PickerProps, "documents" | "onAssistantSelect" |
+        "onDocumentChanged"> & { onOpen?: (documents: WorkflowDocument[]) => void;
+            className?: string; labelClassName?: string; disabled?: boolean;
+            showDisabled?: boolean }) {
     const [open, setOpen] = useState(false);
-    if (!documents?.length) return null;
+    const available = !!documents?.length;
+    if (!available && !showDisabled) return null;
     return <>
-        <Button variant="white" size="compact" className="h-8"
+        <Button variant="white" size="compact" className={cn("h-8", className)}
+            disabled={disabled || !available}
             aria-label="Workflows" onClick={(event) => {
                 event.stopPropagation();
                 if (onOpen) onOpen(documents);
                 else setOpen(true);
             }}>
             <WorkflowSkeuoIcon className="text-base leading-none" />
-            <span className="hidden sm:inline">Workflows</span>
+            <span className={labelClassName}>Workflows</span>
         </Button>
         {!onOpen && <Modal open={open} onClose={() => setOpen(false)} size="xl"
             breadcrumbs={["Workflows"]}>

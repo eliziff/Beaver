@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { WorkProduct, WorkProductInput, WorkProductStore } from "@/app/lib/workProducts";
-import { courtRecordDraft, restoreCourtRecordDraft } from "./draftState";
+import { courtRecordDraft, courtRecordDraftFromDocuments, restoreCourtRecordDraft } from "./draftState";
 import type { CourtRecordsHost } from "./host";
 import type { CourtRecordDraft, RecordEntry } from "./types";
 
@@ -30,6 +30,26 @@ function entry(): RecordEntry {
 }
 
 describe("court record draft state", () => {
+  it("keeps contextual documents durable without assigning a filing slot", () => {
+    const state = courtRecordDraftFromDocuments([
+      { id: "notice", filename: "Notice.docx", size_bytes: 42,
+        created_at: "2026-08-30T01:02:03.000Z", source_sha256: "a".repeat(64) },
+      { id: "record", filename: "Record.pdf" },
+    ]);
+
+    expect(state).toEqual({ profileId: "", cover: {}, entries: [
+      { id: "notice", kindId: "unassigned", title: "Notice", lastSeen: {
+        name: "Notice.docx", size: 42, modified: Date.parse("2026-08-30T01:02:03.000Z"),
+        sha256: "a".repeat(64),
+      } },
+      { id: "record", kindId: "unassigned", title: "Record",
+        lastSeen: { name: "Record.pdf", size: 0, modified: 0 } },
+    ], bindings: {
+      notice: { kind: "document", documentId: "notice", version: "latest" },
+      record: { kind: "document", documentId: "record", version: "latest" },
+    } });
+  });
+
   it("persists intent and bindings without serializing source bytes", () => {
     const state = courtRecordDraft("fc-motion-record-moving", { courtFileNumber: "T-1-26" }, [entry()]);
     expect(state).toMatchObject({

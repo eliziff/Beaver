@@ -23,12 +23,12 @@ const item = (id: string, title: string, category: string,
 });
 const drafting = item("drafting", "Drafting", "Drafting and document preparation", {
     kind: "instructions", variants: [{ id: "drafting-written", label: "Draft",
-        result: "Written response", execution: "assistant", skill_md: "Draft",
+        result: "A finished legal draft", execution: "assistant", skill_md: "Draft",
         columns_config: null }],
 });
 const agreements = item("agreement-work", "Agreement Work", "Agreements", {
     kind: "instructions", variants: [{ id: "agreements-written", label: "Review",
-        result: "Written review", execution: "assistant", skill_md: "Review",
+        result: "Agreement findings", execution: "assistant", skill_md: "Review",
         columns_config: null }],
 });
 const courtRecords = item("court-records", "Court Records",
@@ -45,19 +45,20 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
     courtRecords.metadata.audiences = ["litigator"];
     mocks.listWorkflows.mockResolvedValue([drafting, agreements, courtRecords, courtRecords]);
     const view = render(<MemoryRouter><WorkflowList /><Location /></MemoryRouter>);
-    expect(await screen.findByText("Draft, revise or proofread")).toBeVisible();
-    expect(screen.getByText("Drafting description")).toBeVisible();
+    const draftingButton = await screen.findByRole("button", { name: /^Open chat:/i });
+    expect(draftingButton).toHaveAttribute("data-workflow-id", "drafting");
+    expect(draftingButton).toHaveTextContent("A finished legal draft");
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
-    expect(await screen.findByText("Review an agreement")).toBeVisible();
-    expect(screen.queryByText("Written review")).toBeNull();
+    expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeVisible();
+    expect(screen.getByText("Agreement findings")).toBeVisible();
     expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
     await waitFor(() => expect(view.container.querySelectorAll(
         '[data-workflow-id="court-records"]')).toHaveLength(1));
-    fireEvent.click(view.container.querySelector('[data-workflow-id="court-records"]')!);
+    fireEvent.click(view.container.querySelector('button[data-workflow-id="court-records"]')!);
     expect(screen.getByTestId("location")).toHaveTextContent("/court-records");
 });
 
@@ -65,12 +66,13 @@ it("switches audience tabs locally without loading or another request", async ()
     agreements.metadata.audiences = ["solicitor"];
     mocks.listWorkflows.mockResolvedValue([drafting, agreements]);
     const view = render(<MemoryRouter><WorkflowList /></MemoryRouter>);
-    expect(await screen.findByText("Draft, revise or proofread")).toBeVisible();
-    expect(screen.queryByText("Review an agreement")).toBeNull();
+    const draftingButton = await screen.findByRole("button", { name: /^Open chat:/i });
+    expect(draftingButton).toHaveAttribute("data-workflow-id", "drafting");
+    expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Solicitor" }));
-    expect(screen.getByText("Draft, revise or proofread")).toBeVisible();
-    expect(screen.getByText("Review an agreement")).toBeVisible();
+    expect(view.container.querySelector('button[data-workflow-id="drafting"]')).toBeVisible();
+    expect(view.container.querySelector('button[data-workflow-id="agreement-work"]')).toBeVisible();
     expect(view.container.querySelector(".animate-pulse")).toBeNull();
     expect(mocks.listWorkflows).toHaveBeenCalledTimes(1);
 });

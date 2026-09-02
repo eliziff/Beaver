@@ -11,7 +11,7 @@ import type {
   CoverIssueId,
   CoverValues,
 } from "./types";
-import { coverPartyGroups, filingParty } from "./types";
+import { coverPartyGroups } from "./types";
 
 export function CourtRecordChooser({ profile, onProfile, creating = false, onCancel }: {
   profile: CourtProfile;
@@ -29,7 +29,13 @@ export function CourtRecordChooser({ profile, onProfile, creating = false, onCan
   useEffect(() => setDocumentId(selected.document), [selected.document]);
 
   function chooseDocument(id: string) {
+    const profiles = DOCUMENTS.find((item) => item.id === id)?.profiles ?? [];
     choosing.current = true;
+    if (profiles.length === 1) {
+      onProfile(profiles[0].id);
+      setDialog(undefined);
+      return;
+    }
     setDocumentId(id);
     setDialog("format");
   }
@@ -95,7 +101,7 @@ const DOCUMENTS = documentChoices();
 
 function documentChoices() {
   const groups = new Map<string, { id: string; label: string; profiles: CourtProfile[] }>();
-  for (const profile of effectiveCourtProfiles()) {
+  for (const profile of effectiveCourtProfiles().filter(({ id }) => id !== "general-court-record")) {
     const { document } = selectionFor(profile);
     const current = groups.get(document) ?? { id: document, label: document, profiles: [] };
     current.profiles.push(profile);
@@ -174,17 +180,29 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
   const styles = profile.cover.partyStyles!;
   const activeStyle = styles.find((style) => style.id === cover.partyStyleId) ?? styles[0];
   const groups = coverPartyGroups(profile, cover);
-  const selected = filingParty(profile, cover);
   const candidates = groups
     .filter((group) => !profile.cover.filingGroupId || group.id === profile.cover.filingGroupId)
     .flatMap((group) => group.parties
       .filter((party) => party.name.trim())
       .map((party) => ({ party, group })));
+  const onlyCandidateId = candidates.length === 1 ? candidates[0]?.party.id : undefined;
+  const inferredFiler = useRef<string | undefined>(undefined);
   const optional = activeStyle.groups.find((group) => group.optional &&
     !groups.some((current) => current.id === group.id));
 
   const setGroups = (next: CasePartyGroup[]) => onCover("partyGroups", next);
   const focus = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
+
+  useEffect(() => {
+    if (onlyCandidateId && !cover.filingPartyId) {
+      inferredFiler.current = onlyCandidateId;
+      onCover("filingPartyId", onlyCandidateId);
+    } else if (!onlyCandidateId && inferredFiler.current &&
+        inferredFiler.current === cover.filingPartyId) {
+      inferredFiler.current = undefined;
+      onCover("filingPartyId", "");
+    }
+  }, [cover.filingPartyId, onCover, onlyCandidateId]);
 
   function changeStyle(styleId: string) {
     const nextStyle = styles.find((style) => style.id === styleId)!;
@@ -261,11 +279,15 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
             </select>
           </label>
         )}
-        <label className="block text-sm font-medium leading-5 text-gray-700">
+        {candidates.length > 1 && <label className="block text-sm font-medium leading-5 text-gray-700">
           Filing party<span className="ml-1 text-red-600" aria-hidden="true">*</span>
           <select
-            value={selected?.party.id ?? ""}
-            onChange={(event) => onCover("filingPartyId", event.target.value)}
+            id="cover-filingPartyId"
+            value={cover.filingPartyId ?? ""}
+            onChange={(event) => {
+              inferredFiler.current = undefined;
+              onCover("filingPartyId", event.target.value);
+            }}
             aria-invalid={missingFields.has("filingPartyId") || undefined}
             aria-describedby={missingFields.has("filingPartyId") ? "filing-party-error" : undefined}
             className={cn(
@@ -275,13 +297,13 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
                 : "border-gray-400 focus-visible:border-red-500 focus-visible:ring-red-200",
             )}
           >
-            {!candidates.length && <option value="">Enter a party name</option>}
+            <option value="">Choose party</option>
             {candidates.map(({ party, group }) => (
               <option key={party.id} value={party.id}>{party.name} — {group.role}</option>
             ))}
           </select>
           {missingFields.has("filingPartyId") && <span id="filing-party-error" className="mt-1 block text-sm font-normal text-red-700">Choose the party filing this record.</span>}
-        </label>
+        </label>}
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {groups.map((group) => {
@@ -290,8 +312,10 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
           const invalid = required && missingFields.has("partyGroups") &&
             !group.parties.some((party) => party.name.trim());
           return (
-            <section key={group.id} data-party-group={group.role} aria-labelledby={`party-group-${group.id}`} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="flex min-h-8 items-start justify-between gap-2">
+            <section key={group.id} data-party-group={group.role}
+              data-party-group-id={group.id} aria-labelledby={`party-group-${group.id}`}
+              className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+              <div className="flex min-h-7 items-start justify-between gap-2">
                 <h3 id={`party-group-${group.id}`} className="text-sm font-semibold text-gray-950">
                   {group.role}{required && <><span className="ml-1 text-red-600" aria-hidden="true">*</span><span className="sr-only"> required</span></>}
                   {group.roleBelow && <span className="block text-xs font-normal text-gray-500">{group.roleBelow} below</span>}
@@ -302,18 +326,18 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
                   </button>
                 )}
               </div>
-              <div className="mt-2 grid gap-2">
+              <div className="mt-1.5 grid gap-1.5">
                 {group.parties.map((party, index) => (
                   <div key={party.id} className="flex items-end gap-2">
-                    <label className="min-w-0 flex-1 text-xs font-medium text-gray-600">
-                      Name
+                    <label className="min-w-0 flex-1">
+                      <span className="sr-only">{group.role} {index + 1}</span>
                       <Input
                         id={`party-${party.id}`}
                         value={party.name}
                         onChange={(event) => changeName(group.id, party.id, event.target.value)}
                         aria-invalid={invalid || undefined}
                         aria-describedby={invalid ? `party-${group.id}-error` : undefined}
-                        className={cn("mt-1 h-10 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")}
+                        className={cn("h-9 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")}
                       />
                     </label>
                     {index > 0 && (
@@ -324,7 +348,7 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
                   </div>
                 ))}
                 {invalid && <p id={`party-${group.id}-error`} className="text-sm text-red-700">Enter at least one name.</p>}
-                <button id={`add-${group.id}`} type="button" onClick={() => addParty(group)} className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-md px-2 text-sm font-medium text-gray-700 outline-none hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-red-600">
+                <button id={`add-${group.id}`} type="button" onClick={() => addParty(group)} className="inline-flex h-8 w-fit items-center gap-1.5 rounded-md px-1.5 text-sm font-medium text-gray-700 outline-none hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-red-600">
                   <Plus className="h-4 w-4" aria-hidden="true" /> Add {group.role.toLowerCase()}
                 </button>
               </div>

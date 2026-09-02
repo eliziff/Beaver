@@ -23,7 +23,7 @@ export default function CourtRecordsPage() {
   }, [onProductChange, params, setParams]);
   const draftId = assistant.product?.id;
   return <div className="relative flex h-full min-h-0 w-full">
-    <div className="min-w-0 flex-1">
+    <div className="min-h-0 min-w-0 flex-1">
       <CourtRecordsWorkspace
         host={beaverCourtRecordsHost}
         locked={assistant.busy}

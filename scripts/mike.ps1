@@ -510,7 +510,7 @@ function Start-Stack {
         $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
         [Environment]::SetEnvironmentVariable('PORT', '3000', 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', 'production', 'Process')
-        $backendStart = Start-LoggedProcess 'beaver' $node @('dist/supervisor.js') $Backend $state
+        $backendStart = Start-LoggedProcess 'beaver' $node @('--env-file=.env', 'dist/supervisor.js') $Backend $state
         $launched += [pscustomobject]@{
             Id = $backendStart.Process.Id
             StartedAt = Get-ProcessStamp $backendStart.Process.Id

@@ -53,13 +53,14 @@ vi.mock("../workflows/WorkflowPickerModal", () => ({
         open: boolean;
         onSelect: (selection: {
             workflow: { id: string; metadata: { title: string } };
-            variant: { id: string; execution: "assistant" };
+            variant: { id: string; label: string; execution: "assistant" };
         }) => void;
         onClose: () => void;
     }) => open ? <button type="button" onClick={async () => {
         onClose();
         await onSelect({ workflow: { id: "drafting", metadata: { title: "Drafting" } },
-            variant: { id: "builtin-draft-from-template", execution: "assistant" } });
+            variant: { id: "builtin-draft-from-template", label: "Draft from template",
+                execution: "assistant" } });
     }}>Choose template workflow</button> : null,
 }));
 vi.mock("../popups/ApiKeyMissingPopup", () => ({
@@ -151,7 +152,7 @@ describe("ChatInput workflow document selection", () => {
         await userEvent.click(screen.getByRole("button", { name: "Choose template workflow" }));
 
         expect(screen.queryByRole("button", { name: "Use document" })).toBeNull();
-        expect(screen.getByText("Drafting")).toBeVisible();
+        expect(screen.getByText("Draft from template")).toBeVisible();
     });
 
     it("hides Auto Mode until enabled and preserves the selected mode", async () => {

@@ -1,15 +1,24 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { DraftHeader } from "./DraftHeader";
+import { WorkspaceHeader } from "./WorkspaceHeader";
 
 const current = { id: "one", title: "Current record" };
 const props = () => ({ current, busy: false, itemLabel: "court record",
   onBack: vi.fn(), onRename: vi.fn(), onDuplicate: vi.fn(), onDelete: vi.fn() });
 
+it("uses one workspace rail for static and active states", () => {
+  const { rerender } = render(<WorkspaceHeader title="Court Records" />);
+  const rail = screen.getByRole("heading").closest("[data-workspace-header]");
+  expect(rail).toHaveTextContent("Court Records");
+  rerender(<WorkspaceHeader {...props()} />);
+  expect(screen.getByRole("heading", { name: current.title })
+    .closest("[data-workspace-header]")).toBe(rail);
+});
+
 it("keeps the current draft and its actions in one header", async () => {
   const user = userEvent.setup(), handlers = props();
-  render(<DraftHeader {...handlers} />);
+  render(<WorkspaceHeader {...handlers} />);
 
   expect(screen.getByRole("heading", { name: current.title })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Back from court record" }));
@@ -26,7 +35,7 @@ it("keeps the current draft and its actions in one header", async () => {
 
 it("renames inline on Enter or blur and cancels with Escape", async () => {
   const user = userEvent.setup(), handlers = props();
-  const { rerender } = render(<DraftHeader {...handlers} />);
+  const { rerender } = render(<WorkspaceHeader {...handlers} />);
   const rename = async (value: string) => {
     await user.click(screen.getByRole("button", { name: "court record actions" }));
     await user.click(screen.getByRole("menuitem", { name: "Rename" }));
@@ -38,11 +47,11 @@ it("renames inline on Enter or blur and cancels with Escape", async () => {
 
   await user.type(await rename("Renamed record"), "{Enter}");
   expect(handlers.onRename).toHaveBeenLastCalledWith("Renamed record");
-  rerender(<DraftHeader {...handlers} current={{ ...current, title: "Renamed record" }} />);
+  rerender(<WorkspaceHeader {...handlers} current={{ ...current, title: "Renamed record" }} />);
   await rename("Blurred record");
   await user.tab();
   expect(handlers.onRename).toHaveBeenLastCalledWith("Blurred record");
-  rerender(<DraftHeader {...handlers} current={{ ...current, title: "Blurred record" }} />);
+  rerender(<WorkspaceHeader {...handlers} current={{ ...current, title: "Blurred record" }} />);
   await user.type(await rename("Cancelled record"), "{Escape}");
   expect(handlers.onRename).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("heading", { name: "Blurred record" })).toBeVisible();

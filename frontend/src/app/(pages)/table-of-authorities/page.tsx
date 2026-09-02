@@ -16,7 +16,7 @@ export default function TableOfAuthoritiesPage() {
     setParams(next, { replace: true });
   };
   return <div className="relative flex h-full min-h-0 w-full">
-    <div className="min-w-0 flex-1">
+    <div className="min-h-0 min-w-0 flex-1">
       <AuthoritiesWorkspace host={beaverAuthoritiesHost} LibraryPicker={LibraryDocumentPicker}
         route={{ draftId: params.get("draft") ?? "",
           projectId: params.get("project") || undefined, replaceDraft }}

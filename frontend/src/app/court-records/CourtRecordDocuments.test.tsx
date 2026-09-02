@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
@@ -12,7 +12,7 @@ const profile = { documentKinds: [{ id: "authorities", label: "Authorities",
   technical: { indexDate: "none" }, outputMode: "separate-files" } as CourtProfile;
 const required = { profile, entries: [], entryFindings: new Map(),
   onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(), onMove: vi.fn(),
-  onAssign: vi.fn() };
+  onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
   it("offers Library or file upload, not record drafts, as slot sources", () => {
@@ -44,7 +44,7 @@ describe("Court Record documents", () => {
       dataTransfer: { getData: () => "pool" },
     });
     expect(onAssign).toHaveBeenCalledWith("pool", "B");
-    fireEvent.change(screen.getByLabelText("Add files"), {
+    fireEvent.change(screen.getByLabelText("Add file"), {
       target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
     });
     expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));
@@ -64,9 +64,62 @@ describe("Court Record documents", () => {
     render(<AppealDocuments />);
 
     expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: /Part 3 .* No oral record/u })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remove transcript.pdf" }));
     expect(screen.getByRole("heading", { name: /Part 3 .* Transcript/u })).toBeVisible();
-    expect(screen.getByRole("heading", { name: /Part 3 .* No oral record/u })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /Part 3 .* No oral record/u })).toBeVisible();
+  });
+
+  it("groups required slots before visible optional slots", () => {
+    render(<CourtRecordDocuments {...required}
+      profile={COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!} />);
+
+    const requiredGroup = screen.getByRole("region", { name: "Required documents" });
+    const otherGroup = screen.getByRole("region", { name: "Other documents" });
+    expect(within(requiredGroup).getByText("Notice of application")).toBeVisible();
+    expect(within(requiredGroup).getByText("Memorandum of fact and law")).toBeVisible();
+    expect(within(otherGroup).getByText("Supporting affidavit and exhibits")).toBeVisible();
+    expect(requiredGroup.compareDocumentPosition(otherGroup) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(screen.queryByText("Required")).toBeNull();
+  });
+
+  it("keeps the required affidavit slot before its exhibit pool", () => {
+    const affidavit = { id: "affidavit", kindId: "affidavit",
+      file: new File(["affidavit"], "affidavit.pdf"), title: "Affidavit", pageCount: 1,
+      searchable: true, encrypted: false, sourceFields: { cover: {}, exhibitLabels: ["A"] } } as RecordEntry;
+    render(<CourtRecordDocuments {...required}
+      profile={COURT_PROFILE_BY_ID.get("ab-kb-affidavit-exhibits")!}
+      kindIds={["affidavit", "exhibit"]} entries={[affidavit]} />);
+
+    const requiredGroup = screen.getByRole("region", { name: "Required documents" });
+    const exhibitSlot = screen.getByRole("region", { name: "Exhibit A slot" });
+    expect(within(requiredGroup).getByText("Affidavit")).toBeVisible();
+    expect(requiredGroup.compareDocumentPosition(exhibitSlot) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it("edits repeatable physical-exhibit descriptions inline", () => {
+    const first = { id: "physical-1", kindId: "physical-exhibit",
+      file: new File([], "description-only"), title: "Scale model", pageCount: 0,
+      searchable: null, encrypted: null, descriptionOnly: true } as RecordEntry;
+    const second = { ...first, id: "physical-2", title: "Original map" };
+    const onEntry = vi.fn(), onRemove = vi.fn(), onDescription = vi.fn();
+    render(<CourtRecordDocuments {...required}
+      profile={COURT_PROFILE_BY_ID.get("fc-application-record-applicant")!}
+      entries={[first, second]} onEntry={onEntry} onRemove={onRemove}
+      onDescription={onDescription} />);
+
+    expect(screen.queryByRole("button", { name: "Add description" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Description of physical exhibit 1"), {
+      target: { value: "Registry scale model" },
+    });
+    expect(onEntry).toHaveBeenCalledWith("physical-1", { title: "Registry scale model" });
+    fireEvent.change(screen.getByLabelText("Description of physical exhibit 2"), {
+      target: { value: "" },
+    });
+    expect(onRemove).toHaveBeenCalledWith("physical-2");
+    fireEvent.click(screen.getByRole("button", { name: "Add another description" }));
+    expect(onDescription).toHaveBeenCalledWith("physical-exhibit");
   });
 });

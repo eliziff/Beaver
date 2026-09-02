@@ -31,9 +31,10 @@ it("offers only workflows that can launch in the requested execution surface", a
     render(<WorkflowPickerModal open onClose={vi.fn()} onSelect={onSelect}
         execution="assistant" breadcrumbs={["Choose workflow"]} />);
 
-    const launch = await screen.findByRole("button", {
-        name: /Draft, revise or proofread.*Chat/i,
-    });
+    await screen.findByRole("button", { name: /^Open chat:/i });
+    const launch = document.querySelector<HTMLButtonElement>(
+        "button[data-workflow-variant-id='draft']",
+    )!;
     expect(screen.queryByText("Court Records")).toBeNull();
     expect(screen.queryByText("Authorities")).toBeNull();
     await userEvent.click(launch);
@@ -57,9 +58,10 @@ it("closes before handing off to the next picker", async () => {
     }
     render(<Harness />);
 
-    await userEvent.click(await screen.findByRole("button", {
-        name: /Draft, revise or proofread.*Chat/i,
-    }));
+    await screen.findByRole("button", { name: /^Open chat:/i });
+    await userEvent.click(document.querySelector<HTMLButtonElement>(
+        "button[data-workflow-variant-id='draft']",
+    )!);
 
     await waitFor(() => expect(screen.getByText("files")).toBeVisible());
 });

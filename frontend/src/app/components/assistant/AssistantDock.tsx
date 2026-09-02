@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Tabs } from "@/app/components/ui/tabs";
@@ -24,6 +23,8 @@ export function AssistantDock({
     inspectorOpen = false,
     onCloseInspector,
     showCollapsedButton = true,
+    defaultWidth = 480,
+    minWidth = 360,
 }: {
     tabs: AssistantDockTab[];
     activeTabId: string;
@@ -34,14 +35,23 @@ export function AssistantDock({
     inspectorOpen?: boolean;
     onCloseInspector?: () => void;
     showCollapsedButton?: boolean;
+    defaultWidth?: number;
+    minWidth?: number;
 }) {
-    const [width, setWidth] = useState(480);
+    const [width, setWidth] = useState(defaultWidth);
     const [compact, setCompact] = useState(() => window.matchMedia?.(compactDock).matches ?? false);
     const resizeStart = useRef<{ x: number; width: number } | null>(null);
     const dock = useRef<HTMLElement>(null);
     const changeExpanded = useRef(onExpandedChange);
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+    const [visited, setVisited] = useState(() => new Set(expanded && active ? [active.id] : []));
     changeExpanded.current = onExpandedChange;
+
+    useEffect(() => {
+        if (expanded && active && !visited.has(active.id)) {
+            setVisited((ids) => new Set(ids).add(active.id));
+        }
+    }, [active, expanded, visited]);
 
     useEffect(() => {
         const media = window.matchMedia?.(compactDock);
@@ -56,7 +66,7 @@ export function AssistantDock({
             if (!resizeStart.current) return;
             setWidth(
                 Math.max(
-                    360,
+                    minWidth,
                     Math.min(
                         window.innerWidth - 48,
                         resizeStart.current.width + resizeStart.current.x - event.clientX,
@@ -76,11 +86,14 @@ export function AssistantDock({
             window.removeEventListener("pointerup", stop);
             stop();
         };
-    }, []);
+    }, [minWidth]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const panel = dock.current;
         if (!expanded || !compact || !panel) return;
+        const root = document.documentElement;
+        const previousRootGutter = root.style.scrollbarGutter;
+        root.style.scrollbarGutter = "auto";
         const parent = panel.parentElement;
         const previousFocus = document.activeElement as HTMLElement | null;
         const siblings = parent ? [...parent.children].filter((node) => node !== panel) as HTMLElement[] : [];
@@ -112,6 +125,7 @@ export function AssistantDock({
         };
         panel.addEventListener("keydown", trapFocus);
         return () => {
+            root.style.scrollbarGutter = previousRootGutter;
             panel.removeEventListener("keydown", trapFocus);
             previousState.forEach(({ node, inert, hidden }) => {
                 node.inert = inert;
@@ -123,16 +137,15 @@ export function AssistantDock({
     }, [compact, expanded]);
 
     if (!active) return null;
-    const expandButton = !expanded && showCollapsedButton ? createPortal(
+    const expandButton = !expanded && showCollapsedButton ? (
             <button
                 type="button"
                 onClick={() => onExpandedChange(true)}
-                className="fixed end-3 top-3 z-[110] grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                className="absolute end-3 top-3 z-30 grid size-9 place-items-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
                 aria-label="Expand assistant dock"
             >
                 <PanelRightOpen className="size-4" aria-hidden="true" />
-            </button>,
-            document.body,
+            </button>
         ) : null;
     const showingInspector = active.id !== "sources" && inspectorOpen;
     return <>
@@ -147,8 +160,8 @@ export function AssistantDock({
             aria-hidden={!expanded}
             inert={!expanded ? true : undefined}
             className={cn(
-                expanded ? "absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
-                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),50%)] xl:rounded-2xl",
+                expanded ? "fixed inset-0 z-40 flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
+                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),75%)] xl:rounded-2xl",
             )}
             style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
         >
@@ -167,7 +180,7 @@ export function AssistantDock({
                     event.preventDefault();
                     setWidth((current) =>
                         Math.max(
-                            360,
+                            minWidth,
                             Math.min(
                                 window.innerWidth - 48,
                                 current + (event.key === "ArrowLeft" ? 24 : -24),
@@ -196,7 +209,7 @@ export function AssistantDock({
                         "relative min-h-0 overflow-hidden",
                         showingInspector ? "" : "absolute inset-0",
                     )}>
-                        {tabs.map((tab) => <div
+                        {tabs.filter((tab) => visited.has(tab.id) || expanded && tab.id === active.id).map((tab) => <div
                             key={tab.id}
                             aria-hidden={tab.id !== active.id}
                             className={cn(
@@ -204,7 +217,9 @@ export function AssistantDock({
                                 tab.id !== active.id && "invisible pointer-events-none",
                             )}
                         >
-                            {tab.content}
+                            <Suspense fallback={<div className="h-full bg-app-surface" />}>
+                                {tab.content}
+                            </Suspense>
                         </div>)}
                     </div>
                     {showingInspector && <section

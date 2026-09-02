@@ -2,15 +2,17 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useState,
     type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
-import { assistantWorkflowLaunch } from "../workflows/workflowRoutes";
+import { assistantWorkflowLaunch, type WorkflowSelection } from "../workflows/workflowRoutes";
 import { DocTable, type DocTableFolder } from "../documents/DocTable";
-import { DirectoryActions, type UploadActions } from "../documents/UploadAction";
+import { DirectoryActions, type DocumentSelectionActions,
+    type UploadActions } from "../documents/UploadAction";
 import { PageHeader } from "../shared/PageHeader";
 import type { Document } from "../shared/types";
 import { Tabs } from "../ui/tabs";
@@ -64,19 +66,32 @@ function useStoredAction() {
     ] as const;
 }
 
-export function LibraryCollectionPage({
-    kind,
-    onKindChange,
-    onOpenInChat,
-    onOpenWorkflows,
-    embedded = false,
-}: {
+type LibraryCollectionProps = {
     kind: LibraryKind;
     onKindChange?: (kind: LibraryKind) => void;
     onOpenInChat?: (documents: Document[]) => void;
     onOpenWorkflows?: (documents: Document[]) => void;
     embedded?: boolean;
-}) {
+};
+
+export function LibraryCollectionPage(props: LibraryCollectionProps) {
+    const [visited, setVisited] = useState(() => new Set([props.kind]));
+    useEffect(() => {
+        if (!visited.has(props.kind)) setVisited((kinds) => new Set(kinds).add(props.kind));
+    }, [props.kind, visited]);
+    return LIBRARY_TABS.filter(({ id }) => id === props.kind || visited.has(id)).map(({ id }) =>
+        <div key={id} hidden={id !== props.kind} className="h-full min-h-0">
+            <LibraryCollection {...props} kind={id} />
+        </div>);
+}
+
+function LibraryCollection({
+    kind,
+    onKindChange,
+    onOpenInChat,
+    onOpenWorkflows,
+    embedded = false,
+}: LibraryCollectionProps) {
     const navigate = useNavigate();
     const workspace = useContext(LibraryWorkspace);
     const [localSearch, setLocalSearch] = useState("");
@@ -84,6 +99,8 @@ export function LibraryCollectionPage({
     const setSearch = (value: string) =>
         workspace ? workspace.setSearch(kind, value) : setLocalSearch(value);
     const [uploadActions, setUploadActions] = useState<UploadActions | null>(null);
+    const [selectionActions, setSelectionActions] =
+        useState<DocumentSelectionActions | null>(null);
     const [createFolder, setCreateFolder] = useStoredAction();
     const title = kind === "files" ? "Files" : "Templates";
     const resource = useMemo(() => directoryResource({ library: kind }), [kind]);
@@ -113,6 +130,9 @@ export function LibraryCollectionPage({
             navigate("/assistant");
         }
     }
+    const openAssistantWorkflow = (selection: WorkflowSelection, documents: Document[]) => {
+        stageNewChatDocuments(documents); navigate("/assistant", { state: assistantWorkflowLaunch(selection) });
+    };
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -148,12 +168,15 @@ export function LibraryCollectionPage({
                     }
                     ariaLabel="Library sections"
                     variant="pill"
-                    className="h-full"
-                    railClassName="mx-4 mb-2 min-h-12 flex-col items-stretch gap-2 py-2 sm:flex-row sm:flex-wrap sm:items-center md:mx-6"
+                    className="document-directory h-full"
+                    railClassName="mx-4 mb-2 min-h-12 gap-2 py-2 md:mx-6"
                     actions={
                         <DirectoryActions actions={uploadActions}
                             busy={directory.loading} compact={embedded}
-                            onCreateFolder={createFolder} />
+                            onCreateFolder={createFolder} selection={selectionActions}
+                            onOpenSelectionInChat={openChat} onOpenWorkflows={onOpenWorkflows}
+                            onAssistantWorkflowSelect={openAssistantWorkflow}
+                            openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"} />
                     }
                 >
                 <DocTable
@@ -165,13 +188,9 @@ export function LibraryCollectionPage({
                     operations={operations}
                     onUploadActionsChange={setUploadActions}
                     onCreateFolderActionChange={setCreateFolder}
-                    onOpenSelectionInChat={openChat}
+                    onSelectionActionsChange={setSelectionActions}
                     onOpenWorkflows={onOpenWorkflows}
-                    onAssistantWorkflowSelect={(selection, documents) => {
-                        stageNewChatDocuments(documents);
-                        navigate("/assistant", { state: assistantWorkflowLaunch(selection) });
-                    }}
-                    openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"}
+                    onAssistantWorkflowSelect={openAssistantWorkflow}
                     selectionFirst
                     compact={embedded}
                     emptyDropLabel={

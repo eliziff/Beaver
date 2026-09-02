@@ -20,7 +20,7 @@ export const workflowDocumentTab = ({ variant }: WorkflowSelection) =>
 
 export const workflowMessage = ({ workflow, variant }: WorkflowSelection):
     NonNullable<Message["workflow"]> => ({
-        id: workflow.id, variant_id: variant.id, title: workflow.metadata.title,
+        id: workflow.id, variant_id: variant.id, title: variant.label,
     });
 
 export const assistantWorkflowLaunch = (selection: WorkflowSelection) => ({

@@ -33,7 +33,7 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const workspace = useProjectWorkspace();
-  const files = useProjectFiles();
+  const files = useProjectFiles("");
   const history = useChatHistoryContext();
   const route = useAssistantChatRoute({ chatId, projectId });
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);

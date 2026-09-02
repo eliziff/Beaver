@@ -6,10 +6,11 @@ import type { ComponentProps } from "react";
 import type { Project } from "@/app/components/shared/types";
 import { ProjectsOverview } from "./ProjectsOverview";
 
-const { deleteProject, listProjects, push } = vi.hoisted(() => ({
+const { deleteProject, listProjects, push, saveChat } = vi.hoisted(() => ({
     deleteProject: vi.fn<(id: string) => Promise<void>>(),
     listProjects: vi.fn(),
     push: vi.fn(),
+    saveChat: vi.fn(),
 }));
 
 const createdProject: Project = {
@@ -38,6 +39,10 @@ vi.mock("@/app/contexts/AuthContext", () => ({
         isAuthenticated: true,
         authLoading: false,
     }),
+}));
+
+vi.mock("@/app/contexts/ChatHistoryContext", () => ({
+    useChatHistoryContext: () => ({ saveChat }),
 }));
 
 vi.mock("@/app/lib/beaverApi", () => ({
@@ -85,6 +90,7 @@ describe("ProjectsOverview", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         deleteProject.mockResolvedValue(undefined);
+        saveChat.mockResolvedValue("chat-1");
         listProjects.mockResolvedValue({ items: [], next_cursor: null });
         Object.defineProperty(window, "matchMedia", {
             configurable: true,
@@ -174,6 +180,21 @@ describe("ProjectsOverview", () => {
         expect(await screen.findByText("New appeal")).toBeVisible();
         expect(screen.getByText(formattedDate)).toBeVisible();
         expect(push).toHaveBeenCalledWith("/projects/project-new");
+    });
+
+    it("creates the selected project's new chat before opening it", async () => {
+        listProjects.mockResolvedValue({ items: [createdProject], next_cursor: null });
+        const user = userEvent.setup();
+        render(<ProjectsOverview />);
+
+        await screen.findByText(createdProject.name);
+        await user.click(screen.getAllByRole("checkbox")[1]);
+        await user.click(screen.getByRole("button", { name: "Open in new chat" }));
+
+        await waitFor(() => expect(push).toHaveBeenCalledWith(
+            "/projects/project-new/assistant/chat/chat-1",
+        ));
+        expect(saveChat).toHaveBeenCalledWith("project-new");
     });
 
     it("keeps and identifies projects whose deletion fails", async () => {

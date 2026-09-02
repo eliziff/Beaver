@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Document, Packer, Paragraph, TextRun } from "docx";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
 // Live tool-loop E2E: drives the real /chat route in account-free mode with
 // REAL model calls (no LLM mock) against an isolated data home. Skipped
@@ -15,6 +16,7 @@ import { Document, Packer, Paragraph, TextRun } from "docx";
 // and answer with the rent figure.
 // Turn B: the model must route a structural-drafting-errors request to the
 // deterministic lint_document tool and relay its findings.
+// Turns C-D prove assistant edits survive reload in Authorities and Court Records.
 
 const LIVE = process.env.LIVE_E2E === "1";
 const MODEL = process.env.LIVE_MODEL?.trim() || "codex:gpt-5.6-luna";
@@ -26,13 +28,13 @@ vi.mock("../../lib/localMode", () => ({
 }));
 
 let dataHome: string;
-let closeLocalStore: (() => Promise<void>) | null = null;
+let closeRuntime: (() => Promise<void>) | null = null;
 
 async function loadApi() {
   vi.resetModules();
   const { api } = await import("../../api");
-  closeLocalStore = async () => (await import("../../lib/relationalDatabase"))
-    .closeRelationalDatabase();
+  const { runtime } = await import("../../runtime"), workers = await runtime.startWorkers();
+  closeRuntime = async () => { await workers.stop(); await runtime.shutdown(); };
   return api;
 }
 
@@ -87,6 +89,15 @@ async function buildLeaseDocx(): Promise<Buffer> {
   return Packer.toBuffer(doc);
 }
 
+async function buildNoticePdf() {
+  const pdf = await PDFDocument.create(), page = pdf.addPage([612, 792]);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  page.drawText("NOTICE OF MOTION", { x: 72, y: 720, size: 16, font });
+  page.drawText("The moving party will apply for the relief set out in this notice.",
+    { x: 72, y: 680, size: 11, font });
+  return Buffer.from(await pdf.save());
+}
+
 beforeEach(async () => {
   dataHome = await mkdtemp(path.join(os.tmpdir(), "beaver-live-e2e-"));
   vi.stubEnv("AUTH_MODE", "local");
@@ -100,8 +111,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await closeLocalStore?.();
-  closeLocalStore = null;
+  await closeRuntime?.();
+  closeRuntime = null;
   vi.unstubAllEnvs();
   vi.resetModules();
   await rm(dataHome, { recursive: true, force: true });
@@ -185,6 +196,99 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
       // Section 9 target and the missing Schedule 2 attachment.
       expect(answer).toMatch(/Section 9/u);
       expect(answer).toMatch(/Schedule 2/u);
+    },
+    TURN_TIMEOUT,
+  );
+
+  it(
+    "edits an Authorities citation boundary and persists the model's exact range",
+    async () => {
+      const api = await loadApi();
+      const { createAuthoritiesDraft } = await import("../../lib/authoritiesDomain");
+      const unitText = "See also R v Jordan, 2016 SCC 27 at para 5.";
+      const authorityText = "R v Jordan, 2016 SCC 27", citation = "2016 SCC 27";
+      const authorityStart = unitText.indexOf(authorityText);
+      const authorityEnd = authorityStart + authorityText.length;
+      const coreStart = unitText.indexOf(citation), pinpointStart = unitText.indexOf("para 5");
+      const draft = createAuthoritiesDraft({ kind: "manual" });
+      draft.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
+        footnoteRefs: [], pageNumbers: [1], text: unitText, occurrenceIds: ["occurrence-1"] }];
+      draft.authorities["2016scc27"] = { id: "2016scc27", key: "2016scc27", kind: "case",
+        citation, name: "R v Jordan", displayName: null, evidenceIds: [], locators: [],
+        sourceIdentity: null, excluded: false, tabLabel: null, source: { kind: "unresolved" } };
+      draft.authorityOrder = ["2016scc27"];
+      draft.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "footnote:1",
+        start: 0, end: pinpointStart + 6, text: unitText.slice(0, pinpointStart + 6),
+        authoritySpan: { start: 0, end: authorityEnd, text: unitText.slice(0, authorityEnd) },
+        coreSpan: { start: coreStart, end: coreStart + citation.length, text: citation },
+        pinpointSpan: { start: pinpointStart, end: pinpointStart + 6, text: "para 5" },
+        kind: "case", citation, authorityId: "2016scc27", reference: null,
+        pinpoints: [{ kind: "paragraph", text: "para 5" }], evidenceIds: [],
+        sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
+
+      const created = await request(api).post("/work-products").send({
+        kind: "authorities", title: "Boundary proof", project_id: null, state: draft,
+      });
+      expect(created.status).toBe(201);
+      const product = created.body as { id: string; revision: number };
+      const streamed = await request(api).post("/chat").send({
+        model: MODEL, reasoning_effort: REASONING_EFFORT, expected_version: 0,
+        work_product: { kind: "authorities", id: product.id, revision: product.revision },
+        current_turn: { kind: "message", content:
+          "Edit the active Authorities draft. Read occurrence-1, then make its authority span " +
+          "exactly 'R v Jordan, 2016 SCC 27'. The leading words " +
+          "'See also' and the pinpoint 'para 5' must stay outside that span. Do not merely explain." },
+      });
+      expect(streamed.status).toBe(200);
+      const events = sseEvents(streamed.text), calls = toolCalls(events);
+      const persisted = await request(api).get(`/work-products/${product.id}`);
+      expect(persisted.status).toBe(200);
+      expect(persisted.body.revision).toBeGreaterThan(product.revision);
+      expect(persisted.body.state.occurrences["occurrence-1"].authoritySpan).toEqual({
+        start: authorityStart, end: authorityEnd, text: authorityText,
+      });
+      console.info("LIVE Authorities proof", { model: MODEL, reasoning: REASONING_EFFORT,
+        calls, revision: persisted.body.revision,
+        authoritySpan: persisted.body.state.occurrences["occurrence-1"].authoritySpan });
+    },
+    TURN_TIMEOUT,
+  );
+
+  it(
+    "attaches an uploaded Library PDF to a Court Record slot and persists the binding",
+    async () => {
+      const api = await loadApi();
+      const uploaded = await request(api).post("/single-documents")
+        .attach("file", await buildNoticePdf(), "Notice of Motion.pdf");
+      expect(uploaded.status).toBe(201);
+      const created = await request(api).post("/work-products").send({
+        kind: "court-record", title: "Motion record", project_id: null,
+        state: { profileId: "fc-motion-record-moving", cover: {}, entries: [], bindings: {} },
+      });
+      expect(created.status).toBe(201);
+      const product = created.body as { id: string; revision: number };
+      const streamed = await request(api).post("/chat").send({
+        model: MODEL, reasoning_effort: REASONING_EFFORT, expected_version: 0,
+        work_product: { kind: "court-record", id: product.id, revision: product.revision },
+        current_turn: { kind: "message", files: [{ document_id: uploaded.body.id }], content:
+          "Attach the uploaded Notice of Motion.pdf to the active Court Record's required " +
+          "notice-motion slot. Do not change the cover or create another document." },
+      });
+      expect(streamed.status).toBe(200);
+      const events = sseEvents(streamed.text), calls = toolCalls(events);
+      const persisted = await request(api).get(`/work-products/${product.id}`);
+      expect(persisted.status).toBe(200);
+      expect(persisted.body.revision).toBeGreaterThan(product.revision);
+      const entry = persisted.body.state.entries.find(
+        (item: { kindId?: string }) => item.kindId === "notice-motion",
+      );
+      expect(entry).toBeTruthy();
+      expect(persisted.body.state.bindings[entry.id]).toEqual({
+        kind: "document", documentId: uploaded.body.id, version: "latest",
+      });
+      console.info("LIVE Court Record proof", { model: MODEL, reasoning: REASONING_EFFORT,
+        calls, revision: persisted.body.revision, entryId: entry.id,
+        binding: persisted.body.state.bindings[entry.id] });
     },
     TURN_TIMEOUT,
   );

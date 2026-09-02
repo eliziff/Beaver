@@ -1,27 +1,27 @@
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
 import "@/app/globals.css";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing Beaver application root");
-const root = createRoot(container);
+const root = import("react-dom/client").then(({ createRoot }) => createRoot(container));
 const router = import("@/app/router");
 
 try {
     const config = await initializeRuntimeConfig();
-    const [{ Router }, gate] = await Promise.all([
+    const [mounted, { Router }, gate] = await Promise.all([
+        root,
         router,
         config.mode === "cloud" ? import("@/app/components/shared/MfaLoginGate") : null,
     ]);
-    root.render(
+    mounted.render(
         <StrictMode>
             <Router LoginGate={gate?.MfaLoginGate} />
         </StrictMode>,
     );
 } catch (error) {
     console.error("Beaver startup failed:", error);
-    root.render(
+    (await root).render(
         <main className="flex min-h-dvh items-center justify-center p-6">
             <div className="max-w-md text-center">
                 <h1 className="font-serif text-3xl text-gray-900">

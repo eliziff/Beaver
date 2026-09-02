@@ -54,7 +54,9 @@ export const needsOcr = (entry: Pick<RecordEntry,
   entry.encrypted !== true &&
     (entry.searchable === false || (entry.textlessPageCount ?? 0) > 0);
 
-export function outputDocument(product: WorkProduct, output: WorkProductOutput): Document {
+type OutputProduct = Pick<WorkProduct, "id" | "title" | "projectId" | "updatedAt">;
+
+export function outputDocument(product: OutputProduct, output: WorkProductOutput): Document {
   return { id: output.documentId, project_id: product.projectId,
     filename: output.filename,
     file_type: sourceFormat({ name: output.filename, type: output.mimeType }) ?? null,
@@ -63,7 +65,7 @@ export function outputDocument(product: WorkProduct, output: WorkProductOutput):
     source_sha256: output.sha256 };
 }
 
-export function draftOutputChoice(product: WorkProduct, role: string,
+export function draftOutputChoice(product: OutputProduct, role: string,
   output: WorkProductOutput): DraftOutputChoice {
   return { workProductId: product.id, workProductTitle: product.title, role, output,
     document: outputDocument(product, output) };

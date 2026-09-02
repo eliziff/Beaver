@@ -18,6 +18,7 @@ const drafts: WorkProductStore = {
 };
 
 export const beaverAuthoritiesHost: AuthoritiesHost = {
+  mode: "beaver",
   drafts,
   async create({ source, title, projectId, settings }) {
     const imported = source.kind === "file"

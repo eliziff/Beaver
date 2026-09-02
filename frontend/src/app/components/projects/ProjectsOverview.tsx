@@ -11,6 +11,7 @@ import {
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import type { Project } from "@/app/components/shared/types";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectDetailsModal } from "./ProjectDetailsModal";
@@ -70,6 +71,7 @@ export function ProjectsOverview() {
     const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
     const [deleteRequest, setDeleteRequest] = useState<{ ids: string[]; loading: boolean } | null>(null);
     const navigate = useNavigate();
+    const { saveChat } = useChatHistoryContext();
     const { user, isAuthenticated, authLoading } = useAuth();
     const userId = user?.id;
     const deferredSearch = useDeferredValue(search.trim());
@@ -113,6 +115,10 @@ export function ProjectsOverview() {
             ),
         );
     }
+    async function openProjectChat(projectId: string) {
+        const chatId = await saveChat(projectId);
+        if (chatId) navigate(`/projects/${projectId}/assistant/chat/${chatId}`);
+    }
     async function confirmDelete() {
         if (!deleteRequest) return;
         const ids = deleteRequest.ids;
@@ -144,7 +150,7 @@ export function ProjectsOverview() {
     const selectionItems = [
         ...(selectedIds.length === 1 ? [{
             label: "Open in new chat",
-            onSelect: () => navigate(`/projects/${selectedIds[0]}/assistant`),
+            onSelect: () => void openProjectChat(selectedIds[0]),
         }] : []),
         { label: "Delete", onSelect: () => setDeleteRequest({ ids: selectedIds, loading: false }) },
     ];
@@ -207,7 +213,7 @@ export function ProjectsOverview() {
                         <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
                             {selectedIds.length === 1 && <Button variant="white"
                                 size="normal" className="h-8 py-0"
-                                onClick={() => navigate(`/projects/${selectedIds[0]}/assistant`)}
+                                onClick={() => void openProjectChat(selectedIds[0])}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />
                                 Open in new chat

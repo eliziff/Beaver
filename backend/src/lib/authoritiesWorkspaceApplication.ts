@@ -210,12 +210,10 @@ export async function resolveAuthoritiesSources(
   }
   if (!needsPdf) return { draft, attachments };
   for (let index = 0; index < candidates.length; index += 1) {
-    const { id, authority } = candidates[index], current = draft.authorities[id];
-    const unavailable = "unavailable" in resolutions[index];
-    if (!current || !(unavailable || !resolutions[index].source) ||
-        current.source.kind !== "unresolved" && !(unavailable &&
-          current.source.kind === "resolved" && current.sourceIdentity &&
-          !resolvedSources.has(current.sourceIdentity.stableSourceId))) continue;
+    const { id, authority } = candidates[index], current = draft.authorities[id],
+      resolution = resolutions[index];
+    if (!current || !("source" in resolution) || resolution.source !== null ||
+        current.source.kind !== "unresolved") continue;
     const pageUrl = authority.kind === "case"
       ? buildCanliiCaseUrlFromCitation([authority.citation]) : null;
     if (pageUrl) draft = update(draft,
@@ -238,13 +236,16 @@ export async function resolveAuthoritiesSources(
       ? source.verifiedPdf.url : null;
     const sourceUrl = source.url && !isCanliiUrl(source.url) ? source.url : null;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
+    let retryable = false;
     if (originals && (pdfUrl || sourceUrl)) try {
       original = await sources.download({ provider: "a2aj",
         identity: stableA2AJSourceId(source), sourceUrl, pdfUrl,
         filename: pdfFilename(source.name ?? source.citation), title: source.name,
         version: source.date }, signal) ?? undefined;
-      if (original && sha256(original.bytes) !== original.sourceSha256) original = undefined;
-    } catch { signal?.throwIfAborted(); }
+      if (original && sha256(original.bytes) !== original.sourceSha256) {
+        original = undefined; retryable = true;
+      }
+    } catch { signal?.throwIfAborted(); retryable = true; }
     // Federal enactments must be reproduced in both official languages. Never turn a
     // single-language source-text record into something that looks filing-ready.
     const reconstructed = reconstruct && !original && source.searchText.trim() &&
@@ -253,10 +254,12 @@ export async function resolveAuthoritiesSources(
       ? await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.url, text: source.searchText }) : null;
-    return { ...item, original, bytes: original?.bytes ?? reconstructed };
+    return { ...item, original, bytes: original?.bytes ?? reconstructed,
+      retryable: retryable && !reconstructed };
   });
-  for (const { authorityId, authority, source, original, bytes } of prepared) {
+  for (const { authorityId, authority, source, original, bytes, retryable } of prepared) {
     if (!bytes) {
+      if (retryable) continue;
       const pageUrl = authority.kind === "case" ? buildCanliiCaseUrlFromCitation([
         source.citation, source.alternateCitation, authority.citation,
       ], source.language) : null;
@@ -336,30 +339,123 @@ function selectedRange(draft: AuthoritiesDraft, occurrenceId: string, start: num
   return { occurrence, unit, start, end, text: unit.text.slice(start, end) };
 }
 
+const intersects = (start: number, end: number, span: { start: number; end: number }) =>
+  start < span.end && span.start < end;
+
+function correctionDonors(draft: AuthoritiesDraft,
+  selected: ReturnType<typeof selectedRange>) {
+  const siblings = selected.unit.occurrenceIds.flatMap((id) => {
+    const item = draft.occurrences[id];
+    return item && id !== selected.occurrence.id &&
+      intersects(selected.start, selected.end, item) ? [item] : [];
+  });
+  if (siblings.some(({ start, end }) => start < selected.start || end > selected.end)) {
+    throw new ApplicationError(400, "Select the complete overlapping citation");
+  }
+  return { donors: [selected.occurrence, ...siblings],
+    absorbedIds: siblings.map(({ id }) => id) };
+}
+
+function chosenAuthorityMatch(matches: NativeCitationOccurrence[], occurrence: AuthorityOccurrence,
+  draft: AuthoritiesDraft, sources: CitationServices) {
+  const routed = matches.filter(({ kind, reasons }) =>
+    kind === "case" && reasons.includes("provider_routing"));
+  if (routed.length > 1) throw new ApplicationError(400,
+    "Select one complete authority citation");
+  if (routed.length === 1) return routed[0];
+  if (matches.length === 1) return matches[0];
+  if (!matches.length) return null;
+  const current = draft.authorities[occurrence.authorityId ?? ""];
+  const matching = matches.filter((match) => match.coreCitation.text === occurrence.citation ||
+    !!current && lookupKey(sources, match.coreCitation.text) === current.key);
+  const keys = new Set(matches.map((match) => lookupKey(sources, match.coreCitation.text))
+    .filter(Boolean));
+  if (matching.length === 1) return matching[0];
+  if (keys.size === 1) return matches.find((match) =>
+    lookupKey(sources, match.coreCitation.text) === [...keys][0])!;
+  throw new ApplicationError(400, "Select one complete authority citation");
+}
+
+function removeUnusedDetections(draft: AuthoritiesDraft, donors: AuthorityOccurrence[],
+  retainedId: string | null) {
+  let changed = draft;
+  for (const id of new Set(donors.flatMap(({ authorityId }) => authorityId ? [authorityId] : []))) {
+    const authority = changed.authorities[id];
+    if (!authority || id === retainedId ||
+      !["unresolved", "pending-canlii"].includes(authority.source.kind) ||
+      authority.sourceIdentity || authority.evidenceIds.length || authority.displayName ||
+      authority.tabLabel || authority.excluded || authority.locators.length ||
+      Object.values(changed.occurrences)
+        .some(({ authorityId }) => authorityId === id)) continue;
+    changed = update(changed, { type: "remove-authority", authorityId: id });
+  }
+  return changed;
+}
+
 function correctOccurrenceSpan(draft: AuthoritiesDraft,
   action: Extract<AuthoritiesUserAction, { type: "set-authority-span" | "set-pinpoint-span" }>,
   sources: CitationServices) {
   const selected = selectedRange(draft, action.occurrenceId, action.start, action.end);
   const occurrence = structuredClone(selected.occurrence);
+  if (action.type === "set-authority-span" &&
+      !intersects(selected.start, selected.end, occurrence)) {
+    throw new ApplicationError(400, "Select the citation being corrected");
+  }
+  const { donors, absorbedIds } = correctionDonors(draft, selected);
+  const evidenceIds = [...new Set(donors.flatMap((item) => item.evidenceIds))].sort();
   if (action.type === "set-authority-span") {
-    const previousPinpoint = occurrence.pinpointSpan &&
-      (occurrence.pinpointSpan.end <= selected.start || occurrence.pinpointSpan.start >= selected.end)
+    if (occurrence.pinpointSpan && intersects(selected.start, selected.end,
+      occurrence.pinpointSpan)) throw new ApplicationError(400,
+      "Select the authority without its pinpoint");
+    const previousPinpoint = occurrence.pinpointSpan
       ? { span: occurrence.pinpointSpan, values: occurrence.pinpoints } : null;
     const matches = sources.occurrences(selected.text);
-    if (matches.length !== 1) throw new ApplicationError(400,
-      "Select one complete authority citation");
-    const match = matches[0], key = lookupKey(sources, match.coreCitation.text);
-    if (!key) throw new ApplicationError(400, "That selection is not a recognized citation");
+    const match = chosenAuthorityMatch(matches, occurrence, draft, sources);
+    const key = match ? lookupKey(sources, match.coreCitation.text) : "";
+    if (!match || !key) {
+      const manual = manualOccurrence(draft, selected.unit, selected.start,
+        selected.end, donors, sources).occurrence;
+      if (manual.pinpointSpan && intersects(selected.start, selected.end,
+        manual.pinpointSpan)) throw new ApplicationError(400,
+        "Select the authority without its pinpoint");
+      Object.assign(occurrence, manual, { id: occurrence.id,
+        localOrdinal: occurrence.localOrdinal, evidenceIds });
+      occurrence.authoritySpan = { start: selected.start, end: selected.end,
+        text: selected.text };
+      occurrence.pinpointSpan = null;
+      occurrence.pinpoints = [];
+      if (previousPinpoint) {
+        occurrence.pinpointSpan = previousPinpoint.span;
+        occurrence.pinpoints = previousPinpoint.values;
+        occurrence.start = Math.min(occurrence.start, previousPinpoint.span.start);
+        occurrence.end = Math.max(occurrence.end, previousPinpoint.span.end);
+        occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
+      }
+      const changed = update(draft, { type: "replace-occurrence",
+        occurrenceId: occurrence.id, replacement: occurrence,
+        absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
+      return removeUnusedDetections(changed, donors, occurrence.authorityId);
+    }
     const known = Object.values(draft.authorities).find((authority) => authority.key === key);
     const discovered = known ?? parsedAuthority(match, key);
     let changed = known ? draft : update(draft,
       { type: "add-authority", authority: discovered });
-    Object.assign(occurrence, nativeOccurrenceSpans(match, selected.unit.text, selected.start), {
+    const selectedName = match.reasons.includes("same_text_style")
+      ? match.shortForm?.trim() : "";
+    if (known && selectedName && !known.name && !known.displayName) changed = update(changed,
+      { type: "rename-authority", authorityId: known.id, displayName: selectedName });
+    const spans = nativeOccurrenceSpans(match, selected.unit.text, selected.start);
+    if (spans.pinpointSpan && intersects(selected.start, selected.end,
+      spans.pinpointSpan)) throw new ApplicationError(400,
+      "Select the authority without its pinpoint");
+    Object.assign(occurrence, spans, {
+      authoritySpan: { start: selected.start, end: selected.end, text: selected.text },
       kind: parsedKind(match), citation: match.coreCitation.text,
       authorityId: discovered.id, reference: null,
-      pinpoints: match.pinpoints.map(({ kind, text }) => ({ kind, text })), reviewed: true,
+      evidenceIds, pinpoints: [], reviewed: true,
     });
-    if (!occurrence.pinpointSpan && previousPinpoint) {
+    occurrence.pinpointSpan = null;
+    if (previousPinpoint) {
       occurrence.pinpointSpan = previousPinpoint.span;
       occurrence.pinpoints = previousPinpoint.values;
     }
@@ -368,14 +464,12 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     occurrence.end = Math.max(occurrence.authoritySpan.end, pinpoint?.end ?? -Infinity);
     occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
     changed = update(changed, { type: "replace-occurrence", occurrenceId: occurrence.id,
-      replacement: occurrence });
-    const obsoleteId = selected.occurrence.authorityId, obsolete = obsoleteId
-      ? changed.authorities[obsoleteId] : null;
-    return obsolete && obsolete.id !== discovered.id && !selected.occurrence.reviewed &&
-      ["unresolved", "pending-canlii"].includes(obsolete.source.kind) && !obsolete.sourceIdentity &&
-      !obsolete.evidenceIds.length && !Object.values(changed.occurrences)
-        .some(({ authorityId }) => authorityId === obsolete.id)
-      ? update(changed, { type: "remove-authority", authorityId: obsolete.id }) : changed;
+      replacement: occurrence,
+      absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
+    return removeUnusedDetections(changed, donors, discovered.id);
+  }
+  if (intersects(selected.start, selected.end, occurrence.authoritySpan)) {
+    throw new ApplicationError(400, "Select the pinpoint without the authority");
   }
   const from = Math.min(occurrence.authoritySpan.start, selected.start);
   const to = Math.max(occurrence.authoritySpan.end, selected.end);
@@ -391,9 +485,12 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
   occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
   occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
+  occurrence.evidenceIds = evidenceIds;
   occurrence.reviewed = true;
-  return update(draft, { type: "replace-occurrence", occurrenceId: occurrence.id,
-    replacement: occurrence });
+  const changed = update(draft, { type: "replace-occurrence", occurrenceId: occurrence.id,
+    replacement: occurrence,
+    absorbed: { ids: absorbedIds, start: selected.start, end: selected.end } });
+  return removeUnusedDetections(changed, donors, occurrence.authorityId);
 }
 
 function editOccurrences(draft: AuthoritiesDraft,

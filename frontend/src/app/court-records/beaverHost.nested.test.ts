@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   prepareAuthoritiesSources: vi.fn(),
   buildAuthorities: vi.fn(),
   listWorkProducts: vi.fn(),
+  listWorkProductMetadata: vi.fn(),
   directoryResource: vi.fn(),
   directoryList: vi.fn(),
   getDocument: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@/app/lib/beaverApi", async (original) => ({
   prepareAuthoritiesSources: mocks.prepareAuthoritiesSources,
   buildAuthorities: mocks.buildAuthorities,
   listWorkProducts: mocks.listWorkProducts,
+  listWorkProductMetadata: mocks.listWorkProductMetadata,
   directoryResource: mocks.directoryResource,
   getDocument: mocks.getDocument,
   downloadDocument: mocks.downloadDocument,
@@ -103,6 +105,8 @@ beforeEach(() => {
     return { product: mocks.product, receipt: {} };
   });
   mocks.listWorkProducts.mockImplementation(async (kind: string) =>
+    kind === "authorities" ? [mocks.product] : []);
+  mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
     kind === "authorities" ? [mocks.product] : []);
   mocks.directoryResource.mockImplementation(() => ({ list: mocks.directoryList }));
   mocks.directoryList.mockResolvedValue({ items: [], next_cursor: null });
@@ -212,13 +216,13 @@ describe("nested Court Record inputs", () => {
     const otherMatter = { ...sameMatter, id: "authorities-2", projectId: "project-2" };
     mocks.getWorkProduct.mockResolvedValueOnce({ ...sameMatter, id: "record-1",
       kind: "court-record", outputs: {} });
-    mocks.listWorkProducts.mockImplementation(async (kind: string) =>
+    mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [sameMatter, otherMatter] : []);
 
     await expect(beaverCourtRecordsHost.searchDraftOutputs!("", ["pdf"], "record-1"))
       .resolves.toMatchObject([{ workProductId: "authorities-1" }]);
-    expect(mocks.listWorkProducts).toHaveBeenCalledWith("authorities", "project-1");
-    expect(mocks.listWorkProducts).toHaveBeenCalledWith("court-record", "project-1");
+    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("authorities", "project-1");
+    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("court-record", "project-1");
   });
 
   it("does not offer matter outputs to a Library-level Court Draft", async () => {
@@ -226,12 +230,12 @@ describe("nested Court Record inputs", () => {
     const matterDraft = { ...libraryDraft, id: "authorities-2", projectId: "project-2" };
     mocks.getWorkProduct.mockResolvedValueOnce({ ...libraryDraft, id: "record-1",
       kind: "court-record", outputs: {} });
-    mocks.listWorkProducts.mockImplementation(async (kind: string) =>
+    mocks.listWorkProductMetadata.mockImplementation(async (kind: string) =>
       kind === "authorities" ? [libraryDraft, matterDraft] : []);
 
     await expect(beaverCourtRecordsHost.searchDraftOutputs!("", ["pdf"], "record-1"))
       .resolves.toMatchObject([{ workProductId: "authorities-1" }]);
-    expect(mocks.listWorkProducts).toHaveBeenCalledWith("authorities", undefined);
+    expect(mocks.listWorkProductMetadata).toHaveBeenCalledWith("authorities", undefined);
   });
 
   it("coalesces parallel reads of the same child draft", async () => {
