@@ -27,8 +27,7 @@ import type {
     AssistantSidePanelTab,
 } from "./AssistantSidePanel";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
-import { ContextualWorkflowPicker,
-    type WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
+import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type {
     WorkflowRunEvent,
     Citation,
@@ -51,16 +50,10 @@ import {
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
-import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import {
     legalSourceLocatorFromUrl,
     normalizeLegalSourceLocator,
 } from "@/app/components/legal/LegalSourceViewer";
-import { LegalLibraryPage } from "@/app/components/legal/LegalLibrary";
-import {
-    LibraryCollectionPage,
-    LibraryWorkspaceProvider,
-} from "@/app/components/library/LibraryWorkspace";
 import type { LibraryKind } from "@/app/lib/beaverApi";
 import {
     type ReadSubagentPanel,
@@ -68,12 +61,15 @@ import {
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchSave } from "./ChatResearchSave";
+import type { ResearchFile } from "@/app/lib/researchFiles";
 const loadAssistantSidePanel = () => import("./AssistantSidePanel");
 const preloadAssistantSidePanel = () =>
     void loadAssistantSidePanel().catch(() => undefined);
 const LazyAssistantSidePanel = lazy(async () => ({
     default: (await loadAssistantSidePanel()).AssistantSidePanel,
 }));
+const InitialDockPanel = lazy(() => import("./InitialDockPanel")
+    .then(({ InitialDockPanel }) => ({ default: InitialDockPanel })));
 interface Props {
     chatId?: string | null;
     session: AssistantSessionState;
@@ -94,6 +90,7 @@ interface Props {
     features?: {
         contextTools?: boolean;
         dock?: boolean;
+        researchSave?: boolean;
     };
     onCitationClick?: (citation: Citation) => boolean | void;
     citationTitle?: (citation: Citation) => string;
@@ -227,13 +224,14 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const [{ readSubagents }] = useAssistantPreferences();
     const dockEnabled = features?.dock ?? true;
     const contextToolsEnabled = features?.contextTools ?? true;
+    const researchSaveEnabled = features?.researchSave ?? true;
     const readSubagentPanelStorageKey = `${READ_SUBAGENT_PANELS_KEY}:${chatId ?? "new"}`;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
     const [readSubagentPanelState, setReadSubagentPanels] = useState(() => ({
         key: readSubagentPanelStorageKey,
         ids: readStoredSubagentPanelIds(readSubagentPanelStorageKey),
     }));
-    const [dockOpen, setDockOpen] = useState(!!projectFiles || !!initialWorkflow);
+    const [dockOpen, setDockOpen] = useState(!!initialWorkflow);
     const [dockActivated, setDockActivated] = useState(!!projectFiles || !!initialWorkflow);
     const setDockExpanded = useCallback((expanded: boolean) => {
         setDockOpen(expanded);
@@ -244,6 +242,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
+    const [activeResearchFile, setActiveResearchFile] = useState<ResearchFile | null>(null);
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
     );
@@ -554,7 +553,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         const tab = workflowDocumentTab(selection);
         chatInputRef.current?.startWorkflowDocumentSelection(
             workflowMessage(selection), undefined,
-            { initialDocumentTab: tab },
+            { initialDocumentTab: tab, openDocumentPicker: tab === "templates" },
         );
     };
     useImperativeHandle(
@@ -574,26 +573,32 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         [closeTab, openDocument],
     );
     const submitMessage = (message: Message) => {
+        const contextualMessage = activeResearchFile && !message.files?.some(
+            ({ document_id }) => document_id === activeResearchFile.document.id,
+        ) ? { ...message, files: [...(message.files ?? []), {
+            filename: activeResearchFile.document.filename,
+            document_id: activeResearchFile.document.id,
+        }] } : message;
         if (!activeDocument) {
-            return handleChat(message);
+            return handleChat(contextualMessage);
         }
         if (useDisplayedDocumentContext) {
-            return handleChat(message, {
+            return handleChat(contextualMessage, {
                 displayedDoc: {
                     documentId: activeDocument.documentId,
                 },
             });
         }
         if (
-            message.files?.some(
+            contextualMessage.files?.some(
                 (file) => file.document_id === activeDocument.documentId,
             )
         )
-            return handleChat(message);
+            return handleChat(contextualMessage);
         return handleChat({
-            ...message,
+            ...contextualMessage,
             files: [
-                ...(message.files ?? []),
+                ...(contextualMessage.files ?? []),
                 {
                     filename: activeDocument.filename,
                     document_id: activeDocument.documentId,
@@ -687,6 +692,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                     tabs={visibleTabs}
                     activeTabId={activeTabId}
                     projectId={projectId}
+                    onResearchFileChange={setActiveResearchFile}
                     onActivateTab={setActiveTabId}
                     onCloseTab={closeTab}
                     onCloseAll={closeAllTabs}
@@ -715,7 +721,17 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
     const agentGroups: ReadSubagentGroup[] = [...groupedAgents.entries()].map(
         ([slot, panels]) => ({ id: slot, label: `Agent ${slot}`, panels }),
     );
-    const sourceContent = tabs.length ? readerPanel(true) : <LegalLibraryPage embedded />;
+    const dockPanel = (tab: "library" | "workflows" | "sources") =>
+        <InitialDockPanel tab={tab} libraryKind={libraryKind}
+            workflowDocuments={workflowDocuments}
+            onLibraryKindChange={setLibraryKind}
+            onOpenInChat={(documents) => {
+                for (const document of documents) chatInputRef.current?.addDoc(document);
+            }}
+            onOpenWorkflows={(documents) => openWorkflows(undefined, documents)}
+            onWorkflowSelect={selectWorkflow} initialWorkflowId={workflowInitialId}
+            projectId={projectId ?? undefined} onResearchFileChange={setActiveResearchFile}
+            onOpenSource={upsertTab} />;
     const dockTabs: AssistantDockTab[] = [
         ...(projectFiles ? [{
             id: "project-files",
@@ -726,34 +742,17 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
         {
             id: "library",
             label: "Library",
-            content: (
-                <LibraryWorkspaceProvider>
-                    <LibraryCollectionPage
-                        kind={libraryKind}
-                        onKindChange={setLibraryKind}
-                        onOpenWorkflows={(documents) => openWorkflows(undefined, documents)}
-                        onOpenInChat={(documents) => {
-                            for (const document of documents) {
-                                chatInputRef.current?.addDoc(document);
-                            }
-                        }}
-                        embedded
-                    />
-                </LibraryWorkspaceProvider>
-            ),
+            content: dockPanel("library"),
         },
         {
             id: "workflows",
             label: "Workflows",
-            icon: <WorkflowSkeuoIcon className="text-base leading-none" />,
-            content: <ContextualWorkflowPicker documents={workflowDocuments}
-                initialWorkflowId={workflowInitialId}
-                onAssistantSelect={selectWorkflow} className="p-3" />,
+            content: dockPanel("workflows"),
         },
         {
             id: "sources",
             label: "Sources",
-            content: sourceContent,
+            content: tabs.length ? readerPanel(true) : dockPanel("sources"),
         },
         {
             id: "agents",
@@ -782,8 +781,8 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                 {responseAnnouncement}
             </div>
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
-                {(onProjectClick || layout === "page" && chatId) && (
-                    <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4">
+                {(onProjectClick || (chatId && researchSaveEnabled)) && (
+                    <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 pe-12">
                         {onProjectClick ? <button
                             type="button"
                             onClick={onProjectClick}
@@ -799,7 +798,7 @@ export const ChatView = forwardRef<ChatViewHandle, Props>(function ChatView(
                                 {projectName ?? "Add to project"}
                             </span>
                         </button> : <span />}
-                        {layout === "page" && chatId && <ChatResearchSave
+                        {chatId && researchSaveEnabled && <ChatResearchSave
                             chatId={chatId} projectId={projectId} />}
                     </div>
                 )}

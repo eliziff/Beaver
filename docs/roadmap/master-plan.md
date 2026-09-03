@@ -285,10 +285,9 @@ they become current.
 
 ### Legal knowledge artifacts
 
-- Keep the reference-only [Research set contract](research-sets.md) on
-  the stable WorkProduct, legal-source, and evidence primitives. Keep labels,
-  queries, chat promotion receipts, and portable Markdown memos lightweight;
-  do not create another document or source store.
+- Keep [saved research](research-sets.md) as an ordinary Library document over
+  the legal-source and evidence primitives. Keep labels, notes, and query
+  receipts reference-only; do not create another document or source store.
 - Add renderer-independent legal test/factor/application/commentary graph
   artifacts and linked research memos only after the underlying extraction and
   evidence contract is stable.

@@ -1,23 +1,24 @@
 import { useState, type FormEvent } from "react";
 import { LibraryBig } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
-import { createResearchSet, listResearchSets, promoteChatResearch } from "@/app/lib/beaverApi";
-import type { ResearchSetMetadata } from "@/app/lib/researchSets";
+import { createResearchFile, getResearchFile, listResearchFiles, promoteChatResearch } from "@/app/lib/beaverApi";
+import type { Document } from "@/app/components/shared/types";
 import { errorMessage } from "@/app/lib/utils";
 
 export function ChatResearchSave({ chatId, projectId }: { chatId: string; projectId?: string }) {
   const [open, setOpen] = useState(false), [saving, setSaving] = useState(false);
-  const [sets, setSets] = useState<ResearchSetMetadata[] | null>(null);
+  const [files, setFiles] = useState<Document[] | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   async function show() {
-    setOpen(true); setSets(null); setStatus(null);
+    setOpen(true); setFiles(null); setStatus(null);
     try {
-      const loaded = (await listResearchSets()).filter(({ projectId: id }) =>
-        id === null || Boolean(projectId) && id === projectId);
-      setSets(loaded);
+      const [library, project] = await Promise.all([
+        listResearchFiles(), projectId ? listResearchFiles(projectId) : Promise.resolve([]),
+      ]);
+      setFiles([...project, ...library]);
     } catch (reason) {
-      setSets([]); setStatus(errorMessage(reason, "Could not load saved research"));
+      setFiles([]); setStatus(errorMessage(reason, "Could not load saved research"));
     }
   }
 
@@ -25,13 +26,14 @@ export function ChatResearchSave({ chatId, projectId }: { chatId: string; projec
     event.preventDefault(); const form = new FormData(event.currentTarget);
     setSaving(true); setStatus(null);
     try {
-      const destinationId = String(form.get("destination"));
-      const destination = destinationId === "new"
-        ? await createResearchSet({ title: "Saved research", projectId: projectId ?? null })
-        : sets?.find(({ id }) => id === destinationId);
-      if (!destination) throw new Error("Choose where to save this research");
-      await promoteChatResearch({ chatId, researchSetId: destination.id,
-        revision: destination.revision, includeQueries: form.has("queries") });
+      const id = String(form.get("destination"));
+      if (id !== "new" && !files?.some((file) => file.id === id))
+        throw new Error("Choose where to save this research");
+      const destination = id === "new"
+        ? await createResearchFile({ title: "Research", projectId: projectId ?? null })
+        : await getResearchFile(id);
+      await promoteChatResearch({ chatId, researchFileId: destination.document.id,
+        versionId: destination.versionId, includeQueries: form.has("queries") });
       setOpen(false);
     } catch (reason) {
       setStatus(errorMessage(reason, "Could not save chat research"));
@@ -48,16 +50,15 @@ export function ChatResearchSave({ chatId, projectId }: { chatId: string; projec
       footerStatus={status && <span role="status" className="text-sm text-gray-600">{status}</span>}
       cancelAction={{ label: "Close", onClick: close, disabled: saving }}
       primaryAction={{ label: saving ? "Saving..." : "Save research", type: "submit",
-        form: "save-chat-research", disabled: saving || sets === null }}>
-      <p className="text-sm leading-6 text-gray-600">Save referenced legal sources and passages.</p>
-      <form id="save-chat-research" onSubmit={(event) => void save(event)} className="mt-4 space-y-3">
+        form: "save-chat-research", disabled: saving || files === null }}>
+      <form id="save-chat-research" onSubmit={(event) => void save(event)} className="space-y-3">
         <label className="block text-xs font-medium text-gray-700">Destination
-          <select key={sets?.[0]?.id ?? "new"} name="destination"
-            defaultValue={sets?.[0]?.id ?? "new"}
-            disabled={sets === null || saving}
+          <select key={files?.[0]?.id ?? "new"} name="destination"
+            defaultValue={files?.[0]?.id ?? "new"}
+            disabled={files === null || saving}
             className="mt-1 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm">
-            {sets?.map((set) => <option key={set.id} value={set.id}>{set.title}</option>)}
-            <option value="new">New Saved research</option>
+            {files?.map((file) => <option key={file.id} value={file.id}>{file.filename.replace(/\.research\.md$/iu, "")}</option>)}
+            <option value="new">New research file</option>
           </select>
         </label>
         <label className="inline-flex min-h-9 items-center gap-2 text-sm text-gray-700">

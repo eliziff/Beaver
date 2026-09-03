@@ -29,13 +29,12 @@ import type {
   AuthoritiesProfileId,
 } from "@/app/authorities/types";
 import type {
-  ResearchSetAction,
-  ResearchSetMetadata,
-  ResearchSetProduct,
-  ResearchSetQueryInput,
-  ResearchSetQueryResult,
-  ResearchSetState,
-} from "@/app/lib/researchSets";
+  ResearchAction,
+  ResearchFile,
+  ResearchQueryInput,
+  ResearchQueryResult,
+} from "@/app/lib/researchFiles";
+import { isResearchDocument, newResearchState, researchMarkdown } from "@/app/lib/researchFiles";
 import { apiBlobRequest, apiFetch, apiRequest, responseError } from "./apiTransport";
 const segment = (value: string | number) => encodeURIComponent(String(value));
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -963,35 +962,36 @@ export const duplicateWorkProduct = <State>(id: string,
 export const deleteWorkProduct = (id: string) =>
   remove<void>(`/work-products/${segment(id)}`);
 
-export const listResearchSets = (projectId?: string) =>
-  apiRequest<ResearchSetMetadata[]>(pagePath("/work-products", {
-    kind: "research-set", project_id: projectId, metadata: true, limit: 100,
-  }));
-export const getResearchSet = (id: string) =>
-  getWorkProduct<ResearchSetState>(id);
-export const createResearchSet = (input: { title: string; projectId?: string | null }) =>
-  post<ResearchSetProduct>("/work-products", {
-    kind: "research-set",
-    title: input.title,
-    project_id: input.projectId,
+export async function listResearchFiles(projectId?: string) {
+  const page = await directoryResource(projectId ? { projectId } : { library: "files" })
+    .list({ q: ".research.md", limit: 100 });
+  return page.items.flatMap((item) => item.kind === "document" &&
+    isResearchDocument(item.document) ? [item.document] : []);
+}
+export async function createResearchFile(input: { title: string; projectId?: string | null; folderId?: string | null }) {
+  const title = input.title.trim().replace(/\.research\.md$/iu, "") || "Research";
+  const document = await directoryResource(input.projectId
+    ? { projectId: input.projectId } : { library: "files" }).uploadDocument(
+      new File([researchMarkdown(title)], `${title}.research.md`, { type: "text/markdown" }), input.folderId);
+  return { document, versionId: document.current_version_id!,
+    state: newResearchState() };
+}
+export const getResearchFile = (id: string) =>
+  apiRequest<ResearchFile>(`/single-documents/${segment(id)}/research`);
+export const actOnResearchFile = (id: string, versionId: string, action: ResearchAction) =>
+  post<ResearchFile>(`/single-documents/${segment(id)}/research/actions`, {
+    version_id: versionId, action,
   });
-export const actOnResearchSet = (id: string, revision: number, action: ResearchSetAction) =>
-  post<ResearchSetProduct>(`/work-products/${segment(id)}/research-actions`, {
-    revision,
-    action,
+export const runResearchFileQuery = (id: string,
+  input: ResearchQueryInput & { versionId: string }) =>
+  post<ResearchQueryResult>(`/single-documents/${segment(id)}/research/query`, {
+    ...input, version_id: input.versionId, versionId: undefined,
   });
-export const runResearchSetQuery = (id: string,
-  input: ResearchSetQueryInput & { revision: number }) =>
-  post<ResearchSetQueryResult>(`/work-products/${segment(id)}/research-query`, input);
-export const promoteChatResearch = ({ chatId, researchSetId, ...body }: {
-  chatId: string; researchSetId: string; revision: number; includeQueries: boolean;
-}) => post<{ research_set_id: string; revision: number }>(
-  `/chat/${segment(chatId)}/research-sets/${segment(researchSetId)}/promote`, body);
+export const promoteChatResearch = ({ chatId, researchFileId, ...body }: {
+  chatId: string; researchFileId: string; versionId: string; includeQueries: boolean;
+}) => post<{ document_id: string; version_id: string }>(
+  `/chat/${segment(chatId)}/research-files/${segment(researchFileId)}/promote`, body);
 
-export const listAuthorities = (projectId?: string) =>
-  apiRequest<AuthoritiesProduct[]>(pagePath("/authorities", { projectId, limit: 100 }));
-export const getAuthorities = (id: string) =>
-  apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}`);
 export const createAuthorities = (input: {
   source: { kind: "manual" } | { kind: "document"; documentId: string;
     version: "latest" | { versionId: string; sha256: string } };

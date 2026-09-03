@@ -1,39 +1,35 @@
-import { type FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     ExternalLink,
     Loader2,
+    PanelsTopLeft,
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
-import { WorkProductAssistant } from "@/app/components/assistant/WorkProductAssistant";
 import {
-    actOnResearchSet,
-    createResearchSet,
-    deleteWorkProduct,
-    duplicateWorkProduct,
+    actOnResearchFile,
+    createResearchFile,
+    getResearchFile,
     getLegalSourceCoverage,
-    getResearchSet,
-    listResearchSets,
-    runResearchSetQuery,
     searchLegalSources,
-    updateWorkProduct,
     type LegalSearchDocumentType,
     type LegalSourceCoverage,
     type LegalSourceSearchResult,
 } from "@/app/lib/beaverApi";
-import { legalSourceViewerHref, researchSetMetadata, type ResearchSetAction,
-    type ResearchSetMetadata, type ResearchSetProduct, type ResearchSetState,
-    type ResearchSourceReference } from "@/app/lib/researchSets";
+import { legalSourceViewerHref, type ResearchFile,
+    type ResearchSourceReference } from "@/app/lib/researchFiles";
 import {
     LegalSourceViewer,
+    type LegalSourceTab,
     type LegalSourceViewerProps,
 } from "./LegalSourceViewer";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { SearchBar } from "@/app/components/ui/search-bar";
-import { ResearchSetWorkspace } from "./ResearchSetWorkspace";
+import { ResearchLabelPicker } from "./ResearchLabelPicker";
+import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
 
 const SOURCE_KINDS = {
     cases: [["court", "Courts"], ["tribunal", "Tribunals and boards"]],
@@ -81,8 +77,16 @@ function SearchSnippet({ children }: { children: string }) {
     });
 }
 
-export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
+export function LegalLibraryPage({ embedded = false, projectId, onResearchFileChange,
+    onOpenSource }: {
+    embedded?: boolean; projectId?: string;
+    onResearchFileChange?: (file: ResearchFile | null) => void;
+    onOpenSource?: (tab: LegalSourceTab) => void;
+}) {
+    const [params] = useSearchParams();
+    const requestedResearchFileId = embedded ? null : params.get("research_file");
     const [results, setResults] = useState<LegalSourceSearchResult[]>([]);
+    const [searched, setSearched] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [filters, setFilters] = useState({
@@ -93,66 +97,40 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
     });
     const [searching, setSearching] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [sets, setSets] = useState<ResearchSetMetadata[] | null>(null);
-    const [activeSetId, setActiveSetId] = useState<string | null>(null);
-    const [activeSet, setActiveSet] = useState<ResearchSetProduct | null>(null);
+    const [researchFile, setResearchFile] = useState<ResearchFile | null>(null);
+    const [researchOpen, setResearchOpen] = useState(!!requestedResearchFileId);
     const [researchBusy, setResearchBusy] = useState(false);
-    const [assistantOpen, setAssistantOpen] = useState(false);
-    const [researchChats, setResearchChats] = useState<Record<string, string>>({});
+    const publishResearchFile = useCallback((file: ResearchFile | null) => {
+        setResearchFile(file); onResearchFileChange?.(file);
+    }, [onResearchFileChange]);
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
         setFilters((current) => ({ ...current, ...next }));
     useEffect(() => {
         getLegalSourceCoverage().then(setCoverage).catch(() => undefined);
-        listResearchSets().then((items) => {
-            setSets(items); const id = items[0]?.id;
-            if (id) { setActiveSetId(id); void getResearchSet(id).then(setActiveSet)
-                .catch((reason) => setError(errorMessage(reason, "Could not open saved research"))); }
-        }).catch(() => { setSets([]); setActiveSet(null); });
     }, []);
-
-    const replaceSet = (next: ResearchSetProduct) => {
-        setSets((current) => [researchSetMetadata(next),
-            ...(current ?? []).filter(({ id }) => id !== next.id)]);
-        setActiveSet(next); setActiveSetId(next.id);
-        return next;
-    };
-    async function selectSet(id: string) {
-        setActiveSetId(id); setActiveSet(null); setResearchBusy(true);
-        try { setActiveSet(await getResearchSet(id)); }
-        catch (reason) { setError(errorMessage(reason, "Could not open saved research")); }
-        finally { setResearchBusy(false); }
-    }
-    async function createSet() {
-        replaceSet(await createResearchSet({ title: "Untitled research" }));
-    }
-    async function researchAction(action: ResearchSetAction) {
-        if (!activeSet) return;
-        setResearchBusy(true);
-        try { replaceSet(await actOnResearchSet(activeSet.id, activeSet.revision, action)); }
-        finally { setResearchBusy(false); }
-    }
-    async function updateSet(change: { title?: string; projectId?: string | null }) {
-        if (!activeSet) return;
-        replaceSet(await updateWorkProduct<ResearchSetState>(activeSet.id,
-            { revision: activeSet.revision, ...change }));
-    }
-    async function duplicateSet() {
-        if (activeSet) replaceSet(await duplicateWorkProduct<ResearchSetState>(activeSet.id));
-    }
-    async function deleteSet() {
-        if (!activeSet) return;
-        await deleteWorkProduct(activeSet.id);
-        const next = (sets ?? []).filter(({ id }) => id !== activeSet.id);
-        setSets(next); setActiveSetId(next[0]?.id ?? null);
-        setActiveSet(next[0] ? await getResearchSet(next[0].id) : null);
-    }
-    async function saveResult(result: LegalSourceSearchResult) {
+    useEffect(() => {
+        if (!requestedResearchFileId) return;
+        let current = true;
+        void getResearchFile(requestedResearchFileId).then((file) => {
+            if (current) publishResearchFile(file);
+        }, (reason) => { if (current) setError(errorMessage(reason, "Could not open research file")); });
+        return () => { current = false; };
+    }, [publishResearchFile, requestedResearchFileId]);
+    const sourceIndex = useMemo(() => new Map(Object.values(researchFile?.state.sources ?? {})
+        .map((source) => [`${source.reference.provider}\0${source.reference.id}`, source])), [researchFile]);
+    const sourceInFile = (result: LegalSourceSearchResult, file = researchFile) => file === researchFile
+        ? sourceIndex.get(`${result.provider}\0${result.source_id ?? result.citation}`)
+        : file && Object.values(file.state.sources).find(({ reference }) => reference.provider === result.provider &&
+            reference.id === (result.source_id ?? result.citation));
+    async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
         setResearchBusy(true);
         try {
-            const destination = activeSet ?? replaceSet(await createResearchSet({ title: "Saved research" }));
-            replaceSet(await actOnResearchSet(destination.id, destination.revision, { type: "source",
-                reference: researchReference(result) }));
+            const destination = file ?? await createResearchFile({ title: "Research", projectId });
+            const next = await actOnResearchFile(destination.document.id, destination.versionId,
+                { type: "source", reference: researchReference(result) });
+            publishResearchFile(next);
+            return { file: next, itemId: sourceInFile(result, next)!.id };
         } finally { setResearchBusy(false); }
     }
     const typeCoverage = coverage.filter((item) => item.docType === docType);
@@ -176,13 +154,14 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
         const query = searchQuery.trim();
         if (!query) return;
         setSearching(true);
+        setSearched(false);
         setError(null);
         try {
             const documentTypes: LegalSearchDocumentType[] =
                 docType === "all"
                     ? ["cases", "laws", "articles", "hansard"]
                     : [docType];
-            const found = await Promise.all(
+            const settled = await Promise.allSettled(
                 documentTypes.map((type) =>
                     searchLegalSources({
                     query,
@@ -213,11 +192,17 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                     }),
                 ),
             );
-            setResults(found.flat());
+            const found = settled.flatMap((item) => item.status === "fulfilled" ? item.value : []);
+            setResults(found);
+            const failed = settled.filter((item) => item.status === "rejected").length;
+            if (failed) setError(found.length
+                ? `${failed} source ${failed === 1 ? "collection is" : "collections are"} temporarily unavailable.`
+                : "Search failed. Source collections are temporarily unavailable.");
         } catch (reason) {
             setError(errorMessage(reason, "Search failed"));
         } finally {
             setSearching(false);
+            setSearched(true);
         }
     }
     return (
@@ -231,7 +216,7 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                     <div className="space-y-4">
                     <form
                         onSubmit={runSearch}
-                        className="rounded-lg border border-gray-200 bg-white p-4"
+                        className="@container rounded-lg border border-gray-200 bg-white p-4"
                     >
                         <div
                             className="mb-3 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 sm:inline-flex"
@@ -260,11 +245,11 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                 </button>
                             ))}
                         </div>
-                        <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch
                                 aria-label="Search sources"
-                                wrapperClassName="h-10 flex-1 focus-within:border-brand"
+                                wrapperClassName="col-span-2 h-10 min-w-0 @min-[42rem]:col-span-1"
                                 placeholder={
                                         docType === "all"
                                             ? "Search cases, legislation, journals, and Hansard"
@@ -287,6 +272,12 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                     <Search className="h-4 w-4" />
                                 )}
                                 Search
+                            </button>
+                            <button type="button" onClick={() => setResearchOpen(true)}
+                                aria-expanded={researchOpen} aria-label="Open research workspace"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                                Workspace
+                                <PanelsTopLeft className="size-4" aria-hidden="true" />
                             </button>
                         </div>
                         {docType !== "all" && (
@@ -443,54 +434,51 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                             </div>
                         )}
                     </form>
-                    <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                        <summary className="cursor-pointer text-sm font-semibold text-gray-900">
-                            Saved research{sets ? ` · ${sets.length}` : ""}
-                        </summary>
-                        <div className="mt-3">
-                            <ResearchSetWorkspace key={activeSetId ?? "none"} sets={sets} product={activeSet}
-                                busy={researchBusy} onSelect={(id) => void selectSet(id)} onCreate={createSet}
-                                onRename={(title) => updateSet({ title })} onDuplicate={duplicateSet}
-                                onDelete={deleteSet} onAction={researchAction}
-                                onMove={(projectId) => updateSet({ projectId })}
-                                onQuery={(input) => {
-                                    if (!activeSet) return Promise.reject(new Error("Choose a research set"));
-                                    return runResearchSetQuery(activeSet.id,
-                                        { ...input, revision: activeSet.revision }).then((result) => {
-                                            replaceSet(result.product); return result;
-                                        });
-                                }} onAssistant={() => setAssistantOpen(true)} />
-                        </div>
-                    </details>
                     {error && (
                         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
                         </p>
                     )}
-                    {results.length > 0 && (
+                    {searched && (
                         <section>
                             <h2 className="mb-2 text-base font-semibold text-gray-900">
-                                Search results
+                                {results.length ? `${results.length} search results` : "No search results"}
                             </h2>
-                            <div className="grid gap-2">
+                            {results.length ? <div className="grid gap-2">
                                 {results.map((result) => {
                                     const sourceHref = safeAssistantUrl(result.url, {
                                         relative: false,
                                     });
+                                    const citation = result.provider === "journal" && result.name
+                                        ? result.citation.replace(`“${result.name}”`, "")
+                                            .replace(/\s{2,}/gu, " ").trim()
+                                        : result.citation;
                                     const metadata = [
-                                        result.name && result.name !== result.citation
-                                            ? result.citation
+                                        result.name && result.name !== citation
+                                            ? citation
                                             : null,
                                         result.dataset,
                                         formatLongDate(result.date),
                                     ].filter(Boolean);
+                                    const saved = sourceInFile(result);
                                     return (
                                         <article
                                             key={`${result.provider}:${result.source_id ?? ""}:${result.dataset}:${result.citation}`}
                                             className="rounded-md border border-gray-200 bg-white p-4"
                                         >
                                         <div className={`flex flex-col gap-3 ${embedded ? "" : "sm:flex-row sm:items-start"}`}>
-                                            <div className="min-w-0 flex-1">
+                                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                <ResearchLabelPicker file={researchFile}
+                                                    kind="source" itemId={saved?.id}
+                                                    labelIds={saved?.labelIds ?? []} badge={saved?.badge} badgeColor={saved?.badgeColor} note={saved?.note}
+                                                    title={result.name || result.citation} buttonLabel={saved?.badge}
+                                                    disabled={researchBusy} onChange={publishResearchFile}
+                                                    prepareFile={researchFile ? undefined : async () => {
+                                                        const next = await createResearchFile({ title: "Research", projectId });
+                                                        publishResearchFile(next); return next;
+                                                    }}
+                                                    prepare={saved ? undefined : (file) => saveResult(result, file)} />
+                                                <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
                                                     {result.name ||
                                                         result.citation}
@@ -505,21 +493,32 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                                         <SearchSnippet>{result.snippet}</SearchSnippet>
                                                     </p>
                                                 )}
+                                                </div>
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
-                                                {result.provider !== "hansard" && (
-                                                    <Link
-                                                        to={legalSourceViewerHref(researchReference(result))}
+                                                {result.provider !== "hansard" && (embedded && onOpenSource
+                                                    ? <button type="button" onClick={() => onOpenSource({
+                                                        kind: "legal",
+                                                        id: `legal:${result.provider}:${result.source_id ?? result.citation}`,
+                                                        provider: result.provider === "journal" ? "journal" : "a2aj",
+                                                        sourceId: result.source_id,
+                                                        citation: result.citation,
+                                                        name: result.name,
+                                                        dataset: result.dataset,
+                                                        docType: result.doc_type === "hansard" ? "auto" : result.doc_type,
+                                                        language: "en",
+                                                        researchFileId: researchFile?.document.id,
+                                                        researchSourceId: saved?.id,
+                                                    })} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                                                        View
+                                                    </button>
+                                                    : <Link
+                                                        to={legalSourceViewerHref(researchReference(result), saved && researchFile
+                                                            ? { fileId: researchFile.document.id, sourceId: saved.id } : undefined)}
                                                         className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark"
                                                     >
                                                         View
-                                                    </Link>
-                                                )}
-                                                <button type="button" disabled={researchBusy}
-                                                    onClick={() => void saveResult(result)}
-                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-                                                    Save
-                                                </button>
+                                                    </Link>)}
                                                 {sourceHref && (
                                                     <a
                                                         href={sourceHref}
@@ -538,19 +537,18 @@ export function LegalLibraryPage({ embedded = false }: { embedded?: boolean }) {
                                         </article>
                                     );
                                 })}
-                            </div>
+                            </div> : <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
+                                No sources matched this search. Try fewer terms or a different source category.
+                            </p>}
                         </section>
                     )}
                     </div>
                 </div>
             </div>
         </div>
-        {assistantOpen && activeSet && <WorkProductAssistant product={activeSet}
-            chatId={researchChats[activeSet.id]}
-            onChatIdChange={(id) => setResearchChats((current) => ({ ...current,
-                [activeSet.id]: id }))}
-            onClose={() => setAssistantOpen(false)}
-            onTurnComplete={() => void getResearchSet(activeSet.id).then(replaceSet)} />}
+        <ResearchWorkspaceHost embedded={embedded} open={researchOpen}
+            onOpenChange={setResearchOpen} file={researchFile} projectId={projectId}
+            onChange={publishResearchFile} />
         </div>
     );
 }
@@ -559,8 +557,11 @@ export function LegalLibrarySourcePage({
     ...viewerProps
 }: LegalSourceViewerProps) {
     const navigate = useNavigate();
+    const [researchFile, setResearchFile] = useState<ResearchFile | null | undefined>();
+    const [researchOpen, setResearchOpen] = useState(!!viewerProps.researchFileId);
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-0 min-w-0">
+        <div className="flex min-w-0 flex-1 flex-col">
             <PageHeader
                 breadcrumbs={[
                     {
@@ -569,10 +570,18 @@ export function LegalLibrarySourcePage({
                     },
                     { label: "Source" },
                 ]}
+                actions={[{ icon: <PanelsTopLeft className="size-4" aria-hidden="true" />,
+                    label: "Workspace", title: "Open research workspace", onClick: () => setResearchOpen(true) }]}
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1"><LegalSourceViewer {...viewerProps} /></div>
+                <div className="min-h-0 flex-1"><LegalSourceViewer {...viewerProps}
+                    researchFile={researchFile} onResearchFileChange={setResearchFile}
+                    onOpenResearch={() => setResearchOpen(true)} /></div>
             </div>
+        </div>
+        <ResearchWorkspaceHost embedded={false} open={researchOpen}
+            onOpenChange={setResearchOpen} file={researchFile ?? null}
+            projectId={viewerProps.projectId} onChange={setResearchFile} />
         </div>
     );
 }
