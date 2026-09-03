@@ -82,6 +82,7 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, file, proj
           x: Math.max(8, Math.min(window.innerWidth - value.width - 8, start.left + event.clientX - start.x)),
           y: Math.max(8, Math.min(window.innerHeight - value.height - 8, start.top + event.clientY - start.y)) })); }}
       onPointerUp={() => { drag.current = null; }}
+      onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}
       className="flex h-11 shrink-0 cursor-move touch-none items-center gap-2 border-b border-gray-200 bg-white px-2.5">
       <GripHorizontal className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
       <span className="sr-only">Research workspace</span><div ref={setRail} className="min-w-0 flex-1" />

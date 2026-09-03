@@ -41,4 +41,13 @@ describe("ActionMenu", () => {
         expect(screen.queryByRole("menu")).not.toBeInTheDocument();
         expect(trigger).toHaveFocus();
     });
+
+    it("stays open for its own scroll and closes when its anchor scrolls", () => {
+        render(<ActionMenu label="Actions" items={[{ label: "Open", onSelect: vi.fn() }]}>Actions</ActionMenu>);
+        fireEvent.click(screen.getByRole("button", { name: "Actions" }));
+        fireEvent.scroll(screen.getByRole("menu"));
+        expect(screen.getByRole("menu")).toBeVisible();
+        fireEvent.scroll(window);
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
 });
