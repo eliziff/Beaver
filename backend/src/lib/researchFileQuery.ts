@@ -143,6 +143,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
     if (evidence.length === limit || captured === MAX_CAPTURE_CHARS) break;
   }
   const searchable = sources.filter((source) => labelled(source.labelIds, labels));
+  const native = input.target === "sources" && searchable.length ? structureNative() : null;
   const scan = async () => {
     while (input.target === "sources" && cursor < searchable.length && evidence.length < limit) {
       const source = searchable[cursor++]; attempted.push(source.id);
@@ -152,7 +153,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         if (read.status !== "found") { failures.push({ sourceId: source.id, code: read.status }); continue; }
         const passage = read.values.find(({ role }) => role === "document") ?? read.values[0];
         if (!passage) { failures.push({ sourceId: source.id, code: "not_found" }); continue; }
-        const native = structureNative(), text = native.documentText(passage.documentArtifact),
+        const text = native!.documentText(passage.documentArtifact),
           anchors = native.documentAnchors(passage.documentArtifact), blocks = anchors.length
             ? anchors : native.legalSourceViewer(passage.documentArtifact,
               source.reference.kind === "legislation" ? "section" : "paragraph").slices.map(
