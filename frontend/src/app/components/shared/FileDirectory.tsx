@@ -27,11 +27,12 @@ interface Props {
     showTabs: boolean;
     initialTab?: DirectoryTab;
     excludeProjectId?: string;
+    documentFilter?: (document: Document) => boolean;
 }
 
 export function FileDirectory({ documents = EMPTY, projectId,
     loading: externalLoading = false, selectedDocuments, onChange,
-    uploadingFilenames = [], showTabs, initialTab = "files", excludeProjectId }: Props) {
+    uploadingFilenames = [], showTabs, initialTab = "files", excludeProjectId, documentFilter }: Props) {
     const [tab, setTab] = useState<DirectoryTab>(initialTab);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState(new Set<string>());
@@ -68,8 +69,8 @@ export function FileDirectory({ documents = EMPTY, projectId,
     const allDocuments = useMemo(() => [...new Map([
         ...(activeTab === "files" || !showTabs ? documents : []),
         ...(directory?.documents ?? []),
-    ].map((doc) => [doc.id, doc])).values()],
-    [activeTab, directory?.documents, documents, showTabs]);
+    ].map((doc) => [doc.id, doc])).values()].filter((document) => !documentFilter || documentFilter(document)),
+    [activeTab, directory?.documents, documentFilter, documents, showTabs]);
     const tree = buildDocumentTree(allDocuments,
         (directory?.folders ?? []) as (Folder | LibraryFolder)[], expanded,
         undefined, query, true, directory?.hasMoreParents ?? new Set());

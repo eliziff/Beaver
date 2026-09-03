@@ -4,6 +4,7 @@ import { BookOpenText, ChevronDown, ChevronRight, FolderKanban, FolderPlus, Grip
   Maximize2, Minimize2, Pencil, Plus, StickyNote, Trash2, X } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { NewProjectModal } from "@/app/components/projects/NewProjectModal";
+import { ProjectChoiceList } from "@/app/components/projects/ProjectChoiceList";
 import { FileDirectory } from "@/app/components/shared/FileDirectory";
 import { FolderBrowser } from "@/app/components/shared/FolderBrowser";
 import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
@@ -26,8 +27,8 @@ const TITLES: Record<Kind, string> = { labels: "Labels", list: "List", highlight
   search: "Search Saved sources" };
 const DEFAULT_PANELS: Array<Kind | null> = [...KINDS], STORAGE = "beaver.research.panels.v1",
   RECIPE = "beaver.research.recipe.v1";
-const SLOT_CLASS = ["@min-[30rem]:col-start-1 @min-[30rem]:row-start-1", "@min-[30rem]:col-start-2 @min-[30rem]:row-start-1",
-  "@min-[30rem]:col-start-1 @min-[30rem]:row-start-2", "@min-[30rem]:col-start-2 @min-[30rem]:row-start-2"];
+const SLOT_CLASS = ["@min-[28rem]:col-start-1 @min-[28rem]:row-start-1", "@min-[28rem]:col-start-2 @min-[28rem]:row-start-1",
+  "@min-[28rem]:col-start-1 @min-[28rem]:row-start-2", "@min-[28rem]:col-start-2 @min-[28rem]:row-start-2"];
 const UNSORTED = "__unsorted__", PAGE_SIZE = 50;
 const LABEL_DRAG = "application/x-beaver-research-label";
 type Scope = ResearchLabel["scope"];
@@ -69,8 +70,9 @@ function Panel({ kind, title = TITLES[kind], expanded, onClose, onExpand, onDrag
   kind: Kind; title?: string; onClose: () => void; actions?: ReactNode; children: ReactNode;
   expanded?: boolean; onExpand?: () => void; onDragStart?: React.DragEventHandler<HTMLElement>;
 }) {
-  return <section className="flex h-full min-h-64 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-app-surface @min-[30rem]:min-h-0">
-    <header draggable={!expanded} onDragStart={onDragStart}
+  return <section className="flex h-full min-h-64 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-app-surface @min-[28rem]:min-h-0">
+    <header draggable={!expanded} onDragStart={(event) => {
+      if ((event.target as Element).closest("button,input,label,form,a")) event.preventDefault(); else onDragStart?.(event); }}
       title={expanded ? undefined : "Drag onto an adjacent panel to expand"}
       className="flex min-h-9 cursor-grab items-center gap-1 border-b border-gray-200 bg-app-surface px-2 active:cursor-grabbing">
       <GripVertical aria-hidden="true" className="size-3.5 shrink-0 text-gray-300" />
@@ -97,7 +99,8 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   const [panels, setPanels] = useState<Array<Kind | null>>(readPanels), [expanded, setExpanded] = useState<{ from: number; to: number } | null>(null);
   const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
   const [createOpen, setCreateOpen] = useState(false), [renameOpen, setRenameOpen] = useState(false),
-    [destination, setDestination] = useState<Folder | null>(null);
+    [destination, setDestination] = useState<Folder | null>(null),
+    [destinationProjectId, setDestinationProjectId] = useState<string | null>(projectId ?? null);
   const [folderOpen, setFolderOpen] = useState(false), [projectOpen, setProjectOpen] = useState(false),
     [directoryKey, setDirectoryKey] = useState(0), [folderError, setFolderError] = useState("");
   const [sourceSelected, setSourceSelected] = useState<Set<string> | null>(null),
@@ -115,6 +118,8 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   const [ruleEditor, setRuleEditor] = useState<{ index: number; rule: Rule } | null>(null);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState("");
   const directory = useMemo(() => directoryResource(projectId ? { projectId } : { library: "files" }), [projectId]);
+  const destinationDirectory = useMemo(() => directoryResource(destinationProjectId
+    ? { projectId: destinationProjectId } : { library: "files" }), [destinationProjectId]);
   const labels = useMemo(() => file?.state.labels ?? {}, [file?.state.labels]);
   const allSources = useMemo(() => Object.values(file?.state.sources ?? {}), [file?.state.sources]);
   const allEvidence = useMemo(() => Object.values(file?.state.evidence ?? {}), [file?.state.evidence]);
@@ -178,7 +183,8 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   }
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const value = String(new FormData(event.currentTarget).get("title") ?? "").trim();
-    if (value) void choose(async () => { const next = await createResearchFile({ title: value, projectId, folderId: destination?.id });
+    if (value) void choose(async () => { const next = await createResearchFile({ title: value,
+      projectId: destinationProjectId ?? undefined, folderId: destination?.id });
       setCreateOpen(false); return next; });
   }
   async function rename(event: FormEvent<HTMLFormElement>) {
@@ -269,6 +275,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
       const hasChildren = !!children.get(label.id)?.length, open = !collapsed.has(label.id) || !!search, count = countLabel(label.id);
       return <div key={label.id}>
         <div data-tree-drop-folder={label.id} draggable onDragStart={(event) => {
+          if ((event.target as Element).closest("button,input,label,form,a")) { event.preventDefault(); return; }
           event.dataTransfer.setData(LABEL_DRAG, label.id); event.dataTransfer.effectAllowed = "move"; }}
           title="Drag to reorder or move into another label" onDragOver={(event) => {
             if (!event.dataTransfer.types.includes(LABEL_DRAG) && !event.dataTransfer.types.includes("application/x-beaver-research-source")) return;
@@ -459,11 +466,11 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   </button>{file && <button type="button" aria-label="Rename workspace" title="Rename workspace" onPointerDown={(event) => event.stopPropagation()}
     onClick={() => setRenameOpen(true)} className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2">
     <Pencil className="size-3.5" aria-hidden="true" /></button>}</div>;
-  return <div className="@container relative flex h-full min-h-0 flex-col overflow-auto @min-[30rem]:overflow-hidden">
+  return <div className="@container relative flex h-full min-h-0 flex-col overflow-auto @min-[28rem]:overflow-hidden">
     {rail === undefined ? <div className="flex h-10 shrink-0 items-center pb-2">{selector}</div>
       : rail ? createPortal(selector, rail) : null}
     {status && <span role="status" className="pointer-events-none absolute bottom-2 left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 truncate rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-lg">{status}</span>}
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 @min-[30rem]:grid-cols-2 @min-[30rem]:grid-rows-2" aria-label="Research panels">
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 @min-[28rem]:grid-cols-2 @min-[28rem]:grid-rows-2" aria-label="Research panels">
       {panels.map((kind, index) => expanded?.to === index ? null : kind ? <div key={index}
         onDragEnd={() => { setPanelDrag(null); setPanelDrop(null); }}
         onDragOver={(event) => { if (panelDrag !== null && adjacent(panelDrag).includes(index)) { event.preventDefault(); setPanelDrop(index); } }}
@@ -471,8 +478,8 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         onDrop={(event) => { event.preventDefault(); setPanelDrop(null);
           if (panelDrag !== null && adjacent(panelDrag).includes(index)) setExpanded({ from: panelDrag, to: index }); }}
         className={`min-h-0 rounded-lg ${panelDrop === index ? "ring-2 ring-inset ring-red-300" : ""} ${expanded?.from === index ? Math.abs(expanded.from - expanded.to) === 1
-          ? `${index < 2 ? "@min-[30rem]:row-start-1" : "@min-[30rem]:row-start-2"} @min-[30rem]:col-start-1 @min-[30rem]:col-span-2`
-          : `${index % 2 ? "@min-[30rem]:col-start-2" : "@min-[30rem]:col-start-1"} @min-[30rem]:row-start-1 @min-[30rem]:row-span-2`
+          ? `${index < 2 ? "@min-[28rem]:row-start-1" : "@min-[28rem]:row-start-2"} @min-[28rem]:col-start-1 @min-[28rem]:col-span-2`
+          : `${index % 2 ? "@min-[28rem]:col-start-2" : "@min-[28rem]:col-start-1"} @min-[28rem]:row-start-1 @min-[28rem]:row-span-2`
           : SLOT_CLASS[index]}`}>
         <Panel kind={kind} title={kind === "list" && listTitle ? listTitle : undefined} actions={panelActions[kind]} expanded={expanded?.from === index}
           onClose={() => { setPanels((current) => current.map((value, item) => item === index ? null : value));
@@ -484,7 +491,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
           if (panelDrag !== null && adjacent(panelDrag).includes(index)) { event.preventDefault(); setPanelDrop(index); } }}
           onDrop={(event) => { event.preventDefault(); setPanelDrop(null);
             if (panelDrag !== null && adjacent(panelDrag).includes(index)) setExpanded({ from: panelDrag, to: index }); }}
-          className={`${SLOT_CLASS[index]} grid min-h-64 place-items-center rounded-lg bg-gray-50/60 @min-[30rem]:min-h-0 ${panelDrop === index ? "ring-2 ring-inset ring-red-300" : ""}`}>
+          className={`${SLOT_CLASS[index]} grid min-h-64 place-items-center rounded-lg bg-gray-50/60 @min-[28rem]:min-h-0 ${panelDrop === index ? "ring-2 ring-inset ring-red-300" : ""}`}>
           <ActionMenu label={`Add panel to slot ${index + 1}`} items={[
             ...KINDS.filter((value) => !panels.some((panel, slot) => panel === value && slot !== expanded?.to))
               .map((value) => ({ label: TITLES[value], onSelect: () => { setPanels((current) => current.map((panel, slot) =>
@@ -528,9 +535,9 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
     </Modal>
     <Modal open={open} onClose={() => setOpen(false)} size="lg" breadcrumbs={["Library", "Research workspaces"]}
       headerAction={<div className="flex items-center gap-1.5">
-        <button type="button" onClick={() => { setDestination(null); setCreateOpen(true); }}
+        <button type="button" onClick={() => { setDestination(null); setDestinationProjectId(projectId ?? null); setCreateOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700"><Plus className="size-3.5" />New workspace</button>
-        <button type="button" onClick={() => { setFolderError(""); setFolderOpen(true); }}
+        <button type="button" onClick={() => { setDestination(null); setFolderError(""); setFolderOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50"><FolderPlus className="size-3.5" />New folder</button>
         <button type="button" onClick={() => setProjectOpen(true)}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50"><FolderKanban className="size-3.5" />New project</button>
@@ -539,18 +546,27 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(() => getResearchFile(document.id)); },
         disabled: busy || !selectedDocuments.some(isResearchDocument) }}>
       <FileDirectory key={directoryKey} selectedDocuments={selectedDocuments} onChange={(items) => setSelectedDocuments(items.slice(-1))}
-        showTabs projectId={projectId} initialTab={projectId ? "projects" : "files"} />
+        showTabs={!projectId} projectId={projectId} initialTab={projectId ? "projects" : "files"} documentFilter={isResearchDocument} />
     </Modal>
     <Modal open={createOpen} onClose={() => setCreateOpen(false)} size="sm" breadcrumbs={["Research workspaces", "New workspace"]}
       className="!h-[min(34rem,calc(100dvh-2rem))]" cancelAction={{ label: "Cancel", onClick: () => setCreateOpen(false) }}
       primaryAction={{ label: busy ? "Creating..." : "Create workspace", type: "submit", form: "research-create", disabled: busy }}
-      footerStatus={<span className="text-xs text-gray-500">Location: {destination?.name ?? (projectId ? "Project" : "Library")}</span>}>
+      footerStatus={<span className="text-xs text-gray-500">Location: {destinationProjectId ? "Project" : "Library"}{destination ? ` / ${destination.name}` : ""}</span>}>
       <form id="research-create" onSubmit={create} className="flex h-full min-h-0 flex-col gap-3 pb-4">
         <label className="grid gap-1 text-xs font-medium text-gray-700">Workspace name
           <input required autoFocus name="title" placeholder="e.g. Duty of care" className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
         </label>
         <p className="text-xs font-medium text-gray-700">Save in</p>
-        <FolderBrowser list={directory.list} rootLabel={projectId ? "Project" : "Library"} onSelect={setDestination} />
+        {!projectId && <div className="flex gap-1">
+          <button type="button" onClick={() => { setDestinationProjectId(null); setDestination(null); }}
+            className={`h-8 flex-1 rounded-md text-xs font-medium ${destinationProjectId ? "bg-gray-100 text-gray-600" : "bg-gray-900 text-white"}`}>Library</button>
+          <button type="button" onClick={() => { setDestinationProjectId(""); setDestination(null); }}
+            className={`h-8 flex-1 rounded-md text-xs font-medium ${destinationProjectId === null ? "bg-gray-100 text-gray-600" : "bg-gray-900 text-white"}`}>Project</button>
+        </div>}
+        {destinationProjectId === "" ? <ProjectChoiceList value={null} onChange={(id) => { setDestinationProjectId(id); setDestination(null); }} />
+          : <FolderBrowser key={destinationProjectId ?? "library"} list={destinationDirectory.list}
+            rootLabel={destinationProjectId ? "Project" : "Library"} onSelect={setDestination}
+            onBack={!projectId && destinationProjectId ? () => { setDestinationProjectId(""); setDestination(null); } : undefined} />}
       </form>
     </Modal>
     <Modal open={renameOpen} onClose={() => setRenameOpen(false)} size="sm" className="!h-fit [&_.modal-scroll-body]:flex-none"
