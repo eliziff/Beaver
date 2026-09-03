@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { ASSISTANT_DOCK_DESKTOP_CLASS } from "./assistantDockLayout";
 import { Tabs } from "@/app/components/ui/tabs";
 
 const compactDock = "(max-width: 1279px)";
@@ -163,7 +164,7 @@ export function AssistantDock({
             inert={!expanded ? true : undefined}
             className={cn(
                 expanded ? "fixed inset-0 z-[100] flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
-                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),var(--assistant-dock-max-width))] xl:rounded-2xl",
+                ASSISTANT_DOCK_DESKTOP_CLASS,
             )}
             style={{ "--assistant-dock-width": `${width}px`, "--assistant-dock-max-width": maxWidth } as CSSProperties}
         >

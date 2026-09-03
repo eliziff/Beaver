@@ -4,6 +4,7 @@ import { cn } from "@/app/lib/utils";
 import { CourtRecordBuildPanel } from "./CourtRecordBuildPanel";
 import { CourtRecordDocuments } from "./CourtRecordDocuments";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
+import { Button } from "@/app/components/ui/button";
 import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { courtRecordDraft, restoreCourtRecordDraft } from "./draftState";
@@ -718,31 +719,27 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       ? "min-h-dvh"
       : "h-full min-h-0 overflow-y-auto")}>
       <a href="#court-record-workspace" className="fixed left-3 top-3 z-50 -translate-y-20 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-950 shadow focus:translate-y-0 focus:ring-2 focus:ring-red-600">Skip to builder</a>
-      {draft ? <WorkspaceHeader className="max-w-[78rem]" current={draft}
+      {draft ? <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[78rem]" : "w-full"} current={draft}
           busy={operationBusy || locked} itemLabel="court record" headerActions={headerActions}
           onBack={() => void closeDraft()} onRename={(title) => void renameDraft(title)}
           onDuplicate={() => void duplicateDraft()} onDelete={() => void deleteDraft()} />
-          : <WorkspaceHeader className="max-w-[78rem]" title="Court Records"
+          : <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} title="Court Records"
             headerActions={headerActions} />}
       {!draft ? <WorkspaceElement id="court-record-workspace" tabIndex={-1}
         aria-busy={draftBusy} inert={draftBusy}
-        className="mx-auto flex min-h-80 max-w-[78rem] flex-col items-center justify-center px-4 py-12 text-center outline-none sm:px-6">
-        {!(draftBusy && initialDraftId) && <><h2 className="font-serif text-2xl font-semibold text-gray-950">Start a court record</h2>
-        <p className="mt-2 text-sm text-gray-600">Choose a filing format or open a saved record.</p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <button type="button" disabled={draftBusy} onClick={() => setCreating(true)}
-            className="min-h-10 rounded-md bg-gray-950 px-4 text-sm font-medium text-white outline-none hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:opacity-50">
-            New court record
-          </button>
-          {!!drafts.length && <button type="button" disabled={draftBusy}
-            onClick={() => setSavedOpen(true)}
-            className="min-h-10 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-950 disabled:opacity-50">
-            Open saved record
-          </button>}
+        className="mx-auto min-h-80 max-w-[50rem] px-4 py-4 outline-none sm:px-6">
+        <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
+        {!(draftBusy && initialDraftId) && <><h2 className="font-semibold text-gray-950">Start a court record</h2>
+        <p className="text-sm text-gray-600">Choose a filing format or open a saved record.</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button disabled={draftBusy} onClick={() => setCreating(true)}>New court record</Button>
+          {!!drafts.length && <Button variant="outline" disabled={draftBusy}
+            onClick={() => setSavedOpen(true)}>Open saved record</Button>}
         </div></>}
         <p className={cn("mt-4 min-h-5 text-sm", error ? "text-red-700" : "text-gray-600")}
           role={error ? "alert" : "status"}>{error || progress || (draftBusy
             ? initialDraftId ? "Opening court record" : "Loading court records" : "")}</p>
+        </section>
       </WorkspaceElement> : !hasProfile ? <WorkspaceElement id="court-record-workspace"
         tabIndex={-1} className="mx-auto min-h-80 max-w-[78rem] outline-none" />
       : <div inert={locked} aria-busy={locked || undefined}

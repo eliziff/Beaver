@@ -8,6 +8,7 @@ import { ModalSegmentedToggle } from "../modals/ModalSegmentedToggle";
 import { ModalTextInput } from "../modals/ModalTextInput";
 import { ModalTextarea } from "../modals/ModalTextarea";
 import { Button } from "../ui/button";
+import { CheckboxInput } from "../ui/checkbox";
 import { WORKFLOW_CATEGORIES } from "./workflowCatalog";
 
 interface Props {
@@ -110,7 +111,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                             value={instructions}
                             onChange={(event) => setInstructions(event.currentTarget.value)} />
                     </FormField>
-                    <Button variant="white" size="compact" className="mt-2"
+                    <Button variant="outline" size="compact" className="mt-2"
                         type="button" disabled={loading} onClick={() => fileInput.current?.click()}>
                         <Upload aria-hidden="true" className="h-4 w-4" />Import instructions
                     </Button>
@@ -119,7 +120,7 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                     <FormField label="Category" htmlFor="workflow-category">
                         <select name="category" required
                             defaultValue={editWorkflow?.metadata.category ?? WORKFLOW_CATEGORIES[0][0]}
-                            className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 sm:text-sm">
+                            className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm">
                         {WORKFLOW_CATEGORIES.map(([value, label]) => <option key={value}
                             value={value}>{label}</option>)}
                         </select>
@@ -129,8 +130,8 @@ function OpenNewWorkflowModal({ onClose, onCreated, editWorkflow, onUpdated }: O
                         <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2">
                             {(["general", "solicitor", "litigator"] as const).map((audience) => <label
                                 key={audience} className="flex min-h-10 cursor-pointer items-center gap-2 text-sm capitalize text-gray-700">
-                                <input ref={audience === "general" ? audienceField : undefined}
-                                    type="checkbox" checked={audiences.includes(audience)}
+                                <CheckboxInput ref={audience === "general" ? audienceField : undefined}
+                                    checked={audiences.includes(audience)}
                                     onChange={() => toggleAudience(audience)} />{audience}
                             </label>)}
                         </div>

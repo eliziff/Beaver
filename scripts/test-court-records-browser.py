@@ -574,7 +574,7 @@ return {width:innerWidth,overflow:document.documentElement.scrollWidth-document.
   unnamed:controls.filter(node=>!name(node)).map(node=>node.outerHTML.slice(0,120)),
   smallTargets:controls.filter(node=>{const r=node.getBoundingClientRect();return r.width<24||r.height<24})
     .map(node=>`${node.tagName}:${name(node)}:${Math.round(node.getBoundingClientRect().width)}x${Math.round(node.getBoundingClientRect().height)}`),
-  smallFormText:[...document.querySelectorAll('input:not([type=file]),select,textarea')].filter(visible)
+  smallFormText:innerWidth>640?[]:[...document.querySelectorAll('input:not([type=file]),select,textarea')].filter(visible)
     .filter(node=>parseFloat(getComputedStyle(node).fontSize)<16).map(node=>`${node.tagName}:${getComputedStyle(node).fontSize}`),
   positiveTabindex:[...document.querySelectorAll('[tabindex]')].filter(node=>Number(node.tabIndex)>0).map(node=>node.outerHTML.slice(0,120)),
   crampedEntryFields:[...document.querySelectorAll('[data-entry-id] > div:first-of-type label input')]

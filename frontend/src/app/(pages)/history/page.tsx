@@ -141,13 +141,12 @@ export default function HistoryPage() {
 
       {error && <p className="mx-6 mb-2 text-sm text-red-700" role="alert">{error}</p>}
       <TableScrollArea
-        horizontal
         header={
           <TableHeaderRow>
-            <TableStickyCell header>Activity</TableStickyCell>
-            <TableHeaderCell className="w-44">When</TableHeaderCell>
-            <TableHeaderCell className="w-28">Status</TableHeaderCell>
-            <TableHeaderCell className="min-w-0 flex-1">Application</TableHeaderCell>
+            <TableStickyCell header widthClassName="min-w-0 flex-1 sm:w-[332px] sm:flex-none">Activity</TableStickyCell>
+            <TableHeaderCell className="hidden w-44 sm:flex">When</TableHeaderCell>
+            <TableHeaderCell className="hidden w-28 sm:flex">Status</TableHeaderCell>
+            <TableHeaderCell className="hidden min-w-0 flex-1 sm:flex">Application</TableHeaderCell>
           </TableHeaderRow>
         }
       >
@@ -157,29 +156,35 @@ export default function HistoryPage() {
           ) : events.length === 0 ? (
             <TableEmptyState>No history matches these filters.</TableEmptyState>
           ) : events.map((event) => (
-            <TableRow key={event.id} interactive={false}>
-              <TableStickyCell className="min-w-0 flex-col">
+            <TableRow key={event.id} interactive={false} className="h-auto min-h-20 sm:h-11">
+              <TableStickyCell widthClassName="min-w-0 flex-1 sm:w-[332px] sm:flex-none" className="min-w-0 flex-col">
                 <span className="w-full truncate text-sm text-gray-900">
                   {event.title || labelForAction.get(event.action) || event.action}
                 </span>
                 {event.title && <span className="w-full truncate text-xs text-gray-500">
                   {labelForAction.get(event.action) || event.action}
                 </span>}
+                <span className="mt-1 w-full text-xs text-gray-600 sm:hidden">
+                  {new Date(event.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                </span>
+                <span className="w-full text-xs capitalize text-gray-600 sm:hidden">
+                  {event.status} · {event.surface || "—"}
+                </span>
               </TableStickyCell>
-              <TableCell className="w-44">
+              <TableCell className="hidden w-44 sm:block">
                 {new Date(event.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
               </TableCell>
-              <TableCell className="w-28 capitalize">{event.status}</TableCell>
-              <TableCell className="min-w-0 flex-1 capitalize">{event.surface || "—"}</TableCell>
+              <TableCell className="hidden w-28 capitalize sm:block">{event.status}</TableCell>
+              <TableCell className="hidden min-w-0 flex-1 capitalize sm:block">{event.surface || "—"}</TableCell>
             </TableRow>
           ))}
         </TableBody>
       </TableScrollArea>
 
-      <div className="mx-4 mb-4 flex items-center justify-end gap-3 text-sm text-gray-600 md:mx-6">
-        <span>{total} events · page {page} of {pageCount}</span>
-        <button className={controlClass} disabled={page === 1 || loading} onClick={() => setPage(page - 1)}>Previous</button>
-        <button className={controlClass} disabled={page === pageCount || loading} onClick={() => setPage(page + 1)}>Next</button>
+      <div className="mx-4 mb-4 flex flex-wrap items-center justify-end gap-2 text-xs text-gray-600 max-sm:grid max-sm:grid-cols-2 sm:gap-3 sm:text-sm md:mx-6">
+        <span className="whitespace-nowrap max-sm:col-span-2 max-sm:text-right">{total} events · page {page} of {pageCount}</span>
+        <button className={`${controlClass} max-sm:w-full`} disabled={page === 1 || loading} onClick={() => setPage(page - 1)}>Previous</button>
+        <button className={`${controlClass} max-sm:w-full`} disabled={page === pageCount || loading} onClick={() => setPage(page + 1)}>Next</button>
       </div>
     </main>
   );

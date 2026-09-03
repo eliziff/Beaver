@@ -96,7 +96,7 @@ export function AddUserInput({
                 />
                 {showAddButton && (
                     <Button
-                        variant="black"                     size="compact"
+                        size="compact"
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => void commitUser()}

@@ -90,7 +90,7 @@ export default function ProjectAssistantPage() {
         <>
             <ProjectSectionTabs
                 actions={
-                    <Button variant="white" size="normal" className="h-8 py-0"
+                    <Button variant="outline" className="h-8 py-0"
                         onClick={() => void createChat()}
                         disabled={creatingChat}
                     >

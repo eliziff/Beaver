@@ -122,7 +122,7 @@ export function WorkflowDetailPage({ id }: { id: string }) {
                 : <section aria-labelledby="workflow-columns-title">
                     <div className="flex items-center justify-between gap-3">
                         <h2 id="workflow-columns-title" className="font-serif text-xl font-medium text-gray-900">Table columns</h2>
-                        {!readOnly && <Button variant="black" size="compact"
+                        {!readOnly && <Button size="compact"
                             onClick={() => setColumn("new")}><Plus aria-hidden="true" className="h-4 w-4" />Add column</Button>}
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

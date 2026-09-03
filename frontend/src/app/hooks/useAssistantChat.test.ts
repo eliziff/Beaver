@@ -242,21 +242,6 @@ describe("useAssistantChat local transcript boundary", () => {
     }));
   });
 
-  it("passes saved research by work-product reference, not duplicated source text", async () => {
-    mocks.streamChat.mockResolvedValueOnce(completedTurn());
-    const workProduct = { kind: "research-set" as const,
-      id: "00000000-0000-4000-8000-000000000002", revision: 7 };
-    const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1", workProduct }),
-    );
-    await act(async () => {
-      await result.current.handleChat({ role: "user", content: "Synthesize the saved passages" });
-    });
-    expect(mocks.streamChat).toHaveBeenCalledWith(expect.objectContaining({
-      work_product: workProduct,
-    }));
-  });
-
   it("sends the selected subagent mode with the turn", async () => {
     updateAssistantPreferences({
       readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },

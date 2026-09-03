@@ -1,7 +1,9 @@
 import { ChevronDown, FileText, Plus, Scale, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
+import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
 import { Input } from "@/app/components/ui/input";
+import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
 import { effectiveCourtProfiles } from "./profiles";
 import type {
@@ -349,18 +351,18 @@ function PartyEditor({ profile, cover, missingFields, onCover }: Omit<Props, "he
                   </div>
                 ))}
                 {invalid && <p id={`party-${group.id}-error`} className="text-sm text-red-700">Enter at least one name.</p>}
-                <button id={`add-${group.id}`} type="button" onClick={() => addParty(group)} className="inline-flex h-8 w-fit items-center gap-1.5 rounded-md px-1.5 text-sm font-medium text-gray-700 outline-none hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-red-600">
+                <Button id={`add-${group.id}`} variant="ghost" size="compact" onClick={() => addParty(group)} className="w-fit text-sm">
                   <Plus className="h-4 w-4" aria-hidden="true" /> Add {group.role.toLowerCase()}
-                </button>
+                </Button>
               </div>
             </section>
           );
         })}
       </div>
       {optional && (
-        <button id={`add-${optional.id}`} type="button" onClick={addOptionalGroup} className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600">
+        <Button id={`add-${optional.id}`} variant="outline" onClick={addOptionalGroup} className="mt-3">
           <Plus className="h-4 w-4" aria-hidden="true" /> Add {optional.role.toLowerCase()}
-        </button>
+        </Button>
       )}
     </fieldset>
   );
@@ -387,8 +389,8 @@ function CoverFields({ fields, cover, missingFields, onCover }: {
       <label key={item.id} className={cn("block text-sm font-medium leading-5 text-gray-700", item.multiline && "sm:col-span-2")}>
         {item.label}{item.required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
         {item.multiline
-          ? <textarea {...common} rows={2} className={cn("mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-base font-normal leading-6 text-gray-900 outline-none focus-visible:ring-2", invalid ? "border-red-500 focus-visible:ring-red-200" : "border-gray-400 focus-visible:border-red-500 focus-visible:ring-red-200")} />
-          : <Input {...common} className={cn("mt-1.5 h-10 border-gray-400 bg-white font-normal md:text-base", invalid && "border-red-500")} />}
+          ? <ModalTextarea {...common} rows={2} className="mt-1.5 min-h-20 font-normal" />
+          : <Input {...common} className="mt-1.5 bg-white font-normal" />}
         {invalid && <span id={`cover-${item.id}-error`} className="mt-1 block text-sm font-normal text-red-700">Required</span>}
       </label>
     );

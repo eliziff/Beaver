@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ChevronLeft, Loader2, Plus } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
+import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
 import {
     APP_SURFACE_ACTIVE_CLASS,
@@ -45,8 +46,6 @@ export type PageHeaderAction =
     | NewAction
     | CustomAction;
 type OptionalAction = PageHeaderAction | null | false | undefined;
-const CONTROL =
-    "flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400";
 
 export function PageHeader({
     children,
@@ -67,6 +66,8 @@ export function PageHeader({
     const disabled =
         loading || !!breadcrumbs?.some((breadcrumb) => breadcrumb.loading);
     const stackActions = (items?.length ?? 0) > 4;
+    const wideMobileActions = stackActions || !!items?.some((action) =>
+        action.type === "search" || action.type === "custom");
     return (
         <div
             className={cn(
@@ -82,6 +83,7 @@ export function PageHeader({
             {!!items?.length && (
                 <div className={cn(
                     "flex min-w-0 items-center justify-end gap-2 md:shrink-0",
+                    wideMobileActions ? "w-full md:w-auto" : "shrink-0",
                     stackActions && "w-full flex-wrap sm:w-auto sm:flex-nowrap",
                 )}>
                     {items.map((action, index) => (
@@ -116,7 +118,7 @@ function Action({
             wrapperClassName={cn(APP_SURFACE_ACTIVE_CLASS,
                 stackOnMobile
                     ? "w-full max-w-none flex-none sm:w-64"
-                    : "w-36 max-w-[calc(100vw-6.5rem)] flex-1 sm:w-64 sm:flex-none")} />;
+                    : "w-36 max-w-none flex-1 sm:w-64 sm:flex-none")} />;
     }
     if (action.type === "custom") {
         return (
@@ -134,6 +136,7 @@ function Action({
         const title = action.title ?? "New";
         return (
             <ActionButton
+                primary
                 onClick={action.onClick}
                 disabled={disabled || action.disabled || action.loading}
                 title={title}
@@ -167,16 +170,20 @@ function Action({
 function ActionButton({
     children,
     iconOnly = false,
+    primary = false,
     disabled,
     ...props
 }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> & {
     iconOnly?: boolean;
+    primary?: boolean;
 }) {
     return (
-        <button
+        <Button
             disabled={disabled}
+            variant={primary ? "default" : "outline"}
+            size={iconOnly ? "icon-sm" : "default"}
             className={cn(
-                CONTROL,
+                "h-9 text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400",
                 APP_SURFACE_HOVER_CLASS,
                 APP_SURFACE_PRESSED_CLASS,
                 iconOnly ? "w-9" : "gap-1.5 px-3",
@@ -185,7 +192,7 @@ function ActionButton({
             {...props}
         >
             {children}
-        </button>
+        </Button>
     );
 }
 

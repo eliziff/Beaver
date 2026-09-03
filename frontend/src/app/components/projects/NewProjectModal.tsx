@@ -12,6 +12,7 @@ import { ModalTextInput } from "../modals/ModalTextInput";
 import { AddUserInput } from "../shared/AddUserInput";
 import { FileDirectory } from "../shared/FileDirectory";
 import type { Document, Project } from "../shared/types";
+import { Button } from "../ui/button";
 import { ProjectPracticeField } from "./ProjectPracticeField";
 
 type Props = { open: boolean; onClose: () => void; onCreated: (project: Project) => void };
@@ -104,8 +105,8 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
             ? `${email} already has access.` : null;
     }
     const loading = status === "loading";
-    return <Modal open onClose={onClose}
-        breadcrumbs={["Projects", step === "details" ? "New project" : "Add documents"]}
+    return <Modal open onClose={onClose} size="2xl"
+        breadcrumbs={["Projects", "New project"]}
         headerAction={step === "documents" ? <UploadAction busy={loading} actions={{
             files: () => fileInput.current?.click(),
             folder: () => folderInput.current?.click(),
@@ -119,7 +120,7 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
         <input ref={folderInput} type="file" multiple className="hidden" onChange={addFiles}
             accept={SUPPORTED_DOCUMENT_ACCEPT} {...{ webkitdirectory: "", directory: "" }} />
         <form id={formId} onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-            <div hidden={step !== "details"} className="space-y-6">
+            <div hidden={step !== "details"} className="max-w-lg space-y-6">
                 <FormField label="Project name" htmlFor="new-project-name">
                     <ModalTextInput name="name" placeholder="Add project name" required autoFocus />
                 </FormField>
@@ -144,12 +145,12 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
                             <span className="min-w-0 flex-1 truncate">
                                 {user.display_name?.trim() || "User"} · {user.email}
                             </span>
-                            <button type="button" aria-label={`Remove ${user.email}`}
+                            <Button variant="ghost" size="icon-sm" aria-label={`Remove ${user.email}`}
                                 onClick={() => setUsers((current) => current.filter(
                                     ({ email }) => email !== user.email))}
-                                className="rounded-full p-1 text-gray-500 hover:text-red-600">
+                                className="rounded-full text-gray-500 hover:text-red-600">
                                 <X className="h-3 w-3" />
-                            </button>
+                            </Button>
                         </li>)}
                     </ul>}
                 </FieldGroup>
@@ -166,18 +167,18 @@ function OpenNewProjectModal({ onClose, onCreated }: Omit<Props, "open">) {
                         {files.map((file) => <li key={file.webkitRelativePath || file.name}
                             className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border border-gray-200 bg-gray-50 py-1 pl-2.5 pr-1 text-xs text-gray-700">
                             <span className="truncate">{file.webkitRelativePath || file.name}</span>
-                            <button type="button" aria-label={`Remove ${file.webkitRelativePath || file.name}`}
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                            <Button variant="ghost" size="icon-sm" aria-label={`Remove ${file.webkitRelativePath || file.name}`}
+                                className="text-gray-500 hover:bg-gray-200 hover:text-gray-900"
                                 onClick={() => setFiles((current) => current.filter(
                                     (existing) => (existing.webkitRelativePath || existing.name) !==
                                         (file.webkitRelativePath || file.name)))}>
                                 <X aria-hidden="true" className="h-3.5 w-3.5" />
-                            </button>
+                            </Button>
                         </li>)}
                     </ul>
                 </div>}
             </div>}
-            {error && <p role="alert" className="mt-3 text-sm text-red-500">{error}</p>}
+            {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         </form>
     </Modal>;
 }

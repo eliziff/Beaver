@@ -190,7 +190,6 @@ export function AskInputPopup({
                                     {ui.resolved[item.id] === "skipped" ? "Answer instead" : "Decline to answer"}
                                 </button>
                                 <Button
-                                    variant="black"
                                     type="submit"
                                     disabled={!!ui.resolved[item.id] || (item.kind === "documents" && !docsFor(item.id).length)}
                                     className="h-9 px-4 font-sans text-sm"

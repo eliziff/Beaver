@@ -226,7 +226,7 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
 
     if (projectContext) return (
         <ProjectSectionTabs actions={
-            <Button variant="white" size="normal" className="h-8 py-0"
+            <Button variant="outline" className="h-8 py-0"
                 onClick={projectContext.openNewReview}
                 disabled={creatingReview}
             >

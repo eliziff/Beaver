@@ -10,6 +10,7 @@ import { FileDirectory } from "../shared/FileDirectory";
 import type { ColumnConfig, Document, Project } from "../shared/types";
 import { useWorkflowPickerState } from "../workflows/WorkflowPickerModal";
 import { workflowVariants, type WorkflowSelection } from "../workflows/workflowRoutes";
+import { CheckboxInput } from "../ui/checkbox";
 
 type Props = {
     open: boolean;
@@ -130,8 +131,8 @@ function OpenNewTRModal({
         <Modal
             open
             onClose={onClose}
-            breadcrumbs={[...breadcrumbs, step === "details" ? "Set up" : "Add files"]}
-            size="xl"
+            breadcrumbs={breadcrumbs}
+            size="2xl"
             secondaryAction={step === "documents" ? {
                 label: uploading ? "Uploading…" : "Upload",
                 icon: uploading
@@ -172,7 +173,7 @@ function OpenNewTRModal({
                 className="flex min-h-0 flex-1 flex-col"
             >
                 {step === "details" ? (
-                    <div className="space-y-6">
+                    <div className="max-w-lg space-y-6">
                         <FormField label="Review name" htmlFor="new-tr-title">
                             <ModalTextInput name="title" placeholder="Review name" autoFocus
                                 defaultValue={title.current} />
@@ -199,8 +200,7 @@ function OpenNewTRModal({
                         {!isProjectMode && (
                             <FieldGroup legend="Project" className="space-y-3">
                                 <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-gray-600">
-                                    <input
-                                        type="checkbox"
+                                    <CheckboxInput
                                         checked={underProject}
                                         onChange={(event) => {
                                             setUnderProject(event.currentTarget.checked);
@@ -210,7 +210,6 @@ function OpenNewTRModal({
                                                 setDocuments([]);
                                             }
                                         }}
-                                        className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                                     />
                                     Create under a project
                                 </label>
