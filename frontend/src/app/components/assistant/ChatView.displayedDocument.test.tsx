@@ -41,6 +41,7 @@ vi.mock("./AssistantSidePanel", () => {
     return { AssistantSidePanel: () => null };
 });
 vi.mock("../workflows/ContextualWorkflowPicker", () => ({
+    ContextualWorkflowLauncher: () => null,
     ContextualWorkflowPicker: ({ onAssistantSelect, initialWorkflowId, documents = [] }: {
         onAssistantSelect: (selection: unknown, documents: Document[]) => void;
         initialWorkflowId?: string;
@@ -53,12 +54,14 @@ vi.mock("../workflows/ContextualWorkflowPicker", () => ({
                 filename).join(", ") || "none"}</output>
             <button type="button" onClick={() => onAssistantSelect({ workflow: {
                 id: "drafting", metadata: { title: "Drafting" },
-            }, variant: { id: "builtin-proofread", execution: "assistant" } }, documents)}>
+            }, variant: { id: "builtin-proofread", label: "Proofread",
+                execution: "assistant" } }, documents)}>
                 Proofread
             </button>
             <button type="button" onClick={() => onAssistantSelect({ workflow: {
                 id: "drafting", metadata: { title: "Drafting" },
-            }, variant: { id: "builtin-draft-from-template", execution: "assistant" } }, documents)}>
+            }, variant: { id: "builtin-draft-from-template", label: "Draft from template",
+                execution: "assistant" } }, documents)}>
                 Draft from template
             </button>
         </>
@@ -85,10 +88,22 @@ vi.mock("@/app/components/library/LibraryWorkspace", () => ({
     },
 }));
 vi.mock("@/app/components/legal/LegalLibrary", () => ({
-    LegalLibraryPage: () => {
+    LegalLibraryPage: ({ onResearchFileChange, onOpenSource }: {
+        onResearchFileChange?: (file: unknown) => void;
+        onOpenSource?: (tab: unknown) => void;
+    }) => {
         const [query, setQuery] = React.useState("");
-        return <input aria-label="Sources query" value={query}
-            onChange={(event) => setQuery(event.target.value)} />;
+        return <><input aria-label="Sources query" value={query}
+            onChange={(event) => setQuery(event.target.value)} />
+            <button type="button" onClick={() => onResearchFileChange?.({
+                document: { id: "research-1", filename: "Appeal research.research.md" },
+            })}>Use appeal research</button>
+            <button type="button" onClick={() => onOpenSource?.({
+                kind: "legal", id: "legal:a2aj:2024-scc-1", provider: "a2aj",
+                sourceId: "2024-scc-1", citation: "2024 SCC 1", name: "Example v Test",
+                dataset: "SCC", docType: "cases", language: "en",
+                researchFileId: "research-1", researchSourceId: "saved-1",
+            })}>View source</button></>;
     },
 }));
 vi.mock("./AssistantMessage", () => ({
@@ -180,7 +195,8 @@ describe("ChatView displayed document context", () => {
         await waitFor(() => expect(dockMocks.sidePanelModuleLoaded).toHaveBeenCalledOnce());
     });
 
-    it("opens supplied project files in the existing assistant dock", () => {
+    it("opens supplied project files in the existing assistant dock", async () => {
+        const user = userEvent.setup();
         render(
             <ChatView
                 session={session()}
@@ -191,6 +207,7 @@ describe("ChatView displayed document context", () => {
             />,
         );
 
+        await user.click(screen.getByRole("button", { name: "Expand assistant dock" }));
         expect(screen.getByRole("tab", { name: "Project files" }))
             .toHaveAttribute("aria-selected", "true");
         expect(screen.getByText("Project explorer content")).toBeVisible();
@@ -266,12 +283,13 @@ describe("ChatView displayed document context", () => {
         render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()}
             projectFiles={<p>Project files</p>} />);
 
+        await user.click(screen.getByRole("button", { name: "Expand assistant dock" }));
         await user.click(screen.getByRole("tab", { name: "Workflows" }));
         await user.click(screen.getByRole("button", { name: "Proofread" }));
 
         expect(dockMocks.startWorkflow).toHaveBeenCalledWith(
             expect.objectContaining({ id: "drafting" }), undefined,
-            { initialDocumentTab: "files" },
+            { initialDocumentTab: "files", openDocumentPicker: false },
         );
     });
 
@@ -290,6 +308,23 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("textbox", { name: "Library query" })).toHaveValue("pleading");
         await user.click(screen.getByRole("tab", { name: "Sources" }));
         expect(screen.getByRole("textbox", { name: "Sources query" })).toHaveValue("appeal");
+    });
+
+    it("opens an embedded search result in the reader without leaving chat", async () => {
+        const user = userEvent.setup();
+        render(<ChatView chatId="chat-1" session={session()} handleChat={vi.fn()}
+            cancel={vi.fn()} />);
+
+        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
+        await user.click(screen.getByRole("tab", { name: "Sources" }));
+        await user.click(screen.getByRole("button", { name: "View source" }));
+
+        await waitFor(() => expect(screen.queryByRole("textbox", { name: "Sources query" }))
+            .not.toBeInTheDocument());
+        expect(screen.getByRole("tab", { name: "Sources" }))
+            .toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("button", { name: "Workflows" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Save research" })).toBeInTheDocument();
     });
 
     it("moves an embedded Library selection into the mounted workflow dock", async () => {
@@ -330,7 +365,7 @@ describe("ChatView displayed document context", () => {
             .toHaveAttribute("aria-selected", "true");
         expect(dockMocks.startWorkflow).toHaveBeenCalledWith(
             expect.objectContaining({ id: "drafting" }), undefined,
-            { initialDocumentTab: "templates" },
+            { initialDocumentTab: "templates", openDocumentPicker: true },
         );
         expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
     });
@@ -428,6 +463,22 @@ describe("ChatView displayed document context", () => {
                 },
             ],
         });
+    });
+
+    it("attaches the selected research file to the next turn", async () => {
+        const user = userEvent.setup();
+        const handleChat = vi.fn();
+        render(<ChatView session={session()} handleChat={handleChat} cancel={vi.fn()} />);
+
+        await user.click(screen.getByRole("button", { name: "Browse workflows" }));
+        await user.click(screen.getByRole("tab", { name: "Sources" }));
+        await user.click(screen.getByRole("button", { name: "Use appeal research" }));
+        await user.click(screen.getByRole("button", { name: "Workflows" }));
+
+        expect(handleChat).toHaveBeenCalledWith(expect.objectContaining({ files: [{
+            filename: "Appeal research.research.md",
+            document_id: "research-1",
+        }] }));
     });
 
     it("keeps project document context separate from attachments", async () => {

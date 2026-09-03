@@ -11,6 +11,7 @@ import { createChatToolRunner } from "./chatToolRunner";
 import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
 import type { WorkProductApplication } from "../workProductApplication";
+import { WORK_PRODUCT_KINDS } from "../workProduct";
 import type { DraftingStyleSettings } from "../draftingStyle";
 import type { FeaturePreferences } from "../userPreferences";
 import {
@@ -38,8 +39,12 @@ import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
 import { normalizeAskInputsEvent } from "./askInputs";
 import {
+  PRIOR_EVIDENCE_AUTO_CHARS,
+  createLegalEvidenceTurnState,
   priorLegalEvidencePrompt,
   priorLegalEvidenceReceipts,
+  priorLegalResearchQueryReceipts,
+  registerPriorLegalResearchQueries,
   restorePriorLegalEvidence,
 } from "./legalEvidence";
 import {
@@ -73,12 +78,8 @@ import type { EditMode } from "../docxTrackedChanges";
 import { setChatTurnControl } from "../chatTurns";
 import { jsonRecord as asRecord } from "../value";
 import { wordClientTools, type WordClientCall } from "./wordClientTools";
-import { ApplicationError } from "../applicationError";
-import {
-  promoteChatResearchSet,
-  resolveResearchSetChatContext,
-  type ResearchSetPromotionInput,
-} from "./researchSetChat";
+import { readResearchFile, researchQueryReceipt, researchQuerySources,
+  saveResearchFile } from "../researchFile";
 
 const uuid = z.string().uuid();
 const userMessage = z.string().trim().min(1).max(200_000);
@@ -147,7 +148,7 @@ export const chatTurnInputSchema = z.object({
   }, "time_zone is invalid").optional(),
   displayed_doc: documentSelection.optional(),
   word_context: wordContext.optional(),
-  work_product: z.object({ kind: z.enum(["court-record", "authorities", "research-set"]), id: uuid,
+  work_product: z.object({ kind: z.enum(WORK_PRODUCT_KINDS), id: uuid,
     revision: z.number().int().positive() }).strict().optional(),
 }).strict().superRefine((value, context) => {
   if (value.project_id && value.tabular_review_id) {
@@ -159,6 +160,11 @@ export const chatTurnInputSchema = z.object({
 });
 
 export type ChatTurnInput = z.infer<typeof chatTurnInputSchema>;
+export const researchFilePromotionBodySchema = z.object({
+  versionId: z.string().trim().min(1).max(200), includeQueries: z.boolean().default(false),
+}).strict();
+type ResearchFilePromotionInput = z.infer<typeof researchFilePromotionBodySchema> &
+  { chatId: string; researchFileId: string };
 type AskInputsSubmission = Extract<
   ChatTurnInput["current_turn"], { kind: "ask_inputs_response" }
 >;
@@ -236,7 +242,7 @@ type Dependencies = {
   library: LibraryStore;
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
+    "create" | "get" | "list" | "resolve">;
   authorities: Pick<AuthoritiesWorkspaceApplication,
     "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
       "discrepancies" | "build" |
@@ -468,8 +474,24 @@ function availableDocumentsPrompt(
 
 export function createChatApplication(deps: Dependencies) {
   return {
-    promoteResearchSet(auth: AuthContext, input: ResearchSetPromotionInput) {
-      return promoteChatResearchSet(deps.chats, deps.workProducts, auth, input);
+    async promoteResearchFile(auth: AuthContext, input: ResearchFilePromotionInput) {
+      const [chat, rows, file] = await Promise.all([deps.chats.get(auth, input.chatId),
+        deps.chats.transcript(auth, input.chatId),
+        readResearchFile(deps.documents, auth, input.researchFileId)]);
+      if (!chat || !rows) throw new ChatApplicationError(404, "Chat not found");
+      if (!file || file.versionId !== input.versionId || file.document.project_id !== null &&
+          file.document.project_id !== chat.project_id)
+        throw new ChatApplicationError(409, "This research file is unavailable or changed");
+      const events = rows.filter(({ role }) => role === "assistant").flatMap(({ content }) =>
+        Array.isArray(content) ? content : []);
+      const evidence = priorLegalEvidenceReceipts(events), searched =
+        priorLegalResearchQueryReceipts(events), sources = researchQuerySources(searched),
+        queries = input.includeQueries ? searched.map(researchQueryReceipt) : [];
+      if (!evidence.length && !queries.length && !sources.length) return file;
+      const saved = await saveResearchFile(deps.documents, auth, file.document.id, file.versionId,
+        { type: "merge", evidence, queries, sources }, true);
+      if (!saved) throw new ChatApplicationError(409, "This research file changed. Reload it.");
+      return saved;
     },
 
     async compact(
@@ -550,22 +572,6 @@ export function createChatApplication(deps: Dependencies) {
       }
       const projectId = chat?.project_id ?? input.project_id ?? null;
       const tabularReviewId = chat?.tabular_review_id ?? input.tabular_review_id ?? null;
-      let researchSet: Awaited<ReturnType<typeof resolveResearchSetChatContext>> | null = null;
-      if (input.work_product?.kind === "research-set") {
-        try {
-          researchSet = await resolveResearchSetChatContext(
-            deps.workProducts,
-            auth,
-            { id: input.work_product.id, revision: input.work_product.revision },
-            projectId,
-          );
-        } catch (error) {
-          if (error instanceof ApplicationError) {
-            throw new ChatApplicationError(error.status, error.message);
-          }
-          throw error;
-        }
-      }
       const transcript = chat ? await deps.chats.transcript(auth, chat.id) : [];
       if (chat && !transcript) throw new ChatApplicationError(404, "Chat not found");
       const rows = transcript ?? [];
@@ -711,12 +717,12 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const priorEvidenceReceipts = priorLegalEvidenceReceipts(rows.flatMap((row) =>
-        Array.isArray(row.content) ? row.content : []));
-      const priorEvidence = [
-        ...await restorePriorLegalEvidence(priorEvidenceReceipts, signal),
-        ...(researchSet?.evidence ?? []),
-      ];
+      const priorEvents = rows.flatMap((row) => Array.isArray(row.content) ? row.content : []),
+        priorEvidenceReceipts = priorLegalEvidenceReceipts(priorEvents, PRIOR_EVIDENCE_AUTO_CHARS),
+        evidenceState = createLegalEvidenceTurnState();
+      registerPriorLegalResearchQueries(evidenceState,
+        priorLegalResearchQueryReceipts(priorEvents, PRIOR_EVIDENCE_AUTO_CHARS));
+      const priorEvidence = await restorePriorLegalEvidence(priorEvidenceReceipts, signal);
       const images = await loadImages(deps.documents, auth, messages, context.records);
       if (images.size && !modelSupportsImageInput(selectedModel)) {
         throw new ChatApplicationError(400,
@@ -740,8 +746,7 @@ export function createChatApplication(deps: Dependencies) {
         input.subagent_mode === "beaver" ? READ_SUBAGENT_SYSTEM_PROMPT : "",
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
-        researchSet?.prompt,
-        researchSet ? priorLegalEvidencePrompt(researchSet.evidence) : "",
+        priorLegalEvidencePrompt(priorEvidenceReceipts),
         tabular?.prompt,
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records),
@@ -791,7 +796,6 @@ export function createChatApplication(deps: Dependencies) {
         userId: auth.userId,
         userEmail: auth.userEmail,
         model: selectedModel,
-        chatId: chat.id,
         projectId,
         allowedDocumentIds: context.allowed,
         documentNames: new Map([...context.records].map(([id, record]) => [
@@ -802,8 +806,6 @@ export function createChatApplication(deps: Dependencies) {
         library: deps.library,
         projects: deps.projects,
         workProducts: deps.workProducts,
-        researchSetId: researchSet?.product.id,
-        researchSetRevision: researchSet?.product.revision,
         authorities: deps.authorities,
         authoritiesId: input.work_product?.kind === "authorities"
           ? input.work_product.id : undefined,
@@ -930,17 +932,6 @@ export function createChatApplication(deps: Dependencies) {
               images: imageForMessage(message, images),
               contextCheckpoint: message.contextCheckpoint,
             }));
-            const evidencePrompt = priorLegalEvidencePrompt(
-              priorEvidenceReceipts.filter(({ evidence_id }) =>
-                !preparedMessages.some(({ content }) => content.includes(evidence_id))),
-            );
-            if (evidencePrompt) {
-              const last = preparedMessages.map(({ role }) => role).lastIndexOf("user");
-              if (last >= 0) preparedMessages[last] = {
-                ...preparedMessages[last],
-                content: `${preparedMessages[last].content}\n\n${evidencePrompt}`,
-              };
-            }
             return preparedMessages;
           },
           subagentMode: input.subagent_mode as SubagentMode,
@@ -948,6 +939,7 @@ export function createChatApplication(deps: Dependencies) {
           subagentEffort: input.subagent_effort,
           jurisdictionPreference: input.jurisdiction_preference as JurisdictionPreference,
           activityDetail: input.activity_detail,
+          evidenceState,
           priorEvidence,
           resumableSubagents: resumableReadSubagents(rows.flatMap((row) =>
             Array.isArray(row.content) ? row.content : [])),

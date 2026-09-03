@@ -1,53 +1,40 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatResearchSave } from "./ChatResearchSave";
 
-const api = vi.hoisted(() => ({
-  createResearchSet: vi.fn(),
-  listResearchSets: vi.fn(),
-  promoteChatResearch: vi.fn(),
-}));
+const api = vi.hoisted(() => ({ createResearchFile: vi.fn(), getResearchFile: vi.fn(),
+  listResearchFiles: vi.fn(), promoteChatResearch: vi.fn() }));
 vi.mock("@/app/lib/beaverApi", async (original) => ({
-  ...(await original<typeof import("@/app/lib/beaverApi")>()),
-  ...api,
+  ...(await original<typeof import("@/app/lib/beaverApi")>()), ...api,
 }));
+const document = { id: "file-1", filename: "Fairness.research.md", file_type: "md",
+  project_id: null, pdf_storage_path: null, size_bytes: 1, page_count: null,
+  created_at: null, current_version_id: "version-3" };
+const file = { document, versionId: "version-3", state: {} };
 
 describe("ChatResearchSave", () => {
-  it("promotes all chat research to a valid set with optional query receipts", async () => {
-    api.listResearchSets.mockResolvedValue([{
-      id: "set-1", kind: "research-set", title: "Fairness", projectId: null,
-      revision: 3, state: {}, outputs: {}, createdAt: "now", updatedAt: "now",
-    }]);
-    api.promoteChatResearch.mockResolvedValue({ research_set_id: "set-1", revision: 4 });
-    render(<ChatResearchSave chatId="chat-1" projectId="matter-1" />);
+  beforeEach(() => { vi.clearAllMocks(); api.listResearchFiles.mockResolvedValue([]); });
 
+  it("saves chat receipts to an existing ordinary research file", async () => {
+    api.listResearchFiles.mockResolvedValueOnce([document]); api.getResearchFile.mockResolvedValue(file);
+    render(<ChatResearchSave chatId="chat-1" />);
     fireEvent.click(screen.getByRole("button", { name: "Save research" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByLabelText("Include model queries and match receipts"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save research" }));
-
     await waitFor(() => expect(api.promoteChatResearch).toHaveBeenCalledWith({
-      chatId: "chat-1", researchSetId: "set-1", revision: 3, includeQueries: true,
+      chatId: "chat-1", researchFileId: "file-1", versionId: "version-3", includeQueries: true,
     }));
-    await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
   });
 
-  it("creates new chat research in the current project", async () => {
-    api.listResearchSets.mockResolvedValue([]);
-    api.createResearchSet.mockResolvedValue({
-      id: "set-new", kind: "research-set", title: "Saved research", projectId: "matter-2",
-      revision: 1, state: {}, outputs: {}, createdAt: "now", updatedAt: "now",
-    });
-    api.promoteChatResearch.mockResolvedValue({ research_set_id: "set-new", revision: 2 });
+  it("creates the default file in the current project", async () => {
+    api.createResearchFile.mockResolvedValue(file);
     render(<ChatResearchSave chatId="chat-2" projectId="matter-2" />);
-
     fireEvent.click(screen.getByRole("button", { name: "Save research" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save research" }));
-
-    await waitFor(() => expect(api.createResearchSet).toHaveBeenCalledWith({
-      title: "Saved research", projectId: "matter-2",
+    await waitFor(() => expect(api.createResearchFile).toHaveBeenCalledWith({
+      title: "Research", projectId: "matter-2",
     }));
-    await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
   });
 });

@@ -120,6 +120,56 @@ afterEach(async () => {
 
 describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
   it(
+    "builds a labelled multi-case research file with passage highlights and a linked memo",
+    async () => {
+      const api = await loadApi();
+      const streamed = await request(api).post("/chat").send({
+        model: MODEL, reasoning_effort: REASONING_EFFORT, expected_version: 0,
+        current_turn: { kind: "message", content:
+          "Do this work in the Library, not merely in your answer. Research Canadian appellate " +
+          "cases on the duty of procedural fairness. Create a research file titled exactly " +
+          "'Luna fairness pilot'. Save at least three verified cases and relevant passage evidence. " +
+          "Create coloured source labels with a root 'Procedural fairness' and at least two child " +
+          "labels, and assign every saved case to a child label with a short case note. Create " +
+          "coloured highlight labels with a root 'Key passages' and children 'Legal test' and " +
+          "'Application'; assign at least three saved passages to those children. Finally create " +
+          "a linked Markdown memo titled exactly 'Luna fairness pilot memo' that synthesizes the " +
+          "saved cases with citations. Finish only after all durable writes succeed." },
+      });
+      expect(streamed.status).toBe(200);
+      const events = sseEvents(streamed.text), calls = toolCalls(events);
+      const store = await import("../../lib/__tests__/support/localDocumentFixtures");
+      const scope = { userId: "00000000-0000-0000-0000-000000000001", kind: "file" as const };
+      const page = await store.localLibraryStore.page(scope,
+        { q: "Luna fairness pilot", parentFolderId: null, limit: 20, after: null });
+      const documents = page.items.flatMap((item) => item.kind === "document" ? [item.document] : []);
+      const researchDocument = documents.find(({ filename }) => filename === "Luna fairness pilot.research.md");
+      const memo = documents.find(({ filename }) => filename === "Luna fairness pilot memo.md");
+      console.info("LIVE research attempt", { calls, answer: visibleText(events),
+        documents: documents.map(({ filename }) => filename) });
+      expect(researchDocument).toBeTruthy(); expect(memo).toBeTruthy();
+      const { readResearchFile } = await import("../../lib/researchFile");
+      const research = await readResearchFile(store.localDocuments, scope, researchDocument!.id);
+      expect(research).toBeTruthy();
+      const labels = Object.values(research!.state.labels), sources = Object.values(research!.state.sources),
+        evidence = Object.values(research!.state.evidence);
+      const sourceLabels = labels.filter(({ scope: kind }) => kind === "source"),
+        highlightLabels = labels.filter(({ scope: kind }) => kind === "highlight");
+      expect(sources.length).toBeGreaterThanOrEqual(3);
+      expect(sourceLabels.some(({ parentId }) => parentId !== null)).toBe(true);
+      expect(sources.every(({ labelIds, note }) => labelIds.length > 0 && note.trim())).toBe(true);
+      expect(highlightLabels.filter(({ parentId }) => parentId !== null).length).toBeGreaterThanOrEqual(2);
+      expect(evidence.filter(({ labelIds }) => labelIds.length > 0).length).toBeGreaterThanOrEqual(3);
+      const memoContent = await store.localDocuments.read(scope, memo!.id, null, false);
+      expect(memoContent?.bytes.toString("utf8")).toMatch(/\[Research file\]\(document:\/\//u);
+      console.info("LIVE research proof", { model: MODEL, reasoning: REASONING_EFFORT, calls,
+        counts: { labels: labels.length, sources: sources.length, passages: evidence.length },
+        research: researchDocument!.filename, memo: memo!.filename });
+    },
+    480_000,
+  );
+
+  it(
     "reads an uploaded lease through library tools and answers with the rent",
     async () => {
       const api = await loadApi();

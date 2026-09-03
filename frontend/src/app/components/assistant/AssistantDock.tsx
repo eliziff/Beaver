@@ -202,6 +202,7 @@ export function AssistantDock({
                     </span> }))}
                 ariaLabel="Assistant panels"
                 variant="dock" actions={active.actions} className="h-full"
+                railClassName="pe-12"
             >
                 <div className={cn(
                     "relative min-h-0 flex-1 overflow-hidden",

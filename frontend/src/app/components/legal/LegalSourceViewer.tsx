@@ -1,35 +1,40 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { PanelsTopLeft } from "lucide-react";
 import { CitationQuotesHeader } from "@/app/components/assistant/CitationQuotesHeader";
 import { GfmMarkdown } from "@/app/components/assistant/message/MarkdownContent";
 import { ThinkingSpinner } from "@/app/components/chat/thinking-spinner";
 import {
-  clearDocxQuoteHighlights,
   highlightDocxQuotes,
 } from "@/app/components/shared/views/highlightDocxQuote";
 import {
   getDirectLegalSourceDocument,
-  getResearchSet,
+  getResearchFile,
   getLegalSourceDocument,
-  actOnResearchSet,
+  actOnResearchFile,
+  createResearchFile,
   type LegalDocumentType,
   type LegalSourceViewerPayload,
 } from "@/app/lib/beaverApi";
 import type {
-  ResearchLocator,
-  ResearchSetProduct,
-} from "@/app/lib/researchSets";
+  ResearchFile,
+  ResearchAction,
+  ResearchSourceReference,
+} from "@/app/lib/researchFiles";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
-import { formatLongDate } from "@/app/lib/utils";
-import { ResearchLabelCircle } from "./ResearchLabelCircle";
+import { errorMessage, formatLongDate } from "@/app/lib/utils";
+import { ResearchLabelEditor, ResearchLabelPicker,
+  type ResearchLabelTarget } from "./ResearchLabelPicker";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
+type ResearchLocator = Extract<ResearchAction, { type: "passage" }>["locator"];
 const EMPTY_QUOTES: { quote: string }[] = [];
 
 export type LegalSourceTab = {
@@ -45,6 +50,8 @@ export type LegalSourceTab = {
   citationRef?: number;
   initialLocator?: string | null;
   quotes?: { quote: string }[];
+  researchFileId?: string | null;
+  researchSourceId?: string | null;
 };
 
 export type LegalSourceViewerProps = {
@@ -59,8 +66,12 @@ export type LegalSourceViewerProps = {
   citationRef?: number;
   compact?: boolean;
   initialLocator?: string | null;
-  researchSetId?: string | null;
+  researchFileId?: string | null;
   researchSourceId?: string | null;
+  researchFile?: ResearchFile | null;
+  projectId?: string;
+  onResearchFileChange?: (file: ResearchFile) => void;
+  onOpenResearch?: () => void;
 };
 
 function legalSourceAnchorId(label: string) {
@@ -209,6 +220,7 @@ function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
 }
 
 type SelectionTarget = { locator: ResearchLocator; quote: string };
+const normalizedPassage = (value: string | null) => (value ?? "").replace(/\s+/gu, " ").trim();
 
 function sectionForNode(node: Node, root: HTMLElement) {
   const element = node instanceof Element ? node : node.parentElement;
@@ -248,8 +260,12 @@ export function LegalSourceViewer({
   citationRef,
   compact = false,
   initialLocator,
-  researchSetId,
+  researchFileId,
   researchSourceId,
+  researchFile: controlledResearchFile,
+  projectId,
+  onResearchFileChange,
+  onOpenResearch,
 }: LegalSourceViewerProps) {
   const sourceKey = [referenceId, provider, citation, sourceId, docType, language, dataset].join("\0");
   const [result, setResult] = useState<[string, LegalSourceViewerPayload | Error]>();
@@ -258,10 +274,28 @@ export function LegalSourceViewer({
   const error = current instanceof Error ? current.message : null;
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [selectedPassage, setSelectedPassage] = useState<SelectionTarget | null>(null);
-  const [researchProduct, setResearchProduct] = useState<ResearchSetProduct | null>(null);
-  const [researchBusy, setResearchBusy] = useState(false);
+  const [selectionAnchor, setSelectionAnchor] = useState<DOMRect | null>(null);
+  const [loadedResearchFile, setLoadedResearchFile] = useState<ResearchFile | null>(null);
+  const researchFile = controlledResearchFile === undefined
+    ? loadedResearchFile : controlledResearchFile;
+  const researchLoading = controlledResearchFile === undefined && !!researchFileId && !loadedResearchFile;
+  const [savedNavigation, setSavedNavigation] = useState<number | null>(null);
+  const [savedPassageOrder, setSavedPassageOrder] = useState<string[]>([]);
+  const [researchBusy, setResearchBusy] = useState(false), [researchError, setResearchError] = useState("");
+  const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const researchChange = useRef(onResearchFileChange);
+  const filePreparation = useRef<Promise<ResearchFile> | null>(null),
+    sourcePreparation = useRef<Promise<{ file: ResearchFile; itemId: string }> | null>(null);
   const locator = normalizeLegalSourceLocator(initialLocator);
+
+  useEffect(() => { researchChange.current = onResearchFileChange; }, [onResearchFileChange]);
+  const publishResearchFile = useCallback((file: ResearchFile) => {
+    if (controlledResearchFile === undefined) setLoadedResearchFile(file);
+    researchChange.current?.(file);
+  }, [controlledResearchFile]);
+  useEffect(() => { filePreparation.current = null; sourcePreparation.current = null; },
+    [researchFile?.document.id, sourceKey]);
 
   useEffect(() => {
     let live = true;
@@ -281,28 +315,75 @@ export function LegalSourceViewer({
   }, [citation, dataset, docType, language, provider, referenceId, sourceId, sourceKey]);
 
   useEffect(() => {
-    if (!researchSetId) { setResearchProduct(null); return; }
+    if (controlledResearchFile !== undefined) return;
+    if (!researchFileId) { setLoadedResearchFile(null); return; }
     let live = true;
-    setResearchProduct(null);
-    void getResearchSet(researchSetId).then((product) => { if (live) setResearchProduct(product); })
-      .catch(() => { if (live) setResearchProduct(null); });
+    setLoadedResearchFile(null);
+    void getResearchFile(researchFileId).then((file) => { if (live) publishResearchFile(file); })
+      .catch(() => { if (live) setLoadedResearchFile(null); });
     return () => { live = false; };
-  }, [researchSetId]);
+  }, [controlledResearchFile, publishResearchFile, researchFileId]);
   const slices = payload?.slices ?? [];
-  const researchSource = researchProduct && researchSourceId
-    ? researchProduct.state.sources[researchSourceId] : null;
-  const savedPassages = useMemo(() => researchProduct && researchSourceId
-    ? Object.values(researchProduct.state.evidence)
-      .filter(({ sourceId: id }) => id === researchSourceId) : [],
-  [researchProduct, researchSourceId]);
-  const savedBlocks = useMemo(() => new Set(savedPassages.map(({ receipt }) => receipt.locator.label)),
-    [savedPassages]);
+  const researchSource = researchFile ? researchSourceId
+    ? researchFile.state.sources[researchSourceId]
+    : payload ? Object.values(researchFile.state.sources).find(({ reference }) =>
+      reference.provider === payload.reference.provider && reference.id === payload.reference.id) : undefined
+    : null;
+  const activeResearchSourceId = researchSource?.id;
+  const savedPassages = useMemo(() => researchFile && activeResearchSourceId
+    ? Object.values(researchFile.state.evidence)
+      .filter(({ sourceId: id }) => id === activeResearchSourceId) : [],
+  [activeResearchSourceId, researchFile]);
+  const orderedSavedPassages = useMemo(() => {
+    const order = new Map(savedPassageOrder.map((id, index) => [id, index]));
+    return [...savedPassages].sort((left, right) =>
+      (order.get(left.receipt.evidence_id) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(right.receipt.evidence_id) ?? Number.MAX_SAFE_INTEGER));
+  }, [savedPassageOrder, savedPassages]);
+  const activeSavedIndex = savedNavigation === null || !orderedSavedPassages.length
+    ? 0 : savedNavigation % orderedSavedPassages.length;
   useLayoutEffect(() => {
     if (!root.current || !payload) return;
-    clearDocxQuoteHighlights(root.current);
-    const match = highlightDocxQuotes(root.current, quotes.map(({ quote }) => quote))[quoteIndex];
+    const quoteTexts = quotes.map(({ quote }) => quote);
+    const matches = highlightDocxQuotes(root.current, [...quoteTexts,
+      ...savedPassages.map(({ receipt }) => receipt.span_text ?? "")]);
+    const positions: Array<{ id: string; node: HTMLElement }> = [];
+    savedPassages.forEach((item, index) => {
+      const color = researchFile?.state.labels[item.labelIds[0]]?.color ?? "#eab308";
+      const category = researchFile?.state.labels[item.labelIds[0]]?.name ?? "Unclassified";
+      const spans = root.current?.querySelectorAll<HTMLElement>(
+        `[data-qspan="${quoteTexts.length + index}"]`,
+      ) ?? [];
+      spans.forEach((span) => {
+          span.style.setProperty("background-color", /^#[\da-f]{6}$/iu.test(color)
+            ? `${color}33` : color, "important");
+          span.style.setProperty("border-bottom", `3px solid ${color}`);
+          span.dataset.researchEvidence = item.receipt.evidence_id;
+          span.tabIndex = 0;
+          span.setAttribute("role", "button");
+          span.setAttribute("aria-label", `${category} saved highlight. Edit labels and note.`);
+          span.title = `${category} saved highlight - activate to edit`;
+          span.classList.add("cursor-pointer", "focus-visible:outline", "focus-visible:outline-2",
+            "focus-visible:outline-offset-2", "focus-visible:outline-gray-900");
+        });
+      const first = spans[0];
+      if (first) positions.push({ id: item.receipt.evidence_id, node: first });
+    });
+    positions.sort((left, right) => left.node === right.node ? 0
+      : left.node.compareDocumentPosition(right.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+    const found = new Set(positions.map(({ id }) => id));
+    const order = [...positions.map(({ id }) => id),
+      ...savedPassages.map(({ receipt }) => receipt.evidence_id).filter((id) => !found.has(id))];
+    setSavedPassageOrder((current) => current.length === order.length &&
+      current.every((id, index) => id === order[index]) ? current : order);
+    const selected = savedNavigation === null ? null : orderedSavedPassages[activeSavedIndex];
+    const selectedIndex = selected ? savedPassages.indexOf(selected) : -1;
+    const match = savedNavigation === null
+      ? quoteTexts.length ? matches[quoteIndex] : null
+      : selectedIndex >= 0 ? matches[quoteTexts.length + selectedIndex] : null;
     if (match) scrollTo(root.current, match);
-  }, [payload, quoteIndex, quotes]);
+  }, [activeSavedIndex, orderedSavedPassages, payload, quoteIndex, quotes, researchFile,
+    savedNavigation, savedPassages]);
 
   useEffect(() => {
     if (!payload || !root.current) return;
@@ -322,6 +403,39 @@ export function LegalSourceViewer({
   }
 
   const metadata: Metadata = payload.metadata;
+  const sourceReference: ResearchSourceReference = {
+    provider: payload.reference.provider,
+    id: payload.reference.id,
+    kind: payload.reference.kind,
+    title: metadata.title,
+    citation: metadata.citation,
+    alternateCitation: metadata.alternateCitation,
+    date: metadata.date,
+    collection: dataset,
+    language: metadata.language,
+    url: metadata.url,
+  };
+  async function prepareResearchFile() {
+    if (researchFile) return researchFile;
+    filePreparation.current ??= createResearchFile({ title: "Research", projectId })
+      .then((next) => { publishResearchFile(next); return next; })
+      .catch((reason) => { filePreparation.current = null; throw reason; });
+    return filePreparation.current;
+  }
+  async function prepareResearchSource(file: ResearchFile) {
+    const existing = Object.values(file.state.sources).find(({ reference }) =>
+      reference.provider === sourceReference.provider && reference.id === sourceReference.id);
+    if (existing) return { file, itemId: existing.id };
+    sourcePreparation.current ??= actOnResearchFile(file.document.id, file.versionId,
+      { type: "source", reference: sourceReference }).then((next) => {
+      publishResearchFile(next);
+      const saved = Object.values(next.state.sources).find(({ reference }) =>
+        reference.provider === sourceReference.provider && reference.id === sourceReference.id);
+      if (!saved) throw new Error("Saved source was not returned");
+      return { file: next, itemId: saved.id };
+    }).catch((reason) => { sourcePreparation.current = null; throw reason; });
+    return sourcePreparation.current;
+  }
   const details = [
     metadata.title !== metadata.citation ? metadata.citation : null,
     metadata.alternateCitation,
@@ -332,21 +446,64 @@ export function LegalSourceViewer({
     id: `legal-quote-${index}`,
     quote: quote.quote,
   }));
+  const sourceBadge = researchSource?.badge;
   function readPassageSelection() {
     if (!root.current) return;
-    setSelectedPassage(legalPassageTargetFromSelection(root.current, window.getSelection()));
+    const selection = window.getSelection();
+    const passage = legalPassageTargetFromSelection(root.current, selection);
+    setSelectedPassage(passage);
+    setSelectionAnchor(passage && selection?.rangeCount
+      ? selection.getRangeAt(0).getBoundingClientRect?.() ?? null : null);
   }
 
-  async function saveSelectedPassage() {
-    if (!researchProduct || !researchSourceId || !selectedPassage || !payload) return;
+  async function savePassage(passage: SelectionTarget, ready: { file: ResearchFile; itemId: string }) {
     setResearchBusy(true);
     try {
-      setResearchProduct(await actOnResearchSet(researchProduct.id, researchProduct.revision, {
-        type: "passage", sourceId: researchSourceId,
-        locator: selectedPassage.locator, quote: selectedPassage.quote }));
-      window.getSelection()?.removeAllRanges(); setSelectedPassage(null);
+      const before = new Set(Object.keys(ready.file.state.evidence));
+      const next = await actOnResearchFile(ready.file.document.id, ready.file.versionId, {
+        type: "passage", sourceId: ready.itemId,
+        locator: passage.locator, quote: passage.quote });
+      publishResearchFile(next);
+      window.getSelection()?.removeAllRanges(); setSelectedPassage(null); setSelectionAnchor(null);
+      const itemId = Object.keys(next.state.evidence).find((id) => !before.has(id)) ??
+        Object.values(next.state.evidence).find(({ receipt }) =>
+          receipt.locator.label === passage.locator.value &&
+          normalizedPassage(receipt.span_text) === passage.quote)?.receipt.evidence_id;
+      if (!itemId) throw new Error("Saved passage was not returned");
+      return { file: next, itemId };
     } finally { setResearchBusy(false); }
   }
+  async function labelPassage(passage: SelectionTarget,
+    saved?: (typeof savedPassages)[number], anchor?: HTMLElement | DOMRect,
+    returnFocus?: HTMLElement) {
+    setResearchBusy(true); setResearchError("");
+    try { const ready = researchFile && activeResearchSourceId
+      ? { file: researchFile, itemId: activeResearchSourceId }
+      : await prepareResearchSource(await prepareResearchFile());
+      setLabelTarget({ file: ready.file, itemId: saved?.receipt.evidence_id ?? "",
+        prepare: saved ? undefined : () => savePassage(passage, ready), kind: "evidence",
+        labelIds: saved?.labelIds ?? [], note: saved?.note,
+        title: passage.locator.value, anchor, returnFocus });
+    } catch (reason) { setResearchError(errorMessage(reason, "Could not prepare research")); }
+    finally { setResearchBusy(false); }
+  }
+  function openSavedHighlight(target: EventTarget | null) {
+    const mark = target instanceof Element
+      ? target.closest<HTMLElement>("[data-research-evidence]") : null;
+    if (!mark || !root.current?.contains(mark)) return false;
+    const saved = savedPassages.find(({ receipt }) =>
+      receipt.evidence_id === mark.dataset.researchEvidence);
+    const kind = saved?.receipt.locator.kind;
+    if (!saved || kind !== "paragraph" && kind !== "section" &&
+      kind !== "page" && kind !== "footnote") return false;
+    void labelPassage({ locator: { kind, value: saved.receipt.locator.label },
+      quote: saved.receipt.span_text ?? "" }, saved, mark, mark);
+    return true;
+  }
+  const navigateSaved = (offset: number) => setSavedNavigation((current) => {
+    const start = current ?? (offset > 0 ? -1 : 0);
+    return (start + offset + orderedSavedPassages.length) % orderedSavedPassages.length;
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
@@ -354,12 +511,22 @@ export function LegalSourceViewer({
         compact ? "px-4 py-3" : "px-5 py-4 sm:px-8"
       }`}>
         <div className="mx-auto max-w-5xl">
-          <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <ResearchLabelPicker file={researchFile}
+              kind="source" itemId={researchSource?.id} labelIds={researchSource?.labelIds ?? []}
+              badge={researchSource?.badge} badgeColor={researchSource?.badgeColor} note={researchSource?.note}
+              title={metadata.title} buttonLabel={sourceBadge}
+              disabled={researchLoading} onChange={publishResearchFile} prepareFile={researchFile || researchLoading ? undefined : prepareResearchFile}
+              prepare={researchSource ? undefined : prepareResearchSource} />
             <h1 className={`min-w-0 flex-1 ${compact
               ? "text-base font-semibold leading-tight text-gray-950"
               : "text-xl font-semibold leading-tight text-gray-950 sm:text-2xl"}`}>
               {metadata.title}
             </h1>
+            {compact && onOpenResearch && <button type="button" onClick={onOpenResearch}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700">
+              Workspace <PanelsTopLeft className="size-3.5" aria-hidden="true" />
+            </button>}
             {!!actions.length && <nav aria-label="Source links" className="flex shrink-0 items-center gap-2">
               {actions.map(({ kind, label, href }) => (
                 <a key={`${kind}:${href}`} href={href} target="_blank"
@@ -377,20 +544,17 @@ export function LegalSourceViewer({
           </p>}
         </div>
       </header>
-      {researchProduct && researchSource && <div className="shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-2 sm:px-8">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 text-xs text-gray-600">
-          <span className="font-medium text-gray-800">{researchProduct.title}</span>
-          <ResearchLabelCircle labels={researchProduct.state.labels}
-            labelIds={researchSource.labelIds} size="sm" />
-          <span className="tabular-nums">{savedPassages.length} saved {savedPassages.length === 1 ? "passage" : "passages"}</span>
-          <span className="ms-auto">{selectedPassage ? `${selectedPassage.quote.length} characters selected` : "Select text to save an exact passage"}</span>
-          <button type="button" disabled={!selectedPassage || researchBusy}
-            onClick={() => void saveSelectedPassage()}
-            className="inline-flex min-h-8 items-center rounded-md bg-gray-900 px-3 font-medium text-white hover:bg-gray-800 disabled:cursor-default disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
-            Save passage
-          </button>
-        </div>
-      </div>}
+      {researchError && <p role="alert" className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{researchError}</p>}
+      {labelTarget && <ResearchLabelEditor target={labelTarget}
+        onClose={() => setLabelTarget(null)} onChange={publishResearchFile} />}
+      {selectedPassage && selectionAnchor && <button type="button"
+        disabled={researchBusy || researchLoading} onClick={(event) => void labelPassage(selectedPassage, undefined,
+          selectionAnchor, event.currentTarget)}
+        style={{ left: Math.max(8, Math.min(selectionAnchor.left, window.innerWidth - 120)),
+          top: Math.max(8, Math.min(window.innerHeight - 40, selectionAnchor.bottom + 6)) }}
+        className="fixed z-40 h-8 rounded-md bg-gray-950 px-3 text-xs font-medium text-white shadow-lg disabled:opacity-40">
+        Save highlight
+      </button>}
       {!!quoteItems.length && !compact && (
         <div className="shrink-0 py-2">
           <CitationQuotesHeader
@@ -407,8 +571,22 @@ export function LegalSourceViewer({
       {payload?.truncated && <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
         This unusually long source is displayed through the first five million characters.
       </p>}
+      <div className="relative min-h-0 flex-1">
+      {!!orderedSavedPassages.length && <nav aria-label="Saved highlights"
+        className="absolute end-2 top-2 z-10 inline-flex items-center rounded border border-gray-300 bg-white/95 text-xs text-gray-600 shadow-sm backdrop-blur">
+        <button type="button" disabled={orderedSavedPassages.length < 2} onClick={() => navigateSaved(-1)}
+          aria-label="Previous saved highlight" className="size-7 rounded-s hover:bg-gray-100 disabled:opacity-40">↑</button>
+        <span className="min-w-10 text-center tabular-nums" aria-live="polite">
+          {activeSavedIndex + 1}/{orderedSavedPassages.length}
+        </span>
+        <button type="button" disabled={orderedSavedPassages.length < 2} onClick={() => navigateSaved(1)}
+          aria-label="Next saved highlight" className="size-7 rounded-e hover:bg-gray-100 disabled:opacity-40">↓</button>
+      </nav>}
       <div ref={root} onPointerUp={readPassageSelection} onKeyUp={readPassageSelection}
-        className="min-h-0 flex-1 overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
+        onClick={(event) => { openSavedHighlight(event.target); }}
+        onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") &&
+          openSavedHighlight(event.target)) event.preventDefault(); }}
+        className="h-full overflow-y-auto bg-[#faf9f6] px-4 py-8 sm:px-8 sm:py-10">
         <article lang={metadata.language} className="mx-auto max-w-[48rem] font-sans text-[17px] leading-[1.68] text-gray-900">
             {slices.map((slice) => {
               const page = slice.primary?.kind === "page"
@@ -419,7 +597,6 @@ export function LegalSourceViewer({
                 : null;
               const selectionAnchor = slice.primary ?? slice.anchors.find(({ kind }) =>
                 kind === "paragraph" || kind === "section" || kind === "page" || kind === "footnote");
-              const saved = selectionAnchor ? savedBlocks.has(selectionAnchor.label) : false;
               return (
                 <section
                   key={`${slice.start}:${slice.end}`}
@@ -427,7 +604,7 @@ export function LegalSourceViewer({
                   data-legal-block={selectionAnchor?.label}
                   data-locator-kind={selectionAnchor?.kind}
                   data-locator-value={selectionAnchor?.label}
-                  className={`scroll-mt-4 ${saved ? "rounded-sm bg-amber-50/60 outline outline-1 outline-amber-200" : ""} ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
+                  className={`scroll-mt-4 ${slice.text ? `mb-1 grid gap-x-4 ${marker ? "grid-cols-[2.7rem_minmax(0,1fr)]" : "grid-cols-1"}` : ""}`}
                   style={{
                     contentVisibility: locator ? "visible" : "auto",
                     containIntrinsicSize: "auto 150px",
@@ -459,6 +636,7 @@ export function LegalSourceViewer({
               );
             })}
         </article>
+      </div>
       </div>
     </div>
   );
