@@ -17,7 +17,7 @@ export default function DirectSourcePage() {
             docType={docType}
             language={params.get("language") === "fr" ? "fr" : "en"}
             dataset={params.get("dataset")}
-            researchSetId={params.get("research_set")}
+            researchFileId={params.get("research_file")}
             researchSourceId={params.get("research_source")}
             initialLocator={params.get("locator")}
         />

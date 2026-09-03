@@ -16,8 +16,22 @@ import { singleFileUpload, uploadedDocument } from "../lib/upload";
 import { documentProjectionService } from "../lib/documentProjectionService";
 import { sha256 } from "../lib/hash";
 import { spreadsheetToLLMStructure } from "../lib/spreadsheet";
+import { z } from "zod";
+import { readResearchFile, researchFileActionSchema, saveResearchFile } from "../lib/researchFile";
+import { researchCaptureRuleSchema, runResearchFileQuery,
+  verifyResearchPassage } from "../lib/researchFileQuery";
 
 const scope = applicationScope, MAX_ZIP_FILES = 100;
+const researchVersion = z.string().trim().min(1).max(200);
+const researchQuery = z.object({ version_id: researchVersion,
+  text: z.string().trim().min(1).max(10_000).optional(),
+  syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
+  sourceIds: z.array(z.string().uuid()).max(10_000).optional(),
+  labelIds: z.array(z.string().uuid()).max(1_000).optional(),
+  rules: z.array(researchCaptureRuleSchema).max(50).optional(),
+  conflict: z.enum(["prompt", "first", "longer", "shorter", "append"]).optional(),
+  limit: z.number().int().min(1).max(5_000).optional() }).strict()
+  .refine((input) => input.text || input.rules?.length, "Supply text or capture rules");
 
 const versionId = (req: Request) =>
   typeof req.query.version_id === "string" ? req.query.version_id : null;
@@ -113,6 +127,31 @@ export function createDocumentsRouter(
       ?? reject(404, "Document not found");
     res.setHeader("Cache-Control", "private, no-store");
     res.json(document);
+  }));
+
+  router.get("/:documentId/research", asyncRoute(async (req, res) => {
+    const file = await readResearchFile(documents, scope(res), req.params.documentId)
+      ?? reject(404, "Research file not found");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json(file);
+  }));
+
+  router.post("/:documentId/research/actions", asyncRoute(async (req, res) => {
+    const version = researchVersion.parse(req.body?.version_id);
+    const action = await verifyResearchPassage(documents, scope(res), req.params.documentId,
+      version, researchFileActionSchema.parse(req.body?.action));
+    const file = await saveResearchFile(documents, scope(res), req.params.documentId,
+      version, action) ?? reject(409, "This research file changed. Reload it.");
+    res.json(file);
+  }));
+
+  router.post("/:documentId/research/query", asyncRoute(async (req, res) => {
+    const input = researchQuery.parse(req.body);
+    res.json(await runResearchFileQuery(documents, scope(res), req.params.documentId, {
+      versionId: input.version_id, text: input.text, syntax: input.syntax, target: input.target,
+      sourceIds: input.sourceIds, labelIds: input.labelIds, limit: input.limit,
+      rules: input.rules, conflict: input.conflict,
+    }));
   }));
 
   router.get("/:documentId/spreadsheet", asyncRoute(async (req, res) => {

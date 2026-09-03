@@ -74,6 +74,7 @@ import {
   legalSourceEvidence,
   modelEvidencePassage,
   registerLegalEvidence,
+  restorePriorLegalEvidence,
   type LegalEvidenceReceipt,
   type LegalEvidenceSpan,
   type LegalEvidenceTurnState,
@@ -134,19 +135,21 @@ import type { AuthoritiesUserAction,
 import { authoritiesProfileIds, decodeAuthoritiesDraft } from "../authoritiesDomain";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
 import { COURT_RECORD_PROFILE_BY_ID } from "../courtRecordContract";
-import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
-  courtRecordSlotTool } from "./courtRecordSlotTool";
 import type { FeaturePreferences } from "../userPreferences";
 import type { WorkProductApplication } from "../workProductApplication";
-import type { WorkProductKind } from "../workProduct";
-import { createResearchSetState, decodeResearchSetState, publicResearchSetActionSchema,
-  researchQueryReceipt, researchSetSummary, type ResearchSetActor } from "../researchSet";
-import { createResearchSetQueryService } from "../researchSetQuery";
+import { WORK_PRODUCT_KINDS, type WorkProductKind } from "../workProduct";
+import { createResearchFileState, readResearchFile, researchFileActionSchema,
+  researchFileMarkdown, researchQueryReceipt, researchQuerySources,
+  researchSourceFromResource, saveResearchFile,
+  type ResearchFileAction } from "../researchFile";
+import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
+import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
+  courtRecordSlotTool } from "./courtRecordSlotTool";
 
 const DOCUMENT_ID_PROPERTY = {
   type: "string",
   pattern: DOCUMENT_RESOURCE_PATTERN,
-  description: "Version-pinned document resource returned by Glob.",
+  description: "Version-pinned document resource returned by this tool or Glob. Reuse the latest returned resource after every write.",
 };
 const objectSchema = (
   properties: Record<string, object>,
@@ -164,16 +167,17 @@ const documentOperationTool = (): Tool & BeaverToolPolicy => ({
   activity: (input) => ({
     metadata: "Updating Library metadata",
     fix_supras: "Fixing supra references",
+    research: "Updating saved research",
   } as Record<string, string>)[String(input.action)] ?? "Updating document",
   description: "Specialist operation on one version-pinned Library document. " +
-    "Actions: metadata saves user-requested classification or notes; fix_supras " +
-    "creates native Word supra cross-references; lint_structure reports structural " +
-    "defects without editing. Do not pre-compute filesystem paths.",
+    "Actions: metadata saves user-requested classification or notes; research creates or updates " +
+    "an ordinary .research.md Library file; fix_supras " +
+    "creates native Word supra cross-references. Do not pre-compute filesystem paths.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: {
       type: "string",
-      enum: ["metadata", "fix_supras"],
+      enum: ["metadata", "research", "fix_supras"],
     },
     document_id: DOCUMENT_ID_PROPERTY,
     kind: { type: "string", enum: ["file", "template"] },
@@ -184,7 +188,24 @@ const documentOperationTool = (): Tool & BeaverToolPolicy => ({
       description: { type: "string" },
     }),
     notes: { type: "string" },
-  }, ["action", "document_id"]),
+    evidence_ids: { type: "array", uniqueItems: true,
+      items: { type: "string", minLength: 1 } },
+    query_ids: { type: "array", uniqueItems: true,
+      items: { type: "string", minLength: 1 } },
+    research_action: { type: "object", description:
+      "Use {type:'create',title} without document_id, then reuse its returned resource as document_id. " +
+      "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence before annotation; " +
+      "{type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',sourceIds?,labelIds?,limit?}; " +
+      "query may instead use rules:[{phrase,direction:'before'|'after',unit:'sentence'|'line'|'paragraph'|'chars',chars?,slot}] and conflict; " +
+      "{type:'label',name,parentId?,color?:'#RRGGBB',order?,scope:'source'|'highlight'} creates a label: omit id, " +
+      "then use returned label_id for child parentId and later labelIds; supply id only to edit; " +
+      "{type:'source',reference:{provider,id,kind,...},labelIds?,badge?,note?} for a current search result returns source_id; " +
+      "{type:'annotate',kind:'source',id,labelIds?,badge?,note?} or " +
+      "{type:'annotate',kind:'evidence',id,labelIds?,note?}; " +
+      "{type:'remove',kind:'label'|'source'|'evidence',id}; {type:'note',markdown}; or " +
+      "{type:'memo',title,markdown} creates a linked ordinary Markdown file. Creation is idempotent by filename; " +
+      "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." },
+  }, ["action"]),
 });
 const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   name: "lint_document",
@@ -197,9 +218,8 @@ const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   inputSchema: objectSchema({ document_id: DOCUMENT_ID_PROPERTY }, ["document_id"]),
 };
 const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
-  create: "Creating draft", read: "Reading draft", select: "Opening draft",
-  update: "Updating draft", review: "Checking draft", refresh: "Refreshing draft",
-  build: "Building draft", research: "Updating saved research",
+  create: "Creating draft", read: "Reading draft", select: "Opening draft", update: "Updating draft",
+  review: "Checking draft", refresh: "Refreshing draft", build: "Building draft",
 };
 const AUTHORITIES_ACTION = objectSchema({
   type: { type: "string", enum: [
@@ -252,13 +272,16 @@ const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy =
   specialist: true,
   sequential: true,
   activity: (input) => WORK_PRODUCT_ACTIVITY[String(input.action)] ?? "Updating draft",
-  description: "Create, select, or update a Court Record, Authorities draft, or saved " +
-    "research set using the same operations as the workspace.",
+  description: "Create, choose, read, review, or update a Court Record or Authorities draft using " +
+    "the workspace's fields and Library bindings. Read without draft_id to list drafts. Authorities " +
+    "reads return a summary; supply unit_id or occurrence_id for bounded text and absolute UTF-16 " +
+    "ranges. Update with one authorities_action, grounded evidence list, authority_id plus a " +
+    "version-pinned PDF, or book_slot plus a version-pinned PDF.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: { type: "string", enum: ["create", "read", "review", "select", "update", "refresh", "build"] },
     kind: { type: "string", enum: ["court-record",
-      ...(authoritiesEnabled ? ["authorities"] : []), "research-set"] },
+      ...(authoritiesEnabled ? ["authorities"] : [])] },
     draft_id: { type: "string", minLength: 1 },
     title: { type: "string", minLength: 1, maxLength: 300 },
     ...COURT_RECORD_TOOL_PROPERTIES,
@@ -279,11 +302,6 @@ const workProductTool = (authoritiesEnabled: boolean): Tool & BeaverToolPolicy =
     authorities_action: AUTHORITIES_ACTION,
     evidence_ids: { type: "array", minItems: 1, uniqueItems: true,
       items: { type: "string", minLength: 1 } },
-    query_ids: { type: "array", uniqueItems: true,
-      items: { type: "string", minLength: 1 } },
-    research_action: { type: "object", description:
-      "Use {type:'save'}; {type:'query',text,syntax:'literal'|'terms',target:'sources'|'passages',labelIds?}; " +
-      "{type:'label',id?,name,parentId?,color?}; {type:'annotate',kind:'source'|'evidence',id,labelIds?,note?}; {type:'memo',markdown}." },
   }, ["action", "kind"]),
 });
 
@@ -721,48 +739,16 @@ function sourceReference(
   provider: string,
   sourceId: string,
 ): LegalSourceReference | null {
-  const tuple = (): unknown[] | null => {
-    try {
-      const value: unknown = JSON.parse(sourceId);
-      return Array.isArray(value) ? value : null;
-    } catch {
-      return null;
-    }
-  };
-  if (provider === "a2aj") {
-    const identity = tuple();
-    const dataset = identity?.[1];
-    if (typeof identity?.[0] !== "string" ||
-        (dataset !== "cases" && dataset !== "laws")) return null;
-    return {
-      provider,
-      id: identity[0],
-      citation: identity[0],
-      kind: dataset === "laws" ? "legislation" : "case",
-      collection: typeof identity[2] === "string" && identity[2]
-        ? identity[2] : null,
-    };
-  }
-  if (provider === "courtlistener-opinion") {
-    const identity = tuple();
-    if (!identity || !Number.isSafeInteger(Number(identity[0])) ||
-        !Number.isSafeInteger(Number(identity[1]))) return null;
-    return {
-      provider: "courtlistener",
-      id: String(identity[0]),
-      part: String(identity[1]),
-      kind: "case",
-    };
-  }
-  if (provider === "courtlistener") {
-    return Number.isSafeInteger(Number(sourceId)) && Number(sourceId) > 0
-      ? { provider, id: sourceId, kind: "case" }
-      : null;
-  }
-  if (["tna", "govuk-et", "govinfo"].includes(provider))
-    return { provider, id: sourceId, kind: "case" };
-  return provider === "journal" || provider === "hansard"
-    ? { provider, id: sourceId, kind: provider } : null;
+  return researchSourceFromResource(resourceReference.source(provider, sourceId));
+}
+
+function sourceResourceReference(source: LegalSourceReference) {
+  if (source.provider === "a2aj") return resourceReference.source("a2aj", JSON.stringify([
+    source.id, source.kind === "legislation" ? "laws" : "cases", source.collection ?? "",
+  ]));
+  if (source.provider === "courtlistener" && source.part) return resourceReference.source(
+    "courtlistener-opinion", JSON.stringify([Number(source.id), Number(source.part)]));
+  return resourceReference.source(source.provider, source.id);
 }
 
 async function readLegalSourceResource(
@@ -1831,6 +1817,11 @@ const mutationResult = (content: Record<string, unknown>) => ({
   ...result(content),
   mutated: content.ok === true,
 });
+const compactEvidence = (receipt: LegalEvidenceReceipt) => ({
+  ...modelEvidencePassage(receipt),
+  exact_passage: receipt.span_text && receipt.span_text.length > 2_000
+    ? `${receipt.span_text.slice(0, 2_000)}…` : receipt.span_text,
+});
 
 const withEvent = (output: BeaverOutcome, event: AssistantEvent | null | undefined): BeaverOutcome => event
   ? { ...output, events: [...(output.events ?? []), event] }
@@ -2330,12 +2321,8 @@ type AssistantToolsDependencies = {
   documents: DocumentStore;
   library: LibraryStore;
   projects: ProjectStore;
-  workProducts: Pick<WorkProductApplication,
-    "create" | "get" | "list" | "resolve" | "applyResearchSetAction">;
+  workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
   model?: string;
-  chatId?: string;
-  researchSetId?: string;
-  researchSetRevision?: number;
   authorities: Pick<AuthoritiesWorkspaceApplication,
     "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
       "discrepancies" | "build" |
@@ -2343,8 +2330,7 @@ type AssistantToolsDependencies = {
   authoritiesId?: string;
   authoritiesRevision?: number;
   courtRecords?: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
-  courtRecordId?: string;
-  courtRecordRevision?: number;
+  courtRecord?: { id: string; revision: number };
   productFeatures?: FeaturePreferences;
   draftingStyle?: DraftingStyleSettings;
   workflows?: WorkflowStore;
@@ -2390,15 +2376,11 @@ export function assistantTools<Context extends {
     projects,
     workProducts,
     model = "assistant",
-    chatId,
-    researchSetId,
-    researchSetRevision,
     authorities,
     authoritiesId,
     authoritiesRevision,
     courtRecords,
-    courtRecordId,
-    courtRecordRevision,
+    courtRecord,
     productFeatures,
     draftingStyle = DEFAULT_DRAFTING_STYLE,
     workflows,
@@ -2435,6 +2417,7 @@ export function assistantTools<Context extends {
       provenance,
     });
     allowedDocumentIds?.add(document.id);
+    knownDocumentNames.set(document.id, document.filename);
     return documentResult({
       ok: true,
       action: "created",
@@ -2454,6 +2437,124 @@ export function assistantTools<Context extends {
       reader: readerAssignment,
     });
     if (sourceRead) return sourceRead;
+    const reference = call.name === "Read"
+      ? parseResourceReference(trimmed(args.file_path)) : null;
+    if (reference?.kind === "document" &&
+        knownDocumentNames.get(reference.documentId)?.toLowerCase().endsWith(".research.md")) {
+      const saved = await readResearchFile(documents, scope, reference.documentId);
+      if (saved?.versionId === reference.versionId) {
+        const notes = saved.state.note.match(/[\s\S]{1,8000}/gu) ?? [],
+          labels = Object.values(saved.state.labels).sort((a, b) => a.order - b.order),
+          sources = Object.values(saved.state.sources),
+          searches = Object.values(saved.state.queries), passages = Object.values(saved.state.evidence),
+          chunks = <T,>(values: T[]) => Array.from({ length: Math.ceil(values.length / 100) },
+            (_, index) => values.slice(index * 100, index * 100 + 100)),
+          strings = (value: unknown) => Array.isArray(value)
+            ? value.filter((id): id is string => typeof id === "string") : [],
+          queryTail = (queryId: string, field: string, values: unknown[]) =>
+            chunks(values.slice(100)).map((items, index) => ({ kind: "search_continuation",
+              query_id: queryId, field, offset: 101 + index * 100, items })),
+          continuations: Record<string, unknown>[] = [
+            ...sources.flatMap((source) => (source.note.slice(300).match(/[\s\S]{1,8000}/gu) ?? [])
+              .map((markdown, index) => ({ kind: "source_note_continuation", sourceId: source.id,
+                offset: 301 + index * 8000, markdown }))),
+            ...searches.flatMap(({ query_id, input, sourceIds, evidenceIds, failures }) => [
+              ...queryTail(query_id, "scope.source_ids", strings(input.source_ids)),
+              ...queryTail(query_id, "scope.label_ids", strings(input.label_ids)),
+              ...queryTail(query_id, "attempted_source_ids", sourceIds),
+              ...queryTail(query_id, "evidence_ids", evidenceIds),
+              ...queryTail(query_id, "failures", failures),
+            ]),
+            ...passages.flatMap(({ receipt, note }) =>
+              (note.slice(300).match(/[\s\S]{1,8000}/gu) ?? []).map((markdown, index) =>
+                ({ kind: "passage_note_continuation", evidence_id: receipt.evidence_id,
+                  offset: 301 + index * 8000, markdown }))),
+          ],
+          total = notes.length + labels.length + sources.length + searches.length +
+            passages.length + continuations.length,
+          offset = Math.max(0, Math.trunc(Number(args.offset) || 1) - 1),
+          limit = Math.max(1, Math.min(20, Math.trunc(Number(args.limit) || 20))),
+          page: Record<string, unknown>[] = [];
+        let skip = offset;
+        const take = <T,>(values: T[], format: (value: T) => Record<string, unknown>) => {
+          if (page.length === limit) return;
+          if (skip >= values.length) { skip -= values.length; return; }
+          const slice = values.slice(skip, skip + limit - page.length); skip = 0;
+          page.push(...slice.map(format));
+        };
+        take(notes, (markdown) => ({ kind: "note", markdown }));
+        take(labels, (label) => ({ kind: "label", ...label }));
+        take(sources, (source) => ({ kind: "source", sourceId: source.id,
+          resource: sourceResourceReference(source.reference),
+          reference: Object.fromEntries(["provider", "id", "kind", "title", "citation", "collection"]
+            .flatMap((key) => { const value = source.reference[key as keyof typeof source.reference];
+              return value == null ? [] : [[key, String(value).slice(0, 300)]]; })),
+          labelIds: source.labelIds.slice(0, 20),
+          ...(source.badge ? { badge: source.badge } : {}),
+          ...(source.note ? { note: source.note.slice(0, 300) } : {}) }));
+        take(searches, ({ query_id, executed_at, tool, input, sourceIds, evidenceIds, failures,
+          results, slots }) => { const list = (value: unknown) => Array.isArray(value)
+            ? value.filter((id): id is string => typeof id === "string").slice(0, 100)
+              .map((id) => id.slice(0, 200)) : [];
+          const rules = Array.isArray(input.rules) ? input.rules.slice(0, 50).flatMap((value) => {
+            const rule = objectRecord(value); return rule ? [{ phrase: String(rule.phrase ?? "").slice(0, 500),
+              direction: String(rule.direction ?? "").slice(0, 20),
+              unit: String(rule.unit ?? "").slice(0, 20), chars: Number(rule.chars) || null,
+              slot: String(rule.slot ?? "").slice(0, 200) }] : []; }) : undefined;
+          return { kind: "search", query_id: query_id.slice(0, 200),
+            executed_at: executed_at.slice(0, 50), tool: tool.slice(0, 100),
+            text: String(input.pattern ?? input.query ?? "").slice(0, 500),
+            syntax: String(input.syntax ?? "").slice(0, 50),
+            target: String(input.target ?? "").slice(0, 50),
+            ...(rules ? { rules } : {}), conflict: String(input.conflict ?? ""),
+            scope: { source_ids: list(input.source_ids), label_ids: list(input.label_ids),
+              limit: Number(input.limit) || null }, attempted_source_ids: sourceIds.slice(0, 100),
+            evidence_ids: evidenceIds.slice(0, 100),
+            slots: Object.fromEntries(evidenceIds.slice(0, 100).flatMap((id) =>
+              slots[id] ? [[id, slots[id].slice(0, 20)]] : [])),
+            failures: failures.slice(0, 100), sources: sourceIds.length || results.length,
+            matches: evidenceIds.length || results.length,
+            truncated: sourceIds.length > 100 || evidenceIds.length > 100 || failures.length > 100 }; });
+        take(passages, ({ receipt, sourceId, labelIds, note }) =>
+          ({ kind: "passage", sourceId, evidence_id: receipt.evidence_id.slice(0, 200),
+            citation: receipt.citation.slice(0, 500), locator: {
+              kind: receipt.locator.kind.slice(0, 50), label: receipt.locator.label.slice(0, 500) },
+            exact_passage: receipt.span_text?.slice(0, 1_000) ?? null,
+            labelIds: labelIds.slice(0, 20), ...(note ? { note: note.slice(0, 300) } : {}) }));
+        take(continuations, (value) => value);
+        while (page.length > 1 && JSON.stringify(page).length > 45_000) page.pop();
+        const selected = page.flatMap((item) => item.kind === "passage"
+          ? [saved.state.evidence[String(item.evidence_id)]?.receipt].filter(
+              (value): value is LegalEvidenceReceipt => !!value) : []);
+        const restored = await restorePriorLegalEvidence(selected, signal, true),
+          verified = new Set(restored.map(({ receipt }) => receipt.evidence_id)),
+          safePage = page.map((item) => { if (item.kind !== "passage" ||
+            verified.has(String(item.evidence_id))) return item;
+          const { exact_passage: _passage, ...summary } = item;
+          return { ...summary, kind: "unavailable_passage" }; }),
+          evidence = restored.map(({ receipt }) => receipt), evidenceSources = new Map(restored.map(
+            ({ receipt, ...source }) => [receipt.evidence_id, source]));
+        safePage.forEach((item) => { if (item.kind === "search") {
+          const query = saved.state.queries[String(item.query_id)];
+          if (query) legalEvidenceState?.queries.set(query.query_id, query);
+        } });
+        const categories = { notes: { count: notes.length, start: 1 },
+          labels: { count: labels.length, start: notes.length + 1 },
+          sources: { count: sources.length, start: notes.length + labels.length + 1 },
+          searches: { count: searches.length, start: notes.length + labels.length + sources.length + 1 },
+          passages: { count: passages.length,
+            start: notes.length + labels.length + sources.length + searches.length + 1 },
+          continuations: { count: continuations.length,
+            start: notes.length + labels.length + sources.length + searches.length +
+              passages.length + 1 } };
+        return { ...result({ document_id: saved.document.id, filename: saved.document.filename,
+          resource: resourceReference.document(saved.document.id, saved.versionId),
+          offset: offset + 1, total, categories,
+          next_offset: offset + page.length < total ? offset + page.length + 1 : null,
+          items: safePage }),
+          evidence, evidenceSources };
+      }
+    }
     const output = await runCodingShapeCall(
       call,
       args,
@@ -2720,7 +2821,117 @@ export function assistantTools<Context extends {
       }],
     };
   };
-  const documentOperation: AssistantToolRun = (call, input, signal) => {
+  const updateResearch = documentTool(async (call, input, documentId, signal) => {
+    const command = objectRecord(input.research_action);
+    if (!command) return fail("research requires research_action");
+    const edit = turnEditState?.get(documentId), versionId = edit?.versionId ?? trimmed(input.version_id);
+    if (command.type === "memo") {
+      const title = trimmed(command.title), markdown = typeof command.markdown === "string"
+        ? command.markdown.trim() : "", research = await readResearchFile(documents, scope, documentId);
+      if (!title || title.length > 200 || !markdown || markdown.length > 1_000_000)
+        return fail("memo requires a title and Markdown content");
+      if (!research || research.versionId !== versionId) return fail("Version conflict");
+      const filename = safeGeneratedFilename(title, "md"), linked =
+        resourceReference.document(research.document.id, research.versionId);
+      const document = await documents.create(scope, { filename, fileType: "md",
+        bytes: Buffer.from(`# ${title.replace(/[\r\n#]/gu, " ")}\n\n` +
+          `[Research file](${linked})\n\n${markdown}\n`),
+        projectId: typeof research.document.project_id === "string"
+          ? research.document.project_id : null,
+        folderId: typeof research.document.folder_id === "string"
+          ? research.document.folder_id : typeof research.document.library_folder_id === "string"
+            ? research.document.library_folder_id : null,
+        libraryKind: research.document.library_kind === "template" ? "template" : "file",
+        provenance: { schemaVersion: 1, actor: "assistant", action: "created" } });
+      allowedDocumentIds?.add(document.id);
+      return documentResult({ ok: true, action: "created", document_id: document.id,
+        version_id: document.current_version_id, version_number: document.active_version_number,
+        filename: document.filename, file_type: document.file_type,
+        resource: resourceReference.document(document.id, document.current_version_id),
+        download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}`,
+        research: linked });
+    }
+    let next, queryId: string | undefined, performed: ResearchFileAction | undefined;
+    let savedEvidenceIds: string[] = [];
+    if (command.type === "query") {
+      const rules = command.rules === undefined ? undefined
+        : researchCaptureRuleSchema.array().max(50).parse(command.rules);
+      const queried = await runResearchFileQuery(documents, scope, documentId,
+        { versionId, text: trimmed(command.text),
+        syntax: command.syntax === "literal" ? "literal" : "terms",
+        target: command.target === "passages" ? "passages" : "sources",
+        limit: Math.max(1, Math.min(5_000, Math.trunc(Number(command.limit) || 500))),
+        sourceIds: Array.isArray(command.sourceIds)
+          ? command.sourceIds.filter((id): id is string => typeof id === "string").slice(0, 1_000)
+          : undefined,
+        labelIds: Array.isArray(command.labelIds)
+          ? command.labelIds.filter((id): id is string => typeof id === "string").slice(0, 1_000) : [],
+        rules, conflict: command.conflict === "prompt" || command.conflict === "longer" ||
+          command.conflict === "shorter" || command.conflict === "append" ? command.conflict : "first" },
+        { signal, actor: { model, callId: call.id } });
+      next = queried.file; queryId = queried.queryId;
+    } else {
+      let action: ResearchFileAction;
+      if (command.type === "save") {
+        if (!legalEvidenceState) throw new Error("No verified legal evidence is available");
+        const queryIds = Array.isArray(input.query_ids)
+          ? input.query_ids.filter((id): id is string => typeof id === "string") : [];
+        const queries = queryIds.map((id) => legalEvidenceState.queries.get(id));
+        const evidenceIds = new Set([...(Array.isArray(input.evidence_ids)
+          ? input.evidence_ids.filter((id): id is string => typeof id === "string") : []),
+          ...queries.flatMap((query) => query?.results.flatMap((item) =>
+            "evidence_id" in item ? [item.evidence_id] : []) ?? [])]);
+        savedEvidenceIds = [...evidenceIds];
+        const evidence = [...evidenceIds].map((id) => legalEvidenceState.evidence.get(id)?.receipt);
+        if (evidence.some((item) => !item) || queries.some((item) => !item))
+          throw new Error("Unknown evidence or query ID");
+        if (!evidence.length && !queries.length) throw new Error("Select evidence_ids or query_ids");
+        action = { type: "merge" as const,
+          evidence: evidence.filter((item): item is LegalEvidenceReceipt => !!item),
+          queries: queries.filter(Boolean).map((receipt) => researchQueryReceipt(receipt!)) };
+      } else {
+        action = researchFileActionSchema.parse(command);
+        if (action.type === "passage") throw new Error("Save verified evidence_ids instead");
+        if (action.type === "label" && !action.id) action = { ...action, id: randomUUID() };
+        if (action.type === "source") {
+          const wanted = action;
+          const verified = researchQuerySources(
+            [...(legalEvidenceState?.queries.values() ?? [])],
+          ).find((source) => source.provider === wanted.reference.provider &&
+              source.id === wanted.reference.id && (source.part ?? null) ===
+              (wanted.reference.part ?? null));
+          if (!verified) throw new Error("Source must be a current verified search result");
+          action = { ...wanted, reference: verified };
+        }
+      }
+      performed = action;
+      next = await saveResearchFile(documents, scope, documentId, versionId, action, true);
+      if (!next) return fail("Version conflict");
+    }
+    const matched = queryId ? next.state.queries[queryId].evidenceIds.flatMap((id) =>
+      next.state.evidence[id]?.receipt ? [next.state.evidence[id].receipt] : []) : [],
+      preview = matched.slice(0, 25);
+    turnEditState?.set(documentId, { versionId: next.versionId,
+      parentVersionId: edit?.parentVersionId ?? versionId });
+    const sourceId = performed?.type === "source" ? Object.values(next.state.sources).find(({ reference }) =>
+        reference.provider === performed.reference.provider && reference.id === performed.reference.id &&
+        (reference.part ?? null) === (performed.reference.part ?? null))?.id : undefined;
+    const saved = savedEvidenceIds.length ? { evidence_ids: savedEvidenceIds,
+      source_ids: [...new Set(savedEvidenceIds.flatMap((id) =>
+        next.state.evidence[id]?.sourceId ? [next.state.evidence[id].sourceId] : []))] } : undefined;
+    return { ...mutationResult({ ok: true, document_id: next.document.id,
+      version_id: next.versionId, filename: next.document.filename,
+      resource: resourceReference.document(next.document.id, next.versionId),
+      ...(performed?.type === "label" ? { label_id: performed.id } : {}),
+      ...(sourceId ? { source_id: sourceId } : {}), ...(saved ? { saved } : {}),
+      ...(queryId ? { query_id: queryId, match_count: matched.length,
+        matches: preview.map(compactEvidence), matches_truncated: matched.length > preview.length } : {}),
+      counts: { labels: Object.keys(next.state.labels).length,
+        sources: Object.keys(next.state.sources).length,
+        passages: Object.keys(next.state.evidence).length,
+        searches: Object.keys(next.state.queries).length } }), evidence: preview };
+  });
+  const documentOperation: AssistantToolRun = async (call, input, signal) => {
     switch (input.action) {
       case "metadata":
         if (input.kind !== "file" && input.kind !== "template")
@@ -2728,52 +2939,65 @@ export function assistantTools<Context extends {
         return updateMetadata(call, input, signal);
       case "fix_supras":
         return runWorkflow(call, input, signal);
+      case "research":
+        if (objectRecord(input.research_action)?.type === "create") {
+          const title = trimmed(objectRecord(input.research_action)?.title);
+          if (!title || title.length > 200) return Promise.resolve(fail("create requires a title"));
+          const filename = safeGeneratedFilename(title, "research.md");
+          const existingId = [...knownDocumentNames].find(([, name]) =>
+            name.toLowerCase() === filename.toLowerCase())?.[0];
+          if (existingId) {
+            const saved = await readResearchFile(documents, scope, existingId);
+            if (saved) { allowedDocumentIds?.add(existingId); turnEditState?.set(existingId,
+              { versionId: saved.versionId, parentVersionId: saved.versionId });
+              return documentResult({ ok: true, action: "selected", document_id: existingId,
+                version_id: saved.versionId, filename: saved.document.filename,
+                resource: resourceReference.document(existingId, saved.versionId) }); }
+          }
+          return persistGenerated(filename,
+            Buffer.from(researchFileMarkdown(title, createResearchFileState())), {
+              schemaVersion: 1, actor: "assistant", action: "created" });
+        }
+        return updateResearch(call, input, signal);
       default:
         return Promise.resolve(fail("Unknown document operation"));
     }
   };
   const workProductRevisions = new Map<string, number>();
-  if (courtRecordId && courtRecordRevision) {
-    workProductRevisions.set(courtRecordId, courtRecordRevision);
-  }
   if (authoritiesId && authoritiesRevision) {
     workProductRevisions.set(authoritiesId, authoritiesRevision);
-  }
-  if (researchSetId && researchSetRevision) {
-    workProductRevisions.set(researchSetId, researchSetRevision);
   }
   const clip = (value: unknown, max = 500) => {
     const text = trimmed(value);
     return text.length > max ? `${text.slice(0, max - 3)}...` : text;
   };
   const workProductChoices = async (kind: WorkProductKind) => {
-    const products = await workProducts.list(scope, { kind, limit: 50, metadata: true });
+    const products = await workProducts.list(scope,
+      { kind, limit: 50, metadata: true });
     const drafts = products.filter(({ projectId }) => projectId === workProductProjectId)
       .map(({ id, title, revision, updatedAt }) =>
         ({ id, title: clip(title, 300), revision, updated_at: updatedAt }));
     return { drafts, has_more: products.length === 50 };
   };
-  const targetWorkProduct = async (kind: WorkProductKind, input: Record<string, unknown>) => {
-    const active = kind === "court-record" ? { id: courtRecordId, revision: courtRecordRevision }
-      : kind === "authorities" ? { id: authoritiesId, revision: authoritiesRevision }
-      : { id: researchSetId, revision: researchSetRevision };
-    const id = trimmed(input.draft_id) || active.id;
-    if (!id) throw new Error(`No ${kind === "research-set" ? "research set" :
-      kind === "court-record" ? "Court Record" : "Authorities"} is active`);
+  const targetWorkProduct = async (input: Record<string, unknown>) => {
+    const id = trimmed(input.draft_id) || authoritiesId;
+    if (!id) throw new Error("No Authorities draft is active");
+    if (authoritiesId && id !== authoritiesId) {
+      throw new Error("This assistant is bound to a different Authorities draft");
+    }
     const product = await workProducts.get(scope, id);
-    if (product.kind !== kind || product.projectId !== workProductProjectId &&
-        !(kind === "research-set" && product.projectId === null)) {
+    if (product.kind !== "authorities" || product.projectId !== workProductProjectId) {
       throw new Error("Draft is outside this chat's work-product scope");
     }
-    return { product, revision: workProductRevisions.get(id) ?? product.revision };
+    return { product, revision: workProductRevisions.get(id) ??
+      (id === authoritiesId ? authoritiesRevision : undefined) ?? product.revision };
   };
   const workProductPayload = (product: { id: string; kind: WorkProductKind;
     revision: number }, values: Record<string, unknown> = {}) => {
     workProductRevisions.set(product.id, product.revision);
     return workProductResult(product, values);
   };
-  const authoritiesPayload = (product: { id: string; kind: WorkProductKind;
-    revision: number; state: unknown; outputs: Record<string, unknown> },
+  const authoritiesPayload = (product: Awaited<ReturnType<typeof authorities.importDraft>>,
     input: Record<string, unknown> = {}, values: Record<string, unknown> = {}) => {
     const draft = decodeAuthoritiesDraft(product.state);
     const outputRoles = Object.keys(product.outputs ?? {});
@@ -2864,8 +3088,7 @@ export function assistantTools<Context extends {
     return workProductPayload(product, { draft: summary, output_roles: outputRoles, ...values });
   };
   const authoritiesMutationPayload = (
-    product: { id: string; kind: WorkProductKind; revision: number;
-      state: unknown; outputs: Record<string, unknown> },
+    product: Awaited<ReturnType<typeof authorities.importDraft>>,
     change: Record<string, unknown>,
   ) => {
     const draft = decodeAuthoritiesDraft(product.state), outputRoles = Object.keys(product.outputs ?? {});
@@ -3074,12 +3297,19 @@ export function assistantTools<Context extends {
   };
   const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
-    const respond = (payload: Record<string, unknown>, mutated = false) => withEvent(
-      payload.ok === true ? (mutated ? mutationResult(payload) : result(payload))
-        : fail(String(payload.error)),
-      workProductEvent(payload, call.id),
-    );
-    if (kind !== "court-record" && kind !== "authorities" && kind !== "research-set") {
+    const respond = (raw: Record<string, unknown>, mutated = false) => {
+      const payload = JSON.stringify(raw).length < MAX_MODEL_TOOL_RESULT_CHARS - 1_000 ? raw : {
+        ok: raw.ok, ...(objectRecord(raw.work_product)
+          ? { work_product: raw.work_product } : {}), truncated: true,
+        detail: "Read again with a narrower unit, occurrence, or authority page.",
+      };
+      const productId = trimmed(objectRecord(payload.work_product)?.id);
+      return withEvent(payload.ok === true
+        ? (mutated ? mutationResult(payload) : result(payload))
+        : fail(clip(payload.error || "The work product could not be updated", 1_000)),
+      workProductEvent(payload, productId ? `work-product:${productId}` : call.id));
+    };
+    if (!WORK_PRODUCT_KINDS.includes(kind)) {
       return respond({ ok: false, error: "Select a supported work-product kind" });
     }
     if (kind === "authorities" && productFeatures?.authorities === false) {
@@ -3087,25 +3317,14 @@ export function assistantTools<Context extends {
     }
     try {
       const requestedId = trimmed(input.draft_id);
-      const activeId = kind === "court-record" ? courtRecordId
-        : kind === "authorities" ? authoritiesId : researchSetId;
-      if (kind !== "research-set" && !requestedId && !activeId &&
+      if (!authoritiesId && !requestedId &&
           (input.action === "read" || input.action === "select")) {
         return respond({ ok: true, ...(await workProductChoices(kind)),
           requested_action: "choose" });
       }
       if (input.action === "create") {
         if (trimmed(input.draft_id)) throw new Error("create does not accept draft_id");
-        if (kind === "research-set") {
-          const title = trimmed(input.title) || "Saved research";
-          const actor: ResearchSetActor = { kind: "model", id: model,
-            origin: { type: "chat", chatId: chatId ?? "unknown", callId: call.id } };
-          const product = await workProducts.create(scope, { kind, title,
-            projectId: workProductProjectId,
-            state: createResearchSetState(actor, title) });
-          return respond(workProductPayload(product), true);
-        }
-        if (kind === "authorities" && authoritiesId) throw new Error(
+        if (authoritiesId) throw new Error(
           "This assistant is already bound to an Authorities draft");
         if (kind === "court-record") {
           const profileId = trimmed(input.profile_id);
@@ -3151,18 +3370,12 @@ export function assistantTools<Context extends {
           workProducts, courtRecords, resolveArtifact, onMutationCommitted: () => {},
         }).execute({ ...input, action: "update" }, {} as Context, signal, call);
       }
-      const target = await targetWorkProduct(kind, input);
-      if (input.action === "select") {
-        return respond(workProductPayload(target.product, { requested_action: "open",
-          ...(kind === "research-set"
-            ? { research: researchSetSummary(decodeResearchSetState(target.product.state)!) }
-            : {}) }));
-      }
-      if (kind === "authorities" && input.action === "read") {
+      const target = await targetWorkProduct(input);
+      if (input.action === "read") {
         return respond(authoritiesPayload(target.product, input,
           await inputIssues(target.product.id)));
       }
-      if (kind === "authorities" && input.action === "review") {
+      if (input.action === "review") {
         const [issues, discrepancies] = await Promise.all([
           inputIssues(target.product.id),
           authorities.discrepancies(scope, target.product.id, signal),
@@ -3179,76 +3392,30 @@ export function assistantTools<Context extends {
           discrepancy_count: discrepancies.length, discrepancies: compact,
           discrepancies_truncated: discrepancies.length > compact.length }));
       }
-      if (kind === "research-set") {
-        if (input.action !== "update") throw new Error("Saved research supports create, select, and update");
-        const actor: ResearchSetActor = { kind: "model", id: model,
-          origin: { type: "chat", chatId: chatId ?? "unknown", callId: call.id } };
-        const command = objectRecord(input.research_action);
-        if (!command) throw new Error("Select a research_action");
-        if (command.type === "query") {
-          const queried = await createResearchSetQueryService(workProducts).run(scope,
-            target.product.id, { revision: target.revision, text: trimmed(command.text),
-              syntax: command.syntax === "literal" ? "literal" : "terms",
-              target: command.target === "passages" ? "passages" : "sources",
-              labelIds: Array.isArray(command.labelIds)
-                ? command.labelIds.filter((id): id is string => typeof id === "string") : [] },
-            { actor });
-          return respond(workProductPayload(queried.product, { query_id: queried.queryId,
-            counts: queried.counts }), true);
-        }
-        let action;
-        if (command.type === "save") {
-          if (!legalEvidenceState) throw new Error("No verified legal evidence is available");
-          const evidenceIds = Array.isArray(input.evidence_ids)
-            ? input.evidence_ids.filter((id): id is string => typeof id === "string") : [];
-          const evidence = evidenceIds.map((id) => legalEvidenceState.evidence.get(id)?.receipt);
-          if (evidence.some((receipt) => !receipt)) {
-            throw new Error("evidence_ids must name verified evidence from this turn");
-          }
-          const queryIds = Array.isArray(input.query_ids)
-            ? input.query_ids.filter((id): id is string => typeof id === "string") : [];
-          const queries = queryIds.map((id) => legalEvidenceState.queries.get(id));
-          if (queries.some((receipt) => !receipt)) throw new Error("Unknown query_id");
-          if (!evidenceIds.length && !queryIds.length) throw new Error("Select evidence_ids or query_ids");
-          action = { type: "merge" as const,
-            evidence: evidence.flatMap((receipt) => receipt ? [receipt] : []),
-            queries: queries.flatMap((receipt) => receipt ? [researchQueryReceipt(receipt)] : []) };
-        } else action = publicResearchSetActionSchema.parse(command);
-        const product = await workProducts.applyResearchSetAction(scope, target.product.id,
-          { revision: target.revision, action }, actor);
-        return respond(workProductPayload(product, {
-          research: researchSetSummary(decodeResearchSetState(product.state)!) }), true);
+      if (input.action === "select") {
+        return respond(workProductPayload(target.product, { requested_action: "open" }));
       }
       if (input.action === "refresh") {
-        if (kind === "authorities") {
-          const role = trimmed(input.input_role);
-          const product = role
-            ? await authorities.refreshInput(scope, target.product.id,
-              { revision: target.revision, role })
-            : await authorities.refresh(scope, target.product.id, target.revision);
-          return respond(authoritiesMutationPayload(product,
-            role ? { type: "refresh-input", role } : { type: "refresh" }),
-          product.revision !== target.product.revision);
-        }
-        const resolution = await workProducts.resolve(scope, target.product.id);
-        return respond(workProductPayload(resolution.product, {
-          requested_action: "refresh", freshness: resolution.freshness,
-        }));
+        const role = trimmed(input.input_role);
+        const product = role
+          ? await authorities.refreshInput(scope, target.product.id,
+            { revision: target.revision, role })
+          : await authorities.refresh(scope, target.product.id, target.revision);
+        return respond(authoritiesMutationPayload(product,
+          role ? { type: "refresh-input", role } : { type: "refresh" }),
+        product.revision !== target.product.revision);
       }
       if (input.action === "build") {
-        if (kind === "authorities") {
-          const prepared = await authorities.prepareSources(scope, target.product.id,
-            target.revision, signal);
-          try {
-            const built = await authorities.build(scope, prepared.id, prepared.revision, signal);
-            return respond(authoritiesMutationPayload(built.product, { type: "build" }), true);
-          } catch (error) {
-            return respond(authoritiesMutationPayload(prepared, { type: "prepare-sources",
-              build_error: safeErrorMessage(error, "The outputs could not be built") }),
-            prepared.revision !== target.revision);
-          }
+        const prepared = await authorities.prepareSources(scope, target.product.id,
+          target.revision, signal);
+        let built: Awaited<ReturnType<typeof authorities.build>>;
+        try { built = await authorities.build(scope, prepared.id, prepared.revision, signal); }
+        catch (error) {
+          return respond(authoritiesMutationPayload(prepared, { type: "prepare-sources",
+            build_error: safeErrorMessage(error, "The outputs could not be built") }),
+          prepared.revision !== target.revision);
         }
-        return respond(workProductPayload(target.product, { requested_action: "build" }));
+        return respond(authoritiesMutationPayload(built.product, { type: "build" }), true);
       }
       if (input.action !== "update") throw new Error("Unknown work-product action");
       const authorityId = trimmed(input.authority_id);
@@ -3402,10 +3569,10 @@ export function assistantTools<Context extends {
     definition(WRITE_TOOL, write),
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
     definition(CITATOR_TOOL, runCitator),
-    ...(turnScope !== "main" ? [] : courtRecordId && courtRecordRevision && courtRecords
-      ? [courtRecordSlotTool({ scope, target: { id: courtRecordId, revision: courtRecordRevision },
-          projectId: workProductProjectId, allowedDocumentIds, library, workProducts,
-          courtRecords, resolveArtifact, onMutationCommitted })]
+    ...(turnScope !== "main" ? [] : courtRecord && courtRecords
+      ? [courtRecordSlotTool({ scope, target: courtRecord, projectId: workProductProjectId,
+          allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
+          onMutationCommitted })]
       : [definition(workProductTool(productFeatures?.authorities !== false), updateWorkProduct)]),
     definition(documentOperationTool(), documentOperation),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>

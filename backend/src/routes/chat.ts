@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { ChatStoreError, type ChatScope, type ChatStore } from "../lib/chatStore";
-import { ChatApplicationError, chatTurnInputSchema,
+import { ChatApplicationError, chatTurnInputSchema, researchFilePromotionBodySchema,
   type ChatApplication } from "../lib/chat/chatApplication";
 import { beginChatTurn, finishChatTurn } from "../lib/chatTurns";
 import type { ChatTurnQueue } from "../lib/chatTurnQueue";
@@ -11,7 +11,6 @@ import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming
 import { safeErrorLog } from "../lib/safeError";
 import { jsonRecord } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
-import { researchSetPromotionBodySchema } from "../lib/chat/researchSetChat";
 
 const text = (value: unknown, max = 20_000) => {
   const parsed = typeof value === "string" ? value.trim() : "";
@@ -234,19 +233,19 @@ export function createChatRouter(
     }
   }));
 
-  router.post("/:chatId/research-sets/:researchSetId/promote", route(async (
+  router.post("/:chatId/research-files/:researchFileId/promote", route(async (
     req, res, scope,
   ) => {
-    const parsed = researchSetPromotionBodySchema.safeParse(req.body);
+    const parsed = researchFilePromotionBodySchema.safeParse(req.body);
     if (!parsed.success) return void res.status(400).json({
       detail: parsed.error.issues[0]?.message ?? "Invalid research selection",
     });
-    const product = await application.promoteResearchSet(scope, {
+    const file = await application.promoteResearchFile(scope, {
       chatId: req.params.chatId,
-      researchSetId: req.params.researchSetId,
+      researchFileId: req.params.researchFileId,
       ...parsed.data,
     });
-    res.json({ research_set_id: product.id, revision: product.revision });
+    res.json({ document_id: file.document.id, version_id: file.versionId });
   }));
 
   router.patch("/:chatId", route(async (req, res, scope) => {
