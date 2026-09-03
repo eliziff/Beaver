@@ -246,7 +246,6 @@ export function EditCard({
             ) : (
                 <div className="mt-3 flex gap-2">
                     <Button
-                        variant="black"
                         size="compact"
                         onClick={() => resolve("accept")}
                         disabled={disabled}
@@ -254,7 +253,7 @@ export function EditCard({
                         Accept
                     </Button>
                     <Button
-                        variant="white"
+                        variant="outline"
                         size="compact"
                         onClick={() => resolve("reject")}
                         disabled={disabled}
@@ -263,7 +262,6 @@ export function EditCard({
                     </Button>
                     {onViewClick && (
                         <Button
-                            variant="black"
                             size="compact"
                             onClick={() => onViewClick(annotation)}
                             className="ml-auto"

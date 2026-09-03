@@ -8,6 +8,7 @@ import type {
   Message,
 } from "@/app/components/shared/types";
 import { safeAssistantUrl } from "./safeAssistantUrl";
+import { WORK_PRODUCT_KINDS } from "./workProducts";
 export { safeAssistantUrl } from "./safeAssistantUrl";
 
 export const ASSISTANT_LIMITS = {
@@ -443,7 +444,7 @@ function parseWorkflowRun(value: unknown): Parsed<WorkflowRunEvent> {
   const workProduct = row.work_product === undefined ? undefined : (() => {
     const item = strictObject(row.work_product, ["kind", "id", "revision"]);
     if (item === INVALID) return INVALID;
-    const kind = member(item.kind, ["court-record", "authorities", "research-set"] as const);
+    const kind = member(item.kind, WORK_PRODUCT_KINDS);
     const workProductId = id(item.id), revision = safeInteger(item.revision);
     return kind === INVALID || workProductId === INVALID || revision === INVALID || revision < 1
       ? INVALID : { kind, id: workProductId, revision };

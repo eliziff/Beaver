@@ -28,7 +28,7 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
     if (next && next !== current.title) props.onRename(next); else setTitle(current.title);
   };
   return <header data-workspace-header className="shrink-0">
-    <div className={cn("builder-header mx-auto grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2 sm:px-6 lg:min-h-[max(76px,4.625rem)] lg:pb-4 lg:pt-5.5", props.className)}>
+    <div className={cn("builder-header mx-auto grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-2 sm:gap-3 sm:px-6 lg:min-h-[max(76px,4.625rem)] lg:pb-4 lg:pt-5.5", props.className)}>
       {current && "onBack" in props ? <div className="flex min-w-0 items-center gap-2">
         <button type="button" disabled={busy} onClick={props.onBack}
           aria-label={`Back from ${props.itemLabel}`}
@@ -61,7 +61,7 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
             } },
             { label: "Duplicate", disabled: busy, onSelect: props.onDuplicate },
             { label: "Delete", disabled: busy, onSelect: () => setConfirmDelete(true) },
-          ]} /> : <span className="size-9" aria-hidden="true" />}
+          ]} /> : !props.headerActions && <span className="size-9" aria-hidden="true" />}
       </div>
     </div>
     {current && "onDelete" in props && <ConfirmPopup open={confirmDelete}

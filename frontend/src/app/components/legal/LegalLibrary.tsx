@@ -249,7 +249,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                             <SearchBar name="query" required value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch
                                 aria-label="Search sources"
-                                wrapperClassName="col-span-2 h-10 min-w-0 @min-[42rem]:col-span-1"
+                                wrapperClassName="col-span-2 min-w-0 @min-[42rem]:col-span-1"
                                 placeholder={
                                         docType === "all"
                                             ? "Search cases, legislation, journals, and Hansard"
@@ -264,7 +264,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                             <button
                                 type="submit"
                                 disabled={searching}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand px-5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-45"
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-45"
                             >
                                 {searching ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -275,7 +275,7 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                             </button>
                             <button type="button" onClick={() => setResearchOpen(true)}
                                 aria-expanded={researchOpen} aria-label="Open research workspace"
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
                                 Workspace
                                 <PanelsTopLeft className="size-4" aria-hidden="true" />
                             </button>

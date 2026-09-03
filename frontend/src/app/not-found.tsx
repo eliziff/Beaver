@@ -13,7 +13,7 @@ export default function NotFound() {
                 </p>
                 <Link
                     to="/"
-                    className={buttonClassName({ variant: "black", size: "normal" })}
+                    className={buttonClassName()}
                 >
                     Go home
                 </Link>

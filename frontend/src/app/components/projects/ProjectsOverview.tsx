@@ -177,8 +177,6 @@ export function ProjectsOverview() {
                             data-page-new
                             aria-keyshortcuts="Alt+N"
                             aria-label="New project"
-                            variant="black"
-                            size="normal"
                             onClick={() => setModalOpen(true)}
                             disabled={loading}
                             className="h-9 shrink-0 shadow-none"
@@ -211,8 +209,8 @@ export function ProjectsOverview() {
                         className="mr-2 h-5 w-5 shrink-0" />}>
                     {selectedIds.length ? <>
                         <div className="hidden h-8 shrink-0 items-center gap-1.5 sm:flex">
-                            {selectedIds.length === 1 && <Button variant="white"
-                                size="normal" className="h-8 py-0"
+                            {selectedIds.length === 1 && <Button variant="outline"
+                                className="h-8 py-0"
                                 onClick={() => void openProjectChat(selectedIds[0])}
                             >
                                 <MessageSquarePlus className="h-3.5 w-3.5" />

@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { MessageCircle } from "lucide-react";
 import type { WorkProductContext } from "@/app/lib/workProducts";
+import { Button } from "@/app/components/ui/button";
+import { ASSISTANT_DOCK_DESKTOP_CLASS } from "./assistantDockLayout";
 
 export type WorkProductAssistantProps = { product?: WorkProductContext;
   chatId?: string; onChatIdChange(id: string): void;
@@ -54,17 +56,18 @@ export function WorkProductAssistant(props: WorkProductAssistantProps) {
 
 function DockLoadingShell() {
   return <aside aria-label="Assistant dock" aria-busy="true"
-    style={{ "--assistant-dock-width": "480px" } as CSSProperties}
-    className="absolute inset-0 z-40 flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),50%)] xl:rounded-2xl" />;
+    style={{ "--assistant-dock-width": "480px",
+      "--assistant-dock-max-width": "calc(100% - 36rem)" } as CSSProperties}
+    className={`fixed inset-0 z-[100] flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg ${ASSISTANT_DOCK_DESKTOP_CLASS}`} />;
 }
 
 export function WorkProductAssistantButton({ available, expanded, onClick }: {
   available: boolean; expanded: boolean; onClick(): void;
 }) {
-  return <button type="button" disabled={!available} aria-label="Assistant"
+  return <Button variant="outline" disabled={!available} aria-label="Assistant"
     aria-expanded={expanded} onClick={onClick}
-    className="builder-assistant-button inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-default disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+    className="builder-assistant-button min-w-28 border-gray-200 text-gray-700 disabled:cursor-default">
     <MessageCircle aria-hidden className="size-4" />
     <span className="builder-assistant-label">Assistant</span>
-  </button>;
+  </Button>;
 }

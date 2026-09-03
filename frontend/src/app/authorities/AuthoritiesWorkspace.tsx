@@ -3,10 +3,11 @@ import { BookOpen, ChevronRight, Download, FilePlus2, FolderSearch, GripVertical
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
+import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document } from "@/app/components/shared/types";
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { TabList } from "@/app/components/ui/tabs";
 import { downloadBlob } from "@/app/lib/download";
@@ -617,11 +618,11 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary }: {
       <div className="min-w-0"><h2 className="font-semibold text-gray-950">Import and review</h2>
         <p className="text-sm text-gray-600">Add a factum, brief, or other PDF or Word document.</p></div></div>
     <div className="mt-5 flex flex-wrap gap-2">
-      {onPick ? <Button type="button" className="h-11" disabled={busy} onClick={onPick}>
+      {onPick ? <Button type="button" disabled={busy} onClick={onPick}>
         <FilePlus2 /> Add file</Button> : <FileInputButton multiple={false} disabled={busy}
           label="Add file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onFiles={(files) => onFile(files[0])} />}
-      {onLibrary && <Button type="button" variant="outline" className="h-11 border-gray-400"
+      {onLibrary && <Button type="button" variant="outline" className="border-gray-400"
         disabled={busy} onClick={onLibrary}><FolderSearch /> Library</Button>}
     </div>
   </section>;
@@ -1368,10 +1369,9 @@ function SelectField<T extends string>({ label, value, options, onChange, disabl
   onChange: (value: T) => void; disabled?: boolean; className?: string;
 }) {
   return <label className={cn("block min-w-0 text-sm font-medium text-gray-800", className)}>{label}
-    <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as T)}
-      className="mt-1 h-10 w-full rounded-lg border border-gray-400 bg-white px-3 text-base text-gray-950 outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:bg-gray-100 disabled:text-gray-500">
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
+    <ModalSelect id={`authorities-${label.toLowerCase().replaceAll(" ", "-")}`}
+      value={value} disabled={disabled} onChange={(next) => onChange(next as T)}
+      placeholder={null} className="mt-1" options={options} />
   </label>;
 }
 
@@ -1379,10 +1379,12 @@ function FileInputButton({ multiple, disabled, label, accept, onFiles, variant =
   multiple: boolean; disabled: boolean; label: string; accept: string;
   onFiles: (files: File[]) => void; variant?: "primary" | "outline"; compact?: boolean;
 }) {
-  return <label className={cn("inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium outline-none focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2",
-    compact ? "min-h-8 px-2.5 text-xs" : "min-h-10 px-3",
-    variant === "primary" ? "bg-gray-950 text-white hover:bg-gray-800" : "border border-gray-400 bg-white text-gray-800 hover:bg-gray-50",
-    disabled && "pointer-events-none opacity-50")}><FilePlus2 className="h-4 w-4" /> {label}
+  return <label className={buttonClassName({
+    variant: variant === "primary" ? "default" : "outline",
+    size: compact ? "compact" : "default",
+    className: cn("cursor-pointer focus-within:ring-3 focus-within:ring-ring/50",
+      disabled && "pointer-events-none opacity-50"),
+  })}><FilePlus2 className="h-4 w-4" /> {label}
     <input className="sr-only" type="file" multiple={multiple} accept={accept} disabled={disabled}
       onChange={(event) => { onFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
   </label>;

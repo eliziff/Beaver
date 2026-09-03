@@ -111,7 +111,7 @@ export function DocPanel({
               value: result.version_id,
             })}
           />
-          <Button variant="white" size="compact" onClick={() => void download()} disabled={downloading || isReloading}>
+          <Button variant="outline" size="compact" onClick={() => void download()} disabled={downloading || isReloading}>
             {downloading || isReloading
               ? <Loader2 className="size-3.5 animate-spin" />
               : <Download className="size-3.5" />}
@@ -154,10 +154,10 @@ function EditActions({ mode }: { mode: Extract<DocPanelMode, { kind: "edit" }> }
   );
   return (
     <header className="flex justify-end gap-2 border-b p-2">
-      <Button variant="black" size="compact" onClick={() => resolve("accept")} disabled={disabled}>
+      <Button size="compact" onClick={() => resolve("accept")} disabled={disabled}>
         {status === "accepted" ? "Accepted" : "Accept"}
       </Button>
-      <Button variant="white" size="compact" onClick={() => resolve("reject")} disabled={disabled}>
+      <Button variant="outline" size="compact" onClick={() => resolve("reject")} disabled={disabled}>
         {status === "rejected" ? "Rejected" : "Reject"}
       </Button>
     </header>

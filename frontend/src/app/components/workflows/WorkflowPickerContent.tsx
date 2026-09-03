@@ -119,16 +119,18 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
     return <Tabs value={audience} onValueChange={(value) =>
         onAudienceChange(value as AudienceFilter)}
         options={AUDIENCE_TABS.map(({ id, label }) => ({ value: id, label }))}
-        ariaLabel="Workflow audience" variant={audienceTabVariant} className="min-w-0 flex-1">
-        <div className="flex min-h-0 flex-1 flex-col pt-3">
+        ariaLabel="Workflow audience" variant={audienceTabVariant}
+        className={`min-w-0 flex-1 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
+        <div className={`flex min-h-0 flex-1 flex-col pt-3 ${audienceTabVariant === "dock" ? "max-[40rem]:flex-none" : ""}`}>
             <SearchBar value={search} onValueChange={onSearchChange}
                 placeholder="Search workflows" aria-label="Search workflows" />
             {contextLabel && <p className="mt-2 truncate text-xs text-gray-500"
                 title={contextLabel}>Using {contextLabel}</p>}
-            <div ref={listRef} className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
+            <div ref={listRef} className={`mt-4 min-h-0 flex-1 overflow-y-auto pb-6 ${audienceTabVariant === "dock" ? "max-[40rem]:overflow-visible" : ""}`}>
                 <p role="status" className="sr-only">{loading
                     ? "Loading workflows" : `${count} workflow choices`}</p>
-                {loading ? <WorkflowSkeleton /> : loadError ? <LoadError onRetry={onRetryLoad} />
+                {loading && !workflows.length ? <WorkflowSkeleton />
+                    : loadError && !workflows.length ? <LoadError onRetry={onRetryLoad} />
                     : groups.length ? <div className="space-y-5">{groups.map((group) => {
                         const sectionId = `${idPrefix}-workflow-section-${slug(group.label)}`;
                         return <section key={`${audience}:${search}:${group.label}`}

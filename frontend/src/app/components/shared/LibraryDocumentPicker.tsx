@@ -16,7 +16,7 @@ export function LibraryDocumentPicker({ open, title, formatLabel, query, results
   onQuery: (query: string) => void; onSelect: (document: Document) => void;
   onClose: () => void;
 }) {
-  return <Modal open={open} onClose={onClose} size="xl" breadcrumbs={[title]}>
+  return <Modal open={open} onClose={onClose} size="2xl" breadcrumbs={[title]}>
     <div className="pb-5">
       <p className="mb-3 text-sm text-gray-500">{formatLabel} files</p>
       <SearchBar autoFocus value={query} onValueChange={onQuery} booleanSearch

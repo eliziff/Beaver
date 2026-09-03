@@ -602,16 +602,18 @@ def active_review_viewports(driver: webdriver.Chrome, output: Path) -> dict[str,
         assert control.is_enabled()
         metrics = driver.execute_script(r"""
 const control=arguments[0],review=control.closest('.authorities-review'),surface=review.querySelector('[role=textbox]'),
-  list=review.querySelector('[role=listbox]');let editor=control;while(editor.parentElement!==review)editor=editor.parentElement;
-editor.scrollTop=editor.scrollHeight;const rect=n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}};
+  list=review.querySelector('[role=listbox]');control.scrollIntoView({block:'center'});
+const rect=n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}},a=rect(control),
+  hit=document.elementFromPoint((a.left+a.right)/2,(a.top+a.bottom)/2);
 return {width:innerWidth,scale:devicePixelRatio,overflow:document.documentElement.scrollWidth-innerWidth,
-  review:rect(review),list:rect(list),surface:rect(surface),action:rect(control),editorScroll:editor.scrollTop,
+  review:rect(review),list:rect(list),surface:rect(surface),action:a,
+  actionVisible:a.top>=0&&a.bottom<=innerHeight,actionHit:hit===control||control.contains(hit),
   selected:document.querySelectorAll('[aria-label="Citations"] [aria-selected=true]').length};
 """, control)
         assert metrics["width"] == 320 and metrics["scale"] == scale and metrics["overflow"] <= 1, metrics
         for key in ("review", "list", "surface", "action"):
             assert metrics[key]["left"] >= -1 and metrics[key]["right"] <= 321, metrics
-        assert metrics["editorScroll"] > 0 and metrics["selected"] == 1, metrics
+        assert metrics["actionVisible"] and metrics["actionHit"] and metrics["selected"] == 1, metrics
         assert driver.save_screenshot(str(output / f"automatic-review-{name}.png"))
         proof[name] = metrics
     driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})

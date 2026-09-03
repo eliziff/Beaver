@@ -38,7 +38,6 @@ function BulkEditActions({
     return (
         <div className="flex items-center gap-2">
             <Button
-                variant="black"
                 size="compact"
                 onClick={() => resolveAll("accept")}
                 disabled={disabled || !!busy}
@@ -49,7 +48,7 @@ function BulkEditActions({
                 Accept all
             </Button>
             <Button
-                variant="white"
+                variant="outline"
                 size="compact"
                 onClick={() => resolveAll("reject")}
                 disabled={disabled || !!busy}
@@ -61,7 +60,6 @@ function BulkEditActions({
             </Button>
             {onViewClick && (
                 <Button
-                    variant="black"
                     size="compact"
                     onClick={() =>
                         onViewClick(first.annotation, first.filename)

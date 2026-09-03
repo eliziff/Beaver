@@ -778,7 +778,6 @@ export function DocumentSidePanel({
                                 : "Delete"}
                         </Button>
                         <Button
-                            variant="black"
                             size="compact"
                             onClick={() => uploadRef.current?.click()}
                             disabled={uploading}
