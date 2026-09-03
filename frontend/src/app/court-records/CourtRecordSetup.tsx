@@ -59,6 +59,7 @@ export function CourtRecordChooser({ profile, onProfile, creating = false, onCan
         searchLabel="Search documents"
         options={DOCUMENTS.map((item) => ({ value: item.id, label: item.label,
           group: item.group }))}
+        size="2xl"
         value={documentId}
         onChange={(id) => id && chooseDocument(id)}
         onClose={() => closeDialog("document")}

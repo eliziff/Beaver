@@ -18,12 +18,13 @@ interface Props {
     contextLabel?: string;
     disabledItem?: (workflow: Workflow, variant?: WorkflowVariant) => boolean;
     workflowAction?: (workflow: Workflow) => ReactNode;
+    audienceTabVariant?: "segmented" | "dock";
 }
 
 export function WorkflowPickerContent({ workflows, onSelect, search,
     onSearchChange, audience, onAudienceChange, loading = false, execution,
     loadError = false, onRetryLoad, initialWorkflowId, contextLabel,
-    disabledItem, workflowAction }: Props) {
+    disabledItem, workflowAction, audienceTabVariant = "segmented" }: Props) {
     const listRef = useRef<HTMLDivElement>(null);
     const groups = groupWorkflows(workflows, search, execution);
     const idPrefix = useId();
@@ -81,7 +82,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                     {details && directVariant && <button type="button" data-workflow-variant-id={directVariant.id}
                         disabled={disabledItem?.(workflow, directVariant)}
                         aria-label={`${launch}: ${label}`} onClick={() => onSelect(workflow, directVariant)}
-                        className="m-2 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
+                        className="m-2 inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                         <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
                     </button>}
                     {action}
@@ -118,13 +119,13 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
     return <Tabs value={audience} onValueChange={(value) =>
         onAudienceChange(value as AudienceFilter)}
         options={AUDIENCE_TABS.map(({ id, label }) => ({ value: id, label }))}
-        ariaLabel="Workflow audience" variant="quiet" className="min-w-0 flex-1">
+        ariaLabel="Workflow audience" variant={audienceTabVariant} className="min-w-0 flex-1">
         <div className="flex min-h-0 flex-1 flex-col pt-3">
             <SearchBar value={search} onValueChange={onSearchChange}
                 placeholder="Search workflows" aria-label="Search workflows" />
             {contextLabel && <p className="mt-2 truncate text-xs text-gray-500"
                 title={contextLabel}>Using {contextLabel}</p>}
-            <div ref={listRef} className="mt-4 min-h-0 flex-1 overflow-y-auto">
+            <div ref={listRef} className="mt-4 min-h-0 flex-1 overflow-y-auto pb-6">
                 <p role="status" className="sr-only">{loading
                     ? "Loading workflows" : `${count} workflow choices`}</p>
                 {loading ? <WorkflowSkeleton /> : loadError ? <LoadError onRetry={onRetryLoad} />
@@ -188,7 +189,7 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect }: {
                         <button type="button" disabled={disabledItem?.(workflow, variant)}
                             data-workflow-variant-id={variant.id}
                             aria-label={`${action}: ${label}`} onClick={() => onSelect(workflow, variant)}
-                            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
+                            className="inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                             <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
                         </button>
                     </div>;
@@ -229,7 +230,7 @@ function workflowDestination(workflow: Workflow, variant?: WorkflowVariant): rea
     if (workflow.launcher.kind === "court_records") return ["Court Records", Files];
     if (workflow.launcher.kind === "authorities") return ["Authorities", Scale];
     return variant?.execution === "tabular"
-        ? ["Tabular review", Table2] : ["Chat", MessageSquare];
+        ? ["Tab", Table2] : ["Chat", MessageSquare];
 }
 
 function workflowDestinations(workflow: Workflow, variants: WorkflowVariant[]) {

@@ -557,10 +557,11 @@ function openDatabase() {
     void navigator.storage?.persist?.().catch(() => false);
   }
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const opening = indexedDB.open(DATABASE, 4);
-    opening.onupgradeneeded = () => {
+    const opening = indexedDB.open(DATABASE, 5);
+    opening.onupgradeneeded = (event) => {
       const names = opening.result.objectStoreNames;
-      const migrate = names.contains(DRAFTS) && !names.contains(METADATA);
+      const migrate = names.contains(DRAFTS) &&
+        (!names.contains(METADATA) || event.oldVersion < 5);
       for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS]) {
         if (!names.contains(name)) opening.result.createObjectStore(name, { keyPath: "id" });
       }
@@ -579,8 +580,10 @@ function openDatabase() {
   });
 }
 
-function draftMetadata({ state: _state, outputs: _outputs, ...metadata }: WorkProduct) {
-  return metadata;
+function draftMetadata({ state, ...metadata }: WorkProduct): WorkProductMetadata {
+  const profileId = metadata.kind === "court-record" && state && typeof state === "object" &&
+    "profileId" in state && typeof state.profileId === "string" ? state.profileId : undefined;
+  return { ...metadata, ...(profileId ? { profileId } : {}) };
 }
 
 async function unusedFile(directory: FileSystemDirectoryHandle, filename: string) {

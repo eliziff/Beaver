@@ -126,7 +126,7 @@ export function TRChatPanel({
                 onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
                 onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
                 layout="panel"
-                features={{ contextTools: false, dock: false }}
+                features={{ contextTools: false, dock: false, researchSave: false }}
                 onCitationClick={openCitation}
                 citationTitle={(citation) => citation.kind === "tabular"
                     ? `${citation.col_name} · ${citation.doc_name.replace(/\.[^.]+$/u, "")}`

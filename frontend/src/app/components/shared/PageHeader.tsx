@@ -122,7 +122,7 @@ function Action({
         return (
             <span
                 className={cn(
-                    "inline-flex h-7 items-center",
+                    "inline-flex h-9 items-center",
                     disabled && "pointer-events-none opacity-40",
                 )}
             >

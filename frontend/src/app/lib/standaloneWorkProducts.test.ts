@@ -68,16 +68,17 @@ describe("standalone retained files", () => {
     await expect(chooseStandaloneOutputFolder()).resolves.toBe("Court outputs");
     await expect(getStandaloneOutputFolder()).resolves.toBe("Court outputs");
     const draft = await standaloneWorkProducts.create({ kind: "court-record", title: "Record",
-      state: { bindings: {} } });
+      state: { bindings: {}, profileId: "ab-king-bench-motion-record" } });
     expect(memory.stores.has("legacy")).toBe(true);
     expect(memory.stores.get("metadata")?.get("existing")).toEqual({
       id: "existing", kind: "authorities", title: "Existing", projectId: null,
-      revision: 1, createdAt: "2025-01-01", updatedAt: "2025-01-01",
+      revision: 1, outputs: {}, createdAt: "2025-01-01", updatedAt: "2025-01-01",
     });
     const draftReads = memory.getAllCalls.get("drafts") ?? 0;
     await expect(standaloneWorkProducts.listMetadata!("court-record")).resolves.toEqual([{
       id: draft.id, kind: draft.kind, title: draft.title, projectId: null,
-      revision: draft.revision, createdAt: draft.createdAt, updatedAt: draft.updatedAt,
+      revision: draft.revision, outputs: {}, createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt, profileId: "ab-king-bench-motion-record",
     }]);
     expect(memory.getAllCalls.get("drafts")).toBe(draftReads);
     expect(persist).toHaveBeenCalledTimes(1);

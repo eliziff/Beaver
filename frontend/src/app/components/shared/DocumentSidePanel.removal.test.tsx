@@ -4,6 +4,12 @@ import type { Document } from "@/app/components/shared/types";
 import type { DocumentVersion } from "@/app/lib/beaverApi";
 import { DocumentSidePanel } from "./DocumentSidePanel";
 
+const api = vi.hoisted(() => ({ getResearchFile: vi.fn() }));
+
+vi.mock("@/app/lib/beaverApi", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/app/lib/beaverApi")>(),
+  getResearchFile: api.getResearchFile,
+}));
 vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
   DocumentViewer: ({
     versionId,
@@ -24,7 +30,6 @@ vi.mock("@/app/components/shared/views/DocumentViewer", () => ({
     </div>
   ),
 }));
-
 const document: Document = {
   id: "document-1",
   user_id: "local-user",
@@ -88,6 +93,53 @@ function renderPanel({
 }
 
 describe("DocumentSidePanel document removal", () => {
+  it("previews a current research document and links to its Sources workspace", async () => {
+    const researchDocument: Document = { ...document, project_id: null,
+      filename: "Authorities.research.md", file_type: "md",
+      storage_path: "authorities.research.md", pdf_storage_path: null,
+      current_version_id: "research-version" };
+    const researchVersion: DocumentVersion = { ...version3, id: "research-version",
+      filename: researchDocument.filename, file_type: "md" };
+    api.getResearchFile.mockResolvedValue({ document: researchDocument,
+      versionId: researchVersion.id, state: { schemaVersion: "beaver.research.v1",
+        labels: {
+          fairness: { id: "fairness", name: "Fairness", parentId: null,
+            color: "#991b1b", order: 0, scope: "source" },
+          hearing: { id: "hearing", name: "Right to a hearing", parentId: "fairness",
+            color: "#1d4ed8", order: 1, scope: "source" },
+        },
+        sources: { baker: { id: "baker", reference: { provider: "canlii",
+          id: "1999canlii699", kind: "case", title: "Baker v Canada",
+          citation: "[1999] 2 SCR 817" }, labelIds: ["hearing"], badge: "",
+          note: "Leading procedural fairness authority." } },
+        evidence: { passage: { sourceId: "baker", labelIds: ["hearing"],
+          note: "Use for the participatory-rights analysis.", receipt: {
+            evidence_id: "passage", provider: "canlii", stable_source_id: "1999canlii699",
+            source_sha256: "source", span_sha256: "span", block_id: "p22",
+            span_text: "The values underlying the duty of procedural fairness...",
+            citation: "Baker at para 22", name: "Baker", external_url: null,
+            locator: { kind: "paragraph", label: "22" } } } },
+        queries: {}, note: "Authorities on procedural fairness." } });
+
+    render(<DocumentSidePanel doc={researchDocument} currentVersionId={researchVersion.id}
+      versions={[researchVersion]} versionsLoading={false} onClose={vi.fn()}
+      onLoadVersions={vi.fn()} onSelectVersion={vi.fn()} onDownloadDocument={vi.fn()}
+      onDownloadVersion={vi.fn()} onRenameVersion={vi.fn()} onDeleteVersion={vi.fn()}
+      onUploadNewVersion={vi.fn(async () => {})} onReplaceVersion={vi.fn()}
+      onDelete={vi.fn()} />);
+
+    expect(await screen.findByText("Baker v Canada")).toBeInTheDocument();
+    expect(screen.getAllByText("Fairness / Right to a hearing")).toHaveLength(2);
+    expect(screen.getByText("Authorities on procedural fairness.")).toBeInTheDocument();
+    expect(screen.getByText("Leading procedural fairness authority.")).toBeInTheDocument();
+    expect(screen.getByText("1 passage")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open in Sources" })).toHaveAttribute(
+      "href", "/sources?research_file=document-1",
+    );
+    expect(api.getResearchFile).toHaveBeenCalledWith(researchDocument.id);
+    expect(screen.queryByTestId("word-preview")).not.toBeInTheDocument();
+  });
+
   it("hands its document to an existing workflow dock", async () => {
     const onOpenWorkflows = vi.fn();
     const onClose = vi.fn();

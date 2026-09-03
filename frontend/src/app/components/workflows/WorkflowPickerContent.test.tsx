@@ -130,6 +130,7 @@ it("names a direct tabular destination as an action", () => {
         name: "Start Tabular Review: Review evidence",
     });
     expect(launch).toHaveAttribute("data-workflow-variant-id", "review");
+    expect(launch).toHaveTextContent("Tab");
 });
 
 it("moves the open disclosure when another workflow is requested", async () => {

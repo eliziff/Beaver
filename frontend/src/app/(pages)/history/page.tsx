@@ -141,6 +141,7 @@ export default function HistoryPage() {
 
       {error && <p className="mx-6 mb-2 text-sm text-red-700" role="alert">{error}</p>}
       <TableScrollArea
+        horizontal
         header={
           <TableHeaderRow>
             <TableStickyCell header>Activity</TableStickyCell>

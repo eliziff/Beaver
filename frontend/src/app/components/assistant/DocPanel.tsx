@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
@@ -15,9 +15,21 @@ import {
 } from "../shared/types";
 import { DocumentViewer } from "../shared/views/DocumentViewer";
 import { Button } from "../ui/button";
-import { downloadDocument } from "../../lib/beaverApi";
+import { downloadDocument, getResearchFile } from "../../lib/beaverApi";
 import { downloadBlob } from "../../lib/download";
 import { useEditResolution } from "./EditCard";
+import type { ResearchFile } from "../../lib/researchFiles";
+
+const ResearchFileBar = lazy(async () => ({
+  default: (await import("../legal/ResearchFileBar")).ResearchFileBar,
+}));
+
+function ResearchDocument({ documentId, projectId }: { documentId: string; projectId?: string }) {
+  const [file, setFile] = useState<ResearchFile | null>(null);
+  useEffect(() => { void getResearchFile(documentId).then(setFile); }, [documentId]);
+  return file ? <Suspense fallback={null}><ResearchFileBar file={file} projectId={projectId}
+    onChange={setFile} /></Suspense> : <div role="status" className="m-auto text-sm text-gray-500">Loading research…</div>;
+}
 
 export type DocPanelMode =
   | { kind: "document" }
@@ -108,7 +120,8 @@ export function DocPanel({
         </header>
       )}
       <div className="flex min-h-0 flex-1 flex-col p-3">
-        <DocumentViewer
+        {filename.toLowerCase().endsWith(".research.md") ? <ResearchDocument
+          documentId={documentId} projectId={projectId} /> : <DocumentViewer
           documentId={documentId}
           kind={isDocxFilename(filename)
             ? "docx"
@@ -125,7 +138,7 @@ export function DocPanel({
           onWarningDismiss={onWarningDismiss}
           initialScrollTop={initialScrollTop ?? null}
           onScrollChange={onScrollChange}
-        />
+        />}
       </div>
     </div>
   );

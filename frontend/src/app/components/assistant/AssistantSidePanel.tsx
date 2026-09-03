@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { DocPanel, type DocPanelMode } from "./DocPanel";
 import type {
@@ -10,6 +11,8 @@ import {
     LegalSourceViewer,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
+import { ResearchWorkspaceHost } from "@/app/components/legal/ResearchWorkspaceHost";
+import type { ResearchFile } from "@/app/lib/researchFiles";
 import { cn } from "@/app/lib/utils";
 import { LIQUID_PANEL_SURFACE_CLASS } from "@/app/components/ui/liquid-surface";
 import { WorkflowRunPanel } from "./WorkflowRun";
@@ -60,7 +63,22 @@ interface Props {
     onWarningDismiss?: (tabId: string) => void;
     onScrollChange?: (tabId: string, scrollTop: number) => void;
     onOpenWorkflows?: (documents: WorkflowDocument[]) => void;
+    onResearchFileChange?: (file: ResearchFile | null) => void;
     embedded?: boolean;
+}
+function LegalResearchPanel({ tab, projectId, active, onResearchFileChange }: { tab: LegalSourceTab;
+    projectId?: string; active: boolean;
+    onResearchFileChange?: (file: ResearchFile | null) => void }) {
+    const [file, setFile] = useState<ResearchFile | null | undefined>();
+    const [open, setOpen] = useState(false);
+    useEffect(() => { if (active) onResearchFileChange?.(file ?? null); },
+        [active, file, onResearchFileChange]);
+    return <>
+        <LegalSourceViewer {...tab} compact projectId={projectId} researchFile={file}
+            onResearchFileChange={setFile} onOpenResearch={() => setOpen(true)} />
+        <ResearchWorkspaceHost embedded open={open && active} onOpenChange={setOpen}
+            file={file ?? null} projectId={projectId} onChange={setFile} />
+    </>;
 }
 export function AssistantSidePanel({
     tabs,
@@ -77,6 +95,7 @@ export function AssistantSidePanel({
     onWarningDismiss,
     onScrollChange,
     onOpenWorkflows,
+    onResearchFileChange,
     embedded = false,
 }: Props) {
     const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
@@ -124,7 +143,8 @@ export function AssistantSidePanel({
                             return <WorkflowRunPanel run={tab.run} />;
                         }
                         if (tab.kind === "legal") {
-                            return <LegalSourceViewer {...tab} compact />;
+                            return <LegalResearchPanel tab={tab} projectId={projectId} active={isActive}
+                                onResearchFileChange={onResearchFileChange} />;
                         }
                         const mode: DocPanelMode =
                             tab.kind === "citation"

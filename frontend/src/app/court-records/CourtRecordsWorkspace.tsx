@@ -13,6 +13,7 @@ import { downloadArtifact, needsOcr, type CourtRecordsHost, type DraftOutputChoi
   type SelectedFile } from "./host";
 import { COURT_PROFILE_BY_ID, effectiveCourtProfiles } from "./profiles";
 import type { WorkProduct, WorkProductMetadata } from "@/app/lib/workProducts";
+import { formatDate } from "@/app/lib/utils";
 import type {
   BuildResult,
   BuildArtifact,
@@ -791,7 +792,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         onCancel={() => draft && !hasProfile ? void closeDraft() : setCreating(false)} />}
       {savedOpen && <SearchableChoiceModal open title="Open saved record"
         searchLabel="Search saved records" searchable={drafts.length > 8}
-        value={null} options={drafts.map(({ id, title }) => ({ value: id, label: title }))}
+        size="lg" className="h-[min(28rem,calc(100dvh-2rem))]"
+        value={null} options={drafts.map(({ id, title, profileId, createdAt }) => ({
+          value: id, label: title,
+          description: `${COURT_PROFILE_BY_ID.get(profileId ?? "")?.shortLabel ?? "Court record"} · Created ${formatDate(createdAt)}`,
+        }))}
         onChange={(id) => {
           const next = drafts.find((item) => item.id === id);
           if (next) void openSavedDraft(next);

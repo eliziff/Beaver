@@ -79,7 +79,7 @@ function FederalCover({ className, style, profile, cover }: PreviewProps) {
   const groups = coverPartyGroups(profile, cover);
   const [filing, others] = contactGroups(profile, cover);
   return (
-    <div aria-hidden="true" className={`${className} font-serif`} style={style}>
+    <div aria-hidden="true" className={`${className} [font-family:var(--font-court-document)]`} style={style}>
       <p className="text-right text-[7px]">Court File No. {cover.courtFileNumber || "________"}</p>
       <p className="mt-3 text-[8px] font-bold uppercase">{profile.court}</p>
       <div className="mt-4 text-left text-[7px] leading-4">
@@ -119,7 +119,7 @@ function GenericCover({ className, style, profile, cover }: PreviewProps) {
           </div>
         ))}
       </div>
-      <p className="mt-8 font-serif text-base font-bold uppercase">{cover.recordTitle || profile.cover.title}</p>
+      <p className="mt-8 text-base font-bold uppercase">{cover.recordTitle || profile.cover.title}</p>
       <div className="absolute inset-x-5 bottom-5 text-left text-[7px] leading-4">
         <p>{cover.courtFileNumber || "Court file number"}</p>
         <p className="font-semibold">{filingParty(profile, cover)?.party.name || "Filing party"}</p>

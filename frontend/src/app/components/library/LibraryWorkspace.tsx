@@ -169,7 +169,7 @@ function LibraryCollection({
                     ariaLabel="Library sections"
                     variant="pill"
                     className="document-directory h-full"
-                    railClassName="mx-4 mb-2 min-h-12 gap-2 py-2 md:mx-6"
+                    railClassName="mx-4 mb-2 min-h-12 flex-wrap gap-2 py-2 [&_.tab-list]:w-full [&_.tab-list]:flex-none sm:flex-nowrap sm:[&_.tab-list]:w-auto sm:[&_.tab-list]:flex-1 md:mx-6"
                     actions={
                         <DirectoryActions actions={uploadActions}
                             busy={directory.loading} compact={embedded}

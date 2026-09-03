@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "re
 import { X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-type TabVariant = "segmented" | "quiet" | "dock" | "underline" | "pill" | "brand" | "settings" | "sheets";
+type TabVariant = "segmented" | "quiet" | "dock" | "underline" | "pill" | "settings" | "sheets";
 type TabOption<T extends string = string> = { value: T; label: ReactNode;
     onClose?: () => void; closeLabel?: string };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
@@ -18,7 +18,6 @@ const railClass: Record<TabVariant, string> = {
     dock: "min-h-12 border-b border-gray-200 px-2 pe-12 py-1.5",
     underline: "border-b border-gray-200",
     pill: "",
-    brand: "border-b border-gray-200 bg-white px-4 py-2 sm:px-6",
     settings: "sticky top-0 z-10 border-b border-gray-200 bg-white pb-2",
     sheets: "h-9 border-t border-gray-300 bg-gray-100",
 };
@@ -28,8 +27,7 @@ const listClass: Record<TabVariant, string> = {
     dock: "gap-1",
     underline: "gap-0.5 sm:gap-1.5",
     pill: "w-full flex-wrap items-center gap-1 py-0.5 sm:w-auto sm:gap-2",
-    brand: "mx-auto w-full max-w-[60rem] gap-1",
-    settings: "grid flex-1 grid-cols-2 gap-1 sm:grid-cols-5",
+    settings: "grid flex-1 grid-cols-3 gap-1 sm:grid-cols-5",
     sheets: "h-full items-stretch",
 };
 const tabClass: Record<TabVariant, string> = {
@@ -38,7 +36,6 @@ const tabClass: Record<TabVariant, string> = {
     dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:px-3 sm:text-sm",
     underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
-    brand: "h-9 shrink-0 rounded-lg border px-2 text-sm font-medium",
     settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
     sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs",
 };
@@ -48,8 +45,7 @@ const selectedClass: Record<TabVariant, string> = {
     dock: "bg-gray-900 text-white",
     underline: "border-gray-900 text-gray-900",
     pill: "border-gray-900 bg-gray-900 text-white",
-    brand: "border-red-700 bg-red-700 text-white",
-    settings: "border-gray-300 bg-gray-100 text-gray-950",
+    settings: "border-gray-900 bg-gray-900 text-white",
     sheets: "bg-white font-semibold text-gray-900",
 };
 const idleClass: Record<TabVariant, string> = {
@@ -58,7 +54,6 @@ const idleClass: Record<TabVariant, string> = {
     dock: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
     underline: "border-transparent text-gray-600 hover:text-gray-900",
     pill: "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900",
-    brand: "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-950",
     settings: "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-900",
     sheets: "text-gray-600 hover:bg-gray-50",
 };
