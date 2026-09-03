@@ -173,7 +173,7 @@ export function AssistantDock({
                 aria-orientation="vertical"
                 tabIndex={0}
                 onPointerDown={(event) => {
-                    resizeStart.current = { x: event.clientX, width };
+                    resizeStart.current = { x: event.clientX, width: dock.current?.getBoundingClientRect().width || width };
                     document.body.style.cursor = "col-resize";
                     document.body.style.userSelect = "none";
                 }}
@@ -185,7 +185,7 @@ export function AssistantDock({
                             minWidth,
                             Math.min(
                                 window.innerWidth - 48,
-                                current + (event.key === "ArrowLeft" ? 24 : -24),
+                                (dock.current?.getBoundingClientRect().width || current) + (event.key === "ArrowLeft" ? 24 : -24),
                             ),
                         ),
                     );

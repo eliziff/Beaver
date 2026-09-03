@@ -77,4 +77,13 @@ describe("FileDirectory folders", () => {
 
         await waitFor(() => expect(screen.getByRole("searchbox")).toHaveValue(""));
     });
+
+    it("can limit selection to documents accepted by the caller", async () => {
+        const research = { ...document, id: "research", folder_id: null, filename: "Notes.research.md", file_type: "markdown" };
+        listDirectory.mockResolvedValue({ items: [], next_cursor: null });
+        render(<FileDirectory documents={[document, research]} selectedDocuments={[]} onChange={vi.fn()} showTabs
+            documentFilter={(item) => item.filename.endsWith(".research.md")} />);
+        expect(await screen.findByText("Notes")).toBeVisible();
+        expect(screen.queryByText("Inside.pdf")).not.toBeInTheDocument();
+    });
 });

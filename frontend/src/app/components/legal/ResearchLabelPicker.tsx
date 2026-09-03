@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { actOnResearchFile, getResearchFile } from "@/app/lib/beaverApi";
 import { BeaverApiError } from "@/app/lib/apiTransport";
 import { errorMessage } from "@/app/lib/utils";
@@ -42,7 +43,8 @@ export function ResearchLabelPicker({ file, kind, itemId, labelIds, note, title,
       </span>}
     </button>
     {error && <span role="alert" className="max-w-48 text-xs text-red-700">{error}</span>}
-    {target && <ResearchLabelEditor target={target} onClose={() => setTarget(null)} onChange={onChange} />}
+    {target && createPortal(<ResearchLabelEditor target={target} onClose={() => setTarget(null)} onChange={onChange} />,
+      target.anchor instanceof HTMLElement ? target.anchor.closest("dialog") ?? document.body : document.body)}
   </>;
 }
 
@@ -72,7 +74,6 @@ export function ResearchLabelEditor({ target, onClose, onChange }: {
     level1 = children(path[0]?.id), level2 = children(path[1]?.id);
   useLayoutEffect(() => {
     const node = popover.current, anchor = target.anchor; if (!node) return;
-    if (node.showPopover) node.showPopover(); else node.removeAttribute("popover");
     const box = node.getBoundingClientRect(), rect = anchor instanceof HTMLElement
       ? anchor.getBoundingClientRect() : anchor;
     const dock = [...document.querySelectorAll<HTMLElement>('[aria-label="Assistant dock"]')]
@@ -88,8 +89,17 @@ export function ResearchLabelEditor({ target, onClose, onChange }: {
     const top = rect?.top ?? (innerHeight - box.height) / 2;
     node.style.top = `${Math.max(8, Math.min(top, innerHeight - box.height - 8))}px`;
     node.querySelector<HTMLElement>("button")?.focus();
+    const dismiss = (event: PointerEvent) => {
+      if (!node.contains(event.target as Node) && !(anchor instanceof HTMLElement && anchor.contains(event.target as Node))) onClose();
+    };
+    const closeOnViewportChange = (event: Event) => { if (!node.contains(event.target as Node)) onClose(); };
+    document.addEventListener("pointerdown", dismiss);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
     return () => {
-      if (node.matches(":popover-open")) node.hidePopover?.();
+      document.removeEventListener("pointerdown", dismiss);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
       (target.returnFocus ?? (anchor instanceof HTMLElement ? anchor : null))?.focus();
     };
   }, [target.anchor, target.returnFocus]);
@@ -130,7 +140,7 @@ export function ResearchLabelEditor({ target, onClose, onChange }: {
     } catch (reason) { setError(errorMessage(reason, "Could not save labels")); }
     finally { setBusy(false); }
   }
-  return <div ref={popover} popover="auto" role="dialog" aria-label="Labels and note"
+  return <div ref={popover} role="dialog" aria-label="Labels and note"
     onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}
     onToggle={(event) => {
     if (event.newState === "closed") onClose(); }}
