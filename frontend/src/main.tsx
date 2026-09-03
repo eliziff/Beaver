@@ -5,13 +5,12 @@ import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing Beaver application root");
 const root = import("react-dom/client").then(({ createRoot }) => createRoot(container));
-const router = import("@/app/router");
 
 try {
     const config = await initializeRuntimeConfig();
     const [mounted, { Router }, gate] = await Promise.all([
         root,
-        router,
+        import("@/app/router"),
         config.mode === "cloud" ? import("@/app/components/shared/MfaLoginGate") : null,
     ]);
     mounted.render(

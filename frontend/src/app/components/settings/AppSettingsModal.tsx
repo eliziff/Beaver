@@ -41,9 +41,7 @@ export function AppSettingsModal({
                         This gives the Assistant a standing assumption. A
                         jurisdiction named in your message still takes priority.
                     </p>
-                    <AccountSection className="p-4">
-                        <JurisdictionPreferenceEditor />
-                    </AccountSection>
+                    <JurisdictionPreferenceEditor />
                 </section>
                 <section>
                     <h2 className="mb-3 text-base font-semibold text-gray-900">

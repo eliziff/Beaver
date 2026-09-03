@@ -57,14 +57,14 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
     return <div role="group" aria-label="Document actions"
         className="directory-actions flex items-center gap-1.5">
         <UploadAction actions={actions} busy={busy} compact={compact} />
-        <Button variant="white" size="normal" className="directory-action-button h-8 py-0"
+        <Button variant="outline" className="directory-action-button h-8 py-0"
             aria-label="New folder"
             onClick={() => onCreateFolder?.()} disabled={busy || !onCreateFolder}>
             <FolderPlus className="size-3.5" aria-hidden="true" />
             <span className={compact ? "sr-only" : "directory-action-full"}>New folder</span>
             {!compact && <span className="directory-action-short">+ Folder</span>}
         </Button>
-        <Button variant="white" size="normal" className="directory-action-button h-8 py-0"
+        <Button variant="outline" className="directory-action-button h-8 py-0"
             aria-label={openSelectionLabel} disabled={unavailable || !onOpenSelectionInChat}
             onClick={() => onOpenSelectionInChat?.(documents)}>
             <MessageSquarePlus className="size-3.5" aria-hidden="true" />

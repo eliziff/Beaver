@@ -15,7 +15,7 @@ type TabsProps<T extends string> = { value: T; onValueChange: (value: T) => void
 const railClass: Record<TabVariant, string> = {
     segmented: "",
     quiet: "-mx-2 border-b border-gray-200 bg-gray-50 px-1 py-2 sm:mx-0 sm:px-3",
-    dock: "min-h-12 border-b border-gray-200 px-2 pe-12 py-1.5",
+    dock: "min-h-12 border-b border-gray-200 px-2 py-1.5",
     underline: "border-b border-gray-200",
     pill: "",
     settings: "sticky top-0 z-10 border-b border-gray-200 bg-white pb-2",

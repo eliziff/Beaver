@@ -216,7 +216,7 @@ export function ContextualWorkflowLauncher({ documents = [], onAssistantSelect,
     const available = !!documents?.length;
     if (!available && !showDisabled) return null;
     return <>
-        <Button variant="white" size="compact" className={cn("h-8", className)}
+        <Button variant="outline" size="compact" className={cn("h-8", className)}
             disabled={disabled || !available}
             aria-label="Workflows" onClick={(event) => {
                 event.stopPropagation();

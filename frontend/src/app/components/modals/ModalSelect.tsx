@@ -175,7 +175,7 @@ export function SearchableChoiceModal({
                     placeholder={searchLabel}
                     aria-label={searchLabel}
                     clearable={false}
-                    className="h-9 shrink-0 rounded-none border-x-0 border-gray-200 px-2"
+                    className="mb-2 h-9 shrink-0"
                 />
             )}
             <div
@@ -207,8 +207,8 @@ export function SearchableChoiceModal({
                                 )}
                             />
                             <span className="min-w-0 flex-1">
-                                <span className="block truncate">{option.label}</span>
-                                {option.description && <span className="mt-0.5 block truncate text-xs text-gray-500">
+                                <span className="block">{option.label}</span>
+                                {option.description && <span className="mt-0.5 block text-xs leading-5 text-gray-500">
                                     {option.description}
                                 </span>}
                             </span>

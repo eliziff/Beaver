@@ -1,6 +1,6 @@
 import { type Dispatch, type DragEvent, type ReactNode, type SetStateAction,
     useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import { AlertCircle, ChevronDown, ChevronRight, Loader2 }
+import { AlertCircle, ChevronDown, ChevronRight, Eye, Loader2 }
     from "lucide-react";
 import { deleteDocument, deleteDocumentVersion, downloadDocumentsZip,
     downloadDocument, listDocumentVersions, renameDocumentVersion,
@@ -930,7 +930,7 @@ export function DocTable({
                             className={DOCUMENT_ROW_CLASS}>
                             <div className={`${DOC_NAME_COL_W} py-2 pl-4 pr-2`}
                                 style={treeNameCellStyle(row.depth)}>
-                                <Button variant="white" size="compact"
+                                <Button variant="outline" size="compact"
                                     disabled={loadingParents.has(row.parentId)}
                                     onClick={() => onLoadMore?.(row.parentId)}
                                     className="ml-8">
@@ -1013,6 +1013,7 @@ export function DocTable({
                     }
                     const doc = row.document;
                     const docName = doc.filename;
+                    const displayName = docName.replace(/\.research\.md$/iu, "");
                     const isProcessing = doc.parse_state?.status === "queued" ||
                         doc.parse_state?.status === "parsing";
                     const isError = doc.parse_state?.status === "failed";
@@ -1069,19 +1070,19 @@ export function DocTable({
                                             onCancel={() => set("renamingDocumentId", null)} />
                                         : selectionFirst ? (
                                         <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
-                                            {docName}</span>
-                                        ) : <button type="button" aria-label={`Open ${docName}`}
+                                            {displayName}</span>
+                                        ) : <button type="button" aria-label={`Open ${displayName}`}
                                             onClick={(event) => {
                                                 event.stopPropagation(); openDocument(doc);
                                             }} onPointerEnter={prewarm} onFocus={prewarm}
                                             className="min-w-0 flex-1 truncate text-left text-sm text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">
-                                            {docName}</button>}
+                                            {displayName}</button>}
                                     <ParseStateChip doc={doc}
                                         onRetry={operations.retryPdfParse
                                             ? () => void retryParse(doc.id)
                                             : undefined} />
                                     {selectionFirst && (
-                                        <Button variant="black" size="compact"
+                                        <Button variant="outline" size="compact"
                                             aria-label={`View ${docName}`}
                                             title={`View ${docName}`}
                                             disabled={renamingDocumentId === doc.id}
@@ -1091,8 +1092,10 @@ export function DocTable({
                                             }}
                                             onPointerEnter={prewarm}
                                             onFocus={prewarm}
-                                            className="ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible">
-                                            View</Button>
+                                            className="ml-2 h-8 min-w-14 shrink-0 px-3 disabled:invisible max-[30rem]:min-w-8 max-[30rem]:px-0">
+                                            <Eye className="hidden max-[30rem]:block" aria-hidden="true" />
+                                            <span className="max-[30rem]:sr-only">View</span>
+                                        </Button>
                                     )}
                                 </div>
                             </div>

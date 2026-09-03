@@ -9,6 +9,16 @@ const pages = {
     courtRecords: fileURLToPath(new URL("./court-records.html", import.meta.url)),
     authorities: fileURLToPath(new URL("./authorities.html", import.meta.url)),
 };
+const canonicalJsonEsm = {
+    name: "canonical-json-esm",
+    apply: "serve" as const,
+    enforce: "pre" as const,
+    transform(code: string, id: string) {
+        if (!id.replaceAll("\\", "/").endsWith("/shared/canonical-json.cjs")) return;
+        return code.replace('"use strict";', "")
+            .replace("exports.canonicalJson = canonicalJson;", "export { canonicalJson };");
+    },
+};
 
 export default defineConfig(({ mode }) => {
     const input: Record<string, string> = mode === "court-records"
@@ -16,7 +26,7 @@ export default defineConfig(({ mode }) => {
         : mode === "authorities" ? { authorities: pages.authorities }
             : { main: pages.main, word: pages.word };
     return {
-        plugins: [react()],
+        plugins: [canonicalJsonEsm, react()],
         build: {
             modulePreload: { polyfill: false },
             emptyOutDir: mode === "production",

@@ -146,14 +146,15 @@ export function Modal({
                             </div>
                             {headerAction}
                         </div>
-                        <button
-                            type="button"
+                        <Button
                             onClick={onClose}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 outline-none hover:bg-gray-100 hover:text-gray-900 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                            variant="outline"
+                            size="icon-sm"
+                            className="text-gray-600 hover:text-gray-900"
                             aria-label="Close"
                         >
                             <X className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                     </div>
                 )}
                 <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5 [scrollbar-gutter:stable]">
@@ -224,10 +225,10 @@ function ModalActionButton({
         variant === "danger"
             ? "danger"
             : variant === "primary"
-                ? "black"
-                : "white";
+                ? "default"
+                : "outline";
     return (
-        <Button variant={tone} size="normal" {...props}>
+        <Button variant={tone} {...props}>
             {icon}
             {label}
         </Button>

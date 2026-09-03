@@ -356,7 +356,7 @@ export const TableLoadMore = ({ show, onClick }: {
     show: boolean; onClick: () => void;
 }) => show ? (
         <div className="flex justify-center border-t border-gray-200 bg-white p-3">
-            <Button variant="white" size="compact" onClick={onClick}>Load more</Button>
+            <Button variant="outline" size="compact" onClick={onClick}>Load more</Button>
         </div>
     ) : null;
 export function TableEmptyState({

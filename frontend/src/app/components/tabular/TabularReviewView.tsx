@@ -529,7 +529,7 @@ export function TRView({ reviewId, projectId }: Props) {
                                     </ActionMenu>
                                 )}
                                 {!loading && (
-                                    <Button variant="white" size="normal"
+                                    <Button variant="outline"
                                         className="h-8 py-0" onClick={() =>
                                         setUi({ columnModal: null })}>
                                         <Plus className="h-3.5 w-3.5" />

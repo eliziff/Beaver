@@ -52,11 +52,11 @@ export function WorkflowList() {
             setDeleting(null);
         } catch { setDeleting({ ...deleting, loading: false }); }
     }
-    return <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    return <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden max-[40rem]:h-auto max-[40rem]:overflow-visible">
         <PageHeader shrink loading={loading} actions={[
             { type: "new", onClick: () => setCreating(true), title: "New workflow" },
         ]}><h1 className="font-serif text-2xl font-medium text-gray-900">Workflows</h1></PageHeader>
-        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pb-3 pt-2 md:px-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pb-3 pt-2 max-[40rem]:flex-none md:px-6">
             <WorkflowPickerContent workflows={workflows} onSelect={choose}
                 search={search} onSearchChange={setSearch}
                 audience={audience} onAudienceChange={setAudience}

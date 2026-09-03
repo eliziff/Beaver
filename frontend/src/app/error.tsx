@@ -17,7 +17,7 @@ export default function RouteError() {
                     We encountered an unexpected error. This has been logged and
                     our team will look into it.
                 </p>
-                <Link to="/" className={buttonClassName({ variant: "black", size: "normal" })}>
+                <Link to="/" className={buttonClassName()}>
                     Home
                 </Link>
             </div>
