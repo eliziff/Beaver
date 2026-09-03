@@ -464,16 +464,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "h-full min-h-0 overflow-y-auto")}>
-    {draft && !globalTab ? <WorkspaceHeader className="max-w-[50rem]" current={draft}
+    {draft && !globalTab ? <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} current={draft}
         busy={busy || locked} itemLabel="authorities draft" headerActions={headerActions}
         onBack={() => open()} onRename={rename} onDuplicate={duplicate} onDelete={removeDraft} />
-        : <WorkspaceHeader className="max-w-[50rem]" title="Authorities"
+        : <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} title="Authorities"
           headerActions={headerActions} />}
     <div inert={locked} aria-busy={locked || undefined}>
           <main className="mx-auto min-h-80 max-w-[50rem] px-4 py-4 sm:px-6">
         <TabList value={tab} onValueChange={changeTab} options={TABS}
-          ariaLabel="Authorities sections" variant="brand" panelId="authorities-panel"
-          className="mb-1 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1 max-[22rem]:[&_[role=tab]]:text-xs" />
+          ariaLabel="Authorities sections" variant="dock" panelId="authorities-panel"
+          className="mb-1 min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1 max-[22rem]:[&_[role=tab]]:text-xs" />
         <Status busy={busy || !!capturingId}
           busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />
         <div id="authorities-panel" role="tabpanel"
@@ -841,8 +841,8 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
   const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
-  return <div className="authorities-review grid h-[32rem] min-h-0 overflow-hidden @min-[40rem]:h-80 @min-[40rem]:grid-cols-[18rem_minmax(0,1fr)]!">
-    <div className="authorities-review-list overflow-y-auto border-gray-200" role="listbox"
+  return <div className="authorities-review grid min-h-0 @min-[40rem]:h-80 @min-[40rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[40rem]:overflow-hidden">
+    <div className="overflow-visible border-b border-gray-200 @min-[40rem]:overflow-y-auto @min-[40rem]:border-b-0 @min-[40rem]:border-e" role="listbox"
       aria-label="Citations" aria-describedby={linkingId ? "authority-link-instruction" : undefined}>
       {occurrences.map((item, index) => {
         const authority = item.authorityId ? authorityById.get(item.authorityId) : undefined;
@@ -908,7 +908,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
     window.getSelection()?.removeAllRanges(); setSelection(null);
   });
   const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[40rem]:min-h-9 @min-[40rem]:whitespace-nowrap";
-  return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
+  return <div className="min-h-0 min-w-0 overflow-visible p-3 @min-[40rem]:overflow-y-auto [scrollbar-gutter:stable]">
     <div className={cn("mb-2 flex min-h-9 items-center gap-2 text-xs",
       linking ? "text-red-900" : "text-gray-500")} aria-live="polite">
       {linking ? <><span id="authority-link-instruction" className="min-w-0 flex-1">
@@ -926,7 +926,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       onDrop={(event) => event.preventDefault()} onKeyDown={(event) => {
         if ((!event.ctrlKey && !event.metaKey && event.key.length === 1) ||
             ["Backspace", "Delete", "Enter"].includes(event.key)) event.preventDefault();
-      }} className="h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-300 bg-white px-3 py-12 text-sm leading-6 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600">{highlight(unitText, selected)}</div>
+      }} className="min-h-32 overflow-visible whitespace-pre-wrap rounded-lg border border-gray-300 bg-white px-3 py-12 text-sm leading-6 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-red-600 @min-[40rem]:h-32 @min-[40rem]:min-h-0 @min-[40rem]:overflow-auto">{highlight(unitText, selected)}</div>
     <div className="mt-2 grid min-h-[5.5rem] grid-cols-2 content-start gap-2">
       <Button type="button" className={actionClass} disabled={busy || !usableSelection(selection)}
         onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({

@@ -130,13 +130,14 @@ export function FileDirectory({ documents = EMPTY, projectId,
                             <span className="truncate">{row.folder.name}</span></button>;
                     }
                     const doc = row.document;
+                    const name = doc.filename.replace(/\.research\.md$/iu, "");
                     return <label key={doc.id} style={style}
                         className={`flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm ${APP_SURFACE_HOVER_CLASS}`}>
-                        <input type="checkbox" checked={selected.has(doc.id)} aria-label={`Select ${doc.filename}`}
+                        <input type="checkbox" checked={selected.has(doc.id)} aria-label={`Select ${name}`}
                             onChange={() => toggleDocument(doc)}
                             className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" />
                         <FileTypeIcon fileType={doc.file_type} className="h-4 w-4 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{doc.filename}</span></label>;
+                        <span className="min-w-0 flex-1 truncate">{name}</span></label>;
                 })}
             </> : <Empty query={query} />}
         </div>;

@@ -28,7 +28,7 @@ it("filters and selects the first matching choice with Enter", async () => {
             value={null}
             options={[
                 { value: null, label: "All projects" },
-                { value: "appeal", label: "Appeal" },
+                { value: "appeal", label: "Appeal", description: "Created Sep 2, 2026" },
             ]}
             onChange={onChange}
         />,
@@ -39,7 +39,7 @@ it("filters and selects the first matching choice with Enter", async () => {
     fireEvent.change(search, {
         target: { value: "appe" },
     });
-    expect(screen.getByRole("button", { name: "Appeal" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Appeal. Created Sep 2, 2026" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
     fireEvent.keyDown(search, {
         key: "Enter",
@@ -47,4 +47,15 @@ it("filters and selects the first matching choice with Enter", async () => {
 
     expect(onChange).toHaveBeenCalledWith("appeal");
     expect(onClose).toHaveBeenCalledOnce();
+});
+
+it("searches secondary choice details", async () => {
+    render(<SearchableChoiceModal open onClose={() => undefined}
+        title="Open saved record" value={null}
+        options={[{ value: "motion", label: "Smith v Jones",
+            description: "Motion record · Created Sep 2, 2026" }]}
+        onChange={() => undefined} />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "motion" } });
+    expect(screen.getByRole("button", { name: "Smith v Jones. Motion record · Created Sep 2, 2026" }))
+        .toBeVisible();
 });

@@ -25,6 +25,7 @@ export function AssistantDock({
     showCollapsedButton = true,
     defaultWidth = 480,
     minWidth = 360,
+    maxWidth = "calc(100% - 36rem)",
 }: {
     tabs: AssistantDockTab[];
     activeTabId: string;
@@ -37,6 +38,7 @@ export function AssistantDock({
     showCollapsedButton?: boolean;
     defaultWidth?: number;
     minWidth?: number;
+    maxWidth?: string;
 }) {
     const [width, setWidth] = useState(defaultWidth);
     const [compact, setCompact] = useState(() => window.matchMedia?.(compactDock).matches ?? false);
@@ -160,10 +162,10 @@ export function AssistantDock({
             aria-hidden={!expanded}
             inert={!expanded ? true : undefined}
             className={cn(
-                expanded ? "fixed inset-0 z-40 flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
-                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),75%)] xl:rounded-2xl",
+                expanded ? "fixed inset-0 z-[100] flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
+                "xl:relative xl:inset-auto xl:my-3 xl:me-3 xl:h-[calc(100dvh-1.5rem)] xl:w-[min(var(--assistant-dock-width),var(--assistant-dock-max-width))] xl:rounded-2xl",
             )}
-            style={{ "--assistant-dock-width": `${width}px` } as CSSProperties}
+            style={{ "--assistant-dock-width": `${width}px`, "--assistant-dock-max-width": maxWidth } as CSSProperties}
         >
             <div
                 role="separator"

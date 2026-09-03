@@ -1,4 +1,5 @@
-export type WorkProductKind = "court-record" | "authorities" | "research-set";
+export const WORK_PRODUCT_KINDS = ["court-record", "authorities"] as const;
+export type WorkProductKind = typeof WORK_PRODUCT_KINDS[number];
 
 export type WorkProductInput =
   | { kind: "local-file"; handleId: string; lastSeen: FileSnapshot }
@@ -58,8 +59,7 @@ export type WorkProduct<State = unknown> = {
 };
 export type WorkProductContext = Pick<WorkProduct,
   "id" | "kind" | "revision" | "projectId">;
-export type WorkProductMetadata = Omit<WorkProduct, "state" | "outputs"> &
-  { outputs?: WorkProduct["outputs"] };
+export type WorkProductMetadata = Omit<WorkProduct, "state"> & { profileId?: string };
 
 export type WorkProductCreate<State> = Pick<WorkProduct<State>, "kind" | "title" | "state"> & {
   projectId?: string | null;

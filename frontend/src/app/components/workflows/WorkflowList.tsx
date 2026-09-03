@@ -62,6 +62,7 @@ export function WorkflowList() {
                 audience={audience} onAudienceChange={setAudience}
                 loading={loading} loadError={loadError} onRetryLoad={retryLoad}
                 initialWorkflowId={initialWorkflowId}
+                audienceTabVariant="dock"
                 disabledItem={() => launching}
                 workflowAction={(workflow) => workflow.is_system ? null : <RowActions
                     label={`${workflow.metadata.title} actions`}
