@@ -39,6 +39,13 @@ import {
     filenameExtensionChangeWarning,
     hasFilenameExtensionChange,
 } from "@/app/lib/documentFilename";
+import { getResearchFile } from "@/app/lib/beaverApi";
+import { ResearchLabelCircle } from "@/app/components/legal/ResearchLabelCircle";
+import {
+    isResearchDocument,
+    researchLabelPath,
+    type ResearchFile,
+} from "@/app/lib/researchFiles";
 
 const VERSION_PAGE = 40;
 const VERSION_SEARCH_AT = 12;
@@ -122,6 +129,73 @@ function DocumentViewer(props: ComponentProps<typeof LazyDocumentViewer>) {
             <LazyDocumentViewer {...props} />
         </Suspense>
     );
+}
+
+function ResearchFilePreview({ documentId }: { documentId: string }) {
+    const [file, setFile] = useState<ResearchFile | null>();
+    useEffect(() => {
+        let current = true;
+        void getResearchFile(documentId).then(
+            (value) => { if (current) setFile(value); },
+            () => { if (current) setFile(null); },
+        );
+        return () => { current = false; };
+    }, [documentId]);
+    if (file === undefined) return <div role="status" className="grid h-full place-items-center text-sm text-gray-500">Loading research…</div>;
+    if (!file) return <div role="alert" className="grid h-full place-items-center text-sm text-red-700">Could not load this research file.</div>;
+
+    const { labels, sources, evidence, note } = file.state;
+    const savedSources = Object.values(sources);
+    const passages = Object.values(evidence);
+    const savedLabels = Object.values(labels).sort((a, b) => a.order - b.order);
+    const noteCount = Number(!!note.trim()) + savedSources.filter((source) => source.note.trim()).length
+        + passages.filter((passage) => passage.note.trim()).length;
+    const passageCounts = passages.reduce<Record<string, [number, number]>>((counts, passage) => {
+        const count = counts[passage.sourceId] ?? [0, 0];
+        count[0] += 1;
+        count[1] += Number(!!passage.note.trim());
+        counts[passage.sourceId] = count;
+        return counts;
+    }, {});
+
+    return <div className="h-full overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+        <p className="mb-4 text-gray-600">{savedSources.length} saved sources · {passages.length} passages · {savedLabels.length} labels · {noteCount} notes</p>
+        {note.trim() && <section className="mb-5">
+            <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Research note</h2>
+            <p className="whitespace-pre-wrap text-gray-800">{note}</p>
+        </section>}
+        <section className="mb-5">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Labels</h2>
+            {savedLabels.length ? <ul className="flex flex-wrap gap-1.5">
+                {savedLabels.map((label) => <li key={label.id} className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-1 text-xs">
+                    <ResearchLabelCircle labels={labels} labelIds={[label.id]} size="sm" />
+                    {researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}
+                </li>)}
+            </ul> : <p className="text-gray-500">No labels</p>}
+        </section>
+        <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Sources</h2>
+            {savedSources.length ? <ul className="space-y-2">
+                {savedSources.map((source) => {
+                    const title = source.reference.title || source.reference.citation || source.reference.id;
+                    const [sourcePassages, passageNotes] = passageCounts[source.id] ?? [0, 0];
+                    return <li key={source.id} className="rounded-md border border-gray-200 bg-white p-3">
+                        <div className="flex items-center gap-2">
+                            <ResearchLabelCircle labels={labels} labelIds={source.labelIds} size="sm" />
+                            <div className="min-w-0 flex-1">
+                                <p className="font-medium text-gray-900">{title}</p>
+                                {source.reference.citation && source.reference.citation !== title && <p className="text-xs text-gray-500">{source.reference.citation}</p>}
+                            </div>
+                            <span className="shrink-0 text-xs text-gray-500">{sourcePassages} {sourcePassages === 1 ? "passage" : "passages"}</span>
+                        </div>
+                        {!!source.labelIds.length && <p className="mt-1.5 text-xs text-gray-500">{source.labelIds.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / ")).join(", ")}</p>}
+                        {source.note.trim() && <p className="mt-2 whitespace-pre-wrap text-gray-700">{source.note}</p>}
+                        {!!passageNotes && <p className="mt-1 text-xs text-gray-500">{passageNotes} passage {passageNotes === 1 ? "note" : "notes"}</p>}
+                    </li>;
+                })}
+            </ul> : <p className="text-gray-500">No saved sources</p>}
+        </section>
+    </div>;
 }
 
 export function DocumentSidePanel({
@@ -280,6 +354,8 @@ export function DocumentSidePanel({
     const activeVersionCount = versions.filter(
         (version) => version.deleted_at == null,
     ).length;
+    const showResearchPreview =
+        isResearchDocument(activeDoc) && selectedId === currentId;
 
     function versionKeyDown(
         event: KeyboardEvent<HTMLDivElement>,
@@ -433,6 +509,9 @@ export function DocumentSidePanel({
     return createPortal(
         <div
             ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={filename}
             data-shortcut-layer
             data-shortcut-open="true"
             className="fixed inset-3 z-[190] mx-auto flex max-w-[960px] flex-col overflow-hidden rounded-xl border border-gray-300 bg-white shadow-xl"
@@ -507,6 +586,14 @@ export function DocumentSidePanel({
                         onSelectVersion(result.version_id, result.filename);
                     }}
                 />
+                {showResearchPreview && (
+                    <a
+                        href={`/sources?research_file=${encodeURIComponent(activeDoc.id)}`}
+                        className="inline-flex h-8 shrink-0 items-center rounded border border-gray-900 bg-gray-900 px-3 text-xs font-medium text-white hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
+                    >
+                        Open in Sources
+                    </a>
+                )}
                 <button
                     type="button"
                     data-shortcut-close
@@ -519,7 +606,8 @@ export function DocumentSidePanel({
             </header>
             <main className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_20rem]">
                 <section className="flex min-h-0 min-w-0 flex-col overflow-hidden p-3">
-                    <DocumentViewer
+                    {showResearchPreview ? <ResearchFilePreview
+                        key={`${activeDoc.id}:${revision ?? ""}`} documentId={activeDoc.id} /> : <DocumentViewer
                         key={`${activeDoc.id}:${
                             selectedId ?? "current"
                         }:${revision ?? ""}`}
@@ -543,7 +631,7 @@ export function DocumentSidePanel({
                         preferPdfRendition={isDocx}
                         refetchKey={revision ?? undefined}
                         revision={revision}
-                    />
+                    />}
                 </section>
                 <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-t border-gray-200 p-4 md:border-l md:border-t-0">
                     <div className="mb-3 grid gap-1 text-xs">

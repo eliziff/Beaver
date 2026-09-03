@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
     Loader2,
     PanelLeft,
@@ -40,6 +40,7 @@ const FLAG_BADGE: Record<string, string> = {
     yellow: "bg-amber-500 border border-amber-600 text-white shadow-sm",
     red: "bg-red-600 border border-red-700 text-white shadow-sm",
 };
+const COMPACT_PANEL = "(max-width: 767px)";
 export function TRSidePanel({
     cell,
     document: doc,
@@ -54,7 +55,13 @@ export function TRSidePanel({
     citationRef,
 }: Props) {
     const [regenerating, setRegenerating] = useState(false);
-    const panelRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDialogElement>(null);
+    const closeRef = useRef<HTMLButtonElement>(null);
+    const openerRef = useRef(
+        document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null,
+    );
     const [documentPaneOpen, setDocumentPaneOpen] = useState(displayDocument);
     const [docCitation, setDocCitation] = useState<
         TRPanelCitation | undefined
@@ -69,8 +76,32 @@ export function TRSidePanel({
               }
             : undefined,
     );
+    useLayoutEffect(() => {
+        const panel = panelRef.current, media = window.matchMedia?.(COMPACT_PANEL);
+        const opener = openerRef.current;
+        if (!panel) return;
+        const update = () => {
+            if (panel.open) panel.close();
+            if (media?.matches) {
+                panel.setAttribute("aria-modal", "true");
+                panel.showModal();
+                closeRef.current?.focus();
+            } else {
+                panel.removeAttribute("aria-modal");
+                panel.setAttribute("open", "");
+            }
+        };
+        update();
+        media?.addEventListener?.("change", update);
+        return () => {
+            media?.removeEventListener?.("change", update);
+            if (panel.open) panel.close();
+            if (opener?.isConnected) opener.focus();
+        };
+    }, []);
     useEffect(() => {
         const handleOutsidePointerDown = (event: PointerEvent) => {
+            if (window.matchMedia?.(COMPACT_PANEL).matches) return;
             const target = event.target;
             if (
                 !(target instanceof Node) ||
@@ -109,14 +140,20 @@ export function TRSidePanel({
         : "";
     const citationText = `${doc.filename}, ${citationLocation}`;
     return (
-        <div
+        <dialog
             ref={panelRef}
+            aria-label={`${column.name} result`}
+            onCancel={(event) => {
+                event.preventDefault();
+                onClose();
+            }}
             className={cn(
-                "fixed bottom-3 right-3 top-3 z-100 flex max-w-[calc(100vw-1.5rem)] overflow-hidden",
+                "fixed bottom-3 left-auto right-3 top-3 z-100 m-0 flex max-w-[calc(100vw-1.5rem)] overflow-hidden p-0 text-inherit backdrop:bg-gray-950/20",
                 LIQUID_PANEL_SURFACE_CLASS,
                 documentPaneOpen
                     ? "w-[900px] flex-col md:flex-row"
                     : "w-[300px]",
+                "max-md:inset-0 max-md:h-dvh max-md:max-h-none max-md:w-screen max-md:max-w-none max-md:rounded-none max-md:border-0",
             )}
         >
             {documentPaneOpen && (
@@ -234,6 +271,7 @@ export function TRSidePanel({
                         </button>
                     )}
                     <button
+                        ref={closeRef}
                         type="button"
                         onClick={onClose}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700"
@@ -309,7 +347,7 @@ export function TRSidePanel({
                     </div>
                 </div>
             </div>
-        </div>
+        </dialog>
     );
 }
 function formatCitationLocation(citation: ParsedCitation): string {

@@ -58,7 +58,7 @@ function WordAssistant() {
                         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
                         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
                         layout="panel"
-                        features={{ contextTools: false, dock: false }}
+                        features={{ contextTools: false, dock: false, researchSave: false }}
                         editModeLabels={{ manual: "Review", auto: "Direct" }}
                     />
                 </div>

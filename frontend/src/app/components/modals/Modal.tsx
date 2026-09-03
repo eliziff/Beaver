@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
-type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
+export type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 type ModalAction = Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     "className"
@@ -121,14 +121,12 @@ export function Modal({
                                         key={index}
                                         className={cn(
                                             "min-w-0 items-center gap-1.5",
-                                            index > 0 &&
-                                                index < breadcrumbCount - 1
-                                                ? "hidden sm:flex"
-                                                : "flex",
-                                            index === 0 && "shrink-0",
+                                            index < breadcrumbCount - 1
+                                                ? "hidden sm:flex" : "flex",
+                                            index === 0 && breadcrumbCount === 1 && "shrink-0",
                                         )}
                                     >
-                                        {index > 0 && <span>›</span>}
+                                        {index > 0 && <span className="hidden sm:inline">›</span>}
                                         <span
                                             id={
                                                 index === breadcrumbCount - 1
@@ -151,7 +149,7 @@ export function Modal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 outline-none hover:bg-gray-100 hover:text-gray-900 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                             aria-label="Close"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -215,7 +213,7 @@ function ModalActionButton({
         return (
             <button
                 type="button"
-                className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md px-2 py-1.5 text-sm text-gray-500 outline-none hover:text-gray-800 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-40"
                 {...props}
             >
                 {label}

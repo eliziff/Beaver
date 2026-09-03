@@ -21,8 +21,11 @@ vi.mock("./AssistantDock", () => ({
     expanded: boolean }) => <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0].content}</aside>,
 }));
 vi.mock("./ChatView", () => ({
-  ChatView: ({ sendDisabled }: { sendDisabled?: boolean }) =>
-    <button type="button" disabled={sendDisabled}>Send</button>,
+  ChatView: ({ sendDisabled, features }: { sendDisabled?: boolean;
+    features?: { researchSave?: boolean } }) => <>
+    <button type="button" disabled={sendDisabled}>Send</button>
+    <output aria-label="Research save">{String(features?.researchSave)}</output>
+  </>,
 }));
 
 const product = { id: "record-1", kind: "court-record" as const,
@@ -56,6 +59,15 @@ it("keeps drafting available while disabling send until the product is synchroni
     onChatIdChange={vi.fn()} onClose={vi.fn()} onProductUpdated={vi.fn()} />);
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 });
+
+it.each(["court-record", "authorities"] as const)(
+  "does not offer research promotion inside the %s assistant",
+  (kind) => {
+    render(<WorkProductAssistantPanel product={{ ...product, kind }}
+      onChatIdChange={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole("status", { name: "Research save" })).toHaveTextContent("false");
+  },
+);
 
 it("preloads in idle time, reserves the dock, and stays mounted after first expansion", async () => {
   const idle = vi.fn((_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1);

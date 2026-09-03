@@ -4,6 +4,7 @@ import { directoryResource, uploadDocumentsSettled, uploadStandaloneDocument } f
 import { Modal } from "../modals/Modal";
 import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { ModalTextInput } from "../modals/ModalTextInput";
+import { ModalSelect } from "../modals/ModalSelect";
 import { ProjectChoiceList } from "../projects/ProjectChoiceList";
 import { FileDirectory } from "../shared/FileDirectory";
 import type { ColumnConfig, Document, Project } from "../shared/types";
@@ -129,10 +130,8 @@ function OpenNewTRModal({
         <Modal
             open
             onClose={onClose}
-            breadcrumbs={[
-                ...breadcrumbs,
-                step === "details" ? "Details" : "Add Documents",
-            ]}
+            breadcrumbs={[...breadcrumbs, step === "details" ? "Set up" : "Add files"]}
+            size="xl"
             secondaryAction={step === "documents" ? {
                 label: uploading ? "Uploading…" : "Upload",
                 icon: uploading
@@ -180,21 +179,22 @@ function OpenNewTRModal({
                         </FormField>
                         <FormField label="Workflow template" htmlFor="new-tr-workflow-template"
                             hint={workflowSelection?.workflow.metadata.description}>
-                                <select
+                                <ModalSelect
+                                    id="new-tr-workflow-template"
                                     value={workflowSelection?.variant.id ?? ""}
                                     disabled={workflow.loading && !workflow.workflows.length}
-                                    onChange={(event) => setWorkflowSelection(
+                                    onChange={(value) => setWorkflowSelection(
                                         workflowOptions.find(({ variant }) =>
-                                            variant.id === event.currentTarget.value) ?? null)}
-                                    className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-gray-600 disabled:opacity-60"
-                                >
-                                    <option value="">Start from scratch</option>
-                                    {workflowOptions.map(({ workflow: item, variant }) => (
-                                        <option key={variant.id} value={variant.id}>
-                                            {item.metadata.title}: {variant.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                            variant.id === value) ?? null)}
+                                    placeholder={null}
+                                    options={[
+                                        { value: "", label: "Start from scratch" },
+                                        ...workflowOptions.map(({ workflow: item, variant }) => ({
+                                            value: variant.id,
+                                            label: `${item.metadata.title}: ${variant.label}`,
+                                        })),
+                                    ]}
+                                />
                         </FormField>
                         {!isProjectMode && (
                             <FieldGroup legend="Project" className="space-y-3">

@@ -58,7 +58,7 @@ export function ActionMenu({
     useEffect(() => {
         if (!open) return;
         menuRef.current?.showPopover?.();
-        menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+        menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
         const dismiss = (event: PointerEvent) => {
             if (!menuRef.current?.contains(event.target as Node) &&
                 !triggerRef.current?.contains(event.target as Node)) close();
@@ -66,11 +66,9 @@ export function ActionMenu({
         const closeOnViewportChange = () => close();
         document.addEventListener("pointerdown", dismiss);
         window.addEventListener("resize", closeOnViewportChange);
-        window.addEventListener("scroll", closeOnViewportChange, true);
         return () => {
             document.removeEventListener("pointerdown", dismiss);
             window.removeEventListener("resize", closeOnViewportChange);
-            window.removeEventListener("scroll", closeOnViewportChange, true);
         };
     }, [open]);
 
@@ -127,7 +125,7 @@ export function ActionMenu({
                     data-shortcut-layer
                     data-shortcut-open="true"
                     onKeyDown={handleMenuKeyDown}
-                    className="fixed bottom-auto left-auto m-0 min-w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
+                    className="fixed bottom-auto left-auto z-[220] m-0 min-w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
                     style={position}
                 >
                     {items.map((item) => (

@@ -38,7 +38,7 @@ export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, exp
         handleChat={handleChat} cancel={assistant.actions.cancel} sendDisabled={!synced}
         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
-        layout="panel" features={{ contextTools: false, dock: false }} /> }]}
+        layout="panel" features={{ contextTools: false, dock: false, researchSave: false }} /> }]}
     activeTabId="assistant" onActivateTab={() => {}} expanded={expanded}
     showCollapsedButton={false}
     onExpandedChange={(nextExpanded) => { if (!nextExpanded) onClose(); }} />;

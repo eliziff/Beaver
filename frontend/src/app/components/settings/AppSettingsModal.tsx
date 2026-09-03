@@ -111,6 +111,7 @@ export function AppSettingsModal({
             onClose={onClose}
             breadcrumbs={["Settings"]}
             size="xl"
+            className="h-[min(40rem,calc(100dvh-2rem))]"
             headerAction={
                 !isLocalMode ? (
                     <Link
@@ -125,15 +126,9 @@ export function AppSettingsModal({
         >
             <Tabs value={selectedTab} onValueChange={setSelectedTab}
                 options={TAB_OPTIONS} ariaLabel="Settings sections" variant="settings">
-            {TABS.map((tab) => (
-                <div
-                    key={tab}
-                    hidden={tab !== selectedTab}
-                    className="min-w-0 py-4 focus-visible:outline-none"
-                >
-                    {panels[tab]}
+                <div className="min-w-0 py-4 focus-visible:outline-none">
+                    {panels[selectedTab]}
                 </div>
-            ))}
             </Tabs>
         </Modal>
     );
