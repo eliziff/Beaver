@@ -14,7 +14,7 @@ import { downloadArtifact, needsOcr, type CourtRecordsHost, type DraftOutputChoi
   type SelectedFile } from "./host";
 import { COURT_PROFILE_BY_ID, effectiveCourtProfiles } from "./profiles";
 import type { WorkProduct, WorkProductMetadata } from "@/app/lib/workProducts";
-import { formatDate } from "@/app/lib/utils";
+import { errorMessage, formatDate } from "@/app/lib/utils";
 import type {
   BuildResult,
   BuildArtifact,
@@ -66,12 +66,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const openRequest = useRef(0);
   const openingRevision = useRef<{ id: string; revision: number } | undefined>(undefined);
   const draftRef = useRef(draft);
-  const stateRef = useRef(courtRecordDraft(profileId, cover, entries));
+  const stateRef = useRef<CourtRecordDraft>(undefined!);
+  stateRef.current ||= courtRecordDraft(profileId, cover, entries);
   const savingDraft = useRef<Promise<WorkProduct<CourtRecordDraft> | undefined> | undefined>(undefined);
   const stateVersion = useRef(0);
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
   const hasProfile = COURT_PROFILE_BY_ID.has(profileId);
-  const preparationDate = today();
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
   const operationBusy = draftBusy || building || saving || !!busyEntryId || sourceBusy;
@@ -539,7 +539,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         profile,
         entries: buildEntries,
         cover,
-        preparationDate,
+        preparationDate: new Date().toLocaleDateString("en-CA"),
         needsAttention: buildReport.review.map(({ title, detail }) => ({ title, detail })),
         onProgress: (message, completed, total) => setProgress(`${message} · ${completed}/${total}`),
       });
@@ -934,17 +934,7 @@ function moveEntry(entries: RecordEntry[], id: string, beforeId?: string) {
   return fillExhibitLabels(next);
 }
 
-function today() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
-
 function sameState(left: CourtRecordDraft, right: CourtRecordDraft) {
   return JSON.stringify([left.profileId, left.cover, left.entries, left.bindings]) ===
     JSON.stringify([right.profileId, right.cover, right.entries, right.bindings]);
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }

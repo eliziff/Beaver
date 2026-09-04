@@ -10,8 +10,9 @@ import type { Document } from "@/app/components/shared/types";
 import { Button, buttonClassName } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { TabList } from "@/app/components/ui/tabs";
+import { Pagination } from "@/app/components/shared/TablePrimitive";
 import { downloadBlob } from "@/app/lib/download";
-import { cn } from "@/app/lib/utils";
+import { cn, errorMessage } from "@/app/lib/utils";
 import type { WorkProductMetadata } from "@/app/lib/workProducts";
 import { captureCanliiDownload, chooseDownloadDirectory,
   type DownloadDirectory } from "./canliiCapture";
@@ -671,6 +672,8 @@ function ManualStart({ title, busy, onTitle, onPick, onFiles }: {
 
 function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMetadata[];
   loading: boolean; busy: boolean; onOpen: (id: string) => void }) {
+  const pages = Math.max(1, Math.ceil(drafts.length / 8));
+  const [requestedPage, setPage] = useState(1), page = Math.min(requestedPage, pages);
   return <section className="overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="flex min-h-16 items-center gap-3 border-b border-gray-200 px-4 py-3">
       <History className="h-5 w-5 shrink-0 text-red-700" /><div className="min-w-0"><h2 className="font-semibold text-gray-950">Saved drafts</h2>
@@ -679,7 +682,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
       {loading ? <div className="grid min-h-40 place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
           className="mr-2 h-4 w-4 motion-safe:animate-spin" />Loading saved drafts</span></div>
-        : drafts.map((item) => <button key={item.id} type="button" disabled={busy}
+        : drafts.slice((page - 1) * 8, page * 8).map((item) => <button key={item.id} type="button" disabled={busy}
         onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600">
         <span className="min-w-0"><span className="block truncate text-sm font-medium text-gray-950">{item.title}</span>
           <span className="block text-xs text-gray-500">{new Date(item.updatedAt).toLocaleString()}</span></span>
@@ -687,6 +690,8 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
       </button>)}
       {!loading && !drafts.length && <p className="grid min-h-40 place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
     </div>
+    {!loading && !!drafts.length && <Pagination page={page} pages={pages}
+      label={`${drafts.length} authorities drafts`} disabled={busy} onPage={setPage} />}
   </section>;
 }
 
@@ -1533,9 +1538,7 @@ function relinkable(issue?: AuthoritiesSourceIssue | null): issue is Authorities
   return issue?.status === "changed" ||
     (issue?.status === "missing" && issue.reason === "permission");
 }
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : "Authorities could not be updated.";
-}
+const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as

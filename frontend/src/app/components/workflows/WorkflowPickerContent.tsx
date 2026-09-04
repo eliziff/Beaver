@@ -32,6 +32,11 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
     const [expanded, setExpanded] = useState<string | null>(initialWorkflowId ?? null);
 
     useEffect(() => setExpanded(initialWorkflowId ?? null), [initialWorkflowId]);
+    const toggle = (id: string, panelId: string, open: boolean) => {
+        setExpanded(open ? id : null);
+        if (open) requestAnimationFrame(() =>
+            document.getElementById(panelId)?.scrollIntoView?.({ block: "nearest" }));
+    };
     useEffect(() => {
         if (loading || !initialWorkflowId) return;
         const frame = requestAnimationFrame(() => {
@@ -60,16 +65,16 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
             const destinationInLabel = label.toLowerCase().includes(destination.toLowerCase());
             const description = result || workflow.metadata.description;
             return <div key={workflow.id}>
-                <div className="flex min-w-0 items-start gap-1">
+                <div className={`flex min-w-0 items-start ${APP_SURFACE_HOVER_CLASS}`}>
                     <button type="button" data-workflow-id={workflow.id}
                         data-workflow-variant-id={!details ? directVariant?.id : undefined}
                         disabled={!details && disabledItem?.(workflow, directVariant)}
                         aria-label={details ? `Details for ${label}` : `${launch}: ${label}`}
                         aria-expanded={details ? open : undefined}
                         aria-controls={details ? panelId : undefined}
-                        onClick={() => details ? setExpanded(open ? null : workflow.id)
+                        onClick={() => details ? toggle(workflow.id, panelId, !open)
                             : directVariant ? onSelect(workflow, directVariant) : onSelect(workflow)}
-                        className={`flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45 ${APP_SURFACE_HOVER_CLASS}`}>
+                        className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                         <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                         <WorkflowText label={label} description={description} />
                         {details ? <ChevronDown className={`mt-0.5 size-4 shrink-0 text-gray-400 ${
@@ -82,7 +87,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                     {details && directVariant && <button type="button" data-workflow-variant-id={directVariant.id}
                         disabled={disabledItem?.(workflow, directVariant)}
                         aria-label={`${launch}: ${label}`} onClick={() => onSelect(workflow, directVariant)}
-                        className="m-2 inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
+                        className={`m-2 ${DESTINATION_BUTTON_CLASS}`}>
                         <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
                     </button>}
                     {action}
@@ -96,11 +101,11 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         const open = expanded === workflow.id;
         const panelId = `${idPrefix}-workflow-${workflow.id}-options`;
         return <div key={workflow.id}>
-            <div className="flex min-w-0 items-start gap-1">
+            <div className={`flex min-w-0 items-start ${APP_SURFACE_HOVER_CLASS}`}>
                 <button type="button" data-workflow-id={workflow.id}
                     aria-expanded={open} aria-controls={panelId}
-                    onClick={() => setExpanded(open ? null : workflow.id)}
-                    className={`flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 ${APP_SURFACE_HOVER_CLASS}`}>
+                    onClick={() => toggle(workflow.id, panelId, !open)}
+                    className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900">
                     <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                     <WorkflowText label={label} description={workflow.metadata.description}
                         destinations={open ? [] : workflowDestinations(workflow, variants)} />
@@ -126,7 +131,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                 placeholder="Search workflows" aria-label="Search workflows" />
             {contextLabel && <p className="mt-2 truncate text-xs text-gray-500"
                 title={contextLabel}>Using {contextLabel}</p>}
-            <div ref={listRef} className={`mt-4 min-h-0 flex-1 overflow-y-auto pb-6 ${audienceTabVariant === "dock" ? "max-[40rem]:overflow-visible" : ""}`}>
+            <div ref={listRef} className={`mt-4 min-h-0 flex-1 overflow-y-auto pb-10 ${audienceTabVariant === "dock" ? "max-[40rem]:overflow-visible" : ""}`}>
                 <p role="status" className="sr-only">{loading
                     ? "Loading workflows" : `${count} workflow choices`}</p>
                 {loading && !workflows.length ? <WorkflowSkeleton />
@@ -191,7 +196,7 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect }: {
                         <button type="button" disabled={disabledItem?.(workflow, variant)}
                             data-workflow-variant-id={variant.id}
                             aria-label={`${action}: ${label}`} onClick={() => onSelect(workflow, variant)}
-                            className="inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
+                            className={DESTINATION_BUTTON_CLASS}>
                             <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
                         </button>
                     </div>;
@@ -246,6 +251,7 @@ function workflowDestinations(workflow: Workflow, variants: WorkflowVariant[]) {
 
 const launchLabel = (variant: WorkflowVariant) => variant.execution === "tabular"
     ? "Start Tabular Review" : "Open chat";
+const DESTINATION_BUTTON_CLASS = "inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-gray-600 hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45";
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, "-");
 const WorkflowSkeleton = () => <div aria-hidden="true" className="space-y-2">
     {[1, 2, 3, 4, 5].map((item) =>
