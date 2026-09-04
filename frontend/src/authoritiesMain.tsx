@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "@/app/globals.css";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
@@ -24,4 +24,4 @@ function StandaloneAuthorities() {
   }} />;
 }
 
-createRoot(container).render(<StrictMode><StandaloneAuthorities /></StrictMode>);
+createRoot(container).render(<StandaloneAuthorities />);
