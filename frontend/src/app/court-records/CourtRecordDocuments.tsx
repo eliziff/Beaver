@@ -2,13 +2,11 @@ import {
   FilePlus2,
   FileText,
   FolderSearch,
-  GripVertical,
   Loader2,
   ScanText,
   Trash2,
 } from "lucide-react";
 import { Fragment } from "react";
-import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
@@ -22,14 +20,13 @@ type Props = {
   entries: RecordEntry[];
   busyEntryId?: string;
   entryFindings: Map<string, ComplianceFinding[]>;
-  onFiles: (kindId: string, files: File[]) => void;
+  onFiles: (kindId: string, files: File[], exhibitLabel?: string) => void;
   onDescription: (kindId: string, title?: string) => void;
-  onPick?: (kindId: string) => void;
-  onLibrary?: (kindId: string) => void;
+  onPick?: (kindId: string, exhibitLabel?: string) => void;
+  onLibrary?: (kindId: string, exhibitLabel?: string) => void;
   sourceLabel?: string;
   onEntry: (id: string, patch: Partial<RecordEntry>) => void;
   onRemove: (id: string) => void;
-  onMove: (id: string, beforeId?: string) => void;
   onAssign: (id: string, label?: string) => void;
   onAssignKind: (id: string, kindId: string) => void;
   onOcr?: (id: string) => void;
@@ -99,12 +96,11 @@ function PendingFiles(props: Props & { pending: RecordEntry[] }) {
       findings={(props.entryFindings.get(entry.id) ?? [])
         .filter(({ id }) => !id.startsWith("unknown-"))}
       dateRequired={false} descriptionLabel="Contents description"
-      assignmentKinds={available(entry)} moveBefore={undefined} moveAfter={undefined}
-      canMoveDown={false} />)}</div>
+      assignmentKinds={available(entry)} />)}</div>
   </section>;
 }
 
-function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onMove, onAssign, onAssignKind, onOcr, onRelink }: Props & { kind: DocumentKind }) {
+function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFiles, onDescription, onPick, onLibrary, sourceLabel, onEntry, onRemove, onAssign, onAssignKind, onOcr, onRelink }: Props & { kind: DocumentKind }) {
   const matching = entries.filter((entry) => entry.kindId === kind.id);
   if (kind.descriptionOnly) {
     const first = matching[0];
@@ -141,7 +137,7 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
     </div>;
   }
   const canAdd = kind.repeatable || matching.length === 0;
-  const canDrop = profile.family === "affidavit" && kind.id === "affidavit";
+  const canDrop = canAdd;
   return (
     <div
       data-kind-id={kind.id}
@@ -150,7 +146,9 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
         "rounded-lg border bg-white",
         kind.requirement === "required" && !matching.length ? "border-gray-300" : "border-gray-200",
       )}
-      onDragOver={(event) => { if (canDrop && canAdd) event.preventDefault(); }}
+      onDragOver={(event) => {
+        if (canDrop && event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
       onDrop={(event) => {
         if (!canDrop || !canAdd) return;
         event.preventDefault();
@@ -174,7 +172,7 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
       </div>
       {!!matching.length && (
         <div className="space-y-2 border-t border-gray-100 bg-gray-50/50 p-2.5">
-          {matching.map((entry, index) => (
+          {matching.map((entry) => (
             <EntryRow
               key={entry.id}
               entry={entry}
@@ -185,12 +183,8 @@ function DocumentSlot({ profile, kind, entries, busyEntryId, entryFindings, onFi
               descriptionLabel={profile.outputMode === "separate-files" ? "Document name" : "Contents description"}
               onEntry={onEntry}
               onRemove={onRemove}
-              onMove={onMove}
               onAssign={onAssign}
               onAssignKind={onAssignKind}
-              moveBefore={matching[index - 1]?.id}
-              moveAfter={matching[index + 2]?.id}
-              canMoveDown={index < matching.length - 1}
               onOcr={onOcr}
               onRelink={onRelink}
             />
@@ -206,11 +200,14 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
   const exhibits = entries.filter((entry) => entry.kindId === kind.id);
   const detected = entries.find((entry) => entry.kindId === "affidavit")
     ?.sourceFields?.exhibitLabels ?? [];
-  const named = [...detected, ...exhibits.flatMap((entry) =>
-    entry.exhibitLabel?.trim() ? [entry.exhibitLabel.trim().toUpperCase()] : [])];
-  const highest = Math.max(-1, ...named.map(exhibitIndex));
-  const labels = Array.from({ length: highest + 2 }, (_, index) => exhibitName(index));
-  const pool = exhibits.filter((entry) => !entry.exhibitLabel?.trim());
+  const highest = Math.max(-1, ...detected.map(exhibitIndex));
+  const labels = Array.from({ length: highest + 1 }, (_, index) => exhibitName(index));
+  const assigned = new Map<string, RecordEntry>(), pool: RecordEntry[] = [];
+  for (const entry of exhibits) {
+    const label = entry.exhibitLabel?.trim().toUpperCase();
+    if (label && labels.includes(label) && !assigned.has(label)) assigned.set(label, entry);
+    else pool.push(entry);
+  }
   return <section data-kind-id="exhibit" className="rounded-xl border border-gray-200 bg-white">
     <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-3">
       <h3 className="text-sm font-medium text-gray-900">Exhibits</h3>
@@ -218,17 +215,24 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
     </div>
     {!!labels.length && <div className="grid gap-2 border-t border-gray-100 bg-gray-50/50 p-2.5">
       {labels.map((label) => {
-        const entry = exhibits.find((item) => item.exhibitLabel?.trim().toUpperCase() === label);
+        const entry = assigned.get(label);
         return <section key={label} aria-label={`Exhibit ${label} slot`}
           className="min-w-0 rounded-lg border border-gray-200 bg-white p-2"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => { const id = event.dataTransfer.getData("text/x-court-record-entry");
-            if (id) { event.preventDefault(); event.stopPropagation(); onAssign(id, label); } }}>
-          <h4 className="px-1 pb-2 text-sm font-semibold text-gray-950">Exhibit {label}</h4>
+            if (id) { event.preventDefault(); event.stopPropagation(); onAssign(id, label); }
+            else if (event.dataTransfer.files.length) {
+              event.preventDefault(); onFiles(kind.id, [...event.dataTransfer.files], label);
+            } }}>
+          <div className="flex items-center justify-between gap-2 px-1 pb-2">
+            <h4 className="text-sm font-semibold text-gray-950">Exhibit {label}</h4>
+            <AddFileControls {...props} targetLabel={label}
+              label={entry ? "Replace file" : "Add file"} />
+          </div>
           {entry ? <EntryRow {...props} entry={entry} busy={props.busyEntryId === entry.id}
             findings={props.entryFindings.get(entry.id) ?? []} dateRequired={false}
             descriptionLabel="Contents description" assignmentLabel={label}
-            dragEnabled moveBefore={undefined} moveAfter={undefined} canMoveDown={false} /> :
+            dragEnabled /> :
             <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
               Drop a file here, or assign one from unassigned files.
             </p>}
@@ -245,13 +249,11 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
       <h4 className="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
         Unassigned files
       </h4>
-      {pool.length ? <div className="grid gap-2">{pool.map((entry, index) =>
+      {pool.length ? <div className="grid gap-2">{pool.map((entry) =>
         <EntryRow key={entry.id} {...props} entry={entry}
           busy={props.busyEntryId === entry.id} findings={props.entryFindings.get(entry.id) ?? []}
           dateRequired={false} descriptionLabel="Contents description"
-          dragEnabled
-          moveBefore={pool[index - 1]?.id} moveAfter={pool[index + 2]?.id}
-          canMoveDown={index < pool.length - 1} />)}</div> :
+          dragEnabled />)}</div> :
         <p className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-center text-sm text-gray-500">
           Drop several exhibit files here or use Add files.
         </p>}
@@ -259,26 +261,33 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
   </section>;
 }
 
-function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Library" }:
-  Pick<Props, "onFiles" | "onPick" | "onLibrary" | "sourceLabel"> & { kind: DocumentKind }) {
-  const multiple = !!kind.repeatable, label = "Add file";
-  const id = `court-record-${kind.id}-file`;
+function AddFileControls({ kind, onFiles, onPick, onLibrary, sourceLabel = "Library",
+  targetLabel, label = "Add file" }:
+  Pick<Props, "onFiles" | "onPick" | "onLibrary" | "sourceLabel"> & {
+    kind: DocumentKind; targetLabel?: string; label?: string;
+  }) {
+  const multiple = !!kind.repeatable && !targetLabel;
+  const id = `court-record-${kind.id}-${targetLabel ?? "file"}`;
+  const withTarget = <T,>(callback: (kindId: string, targetLabel?: string) => T) =>
+    targetLabel ? callback(kind.id, targetLabel) : callback(kind.id);
   return <>
     {onLibrary && <Button type="button" variant="outline" className="h-9 border-gray-500/80 px-3"
-      onClick={() => onLibrary(kind.id)}><FolderSearch /> {sourceLabel}</Button>}
+      onClick={() => withTarget(onLibrary)}><FolderSearch /> {sourceLabel}</Button>}
     {onPick ? <Button id={id} type="button" className="h-9 bg-gray-950 px-3 text-white hover:bg-gray-800"
-      onClick={() => onPick(kind.id)}><FilePlus2 /> {label}</Button> :
+      onClick={() => withTarget(onPick)}><FilePlus2 /> {label}</Button> :
       <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-gray-950 px-3 text-sm font-medium text-white outline-none hover:bg-gray-800 focus-within:ring-3 focus-within:ring-gray-400">
         <FilePlus2 className="h-4 w-4" aria-hidden="true" /> {label}
         <input id={id} className="sr-only" type="file" accept={sourceAccept(kind)} multiple={multiple}
           aria-required={kind.requirement === "required" || undefined} onChange={(event) => {
-            onFiles(kind.id, [...(event.target.files ?? [])]); event.target.value = "";
+            const files = [...(event.target.files ?? [])];
+            targetLabel ? onFiles(kind.id, files, targetLabel) : onFiles(kind.id, files);
+            event.target.value = "";
           }} />
       </label>}
   </>;
 }
 
-function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onMove, onAssign, onAssignKind, assignmentKinds, assignmentLabel, dragEnabled = false, moveBefore, moveAfter, canMoveDown, onOcr, onRelink }: {
+function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel, onEntry, onRemove, onAssign, onAssignKind, assignmentKinds, assignmentLabel, dragEnabled = false, onOcr, onRelink }: {
   entry: RecordEntry;
   kind?: DocumentKind;
   busy: boolean;
@@ -287,15 +296,11 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
   descriptionLabel: string;
   onEntry: Props["onEntry"];
   onRemove: Props["onRemove"];
-  onMove: Props["onMove"];
   onAssign: Props["onAssign"];
   onAssignKind: Props["onAssignKind"];
   assignmentKinds?: DocumentKind[];
   assignmentLabel?: string;
   dragEnabled?: boolean;
-  moveBefore?: string;
-  moveAfter?: string;
-  canMoveDown: boolean;
   onOcr?: Props["onOcr"];
   onRelink?: Props["onRelink"];
 }) {
@@ -314,13 +319,11 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
       onDragOver={(event) => { if (dragEnabled) event.preventDefault(); }}
       onDrop={(event) => {
         const id = event.dataTransfer.getData("text/x-court-record-entry");
-        if (id) { event.preventDefault(); event.stopPropagation();
-          if (assignmentLabel) onAssign(id, assignmentLabel);
-          else onMove(id, entry.id); }
+        if (id && assignmentLabel) { event.preventDefault(); event.stopPropagation();
+          onAssign(id, assignmentLabel); }
       }}
     >
       <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-3 sm:flex-nowrap sm:gap-y-0">
-        {dragEnabled && <GripVertical className="mt-2 h-4 w-4 shrink-0 cursor-grab text-gray-400" aria-hidden="true" />}
         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700"><FileText className="h-4 w-4" /></span>
         <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
           <label className="block text-xs font-medium text-gray-600">
@@ -339,12 +342,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             {entry.pageCount !== null && <><span aria-hidden="true">·</span><span>{entry.pageCount} page{entry.pageCount === 1 ? "" : "s"}</span></>}
           </div>}
         </div>
-        {(moveBefore || canMoveDown) && <ActionMenu label={`Move ${entry.file.name}`} items={[
-          { label: "Earlier", disabled: !moveBefore, onSelect: () => onMove(entry.id, moveBefore) },
-          { label: "Later", disabled: !canMoveDown, onSelect: () => onMove(entry.id, moveAfter) },
-        ]} triggerClassName="h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100">
-          <GripVertical className="h-4 w-4" aria-hidden="true" />
-        </ActionMenu>}
         <Button id={`entry-${entry.id}-remove`} type="button" variant="ghost" size="icon-sm"
           onClick={() => onRemove(entry.id)} aria-label={`Remove ${entry.descriptionOnly ? entry.title || kind?.label : entry.file.name}`} title="Remove">
           <Trash2 />
@@ -375,14 +372,6 @@ function EntryRow({ entry, kind, busy, findings, dateRequired, descriptionLabel,
             onChange={(event) => onEntry(entry.id, { date: event.target.value })}
             className={cn("mt-1 h-9 border-gray-500/80 md:text-base", dateMissing && "border-red-500")} />
         </label>}
-        {kind?.id === "exhibit" && (
-          <label className="block min-w-0 flex-1 text-xs font-medium text-gray-600">
-            Exhibit label
-            <Input id={`entry-${entry.id}-exhibit`} value={entry.exhibitLabel ?? ""}
-              placeholder="A" onChange={(event) => onAssign(entry.id, event.target.value)}
-              className="mt-1 h-9 border-gray-500/80 md:text-base" />
-          </label>
-        )}
         {entry.inputStatus === "missing" && onRelink && (
           <Button id={`entry-${entry.id}-relink`} type="button" variant="outline"
             className="h-9 border-red-500 text-red-800" disabled={busy}

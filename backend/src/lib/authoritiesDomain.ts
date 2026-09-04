@@ -2,11 +2,12 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { buildCanliiPdfUrl } from "./canliiUrls";
 import { decodeWorkProductBindings, type WorkProductInput,
   type WorkProductState } from "./workProduct";
+import profileValues from "mike/shared/authorities-profiles.json";
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 export type AuthoritiesOutputMode = "table" | "book" | "both";
 export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
-export type AuthoritiesProfileId = keyof typeof AUTHORITIES_PROFILES;
+export type AuthoritiesProfileId = string;
 export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
   "appellant" | "intervener";
 export type AuthoritiesBuildSettings = {
@@ -26,46 +27,30 @@ export type AuthoritiesSettings = AuthoritiesBuildSettings & {
 };
 
 type AuthoritiesProfile = {
+  id: AuthoritiesProfileId;
+  label: string;
+  courtId: string;
   defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
   locked?: { outputMode?: AuthoritiesOutputMode;
     settings?: Partial<AuthoritiesBuildSettings> };
+  options?: {
+    filingMedium?: Array<{ value: "electronic" | "paper"; label: string }>;
+    bookRole?: Array<{ value: AuthoritiesBookRole; label: string }>;
+    missingSourcePolicy?: boolean;
+  };
+  requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
+    unlinkedPdfTableSources?: boolean };
 };
 
 /** Filing defaults only; source receipts remain in the repository audit data. */
-const AUTHORITIES_PROFILES = {
-  general: { defaults: { outputMode: "book", settings: {
-    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
-    tableDelivery: "native-append", tableLocation: "pages",
-    passageMarking: "margin", scannedPdfPolicy: "page-margin",
-    missingSourcePolicy: "placeholder",
-  } } },
-  "ab-court-of-kings-bench": { defaults: { outputMode: "book", settings: {
-    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
-    tableDelivery: "native-append", tableLocation: "pages",
-    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
-  } }, locked: { settings: { missingSourcePolicy: "omit" } } },
-  "ab-court-of-appeal": { defaults: { outputMode: "table", settings: {
-    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "first-reference",
-    tableDelivery: "linked-append", tableLocation: "pinpoints",
-    passageMarking: "none", scannedPdfPolicy: "page-margin",
-    missingSourcePolicy: "omit",
-  } }, locked: { outputMode: "table", settings: {
-    tableDelivery: "linked-append", tableOrder: "first-reference", missingSourcePolicy: "omit",
-  } } },
-  "federal-court": { defaults: { outputMode: "book", settings: {
-    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
-    tableDelivery: "native-append", tableLocation: "pages",
-    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
-    filingMedium: "electronic", bookRole: "applicant",
-  } } },
-  "federal-court-of-appeal": { defaults: { outputMode: "book", settings: {
-    sourceMode: "automatic", tabStyle: "numeric", tableOrder: "alphabetical",
-    tableDelivery: "native-append", tableLocation: "pages",
-    passageMarking: "margin", scannedPdfPolicy: "full", missingSourcePolicy: "omit",
-    filingMedium: "electronic", bookRole: "joint",
-  } } },
-} as const satisfies Record<string, AuthoritiesProfile>;
-export const authoritiesProfileIds = Object.keys(AUTHORITIES_PROFILES) as AuthoritiesProfileId[];
+export const authoritiesProfiles = profileValues as AuthoritiesProfile[];
+const AUTHORITIES_PROFILES = new Map(authoritiesProfiles.map((profile) => [profile.id, profile]));
+export const authoritiesProfileIds = authoritiesProfiles.map(({ id }) => id);
+export function authoritiesProfile(id: AuthoritiesProfileId) {
+  const profile = AUTHORITIES_PROFILES.get(id);
+  if (!profile) throw new AuthoritiesDomainError(`Unknown Authorities profile: ${id}`);
+  return profile;
+}
 
 export type AuthoritiesDocumentSnapshot = {
   documentId: string;
@@ -225,6 +210,7 @@ export type AuthoritiesAction =
   | { type: "replace-occurrence"; occurrenceId: string;
       replacement: AuthorityOccurrence;
       absorbed?: { ids: string[]; start: number; end: number } }
+  | { type: "remove-occurrence"; occurrenceId: string }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
@@ -256,7 +242,7 @@ export function createAuthoritiesDraft(
   bindings: Record<string, WorkProductInput> = {},
   outputMode: AuthoritiesOutputMode = "book",
 ): AuthoritiesDraft {
-  const profile = AUTHORITIES_PROFILES.general;
+  const profile = authoritiesProfile("general");
   const draft: AuthoritiesDraft = { schemaVersion: "beaver.authorities-draft.v1",
     import: source, bindings: structuredClone(bindings), outputMode,
     settings: { profileId: "general", ...structuredClone(profile.defaults.settings) },
@@ -310,14 +296,15 @@ const buildSettings = (value: unknown) => {
   if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole"])) {
     return false;
   }
-  const context = item.profileId === "federal-court"
-    ? oneOf(item.filingMedium, ["electronic", "paper"]) &&
-      oneOf(item.bookRole, ["applicant", "respondent", "joint"])
-    : item.profileId === "federal-court-of-appeal"
-      ? oneOf(item.filingMedium, ["electronic", "paper"]) &&
-        oneOf(item.bookRole, ["joint", "appellant", "respondent", "intervener"])
-      : !Object.hasOwn(item, "filingMedium") && !Object.hasOwn(item, "bookRole");
-  return oneOf(item.profileId, authoritiesProfileIds) && context &&
+  const profile = typeof item.profileId === "string"
+    ? AUTHORITIES_PROFILES.get(item.profileId) : undefined;
+  const filingMedia = profile?.options?.filingMedium?.map(({ value }) => value);
+  const bookRoles = profile?.options?.bookRole?.map(({ value }) => value);
+  const context = filingMedia
+    ? oneOf(item.filingMedium, filingMedia) : !Object.hasOwn(item, "filingMedium");
+  const roleContext = bookRoles
+    ? oneOf(item.bookRole, bookRoles) : !Object.hasOwn(item, "bookRole");
+  return !!profile && context && roleContext &&
     oneOf(item.sourceMode, ["automatic", "manual-originals", "render"]) &&
     oneOf(item.tabStyle, ["numeric", "alpha"]) &&
     oneOf(item.tableOrder, ["first-reference", "alphabetical"]) &&
@@ -499,7 +486,7 @@ export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null 
       key !== "settings" && key !== "bookParts");
     const stored = closed(candidate && exactKeys(candidate, earlier) ? { ...candidate,
       settings: { profileId: "general",
-        ...structuredClone(AUTHORITIES_PROFILES.general.defaults.settings) },
+        ...structuredClone(authoritiesProfile("general").defaults.settings) },
       bookParts: { cover: null, index: null, supplements: [] },
     } : value, keys);
     const unitText = new Map(Array.isArray(stored?.units) ? stored.units.flatMap((unit) => {
@@ -989,6 +976,9 @@ export function reduceAuthoritiesDraft(
       } else draft.occurrences[action.occurrenceId] = structuredClone(action.replacement);
       break;
     }
+    case "remove-occurrence":
+      replaceOccurrences(draft, [action.occurrenceId], []);
+      break;
     case "relink-occurrence": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
       if (action.authorityId) requireRecord(draft.authorities, action.authorityId, "authority");
@@ -1089,20 +1079,19 @@ export function reduceAuthoritiesDraft(
       break;
     }
     case "set-profile": {
-      const profile: AuthoritiesProfile = AUTHORITIES_PROFILES[action.profileId];
+      const profile = authoritiesProfile(action.profileId);
       const automatic = profile.defaults.settings.sourceMode !== "manual-originals" &&
         draft.settings.sourceMode === "manual-originals";
       draft.outputMode = profile.defaults.outputMode;
       draft.settings = { profileId: action.profileId,
         ...structuredClone(profile.defaults.settings) };
-      draft.insertIntoDocument = action.profileId === "ab-court-of-appeal" &&
+      draft.insertIntoDocument = !!profile.requirements?.documentOutputDefault &&
         draft.import.kind === "document";
       if (automatic) resumeAutomaticSources(draft);
       break;
     }
     case "set-settings": {
-      const locked = (AUTHORITIES_PROFILES[draft.settings.profileId] as AuthoritiesProfile)
-        .locked?.settings ?? {};
+      const locked = authoritiesProfile(draft.settings.profileId).locked?.settings ?? {};
       if (Object.entries(action.settings).some(([key, value]) =>
         key in locked && locked[key as keyof AuthoritiesBuildSettings] !== value)) {
         throw new AuthoritiesDomainError("That court profile fixes this output setting.");
@@ -1115,8 +1104,7 @@ export function reduceAuthoritiesDraft(
       break;
     }
     case "set-output-mode": {
-      const locked = (AUTHORITIES_PROFILES[draft.settings.profileId] as AuthoritiesProfile)
-        .locked?.outputMode;
+      const locked = authoritiesProfile(draft.settings.profileId).locked?.outputMode;
       if (locked && action.outputMode !== locked) {
         throw new AuthoritiesDomainError("That court profile fixes the output type.");
       }
@@ -1136,8 +1124,7 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
   if (draft.schemaVersion !== "beaver.authorities-draft.v1") errors.push("Invalid draft schema version.");
   if (!["table", "book", "both"].includes(draft.outputMode)) errors.push("Invalid output mode.");
   if (!buildSettings(draft.settings)) errors.push("Invalid Authorities settings.");
-  const profile = AUTHORITIES_PROFILES[draft.settings?.profileId as AuthoritiesProfileId] as
-    AuthoritiesProfile | undefined;
+  const profile = AUTHORITIES_PROFILES.get(draft.settings?.profileId as AuthoritiesProfileId);
   if (profile?.locked?.outputMode && draft.outputMode !== profile.locked.outputMode) {
     errors.push("Output mode conflicts with the court profile.");
   }

@@ -11,7 +11,7 @@ const profile = { documentKinds: [{ id: "authorities", label: "Authorities",
   description: "", requirement: "optional", order: 1 }],
   technical: { indexDate: "none" }, outputMode: "separate-files" } as CourtProfile;
 const required = { profile, entries: [], entryFindings: new Map(),
-  onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(), onMove: vi.fn(),
+  onFiles: vi.fn(), onDescription: vi.fn(), onEntry: vi.fn(), onRemove: vi.fn(),
   onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
@@ -37,14 +37,15 @@ describe("Court Record documents", () => {
       kindIds={["exhibit"]} entries={[affidavit, exhibit]} onAssign={onAssign} onFiles={onFiles} />);
 
     expect(screen.getByRole("region", { name: "Exhibit A slot" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Exhibit C slot" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Exhibit B slot" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Exhibit C slot" })).toBeNull();
     expect(screen.getByText("Unassigned files")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Move .* (?:up|down)/ })).toBeNull();
     fireEvent.drop(screen.getByRole("region", { name: "Exhibit B slot" }), {
       dataTransfer: { getData: () => "pool" },
     });
     expect(onAssign).toHaveBeenCalledWith("pool", "B");
-    fireEvent.change(screen.getByLabelText("Add file"), {
+    fireEvent.change(screen.getAllByLabelText("Add file")[0], {
       target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
     });
     expect(onFiles).toHaveBeenCalledWith("exhibit", expect.any(Array));

@@ -3,7 +3,8 @@ import { BookOpen, ChevronRight, Download, FilePlus2, FolderSearch, GripVertical
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
-import { ModalSelect } from "@/app/components/modals/ModalSelect";
+import { ChoiceModalButton, JurisdictionModal } from "@/app/components/modals/JurisdictionModal";
+import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document } from "@/app/components/shared/types";
@@ -17,8 +18,9 @@ import type { WorkProductMetadata } from "@/app/lib/workProducts";
 import { captureCanliiDownload, chooseDownloadDirectory,
   type DownloadDirectory } from "./canliiCapture";
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
+import { AUTHORITIES_PROFILES, AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
 import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
-  AuthoritiesBookRole, AuthoritiesBookSupplement, AuthoritiesDiscrepancy, AuthoritiesProfileId,
+  AuthoritiesBookSupplement, AuthoritiesDiscrepancy, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthorityOccurrence } from "./types";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts" | "settings";
@@ -34,23 +36,12 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" }, { value: "settings", label: "Settings" },
 ];
-const PROFILES: ReadonlyArray<{ value: AuthoritiesProfileId; label: string }> = [
-  { value: "general", label: "General" },
-  { value: "ab-court-of-kings-bench", label: "Alberta Court of King's Bench" },
-  { value: "ab-court-of-appeal", label: "Alberta Court of Appeal" },
-  { value: "federal-court", label: "Federal Court" },
-  { value: "federal-court-of-appeal", label: "Federal Court of Appeal" },
-];
-const FC_BOOK_ROLES: ReadonlyArray<{ value: AuthoritiesBookRole; label: string }> = [
-  { value: "applicant", label: "Applicant" }, { value: "respondent", label: "Respondent" },
-  { value: "joint", label: "Joint" },
-];
-const FCA_BOOK_ROLES: ReadonlyArray<{ value: AuthoritiesBookRole; label: string }> = [
-  { value: "joint", label: "Joint" }, { value: "appellant", label: "Appellant" },
-  { value: "respondent", label: "Respondent" }, { value: "intervener", label: "Intervener" },
-];
+const AUTHORITY_JURISDICTIONS = [...new Map(AUTHORITIES_PROFILES.map(({ jurisdiction }) =>
+  [jurisdiction.id, jurisdiction])).values()].sort((left, right) => left.order - right.order);
+const GENERAL_PROFILE = authoritiesProfile("general");
 const DEFAULTS: StartPreferences = {
-  profileId: "general", sourceMode: "automatic", passageMarking: "margin",
+  profileId: GENERAL_PROFILE.id, sourceMode: GENERAL_PROFILE.defaults.settings.sourceMode,
+  passageMarking: GENERAL_PROFILE.defaults.settings.passageMarking,
 };
 type LibraryPicker = ComponentType<{ open: boolean; title: string; formatLabel: string;
   query: string; results: Document[]; busy: boolean; onQuery: (value: string) => void;
@@ -61,7 +52,7 @@ type ActionHandler = (action: AuthoritiesAction,
   done?: (next: AuthoritiesProduct) => void) => void;
 
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
-  refreshToken, locked = false, LibraryPicker, route }: {
+  refreshToken, locked = false, LibraryPicker, route, jurisdictionOrder = [] }: {
   host: AuthoritiesHost;
   route: AuthoritiesRoute;
   headerActions?: ReactNode;
@@ -69,6 +60,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   refreshToken?: number;
   locked?: boolean;
   LibraryPicker?: LibraryPicker;
+  jurisdictionOrder?: string[];
 }) {
   const { draftId: requested, projectId, replaceDraft } = route;
   const routeTarget = useRef<string | null>(null), routeRequest = useRef(0);
@@ -148,9 +140,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (requested === target) return;
     }
     const request = ++routeRequest.current;
-    setLoading(!!requested);
-    display();
-    if (!requested) { setLoading(false); return; }
+    if (!requested) { display(); setLoading(false); return; }
+    setLoading(!draftRef.current);
     void host.drafts.get<AuthoritiesProduct["state"]>(requested).then((next) => {
       if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
       if (request !== routeRequest.current) return;
@@ -165,8 +156,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   }, [requested, projectId, display, host]);
 
   useEffect(() => {
-    onDraftChange?.(globalTab ? undefined : draft, !!draft && !busy && !globalTab);
-  }, [draft, busy, globalTab, onDraftChange]);
+    onDraftChange?.(draft, !!draft && !busy);
+  }, [draft, busy, onDraftChange]);
   useEffect(() => localStorage.setItem("beaver.authorities.preferences", JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => {
@@ -296,7 +287,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       settings: pendingImport.preferences }), (next) => {
       setPreferences(pendingImport.preferences); setPendingImport(undefined);
       remember(next); open(next);
-    }, "Citations found");
+    });
   }
   async function pickFiles(multiple: boolean, accept: "source" | "pdf",
     done: (files: AuthoritiesFile[]) => void) {
@@ -487,12 +478,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
               }, "", "Opening draft")} />
           : tab === "settings"
             ? <StartSettings value={preferences} onChange={setPreferences} busy={busy}
+                jurisdictionOrder={jurisdictionOrder}
                 outputFolder={host.outputFolder ? outputFolder : undefined}
                 onChooseFolder={host.outputFolder ? chooseOutputFolder : undefined}
                 onClearFolder={host.outputFolder ? clearOutputFolder : undefined} />
             : !draft
               ? tab === "manual"
                 ? <ManualStart title={manualTitle} busy={busy} onTitle={setManualTitle}
+                    preferences={preferences} onPreferences={setPreferences}
+                    jurisdictionOrder={jurisdictionOrder}
                     onPick={host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined}
                     onFiles={(files) => appendManual(files.map((file) => ({ file })))} />
                 : <AutomaticStart busy={busy}
@@ -515,6 +509,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                     onAttach={(id, file) => attach(id, file && { file })}
                     onRelink={(role) => relinkSource(role)} />
                   <BuildPanel draft={draft} busy={busy} building={building}
+                    jurisdictionOrder={jurisdictionOrder}
                     missing={missingPdfs.length}
                     onAction={act}
                     sourceIssues={sourceIssues} onRelink={relinkSource}
@@ -553,6 +548,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                       onBeginLink={(id) => { setError(""); setLinkingId(id); }} />
                   </section>
                   <BuildPanel draft={draft} busy={busy} building={building}
+                    jurisdictionOrder={jurisdictionOrder}
                     missing={missingPdfs.length}
                     onAction={act}
                     sourceIssues={sourceIssues} onRelink={relinkSource}
@@ -580,6 +576,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           searchRequest.current?.abort(); setLibraryOpen(false);
         }} />}
       <ImportSetup pending={pendingImport} busy={busy} status={error}
+        jurisdictionOrder={jurisdictionOrder}
         onChange={(next) => setPendingImport((current) => current
           ? { ...current, preferences: next } : current)}
         onClose={() => { if (!busy) setPendingImport(undefined); }} onImport={importDocument} />
@@ -629,8 +626,9 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary }: {
   </section>;
 }
 
-function ImportSetup({ pending, busy, status, onChange, onClose, onImport }: {
+function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClose, onImport }: {
   pending?: PendingImport; busy: boolean; status: string;
+  jurisdictionOrder: string[];
   onChange: (value: StartPreferences) => void; onClose: () => void; onImport: () => void;
 }) {
   const value = pending?.preferences ?? DEFAULTS;
@@ -642,7 +640,11 @@ function ImportSetup({ pending, busy, status, onChange, onClose, onImport }: {
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
       onClick: onImport }}>
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
+    <AuthoritiesCourtField value={value.profileId} disabled={busy}
+      preferredKeys={jurisdictionOrder}
+      onChange={(profileId) => onChange({ ...value, profileId })} />
     <OptionCards legend="Source handling" value={value.sourceMode} options={SOURCE_OPTIONS} disabled={busy}
+      className="mt-5"
       onChange={(sourceMode) => onChange({ ...value, sourceMode })} />
     <OptionCards className="mt-5" legend="Passage marking" value={value.passageMarking}
       options={PASSAGE_OPTIONS} columns disabled={busy}
@@ -651,8 +653,11 @@ function ImportSetup({ pending, busy, status, onChange, onClose, onImport }: {
   </Modal>;
 }
 
-function ManualStart({ title, busy, onTitle, onPick, onFiles }: {
+function ManualStart({ title, busy, preferences, jurisdictionOrder,
+  onTitle, onPreferences, onPick, onFiles }: {
   title: string; busy: boolean; onTitle: (value: string) => void;
+  preferences: StartPreferences; jurisdictionOrder: string[];
+  onPreferences: (value: StartPreferences) => void;
   onPick?: () => void; onFiles: (files: File[]) => void;
 }) {
   return <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
@@ -662,6 +667,9 @@ function ManualStart({ title, busy, onTitle, onPick, onFiles }: {
     <label className="mt-5 block text-sm font-medium text-gray-800">Book title
       <Input value={title} onChange={(event) => onTitle(event.target.value)}
         className="mt-1 h-10 border-gray-400 md:text-base" /></label>
+    <AuthoritiesCourtField value={preferences.profileId} disabled={busy}
+      preferredKeys={jurisdictionOrder} className="mt-4 w-full"
+      onChange={(profileId) => onPreferences({ ...preferences, profileId })} />
     <div className="mt-4">
       {onPick ? <Button type="button" className="h-11" disabled={busy} onClick={onPick}>
         <FilePlus2 /> Add PDFs</Button> : <FileInputButton multiple disabled={busy}
@@ -695,8 +703,45 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
   </section>;
 }
 
-function StartSettings({ value, onChange, busy, outputFolder, onChooseFolder, onClearFolder }: {
+function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, className }: {
+  value: AuthoritiesProfileId; disabled?: boolean; preferredKeys: string[];
+  onChange: (value: AuthoritiesProfileId) => void; className?: string;
+}) {
+  const current = authoritiesProfile(value);
+  const [dialog, setDialog] = useState<"jurisdiction" | "profile">();
+  const [jurisdictionId, setJurisdictionId] = useState(current.jurisdiction.id);
+  const profiles = AUTHORITIES_PROFILES.filter(({ jurisdiction }) =>
+    jurisdiction.id === jurisdictionId);
+  useEffect(() => setJurisdictionId(current.jurisdiction.id), [current.jurisdiction.id]);
+
+  function chooseJurisdiction(id: string) {
+    const choices = AUTHORITIES_PROFILES.filter(({ jurisdiction }) => jurisdiction.id === id);
+    setJurisdictionId(id);
+    if (choices.length === 1) { onChange(choices[0].id); setDialog(undefined); }
+    else setDialog("profile");
+  }
+
+  return <div className={className}>
+    <ChoiceModalButton icon={<Scale aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />}
+      label="Court" value={current.label} disabled={disabled} className="w-full"
+      onClick={() => setDialog("jurisdiction")} />
+    <JurisdictionModal open={dialog === "jurisdiction"} value={current.jurisdiction.id}
+      options={AUTHORITY_JURISDICTIONS.map(({ id, label, preferenceKey }) =>
+        ({ value: id, label, preferenceKey }))}
+      preferredKeys={preferredKeys} onChange={chooseJurisdiction}
+      onClose={() => setDialog((open) => open === "jurisdiction" ? undefined : open)} />
+    <SearchableChoiceModal open={dialog === "profile"} title="Choose court"
+      value={value} searchable={profiles.length > 8} size="2xl"
+      options={profiles.map(({ id, label }) => ({ value: id, label }))}
+      onChange={(id) => { if (id) onChange(id); setDialog(undefined); }}
+      onClose={() => setDialog(undefined)} />
+  </div>;
+}
+
+function StartSettings({ value, onChange, busy, jurisdictionOrder,
+  outputFolder, onChooseFolder, onClearFolder }: {
   value: StartPreferences; onChange: (value: StartPreferences) => void; busy: boolean;
+  jurisdictionOrder: string[];
   outputFolder?: string | null; onChooseFolder?: () => void; onClearFolder?: () => void;
 }) {
   return <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm sm:p-5">
@@ -704,8 +749,9 @@ function StartSettings({ value, onChange, busy, outputFolder, onChooseFolder, on
       <div className="min-w-0"><h2 className="font-semibold text-gray-950">New drafts</h2>
         <p className="text-sm text-gray-600">Defaults used when you import a document.</p></div></div>
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <SelectField label="Court" value={value.profileId}
-        onChange={(profileId) => onChange({ ...value, profileId })} options={PROFILES} />
+      <AuthoritiesCourtField value={value.profileId} disabled={busy}
+        preferredKeys={jurisdictionOrder}
+        onChange={(profileId) => onChange({ ...value, profileId })} />
       <SelectField label="Source handling" value={value.sourceMode}
         onChange={(sourceMode) => onChange({ ...value, sourceMode })}
         options={SOURCE_OPTIONS} />
@@ -791,7 +837,7 @@ function Sources({ draft, authorities, occurrences, busy, sourceIssues, onAction
     (authorities.some(({ excluded, source }) => !excluded && source.kind === "pending-canlii") ||
     (draft.state.settings.sourceMode === "manual-originals" &&
       authorities.some(({ excluded, source }) => !excluded && source.kind !== "attached")) ||
-    authorities.some((authority) => !authority.excluded && requiresAbcaPdf(draft.state, authority) &&
+    authorities.some((authority) => !authority.excluded && requiresUnlinkedTablePdf(draft.state, authority) &&
       authority.source.kind !== "attached")));
   const [expanded, setExpanded] = useState(intervention);
   useEffect(() => { if (intervention) setExpanded(true); }, [intervention]);
@@ -915,14 +961,6 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   });
   const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[40rem]:min-h-9 @min-[40rem]:whitespace-nowrap";
   return <div className="min-h-0 min-w-0 overflow-visible p-3 @min-[40rem]:overflow-y-auto [scrollbar-gutter:stable]">
-    <div className={cn("mb-2 flex min-h-9 items-center gap-2 text-xs",
-      linking ? "text-red-900" : "text-gray-500")} aria-live="polite">
-      {linking ? <><span id="authority-link-instruction" className="min-w-0 flex-1">
-        Choose the full citation this cross-reference points to.</span>
-        <Button type="button" variant="ghost" className="h-8" disabled={busy}
-          onClick={onCancelLink}>Cancel</Button></>
-        : <span>{occurrenceKind(selected)}{humanPinpoints(selected) && ` · ${humanPinpoints(selected)}`}</span>}
-    </div>
     {finding && <SourceFinding finding={finding} />}
     <div ref={surface} contentEditable suppressContentEditableWarning role="textbox" aria-readonly="true"
       aria-multiline="true"
@@ -950,18 +988,28 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       <Button type="button" variant="outline" className={actionClass}
         disabled={busy || !footnote || !canMerge} onClick={() => submit({
           type: "merge-occurrence", occurrenceId: selected.id })}>Merge with previous</Button>
+      <Button type="button" variant="outline" className={actionClass} disabled={busy}
+        onClick={() => submit({ type: "remove-occurrence",
+          occurrenceId: selected.id })}>Not a citation</Button>
     </div>
     <div className={cn("mt-2 grid min-h-16 grid-cols-2 items-center gap-2 border-t border-gray-200 pt-2 @min-[40rem]:flex @min-[40rem]:min-h-12",
       selected.kind !== "reference" && "invisible")} aria-hidden={selected.kind !== "reference" || undefined}
       inert={selected.kind !== "reference" ? true : undefined}>
-      <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[40rem]:flex-1">{linked
-        ? `Linked to ${authorityName(linked)}` : "Not linked"}</span>
-      <Button type="button" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight"
-        disabled={busy} onClick={() => onBeginLink(selected.id)}>
-        <Link2 /> Link to authority</Button>
-      <Button type="button" variant="ghost" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight" disabled={busy || !selected.reference}
-        onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
-          reference: null })}>Clear link</Button>
+      <span id={linking ? "authority-link-instruction" : undefined}
+        className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[40rem]:flex-1">
+        {linking ? "Choose the full citation this cross-reference points to."
+          : linked ? `Linked to ${authorityName(linked)}` : "Not linked"}
+      </span>
+      {linking ? <Button type="button" variant="outline"
+        className="col-span-2 h-9 text-xs @min-[40rem]:col-span-1" disabled={busy}
+        onClick={onCancelLink}>Cancel</Button> : <>
+        <Button type="button" variant="outline" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight"
+          disabled={busy} onClick={() => onBeginLink(selected.id)}>
+          <Link2 /> Link to authority</Button>
+        <Button type="button" variant="ghost" className="h-auto min-h-9 min-w-0 whitespace-normal px-2 text-xs leading-tight" disabled={busy || !selected.reference}
+          onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
+            reference: null })}>Clear link</Button>
+      </>}
     </div>
   </div>;
 }
@@ -1088,23 +1136,22 @@ function AuthorityRow({ authority, index, order, busy, onAction, removable, need
   </article>;
 }
 
-function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
+function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues,
   onRelink, onBookFiles, onPickBook, onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
+  jurisdictionOrder: string[];
   onAction: (action: AuthoritiesAction) => void; onBuild: () => void; onCancel: () => void;
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
   onBookFiles?: (slot: "cover" | "index" | "supplemental", files: File[]) => void;
   onPickBook?: (slot: "cover" | "index" | "supplemental", multiple: boolean) => void;
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
-  const lockedOutput = draft.state.settings.profileId === "ab-court-of-appeal";
+  const profile = authoritiesProfile(draft.state.settings.profileId);
+  const lockedOutput = !!profile.locked?.outputMode;
   const book = draft.state.outputMode !== "table";
-  const federal = draft.state.settings.profileId === "federal-court" ||
-    draft.state.settings.profileId === "federal-court-of-appeal";
-  const completeBook = book && (federal ||
-    draft.state.settings.profileId === "ab-court-of-kings-bench");
-  const bookRoles = draft.state.settings.profileId === "federal-court"
-    ? FC_BOOK_ROLES : FCA_BOOK_ROLES;
+  const completeBook = book && !!profile.requirements?.completeBookSources;
+  const filingMedia = profile.options?.filingMedium;
+  const bookRoles = profile.options?.bookRole;
   const missingText = missing ? completeBook || lockedOutput
     ? `${missing} source PDF${missing === 1 ? " is" : "s are"} required before building.`
     : draft.state.settings.missingSourcePolicy === "placeholder"
@@ -1114,9 +1161,9 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
   return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
     <h2 className="font-semibold text-gray-950">Build outputs</h2>
     <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem] sm:items-end">
-      <SelectField label="Court" value={draft.state.settings.profileId}
-        disabled={busy} onChange={(profileId) => onAction({ type: "set-profile", profileId })}
-        options={PROFILES} />
+      <AuthoritiesCourtField value={draft.state.settings.profileId} disabled={busy}
+        preferredKeys={jurisdictionOrder}
+        onChange={(profileId) => onAction({ type: "set-profile", profileId })} />
       <SelectField label="Create" value={draft.state.outputMode} disabled={busy || lockedOutput}
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
@@ -1126,12 +1173,11 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
         {building ? <><Loader2 className="motion-safe:animate-spin" /> Cancel</>
           : <><BookOpen /> Build</>}</Button>
     </div>
-    {book && federal && <div className="mt-2 grid gap-3 sm:grid-cols-2">
+    {book && filingMedia && bookRoles && <div className="mt-2 grid gap-3 sm:grid-cols-2">
       <SelectField label="Filing" value={draft.state.settings.filingMedium ?? "electronic"}
         disabled={busy} onChange={(filingMedium) => onAction({ type: "set-settings",
           settings: { filingMedium } })}
-        options={[{ value: "electronic", label: "Electronic" },
-          { value: "paper", label: "Paper" }]} />
+        options={filingMedia} />
       <SelectField label="Filed by" value={draft.state.settings.bookRole ?? bookRoles[0].value}
         disabled={busy} onChange={(bookRole) => onAction({ type: "set-settings",
           settings: { bookRole } })} options={bookRoles} />
@@ -1157,7 +1203,7 @@ function BuildPanel({ draft, busy, building, missing, onAction, sourceIssues,
           disabled={busy} onChange={(tableOrder) => onAction({ type: "set-settings", settings: { tableOrder } })}
           options={[{ value: "alphabetical", label: "Alphabetical" },
             { value: "first-reference", label: "First reference" }]} />}
-        {book && draft.state.settings.profileId === "general" && <SelectField label="Missing sources" value={draft.state.settings.missingSourcePolicy}
+        {book && profile.options?.missingSourcePolicy && <SelectField label="Missing sources" value={draft.state.settings.missingSourcePolicy}
           disabled={busy} onChange={(missingSourcePolicy) => onAction({ type: "set-settings",
             settings: { missingSourcePolicy } })}
           options={[{ value: "placeholder", label: "Add labelled pages" },
@@ -1478,13 +1524,6 @@ function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurr
   const body = all.slice(0, index + 1).filter(({ unitId }) => !/^footnote:/u.test(unitId)).length;
   return `In-text citation ${body}`;
 }
-function occurrenceKind(item: AuthorityOccurrence) {
-  return item.kind === "reference" ? "Cross-reference" : item.kind === "legislation"
-    ? "Legislation" : item.kind[0].toUpperCase() + item.kind.slice(1);
-}
-function humanPinpoints(item: AuthorityOccurrence) {
-  return item.pinpoints.map(({ text }) => text).join(", ");
-}
 function authorityName(item: AuthorityIdentity) {
   return item.displayName || item.name || item.citation || "Untitled authority";
 }
@@ -1496,7 +1535,7 @@ function attachedRole(item: AuthorityIdentity) {
 }
 function requiresPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   return state.settings.sourceMode === "manual-originals" || state.outputMode !== "table" ||
-    requiresAbcaPdf(state, item);
+    requiresUnlinkedTablePdf(state, item);
 }
 function missingSource(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   if (!requiresPdf(state, item)) return false;
@@ -1504,15 +1543,14 @@ function missingSource(state: AuthoritiesProduct["state"], item: AuthorityIdenti
     item.source.kind === "pending-canlii";
 }
 function mustAttachPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
-  if (state.outputMode === "table") return requiresAbcaPdf(state, item);
-  return ["ab-court-of-kings-bench", "federal-court", "federal-court-of-appeal"]
-    .includes(state.settings.profileId);
+  if (state.outputMode === "table") return requiresUnlinkedTablePdf(state, item);
+  return !!authoritiesProfile(state.settings.profileId).requirements?.completeBookSources;
 }
-function requiresAbcaPdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
+function requiresUnlinkedTablePdf(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   const sourceUrl = item.source.kind === "attached" ? item.source.sourceUrl
     : item.source.kind === "pending-canlii" ? item.source.pageUrl
       : item.sourceIdentity?.externalUrl;
-  return state.settings.profileId === "ab-court-of-appeal" &&
+  return !!authoritiesProfile(state.settings.profileId).requirements?.unlinkedPdfTableSources &&
     state.import.kind === "document" && state.import.fileType === "pdf" && !sourceUrl;
 }
 function moveId(order: string[], from: number, to: number) {
@@ -1543,7 +1581,7 @@ function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as
       Partial<StartPreferences> | null;
-    return value && PROFILES.some(({ value: id }) => id === value.profileId) &&
+    return value && AUTHORITY_PROFILE_BY_ID.has(value.profileId ?? "") &&
       ["automatic", "manual-originals", "render"].includes(value.sourceMode ?? "") &&
       PASSAGE_OPTIONS.some(({ value: id }) => id === value.passageMarking)
       ? value as StartPreferences : DEFAULTS;

@@ -1,9 +1,12 @@
 import { ChevronDown, FileText, Plus, Scale, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { ChoiceModalButton, JurisdictionModal } from "@/app/components/modals/JurisdictionModal";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { ModalTextarea } from "@/app/components/modals/ModalTextarea";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
+import { TabList } from "@/app/components/ui/tabs";
+import { COURT_JURISDICTIONS, registeredCourt, registeredLevel } from "@/app/lib/courtRegistry";
 import { cn } from "@/app/lib/utils";
 import { effectiveCourtProfiles } from "./profiles";
 import type {
@@ -15,129 +18,126 @@ import type {
 } from "./types";
 import { coverPartyGroups } from "./types";
 
-export function CourtRecordChooser({ profile, onProfile, creating = false, onCancel }: {
-  profile: CourtProfile;
-  onProfile: (profileId: string) => void;
-  creating?: boolean;
-  onCancel?: () => void;
+export function CourtRecordChooser({ profile, onProfile, creating = false, onCancel,
+  jurisdictionOrder = [] }: {
+  profile: CourtProfile; onProfile: (profileId: string) => void; creating?: boolean;
+  onCancel?: () => void; jurisdictionOrder?: string[];
 }) {
-  const [dialog, setDialog] = useState<"document" | "format" | undefined>(
-    creating ? "document" : undefined);
-  const [documentId, setDocumentId] = useState(() => selectionFor(profile).document);
+  const [dialog, setDialog] = useState<"jurisdiction" | "document" | "format" | undefined>(
+    creating ? "jurisdiction" : undefined);
+  const [documentId, setDocumentId] = useState(() => profile.documentLabel);
+  const [jurisdiction, setJurisdiction] = useState(profile.jurisdiction);
+  const [levelId, setLevelId] = useState(() => levelFor(profile).id);
   const choosing = useRef(false);
   const selected = selectionFor(profile);
-  const document = DOCUMENTS.find((item) => item.id === documentId) ?? DOCUMENTS[0];
+  const jurisdictionProfiles = PROFILES.filter((item) => item.jurisdiction === jurisdiction);
+  const levels = levelChoices(jurisdictionProfiles);
+  const activeLevel = levels.some(({ id }) => id === levelId) ? levelId : levels[0]?.id;
+  const documents = documentChoices(jurisdictionProfiles.filter((item) =>
+    levelFor(item).id === activeLevel));
+  const document = documents.find((item) => item.id === documentId) ?? documents[0];
 
-  useEffect(() => setDocumentId(selected.document), [selected.document]);
+  useEffect(() => {
+    setDocumentId(profile.documentLabel); setJurisdiction(profile.jurisdiction);
+    setLevelId(levelFor(profile).id);
+  }, [profile]);
 
-  function chooseDocument(id: string) {
-    const profiles = DOCUMENTS.find((item) => item.id === id)?.profiles ?? [];
-    choosing.current = true;
-    if (profiles.length === 1) {
-      onProfile(profiles[0].id);
-      setDialog(undefined);
-      return;
-    }
-    setDocumentId(id);
-    setDialog("format");
+  function chooseJurisdiction(id: string) {
+    const profiles = PROFILES.filter((item) => item.jurisdiction === id);
+    choosing.current = true; setJurisdiction(id);
+    if (profiles.length === 1) { onProfile(profiles[0].id); setDialog(undefined); return; }
+    const firstLevel = levelChoices(profiles)[0]?.id;
+    setLevelId(firstLevel ?? "");
+    setDocumentId(documentChoices(profiles.filter((item) =>
+      levelFor(item).id === firstLevel))[0]?.id ?? "");
+    setDialog("document");
   }
 
-  function closeDialog(kind: "document" | "format") {
+  function chooseLevel(id: string) {
+    setLevelId(id);
+    setDocumentId(documentChoices(jurisdictionProfiles.filter((item) =>
+      levelFor(item).id === id))[0]?.id ?? "");
+  }
+
+  function chooseDocument(id: string) {
+    const profiles = documents.find((item) => item.id === id)?.profiles ?? [];
+    choosing.current = true;
+    if (profiles.length === 1) {
+      onProfile(profiles[0].id); setDialog(undefined); return;
+    }
+    setDocumentId(id); setDialog("format");
+  }
+
+  function closeDialog(kind: "jurisdiction" | "document" | "format") {
     if (choosing.current) { choosing.current = false; return; }
     setDialog((current) => current === kind ? undefined : current);
     if (creating) onCancel?.();
   }
 
-  return (
-    <>
-      {!creating && <section className="flex flex-wrap gap-2 px-1" aria-label="Document format"
-        data-court-record-chooser data-selected-profile={profile.id}>
-        <ChoiceButton icon={FileText} label="Document" value={documentLabel(selected.document)} onClick={() => setDialog("document")} />
-        <ChoiceButton icon={Scale} label="Format" value={selected.format} onClick={() => setDialog("format")} />
-      </section>}
-      <SearchableChoiceModal
-        open={dialog === "document"}
-        title="Choose document"
-        searchLabel="Search documents"
-        options={DOCUMENTS.map((item) => ({ value: item.id, label: item.label,
-          group: item.group }))}
-        size="2xl"
-        value={documentId}
-        onChange={(id) => id && chooseDocument(id)}
-        onClose={() => closeDialog("document")}
-      />
-      <SearchableChoiceModal
-        open={dialog === "format"}
-        title={`${document.label} format`}
-        options={document.profiles.map((item) => ({ value: item.id,
-          label: selectionFor(item).format }))}
-        value={profile.id}
-        searchable={false}
-        onChange={(id) => {
-          if (id) { choosing.current = true; onProfile(id); }
-          setDialog(undefined);
-        }}
-        onClose={() => closeDialog("format")}
-      />
-    </>
-  );
+  return <>
+    {!creating && <section className="flex flex-wrap gap-2 px-1" aria-label="Document format"
+      data-court-record-chooser data-selected-profile={profile.id}>
+      <ChoiceModalButton icon={<FileText className="h-4 w-4 shrink-0 text-gray-500" />}
+        label="Document" value={selected.document}
+        onClick={() => setDialog("jurisdiction")} />
+      <ChoiceModalButton icon={<Scale className="h-4 w-4 shrink-0 text-gray-500" />}
+        label="Format" value={selected.format}
+        onClick={() => setDialog("format")} />
+    </section>}
+    <JurisdictionModal open={dialog === "jurisdiction"} value={jurisdiction}
+      options={JURISDICTIONS} preferredKeys={jurisdictionOrder}
+      onChange={chooseJurisdiction}
+      onClose={() => closeDialog("jurisdiction")} />
+    <SearchableChoiceModal open={dialog === "document"} title="Choose document"
+      searchLabel="Search documents"
+      controls={<><button type="button" onClick={() => setDialog("jurisdiction")}
+        className="mb-2 min-h-9 rounded-md px-2 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900">
+        {JURISDICTIONS.find(({ value }) => value === jurisdiction)?.label}
+      </button>{levels.length > 1 && <TabList value={activeLevel} onValueChange={chooseLevel}
+        options={levels.map(({ id, label }) => ({ value: id, label }))}
+        ariaLabel="Court level" variant="dock"
+        className="mb-2 min-h-0 border-0 bg-transparent px-0 py-0" />}</>}
+      options={documents.map((item) => ({ value: item.id, label: item.label }))}
+      size="2xl" value={documentId} onChange={(id) => id && chooseDocument(id)}
+      onClose={() => closeDialog("document")} />
+    {document && <SearchableChoiceModal open={dialog === "format"} title={`${document.label} format`}
+      options={document.profiles.map((item) => ({ value: item.id, label: selectionFor(item).format }))}
+      value={profile.id} searchable={false}
+      onChange={(id) => { if (id) { choosing.current = true; onProfile(id); } setDialog(undefined); }}
+      onClose={() => closeDialog("format")} />}
+  </>;
 }
 
-function ChoiceButton({ icon: Icon, label, value, onClick }: {
-  icon: typeof FileText;
-  label: string;
-  value: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" aria-label={`${label}: ${value}`} onClick={onClick} className="inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-lg border border-gray-300 bg-white px-3 text-left shadow-sm outline-none hover:border-gray-400 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600">
-      <Icon className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-      <span className="min-w-0">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</span>
-        <span className="block max-w-64 truncate text-sm font-medium text-gray-950">{value}</span>
-      </span>
-    </button>
-  );
-}
+const PROFILES = effectiveCourtProfiles().filter(({ selectable }) => selectable);
+const AVAILABLE_JURISDICTIONS = new Set(PROFILES.map(({ jurisdiction }) => jurisdiction));
+const JURISDICTIONS = COURT_JURISDICTIONS.filter(({ id }) => AVAILABLE_JURISDICTIONS.has(id))
+  .map(({ id, label, preferenceKey }) => ({ value: id, label, preferenceKey }));
 
-const DOCUMENTS = documentChoices();
-
-function documentChoices() {
+function documentChoices(profiles: CourtProfile[]) {
   const groups = new Map<string, { id: string; label: string; profiles: CourtProfile[] }>();
-  for (const profile of effectiveCourtProfiles().filter(({ id }) => id !== "general-court-record")) {
-    const { document } = selectionFor(profile);
+  for (const profile of profiles) {
+    const document = profile.documentLabel;
     const current = groups.get(document) ?? { id: document, label: document, profiles: [] };
     current.profiles.push(profile);
     groups.set(document, current);
   }
-  return [...groups.values()].map((item) => ({ ...item,
-    group: /\b(?:appeal|extracts?|condensed)\b/iu.test(item.label) || item.profiles.every(
-      ({ courtId }) => courtId === "ab-ca" || courtId === "fca") ? "Appeal" : "Trial and applications",
-  })).sort((left, right) => Number(left.group === "Appeal") - Number(right.group === "Appeal") ||
-    left.label.localeCompare(right.label));
-}
-
-function documentLabel(id: string) {
-  return DOCUMENTS.find((item) => item.id === id)?.label ?? id;
+  return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function selectionFor(profile: CourtProfile) {
-  const id = profile.id;
-  let document = profile.label;
-  if (profile.family === "affidavit") document = "Affidavit with exhibits";
-  else if (/motion-(?:record-(?:moving|responding)|reply)$/u.test(id)) document = "Motion record";
-  else if (/application-record-(?:applicant|respondent)$/u.test(id)) document = "Application record";
-  else if (/chambers-(?:filing|response)-set$/u.test(id)) document = "Civil chambers filing set";
-  else if (/special-application-(?:applicant|respondent)-set$/u.test(id)) document = "Special Application filing set";
-  else if (/review-appeal-(?:applicant|respondent)-set$/u.test(id)) document = "Judicial review or civil appeal set";
-  else if (/commercial-(?:applicant|respondent)-set$/u.test(id)) document = "Commercial List filing set";
-  else if (/extracts-(?:appellant|respondent|intervener)$/u.test(id)) document = "Extracts of key evidence";
-  else if (id.startsWith("fca-leave-")) document = "Motion for leave to appeal record";
-  const court = profile.jurisdiction === "general" ? "General" : profile.courtAbbreviation;
-  const position = profile.role && !["Appellant", "Plaintiff or party directed by the Court"].includes(profile.role)
-    ? ` · ${profile.role}` : "";
-  const stage = profile.variant === "reply" ? " · Reply" : "";
-  return { document, format: `${court}${position}${stage}` };
+  const division = profile.division?.split("-").map((part) =>
+    part[0]?.toUpperCase() + part.slice(1)).join(" ");
+  return { document: profile.documentLabel,
+    format: [...new Set([profile.courtAbbreviation, division, profile.role].filter(Boolean))]
+      .join(" · ") };
+}
+
+const levelFor = ({ courtId }: CourtProfile) => registeredLevel(registeredCourt(courtId).levelId);
+function levelChoices(profiles: CourtProfile[]) {
+  return [...new Map(profiles.map((profile) => {
+    const level = levelFor(profile);
+    return [level.id, level];
+  })).values()].sort((left, right) => left.order - right.order);
 }
 
 type Props = {

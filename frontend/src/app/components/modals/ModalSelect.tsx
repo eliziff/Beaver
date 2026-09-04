@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { cn } from "@/app/lib/utils";
@@ -118,6 +118,8 @@ export function SearchableChoiceModal({
     searchable = true,
     size = "sm",
     className,
+    listClassName,
+    controls,
 }: {
     open: boolean;
     onClose: () => void;
@@ -129,6 +131,8 @@ export function SearchableChoiceModal({
     searchable?: boolean;
     size?: ModalSize;
     className?: string;
+    listClassName?: string;
+    controls?: ReactNode;
 }) {
     const [query, setQuery] = useState("");
     const searchRef = useRef<HTMLInputElement>(null);
@@ -161,6 +165,7 @@ export function SearchableChoiceModal({
             size={size}
             className={cn(size === "sm" && "h-[min(20rem,calc(100dvh-2rem))]", className)}
         >
+            {controls}
             {searchable && (
                 <SearchBar
                     ref={searchRef}
@@ -181,7 +186,7 @@ export function SearchableChoiceModal({
             <div
                 role="group"
                 aria-label={title}
-                className="min-h-0 flex-1 overflow-y-auto py-1"
+                className={cn("min-h-0 flex-1 overflow-y-auto py-1", listClassName)}
             >
                 {visible.map((option, index) => (
                     <Fragment key={option.value ?? index}>

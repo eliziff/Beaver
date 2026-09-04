@@ -1,0 +1,32 @@
+{
+  "jurisdictions": [
+    {"id":"ca","label":"Federal courts","preferenceKey":"ca-federal","order":10},
+    {"id":"ab","label":"Alberta","preferenceKey":"ca-ab","order":20},
+    {"id":"bc","label":"British Columbia","preferenceKey":"ca-bc","order":30},
+    {"id":"sk","label":"Saskatchewan","preferenceKey":"ca-sk","order":40},
+    {"id":"mb","label":"Manitoba","preferenceKey":"ca-mb","order":50},
+    {"id":"on","label":"Ontario","preferenceKey":"ca-on","order":60},
+    {"id":"qc","label":"Quebec","preferenceKey":"ca-qc","order":70},
+    {"id":"nb","label":"New Brunswick","preferenceKey":"ca-nb","order":80},
+    {"id":"ns","label":"Nova Scotia","preferenceKey":"ca-ns","order":90},
+    {"id":"pe","label":"Prince Edward Island","preferenceKey":"ca-pe","order":100},
+    {"id":"nl","label":"Newfoundland and Labrador","preferenceKey":"ca-nl","order":110},
+    {"id":"yt","label":"Yukon","preferenceKey":"ca-yt","order":120},
+    {"id":"nt","label":"Northwest Territories","preferenceKey":"ca-nt","order":130},
+    {"id":"nu","label":"Nunavut","preferenceKey":"ca-nu","order":140},
+    {"id":"general","label":"No court preset","order":1000}
+  ],
+  "levels": [
+    {"id":"trial","label":"Trial","order":10},
+    {"id":"appeal","label":"Appeal","order":20},
+    {"id":"general","label":"General","order":1000}
+  ],
+  "courts": [
+    {"id":"general","jurisdictionId":"general","levelId":"general","label":"Court","abbreviation":"No preset","language":"en"},
+    {"id":"ab-kb","jurisdictionId":"ab","levelId":"trial","label":"Court of King’s Bench of Alberta","abbreviation":"ABKB","language":"en"},
+    {"id":"ab-ca","jurisdictionId":"ab","levelId":"appeal","label":"Court of Appeal of Alberta","abbreviation":"ABCA","language":"en"},
+    {"id":"fc","jurisdictionId":"ca","levelId":"trial","label":"Federal Court","abbreviation":"FC","language":"en"},
+    {"id":"fca","jurisdictionId":"ca","levelId":"appeal","label":"Federal Court of Appeal","abbreviation":"FCA","language":"en"},
+    {"id":"fc-fca","jurisdictionId":"ca","levelId":"trial","label":"Federal Court or Federal Court of Appeal","abbreviation":"FC/FCA","language":"en"}
+  ]
+}
