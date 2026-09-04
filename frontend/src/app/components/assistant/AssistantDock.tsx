@@ -1,8 +1,9 @@
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { PanelRightClose, PanelRightOpen, X } from "lucide-react";
+import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { ASSISTANT_DOCK_DESKTOP_CLASS } from "./assistantDockLayout";
+import { ASSISTANT_DOCK_CLASS } from "./assistantDockLayout";
 import { Tabs } from "@/app/components/ui/tabs";
+import { LibrarySkeuoIcon, WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 
 const compactDock = "(max-width: 1279px)";
 
@@ -163,8 +164,8 @@ export function AssistantDock({
             aria-hidden={!expanded}
             inert={!expanded ? true : undefined}
             className={cn(
-                expanded ? "fixed inset-0 z-[100] flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
-                ASSISTANT_DOCK_DESKTOP_CLASS,
+                expanded ? "flex min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",
+                ASSISTANT_DOCK_CLASS,
             )}
             style={{ "--assistant-dock-width": `${width}px`, "--assistant-dock-max-width": maxWidth } as CSSProperties}
         >
@@ -198,8 +199,8 @@ export function AssistantDock({
                 onValueChange={onActivateTab}
                 options={tabs.map(({ id, label, icon }) => ({ value: id, label:
                     <span className="flex min-w-0 items-center justify-center gap-1.5">
-                        {icon && <span className="hidden sm:inline-flex">{icon}</span>}
-                        <span className="truncate">{label}</span>
+                        <span className="inline-flex">{icon ?? dockIcon(id)}</span>
+                        <span className="truncate max-[25rem]:sr-only">{label}</span>
                     </span> }))}
                 ariaLabel="Assistant panels"
                 variant="dock" actions={active.actions} className="h-full"
@@ -256,3 +257,9 @@ export function AssistantDock({
         </aside>
     </>;
 }
+
+const dockIcon = (id: string) => id === "library" ? <LibrarySkeuoIcon />
+    : id === "workflows" ? <WorkflowSkeuoIcon />
+    : id === "sources" ? <BookOpenText className="size-4" />
+    : id === "agents" ? <Bot className="size-4" />
+    : <Folder className="size-4" />;
