@@ -203,7 +203,9 @@ export function AssistantDock({
                         <span className="truncate max-[25rem]:sr-only">{label}</span>
                     </span> }))}
                 ariaLabel="Assistant panels"
-                variant="dock" actions={active.actions} className="h-full"
+                variant="dock" actions={<span className="flex min-w-9 justify-end">
+                    {active.actions}
+                </span>} className="h-full"
                 railClassName="pe-12"
             >
                 <div className={cn(

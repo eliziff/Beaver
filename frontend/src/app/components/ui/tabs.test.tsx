@@ -61,3 +61,18 @@ it("recovers from a removed active tab", () => {
     expect(screen.getByRole("tab", { name: "Templates" }))
         .toHaveAttribute("aria-selected", "true");
 });
+
+it("does not reposition a tab rail that already fits", () => {
+    function Example() {
+        const [value, setValue] = useState("first");
+        return <Tabs value={value} onValueChange={setValue}
+            options={[{ value: "first", label: "First" }, { value: "second", label: "Second" }]}
+            ariaLabel="Stable tabs"><p>Content</p></Tabs>;
+    }
+    render(<Example />);
+    const list = screen.getByRole("tablist", { name: "Stable tabs" });
+    Object.defineProperties(list, { scrollWidth: { value: 200 }, clientWidth: { value: 200 } });
+    list.scrollLeft = 0;
+    fireEvent.click(screen.getByRole("tab", { name: "Second" }));
+    expect(list.scrollLeft).toBe(0);
+});
