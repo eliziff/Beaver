@@ -36,7 +36,7 @@ it("uses the same tab behavior for closable source tabs", () => {
         options={[{ value: "first", label: "First source", onClose: close,
             closeLabel: "Close First source" },
         { value: "second", label: "Second source" }]}
-        ariaLabel="Open sources" variant="quiet">
+            ariaLabel="Open sources" variant="dock">
         <p>Source</p>
     </Tabs>);
 

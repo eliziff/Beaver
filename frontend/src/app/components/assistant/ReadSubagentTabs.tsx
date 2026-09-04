@@ -36,7 +36,7 @@ export function ReadSubagentTabs({
                 <span className="truncate">{group.label}</span>
                 <AgentStatus panels={group.panels} />
             </span> }))}
-        ariaLabel="Reading agents" variant="quiet" className="h-full">
+            ariaLabel="Reading agents" variant="dock" className="h-full">
         <ReadSubagentDock idPrefix={`reading-agent-${active.id}`}
             panels={active.panels} onCitationClick={onCitationClick} embedded />
     </Tabs>;

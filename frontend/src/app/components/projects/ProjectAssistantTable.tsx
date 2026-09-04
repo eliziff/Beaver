@@ -95,7 +95,7 @@ export function ProjectAssistantTable({
                     <p className="text-2xl font-medium font-serif text-gray-900">
                         No chats yet
                     </p>
-                    <p className="mt-1 text-xs text-gray-400 max-w-xs">
+                    <p className="mt-1 max-w-xs text-xs text-gray-600">
                         Ask questions and get answers grounded in the documents
                         in this project.
                     </p>
