@@ -106,6 +106,7 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       cursor: integer(item.cursor, 1) };
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
+    case "remove-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
     case "set-authority-span":
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
       start: integer(item.start), end: integer(item.end, 1) };

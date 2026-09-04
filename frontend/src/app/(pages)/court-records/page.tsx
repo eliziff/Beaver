@@ -6,9 +6,11 @@ import { CourtRecordsWorkspace } from "@/app/court-records/CourtRecordsWorkspace
 import { beaverCourtRecordsHost } from "@/app/court-records/beaverHost";
 import type { CourtRecordDraft } from "@/app/court-records/types";
 import type { WorkProduct } from "@/app/lib/workProducts";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
 
 export default function CourtRecordsPage() {
   const [params, setParams] = useSearchParams();
+  const { profile } = useUserProfile();
   const assistant = useWorkProductAssistantState<WorkProduct<CourtRecordDraft>>();
   const { onProductChange } = assistant;
   const onDraftChange = useCallback((draft: WorkProduct<CourtRecordDraft> | undefined,
@@ -30,6 +32,7 @@ export default function CourtRecordsPage() {
         initialDraftId={params.get("draft") ?? undefined}
         onDraftChange={onDraftChange}
         refreshToken={assistant.refreshToken}
+        jurisdictionOrder={profile?.jurisdictionPreference.jurisdictions}
         headerActions={<WorkProductAssistantButton available={!!assistant.product}
           expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />}
       />

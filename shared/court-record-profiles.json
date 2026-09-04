@@ -77,6 +77,7 @@
   },
   {
     "id": "general-court-record",
+    "selectable": false,
     "partyStyleIds": ["application","action","appeal"],
     "label": "Court record",
     "coverFields": ["courtName","courtFileNumber","registry","recordTitle"],

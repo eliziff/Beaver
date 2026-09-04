@@ -10,43 +10,27 @@ import type {
 } from "./types";
 import { filingParty } from "./types";
 import profileContractJson from "../../../../shared/court-record-profiles.json";
+import { registeredCourt } from "@/app/lib/courtRegistry";
 
 const MB = 1024 * 1024;
 type CourtIdentity = Pick<CourtProfile,
   "jurisdiction" | "courtId" | "court" | "courtAbbreviation" | "language">;
-const GENERAL: CourtIdentity = {
-  jurisdiction: "general", courtId: "general", court: "Court",
-  courtAbbreviation: "No preset", language: "en",
+const court = (id: string): CourtIdentity => {
+  const value = registeredCourt(id);
+  return { jurisdiction: value.jurisdictionId, courtId: value.id, court: value.label,
+    courtAbbreviation: value.abbreviation, language: value.language };
 };
-const ABKB: CourtIdentity = {
-  jurisdiction: "ab", courtId: "ab-kb", court: "Court of King’s Bench of Alberta",
-  courtAbbreviation: "ABKB", language: "en",
-};
-const ABCA: CourtIdentity = {
-  jurisdiction: "ab", courtId: "ab-ca", court: "Court of Appeal of Alberta",
-  courtAbbreviation: "ABCA", language: "en",
-};
-const FC: CourtIdentity = {
-  jurisdiction: "ca", courtId: "fc", court: "Federal Court",
-  courtAbbreviation: "FC", language: "en",
-};
-const FCA: CourtIdentity = {
-  jurisdiction: "ca", courtId: "fca", court: "Federal Court of Appeal",
-  courtAbbreviation: "FCA", language: "en",
-};
-const DUAL_FEDERAL: CourtIdentity = {
-  ...FC, courtId: "fc-fca", court: "Federal Court or Federal Court of Appeal",
-  courtAbbreviation: "FC/FCA",
-};
+const GENERAL = court("general"), ABKB = court("ab-kb"), ABCA = court("ab-ca");
+const FC = court("fc"), FCA = court("fca"), DUAL_FEDERAL = court("fc-fca");
 const document = (documentFamily: string, documentLabel: string, variant = "standard") => ({
   documentFamily, documentLabel, variant,
 });
 type KindPresentation = Pick<DocumentKind, "id" | "description">;
-type ProfilePresentation = Omit<CourtProfile, "label" | "documentKinds"> & {
+type ProfilePresentation = Omit<CourtProfile, "label" | "documentKinds" | "selectable"> & {
   documentKinds: KindPresentation[];
 };
 type ProfileContract = { id: string; label: string; coverFields: CoverFieldId[];
-  partyStyleIds?: string[]; filingGroupId?: string; effectiveFrom?: string;
+  selectable?: boolean; partyStyleIds?: string[]; filingGroupId?: string; effectiveFrom?: string;
   oneOf?: Array<{ slots: string[]; label: string }>;
   slots: Array<Omit<DocumentKind, "description">> };
 const PROFILE_CONTRACT = profileContractJson as unknown as {
@@ -949,6 +933,7 @@ export const COURT_PROFILES = presentations.map((profile): CourtProfile => {
     `Missing Court Record party style ${id}`));
   return {
     ...profile,
+    selectable: contract.selectable !== false,
     label: contract.label,
     cover: { ...profile.cover, fields: contract.coverFields.map((id) => required(
       fields.get(id), `Missing ${profile.id} cover presentation for ${id}`)),

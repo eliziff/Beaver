@@ -17,6 +17,7 @@ export type CourtRecordSlotContract = {
 export type CourtRecordProfileContract = {
   id: string;
   label: string;
+  selectable?: boolean;
   coverFields: string[];
   partyStyles?: CourtRecordPartyStyleContract[];
   filingGroupId?: string;

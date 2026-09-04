@@ -28,6 +28,9 @@ vi.mock("@/app/lib/beaverApi", () => ({
   ...api,
   directoryResource: () => ({ list: api.directoryList }),
 }));
+vi.mock("@/app/contexts/UserProfileContext", () => ({
+  useUserProfile: () => ({ profile: null }),
+}));
 vi.mock("@/app/components/assistant/AssistantDock", () => ({
   AssistantDock: ({ tabs, expanded }: { tabs: Array<{ content: ReactNode }>; expanded: boolean }) =>
     <aside aria-label="Assistant dock" hidden={!expanded}>{tabs[0]?.content}</aside>,
@@ -265,7 +268,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("heading", { name: "Authorities" })).toBeVisible();
   });
 
-  it("clears the previous editable draft before a new route fails", async () => {
+  it("keeps the current draft visible while a new route is loading", async () => {
     const next = deferred<AuthoritiesProduct>();
     api.getWorkProduct.mockResolvedValueOnce(documentDraft("a", "Draft A"))
       .mockReturnValueOnce(next.promise);
@@ -275,10 +278,10 @@ describe("Authorities UI contracts", () => {
 
     view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("missing")} /></MemoryRouter>);
-    expect(screen.queryByRole("heading", { name: "Draft A" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Draft A" })).toBeVisible();
     next.reject(new Error("Draft missing"));
     expect(await screen.findByText("Draft missing")).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Draft A" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Draft A" })).toBeVisible();
   });
 
   it("keeps Drafts and Settings in the global Authorities context", async () => {
@@ -364,7 +367,7 @@ describe("Authorities UI contracts", () => {
     expect(context.querySelector("mark")).toHaveTextContent(styled);
     expect(within(context.parentElement!).getAllByRole("button").map(({ textContent }) => textContent))
       .toEqual(["Use selection as citation", "Use selection as pinpoint", "Split at cursor",
-        "Merge with previous"]);
+        "Merge with previous", "Not a citation"]);
     expect(screen.queryByRole("checkbox", { name: "Reviewed" })).not.toBeInTheDocument();
   });
 
@@ -817,7 +820,7 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    await screen.findByLabelText("Court");
+    await screen.findByRole("button", { name: /Court:/u });
     expect(screen.queryByText("1 source PDF is required before building.")).not.toBeInTheDocument();
     await userEvent.click(screen.getByText("Options"));
     expect(screen.queryByLabelText("Missing sources")).not.toBeInTheDocument();
@@ -870,7 +873,7 @@ describe("Authorities UI contracts", () => {
     expect(dock).toBeVisible();
   });
 
-  it("unbinds the Assistant when switching to a global Authorities surface", async () => {
+  it("keeps the Assistant bound when switching Authorities surfaces", async () => {
     api.getWorkProduct.mockResolvedValue(documentDraft());
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
       <TableOfAuthoritiesPage />
@@ -881,7 +884,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
 
-    expect(screen.queryByRole("complementary", { name: "Assistant dock" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assistant" })).toBeDisabled();
+    expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Assistant" })).toBeEnabled();
   });
 });

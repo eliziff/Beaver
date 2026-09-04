@@ -8,6 +8,7 @@ import { apiResponse } from "@/app/lib/apiTransport";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesDraft } from "./types";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
+import { authoritiesProfile } from "./profiles";
 
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
@@ -174,7 +175,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
     const filingPdfs = product.state.insertIntoDocument &&
-      product.state.settings.profileId === "ab-court-of-appeal" &&
+      !!authoritiesProfile(product.state.settings.profileId).requirements?.unlinkedPdfTableSources &&
       product.state.import.kind === "document" && product.state.import.fileType === "pdf";
     const roles = [
       ...(product.state.outputMode === "table" && !filingPdfs ? [] :
