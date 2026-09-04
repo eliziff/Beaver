@@ -1,18 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import type { WorkProductContext } from "@/app/lib/workProducts";
 import { Button } from "@/app/components/ui/button";
-import { ASSISTANT_DOCK_CLASS } from "./assistantDockLayout";
+import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
 
 export type WorkProductAssistantProps = { product?: WorkProductContext;
   chatId?: string; onChatIdChange(id: string): void;
   expanded?: boolean; synced?: boolean; onClose(): void; onBusyChange?(busy: boolean): void;
   onProductUpdated?(revision: number): void; onTurnComplete?(): void };
-
-let panelPromise: Promise<{ default: typeof import("./WorkProductAssistantPanel")["WorkProductAssistantPanel"] }> | undefined;
-const loadPanel = () => panelPromise ??= import("./WorkProductAssistantPanel")
-  .then(({ WorkProductAssistantPanel: defaultPanel }) => ({ default: defaultPanel }));
-const AssistantPanel = lazy(loadPanel);
 
 export function useWorkProductAssistantState<T extends WorkProductContext>() {
   const [product, setProduct] = useState<T>();
@@ -37,28 +32,7 @@ export function useWorkProductAssistantState<T extends WorkProductContext>() {
 
 export function WorkProductAssistant(props: WorkProductAssistantProps) {
   const expanded = props.expanded ?? true;
-  const [activated, setActivated] = useState(expanded);
-  useEffect(() => {
-    const preload = () => void loadPanel().catch(() => { panelPromise = undefined; });
-    if (window.requestIdleCallback) {
-      const request = window.requestIdleCallback(preload, { timeout: 1_000 });
-      return () => window.cancelIdleCallback?.(request);
-    }
-    const timeout = window.setTimeout(preload, 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
-  useEffect(() => { if (expanded) setActivated(true); }, [expanded]);
-  if (!activated && !expanded) return null;
-  return <Suspense fallback={expanded ? <DockLoadingShell /> : null}>
-    <AssistantPanel {...props} expanded={expanded} />
-  </Suspense>;
-}
-
-function DockLoadingShell() {
-  return <aside aria-label="Assistant dock" aria-busy="true"
-    style={{ "--assistant-dock-width": "480px",
-      "--assistant-dock-max-width": "calc(100% - 36rem)" } as CSSProperties}
-    className={`flex min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg ${ASSISTANT_DOCK_CLASS}`} />;
+  return <WorkProductAssistantPanel {...props} expanded={expanded} />;
 }
 
 export function WorkProductAssistantButton({ available, expanded, onClick }: {
