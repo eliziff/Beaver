@@ -1,5 +1,6 @@
 import {
   validateAuthoritiesDraft,
+  authorityCitationForms,
   type AuthoritiesBookParts,
   type AuthoritiesBoundPdf,
   type AuthoritiesDraft,
@@ -180,16 +181,19 @@ const RENDERERS: Record<AuthoritiesOutputRole, string> = {
   "annotated-document": "beaver.authorities.filing-output.v1",
 };
 
-function authorityName(authority: AuthorityIdentity) {
-  const citation = authority.citation.trim();
-  const override = authority.displayName?.trim();
-  if (override) return override;
-  const name = (authority.name ?? "").trim();
-  if (!name) return citation;
-  if (!citation) return name;
-  if (name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())) return name;
-  if (citation.toLocaleLowerCase().startsWith(name.toLocaleLowerCase())) return citation;
-  return `${name}, ${citation}`;
+function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
+  const forms = authorityCitationForms(draft, authority.id), values: string[] = [];
+  const add = (value: string | null | undefined) => {
+    const exact = value?.trim();
+    if (!exact || values.some((item) => item.toLocaleLowerCase("en-CA")
+      .includes(exact.toLocaleLowerCase("en-CA")))) return;
+    values.push(exact);
+  };
+  const heading = authority.displayName ?? authority.name;
+  if (!heading || !forms.some((form) => form.toLocaleLowerCase("en-CA")
+    .includes(heading.trim().toLocaleLowerCase("en-CA")))) add(heading);
+  forms.forEach(add);
+  return values.join(", ");
 }
 
 function citedPages(draft: AuthoritiesDraft, authorityId: string) {
@@ -213,10 +217,12 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   return value || "—";
 }
 
-const sortName = (authority: AuthorityIdentity) => authorityName(authority)
+const sortName = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
+  authorityName(draft, authority)
   .normalize("NFKD").toLocaleLowerCase("en-CA");
-const alphabetical = (left: AuthorityIdentity, right: AuthorityIdentity) =>
-  sortName(left).localeCompare(sortName(right), "en-CA") ||
+const alphabetical = (draft: AuthoritiesDraft) =>
+  (left: AuthorityIdentity, right: AuthorityIdentity) =>
+  sortName(draft, left).localeCompare(sortName(draft, right), "en-CA") ||
   left.citation.localeCompare(right.citation, "en-CA");
 
 function firstReferenceIds(draft: AuthoritiesDraft) {
@@ -235,7 +241,7 @@ function bookAuthorities(draft: AuthoritiesDraft) {
   const ordered = draft.authorityOrder.map((id) => draft.authorities[id]);
   if (draft.import.kind === "manual") return ordered;
   return GROUPS.flatMap(([, kind]) => ordered.filter((authority) =>
-    authority.kind === kind).sort(alphabetical));
+    authority.kind === kind).sort(alphabetical(draft)));
 }
 
 function automaticTab(index: number, style: AuthoritiesDraft["settings"]["tabStyle"]) {
@@ -256,9 +262,9 @@ function bookTabs(draft: AuthoritiesDraft) {
   const tabs = new Map<string, string>(); let index = 0;
   for (const authority of bookAuthorities(draft)) {
     const reproduced = reproducedInBook(draft, authority);
-    if (reproduced) index += 1;
+    if (!authority.excluded) index += 1;
     tabs.set(authority.id, !reproduced ? "Not reproduced"
-      : authority.tabLabel ?? automaticTab(index, draft.settings.tabStyle));
+      : automaticTab(index, draft.settings.tabStyle));
   }
   return tabs;
 }
@@ -289,7 +295,7 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
       ? firstReferenceIds(draft) : draft.authorityOrder;
   const ordered = ids.map((id) => draft.authorities[id]);
   const entry = (authority: AuthorityIdentity): Entry => ({ authority,
-    name: authorityName(authority), citedAt: citedAt(draft, authority.id),
+    name: authorityName(draft, authority), citedAt: citedAt(draft, authority.id),
     tab: tabs.get(authority.id) ?? "", sourceUrl: authoritySourceUrl(authority) });
   if (purpose === "book" && draft.import.kind === "manual") {
     return ordered.length ? [{ label: "Authorities", entries: ordered.map(entry) }] : [];
@@ -300,7 +306,7 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
   return GROUPS.flatMap(([label, kind]): Group[] => {
     let authorities = ordered.filter((authority) => authority.kind === kind);
     if (purpose === "book" || draft.settings.tableOrder === "alphabetical") {
-      authorities = authorities.sort(alphabetical);
+      authorities = authorities.sort(alphabetical(draft));
     }
     return authorities.length ? [{ label, entries: authorities.map(entry) }] : [];
   });
@@ -361,10 +367,11 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
     bytes, null);
 }
 
-function nativeMark(authority: AuthorityIdentity, unitId: string, offset: number): DocxAuthorityMark {
+function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  unitId: string, offset: number): DocxAuthorityMark {
   const citation = authority.citation.trim();
   const shortName = (authority.displayName ?? authority.name ?? citation).trim();
-  const longName = authorityName(authority);
+  const longName = authorityName(draft, authority);
   return { unitId, offset, longName, shortName: shortName || citation,
     category: authority.kind === "case" ? 1 : authority.kind === "legislation" ? 2
       : authority.kind === "commentary" ? 5 : 3 };
@@ -382,7 +389,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     const key = authority && `${unit.id}\0${occurrence.end}\0${authority.id}`;
     if (!authority || !key || seen.has(key)) return [];
     seen.add(key);
-    return [nativeMark(authority, unit.id, occurrence.end)];
+    return [nativeMark(draft, authority, unit.id, occurrence.end)];
   }));
   const linked = groups.flatMap(({ entries }) => entries.map(({ name, sourceUrl }) => ({
     label: name, url: sourceUrl,
@@ -607,7 +614,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 }
 
 type BookRow = { key: string; name: string; tab: string; sourceUrl?: string | null };
-type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
+type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity;
   pageTextByPage?: string[]; ocrTextByPage?: string[];
   passageGeometry?: NativePdfPassageGeometry };
 
@@ -673,18 +680,12 @@ async function bookArtifact(
   const bookTitle = draft.import.kind === "manual" ? subtitle : "Book of Authorities";
   const authorityRows = groups.flatMap(({ entries }) => entries.filter(({ authority }) =>
     reproducedInBook(draft, authority)));
-  const supplementRows: BookRow[] = draft.bookParts.supplements.map((item) => ({
-    key: `supplement:${item.id}`, name: item.title, tab: item.tab,
-  }));
-  const rows: BookRow[] = [...authorityRows.map((entry) => ({
+  const rows: BookRow[] = authorityRows.map((entry) => ({
     key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
     sourceUrl: entry.sourceUrl,
-  })), ...supplementRows];
-  if (!rows.length) throw new Error("Add at least one authority or supplemental PDF before building the book.");
-  if (new Set(rows.map(({ tab }) => tab.toLocaleLowerCase("en-CA"))).size !== rows.length) {
-    throw new Error("Book tab labels must be unique.");
-  }
-  const [authoritySources, supplementalSources, customCover, customIndex] = await Promise.all([
+  }));
+  if (!rows.length) throw new Error("Add at least one authority before building the book.");
+  const [authoritySources, customCover, customIndex] = await Promise.all([
     Promise.all(authorityRows.map(async (entry): Promise<LoadedBookPdf> => {
       const source = entry.authority.source;
       return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
@@ -699,27 +700,23 @@ async function bookArtifact(
         passageGeometry: source.kind === "attached"
           ? attached[source.bindingRole]?.passageGeometry : undefined };
     })),
-    Promise.all(draft.bookParts.supplements.map(async (item): Promise<LoadedBookPdf> => ({
-      key: `supplement:${item.id}`, name: item.title, tab: item.tab, authority: null,
-      document: await loadBookPdf(pdf, item, item.title, attached),
-    }))),
     draft.bookParts.cover
       ? loadBookPdf(pdf, draft.bookParts.cover, "the custom cover", attached) : null,
     draft.bookParts.index
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
-  const sources = [...authoritySources, ...supplementalSources].map((source) => {
+  const sources = authoritySources.map((source) => {
     const extract = federalPaperExtract(draft, source);
     return { ...source, pageIndices: extract?.pageIndices ?? source.document.getPageIndices(),
       databaseReference: extract?.databaseReference ?? null };
   });
   const sourceByKey = new Map(sources.map((source) => [source.key, source]));
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
-  const rowGroups = [...groups.flatMap(({ label, entries }) => {
+  const rowGroups = groups.flatMap(({ label, entries }) => {
     const kept = entries.filter(({ authority }) => reproducedInBook(draft, authority))
       .map(({ authority }) => rowByKey.get(`authority:${authority.id}`)!);
     return kept.length ? [{ label, entries: kept }] : [];
-  }), ...(supplementRows.length ? [{ label: "Documents", entries: supplementRows }] : [])];
+  });
   const tokens = rowGroups.flatMap((group) => [
     { label: group.label, entry: null as BookRow | null },
     ...group.entries.map((entry) => ({ label: "", entry })),
@@ -798,15 +795,13 @@ async function bookArtifact(
   }
   for (const source of sources) {
     signal?.throwIfAborted();
-    const cited = source.authority
-      ? citedSourcePages(draft, source.authority.id, source.pageTextByPage ?? [],
-        source.document.getPageCount()) : new Set<number>();
+    const cited = citedSourcePages(draft, source.authority.id, source.pageTextByPage ?? [],
+      source.document.getPageCount());
     const pages = await document.copyPages(source.document, source.pageIndices);
     pages.forEach((page, copiedIndex) => {
       signal?.throwIfAborted();
       const index = source.pageIndices[copiedIndex];
       document.addPage(page);
-      if (!source.authority) return;
       if (draft.settings.scannedPdfPolicy === "full" ||
           draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index)) {
         addOcrText(page, regular, source.ocrTextByPage?.[index]);
@@ -922,7 +917,7 @@ function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: s
 
 function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
   if (!["federal-court", "federal-court-of-appeal"].includes(draft.settings.profileId) ||
-      draft.settings.filingMedium !== "paper" || !source.authority) return null;
+      draft.settings.filingMedium !== "paper") return null;
   const databaseReference = freePublicDatabaseReference(source.authority);
   if (!databaseReference) return null;
   const pageCount = source.document.getPageCount();
@@ -1092,7 +1087,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     const missing = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
       .filter((authority) => !authority.excluded && authority.source.kind !== "attached");
     if (missing.length) throw new Error(
-      `Attach a complete PDF or exclude ${authorityName(missing[0])} before building this ${completeBook} book.`,
+      `Attach a complete PDF or exclude ${authorityName(input.draft, missing[0])} before building this ${completeBook} book.`,
     );
   }
   if (input.draft.settings.profileId === "ab-court-of-appeal") {
@@ -1103,8 +1098,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     if (unlinked) {
       throw new Error(input.draft.import.kind === "document" &&
         input.draft.import.fileType === "docx" && unlinked.source.kind === "attached"
-        ? `Add a publicly accessible source link for ${authorityName(unlinked)}. To append an unlinked authority, use the final filing PDF.`
-        : `Add a publicly accessible source link or PDF for ${authorityName(unlinked)}.`);
+        ? `Add a publicly accessible source link for ${authorityName(input.draft, unlinked)}. To append an unlinked authority, use the final filing PDF.`
+        : `Add a publicly accessible source link or PDF for ${authorityName(input.draft, unlinked)}.`);
     }
   }
   if (input.draft.insertIntoDocument) wanted.push("annotated-document");
@@ -1128,8 +1123,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     const role = authority.source.bindingRole;
     return [{ role, resolved: resolvedInput(role, input.draft.bindings[role],
       authority.source.filename, authority.source.sourceSha256, sources[role]?.resolved) }];
-  }), ...(wanted.includes("book") ? [input.draft.bookParts.cover, input.draft.bookParts.index,
-    ...input.draft.bookParts.supplements].flatMap((part) => {
+  }), ...(wanted.includes("book") ? [input.draft.bookParts.cover,
+    input.draft.bookParts.index].flatMap((part) => {
       if (!part) return [];
       const role = part.bindingRole;
       return [{ role, resolved: resolvedInput(role, input.draft.bindings[role],
@@ -1183,7 +1178,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
       authorities: input.draft.authorityOrder.map((id) => {
         const authority = input.draft.authorities[id];
         return { id, citation: authority.citation, name: authority.name,
-          displayName: authority.displayName, tabLabel: authority.tabLabel,
+          displayName: authority.displayName,
           excluded: authority.excluded,
           source: authority.source };
       }) }) },

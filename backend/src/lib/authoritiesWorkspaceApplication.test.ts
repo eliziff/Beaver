@@ -187,7 +187,6 @@ describe("Authorities workspace application", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "scan-key", key: "scan-key", kind: "case",
         citation: "2024 FCA 1", name: null, displayName: null, excluded: false,
-        tabLabel: null,
         evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -221,7 +220,7 @@ describe("Authorities workspace application", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "case", key: "case", kind: "case",
         citation: "2024 FCA 1", name: null, displayName: null, excluded: false,
-        tabLabel: null, evidenceIds: [], locators: [], sourceIdentity: null,
+        evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
     const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "FCA",
@@ -254,7 +253,7 @@ describe("Authorities workspace application", () => {
     const draft = reduceAuthoritiesDraft(
       createAuthoritiesDraft({ kind: "manual" }, {}, "table"),
       { type: "add-authority", authority: { id: "case", key: "case", kind: "case",
-        citation: "2024 FCA 1", name: null, displayName: null, tabLabel: null,
+        citation: "2024 FCA 1", name: null, displayName: null,
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } } },
     );
@@ -292,7 +291,7 @@ describe("Authorities workspace application", () => {
         kind: "case", citation: core, authorityId: "case", reference: null, pinpoints: [],
         evidenceIds: [], sourceTextSha256: "unit-hash", localOrdinal: 0, reviewed: false } },
       authorities: { case: { id: "case", key: "case", kind: "case", citation: core,
-        name: null, displayName: null, tabLabel: null, excluded: false, evidenceIds: [],
+        name: null, displayName: null, excluded: false, evidenceIds: [],
         locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
       authorityOrder: ["case"],
     });
@@ -313,17 +312,27 @@ describe("Authorities workspace application", () => {
   });
 
   it("prepares one PDF after parallel citations resolve to one grounded authority", async () => {
+    const neutral = "2015 SCC 5", reporter = "[2015] 1 SCR 331";
     let draft = createAuthoritiesDraft({ kind: "manual" });
-    for (const [id, citation] of [["reporter", "[2015] 1 SCR 331"],
-      ["neutral", "2015 SCC 5"], ["french", "2015 CSC 5"]]) {
-      draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
-        id, key: id, kind: "case", citation, name: null, displayName: null,
-        tabLabel: null, excluded: false, evidenceIds: [], locators: [],
-        sourceIdentity: null, source: { kind: "unresolved" },
-      } });
-    }
+    draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
+      id: "carter", key: "carter", kind: "case", citation: neutral,
+      name: null, displayName: null, excluded: false,
+      evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" },
+    } });
+    draft.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text: `${neutral}; ${reporter}`,
+      occurrenceIds: ["neutral", "reporter"] }];
+    const occurrence = (id: string, citation: string, start: number) => ({ id,
+      unitId: "body:0", start, end: start + citation.length, text: citation,
+      authoritySpan: { start, end: start + citation.length, text: citation },
+      coreSpan: { start, end: start + citation.length, text: citation }, pinpointSpan: null,
+      kind: "case" as const, citation, authorityId: "carter", reference: null,
+      pinpoints: [], evidenceIds: [], sourceTextSha256: "unit", localOrdinal: start,
+      reviewed: true });
+    draft.occurrences = { neutral: occurrence("neutral", neutral, 0),
+      reporter: occurrence("reporter", reporter, neutral.length + 2) };
     const pdf = Buffer.from("%PDF-1.7\nCarter\n%%EOF");
-    const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "SCC",
+    const runtime = harness({ draft, resolve: async (citation) => citation === neutral ? null : ({ docType: "cases", dataset: "SCC",
       citation: "2015 SCC 5", alternateCitation: "[2015] 1 SCR 331",
       name: "Carter v Canada (Attorney General)", date: "2015-02-06",
       url: "https://publisher.example/carter", verifiedPdf: null, language: "en",
@@ -335,8 +344,10 @@ describe("Authorities workspace application", () => {
     const product = await prepareSources(runtime, imported);
     const state = product.state as AuthoritiesDraft;
 
-    expect(state.authorityOrder).toEqual(["reporter"]);
-    expect(state.authorities.reporter).toMatchObject({ citation: "2015 SCC 5",
+    expect(runtime.sources.resolve.mock.calls.map(([citation]) => citation))
+      .toEqual([neutral, reporter]);
+    expect(state.authorityOrder).toEqual(["carter"]);
+    expect(state.authorities.carter).toMatchObject({ citation: "2015 SCC 5",
       source: { kind: "attached", origin: "original" },
       sourceIdentity: { stableSourceId: "a2aj:en:scc:2015 scc 5" } });
     expect(runtime.sources.download).toHaveBeenCalledTimes(1);
@@ -348,7 +359,7 @@ describe("Authorities workspace application", () => {
     async () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
-        citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
+        citation: "2009 SCC 32", name: "R v Grant", displayName: null,
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -394,7 +405,7 @@ describe("Authorities workspace application", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "act", key: "act", kind: "legislation",
         citation: "RSC 1985, c F-7", name: "Federal Courts Act", displayName: null,
-        tabLabel: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
     const runtime = harness({ draft, resolve: async () => ({ docType: "laws",
@@ -414,7 +425,7 @@ describe("Authorities workspace application", () => {
   it("keeps provider failures retryable before offering a CanLII no-match fallback", async () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
-        citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
+        citation: "2009 SCC 32", name: "R v Grant", displayName: null,
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -443,7 +454,7 @@ describe("Authorities workspace application", () => {
   it("keeps an original-PDF download failure retryable before offering CanLII", async () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
-        citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
+        citation: "2009 SCC 32", name: "R v Grant", displayName: null,
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -478,7 +489,6 @@ describe("Authorities workspace application", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
         citation: "2009 SCC 32", name: "R v Grant", displayName: null, excluded: false,
-        tabLabel: null,
         evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -522,7 +532,6 @@ describe("Authorities workspace application", () => {
     for (const [id, citation] of [["first", "2024 ABKB 1"], ["second", "2024 FCA 2"]]) {
       draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
         id, key: id, kind: "case", citation, name: null, displayName: null,
-        tabLabel: null,
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" },
       } });
@@ -572,7 +581,7 @@ describe("Authorities workspace application", () => {
       } });
       draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
         id: "grant", key: "grant", kind: "case", citation: "2009 SCC 32",
-        name: "R v Grant", displayName: null, tabLabel: null, excluded: false,
+        name: "R v Grant", displayName: null, excluded: false,
         evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" },
       } });
@@ -615,6 +624,31 @@ describe("Authorities workspace application", () => {
     await expect(runtime.application.act(scope, product.id, product.revision, {
       type: "begin-canlii-handoff", authorityId: "uncited",
     })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("uses an observed parallel neutral citation for the CanLII handoff", async () => {
+    const reporter = "[2015] 1 SCR 331", neutral = "2015 SCC 5";
+    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }),
+      { type: "add-authority", authority: { id: "carter", key: "carter", kind: "case",
+        citation: reporter, name: "Carter v Canada", displayName: null, excluded: false,
+        evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } });
+    draft.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [1], text: neutral, occurrenceIds: ["neutral"] }];
+    draft.occurrences.neutral = { id: "neutral", unitId: "body:0", start: 0,
+      end: neutral.length, text: neutral,
+      authoritySpan: { start: 0, end: neutral.length, text: neutral },
+      coreSpan: { start: 0, end: neutral.length, text: neutral }, pinpointSpan: null,
+      kind: "case", citation: neutral, authorityId: "carter", reference: null,
+      pinpoints: [], evidenceIds: [], sourceTextSha256: "unit", localOrdinal: 0,
+      reviewed: true };
+    const runtime = harness({ draft });
+    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    product = await runtime.application.act(scope, product.id, product.revision,
+      { type: "begin-canlii-handoff", authorityId: "carter" });
+    expect((product.state as AuthoritiesDraft).authorities.carter.source).toMatchObject({
+      kind: "pending-canlii",
+      pageUrl: "https://www.canlii.org/en/ca/scc/doc/2015/2015scc5/2015scc5.html",
+    });
   });
 
   it("binds only the current Library PDF without copying it", async () => {
@@ -668,7 +702,7 @@ describe("Authorities workspace application", () => {
         source: { kind: "document", documentId: source.id, version: "latest" },
       }), { type: "add-authority", authority: { id: "article", key: "article",
         kind: "commentary", citation: "Useful article", name: null, displayName: null,
-        tabLabel: null, excluded: false, evidenceIds: [], locators: [],
+        excluded: false, evidenceIds: [], locators: [],
         sourceIdentity: null, source: { kind: "unresolved" } } });
     runtime.importer.draft.mockResolvedValueOnce(imported(
       source.current_version_id, source.source_sha256));
@@ -699,7 +733,7 @@ describe("Authorities workspace application", () => {
     const runtime = harness();
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
     product = await runtime.application.act(scope, product.id, product.revision, {
-      type: "add-authority", kind: "other", citation: "Appendix decision",
+      type: "add-authority", kind: "other", citation: "Filed decision",
     });
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "canonical-key",
@@ -729,22 +763,21 @@ describe("Authorities workspace application", () => {
     });
 
     product = await runtime.application.attachBookPdf(scope, product.id, {
-      revision: product.revision, slot: "supplemental", title: "Order", tab: "A",
+      revision: product.revision, slot: "index",
       file: { filename: "Order.pdf", fileType: "pdf",
         bytes: Buffer.from("%PDF-1.7\norder\n%%EOF") },
     });
-    const supplement = (product.state as AuthoritiesDraft).bookParts.supplements[0];
-    const supplementBinding = (product.state as AuthoritiesDraft)
-      .bindings[supplement.bindingRole];
-    if (supplementBinding.kind !== "document") throw new Error("expected document binding");
+    const index = (product.state as AuthoritiesDraft).bookParts.index!;
+    const indexBinding = (product.state as AuthoritiesDraft).bindings[index.bindingRole];
+    if (indexBinding.kind !== "document") throw new Error("expected document binding");
     const revisedOrder = (await runtime.documents.addVersion(scope,
-      supplementBinding.documentId, { filename: "Order revised.pdf", fileType: "pdf",
+      indexBinding.documentId, { filename: "Order revised.pdf", fileType: "pdf",
         bytes: Buffer.from("%PDF-1.7\nrevised order\n%%EOF") }))!;
     product = await runtime.application.refreshInput(scope, product.id, {
-      revision: product.revision, role: supplement.bindingRole,
+      revision: product.revision, role: index.bindingRole,
     });
-    expect((product.state as AuthoritiesDraft).bookParts.supplements[0]).toMatchObject({
-      id: supplement.id, title: "Order", tab: "A", filename: "Order revised.pdf",
+    expect((product.state as AuthoritiesDraft).bookParts.index).toMatchObject({
+      filename: "Order revised.pdf",
       sourceSha256: revisedOrder.source_sha256,
     });
 
@@ -760,13 +793,13 @@ describe("Authorities workspace application", () => {
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
     for (let index = 0; index < 2; index += 1) product = await runtime.application.act(
       scope, product.id, product.revision,
-      { type: "add-authority", kind: "other", citation: "Appendix A — Interview Notes" });
+      { type: "add-authority", kind: "other", citation: "Interview Notes" });
     const state = product.state as AuthoritiesDraft;
     expect(state.authorityOrder).toHaveLength(2);
     expect(new Set(state.authorityOrder).size).toBe(2);
     expect(state.authorityOrder.every(Boolean)).toBe(true);
     expect(state.authorityOrder.map((id) => state.authorities[id].citation))
-      .toEqual(["Appendix A — Interview Notes", "Appendix A — Interview Notes"]);
+      .toEqual(["Interview Notes", "Interview Notes"]);
   });
 
   it("adds exact grounded receipts without replacing or reparsing the draft", async () => {
@@ -832,7 +865,6 @@ describe("Authorities workspace application", () => {
     let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "ab-key", key: "ab-key", kind: "case",
         citation: "2024 ABKB 1", name: null, displayName: null, excluded: false,
-        tabLabel: null,
         evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
@@ -892,7 +924,7 @@ describe("Authorities workspace application", () => {
         pinpoints: [{ kind: "paragraph", text: "7-9" }], evidenceIds: ["evidence-1"], sourceTextSha256: "unit-hash",
         localOrdinal: 4, reviewed: false } },
       authorities: { canonical: { id: "canonical", key: "canonical", kind: "case", citation: core,
-        name: null, displayName: null, tabLabel: null, excluded: false,
+        name: null, displayName: null, excluded: false,
         evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
       authorityOrder: ["canonical"],
     });
@@ -950,7 +982,7 @@ describe("Authorities workspace application", () => {
       evidenceIds: [evidenceId], sourceTextSha256: "unit-hash", localOrdinal: start,
       reviewed: false });
     const identity = (id: string, citation: string) => ({ id, key: id, kind: "case" as const,
-      citation, name: null, displayName: null, tabLabel: null, excluded: false,
+      citation, name: null, displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" as const } });
     const draft = createAuthoritiesDraft({ kind: "manual" });
@@ -1008,7 +1040,7 @@ describe("Authorities workspace application", () => {
           localOrdinal: pinpointStart, reviewed: false },
       },
       authorities: { grant: { id: "grant", key: "grant", kind: "case", citation: core,
-        name: "R v Grant", displayName: null, tabLabel: null, excluded: false,
+        name: "R v Grant", displayName: null, excluded: false,
         evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
       authorityOrder: ["grant"],
     });
@@ -1110,7 +1142,7 @@ describe("Authorities workspace application", () => {
     draft = reduceAuthoritiesDraft(draft, { type: "set-profile",
       profileId: "ab-court-of-appeal" });
     draft.authorities.case = { id: "case", key: "case", kind: "case", citation: "2024 ABCA 1",
-      name: "Example v Example", displayName: null, tabLabel: null, evidenceIds: [], locators: [],
+      name: "Example v Example", displayName: null, evidenceIds: [], locators: [],
       sourceIdentity: null, excluded: false, source: { kind: "attached",
         bindingRole: "authority:case", filename: authority.filename,
         sourceSha256: authority.source_sha256, sourceUrl: null, origin: "manual" } };
@@ -1143,26 +1175,21 @@ describe("Authorities workspace application", () => {
       builder: builder as never });
     const uploads = [
       ["cover", { filename: "Cover.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\ncover\n%%EOF") }, undefined, undefined],
+        bytes: Buffer.from("%PDF-1.7\ncover\n%%EOF") }],
       ["index", { filename: "Index.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nindex\n%%EOF") }, undefined, undefined],
-      ["supplemental", { filename: "Chart.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nchart\n%%EOF") }, "Procedure chart", "Appendix A"],
+        bytes: Buffer.from("%PDF-1.7\nindex\n%%EOF") }],
     ] as const;
     let product = await runtime.application.importDraft(scope,
       { source: { kind: "manual" }, projectId: "project-1" });
-    for (const [slot, file, title, tab] of uploads) {
+    for (const [slot, file] of uploads) {
       product = await runtime.application.attachBookPdf(scope, product.id,
-        { revision: product.revision, slot, file, title, tab });
+        { revision: product.revision, slot, file });
       expect(runtime.files.create).toHaveBeenLastCalledWith(scope, "authorities", file,
         { projectId: "project-1" });
     }
 
     const draft = product.state as AuthoritiesDraft;
-    expect(draft.bookParts.supplements[0]).toMatchObject(
-      { title: "Procedure chart", tab: "Appendix A" });
-    const parts = [draft.bookParts.cover!, draft.bookParts.index!,
-      draft.bookParts.supplements[0]!];
+    const parts = [draft.bookParts.cover!, draft.bookParts.index!];
     const result = await runtime.application.build(scope, product.id, product.revision);
     const sources = builder.mock.calls[0]![0].sources!;
     for (const [index, part] of parts.entries()) {
@@ -1261,7 +1288,6 @@ describe("Authorities workspace application", () => {
     ] as const) {
       draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
         id, key: id, kind: "case", citation: id, name: null, displayName: null,
-        tabLabel: null,
         excluded: false, evidenceIds: [],
         locators: id === "included" ? [{ kind: "paragraph", label: "1" }] : [],
         sourceIdentity: null,

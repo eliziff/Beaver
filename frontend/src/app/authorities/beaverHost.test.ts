@@ -26,7 +26,7 @@ const product = (): AuthoritiesProduct => ({
       tableOrder: "alphabetical", tableDelivery: "native-append", tableLocation: "pages",
       passageMarking: "margin", scannedPdfPolicy: "page-margin",
       missingSourcePolicy: "placeholder" },
-    bookParts: { cover: null, index: null, supplements: [] }, ledger: null,
+    bookParts: { cover: null, index: null }, ledger: null,
     units: [], occurrences: {}, authorityOrder: ["included", "excluded"],
     bindings: {
       "authority:included": { kind: "document", documentId: "pdf-1", version: "latest" },
@@ -34,11 +34,11 @@ const product = (): AuthoritiesProduct => ({
     },
     authorities: {
       included: { id: "included", key: "included", kind: "case", citation: "2024 ABCA 1",
-        name: null, displayName: null, tabLabel: null, excluded: false, evidenceIds: [], locators: [],
+        name: null, displayName: null, excluded: false, evidenceIds: [], locators: [],
         sourceIdentity: null, source: { kind: "attached", bindingRole: "authority:included",
           filename: "Decision.pdf", sourceSha256: "a".repeat(64), sourceUrl: null } },
       excluded: { id: "excluded", key: "excluded", kind: "case", citation: "2024 ABCA 2",
-        name: null, displayName: null, tabLabel: null, excluded: true, evidenceIds: [], locators: [],
+        name: null, displayName: null, excluded: true, evidenceIds: [], locators: [],
         sourceIdentity: null, source: { kind: "attached", bindingRole: "authority:excluded",
           filename: "Excluded.pdf", sourceSha256: "b".repeat(64), sourceUrl: null } },
     } },

@@ -6,7 +6,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
 
 export type AuthoritiesFile = { file: File; input?: WorkProductInput };
 export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
-export type AuthoritiesBookSlot = "cover" | "index" | "supplemental";
+export type AuthoritiesBookSlot = "cover" | "index";
 export type AuthoritiesSourceIssue =
   | { status: "changed" }
   | { status: "missing"; reason: "deleted" | "permission" | "unavailable" };

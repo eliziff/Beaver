@@ -18,6 +18,7 @@ import { structureNative, type NativeAuthorityReferenceOccurrence,
   type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
+import { citationAliasKeysBatch } from "./caselawCitator";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type ProjectionReader = Pick<typeof documentProjectionService, "read">;
@@ -51,6 +52,32 @@ export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: str
 const nativeReferenceSpans = (match: NativeAuthorityReferenceOccurrence, text: string) =>
   occurrenceSpans(text, match.token, match.token, match.pinpoints);
 
+function parallelCaseKeys(matches: NativeCitationOccurrence[], native: AuthoritiesNative) {
+  const candidates = matches.filter(({ kind }) => kind !== "statute" && kind !== "journal")
+    .map((match) => ({ match, key: native.citationLookupKey(match.coreCitation.text) }))
+    .filter(({ key }) => key);
+  const groups = new Map<string, Array<typeof candidates[number] & { closure: string[] }>>();
+  const signatures = new Map<string, Set<string>>();
+  citationAliasKeysBatch(candidates.map(({ match }) => match.coreCitation.text))
+    .forEach((aliases, index) => {
+      const candidate = candidates[index], closure = [...new Set(aliases)].sort();
+      if (!candidate || !closure.includes(candidate.key)) return;
+      const signature = closure.join("\0");
+      groups.set(signature, [...(groups.get(signature) ?? []), { ...candidate, closure }]);
+      signatures.set(candidate.key,
+        new Set([...(signatures.get(candidate.key) ?? []), signature]));
+    });
+  const canonical = new Map<string, string>(), observed = new Set(candidates.map(({ key }) => key));
+  for (const [signature, group] of groups) {
+    const keys = [...new Set(group.map(({ key }) => key))];
+    if (keys.length < 2 || !group.some(({ match }) => match.kind === "case") ||
+      group[0].closure.some((key) => observed.has(key) &&
+        (signatures.get(key)?.size !== 1 || !signatures.get(key)?.has(signature)))) continue;
+    keys.forEach((key) => canonical.set(key, group[0].key));
+  }
+  return canonical;
+}
+
 function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
@@ -63,6 +90,15 @@ function scanReview(
   const aliases = new Map<string, Set<string>>();
   const footnoteAuthorities = new Map<number, Set<string>>();
   let lastAuthorityId: string | null = null;
+  const parsed = units.map((unit) => ({ unit, items: [
+    ...native.citationOccurrencesInText(unit.text)
+      .map((match) => ({ kind: "authority" as const, match })),
+    ...native.authorityReferencesInText(unit.text)
+      .map((match) => ({ kind: "reference" as const, match })),
+  ].sort((left, right) => left.match.start - right.match.start ||
+    left.match.end - right.match.end || left.kind.localeCompare(right.kind)) }));
+  const parallelCases = parallelCaseKeys(parsed.flatMap(({ items }) => items.flatMap((item) =>
+    item.kind === "authority" ? [item.match] : [])), native);
   const remember = (authorityId: string, footnoteId: number | null) => {
     lastAuthorityId = authorityId;
     if (footnoteId !== null) footnoteAuthorities.set(footnoteId,
@@ -72,16 +108,9 @@ function scanReview(
     const alias = value ? native.citationLookupKey(value) : "";
     if (alias) aliases.set(authorityId, new Set([...(aliases.get(authorityId) ?? []), alias]));
   };
-  const reviewUnits = units.map((unit) => {
+  const reviewUnits = parsed.map(({ unit, items }) => {
     const occurrenceIds: string[] = [];
     const sourceTextSha256 = sha256(unit.text);
-    const items = [
-      ...native.citationOccurrencesInText(unit.text)
-        .map((match) => ({ kind: "authority" as const, match })),
-      ...native.authorityReferencesInText(unit.text)
-        .map((match) => ({ kind: "reference" as const, match })),
-    ].sort((left, right) => left.match.start - right.match.start ||
-      left.match.end - right.match.end || left.kind.localeCompare(right.kind));
     items.forEach((item, localOrdinal) => {
       if (item.kind === "reference") {
         const match = item.match;
@@ -106,15 +135,17 @@ function scanReview(
         return;
       }
       const match = item.match;
-      const key = native.citationLookupKey(match.coreCitation.text);
+      const observedKey = native.citationLookupKey(match.coreCitation.text);
+      const key = parallelCases.get(observedKey) ?? observedKey;
       if (!key) return;
-      const kind: AuthorityKind = match.kind === "statute" ? "legislation"
+      const kind: AuthorityKind = parallelCases.has(observedKey) ? "case"
+        : match.kind === "statute" ? "legislation"
         : match.kind === "journal" ? "commentary" : match.kind;
       const observedName = match.reasons.includes("same_text_style")
         ? match.shortForm?.trim() || null : null;
       if (!authorities[key]) {
         authorities[key] = { id: key, key, kind, citation: match.coreCitation.text,
-          name: observedName, displayName: null, tabLabel: null, excluded: false,
+          name: observedName, displayName: null, excluded: false,
           evidenceIds: [], locators: [], sourceIdentity: null,
           source: { kind: "unresolved" } };
         authorityOrder.push(key);
