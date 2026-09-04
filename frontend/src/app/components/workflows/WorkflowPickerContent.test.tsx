@@ -37,10 +37,9 @@ it("shows explicit workflow details once without exposing model instructions", a
     expect(screen.getByText("Using Factum.docx")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Research & verify" })).toBeVisible();
     expect(screen.getAllByText(summary.metadata.description!)).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: /Check quotations/i })).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: /details for/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Details for Check quotations" })).toBeVisible();
 
-    await userEvent.click(screen.getByRole("button", { name: /Check quotations/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Details for Check quotations" }));
     expect(screen.queryByText("SYSTEM_PROMPT_MUST_NOT_RENDER")).toBeNull();
     expect(screen.getByText("Source-linked findings")).toBeVisible();
     expect(screen.getByText("Verify quoted text and proposition support against the source."))
@@ -89,7 +88,7 @@ it("shows one choice with concise outcomes and optional detail for both destinat
     }, "Agreement work");
     render(<WorkflowPickerContent {...props} workflows={[grouped]} onSelect={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /Agreement work/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Details for Agreement work" }));
     expect(screen.getAllByText("Commercial lease")).toHaveLength(1);
     expect(screen.getByText("Material risks and recommended changes")).toBeVisible();
     expect(screen.getByText("Key terms across each selected lease")).toBeVisible();
