@@ -246,7 +246,7 @@ export function ProjectsOverview() {
                             </div>
                         </>} />
                 ) : loadError || filtered.length === 0 ? (
-                    <TableEmptyState className="items-center text-center">
+                    <TableEmptyState>
                         <FolderSvgIcon
                             className="mb-3 h-8 w-8 text-gray-700"
                         />

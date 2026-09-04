@@ -207,7 +207,7 @@ function Breadcrumbs({ items }: { items: PageHeaderBreadcrumb[] }) {
             {parent?.onClick && (
                 <button
                     onClick={parent.onClick}
-                    className="shrink-0 text-gray-400 hover:text-gray-600 sm:hidden"
+                    className="shrink-0 text-gray-600 hover:text-gray-900 sm:hidden"
                     title={parent.title ?? "Back"}
                     aria-label={parent.title ?? "Back"}
                 >

@@ -112,7 +112,7 @@ export function AddUserInput({
                     </Button>
                 )}
             </div>
-            {error && <p id={errorId} role="alert" className="mt-1.5 text-xs text-red-500">{error}</p>}
+            {error && <p id={errorId} role="alert" className="mt-1.5 text-xs text-red-700">{error}</p>}
         </div>
     );
 }

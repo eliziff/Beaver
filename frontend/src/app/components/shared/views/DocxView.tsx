@@ -356,7 +356,7 @@ export function DocxView({
                 )}
                 {error && (
                     <div className="flex h-full items-center justify-center">
-                        <p className="text-sm text-red-500">{error}</p>
+                        <p className="text-sm text-red-700">{error}</p>
                     </div>
                 )}
                 <div ref={containerRef} className="docx-view-container" />

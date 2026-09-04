@@ -174,7 +174,7 @@ export function PeopleModal({
                             className="bg-white focus-within:bg-white"
                         />
                         {error && (
-                            <p className="mt-1.5 text-xs text-red-500">
+                            <p className="mt-1.5 text-xs text-red-700">
                                 {error}
                             </p>
                         )}
@@ -200,7 +200,7 @@ export function PeopleModal({
                             ))}
                         </div>
                     ) : roster.length === 0 ? (
-                        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-gray-400">
+                        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-gray-600">
                             No one has access yet.
                         </div>
                     ) : (
