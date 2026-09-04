@@ -32,7 +32,6 @@ import {
     useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
 import { Button } from "@/app/components/ui/button";
-import { SearchBar } from "@/app/components/ui/search-bar";
 import { formatDate } from "@/app/lib/utils";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { usePagedQuery } from "@/app/hooks/usePagedQuery";
@@ -156,36 +155,12 @@ export function ProjectsOverview() {
     ];
     return (
         <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-            <PageHeader loading={loading}>
-                <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h1 className="text-2xl font-medium font-serif text-gray-900">
-                        Projects
-                    </h1>
-                    <div className="flex min-w-0 items-center gap-2 sm:w-auto">
-                        <SearchBar
-                            data-page-search
-                            aria-keyshortcuts="/"
-                            value={search}
-                            onValueChange={setSearch}
-                            placeholder="Search projects"
-                            aria-label="Search projects"
-                            disabled={loading}
-                            booleanSearch
-                            wrapperClassName="min-w-0 flex-1 border-gray-300 bg-white shadow-none sm:w-72"
-                        />
-                        <Button
-                            data-page-new
-                            aria-keyshortcuts="Alt+N"
-                            aria-label="New project"
-                            onClick={() => setModalOpen(true)}
-                            disabled={loading}
-                            className="h-9 shrink-0 shadow-none"
-                        >
-                            <FolderSvgIcon className="h-4 w-4" />
-                            <span className="hidden sm:inline">New project</span>
-                        </Button>
-                    </div>
-                </div>
+            <PageHeader loading={loading} actions={[
+                { type: "search", value: search, onChange: setSearch,
+                    placeholder: "Search projects", booleanSearch: true },
+                { type: "new", title: "New project", onClick: () => setModalOpen(true) },
+            ]}>
+                <h1 className="font-serif text-2xl font-medium text-gray-900">Projects</h1>
             </PageHeader>
             <TableToolbar
                 items={PROJECT_FILTERS}
