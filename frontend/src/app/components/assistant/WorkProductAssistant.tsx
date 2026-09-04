@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, type CSSProperties } 
 import { MessageCircle } from "lucide-react";
 import type { WorkProductContext } from "@/app/lib/workProducts";
 import { Button } from "@/app/components/ui/button";
-import { ASSISTANT_DOCK_DESKTOP_CLASS } from "./assistantDockLayout";
+import { ASSISTANT_DOCK_CLASS } from "./assistantDockLayout";
 
 export type WorkProductAssistantProps = { product?: WorkProductContext;
   chatId?: string; onChatIdChange(id: string): void;
@@ -58,7 +58,7 @@ function DockLoadingShell() {
   return <aside aria-label="Assistant dock" aria-busy="true"
     style={{ "--assistant-dock-width": "480px",
       "--assistant-dock-max-width": "calc(100% - 36rem)" } as CSSProperties}
-    className={`fixed inset-0 z-[100] flex h-dvh w-screen min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg ${ASSISTANT_DOCK_DESKTOP_CLASS}`} />;
+    className={`flex min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg ${ASSISTANT_DOCK_CLASS}`} />;
 }
 
 export function WorkProductAssistantButton({ available, expanded, onClick }: {
