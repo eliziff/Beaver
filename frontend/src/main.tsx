@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import "@/app/globals.css";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 
@@ -13,11 +12,7 @@ try {
         import("@/app/router"),
         config.mode === "cloud" ? import("@/app/components/shared/MfaLoginGate") : null,
     ]);
-    mounted.render(
-        <StrictMode>
-            <Router LoginGate={gate?.MfaLoginGate} />
-        </StrictMode>,
-    );
+    mounted.render(<Router LoginGate={gate?.MfaLoginGate} />);
 } catch (error) {
     console.error("Beaver startup failed:", error);
     (await root).render(

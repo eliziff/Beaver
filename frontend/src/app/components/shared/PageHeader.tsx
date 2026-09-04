@@ -183,9 +183,10 @@ function ActionButton({
             variant={primary ? "default" : "outline"}
             size={iconOnly ? "icon-sm" : "default"}
             className={cn(
-                "h-9 text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400",
-                APP_SURFACE_HOVER_CLASS,
-                APP_SURFACE_PRESSED_CLASS,
+                "h-9 disabled:cursor-default",
+                !primary && "text-gray-500 hover:text-gray-900 disabled:text-gray-400 disabled:hover:bg-white disabled:hover:text-gray-400",
+                !primary && APP_SURFACE_HOVER_CLASS,
+                !primary && APP_SURFACE_PRESSED_CLASS,
                 iconOnly ? "w-9" : "gap-1.5 px-3",
                 disabled ? "cursor-default" : "cursor-pointer",
             )}

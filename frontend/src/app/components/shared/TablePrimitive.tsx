@@ -359,6 +359,19 @@ export const TableLoadMore = ({ show, onClick }: {
             <Button variant="outline" size="compact" onClick={onClick}>Load more</Button>
         </div>
     ) : null;
+export function Pagination({ page, pages, label, disabled, onPage }: {
+    page: number; pages: number; label: string; disabled?: boolean;
+    onPage: (page: number) => void;
+}) {
+    return <nav aria-label={`${label} pages`}
+        className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 text-xs text-gray-600 max-sm:grid max-sm:grid-cols-2 sm:text-sm">
+        <span className="whitespace-nowrap max-sm:col-span-2 max-sm:text-right">{label} · page {page} of {pages}</span>
+        {([[-1, "Previous"], [1, "Next"]] as const).map(([offset, text]) =>
+            <Button key={text} variant="outline" size="compact"
+                disabled={disabled || page + offset < 1 || page + offset > pages}
+                onClick={() => onPage(page + offset)}>{text}</Button>)}
+    </nav>;
+}
 export function TableEmptyState({
     children,
     className,

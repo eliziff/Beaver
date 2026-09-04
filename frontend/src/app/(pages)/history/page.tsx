@@ -8,6 +8,7 @@ import {
   TableEmptyState,
   TableHeaderCell,
   TableHeaderRow,
+  Pagination,
   TableRow,
   TableScrollArea,
   TableStickyCell,
@@ -181,11 +182,8 @@ export default function HistoryPage() {
         </TableBody>
       </TableScrollArea>
 
-      <div className="mx-4 mb-4 flex flex-wrap items-center justify-end gap-2 text-xs text-gray-600 max-sm:grid max-sm:grid-cols-2 sm:gap-3 sm:text-sm md:mx-6">
-        <span className="whitespace-nowrap max-sm:col-span-2 max-sm:text-right">{total} events · page {page} of {pageCount}</span>
-        <button className={`${controlClass} max-sm:w-full`} disabled={page === 1 || loading} onClick={() => setPage(page - 1)}>Previous</button>
-        <button className={`${controlClass} max-sm:w-full`} disabled={page === pageCount || loading} onClick={() => setPage(page + 1)}>Next</button>
-      </div>
+      <Pagination page={page} pages={pageCount} label={`${total} history events`}
+        disabled={loading} onPage={setPage} />
     </main>
   );
 }
