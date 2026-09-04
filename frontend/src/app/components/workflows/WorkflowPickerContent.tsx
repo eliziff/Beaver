@@ -77,8 +77,8 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                         className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                         <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                         <WorkflowText label={label} description={description} />
-                        {details ? <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600">
-                            <Info className="size-3.5" aria-hidden="true" />Info
+                        {details ? <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600 max-[25rem]:w-9">
+                            <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
                         </span> : <span title={destination}
                             className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
                             <DestinationIcon className="size-3.5" aria-hidden="true" />
@@ -89,7 +89,7 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                         disabled={disabledItem?.(workflow, directVariant)}
                         aria-label={`${launch}: ${label}`} onClick={() => onSelect(workflow, directVariant)}
                         className={`m-2 ${DESTINATION_BUTTON_CLASS}`}>
-                        <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
+                        <DestinationIcon className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">{destination}</span>
                     </button>}
                     {action}
                 </div>
@@ -110,8 +110,8 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                     <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                     <WorkflowText label={label} description={workflow.metadata.description}
                         destinations={open ? [] : workflowDestinations(workflow, variants)} />
-                    <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600">
-                        <Info className="size-3.5" aria-hidden="true" />Info
+                    <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600 max-[25rem]:w-9">
+                        <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
                     </span>
                 </button>
                 {action}
@@ -199,7 +199,7 @@ function VariantChoices({ workflow, variants, disabledItem, onSelect }: {
                             data-workflow-variant-id={variant.id}
                             aria-label={`${action}: ${label}`} onClick={() => onSelect(workflow, variant)}
                             className={DESTINATION_BUTTON_CLASS}>
-                            <DestinationIcon className="size-3.5" aria-hidden="true" />{destination}
+                            <DestinationIcon className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">{destination}</span>
                         </button>
                     </div>;
                 })}</div>
@@ -253,7 +253,7 @@ function workflowDestinations(workflow: Workflow, variants: WorkflowVariant[]) {
 
 const launchLabel = (variant: WorkflowVariant) => variant.execution === "tabular"
     ? "Start Tabular Review" : "Open chat";
-const DESTINATION_BUTTON_CLASS = "inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-gray-600 hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45";
+const DESTINATION_BUTTON_CLASS = "inline-flex min-h-9 w-16 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-gray-600 hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45 max-[25rem]:w-9 max-[25rem]:px-0";
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, "-");
 const WorkflowSkeleton = () => <div aria-hidden="true" className="space-y-2">
     {[1, 2, 3, 4, 5].map((item) =>
