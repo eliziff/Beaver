@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { BookOpen, Building2, ChevronDown, FileCheck2, FilePenLine, Files,
+import { BookOpen, Building2, ChevronDown, Info, FileCheck2, FilePenLine, Files,
     FolderSearch, Handshake, ListChecks, MessageSquare, Scale, SearchCheck,
     Table2, Workflow as WorkflowIcon, type LucideIcon } from "lucide-react";
 import { SearchBar } from "@/app/components/ui/search-bar";
@@ -77,8 +77,9 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                         className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                         <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                         <WorkflowText label={label} description={description} />
-                        {details ? <ChevronDown className={`mt-0.5 size-4 shrink-0 text-gray-400 ${
-                            open ? "rotate-180" : ""}`} aria-hidden="true" /> : <span title={destination}
+                        {details ? <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600">
+                            <Info className="size-3.5" aria-hidden="true" />Info
+                        </span> : <span title={destination}
                             className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
                             <DestinationIcon className="size-3.5" aria-hidden="true" />
                             {!destinationInLabel && <span>{destination}</span>}
@@ -109,8 +110,9 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                     <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                     <WorkflowText label={label} description={workflow.metadata.description}
                         destinations={open ? [] : workflowDestinations(workflow, variants)} />
-                    <ChevronDown className={`mt-0.5 size-4 shrink-0 text-gray-400 ${
-                        open ? "rotate-180" : ""}`} aria-hidden="true" />
+                    <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600">
+                        <Info className="size-3.5" aria-hidden="true" />Info
+                    </span>
                 </button>
                 {action}
             </div>

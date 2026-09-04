@@ -28,6 +28,7 @@ import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { SearchBar } from "@/app/components/ui/search-bar";
+import { Button } from "@/app/components/ui/button";
 import { ResearchLabelPicker } from "./ResearchLabelPicker";
 import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
 
@@ -218,32 +219,16 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                         onSubmit={runSearch}
                         className="@container rounded-lg border border-gray-200 bg-white p-4"
                     >
-                        <div
-                            className="mb-3 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 sm:inline-flex"
-                            aria-label="Source category"
-                        >
-                            {SOURCE_TABS.map(([value, label]) => (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    aria-pressed={docType === value}
-                                    onClick={() =>
-                                        updateFilters({
-                                            docType: value,
-                                            jurisdiction: "",
-                                            sourceKind: "",
-                                            dataset: "",
-                                        })
-                                    }
-                                    className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
-                                        docType === value
-                                            ? "bg-white text-gray-900 shadow-sm"
-                                            : "text-gray-600 hover:text-gray-900"
-                                    }`}
-                                >
-                                    {label}
-                                </button>
-                            ))}
+                        <div className="mb-3 flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 sm:inline-flex"
+                            aria-label="Source category">
+                            {SOURCE_TABS.map(([value, label]) => <button key={value} type="button"
+                                aria-pressed={docType === value} onClick={() => updateFilters({
+                                    docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
+                                className={`h-8 rounded-md px-3 text-sm font-medium ${docType === value
+                                    ? "bg-white text-gray-900 shadow-sm"
+                                    : "text-gray-600 hover:text-gray-900"}`}>
+                                {label}
+                            </button>)}
                         </div>
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required value={searchQuery}
@@ -261,24 +246,20 @@ export function LegalLibraryPage({ embedded = false, projectId, onResearchFileCh
                                               ? "Article title, author, journal, or citation"
                                             : "Case name, citation, or legal concept"
                                     } />
-                            <button
-                                type="submit"
-                                disabled={searching}
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-45"
-                            >
+                            <Button type="submit" disabled={searching}>
                                 {searching ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                     <Search className="h-4 w-4" />
                                 )}
                                 Search
-                            </button>
-                            <button type="button" onClick={() => setResearchOpen(true)}
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => setResearchOpen(true)}
                                 aria-expanded={researchOpen} aria-label="Open research workspace"
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                                className="gap-2">
                                 Workspace
                                 <PanelsTopLeft className="size-4" aria-hidden="true" />
-                            </button>
+                            </Button>
                         </div>
                         {docType !== "all" && (
                             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
