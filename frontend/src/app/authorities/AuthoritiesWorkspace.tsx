@@ -43,6 +43,8 @@ const DEFAULTS: StartPreferences = {
   profileId: GENERAL_PROFILE.id, sourceMode: GENERAL_PROFILE.defaults.settings.sourceMode,
   passageMarking: GENERAL_PROFILE.defaults.settings.passageMarking,
 };
+const DRAFT_DATE = new Intl.DateTimeFormat("en-CA", { month: "long", day: "numeric",
+  year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 type LibraryPicker = ComponentType<{ open: boolean; title: string; formatLabel: string;
   query: string; results: Document[]; busy: boolean; onQuery: (value: string) => void;
   onSelect: (document: Document) => void; onClose: () => void }>;
@@ -93,13 +95,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const buildRequest = useRef<AbortController | null>(null);
   const captureRequest = useRef<AbortController | null>(null);
   const reviewRequest = useRef<AbortController | null>(null);
+  const restoreScope = useRef(""), stayOnLanding = useRef(false);
   const refreshSeen = useRef(0), refreshRequest = useRef(0);
   draftRef.current = draft;
 
   const display = useCallback((next?: AuthoritiesProduct, preserveTab = false) => {
     captureRequest.current?.abort(); captureRequest.current = null; setCapturingId("");
     reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
-    setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
+    draftRef.current = next; setDraft(next); setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
     if (next) {
       if (!preserveTab) setTab(next.state.import.kind === "manual" ? "manual" : "automatic");
       setManualTitle(next.title);
@@ -132,6 +135,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       .finally(() => active && setDraftsLoading(false));
     return () => { active = false; };
   }, [projectId, host]);
+
+  useEffect(() => {
+    const scope = projectId ?? "local";
+    if (restoreScope.current === scope || requested || draftsLoading || draftRef.current ||
+        stayOnLanding.current) return;
+    restoreScope.current = scope;
+    const id = localStorage.getItem(lastDraftKey(projectId));
+    if (!id || !drafts.some((item) => item.id === id)) return;
+    setLoading(true);
+    void host.drafts.get<AuthoritiesProduct["state"]>(id).then((next) => {
+      remember(next); open(next);
+    }).catch(() => localStorage.removeItem(lastDraftKey(projectId)))
+      .finally(() => setLoading(false));
+  }, [drafts, draftsLoading, host, projectId, requested]);
 
   useEffect(() => {
     if (routeTarget.current !== null) {
@@ -226,17 +243,24 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     : operation || "Updating authorities";
 
   function remember(next: AuthoritiesProduct) {
-    setDraft(next);
+    draftRef.current = next; setDraft(next);
+    localStorage.setItem(lastDraftKey(projectId), next.id);
     setDrafts((current) => [metadata(next), ...current.filter(({ id }) => id !== next.id)]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   }
   function open(next?: AuthoritiesProduct) {
+    stayOnLanding.current = false;
     display(next); routeTarget.current = next?.id ?? "";
     replaceDraft(next?.id);
   }
+  function newDraft(forget = true) {
+    stayOnLanding.current = true;
+    if (forget) localStorage.removeItem(lastDraftKey(projectId));
+    display(); routeTarget.current = ""; replaceDraft();
+  }
   function changeTab(next: WorkspaceTab) {
     if ((next === "automatic" && draft?.state.import.kind === "manual") ||
-        (next === "manual" && draft?.state.import.kind === "document")) open();
+        (next === "manual" && draft?.state.import.kind === "document")) newDraft(false);
     setTab(next); setError(""); setMessage(""); setLinkingId("");
   }
   async function run<T>(operationFn: () => Promise<T>, done: (value: T) => void,
@@ -406,7 +430,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (!draft) return;
     const id = draft.id;
     void run(() => host.drafts.remove(id), () => {
-      setDrafts((current) => current.filter((item) => item.id !== id)); open();
+      setDrafts((current) => current.filter((item) => item.id !== id)); newDraft();
     });
   }
   function build() {
@@ -458,8 +482,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "min-h-dvh" : "h-full min-h-0 overflow-y-auto")}>
     {draft && !globalTab ? <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} current={draft}
-        busy={busy || locked} itemLabel="authorities draft" headerActions={headerActions}
-        onBack={() => open()} onRename={rename} onDuplicate={duplicate} onDelete={removeDraft} />
+        busy={busy || locked} itemLabel="authorities draft"
+        onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
+        onDelete={removeDraft} headerActions={<><Button type="button" variant="outline"
+          className="h-9 border-gray-400" disabled={busy || locked} onClick={() => newDraft()}>
+          <Plus /> New</Button>{headerActions}</>} />
         : <WorkspaceHeader className={host.mode === "standalone" ? "max-w-[50rem]" : "w-full"} title="Authorities"
           headerActions={headerActions} />}
     <div inert={locked} aria-busy={locked || undefined}>
@@ -686,21 +713,27 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
     <div className="flex min-h-16 items-center gap-3 border-b border-gray-200 px-4 py-3">
       <History className="h-5 w-5 shrink-0 text-red-700" /><div className="min-w-0"><h2 className="font-semibold text-gray-950">Saved drafts</h2>
       <p className="text-sm text-gray-600">Reopen, edit, and build again.</p></div></div>
-    <div className="min-h-40">
-      {loading ? <div className="grid min-h-40 place-items-center px-4 py-12 text-sm text-gray-500"
+    <div className="h-[28rem] overflow-y-auto">
+      {loading ? <div className="grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
           className="mr-2 h-4 w-4 motion-safe:animate-spin" />Loading saved drafts</span></div>
         : drafts.slice((page - 1) * 8, page * 8).map((item) => <button key={item.id} type="button" disabled={busy}
         onClick={() => onOpen(item.id)} className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-4 text-left outline-none last:border-0 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600">
         <span className="min-w-0"><span className="block truncate text-sm font-medium text-gray-950">{item.title}</span>
-          <span className="block text-xs text-gray-500">{new Date(item.updatedAt).toLocaleString()}</span></span>
+          <span className="block text-xs text-gray-500">{formatDraftDate(item.updatedAt)}</span></span>
         <ChevronRight className="h-4 w-4 text-gray-500" />
       </button>)}
-      {!loading && !drafts.length && <p className="grid min-h-40 place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
+      {!loading && !drafts.length && <p className="grid h-full place-items-center px-4 py-12 text-center text-sm text-gray-500">No saved drafts yet.</p>}
     </div>
     {!loading && !!drafts.length && <Pagination page={page} pages={pages}
       label={`${drafts.length} authorities drafts`} disabled={busy} onPage={setPage} />}
   </section>;
+}
+
+function formatDraftDate(iso: string) {
+  const parts = Object.fromEntries(DRAFT_DATE.formatToParts(new Date(iso))
+    .map(({ type, value }) => [type, value]));
+  return `${parts.month} ${parts.day}, ${parts.year} ${parts.hour}:${parts.minute} ${parts.dayPeriod.replaceAll(".", "").toUpperCase()}`;
 }
 
 function AuthoritiesCourtField({ value, disabled, preferredKeys, onChange, className }: {
@@ -1577,6 +1610,8 @@ function relinkable(issue?: AuthoritiesSourceIssue | null): issue is Authorities
     (issue?.status === "missing" && issue.reason === "permission");
 }
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
+const lastDraftKey = (projectId?: string) =>
+  `beaver.authorities.last.${projectId ?? "library"}`;
 function loadPreferences(): StartPreferences {
   try {
     const value = JSON.parse(localStorage.getItem("beaver.authorities.preferences") ?? "null") as

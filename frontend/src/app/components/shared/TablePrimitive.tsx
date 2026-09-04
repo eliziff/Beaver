@@ -364,12 +364,12 @@ export function Pagination({ page, pages, label, disabled, onPage }: {
     onPage: (page: number) => void;
 }) {
     return <nav aria-label={`${label} pages`}
-        className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 text-xs text-gray-600 max-sm:grid max-sm:grid-cols-2 sm:text-sm">
-        <span className="whitespace-nowrap max-sm:col-span-2 max-sm:text-right">{label} · page {page} of {pages}</span>
-        {([[-1, "Previous"], [1, "Next"]] as const).map(([offset, text]) =>
-            <Button key={text} variant="outline" size="compact"
-                disabled={disabled || page + offset < 1 || page + offset > pages}
-                onClick={() => onPage(page + offset)}>{text}</Button>)}
+        className="flex items-center justify-center gap-3 border-t border-gray-200 px-4 py-3 text-xs text-gray-600 sm:text-sm">
+        <Button variant="outline" size="compact" disabled={disabled || page <= 1}
+            onClick={() => onPage(page - 1)}>Previous</Button>
+        <span className="whitespace-nowrap">Page {page} of {pages}</span>
+        <Button variant="outline" size="compact" disabled={disabled || page >= pages}
+            onClick={() => onPage(page + 1)}>Next</Button>
     </nav>;
 }
 export function TableEmptyState({

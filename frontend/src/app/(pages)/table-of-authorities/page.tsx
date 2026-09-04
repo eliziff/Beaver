@@ -25,8 +25,9 @@ export default function TableOfAuthoritiesPage() {
           projectId: params.get("project") || undefined, replaceDraft }}
         locked={assistant.busy}
         onDraftChange={assistant.onProductChange} refreshToken={assistant.refreshToken}
-        headerActions={<WorkProductAssistantButton available={!!assistant.product}
-          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />} />
+        headerActions={assistant.product ? <WorkProductAssistantButton available
+          expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />
+          : undefined} />
     </div>
     {draftId && <WorkProductAssistant expanded={assistant.expanded}
       product={assistant.product} synced={assistant.synced} chatId={assistant.chatId}
