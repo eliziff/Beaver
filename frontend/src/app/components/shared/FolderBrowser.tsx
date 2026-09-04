@@ -10,9 +10,9 @@ export type FolderList = (
     signal?: AbortSignal,
 ) => Promise<Page<DirectoryEntry>>;
 
-export function FolderBrowser({ list, rootLabel, onSelect, onBack, disabledIds }: {
+export function FolderBrowser({ list, rootLabel, onSelect, onBack, disabledIds, hideRoot = false }: {
     list: FolderList; rootLabel: string;
-    onSelect: (folder: Folder | null) => void;
+    onSelect: (folder: Folder | null) => void; hideRoot?: boolean;
     onBack?: () => void; disabledIds?: Set<string>;
 }) {
     const [path, setPath] = useState<Folder[]>([]), parent = path.at(-1) ?? null;
@@ -24,7 +24,7 @@ export function FolderBrowser({ list, rootLabel, onSelect, onBack, disabledIds }
     return <div role="region"
         className="min-h-0 flex-1 overflow-y-auto rounded-md border border-gray-300 p-1"
         aria-label="Choose destination folder" aria-busy={page.loading}>
-        <div className="flex min-h-10 items-center gap-1 px-1">
+        {(!hideRoot || parent) && <div className="flex min-h-10 items-center gap-1 px-1">
             {(path.length > 0 || onBack) && <button type="button"
                 aria-label={`Back to ${path.length > 1 ? path.at(-2)?.name : onBack ? "projects" : rootLabel}`}
                 onClick={() => path.length ? move(path.slice(0, -1)) : onBack?.()}
@@ -34,7 +34,7 @@ export function FolderBrowser({ list, rootLabel, onSelect, onBack, disabledIds }
             <p className="min-w-0 break-words px-1 text-sm font-medium text-gray-800">
                 {parent?.name ?? rootLabel}
             </p>
-        </div>
+        </div>}
         {folders.map((folder) => <button type="button" key={folder.id}
             disabled={disabledIds?.has(folder.id)}
             aria-label={`Open ${folder.name}`}

@@ -26,13 +26,16 @@ interface Props {
     uploadingFilenames?: string[];
     showTabs: boolean;
     initialTab?: DirectoryTab;
+    tabs?: [DirectoryTab, string][];
+    noun?: string;
+    multiple?: boolean;
     excludeProjectId?: string;
     documentFilter?: (document: Document) => boolean;
 }
 
 export function FileDirectory({ documents = EMPTY, projectId,
     loading: externalLoading = false, selectedDocuments, onChange,
-    uploadingFilenames = [], showTabs, initialTab = "files", excludeProjectId, documentFilter }: Props) {
+    uploadingFilenames = [], showTabs, initialTab = "files", tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter }: Props) {
     const [tab, setTab] = useState<DirectoryTab>(initialTab);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState(new Set<string>());
@@ -78,6 +81,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
         [selectedDocuments]);
 
     function toggleDocument(document: Document) {
+        if (!multiple) return onChange(selected.has(document.id) ? [] : [document]);
         const next = new Map(selectedDocuments.map((item) => [item.id, item]));
         if (next.has(document.id)) next.delete(document.id);
         else next.set(document.id, document);
@@ -106,7 +110,7 @@ export function FileDirectory({ documents = EMPTY, projectId,
                         <ChevronRight className="ml-auto h-4 w-4" />
                     </button>)}
                 {projects.hasMore && <More loading={projects.loading} onClick={projects.loadMore} />}
-                {!projects.loading && !projects.items.length && <Empty query={query} />}
+                {!projects.loading && !projects.items.length && <Empty query={query} noun={noun} />}
             </> : loading && !tree.rows.length ? <Skeleton /> : tree.rows.length || uploadingFilenames.length ? <>
                 {showTabs && activeTab === "projects" && selectedProjectId &&
                     <button type="button" onClick={() => {
@@ -134,20 +138,20 @@ export function FileDirectory({ documents = EMPTY, projectId,
                     const name = doc.filename.replace(/\.research\.md$/iu, "");
                     return <label key={doc.id} style={style}
                         className={`flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 text-sm ${APP_SURFACE_HOVER_CLASS}`}>
-                        <input type="checkbox" checked={selected.has(doc.id)} aria-label={`Select ${name}`}
+                        <input type={multiple ? "checkbox" : "radio"} checked={selected.has(doc.id)} aria-label={`Select ${name}`}
                             onChange={() => toggleDocument(doc)}
                             className="h-[18px] w-[18px] shrink-0 cursor-pointer rounded border-gray-500 accent-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" />
                         <FileTypeIcon fileType={doc.file_type} className="h-4 w-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{name}</span></label>;
                 })}
-            </> : <Empty query={query} />}
+            </> : <Empty query={query} noun={noun} />}
         </div>;
 
     return <div className="flex min-h-0 flex-1 flex-col gap-2">
         <SearchBar autoFocus value={search} onValueChange={setSearch} booleanSearch
-            placeholder="Search files" aria-label="Search files" />
+            placeholder={`Search ${noun}`} aria-label={`Search ${noun}`} />
         {showTabs ? <Tabs value={activeTab} variant="pill" ariaLabel="File source"
-            options={TABS.map(([value, label]) => ({ value, label }))}
+            options={tabs.map(([value, label]) => ({ value, label }))}
             onValueChange={(value) => {
                 setTab(value as DirectoryTab); setSelectedProjectId(""); setExpanded(new Set());
             }} actions={selected.size ? <span className="text-xs text-gray-500">
@@ -170,6 +174,6 @@ function More({ loading, onClick, style }: { loading: boolean; onClick: () => vo
 }
 const Skeleton = () => <div className="space-y-1">{[1, 2, 3, 4, 5].map((id) =>
     <div className="h-10 animate-pulse rounded bg-gray-100" key={id} />)}</div>;
-const Empty = ({ query }: { query: string }) => <div
+const Empty = ({ query, noun }: { query: string; noun: string }) => <div
     className="flex flex-col items-center py-10 text-center text-sm text-gray-500">
-    <FolderSvgIcon className="mb-2 h-6 w-6" />{query ? "No matches found" : "No documents available"}</div>;
+    <FolderSvgIcon className="mb-2 h-6 w-6" />{query ? "No matches found" : `No ${noun} available`}</div>;

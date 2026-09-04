@@ -27,15 +27,17 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, file, proj
 }) {
   const [box, setBox] = useState(initialBox);
   const [rail, setRail] = useState<HTMLDivElement | null>(null);
+  const [restoring, setRestoring] = useState(true);
   const frame = useRef<HTMLElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   useEffect(() => {
     const key = `beaver.research.current:${projectId ?? "personal"}`;
-    if (file) { localStorage.setItem(key, file.document.id); return; }
-    const id = localStorage.getItem(key); if (!id) return;
+    if (file) { localStorage.setItem(key, file.document.id); setRestoring(false); return; }
+    const id = localStorage.getItem(key); if (!id) { setRestoring(false); return; }
     let live = true; void getResearchFile(id).then((saved) => { if (live) onChange(saved); })
-      .catch(() => { if (localStorage.getItem(key) === id) localStorage.removeItem(key); });
+      .catch(() => { if (localStorage.getItem(key) === id) localStorage.removeItem(key); })
+      .finally(() => { if (live) setRestoring(false); });
     return () => { live = false; };
   }, [file, onChange, projectId]);
   useEffect(() => {
@@ -58,19 +60,20 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, file, proj
     return () => { if (opener.current?.isConnected && opener.current.offsetParent !== null)
       opener.current.focus({ preventScroll: true }); };
   }, [embedded, open]);
-  const body = <ResearchFileBar file={file} projectId={projectId} onChange={onChange} rail={rail} />;
+  const body = <ResearchFileBar file={file} projectId={projectId} onChange={onChange} rail={rail} active={open && !restoring} />;
   if (!embedded) return <AssistantDock
-    tabs={[{ id: "research", label: "Saved research", actions: <div ref={setRail} className="min-w-0" />,
-      content: <div className="mb-4 h-[min(44rem,calc(100dvh-8rem))] min-h-80 overflow-hidden p-2">{body}</div> }]}
+    tabs={[{ id: "research", label: "Workspace", actions: <div ref={setRail} className="min-w-0" />,
+      content: <div className="h-[calc(100dvh-7rem)] min-h-80 overflow-hidden p-2 pb-3">{body}</div> }]}
     activeTabId="research" onActivateTab={() => undefined} expanded={open}
     onExpandedChange={onOpenChange} showCollapsedButton={false} defaultWidth={620} minWidth={480} maxWidth="55%" />;
   if (!open) return null;
+  if (!file) return createPortal(<div className="fixed size-0 overflow-hidden">{body}</div>, document.body);
   const startDrag = (event: PointerEvent) => {
     if (event.button !== 0) return;
     drag.current = { x: event.clientX, y: event.clientY, left: box.x, top: box.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
-  return createPortal(<section ref={frame} role="dialog" aria-label="Research workspace" tabIndex={-1}
+  return createPortal(<section ref={frame} role="dialog" aria-label="Workspace" tabIndex={-1}
     onKeyDown={(event) => { if (event.defaultPrevented || event.key !== "Escape" || event.target instanceof Element &&
       event.target.closest('dialog, [role="dialog"], [role="alertdialog"]') !== event.currentTarget) return;
       event.preventDefault(); onOpenChange(false); }}
@@ -85,9 +88,9 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, file, proj
       onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}
       className="flex h-11 shrink-0 cursor-move touch-none items-center gap-2 border-b border-gray-200 bg-white px-2.5">
       <GripHorizontal className="size-4 shrink-0 text-gray-400" aria-hidden="true" />
-      <span className="sr-only">Research workspace</span><div ref={setRail} className="min-w-0 flex-1" />
+      <span className="sr-only">Workspace</span><div ref={setRail} className="min-w-0 flex-1" />
       <button type="button" onPointerDown={(event) => event.stopPropagation()}
-        onClick={() => onOpenChange(false)} aria-label="Close research workspace"
+        onClick={() => onOpenChange(false)} aria-label="Close workspace"
         className="grid size-8 place-items-center rounded-md text-gray-500 hover:bg-red-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
         <X className="size-4" aria-hidden="true" />
       </button>

@@ -33,16 +33,22 @@ describe("ResearchLabelEditor", () => {
     expect(setData).toHaveBeenCalledWith("application/x-beaver-research-source", "source-1");
   });
 
-  it("keeps unlimited ordered memberships and can set the display label", async () => {
+  it("persists ordered memberships immediately", async () => {
     actOnResearchFile.mockResolvedValue(file); render(<ResearchLabelEditor target={{ file, kind: "source",
       itemId: "source-1", labelIds: ["a", "b", "c", "d"], title: "Source" }} onClose={vi.fn()} onChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Add an extra label" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assign another label" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "B" }).compareDocumentPosition(
       screen.getByRole("button", { name: "A" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Extra label 3" }));
-    fireEvent.click(screen.getByRole("button", { name: "Set as display label" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Additional label 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show this label" }));
     await waitFor(() => expect(actOnResearchFile).toHaveBeenCalledWith("file-1", "v1",
       expect.objectContaining({ type: "annotate", labelIds: ["d", "a", "b", "c"] })));
+  });
+
+  it("does not invent primary-label UI for one top-level label", () => {
+    render(<ResearchLabelEditor target={{ file: { ...file, state: { ...file.state, labels: { a: labels.a } } },
+      kind: "source", itemId: "source-1", labelIds: ["a"], title: "Source" }} onClose={vi.fn()} onChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Shown label" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Assign another label" })).not.toBeInTheDocument();
   });
 });

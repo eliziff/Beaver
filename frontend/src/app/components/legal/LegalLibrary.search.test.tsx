@@ -180,7 +180,7 @@ describe("LegalLibraryPage search", () => {
             .not.toBeInTheDocument();
     });
 
-    it("lazily creates a normal research file and saves only on palette confirmation", async () => {
+    it("lazily creates a normal research file and saves palette changes immediately", async () => {
         const onOpenSource = vi.fn();
         const onResearchFileChange = vi.fn();
         const empty = {
@@ -216,7 +216,8 @@ describe("LegalLibraryPage search", () => {
             title: "Research", projectId: undefined,
         }));
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Save", hidden: true }));
+        fireEvent.change(screen.getByRole("textbox", { name: "Item note" }), { target: { value: "Useful" } });
+        fireEvent.blur(screen.getByRole("textbox", { name: "Item note" }));
         await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalled());
         expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", {
             type: "source",

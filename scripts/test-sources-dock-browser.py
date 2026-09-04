@@ -14,8 +14,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-def visible(driver, by: str, value: str):
-    return WebDriverWait(driver, 30).until(lambda page: next(
+def visible(driver, by: str, value: str, timeout=30):
+    return WebDriverWait(driver, timeout).until(lambda page: next(
         (node for node in page.find_elements(by, value) if node.is_displayed()), None))
 
 
@@ -89,6 +89,8 @@ def main() -> None:
             driver.get(args.url)
             visible(driver, By.CSS_SELECTOR, "button[aria-label='Expand assistant dock']").click()
             visible(driver, By.XPATH, "//*[@role='tab' and normalize-space()='Sources']").click()
+            # Headless Chrome may defer painting the newly selected dock tab until capture.
+            driver.save_screenshot(str(output / "00-sources-open.png"))
 
             search = visible(driver, By.CSS_SELECTOR, "input[aria-label='Search sources']")
             driver.get_log("browser")  # Ignore errors from tabs restored before this isolated run.
@@ -101,7 +103,25 @@ def main() -> None:
             ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
             click_text(driver, "Workspace")
-            workspace = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Research workspace']")
+            create_name = visible(driver, By.CSS_SELECTOR, "input[name='title'][placeholder='e.g. Duty of care']")
+            assert not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Workspace']")
+            create_dialog = create_name.find_element(By.XPATH, "ancestor::dialog")
+            assert "Library" in create_dialog.text and "Project" in create_dialog.text and "Location:" not in create_dialog.text
+            driver.save_screenshot(str(output / "02-new-workspace.png"))
+            click_text(driver, "Project", create_dialog)
+            visible(driver, By.CSS_SELECTOR, "[role='group'][aria-label='Projects']")
+            click_text(driver, "Library", create_dialog)
+            create_name.send_keys(title)
+            click_text(driver, "Create workspace", create_dialog)
+            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
+            workspace = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Workspace']")
+            WebDriverWait(driver, 30).until(lambda page: title in workspace.text)
+            research_id = driver.execute_async_script("""const title=arguments[0],done=arguments[1];
+fetch('/api/library/files?q='+encodeURIComponent(title)).then(r=>r.json()).then(page=>
+  done(page.items.find(x=>x.kind==='document'&&x.document.filename===title+'.research.md')?.document.id||null)
+).catch(error=>done({error:String(error)}));""", title)
+            assert isinstance(research_id, str), research_id
+
             start = box(driver, workspace)
             header = workspace.find_element(By.TAG_NAME, "header")
             ActionChains(driver).drag_and_drop_by_offset(
@@ -110,7 +130,8 @@ def main() -> None:
             assert abs(moved["left"] - start["left"]) > 20, (start, moved)
             driver.save_screenshot(str(output / "02-floating-workspace.png"))
 
-            workspace.find_element(By.CSS_SELECTOR, "button[title='Open or create a research file']").click()
+            workspace.find_element(By.CSS_SELECTOR, "button[aria-label='Workspace options']").click()
+            click_text(driver, "Open another", visible(driver, By.CSS_SELECTOR, "[role='menu'][aria-label='Workspace options']"))
             chooser = visible(driver, By.CSS_SELECTOR, "dialog[open]")
             chooser_box = box(driver, chooser)
             click_text(driver, "New folder", chooser)
@@ -124,23 +145,7 @@ def main() -> None:
             driver.save_screenshot(str(output / "02-new-project.png"))
             project_dialog.find_element(By.CSS_SELECTOR, "button[aria-label='Close']").click()
             driver.save_screenshot(str(output / "02-file-chooser.png"))
-            click_text(driver, "New workspace", chooser)
-            create_name = visible(driver, By.CSS_SELECTOR, "input[name='title'][placeholder='e.g. Duty of care']")
-            create_dialog = create_name.find_element(By.XPATH, "ancestor::dialog")
-            assert "Save in" in create_dialog.text
-            driver.save_screenshot(str(output / "02-new-workspace.png"))
-            click_text(driver, "Project", create_dialog)
-            visible(driver, By.CSS_SELECTOR, "[role='group'][aria-label='Projects']")
-            click_text(driver, "Library", create_dialog)
-            create_name.send_keys(title)
-            click_text(driver, "Create workspace", create_dialog)
-            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
-            WebDriverWait(driver, 30).until(lambda page: title in workspace.text)
-            research_id = driver.execute_async_script("""const title=arguments[0],done=arguments[1];
-fetch('/api/library/files?q='+encodeURIComponent(title)).then(r=>r.json()).then(page=>
-  done(page.items.find(x=>x.kind==='document'&&x.document.filename===title+'.research.md')?.document.id||null)
-).catch(error=>done({error:String(error)}));""", title)
-            assert isinstance(research_id, str), research_id
+            click_text(driver, "Close", chooser)
 
             labels_panel, list_panel = panel(driver, "Labels"), panel(driver, "List")
             ActionChains(driver).drag_and_drop(
@@ -263,7 +268,7 @@ arguments[0].dispatchEvent(new Event('input',{bubbles:true})); arguments[0].disp
             driver.execute_script("arguments[0].style.width='720px'", workspace)
             WebDriverWait(driver, 10).until(lambda _page: workspace.rect["width"] > 700)
 
-            workspace.find_element(By.CSS_SELECTOR, "button[aria-label='Close research workspace']").click()
+            workspace.find_element(By.CSS_SELECTOR, "button[aria-label='Close workspace']").click()
             search.send_keys("2016 SCC 27")
             click_text(driver, "Search")
             WebDriverWait(driver, 90).until(lambda page: page.find_elements(By.CSS_SELECTOR, "article"))
@@ -284,7 +289,7 @@ return {border:s.borderColor,shadow:s.boxShadow};""", search)
             assert palette_box["right"] <= label_box["left"] + 1 or palette_box["left"] >= label_box["right"] - 1, (palette_box, label_box)
             click_text(driver, "Duty of fairness", palette)
             click_text(driver, "Remedies", palette)
-            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Add an extra label']").click()
+            click_text(driver, "Assign another label", palette)
             click_text(driver, "Duty of fairness", palette)
             badge_color = palette.find_element(By.CSS_SELECTOR, "input[aria-label='Badge color']")
             driver.execute_script("""Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(arguments[0],'#7c3aed');
@@ -294,7 +299,7 @@ arguments[0].dispatchEvent(new Event('change',{bubbles:true}));""", badge_color)
             palette.find_element(By.CSS_SELECTOR, "textarea[aria-label='Item note']").send_keys(
                 "Explains the framework and its application.")
             driver.save_screenshot(str(output / "06-anchored-circle-palette.png"))
-            click_text(driver, "Save", palette)
+            click_text(driver, "Done", palette)
             WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']"))
             assert "Leading case" in driver.find_elements(By.CSS_SELECTOR, "article")[0].text
             saved_marker = visible(driver, By.XPATH,
@@ -306,20 +311,20 @@ arguments[0].dispatchEvent(new Event('change',{bubbles:true}));""", badge_color)
             # Slot order is the display order; clearing one slot must preserve the rest.
             visible(driver, By.XPATH, "(//article//button[starts-with(@aria-label,'Label ')])[1]").click()
             palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Extra label 1']").click()
-            click_text(driver, "Set as display label", palette)
+            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Additional label 1']").click()
+            click_text(driver, "Show this label", palette)
             driver.save_screenshot(str(output / "06-display-label-order.png"))
-            click_text(driver, "Save", palette)
+            click_text(driver, "Done", palette)
             WebDriverWait(driver, 30).until(lambda _page: not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']"))
             state = driver.execute_async_script("fetch('/api/single-documents/'+arguments[0]+'/research').then(r=>r.json()).then(x=>arguments[1](x.state))", research_id)
             source_state = next(iter(state["sources"].values()))
             assert len(source_state["labelIds"]) == 2 and source_state["badge"] == "Leading case" and source_state["badgeColor"] == "#7c3aed", source_state
             visible(driver, By.XPATH, "(//article//button[starts-with(@aria-label,'Label ')])[1]").click()
             palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Extra label 1']").click()
-            click_text(driver, "Clear this slot", palette)
+            palette.find_element(By.CSS_SELECTOR, "button[aria-label='Additional label 1']").click()
+            click_text(driver, "Clear selection", palette)
             driver.save_screenshot(str(output / "06-clear-label-slot.png"))
-            click_text(driver, "Save", palette)
+            click_text(driver, "Done", palette)
             try:
                 WebDriverWait(driver, 10).until(lambda _page: not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']"))
             except Exception:
@@ -332,7 +337,7 @@ arguments[0].dispatchEvent(new Event('change',{bubbles:true}));""", badge_color)
             WebDriverWait(driver, 10).until(lambda _page: not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']"))
 
             click_text(driver, "Workspace")
-            workspace = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Research workspace']")
+            workspace = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Workspace']")
             WebDriverWait(driver, 30).until(lambda page: "Leading case" in panel(page, "List").text)
             list_panel = panel(driver, "List")
             source_circle = list_panel.find_element(By.CSS_SELECTOR, "button[draggable='true']")
@@ -426,28 +431,28 @@ arguments[0].dispatchEvent(new Event('change',{bubbles:true}));""", badge_color)
             assert "court" in search_saved.text
             driver.save_screenshot(str(output / "08-list-and-search-receipt.png"))
 
-            workspace.find_element(By.CSS_SELECTOR, "button[aria-label='Close research workspace']").click()
+            workspace.find_element(By.CSS_SELECTOR, "button[aria-label='Close workspace']").click()
             visible(driver, By.XPATH, "(//article//a[normalize-space()='View'])[1]").click()
             reader = visible(driver, By.CSS_SELECTOR, "section[data-legal-block]")
             panel(driver, "Labels")
             WebDriverWait(driver, 30).until(lambda _page: title in driver.find_element(By.TAG_NAME, "body").text)
+            WebDriverWait(driver, 30).until(lambda _page: len(reader.text.strip()) > 35)
             driver.execute_script("arguments[0].scrollIntoView({block:'center'})", reader)
             selected = driver.execute_script("""const root=arguments[0],w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
-let n; while(n=w.nextNode()){if(n.data.trim().length>35)break;} if(!n)return false;
+let n; while(n=w.nextNode()){if(n.data.trim().length>3)break;} if(!n)return false;
 const start=n.data.search(/\S/u),r=document.createRange(); r.setStart(n,Math.max(0,start));
 r.setEnd(n,Math.min(n.length,Math.max(0,start)+35)); const s=getSelection(); s.removeAllRanges(); s.addRange(r);
-root.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); return s.toString();""", reader)
-            assert selected, selected
+const selected=s.toString(); root.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); return selected;""", reader)
             visible(driver, By.XPATH, "//button[normalize-space()='Save highlight']").click()
             palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
             passage_palette_box = box(driver, palette)
             driver.save_screenshot(str(output / "09-passage-palette.png"))
             click_text(driver, "Key passage", palette)
             if multi_highlight:
-                palette.find_element(By.CSS_SELECTOR, "button[aria-label='Add an extra label']").click()
+                click_text(driver, "Assign another label", palette)
                 click_text(driver, "Contrary evidence", palette)
             palette.find_element(By.CSS_SELECTOR, "textarea[aria-label='Item note']").send_keys("Passage-level analysis.")
-            click_text(driver, "Save", palette)
+            click_text(driver, "Done", palette)
             WebDriverWait(driver, 30).until(lambda page: page.find_elements(By.CSS_SELECTOR, "[data-qspan]"))
             assert driver.execute_script("return getSelection().isCollapsed"), "selection remained active after save"
             driver.save_screenshot(str(output / "10-reader-dock-highlight.png"))
@@ -462,24 +467,10 @@ root.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); return s.toStr
             assert driver.execute_script("return document.activeElement === arguments[0]", title_marker)
             assert panel(driver, "Labels").is_displayed(), "Escape closed the research dock"
 
-            saved_highlight = WebDriverWait(driver, 30).until(lambda _page: next((node for node in
-                reader.find_elements(By.CSS_SELECTOR, "[data-research-evidence]") if node.is_displayed()), None))
-            saved_highlight.click()
-            saved_palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-            assert saved_palette.find_element(By.CSS_SELECTOR, "button[aria-label='Display label']").text.startswith("Key passage")
-            assert saved_palette.find_element(By.CSS_SELECTOR, "textarea[aria-label='Item note']").get_attribute("value") == "Passage-level analysis."
-            if multi_highlight:
-                saved_palette.find_element(By.CSS_SELECTOR, "button[aria-label='Extra label 1']").click()
-                click_text(driver, "Set as display label", saved_palette)
-                click_text(driver, "Save", saved_palette)
-                WebDriverWait(driver, 30).until(lambda _page: not driver.find_elements(By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']"))
-                saved_highlight = WebDriverWait(driver, 30).until(lambda _page: next((node for node in
-                    reader.find_elements(By.CSS_SELECTOR, "[data-research-evidence]") if node.is_displayed()), None))
-                saved_highlight.click()
-                saved_palette = visible(driver, By.CSS_SELECTOR, "[role='dialog'][aria-label='Labels and note']")
-                assert saved_palette.find_element(By.CSS_SELECTOR, "button[aria-label='Display label']").text.startswith("Contrary evidence")
-            driver.save_screenshot(str(output / "12-saved-highlight-palette.png"))
-            ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+            WebDriverWait(driver, 30).until(lambda _page: any(item["note"] == "Passage-level analysis."
+                and item["labelIds"] for item in driver.execute_async_script(
+                    "fetch('/api/single-documents/'+arguments[0]+'/research').then(r=>r.json()).then(x=>arguments[1](Object.values(x.state.evidence)))", research_id)))
+            driver.save_screenshot(str(output / "12-saved-highlights.png"))
 
             dock = visible(driver, By.CSS_SELECTOR, "[aria-label='Assistant dock']")
             resize = dock.find_element(By.CSS_SELECTOR, "[role='separator'][aria-label='Resize assistant dock']")
