@@ -3,8 +3,7 @@ import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 export type AuthoritiesOutputMode = "table" | "book" | "both";
 export type AuthoritiesSourceMode = "automatic" | "manual-originals" | "render";
-export type AuthoritiesProfileId = "general" | "ab-court-of-kings-bench" |
-  "ab-court-of-appeal" | "federal-court" | "federal-court-of-appeal";
+export type AuthoritiesProfileId = string;
 export type AuthoritiesBookRole = "applicant" | "respondent" | "joint" |
   "appellant" | "intervener";
 export type AuthoritiesBuildSettings = {
@@ -130,6 +129,7 @@ export type AuthoritiesAction =
   | { type: "reorder-authorities"; authorityIds: string[] }
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
+  | { type: "remove-occurrence"; occurrenceId: string }
   | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }

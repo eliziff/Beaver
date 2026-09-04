@@ -4,6 +4,7 @@ import { authorityPassageTargets, authoritiesTextRoles, buildAuthorities, render
   type AuthoritiesBuildResult } from "./authoritiesBuild";
 import {
   AuthoritiesDomainError,
+  authoritiesProfile,
   authoritiesBookPdfs,
   decodeAuthoritiesDraft,
   reduceAuthoritiesDraft,
@@ -140,8 +141,7 @@ function isCanliiUrl(value: string) {
 }
 
 const federalProfile = (draft: AuthoritiesDraft) =>
-  draft.settings.profileId === "federal-court" ||
-  draft.settings.profileId === "federal-court-of-appeal";
+  !!authoritiesProfile(draft.settings.profileId).options?.filingMedium;
 const federalEnactment = (citation: string) =>
   /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(citation);
 
@@ -562,6 +562,11 @@ export function applyAuthoritiesUserAction(
   if (action.type === "set-authority-span" || action.type === "set-pinpoint-span") {
     return correctOccurrenceSpan(draft, action, sources);
   }
+  if (action.type === "remove-occurrence") {
+    const occurrence = draft.occurrences[action.occurrenceId];
+    if (!occurrence) throw new ApplicationError(400, "Citation review item not found");
+    return removeUnusedDetections(update(draft, action), [occurrence], null);
+  }
   return action.type === "split-occurrence" || action.type === "merge-occurrence"
     ? editOccurrences(draft, action, sources) : update(draft, action);
 }
@@ -691,8 +696,9 @@ export function createAuthoritiesWorkspaceApplication(
     const attached = Object.values(draft.authorities).flatMap((authority) =>
       authority.source.kind === "attached" ? [{ authority, source: authority.source }] : []);
     const needsBook = draft.outputMode !== "table";
-    const needsFilingPdfs = draft.insertIntoDocument && draft.settings.profileId ===
-      "ab-court-of-appeal" && draft.import.kind === "document" && draft.import.fileType === "pdf";
+    const needsFilingPdfs = draft.insertIntoDocument &&
+      !!authoritiesProfile(draft.settings.profileId).requirements?.unlinkedPdfTableSources &&
+      draft.import.kind === "document" && draft.import.fileType === "pdf";
     const bookRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
       needsBook && !excluded && source.kind === "attached" ? [source.bindingRole] : []));
     const filingRoles = new Set(Object.values(draft.authorities).flatMap(({ excluded, source }) =>
@@ -971,7 +977,9 @@ export function createAuthoritiesWorkspaceApplication(
               action: "built" as const, receipt: artifact.receipt } };
           const existing = product.outputs[artifact.role];
           const version = existing
-            ? await documents.addVersion(scope, existing.documentId, file) : null;
+            ? await documents.addVersion(scope, existing.documentId, {
+              ...file, expectedCurrentVersionId: existing.versionId,
+            }) : null;
           if (version) {
             rollback.push({ documentId: existing!.documentId, versionId: version.id });
             if (version.source_sha256 !== artifact.sha256) {
@@ -979,6 +987,10 @@ export function createAuthoritiesWorkspaceApplication(
             }
             refs[artifact.role] = { documentId: existing!.documentId, versionId: version.id };
           } else {
+            if (existing && await documents.metadata(scope, existing.documentId)) {
+              throw new ApplicationError(409,
+                "An Authorities output changed while the new build was being saved");
+            }
             const created = await files.create(scope, "authorities", file,
               { projectId: product.projectId });
             rollback.push({ documentId: created.id });

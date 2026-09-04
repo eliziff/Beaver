@@ -1,22 +1,6 @@
 import type { FileSnapshot, WorkProductInput } from "@/app/lib/workProducts";
 
-export type CanadianJurisdictionId =
-  | "ca"
-  | "ab"
-  | "bc"
-  | "mb"
-  | "nb"
-  | "nl"
-  | "ns"
-  | "nt"
-  | "nu"
-  | "on"
-  | "pe"
-  | "qc"
-  | "sk"
-  | "yt";
-
-export type JurisdictionId = "general" | CanadianJurisdictionId;
+export type JurisdictionId = string;
 export type CourtLanguage = "en" | "fr";
 
 export type RecordFamily =
@@ -157,6 +141,7 @@ export interface EffectivePeriod {
 
 export interface CourtProfile {
   id: string;
+  selectable: boolean;
   jurisdiction: JurisdictionId;
   courtId: string;
   court: string;
