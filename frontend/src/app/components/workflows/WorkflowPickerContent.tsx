@@ -77,14 +77,18 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
                         className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-45">
                         <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                         <WorkflowText label={label} description={description} />
-                        {details ? <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600 max-[25rem]:w-9">
-                            <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
-                        </span> : <span title={destination}
+                        {!details && <span title={destination}
                             className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
                             <DestinationIcon className="size-3.5" aria-hidden="true" />
                             {!destinationInLabel && <span>{destination}</span>}
                         </span>}
                     </button>
+                    {details && <button type="button" aria-label={`${open ? "Hide" : "Show"} info for ${label}`}
+                        aria-expanded={open} aria-controls={panelId}
+                        onClick={() => toggle(workflow.id, panelId, !open)}
+                        className={`m-2 me-0 ${DESTINATION_BUTTON_CLASS}`}>
+                        <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
+                    </button>}
                     {details && directVariant && <button type="button" data-workflow-variant-id={directVariant.id}
                         disabled={disabledItem?.(workflow, directVariant)}
                         aria-label={`${launch}: ${label}`} onClick={() => onSelect(workflow, directVariant)}
@@ -104,15 +108,19 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
         return <div key={workflow.id}>
             <div className={`flex min-w-0 items-start ${APP_SURFACE_HOVER_CLASS}`}>
                 <button type="button" data-workflow-id={workflow.id}
+                    aria-label={`Details for ${label}`}
                     aria-expanded={open} aria-controls={panelId}
                     onClick={() => toggle(workflow.id, panelId, !open)}
                     className="flex min-h-14 min-w-0 flex-1 items-start gap-2.5 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900">
                     <Icon className="mt-0.5 size-4 shrink-0 text-gray-500" aria-hidden="true" />
                     <WorkflowText label={label} description={workflow.metadata.description}
                         destinations={open ? [] : workflowDestinations(workflow, variants)} />
-                    <span className="mt-0.5 inline-flex w-16 shrink-0 items-center justify-center gap-1.5 text-xs font-medium text-gray-600 max-[25rem]:w-9">
-                        <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
-                    </span>
+                </button>
+                <button type="button" aria-label={`${open ? "Hide" : "Show"} info for ${label}`}
+                    aria-expanded={open} aria-controls={panelId}
+                    onClick={() => toggle(workflow.id, panelId, !open)}
+                    className={`m-2 ${DESTINATION_BUTTON_CLASS}`}>
+                    <Info className="size-3.5" aria-hidden="true" /><span className="max-[25rem]:sr-only">Info</span>
                 </button>
                 {action}
             </div>
