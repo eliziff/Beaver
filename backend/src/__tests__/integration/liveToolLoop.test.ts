@@ -265,7 +265,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         footnoteRefs: [], pageNumbers: [1], text: unitText, occurrenceIds: ["occurrence-1"] }];
       draft.authorities["2016scc27"] = { id: "2016scc27", key: "2016scc27", kind: "case",
         citation, name: "R v Jordan", displayName: null, evidenceIds: [], locators: [],
-        sourceIdentity: null, excluded: false, tabLabel: null, source: { kind: "unresolved" } };
+        sourceIdentity: null, excluded: false, source: { kind: "unresolved" } };
       draft.authorityOrder = ["2016scc27"];
       draft.occurrences["occurrence-1"] = { id: "occurrence-1", unitId: "footnote:1",
         start: 0, end: pinpointStart + 6, text: unitText.slice(0, pinpointStart + 6),

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuthoritiesImporter, importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
@@ -6,8 +6,45 @@ import { sha256 } from "./hash";
 import { structureNative } from "./structureNative";
 import { Document, Packer, Paragraph } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import { DatabaseSync } from "node:sqlite";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const scope = { userId: "user-1" };
+let aliasDirectory: string | null = null;
+
+afterEach(async () => {
+  delete process.env.MIKE_CITATOR_DB;
+  if (aliasDirectory) await rm(aliasDirectory, { recursive: true, force: true });
+  aliasDirectory = null;
+});
+
+async function useAliasGraph(rows: Array<[citation: string, decision: string]>) {
+  aliasDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-authorities-alias-"));
+  const databasePath = path.join(aliasDirectory, "citator.sqlite");
+  const database = new DatabaseSync(databasePath);
+  database.exec("CREATE TABLE resolution (cited_key TEXT, path TEXT, file_row_number INTEGER)");
+  const insert = database.prepare("INSERT INTO resolution VALUES (?, ?, 1)");
+  const native = structureNative();
+  rows.forEach(([citation, decision]) => insert.run(native.citationLookupKey(citation), decision));
+  database.close();
+  process.env.MIKE_CITATOR_DB = databasePath;
+}
+
+const scanNative = (texts: string[]) => {
+  const native = structureNative();
+  return {
+    docxAuthorityTextUnits: vi.fn(async () => texts.map((text, index) => ({
+      key: `footnote:${index + 1}`, kind: "footnote" as const, ordinal: index + 1,
+      footnote_id: index + 1, page_numbers: [], text, footnote_refs: [],
+    }))),
+    pdfAuthorityTextUnits: vi.fn(),
+    citationOccurrencesInText: (text: string) => native.citationOccurrencesInText(text),
+    authorityReferencesInText: (text: string) => native.authorityReferencesInText(text),
+    citationLookupKey: (text: string) => native.citationLookupKey(text),
+  };
+};
 
 const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
   evidence_id: evidenceId, provider: "a2aj", jurisdiction: "ca", source_class: "case",
@@ -19,6 +56,61 @@ const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
 });
 
 describe("authorities import application", () => {
+  it("coalesces reciprocal neutral, reporter, and French case citations before supra", async () => {
+    const citations = ["2015 SCC 5", "[2015] 1 SCR 331", "2015 CSC 5"];
+    await useAliasGraph(citations.map((citation) => [citation, "carter"]));
+    const texts = [
+      `Carter v Canada, ${citations[0]}.`,
+      `Carter v Canada, ${citations[1]}.`,
+      `Carter c Canada, ${citations[2]}.`,
+      "Carter v Canada, supra note 1 at para 8.",
+    ];
+
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
+    { read: vi.fn() as never }, scanNative(texts));
+
+    expect(state.authorityOrder).toHaveLength(1);
+    const authorityId = state.authorityOrder[0];
+    expect(state.authorities[authorityId]).toMatchObject({
+      id: structureNative().citationLookupKey(citations[0]), kind: "case",
+      citation: citations[0],
+    });
+    expect(Object.values(state.occurrences).filter(({ kind }) => kind !== "reference")
+      .map(({ citation, authorityId: id, kind }) => ({ citation, id, kind }))).toEqual(
+      citations.map((citation) => ({ citation, id: authorityId, kind: "case" })),
+    );
+    expect(Object.values(state.occurrences).find(({ kind }) => kind === "reference"))
+      .toMatchObject({ citation: "supra note 1", authorityId, reviewed: true,
+        reference: { kind: "supra", targetAuthorityId: authorityId } });
+  });
+
+  it("does not merge asymmetric or ambiguous alias closures", async () => {
+    const neutral = "2020 SCC 1", reporter = "[2020] 1 SCR 1";
+    await useAliasGraph([[neutral, "decision-a"], [reporter, "decision-a"],
+      [reporter, "decision-b"]]);
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
+    { read: vi.fn() as never }, scanNative([neutral, reporter]));
+
+    expect(state.authorityOrder).toEqual([neutral, reporter]
+      .map((citation) => structureNative().citationLookupKey(citation)));
+  });
+
+  it("leaves singleton cases and non-case alias groups alone", async () => {
+    const reporters = ["[2020] 1 SCR 1", "[2020] 2 SCR 2"], singleton = "2024 ABCA 1";
+    await useAliasGraph([[reporters[0], "reporters"], [reporters[1], "reporters"],
+      [singleton, "singleton"], ["[2024] 1 Alta LR 1", "singleton"]]);
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
+    { read: vi.fn() as never }, scanNative([...reporters, singleton]));
+
+    expect(state.authorityOrder).toEqual([...reporters, singleton]
+      .map((citation) => structureNative().citationLookupKey(citation)));
+    expect(state.authorityOrder.map((id) => state.authorities[id].kind))
+      .toEqual(["other", "other", "case"]);
+  });
+
   it("runs standalone DOCX bytes through the installed Rust runtime", async () => {
     const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
       new Paragraph("Example v Example, 2024 ABKB 123 at para 7 [Example]."),

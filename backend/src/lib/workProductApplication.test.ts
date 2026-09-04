@@ -103,7 +103,7 @@ describe("WorkProduct application state contract", () => {
       kind: "case", citation: "2009 SCC 32", authorityId: "grant", reference: null,
       pinpoints: [], evidenceIds: [], sourceTextSha256: "hash", localOrdinal: 0,
       reviewed: false } }, authorities: { grant: { id: "grant", key: "grant", kind: "case",
-      citation: "2009 SCC 32", name: "R v Grant", displayName: null, tabLabel: null,
+      citation: "2009 SCC 32", name: "R v Grant", displayName: null,
       evidenceIds: [], locators: [], sourceIdentity: null, excluded: false,
       source: { kind: "unresolved" } } }, authorityOrder: ["grant"] });
     const current = { ...product(), kind: "authorities" as const, state: draft };

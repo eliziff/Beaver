@@ -831,10 +831,11 @@ describe("local assistant tools", () => {
   it("creates saved research as an ordinary readable Library file", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-create-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const tools = await import("./support/localAssistantTools");
+    const store = await import("./support/localDocumentFixtures");
+    const tools = await import("./support/localAssistantTools"), edits = new Map();
     const [created] = await tools.runLocalAssistantTools("local-user", [{ id: "create-research",
       name: "document_operation", input: { action: "research",
-        research_action: { type: "create", title: "Notice cases" } } }]);
+        research_action: { type: "create", title: "Notice cases" } } }], { edits });
     const output = JSON.parse(created.content);
     const [read] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
       name: "Read", input: { file_path: output.resource } }], {
@@ -843,15 +844,19 @@ describe("local assistant tools", () => {
       resource: output.resource, total: 0, items: [] });
     const [root] = await tools.runLocalAssistantTools("local-user", [{ id: "root-label",
       name: "document_operation", input: { action: "research", document_id: output.resource,
-        research_action: { type: "label", name: "Fairness", scope: "source" } } }]);
+        research_action: { type: "label", name: "Fairness", scope: "source" } } }], { edits });
     const rootOutput = JSON.parse(root.content);
     expect(rootOutput.label_id).toMatch(/^[0-9a-f-]{36}$/u);
     const [child] = await tools.runLocalAssistantTools("local-user", [{ id: "child-label",
       name: "document_operation", input: { action: "research", document_id: rootOutput.resource,
         research_action: { type: "label", name: "Hearing", scope: "source",
-          parentId: rootOutput.label_id } } }]);
+          parentId: rootOutput.label_id } } }], { edits });
     expect(JSON.parse(child.content)).toMatchObject({ label_id: expect.any(String),
       counts: { labels: 2 } });
+    const history = await store.listLocalVersions("local-user", output.document_id);
+    expect(history?.versions).toHaveLength(1);
+    expect(history?.versions[0]).toMatchObject({ provenance: {
+      actor: "assistant", action: "created" } });
   });
 
   it("reuses a named research file and advances same-turn writes", async () => {
@@ -874,6 +879,12 @@ describe("local assistant tools", () => {
     expect(JSON.parse(selected.content)).toMatchObject({ action: "selected", document_id: document.id });
     expect(JSON.parse(first.content)).toMatchObject({ counts: { labels: 1 } });
     expect(JSON.parse(second.content)).toMatchObject({ counts: { labels: 2 } });
+    const history = await store.listLocalVersions("local-user", document.id);
+    expect(history?.versions).toHaveLength(2);
+    expect(history?.versions.find(({ id }) => id === history.current_version_id)).toMatchObject({
+      source: "assistant_edit", parent_version_id: document.current_version_id,
+      provenance: { actor: "assistant", action: "revised",
+        parent_version_id: document.current_version_id } });
   });
 
   it("pages the full saved-research note as ordinary Read rows", async () => {
@@ -1024,9 +1035,13 @@ describe("local assistant tools", () => {
         research_action: { type: "query", text: "match", syntax: "literal",
           target: "passages", limit: 100 } } }]);
     const output = JSON.parse(queried.content);
-    expect(output).toMatchObject({ ok: true, match_count: 30, matches_truncated: true });
+    expect(output).toMatchObject({ ok: true, match_count: 30, matches_truncated: true,
+      counts: { searches: 0 } });
     expect(output.matches).toHaveLength(25);
     expect(queried.evidence).toHaveLength(25);
+    expect(queried.queryReceipts).toEqual([expect.objectContaining({ call_id: "query" })]);
+    expect(queried.mutated).toBeUndefined();
+    expect((await store.listLocalVersions("local-user", research.id))?.versions).toHaveLength(1);
   });
 
   it("bounds adversarial search patterns", async () => {
@@ -1194,7 +1209,7 @@ describe("local assistant tools", () => {
       footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["occurrence-1"] }];
     draft.authorities.jordan = { id: "jordan", key: "jordan", kind: "case",
       citation: "2016 SCC 27", name: "R v Jordan", displayName: null, evidenceIds: [],
-      locators: [], sourceIdentity: null, excluded: false, tabLabel: "3",
+      locators: [], sourceIdentity: null, excluded: false,
       source: { kind: "unresolved" } };
     draft.authorityOrder = ["jordan"];
     for (let index = 0; index < 500; index += 1) {
@@ -1246,9 +1261,9 @@ describe("local assistant tools", () => {
     expect(summary).toMatchObject({ ok: true,
       work_product: { id: current.id, kind: "authorities", revision: 7 },
       draft: { counts: { units: 1, occurrences: 1, authorities: 501 },
-        book_parts: { cover: null, index: null, supplements: [] },
+        book_parts: { cover: null, index: null },
         authorities: expect.arrayContaining([
-          expect.objectContaining({ id: "jordan", citation: "2016 SCC 27", tab_label: "3" }),
+          expect.objectContaining({ id: "jordan", citation: "2016 SCC 27" }),
         ]) },
     });
     expect(summary.draft).not.toHaveProperty("units");
@@ -1275,7 +1290,7 @@ describe("local assistant tools", () => {
       error: "This assistant is bound to a different Authorities draft" });
   });
 
-  it("routes authority and book-part edits through the existing Authorities reducer seam", async () => {
+  it("routes authority and cover edits through the existing Authorities reducer seam", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-tools-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -1283,10 +1298,6 @@ describe("local assistant tools", () => {
       filename: "appendix.pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF") });
     const { createAuthoritiesDraft } = await import("../authoritiesDomain");
     const draft = createAuthoritiesDraft({ kind: "manual" });
-    draft.bindings["book:supplement:s1"] = { kind: "document", documentId: pdf.id,
-      version: "latest" };
-    draft.bookParts.supplements = [{ id: "s1", bindingRole: "book:supplement:s1",
-      filename: "old.pdf", sourceSha256: "a".repeat(64), title: "Old", tab: "A" }];
     const current = { id: "draft-1", kind: "authorities" as const, title: "Authorities",
       projectId: null, revision: 2, state: draft, outputs: {}, createdAt: "now", updatedAt: "now" };
     const act = vi.fn(async (_scope, _id, revision) => ({ ...current, revision: revision + 1 }));
@@ -1295,10 +1306,8 @@ describe("local assistant tools", () => {
     const actions = [
       { type: "add-authority", authority_kind: "case", citation: "2026 SCC 1", name: "R v A" },
       { type: "remove-authority", authority_id: "unused" },
+      { type: "clear-authority-source", authority_id: "unused" },
       { type: "clear-book-part", slot: "cover" },
-      { type: "update-book-supplement", supplement_id: "s1", title: "Appendix", tab: "B" },
-      { type: "reorder-book-supplements", supplement_ids: ["s1"] },
-      { type: "remove-book-supplement", supplement_id: "s1" },
     ];
     const responses = await tools.runLocalAssistantTools("local-user", [
       ...actions.map((authorities_action, index) => ({ id: `action-${index}`,
@@ -1306,30 +1315,21 @@ describe("local assistant tools", () => {
           authorities_action } })),
       { id: "cover", name: "update_work_product", input: { action: "update",
         kind: "authorities", book_slot: "cover", document_id: resource } },
-      { id: "supplement", name: "update_work_product", input: { action: "update",
-        kind: "authorities", book_slot: "supplement", document_id: resource,
-        supplement_title: "Chronology", supplement_tab: "C" } },
     ], { authoritiesId: current.id, authoritiesRevision: current.revision,
       authorities: { act } as never,
       workProducts: { get: vi.fn(async () => current) } as never });
 
-    expect(act.mock.calls.slice(0, 6).map((call) => call[3])).toEqual([
+    expect(act.mock.calls.slice(0, 4).map((call) => call[3])).toEqual([
       { type: "add-authority", kind: "case", citation: "2026 SCC 1", name: "R v A" },
       { type: "remove-authority", authorityId: "unused" },
+      { type: "clear-authority-source", authorityId: "unused" },
       { type: "clear-book-part", slot: "cover" },
-      { type: "update-book-supplement", id: "s1", title: "Appendix", tab: "B" },
-      { type: "reorder-book-supplements", ids: ["s1"] },
-      { type: "remove-book-supplement", id: "s1" },
     ]);
-    expect(act.mock.calls[6][3]).toMatchObject({ type: "set-book-part", slot: "cover",
-      pdf: { bindingRole: "book:cover:cover", filename: "appendix.pdf" },
-      binding: { kind: "document", documentId: pdf.id, version: "latest" } });
-    expect(act.mock.calls[7][3]).toMatchObject({ type: "set-book-supplement",
-      supplement: { title: "Chronology", tab: "C", filename: "appendix.pdf" },
+    expect(act.mock.calls[4][3]).toMatchObject({ type: "set-book-part", slot: "cover",
+      pdf: { bindingRole: "book:cover", filename: "appendix.pdf" },
       binding: { kind: "document", documentId: pdf.id, version: "latest" } });
     expect(JSON.parse(responses.at(-1)!.content)).toMatchObject({ ok: true,
-      change: { type: "attach-book-pdf", book_slot: "supplement",
-        supplement_id: expect.any(String) } });
+      change: { type: "attach-book-pdf", book_slot: "cover" } });
   });
 
   it("reports compact discrepancies and stale inputs, then refreshes one role", async () => {
