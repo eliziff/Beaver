@@ -30,11 +30,11 @@ const listClass: Record<TabVariant, string> = {
 };
 const tabClass: Record<TabVariant, string> = {
     segmented: "h-8 shrink-0 rounded-md px-1 text-sm font-medium sm:px-3",
-    dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:px-3 sm:text-sm",
+    dock: "h-9 max-w-40 shrink-0 rounded-md px-1 text-[13px] font-semibold sm:text-sm",
     underline: "min-h-10 border-b-2 px-2 text-sm font-medium sm:px-3",
     pill: "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium sm:px-4",
     settings: "min-h-10 min-w-0 rounded-md border px-2 text-sm font-medium",
-    sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs",
+    sheets: "h-full shrink-0 border-r border-gray-300 px-4 text-xs font-medium",
 };
 const selectedClass: Record<TabVariant, string> = {
     segmented: "bg-white text-gray-900 shadow-sm",
@@ -42,7 +42,7 @@ const selectedClass: Record<TabVariant, string> = {
     underline: "border-gray-900 text-gray-900",
     pill: "border-gray-900 bg-gray-900 text-white",
     settings: "border-gray-900 bg-gray-900 text-white",
-    sheets: "bg-white font-semibold text-gray-900",
+    sheets: "bg-white text-gray-900",
 };
 const idleClass: Record<TabVariant, string> = {
     segmented: "text-gray-600 hover:bg-white/70 hover:text-gray-900",
@@ -63,7 +63,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
     useEffect(() => {
         const list = listRef.current;
         const tab = refs.current[active];
-        if (!list || !tab) return;
+        if (!list || !tab || list.scrollWidth <= list.clientWidth + 1) return;
         const rail = list.getBoundingClientRect();
         const item = tab.getBoundingClientRect();
         if (item.left < rail.left) list.scrollLeft -= rail.left - item.left;
