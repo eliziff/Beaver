@@ -141,6 +141,40 @@ describe("Authorities UI contracts", () => {
     expect(screen.queryByRole("heading", { name: "Other draft" })).not.toBeInTheDocument();
   });
 
+  it("resumes the last Authorities draft until the user starts a new one", async () => {
+    const saved = documentDraft("last-draft", "Last draft");
+    const { state: _state, ...savedMetadata } = saved;
+    localStorage.setItem("beaver.authorities.last.library", saved.id);
+    api.listWorkProductMetadata.mockResolvedValue([savedMetadata]);
+    api.getWorkProduct.mockResolvedValue(saved);
+    const route = workspaceRoute();
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={route} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Last draft" })).toBeVisible();
+    expect(api.getWorkProduct).toHaveBeenCalledWith("last-draft");
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+
+    expect(screen.getByRole("heading", { name: "Import and review" })).toBeVisible();
+    expect(localStorage.getItem("beaver.authorities.last.library")).toBeNull();
+    expect(route.replaceDraft).toHaveBeenLastCalledWith();
+  });
+
+  it("gives a routed draft precedence over a remembered draft", async () => {
+    const remembered = documentDraft("remembered", "Remembered");
+    const requested = documentDraft("requested", "Requested");
+    const { state: _state, ...rememberedMetadata } = remembered;
+    localStorage.setItem("beaver.authorities.last.library", remembered.id);
+    api.listWorkProductMetadata.mockResolvedValue([rememberedMetadata]);
+    api.getWorkProduct.mockResolvedValue(requested);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      route={workspaceRoute(requested.id)} /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Requested" })).toBeVisible();
+    expect(api.getWorkProduct).toHaveBeenCalledTimes(1);
+    expect(api.getWorkProduct).toHaveBeenCalledWith("requested");
+  });
+
   it("applies the selected source and marking options before importing a document", async () => {
     api.uploadAuthoritiesDocument.mockResolvedValue({ id: "uploaded-document" });
     const created = add(documentDraft(), authority("case", "Example v Example",
@@ -300,6 +334,7 @@ describe("Authorities UI contracts", () => {
 
   it("keeps the drafts surface in a loading state until metadata arrives", async () => {
     const load = deferred<WorkProductMetadata[]>(), saved = draft("saved", "Saved book");
+    saved.updatedAt = new Date(2026, 8, 9, 1, 34, 56).toISOString();
     const { state: _state, ...metadata } = saved;
     api.listWorkProductMetadata.mockReturnValue(load.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
@@ -310,6 +345,7 @@ describe("Authorities UI contracts", () => {
     expect(screen.queryByText("No saved drafts yet.")).not.toBeInTheDocument();
     load.resolve([metadata]);
     expect(await screen.findByText("Saved book")).toBeVisible();
+    expect(screen.getByText("September 9, 2026 1:34 AM")).toBeVisible();
   });
 
   it("labels a draft-opening operation without deriving it from the selected tab", async () => {
