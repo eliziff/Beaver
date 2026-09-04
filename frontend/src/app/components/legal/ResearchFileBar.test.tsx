@@ -44,6 +44,12 @@ describe("ResearchFileBar", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) } }); });
 
+  it("starts workspace creation directly when no workspace exists", () => {
+    render(<ResearchFileBar file={null} active onChange={vi.fn()} />);
+    expect(screen.getByRole("textbox", { name: "Workspace name" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Create workspace" })).toBeVisible();
+  });
+
   it("keeps four slots and expands an adjacent panel from an empty slot", async () => {
     render(<ResearchFileBar file={file} onChange={vi.fn()} />);
     for (const name of ["Labels", "List", "Highlights", "Search Saved sources"])
@@ -161,7 +167,6 @@ describe("ResearchFileBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Label para 5" }));
     expect(screen.getByRole("dialog", { name: "Labels and note" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Holding" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1",
       { type: "annotate", kind: "evidence", id: "e_1", labelIds: ["holding"], note: "Key passage" }));
   });
@@ -186,11 +191,11 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("heading", { name: "Fairness" })).toBeInTheDocument();
   });
 
-  it("creates a normal research file only when the first label is added", async () => {
+  it("creates an ordinary workspace file when the first label is added", async () => {
     api.createResearchFile.mockResolvedValue(file);
     const onChange = vi.fn(); render(<ResearchFileBar file={null} projectId="matter-1" onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "+ Add label" }));
-    await waitFor(() => expect(api.createResearchFile).toHaveBeenCalledWith({ title: "Research", projectId: "matter-1" }));
+    await waitFor(() => expect(api.createResearchFile).toHaveBeenCalledWith({ title: "Untitled workspace", projectId: "matter-1" }));
     expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1",
       expect.objectContaining({ type: "label", name: "New label", parentId: null, scope: "source" }));
   });

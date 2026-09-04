@@ -29,12 +29,12 @@ const DEFAULT_PANELS: Array<Kind | null> = [...KINDS], STORAGE = "beaver.researc
   RECIPE = "beaver.research.recipe.v1";
 const SLOT_CLASS = ["@min-[28rem]:col-start-1 @min-[28rem]:row-start-1", "@min-[28rem]:col-start-2 @min-[28rem]:row-start-1",
   "@min-[28rem]:col-start-1 @min-[28rem]:row-start-2", "@min-[28rem]:col-start-2 @min-[28rem]:row-start-2"];
-const UNSORTED = "__unsorted__", PAGE_SIZE = 50;
+const UNSORTED = "__unsorted__", UNCLASSIFIED = "Unclassified", PAGE_SIZE = 50;
 const LABEL_DRAG = "application/x-beaver-research-label";
 type Scope = ResearchLabel["scope"];
 type Rule = NonNullable<ResearchQueryInput["rules"]>[number];
 const fileTitle = (file: ResearchFile | null) => file?.document.filename
-  .replace(/\.research\.md$/iu, "") ?? "Research";
+  .replace(/\.research\.md$/iu, "") ?? "Workspace";
 const readPanels = () => { try { const value = JSON.parse(localStorage.getItem(STORAGE) ?? "null");
   const set = new Set(value?.filter?.(Boolean)); return Array.isArray(value) && value.length === 4 &&
     value.every((kind) => kind === null || KINDS.includes(kind)) && set.size === value.filter(Boolean).length
@@ -93,8 +93,8 @@ function Panel({ kind, title = TITLES[kind], expanded, onClose, onExpand, onDrag
   </section>;
 }
 
-export function ResearchFileBar({ file, projectId, onChange, rail }: {
-  file: ResearchFile | null; projectId?: string; onChange: (file: ResearchFile) => void; rail?: HTMLElement | null;
+export function ResearchFileBar({ file, projectId, onChange, rail, active = false }: {
+  file: ResearchFile | null; projectId?: string; onChange: (file: ResearchFile) => void; rail?: HTMLElement | null; active?: boolean;
 }) {
   const [panels, setPanels] = useState<Array<Kind | null>>(readPanels), [expanded, setExpanded] = useState<{ from: number; to: number } | null>(null);
   const [open, setOpen] = useState(false), [selectedDocuments, setSelectedDocuments] = useState<Document[]>([]);
@@ -131,7 +131,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   const highlightLabelIds = useMemo(() => expandSelection(highlightSelected, children), [highlightSelected, children]);
   const appliedHighlightIds = highlightFilter ? highlightLabelIds : null;
   const filterName = (selected: Set<string> | null) => { if (selected === null) return "";
-    if (selected.size !== 1) return "filtered"; const id = [...selected][0]; return id === UNSORTED ? "Unsorted" : labels[id]?.name ?? "filtered"; };
+    if (selected.size !== 1) return "filtered"; const id = [...selected][0]; return id === UNSORTED ? "Unsorted" : labels[id]?.name ?? id; };
   const listTitle = [filterName(sourceSelected), highlightFilter ? filterName(highlightSelected) : ""].filter(Boolean).join(" + ");
   const evidenceBySource = useMemo(() => { const map = new Map<string, typeof allEvidence>();
     allEvidence.forEach((item) => { const values = map.get(item.sourceId) ?? []; values.push(item); map.set(item.sourceId, values); });
@@ -156,15 +156,17 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   }, [labels, allSources, allEvidence]);
   useEffect(() => { localStorage.setItem(STORAGE, JSON.stringify(panels)); }, [panels]);
   useEffect(() => { localStorage.setItem(RECIPE, JSON.stringify(recipe)); }, [recipe]);
+  useEffect(() => { if (active && !file) { setDestination(null); setDestinationProjectId(projectId ?? null); setCreateOpen(true); } }, [active, file, projectId]);
   useEffect(() => { if (open) setSelectedDocuments(file ? [file.document] : []); }, [open, file]);
   useEffect(() => setPage(0), [listSearch, kindFilter, yearFilter, collectionFilter, sourceSelected, highlightSelected]);
 
-  async function act(action: ResearchAction) {
+  async function act(action: ResearchAction, optimisticState?: ResearchFile["state"]) {
     if (!file) return null; setBusy(true); setStatus("");
-    try { const next = await actOnResearchFile(file.document.id, file.versionId, action); onChange(next); return next; }
+    try { const next = await actOnResearchFile(file.document.id, file.versionId, action);
+      onChange(optimisticState ? { ...next, state: optimisticState } : next); return next; }
     catch (reason) { if (reason instanceof BeaverApiError && reason.status === 409) try {
       const latest = await getResearchFile(file.document.id), next = await actOnResearchFile(file.document.id, latest.versionId, action);
-      onChange(next); return next;
+      onChange(optimisticState ? { ...next, state: optimisticState } : next); return next;
     } catch (retry) { setStatus(errorMessage(retry, "Could not update research")); return null; }
       setStatus(errorMessage(reason, "Could not update research")); return null; }
     finally { setBusy(false); }
@@ -205,7 +207,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
   }
   async function addLabel(scope: Scope) {
     setBusy(true); setStatus("");
-    try { const destination = file ?? await createResearchFile({ title: "Research", projectId }), id = crypto.randomUUID();
+    try { const destination = file ?? await createResearchFile({ title: "Untitled workspace", projectId }), id = crypto.randomUUID();
       const selected = scope === "source" ? sourceSelected : highlightSelected, selectedId = selected?.size === 1 ? [...selected][0] : "";
       const parentId = labels[selectedId]?.scope === scope && researchLabelPath(labels, selectedId).length < 3 ? selectedId : null;
       const next = await actOnResearchFile(destination.document.id, destination.versionId,
@@ -290,6 +292,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
           className={`group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md pe-1 ${labelDrop === label.id
             ? "bg-red-50 ring-1 ring-inset ring-red-200" : selection?.has(label.id) ? "bg-gray-100" : "hover:bg-gray-50"}`}
           style={{ paddingInlineStart: 8 + depth * 16 }}>
+          <GripVertical aria-hidden="true" className="size-3 shrink-0 cursor-grab text-gray-300 group-hover:text-gray-500" />
           <button type="button" disabled={!hasChildren} aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`}
             onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(label.id)) next.delete(label.id); else next.add(label.id); return next; })}
             className="grid size-6 shrink-0 place-items-center rounded disabled:invisible">
@@ -298,7 +301,9 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
           <label title={`Change ${label.name} colour`} className="relative grid size-6 shrink-0 cursor-pointer place-items-center rounded focus-within:outline focus-within:outline-2 focus-within:outline-offset-1">
             <FolderSvgIcon open={open} className="size-4" fill="currentColor" style={{ color: label.color ?? "#3498db" }} />
             <input type="color" value={label.color ?? "#3498db"} aria-label={`${label.name} color`}
-              onClick={(event) => event.stopPropagation()} onChange={(event) => void act({ type: "label", ...label, color: event.target.value })}
+              onClick={(event) => event.stopPropagation()} onChange={(event) => { const color = event.target.value;
+                if (!file) return; const state = { ...file.state, labels: { ...labels, [label.id]: { ...label, color } } };
+                onChange({ ...file, state }); void act({ type: "label", ...label, color }, state); }}
               className="absolute inset-0 cursor-pointer opacity-0" />
           </label>
           {activeLabel === label.id ? <form onSubmit={(event) => void editLabel(event, label.id)} className="flex min-w-0 flex-1 items-center gap-1">
@@ -330,6 +335,12 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
       Only show items with currently selected highlights
     </label>}
     <div>{labelTree(scope, null)}</div>
+    {scope === "highlight" && allEvidence.some(({ labelIds }) => labelIds.includes(UNCLASSIFIED)) && <button type="button"
+      onClick={() => setSelection(new Set([UNCLASSIFIED]))}
+      className={`mt-1 flex min-h-8 w-full items-center gap-2 rounded px-2 text-left text-xs ${selection?.has(UNCLASSIFIED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
+      <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unclassified
+      <span className="ms-auto tabular-nums text-gray-400">{allEvidence.filter(({ labelIds }) => labelIds.includes(UNCLASSIFIED)).length}</span>
+    </button>}
     {scope === "source" && <button type="button" onClick={() => setSelection(new Set([UNSORTED]))}
       className={`mt-1 flex min-h-8 w-full items-center gap-2 rounded border px-2 text-left text-xs font-semibold text-gray-400 ${selection?.has(UNSORTED) ? "bg-gray-200" : "hover:bg-gray-50"}`}>
       <ResearchLabelCircle labels={labels} labelIds={[]} size="sm" />Unsorted
@@ -348,13 +359,13 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
       <input type="search" value={listSearch} onChange={(event) => setListSearch(event.target.value)} aria-label="Search list"
         placeholder="Search sources" className="col-span-2 h-8 min-w-0 rounded-md border border-gray-300 px-2 text-xs" />
     </div>
-    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-gray-600"><span className="me-0.5">Filter</span>
+    <div className="mt-1.5 grid grid-cols-3 gap-1 text-xs text-gray-600">
       <ActionMenu label="Filter source type" items={filterItems([...new Set(allSources.map(({ reference }) => reference.kind))], kindFilter, setKindFilter)}
-        triggerClassName={`h-8 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${kindFilter.size ? "font-semibold text-gray-900" : ""}`}>Type{kindFilter.size ? ` (${kindFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
+        triggerClassName={`h-8 w-full items-center justify-between gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${kindFilter.size ? "font-semibold text-gray-900" : ""}`}>Type{kindFilter.size ? ` (${kindFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
       <ActionMenu label="Filter jurisdiction" items={filterItems([...new Set(allSources.map(({ reference }) => reference.collection).filter((value): value is string => typeof value === "string"))], collectionFilter, setCollectionFilter)}
-        triggerClassName={`h-8 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${collectionFilter.size ? "font-semibold text-gray-900" : ""}`}>Jurisdiction{collectionFilter.size ? ` (${collectionFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
+        triggerClassName={`h-8 w-full items-center justify-between gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${collectionFilter.size ? "font-semibold text-gray-900" : ""}`}>Jurisdiction{collectionFilter.size ? ` (${collectionFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
       <ActionMenu label="Filter year" items={filterItems(years, yearFilter, setYearFilter)}
-        triggerClassName={`h-8 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${yearFilter.size ? "font-semibold text-gray-900" : ""}`}>Year{yearFilter.size ? ` (${yearFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
+        triggerClassName={`h-8 w-full items-center justify-between gap-1 rounded-md border border-gray-300 bg-white px-2 text-xs ${yearFilter.size ? "font-semibold text-gray-900" : ""}`}>Year{yearFilter.size ? ` (${yearFilter.size})` : ""}<ChevronDown className="size-3" /></ActionMenu>
     </div>
     <div className="mt-1 min-h-0 rounded-md border border-gray-200 p-1">
     <div className="mb-1 flex items-center text-xs"><span role="status" className="tabular-nums text-gray-500">{list.length} sources</span></div>
@@ -368,9 +379,9 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
           badge={source.badge} badgeColor={source.badgeColor} note={source.note} title={sourceName(source)} size="sm" onChange={onChange} />
         <span className="min-w-0 flex-1 truncate font-medium">{sourceName(source)}</span>
         {source.note && <StickyNote aria-label="Has note" className="size-3 shrink-0 text-gray-400" />}
-        {evidence.length > 0 && <span className="shrink-0 text-xs tabular-nums text-gray-400">{evidence.length}</span>}
-        <a href={sourceHref(source)} onClick={(event) => event.stopPropagation()} className="shrink-0 rounded px-1.5 py-0.5 text-xs text-gray-500 hover:bg-gray-200 hover:text-gray-900">Open</a>
       </summary>{openedSources.has(source.id) && <div className="space-y-1 px-6 pb-2 text-xs leading-4">
+        <div className="flex items-center justify-between text-gray-500"><span>{evidence.length} passages</span>
+          <a href={sourceHref(source)} className="rounded px-1.5 py-0.5 hover:bg-gray-200 hover:text-gray-900">Open source</a></div>
         {!!source.labelIds.length && <p className="text-gray-500">{source.labelIds.map((id) => researchLabelPath(labels, id).map(({ name }) => name).join(" / ")).join(", ")}</p>}
         {source.note && <p className="whitespace-pre-wrap text-gray-600">{source.note}</p>}
         {evidence.map((item) => <div key={item.receipt.evidence_id} className="border-s-2 border-gray-200 ps-2">
@@ -440,7 +451,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
             conflict: ["prompt", "first", "longer", "shorter", "append"].includes(String(item.input.conflict))
               ? item.input.conflict as typeof recipe.conflict : "first" })} className="mt-1 rounded border px-2 py-1 font-medium text-gray-700 hover:bg-gray-50">Use these rules</button>}
           </div></details></li>; })}</ol></div></details>}
-  </> : <p className="p-2 text-xs text-gray-500">Open or create a research file to search saved sources.</p>;
+  </> : <p className="p-2 text-xs text-gray-500">Open or create a workspace to search saved sources.</p>;
   const content: Record<Kind, ReactNode> = { labels: labelsPanel, list: listPanel, highlights: highlightsPanel,
     search: searchPanel };
   const adjacent = (index: number) => [index % 2 ? index - 1 : index + 1, index < 2 ? index + 2 : index - 2]
@@ -457,15 +468,15 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         aria-label="Delete selected highlight category" className="grid size-7 place-items-center rounded text-gray-500 hover:bg-gray-200 disabled:opacity-30"><Trash2 className="size-3" /></button>,
   };
 
-  const selector = <div className="flex min-w-0 items-center gap-1"><button type="button" onPointerDown={(event) => event.stopPropagation()}
-    onClick={() => setOpen(true)} title="Open or create a research file"
-    className="group inline-flex h-8 min-w-0 max-w-56 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-left text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+  const selector = <ActionMenu label="Workspace options" items={[
+    ...(file ? [{ label: "Rename", onSelect: () => setRenameOpen(true) }] : []),
+    { label: "Open another", onSelect: () => setOpen(true) },
+    { label: "New workspace", onSelect: () => { setDestination(null); setDestinationProjectId(projectId ?? null); setCreateOpen(true); } },
+  ]} triggerClassName="group inline-flex h-8 min-w-0 max-w-56 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2 text-left text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
     <BookOpenText className="size-3.5 shrink-0 text-brand" aria-hidden="true" />
-    <span className="min-w-0 flex-1 truncate">{file ? fileTitle(file) : "Choose file"}</span>
+    <span className="min-w-0 flex-1 truncate">{file ? fileTitle(file) : "Open existing"}</span>
     <ChevronDown className="size-3.5 shrink-0 text-gray-400" aria-hidden="true" />
-  </button>{file && <button type="button" aria-label="Rename workspace" title="Rename workspace" onPointerDown={(event) => event.stopPropagation()}
-    onClick={() => setRenameOpen(true)} className="grid size-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2">
-    <Pencil className="size-3.5" aria-hidden="true" /></button>}</div>;
+  </ActionMenu>;
   return <div className="@container relative flex h-full min-h-0 flex-col overflow-auto @min-[28rem]:overflow-hidden">
     {rail === undefined ? <div className="flex h-10 shrink-0 items-center pb-2">{selector}</div>
       : rail ? createPortal(selector, rail) : null}
@@ -533,7 +544,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         </label>}
       </form>}
     </Modal>
-    <Modal open={open} onClose={() => setOpen(false)} size="lg" breadcrumbs={["Library", "Research workspaces"]}
+    <Modal open={open} onClose={() => setOpen(false)} size="lg" breadcrumbs={["Library", "Workspaces"]}
       headerAction={<div className="flex items-center gap-1.5">
         <button type="button" onClick={() => { setDestination(null); setDestinationProjectId(projectId ?? null); setCreateOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white hover:bg-gray-700"><Plus className="size-3.5" />New workspace</button>
@@ -546,17 +557,16 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(() => getResearchFile(document.id)); },
         disabled: busy || !selectedDocuments.some(isResearchDocument) }}>
       <FileDirectory key={directoryKey} selectedDocuments={selectedDocuments} onChange={(items) => setSelectedDocuments(items.slice(-1))}
-        showTabs={!projectId} projectId={projectId} initialTab={projectId ? "projects" : "files"} documentFilter={isResearchDocument} />
+        showTabs={!projectId} projectId={projectId} initialTab={projectId ? "projects" : "files"}
+        tabs={[["files", "Library"], ["projects", "Projects"]]} noun="workspaces" multiple={false} documentFilter={isResearchDocument} />
     </Modal>
-    <Modal open={createOpen} onClose={() => setCreateOpen(false)} size="sm" breadcrumbs={["Research workspaces", "New workspace"]}
+    <Modal open={createOpen} onClose={() => setCreateOpen(false)} size="sm" breadcrumbs={["Workspaces", "New workspace"]}
       className="!h-[min(34rem,calc(100dvh-2rem))]" cancelAction={{ label: "Cancel", onClick: () => setCreateOpen(false) }}
-      primaryAction={{ label: busy ? "Creating..." : "Create workspace", type: "submit", form: "research-create", disabled: busy }}
-      footerStatus={<span className="text-xs text-gray-500">Location: {destinationProjectId ? "Project" : "Library"}{destination ? ` / ${destination.name}` : ""}</span>}>
+      primaryAction={{ label: busy ? "Creating..." : "Create workspace", type: "submit", form: "research-create", disabled: busy }}>
       <form id="research-create" onSubmit={create} className="flex h-full min-h-0 flex-col gap-3 pb-4">
         <label className="grid gap-1 text-xs font-medium text-gray-700">Workspace name
           <input required autoFocus name="title" placeholder="e.g. Duty of care" className="h-9 rounded-md border border-gray-300 px-2 text-sm font-normal text-gray-900" />
         </label>
-        <p className="text-xs font-medium text-gray-700">Save in</p>
         {!projectId && <div className="flex gap-1">
           <button type="button" onClick={() => { setDestinationProjectId(null); setDestination(null); }}
             className={`h-8 flex-1 rounded-md text-xs font-medium ${destinationProjectId ? "bg-gray-100 text-gray-600" : "bg-gray-900 text-white"}`}>Library</button>
@@ -565,7 +575,7 @@ export function ResearchFileBar({ file, projectId, onChange, rail }: {
         </div>}
         {destinationProjectId === "" ? <ProjectChoiceList value={null} onChange={(id) => { setDestinationProjectId(id); setDestination(null); }} />
           : <FolderBrowser key={destinationProjectId ?? "library"} list={destinationDirectory.list}
-            rootLabel={destinationProjectId ? "Project" : "Library"} onSelect={setDestination}
+            rootLabel={destinationProjectId ? "Project" : "Library"} hideRoot onSelect={setDestination}
             onBack={!projectId && destinationProjectId ? () => { setDestinationProjectId(""); setDestination(null); } : undefined} />}
       </form>
     </Modal>

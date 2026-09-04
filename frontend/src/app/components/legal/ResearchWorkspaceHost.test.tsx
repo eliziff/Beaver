@@ -7,22 +7,23 @@ vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: () => <div>Workspace pane
   <button onKeyDown={(event) => event.preventDefault()}>Nested menu</button></div> }));
 vi.mock("@/app/lib/beaverApi", () => ({ getResearchFile: vi.fn() }));
 beforeEach(() => localStorage.clear());
+const file = { document: { id: "research-1" } } as never;
 
 it("renders the embedded workspace above the dock and closes it", () => {
   const close = vi.fn();
   render(<div data-testid="clipping-parent" style={{ overflow: "hidden" }}>
-    <ResearchWorkspaceHost embedded open onOpenChange={close} file={null} onChange={vi.fn()} />
+    <ResearchWorkspaceHost embedded open onOpenChange={close} file={file} onChange={vi.fn()} />
   </div>);
-  const workspace = screen.getByRole("dialog", { name: "Research workspace" });
+  const workspace = screen.getByRole("dialog", { name: "Workspace" });
   expect(workspace.parentElement).toBe(document.body);
-  fireEvent.click(screen.getByRole("button", { name: "Close research workspace" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close workspace" }));
   expect(close).toHaveBeenCalledWith(false);
 });
 
 it("leaves Escape to a nested chooser", () => {
   const close = vi.fn();
-  render(<ResearchWorkspaceHost embedded open onOpenChange={close} file={null} onChange={vi.fn()} />);
-  const workspace = screen.getByRole("dialog", { name: "Research workspace" });
+  render(<ResearchWorkspaceHost embedded open onOpenChange={close} file={file} onChange={vi.fn()} />);
+  const workspace = screen.getByRole("dialog", { name: "Workspace" });
   const chooser = document.createElement("dialog"); chooser.open = true;
   const button = document.createElement("button"); chooser.append(button); workspace.append(chooser);
   fireEvent.keyDown(button, { key: "Escape" }); expect(close).not.toHaveBeenCalled();
@@ -39,7 +40,6 @@ it("uses the shared resizable dock outside embedded Sources", () => {
 });
 
 it("restores the selected personal research document by id", async () => {
-  const file = { document: { id: "research-1" } };
   localStorage.setItem("beaver.research.current:personal", "research-1");
   vi.mocked(api.getResearchFile).mockResolvedValue(file as never);
   const onChange = vi.fn();
