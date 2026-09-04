@@ -110,13 +110,13 @@ export function TabularReviewsTable({
                     <p className="font-serif text-2xl font-medium text-gray-900">
                         No reviews yet
                     </p>
-                    <p className="mt-1 max-w-xs text-xs text-gray-400">
+                    <p className="mt-1 max-w-xs text-xs text-gray-600">
                         Extract data from documents into tables using AI.
                     </p>
                 </TableEmptyState>
             ) : visibleReviews.length === 0 ? (
                 <TableEmptyState>
-                    <p className="text-sm text-gray-400">No reviews found</p>
+                    <p className="text-sm text-gray-600">No reviews found</p>
                 </TableEmptyState>
             ) : (
                 <TableBody>

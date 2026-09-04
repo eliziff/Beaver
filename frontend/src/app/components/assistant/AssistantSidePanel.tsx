@@ -126,7 +126,7 @@ export function AssistantSidePanel({
             )}
         >
             <Tabs value={active.id} onValueChange={onActivateTab} options={options}
-                ariaLabel="Open sources" variant="quiet" className="h-full"
+                ariaLabel="Open sources" variant="dock" className="h-full"
                 actions={<button type="button"
                     onClick={onCloseAll}
                     className="grid size-8 shrink-0 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-200 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900"

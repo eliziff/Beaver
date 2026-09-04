@@ -153,7 +153,7 @@ export function Modal({
                             className="text-gray-600 hover:text-gray-900"
                             aria-label="Close"
                         >
-                            <X className="h-3.5 w-3.5" />
+                            <X aria-hidden="true" className="h-3.5 w-3.5" />
                         </Button>
                     </div>
                 )}
